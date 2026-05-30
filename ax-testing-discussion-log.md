@@ -158,7 +158,7 @@ No product asks: *"Using your docs as they are right now, can an AI agent comple
 
 ## 9. Open questions / decisions needed
 
-- [ ] **Final category term + product name.** Lock "behavioral AX testing" as the category? Pick a brand?
+- [x] ~~**Final category term + product name.**~~ DONE (2026-05-29): Working name is **AX eval**; category is "behavioral AX testing."
 - [x] ~~**Threat assessment on Tech Stackups.**~~ DONE (2026-05-29): AI-content/SEO site, promised benchmark never shipped, not a product competitor. See §5.
 - [~] **Harness strategy.** Approach decided (orchestrate real CLIs headlessly via per-harness adapters; no cloning — see §11 + `product-spec.md`). Still open: exact launch set + how to formalize the "harness feature-space" axes.
 - [ ] **Wedge category.** Start with email (overlaps Tech Stackups) or pick a less-contested first vertical?

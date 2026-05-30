@@ -1,6 +1,6 @@
-# Product Spec — Behavioral AX Testing Platform
+# Product Spec — AX eval Platform
 
-**Working name:** TBD (see discussion log §9). Referred to here as **"the platform."**
+**Working name:** AX eval (see discussion log §9). Referred to here as **"the platform."**
 **Date:** 2026-05-29 · **Status:** v0 draft for team review
 **Companion doc:** `ax-testing-discussion-log.md` (positioning, market map, competitive landscape — read that first for the *why*; this doc is the *what* and *how*).
 

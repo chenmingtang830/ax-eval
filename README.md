@@ -1,6 +1,6 @@
-# Behavioral AX Testing — working repo
+# AX eval — working repo
 
-**Working name: TBD.** A product exploration. This repo holds our thinking; nothing is built yet.
+**Working name: AX eval.** A product exploration. This repo holds our thinking; nothing is built yet.
 
 ## The one-liner
 
