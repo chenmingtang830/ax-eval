@@ -1,6 +1,6 @@
 # AX eval — working repo
 
-**Working name: AX eval.** A product exploration. This repo holds our thinking; nothing is built yet.
+**Working name: AX eval.** A product exploration. This repo holds our thinking plus the v0 skeleton (TypeScript) — see the quickstart below.
 
 ## The one-liner
 
@@ -14,19 +14,22 @@ As agents become the primary operators of software, a SaaS has to win on three l
 
 ## Quickstart (no keys)
 
-The v0 skeleton runs end-to-end with **no API keys** using the bundled keyless
-harnesses (`mock`, `mock-weak`, and a `hermes` stub) and mock oracles:
+The v0 skeleton (TypeScript / Node 22+, per `plan.md` §8) runs end-to-end with
+**no API keys** using the bundled keyless harnesses (`mock`, `mock-weak`, and a
+`hermes` stub) and mock oracles:
 
 ```bash
-pip install -e .            # or: pip install pyyaml
-ax-eval run                 # 8 Asana tasks × 3 harnesses → task×harness matrix
-ax-eval list-harnesses      # see registered harnesses
-ax-eval report results/last-run.json
+npm install
+npm run ax-eval -- run                 # 8 Asana tasks × 3 harnesses → matrix
+npm run ax-eval -- list-harnesses      # see registered harnesses
+npm run ax-eval -- report results/last-run.json
+npm test                               # vitest (18 tests, no network)
 ```
 
 This is milestone **M0** ("skeleton runs end-to-end with a fake harness + fake
 oracle"). Real keys (Asana PAT, Anthropic, OpenAI) are only needed for live runs
-(M1+); see [`plan.md`](./plan.md). To run the tests: `pytest`.
+(M1+); see [`plan.md`](./plan.md). Layout: `src/` (runner + CLI + oracles),
+`src/adapters/` (harnesses), `targets/asana/` (the pack), `tests/`.
 
 ## What's in here
 

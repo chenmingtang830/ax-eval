@@ -1,9 +1,9 @@
-# Asana target pack (v0) — the 8 demo tasks from plan.md, ranked by oracle
-# coverage. In the keyless path these run against the Mock/Hermes-stub harnesses
+# Asana target pack (v0) — the 8 demo tasks from plan.md §6, ranked by oracle
+# coverage. In the keyless path these run against the mock/hermes-stub harnesses
 # and mock oracle state. At M1 the same oracles run against live API readback.
 name: asana
 version: "0"
-auth_method: pat            # ASANA_PAT (a throwaway workspace) — only needed at M1
+auth_method: pat            # ASANA_PAT (a throwaway sandbox) — only needed at M1
 base_url: https://app.asana.com/api/1.0
 docs_urls:
   - https://developers.asana.com/docs
