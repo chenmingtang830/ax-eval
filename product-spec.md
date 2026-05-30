@@ -79,16 +79,17 @@ We **do not reimplement** harnesses. A clone drifts from the real product and de
 ### 4.2 The adapter pattern
 For each harness we build a thin **adapter**: launch headless → inject BYOK → parse the native transcript/result into a **common normalized schema**. The set of adapters + the normalization layer + version pinning **is** the harness standard set. This is the real engineering moat — annoying to build and to keep current as both CLIs ship weekly.
 
-```python
-class HarnessAdapter(Protocol):
-    name: str          # "claude-code"
-    version: str       # pinned, e.g. "claude-code@1.0.x"
-    feature_profile: FeatureProfile   # see 4.4
+```typescript
+interface HarnessAdapter {
+  name: string;          // "claude-code"
+  version: string;       // pinned, e.g. "claude-code@1.0.x"
+  featureProfile: FeatureProfile;   // see 4.4
 
-    def run(self, task: Task, workdir: Path, env: dict) -> RunResult:
-        """Shell out headless (e.g. `claude -p ... --output-format json`
-        or `codex exec ... --output-schema ...`), capture transcript +
-        tool calls, normalize into RunResult."""
+  // Shell out headless (e.g. `claude -p ... --output-format json` or
+  // `codex exec ... --output-schema ...`), capture transcript + tool calls,
+  // normalize into a RunResult.
+  run(task: Task, workdir: string, env: Record<string, string>): Promise<RunResult>;
+}
 ```
 
 ### 4.3 The harness mix
@@ -139,7 +140,7 @@ setup:
   allowed_surfaces: [docs, api]
 success_criteria:
   type: programmatic            # preferred; falls back to llm_judge
-  assert: checks/resend_email_received.py
+  assert: checks/resend_email_received.ts
 limits:
   max_turns: 25
   attempts: 3                   # for pass@k / variance

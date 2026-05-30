@@ -17,12 +17,14 @@ As agents become the primary operators of software, a SaaS has to win on three l
 - **[`ax-testing-discussion-log.md`](./ax-testing-discussion-log.md)** — start here. The *why*: positioning, the naming decision (why not "AEO"), the market map, competitive landscape, and the running list of open questions. Read this first.
 - **[`product-spec.md`](./product-spec.md)** — the *what/how* of the whole platform: architecture, open/closed tiering, harness + adapter design, BYOK, scoring, telemetry, and v0→v2 phasing.
 - **[`skill-spec.md`](./skill-spec.md)** — the buildable shape of the **open-source skill** (the free, local, single-harness runner that is the funnel): the four schemas (task / target pack / adapter / RunResult), the CLI, the safety boundary, and the open/closed line.
+- **[`plan.md`](./plan.md)** — the active **v0 build plan**: the "damning demo" goal, prerequisites/keys, workstreams (oracle-first), the Asana task set, milestones, and the decisions to lock before coding.
 
 ## Where we are
 
 - ✅ Positioning + competitive landscape mapped (log §1–8)
 - ✅ Initial architecture decided — orchestrate real harnesses (Claude Code, Codex) via adapters, BYOK, cross-harness matrix as the paid tier (log §11, spec)
 - ✅ First target chosen — **Asana**, picked for high programmatic-oracle coverage (log §12.2); scope settled as static + behavioral + editorial, ranked (log §12.4); open-skill shape specced (`skill-spec.md`)
+- ✅ North-star UX + stack decided — **drop-a-link** auto-eval with a mandatory human **review gate** on auto-drafted oracles, tiered oracle generation (log §13); language locked to **TypeScript**; v0 build plan in [`plan.md`](./plan.md)
 - ⬜ Not yet decided: open/closed line, full oracle coverage per category, pricing, who blesses the harness standard, community-pack review/signing
 - ⬜ Not yet built: the v0 "damning demo" (Asana × 3 harnesses × a handful of tasks with programmatic oracles)
 

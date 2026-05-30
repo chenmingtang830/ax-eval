@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-29
 **Status:** Draft for team review
-**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`. · rev 4 (2026-05-29) — added §12 (oracle credibility, Asana as first target, the sandbox/provisioning question, static+behavioral+editorial layering, open-source skill direction); open-skill build detail split out to `skill-spec.md`.
+**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`. · rev 4 (2026-05-29) — added §12 (oracle credibility, Asana as first target, the sandbox/provisioning question, static+behavioral+editorial layering, open-source skill direction); open-skill build detail split out to `skill-spec.md`. · rev 5 (2026-05-30) — added §13 (the drop-a-link auto-eval UX + the human-in-the-loop oracle review gate + tiered oracle generation); language locked to TypeScript.
 **Topic:** What we're building, what to call it, who else is in the space, and where the real gap is
 
 > This is a working log, not a spec. It captures the reasoning behind our current
@@ -251,6 +251,41 @@ Deliberately held back to protect the paid tier (per §3): hosted at-scale cross
 
 ---
 
+## 13. The drop-a-link auto-eval UX + the human-in-the-loop oracle review
+
+Working session (2026-05-30). Extends §12 with the target developer experience. v0 is still hand-curated (Asana); this is the v1+ shape the product aims at.
+
+### 13.1 The target UX
+1. Install the skill (`npx` / clone).
+2. Provide two kinds of credentials: **harness/model keys** (the dev's own inference spend) + **their product's sandbox auth** (API key / OAuth / test account — whatever the agent needs to *actually operate* the product).
+3. **Drop their documentation site URL.**
+4. The skill ingests the docs (+ discovers OpenAPI / `llms.txt` / MCP), **synthesizes an eval set and drafts the oracles** + setup/reset.
+5. **Human-in-the-loop gate (required before anything executes):** the dev reviews and edits the generated tasks, oracles, and setup/reset.
+6. The skill runs the harness matrix → a diagnostic report.
+
+### 13.2 The review gate is the crux — it does three jobs at once
+The auto-generation is only safe and credible *because* of step 5. The gate simultaneously delivers:
+- **Credibility** — auto-generated oracles are the riskiest thing we could ship; a confidently-wrong oracle yields a believable but false score (§12.1). Human approval converts "auto (risky)" → "auto-drafted, human-approved (trustworthy)."
+- **Safety** — the agent performs real **write** operations against the dev's sandbox; the review is where they see and approve *what it will do* and confirm it points at a sandbox, not prod. (The generated `check`/`setup`/`reset` is executable code — see skill-spec §10.)
+- **Flywheel** — every human edit is ground-truth signal that improves the generator and seeds curated (T3) oracles.
+
+Review covers the **whole set** (tasks + oracles + setup/reset), not just oracles, and is **presented by confidence tier** so the dev knows where to look.
+
+The review/edit step is itself **AI-assisted, not a static "approve the diff"**: the dev can edit by hand **or prompt the AI to revise** (the skill already runs inside an agent, so editing files is native). The **invariant** that protects credibility: however the edit is made, **an explicit human approval is required before execution** — otherwise "human-in-the-loop" decays into "AI editing AI." The approval action — not who typed the change — is what makes a set ground truth.
+
+### 13.3 Tiered oracle generation (what can be auto-drafted, and how trustworthy)
+We do **not** pretend every oracle can be auto-generated reliably. Draft by verifiability tier, each labeled:
+- **T1 — OpenAPI CRUD round-trip:** derive verification from the spec (task says POST-create X → confirm via GET X, asserting the fields the task named). **Auto, high-confidence, genuinely programmatic.** This is the sweet spot that lets "drop a link" produce *real* scores — and it covers a large class of SaaS (symmetric CRUD APIs with an OpenAPI spec).
+- **T2 — weak signal:** "the call returned 2xx / didn't error," or LLM-judge on the transcript. **Auto, low-confidence, always labeled** so a weak check never masquerades as a strong one.
+- **T3 — curated:** human-written (the v0 Asana set; the paid/services layer). Highest confidence.
+
+### 13.4 Where it sits on open/closed, and the v0 dependency
+- The **generate → review → run-locally** loop is the **free skill** (the magic that drives the funnel). The hosted cross-harness matrix, history, and deep clustered diagnosis/fix-drafting stay **paid**. Report depth follows skill-spec §7: free names the failure stage (teaser); paid clusters root cause and drafts the doc/schema fix.
+- A docs link **alone is not enough** — write operations need the sandbox auth above. Link-only gets you the static audit + task synthesis + read-only tasks; the full behavioral run needs a key.
+- **Dependency on v0:** the *self-serve* auto-generation is v1/v2, but the **AI + human-in-the-loop loop is already how v0 is authored** — the Asana set is **AI-drafted + human-curated** (us prompting + reviewing), not typed from scratch. It's "hand-curated" only in the sense that a human signs off on every oracle. That human-approved set is the ground truth the later self-serve generator is validated against ("does my auto-drafted oracle judge the same as the human-approved one?").
+
+---
+
 ## Appendix A — Glossary
 
 - **AEO** — Agentic / Answer Engine Optimization. Optimization for being *found/selected/structured*. Discovery-layer. Not us.
@@ -266,6 +301,8 @@ Deliberately held back to protect the paid tier (per §3): hosted at-scale cross
 - **Telemetry** — run data reported back to us (scores, pass/fail per task, harness, target) that powers history and industry-percentile benchmarks. Metrics, never secrets. Opt-in on free; by-design-with-disclosure on hosted.
 - **Oracle** — the judge that decides whether a task succeeded. **Programmatic oracle**: assert against the real service's state via code (deterministic true/false). **LLM judge**: ask a model to grade the transcript (fallback; subjective, gameable). Oracle coverage gates category credibility (§12.1).
 - **Target pack** — the per-target bundle that makes a SaaS testable: declared surfaces (docs/API/MCP/SDK), BYOK config, setup/reset hooks, and the task set with their programmatic oracles. Crowd-sourceable; the open format is how testing scales across SaaS without us provisioning each one (§12.3, `skill-spec.md`).
+- **Oracle tiers (T1/T2/T3)** — by verifiability: **T1** OpenAPI CRUD round-trip (auto, high-confidence, programmatic), **T2** weak signal / LLM-judge (auto, low-confidence, labeled), **T3** human-curated (highest). Drives what the auto-generator drafts and how the review gate prioritizes (§13.3).
+- **Review gate** — the mandatory human review/edit of auto-generated tasks + oracles + setup/reset *before* execution. Editing is AI-assisted (by hand **or** by prompting the AI), but an explicit human approval is the non-negotiable invariant. Simultaneously the credibility, safety, and flywheel mechanism of the drop-a-link UX (§13.2).
 
 ## Appendix B — Sources
 

@@ -1,0 +1,19 @@
+# Secrets — never commit real keys
+.env
+.env.*
+!.env.example
+
+# Node / TypeScript
+node_modules/
+dist/
+build/
+*.tsbuildinfo
+.npm/
+
+# Run artifacts
+reports/
+transcripts/
+*.log
+
+# OS / editor
+.DS_Store

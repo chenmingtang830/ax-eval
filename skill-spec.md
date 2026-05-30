@@ -48,7 +48,7 @@ setup:
   env: [ASANA_PAT]                     # BYOK — the agent's key
 success_criteria:
   type: programmatic                   # preferred; `llm_judge` is fallback only
-  check: checks/task_assigned.py       # returns bool against the REAL service
+  check: checks/task_assigned.ts       # returns bool against the REAL service
 limits:
   max_turns: 25
   attempts: 3                          # for pass@k / variance
@@ -71,18 +71,18 @@ surfaces:
   docs:    https://developers.asana.com/docs
   openapi: https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml
   mcp:     <asana official mcp endpoint>   # VERIFY current availability
-  sdk:     python-asana
+  sdk:     node-asana
 auth:
   agent_env:  [ASANA_PAT]          # key handed to the agent under test (BYOK)
-  verify_env: [ASANA_VERIFY_PAT]   # SEPARATE key the oracle uses to check state
-setup:  setup.py                   # ensure/create the sandbox project, return ids
-reset:  reset.py                   # delete entities created during an attempt
+  verify_env: [ASANA_VERIFY_PAT]   # oracle's verification key; OPTIONAL — falls back to agent_env
+setup:  setup.ts                   # ensure/create the sandbox project, return ids
+reset:  reset.ts                   # delete entities created during an attempt
 tasks:  tasks/*.yaml
 ```
 
 Design rules:
 
-- **Two keys, not one.** `agent_env` is what the agent pays for and drives; `verify_env` is the oracle's read path. Keeping them separate stops the agent from corrupting verification state and keeps the trust boundary clean.
+- **`verify_env` is a separate-key option, not a requirement.** Conceptually the oracle should verify with its own (ideally read-only) key so the agent can't conflate "acting" and "checking" — this matters for targets with scopable keys (Stripe restricted keys, GitHub fine-grained PATs). But many services (incl. **Asana**, whose PATs inherit the full user's permissions and can't be scoped read-only) gain no real isolation from a second same-account key. So `verify_env` is **optional and falls back to `agent_env`**; require a genuinely separate key only where the target actually supports a narrower one.
 - **`setup`/`reset` are mandatory for stateful targets.** Without reset, `attempts: 3` and pass@k contaminate each other (attempt 2 "passes" because attempt 1 already created the entity).
 - **The pack ships no secrets.** Keys come from the environment at run time, never the repo.
 - **Surfaces are gated, not just listed.** The runner restricts the agent to `allowed_surfaces` for a given task so cross-surface comparisons are meaningful.
@@ -95,19 +95,20 @@ Asana is the **first reference target pack** — its job is to demonstrate the f
 
 We **do not clone harnesses** (discussion log §11, spec §4). An adapter is a thin wrapper: launch the real CLI headless → inject BYOK → parse the native transcript into the normalized `RunResult`.
 
-```python
-class HarnessAdapter(Protocol):
-    name: str            # "claude-code"
-    version: str         # pinned, e.g. "claude-code@1.0.x"
-    feature_profile: FeatureProfile   # retrieval / tools / context / model / autonomy
+```typescript
+interface HarnessAdapter {
+  name: string;            // "claude-code"
+  version: string;         // pinned, e.g. "claude-code@1.0.x"
+  featureProfile: FeatureProfile;   // retrieval / tools / context / model / autonomy
 
-    def detect(self) -> bool:
-        """Is this harness installed + authed on the local machine?"""
+  // Is this harness installed + authed on the local machine?
+  detect(): Promise<boolean>;
 
-    def run(self, task: Task, workdir: Path, env: dict) -> RunResult:
-        """Shell out headless (e.g. `claude -p ... --output-format json`
-        or `codex exec ... --output-schema ...`), capture transcript + tool
-        calls, normalize into RunResult."""
+  // Shell out headless (e.g. `claude -p ... --output-format json` or
+  // `codex exec ... --output-schema ...`), capture transcript + tool calls,
+  // normalize into a RunResult.
+  run(task: Task, workdir: string, env: Record<string, string>): Promise<RunResult>;
+}
 ```
 
 Built-in adapters in the open skill:
@@ -199,10 +200,34 @@ Target packs contain **executable** `check` / `setup` / `reset` code, and the op
 
 ---
 
-## 11. Open questions (skill-specific)
+## 11. Auto-generation & the drop-a-link UX (v1+)
+
+The north-star free-tier UX (discussion log §13): the developer supplies keys + a docs URL and gets a report, with a **mandatory human review gate** in the middle. v0 is hand-curated (Asana); this is the v1+ shape.
+
+**Flow:**
+1. `axeval init --target <docs-url>` — ingest the docs site, discover OpenAPI / `llms.txt` / MCP.
+2. `axeval generate` — synthesize an eval set: tasks + drafted oracles + setup/reset, each tagged with an **oracle tier + confidence**.
+3. `axeval review` — **required before any run.** Opens the generated `tasks/` + `checks/` for the developer to approve/edit — **by hand or by prompting the AI to revise** (the skill runs inside an agent, so AI-assisted editing is native). Nothing executes un-reviewed, and **an explicit human approval is required regardless of how the edit was made** (no AI-approves-AI). This is the credibility + safety + flywheel gate (log §13.2); the whole set is reviewed (tasks + oracles + setup/reset), presented by confidence tier.
+4. `axeval run` — execute the approved set across available harness(es) → report.
+
+**Oracle tiers (what gets auto-drafted, and how it's labeled):**
+- **T1 — OpenAPI CRUD round-trip:** derive verification from the spec (POST-create → GET-confirm the fields the task named). Auto, high-confidence, genuinely programmatic — the class that makes drop-a-link produce *real* scores.
+- **T2 — weak signal:** "call returned 2xx / no error," or LLM-judge on the transcript. Auto, low-confidence, **always labeled** so a weak check never passes as a strong one.
+- **T3 — curated:** human-written (the v0 Asana set; the paid/services layer). Highest confidence.
+
+**Inputs (a docs link alone is not enough — write ops need auth):** harness/model keys (the dev's inference spend) + the product's sandbox auth (API key / OAuth / test account), scoped to a sandbox **not** prod + the docs URL.
+
+**On-ramp to target packs:** a reviewed, edited generated set *is* a target pack (§4) the dev can keep, version, and optionally contribute back — closing the crowd-sourcing loop from §1.
+
+**Safety:** generated `check`/`setup`/`reset` is executable code that will run write ops on the dev's sandbox — the review gate (step 3) **and** the isolation in §10 are both mandatory before first run.
+
+---
+
+## 12. Open questions (skill-specific)
 
 - How capable is local multi-harness before it cannibalizes the hosted matrix? (the open/closed line)
 - Distribution form: a Cursor/Claude **skill** bundle, an `npx` CLI, or both? (the word "skill" implies an installable agent bundle; we may ship both.)
 - Who blesses the `standard_set` — us + design partners, or a community-standard push? (Determines whether schema-adoption is a true moat — mirrors log §9.)
 - Pack review/signing model (§9) before there's an ecosystem to abuse it.
 - How much of the failure taxonomy is exposed for free vs reserved as the paid diagnosis teaser.
+- Auto-generation (§11): how much of the `generate → review` loop is free vs a paid "deep generation"? And the confidence threshold below which an auto-drafted oracle is dropped rather than shown for review.
