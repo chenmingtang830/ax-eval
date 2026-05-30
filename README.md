@@ -12,6 +12,22 @@ Not a static audit (does your site have `llms.txt`). Not an editorial benchmark 
 
 As agents become the primary operators of software, a SaaS has to win on three layers: get **discovered** (AEO/GEO), **expose** machine-operable surfaces (AX / agent-readiness), and actually **succeed** when an agent tries to use them. That third layer — verification — is empty. Everything shipping today is a static audit or an editorial benchmark. We fill the gap.
 
+## Quickstart (no keys)
+
+The v0 skeleton runs end-to-end with **no API keys** using the bundled keyless
+harnesses (`mock`, `mock-weak`, and a `hermes` stub) and mock oracles:
+
+```bash
+pip install -e .            # or: pip install pyyaml
+ax-eval run                 # 8 Asana tasks × 3 harnesses → task×harness matrix
+ax-eval list-harnesses      # see registered harnesses
+ax-eval report results/last-run.json
+```
+
+This is milestone **M0** ("skeleton runs end-to-end with a fake harness + fake
+oracle"). Real keys (Asana PAT, Anthropic, OpenAI) are only needed for live runs
+(M1+); see [`plan.md`](./plan.md). To run the tests: `pytest`.
+
 ## What's in here
 
 - **[`ax-testing-discussion-log.md`](./ax-testing-discussion-log.md)** — start here. The *why*: positioning, the naming decision (why not "AEO"), the market map, competitive landscape, and the running list of open questions. Read this first.
