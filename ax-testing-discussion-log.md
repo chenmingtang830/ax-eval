@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-29
 **Status:** Draft for team review
-**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`.
+**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`. · rev 4 (2026-05-29) — added §12 (oracle credibility, Asana as first target, the sandbox/provisioning question, static+behavioral+editorial layering, open-source skill direction); open-skill build detail split out to `skill-spec.md`.
 **Topic:** What we're building, what to call it, who else is in the space, and where the real gap is
 
 > This is a working log, not a spec. It captures the reasoning behind our current
@@ -161,8 +161,8 @@ No product asks: *"Using your docs as they are right now, can an AI agent comple
 - [x] ~~**Final category term + product name.**~~ DONE (2026-05-29): Working name is **AX eval**; category is "behavioral AX testing."
 - [x] ~~**Threat assessment on Tech Stackups.**~~ DONE (2026-05-29): AI-content/SEO site, promised benchmark never shipped, not a product competitor. See §5.
 - [~] **Harness strategy.** Approach decided (orchestrate real CLIs headlessly via per-harness adapters; no cloning — see §11 + `product-spec.md`). Still open: exact launch set + how to formalize the "harness feature-space" axes.
-- [ ] **Wedge category.** Start with email (overlaps Tech Stackups) or pick a less-contested first vertical?
-- [ ] **Static vs behavioral scope.** Do we also offer the static audit (Bucket A) as a top-of-funnel freebie, or stay purely behavioral?
+- [~] **Wedge category.** First *target* chosen: **Asana** (issue/work tracking), picked partly because its state is API-queryable → high programmatic-oracle coverage (§12.2), and it sidesteps the email overlap with Tech Stackups. Still open: whether to broaden to a full "work tracking" category (Linear, Monday, Jira) for the comparison story.
+- [x] ~~**Static vs behavioral scope.**~~ DONE (2026-05-29, §12.4): all three layers, ranked — static = free top-of-funnel hook, behavioral = paid core/moat, editorial = marketing. The sellable asset is the static-high × behavioral-low *gap*.
 - [ ] **Self-serve vs services.** Day-1 self-serve product, or start as a high-touch eval-for-hire to learn, then productize?
 - [ ] **What's the unit of value sold?** Agent success rate? Regression alerts? A score badge? CI gate?
 - [ ] **Where exactly is the open/closed line?** (§11 has the v0 split; needs a hard call on how capable the free skill is before it cannibalizes the paid tier.)
@@ -197,6 +197,60 @@ High-level decisions from the product session. Full buildable detail lives in **
 
 ---
 
+## 12. Oracle credibility, first target, the sandbox question, and the open skill
+
+Working session (2026-05-29). This section captures four linked decisions that came out of pressure-testing the v0 plan. The buildable detail for the open skill is split out to **`skill-spec.md`**.
+
+### 12.1 The success oracle is the whole ballgame — define "programmatic" precisely
+The credibility of every score reduces to one thing: **how we decide a task succeeded.** Two kinds of oracle:
+
+- **Programmatic oracle (preferred):** after the run, **query the real service with code** and assert the world actually changed as required → a deterministic true/false. We do *not* read what the agent claimed; we check reality. Immune to an agent that confidently says "done!" without doing it.
+- **LLM judge (fallback only):** hand the transcript to a model and ask "did it succeed?" Subjective, gameable by a confident agent, low reproducibility.
+
+This was implied in `product-spec.md` §7 ("programmatic > llm_judge") but under-specified, and it is the single point on which the product lives or dies. **The oracle coverage of a category — what fraction of realistic tasks get a programmatic (not LLM-judge) check — is the gating constraint on whether we should enter that category at all.**
+
+### 12.2 First target: Asana — chosen partly *because* it makes the oracle easy
+Asana is the v0 reference target. The decisive reason is oracle-friendliness: nearly every Asana action (create task, assign, set a custom field, move to a section, create a webhook…) **leaves state that is queryable back via the API**, so most tasks get a clean programmatic oracle instead of degrading to an LLM judge. (Contrast "send an email," our earlier candidate, where verifying success means actually inspecting an inbox.) Picking Asana quietly de-risks the hardest part of the product.
+
+Asana also exposes docs / REST API / OpenAPI / SDK / (official) MCP simultaneously — which doubles as a ready-made *feature-space* experiment: run the same task restricted to docs-only vs. MCP vs. SDK and watch the score move (the spec §4.4 "test the interface shape, not the famous name" idea).
+
+Example task + its oracle, in words: *"In project `QA Sandbox`, create a task named `Ship v0`, assign it to user@example.com, due next Friday — docs/API only, don't ask for help."* → oracle queries the project, finds the task by name, asserts `assignee.email` and `due_on`. Boolean. No judgment.
+
+### 12.3 The sandbox / provisioning question — we do NOT provision a sandbox for every SaaS
+Raised: "I can register an Asana test account by hand, but does *every* SaaS need someone to hand-build a sandbox?" Resolved by separating personas:
+
+| Mode | Who runs it | Who supplies the target account + key | Do *we* hand-build a sandbox? |
+|---|---|---|---|
+| **A. Self-test** (paid core) | the SaaS vendor, on its own product | the vendor (they already have staging / test workspaces / keys) | **No** — they BYOK *and* bring their own sandbox |
+| **B. Benchmark / damning demo** (our marketing) | us, against someone else's product | we sign a few up by hand | Yes, but **one-off, a handful** — this is the services/GTM motion, acceptable |
+| **C. Free skill** (funnel) | any developer | the user (their own product, or a test account they made) | Not our job — the skill only *consumes* a key the user supplies |
+
+Key reframe: **provisioning accounts is not a cost we have to scale.** Most SaaS ship a test/sandbox mode (Stripe test mode, Asana free workspace, GitHub test org); the user/vendor already has one. The tool consumes a user-supplied key; it does not open accounts.
+
+What genuinely *is* per-target work is **not the sandbox** — it's the **target pack**: the programmatic oracle code, the setup/reset hooks, and the declaration of which surfaces the target exposes. That cost is real, but it is **crowd-sourceable**: we define the format, the community/vendors fill it in. Asana is simply the *first reference target pack*. (This is the bridge to §12.5.)
+
+### 12.4 Scope decision: static + behavioral + editorial — but with clear hierarchy
+Closes the long-open question (§9 "static vs behavioral scope"). Answer: **all three layers, but ranked**, so we don't become a do-everything blur.
+
+1. **Static layer** (borrow from Cloudflare Agent Readiness / axd.md) — **top-of-funnel, free, a hook.** "Do you have llms.txt / OpenAPI / MCP / AGENTS.md." Instant, zero-cost, shareable. It is *bait, not the product* — anyone can clone a static audit.
+2. **Behavioral layer** (real agent operation + programmatic oracle, cross-harness) — **the core, the moat, the paid thing.** This is what nobody else sells.
+3. **Editorial / comparison layer** (borrow from Tech Stackups) — **marketing ammunition**, not a daily product feature ("Asana 81 in Claude Code, 38 in a minimal harness"; "Asana vs Linear vs Monday").
+
+The crucial move: **static and behavioral must corroborate each other.** The strongest, uniquely-ours story is the *gap* between them — *"your static Agent Readiness is 92 (green), but an agent trying to create a task with a custom field succeeds 3 times out of 10."* Static high-score alone is Cloudflare's game (we lose); **static-high × behavioral-low is the sellable delta** and the empirical version of our core thesis "exposing capabilities ≠ them working" (§3).
+
+### 12.5 The open-source skill — direction (detail in `skill-spec.md`)
+The free skill is the **funnel, not the product** (consistent with `product-spec.md` §3). Open-sourcing it does three jobs: win distribution (stars), drive adoption of our **task / target-pack / adapter / RunResult schemas** (schema adoption = standard adoption = the real moat), and — critically — **solve §12.3's scaling by letting the community/vendors contribute target packs.**
+
+The skill's core deliverable is not the runner code; it's **four schemas** that become a de-facto standard once adopted:
+1. **Task definition** (one task + its programmatic oracle),
+2. **Target pack** (surfaces + BYOK + setup/reset + the oracle checks) — *this* is the abstraction that answers "who builds a sandbox for every SaaS": nobody central does; the format is open and anyone fills it,
+3. **Harness adapter interface** (launch headless → inject BYOK → normalize),
+4. **Normalized RunResult** (cross-harness comparable scoring).
+
+Deliberately held back to protect the paid tier (per §3): hosted at-scale cross-harness matrix, history/regression alerts, industry percentiles, and full diagnosis/auto-fix (open skill gives a teaser only). One flagged tension: target packs contain **executable** oracle/setup code that runs on the user's machine, so the open ecosystem needs a sandbox/permission boundary (spec §5) or a contributed pack becomes a malware vector. See `skill-spec.md` for the full shape.
+
+---
+
 ## Appendix A — Glossary
 
 - **AEO** — Agentic / Answer Engine Optimization. Optimization for being *found/selected/structured*. Discovery-layer. Not us.
@@ -210,6 +264,8 @@ High-level decisions from the product session. Full buildable detail lives in **
 - **Skill** — a portable, installable instruction+tool bundle an agent loads to perform a task (cf. axd.md's audit skill, Cloudflare's published skills). A candidate distribution form for our harness.
 - **Adapter** — a thin per-harness wrapper that launches a harness headlessly, injects BYOK, and normalizes its transcript/result into our common schema. The set of adapters + normalization + version pins *is* the "harness standard set."
 - **Telemetry** — run data reported back to us (scores, pass/fail per task, harness, target) that powers history and industry-percentile benchmarks. Metrics, never secrets. Opt-in on free; by-design-with-disclosure on hosted.
+- **Oracle** — the judge that decides whether a task succeeded. **Programmatic oracle**: assert against the real service's state via code (deterministic true/false). **LLM judge**: ask a model to grade the transcript (fallback; subjective, gameable). Oracle coverage gates category credibility (§12.1).
+- **Target pack** — the per-target bundle that makes a SaaS testable: declared surfaces (docs/API/MCP/SDK), BYOK config, setup/reset hooks, and the task set with their programmatic oracles. Crowd-sourceable; the open format is how testing scales across SaaS without us provisioning each one (§12.3, `skill-spec.md`).
 
 ## Appendix B — Sources
 
