@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-29
 **Status:** Draft for team review
-**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`. · rev 4 (2026-05-29) — added §12 (oracle credibility, Asana as first target, the sandbox/provisioning question, static+behavioral+editorial layering, open-source skill direction); open-skill build detail split out to `skill-spec.md`. · rev 5 (2026-05-30) — added §13 (the drop-a-link auto-eval UX + the human-in-the-loop oracle review gate + tiered oracle generation); language locked to TypeScript.
+**Revisions:** rev 2 (2026-05-29) — competitive corrections (Tech Stackups downgraded, Cloudflare recategorized) + new "big players moving" signal (Stainless → Anthropic). · rev 3 (2026-05-29) — added §11 product direction; harness orchestration + telemetry decided; detailed build spec split out to `product-spec.md`. · rev 4 (2026-05-29) — added §12 (oracle credibility, Asana as first target, the sandbox/provisioning question, static+behavioral+editorial layering, open-source skill direction); open-skill build detail split out to `skill-spec.md`. · rev 5 (2026-05-30) — added §13 (the drop-a-link auto-eval UX + the human-in-the-loop oracle review gate + tiered oracle generation); language locked to TypeScript. · rev 6 (2026-05-31) — naming settled: **SDK Agent Readiness Eval** as product name, "AX eval" as short handle; headline/subject locked (§14); Hermes paper and reference landscape added (§15).
 **Topic:** What we're building, what to call it, who else is in the space, and where the real gap is
 
 > This is a working log, not a spec. It captures the reasoning behind our current
@@ -283,6 +283,94 @@ We do **not** pretend every oracle can be auto-generated reliably. Draft by veri
 - The **generate → review → run-locally** loop is the **free skill** (the magic that drives the funnel). The hosted cross-harness matrix, history, and deep clustered diagnosis/fix-drafting stay **paid**. Report depth follows skill-spec §7: free names the failure stage (teaser); paid clusters root cause and drafts the doc/schema fix.
 - A docs link **alone is not enough** — write operations need the sandbox auth above. Link-only gets you the static audit + task synthesis + read-only tasks; the full behavioral run needs a key.
 - **Dependency on v0:** the *self-serve* auto-generation is v1/v2, but the **AI + human-in-the-loop loop is already how v0 is authored** — the Asana set is **AI-drafted + human-curated** (us prompting + reviewing), not typed from scratch. It's "hand-curated" only in the sense that a human signs off on every oracle. That human-approved set is the ground truth the later self-serve generator is validated against ("does my auto-drafted oracle judge the same as the human-approved one?").
+
+---
+
+---
+
+## 14. Naming decision — SDK Agent Readiness Eval
+
+Working session (2026-05-31). Closes the open naming question (§9).
+
+### 14.1 The name
+
+| Layer | String |
+|---|---|
+| **Product / category name** | SDK Agent Readiness Eval |
+| **Short handle** | AX eval |
+| **Headline** | Is your SDK agent ready? |
+| **Subject / pitch** | We run real agents against your SDK and tell you where they fail and how to improve. |
+
+### 14.2 Why "SDK" as the umbrella
+
+"SDK" encompasses the full surface set we test: REST API, OpenAPI spec, MCP server, SDK libraries, CLI, and docs. It is a term developers immediately recognize as "the thing you integrate with" — broader than "API" (which reads as endpoint-only), narrower than "product" (which is too vague). When a developer asks "is your SDK agent-ready?", they understand the question covers all of these surfaces together.
+
+Prior naming candidates and why they were set aside:
+
+- **"AX eval"** — accurate but insider jargon; people ask "what's AX?". Keeps as the short handle.
+- **"SDK Agent Readiness"** ← **chosen**: SDK is familiar, "agent readiness" maps to what developers actually ship, and the question form ("Is your SDK agent ready?") is punchy and memorable.
+- **"Agent Experience Eval Platform for SaaS"** — "Platform" is too generic; "for SaaS" needlessly narrows scope; overlaps with the headline in an unhelpful way.
+
+### 14.3 Positioning summary (updated)
+
+> "Is your SDK agent ready? We run real agents against your SDK — APIs, docs, OpenAPI, MCP, SDKs, CLI — give them realistic integration tasks, and measure whether they complete end-to-end. We tell you where they fail and how to improve."
+
+The four-word competitive position (unchanged, now easier to communicate with the new name):
+
+- **Cloudflare Agent Readiness** → static audit (lint). Layer 1–2.
+- **Tech Stackups** → editorial benchmark (third-party ranking). Layer 3 editorial.
+- **addyosmani/agentic-seo / AEO** → discoverability optimization. Layer 1.
+- **SDK Agent Readiness Eval (us)** → behavioral verification (integration test). Layer 3 behavioral.
+
+---
+
+## 15. Academic backing + reference landscape
+
+Working session (2026-05-31). Added after reviewing Lima et al. 2026 (EASE).
+
+### 15.1 The Hermes paper (Lima et al., EASE 2026)
+
+**Citation:** Rayfran Rocha Lima, Davi G. Assuncao Pinheiro, Thiago Medeiros de Menezes. *Making OpenAPI Documentation Agent-Ready: Detecting Documentation and REST Smells with a Multi-Agent LLM System.* EASE 2026. arXiv:2605.14312.
+
+**What they built:** Hermes — a multi-agent LLM system that detects documentation and REST "smells" at the OpenAPI endpoint level. They ran it on 16 industrial APIs (~600 endpoints) and found 2,450 smells across all endpoints.
+
+**The finding that directly backs our thesis:** Their PoC showed that with *original, unrevised* OpenAPI docs, ~**70% of agent automation tasks failed at the planning stage**; with enriched docs, task success jumped to **90%**. Because the only variable was documentation quality (same API, same business logic), they concluded: **"structural validity does not imply agent-readiness."**
+
+**How they differ from us — this is important:**
+
+| Dimension | Hermes (Lima et al.) | AX eval (us) |
+|---|---|---|
+| What they measure | Documentation quality (static smell detection on OpenAPI spec) | Agent task success (behavioral — did the agent actually complete the job?) |
+| How they test | LLM reads the OpenAPI spec and classifies smells | Real agent harnesses run against the real API with programmatic oracles |
+| Unit of analysis | Endpoint (method + path) | Task (goal-level user job) |
+| What they output | Smell report (LAZY / BLOATED / TANGLED / FRAGMENTED / PATH / METHOD / INPUT / RESPONSE / SECURITY) | Pass rate, cross-harness spread, failure stage, doc/schema fix |
+| Validation | Practitioner agreement survey + LLM vs. expert annotation | Programmatic oracle (real service state change) |
+
+**They are upstream static analysis; we are downstream behavioral testing.** Not competitors — complementary layers.
+
+### 15.2 What to borrow from the Hermes paper
+
+1. **Smell taxonomy → static audit component.** Their 9-category smell taxonomy (4 doc smells + 5 REST smells) is peer-reviewed and practitioner-validated. Our static audit layer (the free "lint" hook in §12.4) should adopt or extend this taxonomy. Cross-referencing the smell categories with our failure taxonomy (§8 of `product-spec.md`) lets us bridge static → behavioral: "this endpoint has a SECURITY smell → that's why the agent fails at `auth_setup` stage."
+
+2. **The PoC finding is the strongest evidence you can cite.** 70% failure → 90% success by improving docs alone. This is the "damning demo" story in empirical form. Cite this when positioning to SaaS teams.
+
+3. **The key quote:** *"Structural correctness did not imply agent-readiness… the primary bottleneck was not AI capability, but artifact maturity."* This is our sales pitch in a peer-reviewed paper.
+
+4. **Multi-agent architecture for static analysis.** Hermes uses specialized sub-agents per smell category — each focused on one lens (LAZY agent, SECURITY agent, etc.). Our static audit component can mirror this pattern for cost efficiency and analytical clarity.
+
+5. **Endpoint-centric reduction.** They isolate each endpoint before analysis to reduce token waste and improve focus. Useful for our `axeval audit` implementation.
+
+### 15.3 Reference landscape for the eval framework
+
+All three references below are **inputs to our static audit layer** (the free hook), not competitors to the behavioral layer:
+
+| Source | Layer | What to borrow |
+|---|---|---|
+| **Cloudflare Agent Readiness** (isitagentready.com) | Layer 1–2 static | Their checklist (llms.txt, AGENTS.md, OpenAPI, MCP, robots/sitemap, auth discovery) — adopt as the baseline for our `axeval audit` command |
+| **Tech Stackups AX Benchmark** | Layer 3 editorial | Their per-category comparison framing (Asana vs Linear vs Monday) — adopt as the editorial comparison layer (plan.md §4) after v0 |
+| **addyosmani/agentic-seo** | Layer 1 discoverability | Addy Osmani's AEO framework — covers discoverability/structuring concerns (llms.txt, token budgets, AGENTS.md). Useful as input to the static audit, not the behavioral layer. Their framing: "is your content machine-readable?" Our framing: "can an agent actually use what's there?" |
+
+The gap all three leave open is Layer 3 behavioral — which is where we live.
 
 ---
 

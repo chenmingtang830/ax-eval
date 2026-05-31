@@ -1,8 +1,11 @@
-# Product Spec — AX eval Platform
+# Product Spec — SDK Agent Readiness Eval Platform
 
-**Working name:** AX eval (see discussion log §9). Referred to here as **"the platform."**
-**Date:** 2026-05-29 · **Status:** v0 draft for team review
+**Product name:** SDK Agent Readiness Eval (short handle: **AX eval**). Referred to here as **"the platform."**
+**Date:** 2026-05-29 · **Updated:** 2026-05-31 · **Status:** v0 draft for team review
 **Companion doc:** `ax-testing-discussion-log.md` (positioning, market map, competitive landscape — read that first for the *why*; this doc is the *what* and *how*).
+
+> **Headline:** Is your SDK agent ready?
+> **Subject:** We run real agents against your SDK and tell you where they fail and how to improve.
 
 > Scope of this doc: the buildable shape of the product. It encodes decisions made so far and flags what's still open. Anything marked **OPEN** is not yet decided.
 
@@ -10,7 +13,7 @@
 
 ## 1. What it is (and isn't)
 
-**Is:** a tool that runs real agent harnesses against a SaaS product's exposed surfaces (docs, API, MCP, SDK, CLI), gives each a realistic task, and measures whether the agent can complete it — across multiple harnesses, continuously, with diagnosis of *why* it failed and *what to fix*.
+**Is:** a tool that runs real agent harnesses against a SaaS product's full SDK surface (docs, API/OpenAPI, MCP, SDK libraries, CLI), gives each a realistic task, and measures whether the agent can complete it — across multiple harnesses, continuously, with diagnosis of *why* it failed and *what to fix*.
 
 **Isn't:**
 - A static audit (does your site have `llms.txt` / good structure). That's Cloudflare's Agent Readiness, axd.md, etc. — Layers 1–2, "lint."
