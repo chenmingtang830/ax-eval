@@ -34,6 +34,9 @@ export const TargetPackSchema = z.object({
   version: z.coerce.string().default("0"),
   auth_method: z.string().default("none"),
   base_url: z.string().default(""),
+  /** The product's public website/docs root, e.g. https://asana.com — the
+   *  starting point for the static (agent-readiness / AEO) audit. */
+  site_url: z.string().default(""),
   docs_urls: z.array(z.string()).default([]),
   tasks: z.array(TaskSchema).default([]),
 });

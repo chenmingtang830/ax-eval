@@ -1,0 +1,10 @@
+# Asana
+
+> Work management platform. This file points agents at machine-readable docs.
+
+## Docs
+- API reference: https://developers.asana.com/docs
+- OpenAPI: https://asana.com/openapi.json
+
+## Auth
+- Personal access tokens and OAuth 2.0 are supported.

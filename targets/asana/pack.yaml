@@ -5,6 +5,7 @@ name: asana
 version: "0"
 auth_method: pat            # ASANA_PAT (a throwaway sandbox) — only needed at M1
 base_url: https://app.asana.com/api/1.0
+site_url: https://asana.com  # root for the static (agent-readiness) audit
 docs_urls:
   - https://developers.asana.com/docs
 

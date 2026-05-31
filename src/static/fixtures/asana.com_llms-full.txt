@@ -1,0 +1,4 @@
+# Asana — full machine-readable docs index
+
+Tasks, projects, sections, stories (comments), custom fields, webhooks.
+Each resource documented in markdown for agent consumption.

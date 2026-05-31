@@ -20,11 +20,25 @@ The v0 skeleton (TypeScript / Node 22+, per `plan.md` §8) runs end-to-end with
 
 ```bash
 npm install
-npm run ax-eval -- run                 # 8 Asana tasks × 3 harnesses → matrix
+npm run ax-eval -- run --offline       # behavioral matrix + static "gap" (no network)
+npm run ax-eval -- audit --offline     # static (agent-readiness / AEO) audit only
+npm run ax-eval -- audit --site https://yoursite.com   # audit any docs/site URL (live)
 npm run ax-eval -- list-harnesses      # see registered harnesses
 npm run ax-eval -- report results/last-run.json
-npm test                               # vitest (18 tests, no network)
+npm test                               # vitest (22 tests, no network)
 ```
+
+The product measures a target on two layers (plan.md §4):
+
+- **Static** (`audit`) — *is the plumbing exposed?* Inspects public surfaces
+  (llms.txt, AGENTS.md, OpenAPI, MCP, SDK refs, robots/sitemap, OAuth discovery)
+  and gives a 0–100 agent-readiness score. Just reads URLs — no keys, no agent.
+  Real fetch by default; `--offline` uses bundled fixtures.
+- **Behavioral** (the harness matrix) — *can an agent actually do the job?* Runs
+  the tasks across harnesses for a per-harness pass rate.
+
+`run` prints both side by side. The headline is the **gap**: a high readiness
+score with low task success means "exposed ≠ usable".
 
 This is milestone **M0** ("skeleton runs end-to-end with a fake harness + fake
 oracle"). Real keys (Asana PAT, Anthropic, OpenAI) are only needed for live runs
