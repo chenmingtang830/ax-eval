@@ -25,7 +25,7 @@ npm run ax-eval -- audit --offline     # static (agent-readiness / AEO) audit on
 npm run ax-eval -- audit --site https://yoursite.com   # audit any docs/site URL (live)
 npm run ax-eval -- list-harnesses      # see registered harnesses
 npm run ax-eval -- report results/last-run.json
-npm test                               # vitest (22 tests, no network)
+npm test                               # vitest (34 tests, no network)
 ```
 
 The product measures a target on two layers (plan.md §4):

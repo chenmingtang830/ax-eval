@@ -19,13 +19,17 @@ export const OracleSpecSchema = z.object({
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
-/** A concrete goal an agent must achieve against the target. */
-export const TaskSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  prompt: z.string().default(""),
-  oracles: z.array(OracleSpecSchema).default([]),
-});
+/** A concrete goal an agent must achieve against the target. `title` is
+ *  optional and falls back to `id` (matching the original loader's behavior),
+ *  so a minimal task (id + prompt + oracles) is still valid. */
+export const TaskSchema = z
+  .object({
+    id: z.string(),
+    title: z.string().optional(),
+    prompt: z.string().default(""),
+    oracles: z.array(OracleSpecSchema).default([]),
+  })
+  .transform((t) => ({ ...t, title: t.title ?? t.id }));
 export type Task = z.infer<typeof TaskSchema>;
 
 /** Versioned bundle describing a target and its task set. */

@@ -38,12 +38,21 @@ function parseArgs(argv: string[]): Parsed {
     offline: false,
     _: [],
   };
+  // Read the value for a value-taking flag, erroring if it's missing (i.e. the
+  // flag was the last token) instead of silently passing undefined downstream.
+  const value = (i: number, flag: string): string => {
+    const v = argv[i];
+    if (v === undefined || v.startsWith("--")) {
+      throw new Error(`flag ${flag} requires a value`);
+    }
+    return v;
+  };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--pack") p.pack = argv[++i]!;
-    else if (a === "--harness") p.harness.push(argv[++i]!);
-    else if (a === "--out") p.out = argv[++i]!;
-    else if (a === "--site") p.site = argv[++i]!;
+    if (a === "--pack") p.pack = value(++i, "--pack");
+    else if (a === "--harness") p.harness.push(value(++i, "--harness"));
+    else if (a === "--out") p.out = value(++i, "--out");
+    else if (a === "--site") p.site = value(++i, "--site");
     else if (a === "--offline") p.offline = true;
     else if (a!.startsWith("--")) throw new Error(`unknown flag ${a}`);
     else p._.push(a!);
@@ -83,7 +92,7 @@ async function cmdAudit(args: Parsed): Promise<number> {
 }
 
 function cmdReport(args: Parsed): number {
-  const path = args._[1];
+  const path = args._[0];
   if (!path) throw new Error("usage: ax-eval report <results.json>");
   console.log(render(loadReport(path)));
   return 0;
@@ -98,7 +107,14 @@ function cmdList(): number {
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
-  const args = parseArgs(argv);
+  // Validate the command before parsing flags, so an unknown command shows the
+  // usage message rather than a flag-parse error from a stray --typo.
+  const COMMANDS = new Set(["run", "audit", "report", "list-harnesses"]);
+  if (command === undefined || !COMMANDS.has(command)) {
+    console.error("usage: ax-eval <run|audit|report|list-harnesses> [options]");
+    return 2;
+  }
+  const args = parseArgs(argv.slice(1));
   switch (command) {
     case "run":
       return cmdRun(args);

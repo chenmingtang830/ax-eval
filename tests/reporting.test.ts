@@ -36,4 +36,21 @@ describe("reporting + storage", () => {
     expect(payload.pack).toBe("asana");
     expect(payload.results.length).toBe(pack.tasks.length);
   });
+
+  it("renders an unrun (task, harness) cell as '—', not FAIL", () => {
+    // hermes ran t0; claude-code is listed but has no result for t0.
+    const report = {
+      pack: "x",
+      packVersion: "0",
+      harnesses: ["hermes", "claude-code"],
+      synthetic: [],
+      results: [
+        { taskId: "t0", harness: "hermes", success: false, oracleResults: [], trace: [], durationMs: 0, error: null },
+      ],
+    };
+    const text = render(report);
+    expect(text).toContain("—"); // the unrun claude-code/t0 cell
+    // claude-code attempted nothing, so its pass rate denominator is 0, not 1.
+    expect(text).toContain("claude-code  0/0");
+  });
 });

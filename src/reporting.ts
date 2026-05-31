@@ -1,10 +1,11 @@
 /** Render a run as a human-readable matrix + failure summary (text/markdown). */
-import type { RunReport } from "./runner.js";
+import { matrix, type RunReport } from "./runner.js";
 
 export function render(report: RunReport): string {
   const harnesses = report.harnesses;
-  const grid: Record<string, Record<string, boolean>> = {};
-  for (const r of report.results) (grid[r.taskId] ??= {})[r.harness] = r.success;
+  // Reuse the canonical grid builder so the matrix and runner can't drift.
+  // A cell is `undefined` when that (task, harness) pair was never run.
+  const grid = matrix(report);
   const taskIds = Object.keys(grid);
 
   const lines: string[] = [];
@@ -16,20 +17,27 @@ export function render(report: RunReport): string {
     return lines.join("\n");
   }
 
+  // A cell shows PASS/FAIL when run, or "—" when the pair was never attempted
+  // (so the matrix can't disagree with the pass-rate denominator below).
+  const cell = (tid: string, h: string): string => {
+    const v = grid[tid]![h];
+    return v === undefined ? "—" : v ? "PASS" : "FAIL";
+  };
+
   // Matrix table.
   const tcol = Math.max(...taskIds.map((t) => t.length), "task".length);
   const header = "task".padEnd(tcol) + "  " + harnesses.map((h) => center(h, 10)).join("  ");
   lines.push(header, "-".repeat(header.length));
   for (const tid of taskIds) {
-    const cells = harnesses.map((h) => center(grid[tid]![h] ? "PASS" : "FAIL", 10));
+    const cells = harnesses.map((h) => center(cell(tid, h), 10));
     lines.push(tid.padEnd(tcol) + "  " + cells.join("  "));
   }
 
-  // Pass rates.
+  // Pass rates — denominator is tasks actually attempted by that harness.
   lines.push("", "Pass rate by harness:");
   for (const h of harnesses) {
-    const total = taskIds.filter((t) => h in grid[t]!).length;
-    const passed = taskIds.filter((t) => grid[t]![h]).length;
+    const total = taskIds.filter((t) => grid[t]![h] !== undefined).length;
+    const passed = taskIds.filter((t) => grid[t]![h] === true).length;
     const pct = total ? Math.round((passed / total) * 100) : 0;
     lines.push(`  ${h.padEnd(12)} ${passed}/${total}  (${pct}%)`);
   }

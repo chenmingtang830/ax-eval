@@ -23,11 +23,15 @@ function setPath(world: World, path: string, value: unknown): void {
 export interface MockOptions {
   skip?: string[];
   wrong?: string[];
+  /** Mark this mock as a synthetic control (see HarnessAdapter.synthetic). A
+   *  mock with no skip/wrong is a perfect ceiling and defaults to synthetic. */
+  synthetic?: boolean;
 }
 
 export class MockHarness extends HarnessAdapter {
   readonly name: string;
   readonly requiresKey = false;
+  readonly synthetic: boolean;
   protected readonly skip: Set<string>;
   protected readonly wrong: Set<string>;
 
@@ -36,6 +40,9 @@ export class MockHarness extends HarnessAdapter {
     this.name = name;
     this.skip = new Set(opts.skip ?? []);
     this.wrong = new Set(opts.wrong ?? []);
+    // A mock that gets everything right is a control, not a stand-in for a real
+    // agent; treat it as synthetic unless the caller says otherwise.
+    this.synthetic = opts.synthetic ?? (this.skip.size === 0 && this.wrong.size === 0);
   }
 
   async attempt(task: Task, _pack: TargetPack): Promise<AttemptOutcome> {

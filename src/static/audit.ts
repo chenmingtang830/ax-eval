@@ -16,19 +16,34 @@ export async function auditSite(site: string, opts: AuditOptions = {}): Promise<
   const checks = opts.checks ?? CHECKS;
   const fetcher = new Fetcher(opts);
 
-  const results = [];
-  for (const check of checks) {
-    results.push(await check.run(site, fetcher));
-  }
+  // Checks share no state; run them concurrently so audit latency is the slowest
+  // check, not the sum (a dead host otherwise serializes ~8 timeouts).
+  const results = await Promise.all(checks.map((check) => check.run(site, fetcher)));
 
-  const totalWeight = results.reduce((s, r) => s + r.weight, 0);
-  const earned = results.reduce((s, r) => s + (r.passed ? r.weight : 0), 0);
+  // Score = weighted % of *evaluable* checks passed. Errored checks (network
+  // failures) are excluded from both numerator and denominator so flaky
+  // connectivity can't masquerade as a genuine readiness deficit.
+  const evaluable = results.filter((r) => r.status !== "error");
+  const totalWeight = evaluable.reduce((s, r) => s + r.weight, 0);
+  const earned = evaluable.reduce((s, r) => s + (r.status === "pass" ? r.weight : 0), 0);
   const score = totalWeight ? Math.round((earned / totalWeight) * 100) : 0;
+
+  // Provenance from the checks that actually decided, not a global flag.
+  const sources = new Set(evaluable.map((r) => r.source));
+  const source: StaticAudit["source"] =
+    sources.size === 0
+      ? fetcher.mode
+      : sources.size === 2
+        ? "mixed"
+        : sources.has("fixture")
+          ? "fixture"
+          : "live";
 
   return {
     site,
     score,
     checks: results,
-    source: fetcher.mode === "fixture" || fetcher.usedFixture ? "fixture" : "live",
+    errored: results.length - evaluable.length,
+    source,
   };
 }

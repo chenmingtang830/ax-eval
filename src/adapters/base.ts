@@ -29,6 +29,12 @@ export abstract class HarnessAdapter {
   /** Env var holding the credential, when requiresKey is true. */
   readonly keyEnv: string | null = null;
 
+  /** A synthetic *control* that mirrors the oracle answer key (e.g. a perfect
+   *  mock) rather than standing in for a real agent's competence. Excluded from
+   *  the static×behavioral "gap", since a ceiling that passes by construction
+   *  would erase the gap the product exists to show. */
+  readonly synthetic: boolean = false;
+
   /**
    * Attempt the task. Must not throw for ordinary task failure (a failed
    * attempt is a legitimate result) — throw only on adapter/infra errors.

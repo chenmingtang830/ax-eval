@@ -5,14 +5,20 @@
  * plus a weight. Checks only read public URLs — no keys, no agent. They are the
  * "is the plumbing exposed?" layer that sits next to the behavioral matrix.
  */
-import type { Fetcher } from "./fetcher.js";
-import type { StaticCheckResult, Weight } from "./types.js";
+import type { FetchResult, Fetcher } from "./fetcher.js";
+import type { CheckStatus, StaticCheckResult, Weight } from "./types.js";
 
 export interface StaticCheck {
   id: string;
   label: string;
   weight: Weight;
   run(site: string, fetcher: Fetcher): Promise<StaticCheckResult>;
+}
+
+/** A fetch that never completed (status 0) means "couldn't evaluate", not
+ *  "surface absent" — callers must surface that as `error`, not `fail`. */
+function errored(r: FetchResult): boolean {
+  return r.status === 0;
 }
 
 /** Resolve a path against the site root (which may include a trailing slash). */
@@ -24,15 +30,30 @@ function at(site: string, path: string): string {
   }
 }
 
-function pass(
-  id: string,
-  label: string,
-  weight: Weight,
-  passed: boolean,
-  detail: string,
+/** Build a result from a single deciding fetch: error if it never completed,
+ *  otherwise pass/fail from `ok`. Carries the fetch's provenance. */
+function fromFetch(
+  check: StaticCheck,
+  r: FetchResult,
+  ok: boolean,
+  passDetail: string,
+  failDetail: string,
   url?: string,
 ): StaticCheckResult {
-  return { id, label, weight, passed, detail, url };
+  if (errored(r)) {
+    return result(check, "error", `could not reach ${url ?? "target"}`, r.source, url);
+  }
+  return result(check, ok ? "pass" : "fail", ok ? passDetail : failDetail, r.source, url);
+}
+
+function result(
+  check: StaticCheck,
+  status: CheckStatus,
+  detail: string,
+  source: "live" | "fixture",
+  url?: string,
+): StaticCheckResult {
+  return { id: check.id, label: check.label, weight: check.weight, status, detail, source, url };
 }
 
 export const CHECKS: StaticCheck[] = [
@@ -44,7 +65,7 @@ export const CHECKS: StaticCheck[] = [
       const url = at(site, "llms.txt");
       const r = await fetcher.get(url);
       const ok = r.ok && r.body.trim().length > 0;
-      return pass(this.id, this.label, this.weight, ok, ok ? "found llms.txt" : `not found (status ${r.status})`, url);
+      return fromFetch(this, r, ok, "found llms.txt", `not found (status ${r.status})`, url);
     },
   },
   {
@@ -55,25 +76,26 @@ export const CHECKS: StaticCheck[] = [
       const url = at(site, "AGENTS.md");
       const r = await fetcher.get(url);
       const ok = r.ok && r.body.trim().length > 0;
-      return pass(this.id, this.label, this.weight, ok, ok ? "found AGENTS.md" : `not found (status ${r.status})`, url);
+      return fromFetch(this, r, ok, "found AGENTS.md", `not found (status ${r.status})`, url);
     },
   },
   {
     id: "markdown-docs",
-    label: "Docs negotiate markdown",
+    label: "Machine-readable docs index (llms-full.txt)",
     weight: 2,
     async run(site, fetcher) {
-      // A docs page that can return markdown (via .md or content negotiation) is
-      // far easier for an agent to read than rendered HTML.
+      // Probes for an llms-full.txt docs index — a concrete, machine-readable
+      // docs surface. (Full HTTP content-negotiation, e.g. Accept: text/markdown
+      // or .md variants, is a deeper signal left for a later check.)
       const url = at(site, "llms-full.txt");
       const r = await fetcher.get(url);
       const ok = r.ok && r.body.trim().length > 0;
-      return pass(
-        this.id,
-        this.label,
-        this.weight,
+      return fromFetch(
+        this,
+        r,
         ok,
-        ok ? "machine-readable docs available" : `no markdown docs surface (status ${r.status})`,
+        "llms-full.txt docs index available",
+        `no llms-full.txt docs index (status ${r.status})`,
         url,
       );
     },
@@ -84,14 +106,15 @@ export const CHECKS: StaticCheck[] = [
     weight: 3,
     async run(site, fetcher) {
       // Try a few conventional locations for a machine-readable API spec.
-      for (const path of ["openapi.json", "openapi.yaml", ".well-known/openapi.json", "api/openapi.json"]) {
-        const url = at(site, path);
-        const r = await fetcher.get(url);
-        if (r.ok && /openapi|swagger/i.test(r.body.slice(0, 4000))) {
-          return pass(this.id, this.label, this.weight, true, `OpenAPI at ${path}`, url);
-        }
-      }
-      return pass(this.id, this.label, this.weight, false, "no OpenAPI spec at conventional paths");
+      return probePaths(
+        this,
+        fetcher,
+        site,
+        ["openapi.json", "openapi.yaml", ".well-known/openapi.json", "api/openapi.json"],
+        (r) => r.ok && /openapi|swagger/i.test(r.body.slice(0, 4000)),
+        (path) => `OpenAPI at ${path}`,
+        "no OpenAPI spec at conventional paths",
+      );
     },
   },
   {
@@ -104,7 +127,7 @@ export const CHECKS: StaticCheck[] = [
       const url = at(site, ".well-known/mcp.json");
       const r = await fetcher.get(url);
       const ok = r.ok && /mcp|server|tools/i.test(r.body.slice(0, 2000));
-      return pass(this.id, this.label, this.weight, ok, ok ? "MCP descriptor found" : `no MCP descriptor (status ${r.status})`, url);
+      return fromFetch(this, r, ok, "MCP descriptor found", `no MCP descriptor (status ${r.status})`, url);
     },
   },
   {
@@ -113,9 +136,14 @@ export const CHECKS: StaticCheck[] = [
     weight: 1,
     async run(site, fetcher) {
       // A weak signal from the homepage: does it point at an SDK / developer hub?
+      // Anchored to reduce false positives from incidental prose like "developers.".
       const r = await fetcher.get(site);
-      const ok = r.ok && /(sdk|client library|npm install|pip install|developers?\.)/i.test(r.body);
-      return pass(this.id, this.label, this.weight, ok, ok ? "SDK/dev references on site" : "no obvious SDK references", site);
+      const ok =
+        r.ok &&
+        /(\bsdk\b|client librar(y|ies)|npm install|pip install|developer portal|developers?\.[a-z0-9-]+\.[a-z])/i.test(
+          r.body,
+        );
+      return fromFetch(this, r, ok, "SDK/dev references on site", "no obvious SDK references", site);
     },
   },
   {
@@ -125,6 +153,9 @@ export const CHECKS: StaticCheck[] = [
     async run(site, fetcher) {
       const robotsUrl = at(site, "robots.txt");
       const robots = await fetcher.get(robotsUrl);
+      if (errored(robots)) {
+        return result(this, "error", `could not reach ${robotsUrl}`, robots.source, robotsUrl);
+      }
       const hasRobots = robots.ok && robots.body.trim().length > 0;
       const hasSitemap = hasRobots && /sitemap:/i.test(robots.body);
       const ok = hasRobots && hasSitemap;
@@ -133,7 +164,7 @@ export const CHECKS: StaticCheck[] = [
         : hasSitemap
           ? "robots.txt references a sitemap"
           : "robots.txt present but no sitemap reference";
-      return pass(this.id, this.label, this.weight, ok, detail, robotsUrl);
+      return result(this, ok ? "pass" : "fail", detail, robots.source, robotsUrl);
     },
   },
   {
@@ -142,14 +173,49 @@ export const CHECKS: StaticCheck[] = [
     weight: 2,
     async run(site, fetcher) {
       // A discoverable auth descriptor lets an agent figure out how to log in.
-      for (const path of [".well-known/oauth-authorization-server", ".well-known/openid-configuration"]) {
-        const url = at(site, path);
-        const r = await fetcher.get(url);
-        if (r.ok && /authorization_endpoint|token_endpoint|issuer/i.test(r.body.slice(0, 4000))) {
-          return pass(this.id, this.label, this.weight, true, `auth metadata at ${path}`, url);
-        }
-      }
-      return pass(this.id, this.label, this.weight, false, "no OAuth/OIDC discovery document");
+      return probePaths(
+        this,
+        fetcher,
+        site,
+        [".well-known/oauth-authorization-server", ".well-known/openid-configuration"],
+        (r) => r.ok && /authorization_endpoint|token_endpoint|issuer/i.test(r.body.slice(0, 4000)),
+        (path) => `auth metadata at ${path}`,
+        "no OAuth/OIDC discovery document",
+      );
     },
   },
 ];
+
+/**
+ * Try several conventional paths until one matches. Distinguishes "errored"
+ * (every probe failed to reach the network) from "fail" (reached, none matched):
+ * a check is only `error` if *all* probes errored, so a single reachable 404
+ * still counts as a genuine absence.
+ */
+async function probePaths(
+  check: StaticCheck,
+  fetcher: Fetcher,
+  site: string,
+  paths: string[],
+  match: (r: FetchResult) => boolean,
+  passDetail: (path: string) => string,
+  failDetail: string,
+): Promise<StaticCheckResult> {
+  let allErrored = true;
+  let lastSource: "live" | "fixture" = "live";
+  let lastUrl = site;
+  for (const path of paths) {
+    const url = at(site, path);
+    const r = await fetcher.get(url);
+    lastSource = r.source;
+    lastUrl = url;
+    if (!errored(r)) allErrored = false;
+    if (match(r)) {
+      return result(check, "pass", passDetail(path), r.source, url);
+    }
+  }
+  if (allErrored) {
+    return result(check, "error", `could not reach any ${check.id} path`, lastSource, lastUrl);
+  }
+  return result(check, "fail", failDetail, lastSource);
+}

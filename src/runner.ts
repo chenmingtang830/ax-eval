@@ -6,6 +6,10 @@ export interface RunReport {
   pack: string;
   packVersion: string;
   harnesses: string[];
+  /** Subset of `harnesses` that are synthetic controls (e.g. a perfect mock).
+   *  Excluded from the static×behavioral gap so a by-construction ceiling can't
+   *  erase it. */
+  synthetic: string[];
   results: RunResult[];
 }
 
@@ -20,8 +24,10 @@ export async function run(
   opts: RunOptions = {},
 ): Promise<RunReport> {
   const results: RunResult[] = [];
+  const synthetic: string[] = [];
   for (const name of harnessNames) {
     const harness = getHarness(name);
+    if (harness.synthetic) synthetic.push(name);
     for (const task of pack.tasks) {
       const result = await harness.run(task, pack);
       results.push(result);
@@ -31,7 +37,7 @@ export async function run(
       }
     }
   }
-  return { pack: pack.name, packVersion: pack.version, harnesses: [...harnessNames], results };
+  return { pack: pack.name, packVersion: pack.version, harnesses: [...harnessNames], synthetic, results };
 }
 
 /** task_id → { harness → success }. */
