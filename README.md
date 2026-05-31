@@ -14,7 +14,7 @@ As agents become the primary operators of software, a SaaS has to win on three l
 
 ## Quickstart (no keys)
 
-The v0 skeleton (TypeScript / Node 22+, per `plan.md` §8) runs end-to-end with
+The v0 skeleton (TypeScript / Node 22+, per `docs/plan.md` §8) runs end-to-end with
 **no API keys** using the bundled keyless harnesses (`mock`, `mock-weak`, and a
 `hermes` stub) and mock oracles:
 
@@ -28,7 +28,7 @@ npm run ax-eval -- report results/last-run.json
 npm test                               # vitest (34 tests, no network)
 ```
 
-The product measures a target on two layers (plan.md §4):
+The product measures a target on two layers (docs/plan.md §4):
 
 - **Static** (`audit`) — *is the plumbing exposed?* Inspects public surfaces
   (llms.txt, AGENTS.md, OpenAPI, MCP, SDK refs, robots/sitemap, OAuth discovery)
@@ -40,25 +40,47 @@ The product measures a target on two layers (plan.md §4):
 `run` prints both side by side. The headline is the **gap**: a high readiness
 score with low task success means "exposed ≠ usable".
 
-This is milestone **M0** ("skeleton runs end-to-end with a fake harness + fake
-oracle"). Real keys (Asana PAT, Anthropic, OpenAI) are only needed for live runs
-(M1+); see [`plan.md`](./plan.md). Layout: `src/` (runner + CLI + oracles),
-`src/adapters/` (harnesses), `targets/asana/` (the pack), `tests/`.
+This is milestone **M0.5** (keyless skeleton runs end-to-end). Real keys (Asana
+PAT, Anthropic, OpenAI) are only needed for live runs (M1+); see
+[`docs/plan.md`](./docs/plan.md).
 
-## What's in here
+## Architecture
 
-- **[`ax-testing-discussion-log.md`](./ax-testing-discussion-log.md)** — start here. The *why*: positioning, the naming decision (why not "AEO"), the market map, competitive landscape, and the running list of open questions. Read this first.
-- **[`product-spec.md`](./product-spec.md)** — the *what/how* of the whole platform: architecture, open/closed tiering, harness + adapter design, BYOK, scoring, telemetry, and v0→v2 phasing.
-- **[`skill-spec.md`](./skill-spec.md)** — the buildable shape of the **open-source skill** (the free, local, single-harness runner that is the funnel): the four schemas (task / target pack / adapter / RunResult), the CLI, the safety boundary, and the open/closed line.
-- **[`plan.md`](./plan.md)** — the active **v0 build plan**: the "damning demo" goal, prerequisites/keys, workstreams (oracle-first), the Asana task set, milestones, and the decisions to lock before coding.
+Two eval layers converge into one report. Left = **behavioral** (real tasks ×
+harnesses, scored by oracles); right = **static** (agent-readiness / AEO checks);
+the bottom merges them into the matrix + the **gap**.
+
+![Architecture & execution flow](./docs/architecture.svg)
+
+## Repository layout
+
+```
+src/                runner, CLI, oracles, config, reporting, storage, schemas
+  adapters/         harness interface + registry; keyless mock / mock-weak / hermes
+  static/           agent-readiness audit (checks, fetcher, scoring) + offline fixtures/
+targets/asana/      the reference target pack (pack.yaml): 8 tasks + oracles + site_url
+tests/              vitest suite (34 tests, all keyless/offline)
+docs/               the thinking + this build's notes (see below)
+```
+
+A full file-by-file map of what's built lives in
+[`docs/implementation-notes.md`](./docs/implementation-notes.md).
+
+## What's in here (docs)
+
+- **[`docs/ax-testing-discussion-log.md`](./docs/ax-testing-discussion-log.md)** — start here. The *why*: positioning, the naming decision (why not "AEO"), the market map, competitive landscape, and the running list of open questions.
+- **[`docs/product-spec.md`](./docs/product-spec.md)** — the *what/how* of the whole platform: architecture, open/closed tiering, harness + adapter design, BYOK, scoring, telemetry, and v0→v2 phasing.
+- **[`docs/skill-spec.md`](./docs/skill-spec.md)** — the buildable shape of the **open-source skill** (the funnel): the four schemas (task / target pack / adapter / RunResult), the CLI, the safety boundary, and the open/closed line.
+- **[`docs/plan.md`](./docs/plan.md)** — the active **v0 build plan**: the "damning demo" goal, prerequisites/keys, workstreams (oracle-first), the Asana task set, milestones, the locked decisions, and the **Build status**.
+- **[`docs/implementation-notes.md`](./docs/implementation-notes.md)** — what is *actually built*, file by file (the backward-looking complement to `plan.md`).
 
 ## Where we are
 
 - ✅ Positioning + competitive landscape mapped (log §1–8)
 - ✅ Initial architecture decided — orchestrate real harnesses (Claude Code, Codex) via adapters, BYOK, cross-harness matrix as the paid tier (log §11, spec)
 - ✅ First target chosen — **Asana**, picked for high programmatic-oracle coverage (log §12.2); scope settled as static + behavioral + editorial, ranked (log §12.4); open-skill shape specced (`skill-spec.md`)
-- ✅ North-star UX + stack decided — **drop-a-link** auto-eval with a mandatory human **review gate** on auto-drafted oracles, tiered oracle generation (log §13); language locked to **TypeScript**; v0 build plan in [`plan.md`](./plan.md)
-- ✅ **Keyless v0 skeleton built (TypeScript)** — `ax-eval run/audit/report` runs end-to-end with no keys: behavioral matrix (8 Asana tasks × mock/mock-weak/hermes), programmatic oracles, the static (agent-readiness/AEO) audit, and the static×behavioral gap. 34 tests. See `plan.md` "Build status".
+- ✅ North-star UX + stack decided — **drop-a-link** auto-eval with a mandatory human **review gate** on auto-drafted oracles, tiered oracle generation (log §13); language locked to **TypeScript**; v0 build plan in [`docs/plan.md`](./docs/plan.md)
+- ✅ **Keyless v0 skeleton built (TypeScript)** — `ax-eval run/audit/report` runs end-to-end with no keys: behavioral matrix (8 Asana tasks × mock/mock-weak/hermes), programmatic oracles, the static (agent-readiness/AEO) audit, and the static×behavioral gap. 34 tests. See [`docs/plan.md`](./docs/plan.md) "Build status".
 - ⬜ Not yet decided: open/closed line, full oracle coverage per category, pricing, who blesses the harness standard, community-pack review/signing; Hermes's real provider/auth; the minimal-harness model
 - ⬜ Not yet built (needs keys, M1+): real `claude-code`/`codex` adapters, live API-readback oracles, sandbox setup/reset, the editorial eval set
 
