@@ -1,0 +1,30 @@
+{
+  "name": "ax-eval",
+  "version": "0.0.1",
+  "description": "AX eval — test whether AI agents can complete real tasks against a SaaS product, across harnesses.",
+  "type": "module",
+  "bin": {
+    "ax-eval": "./dist/cli.js"
+  },
+  "scripts": {
+    "ax-eval": "tsx src/cli.ts",
+    "build": "tsup src/cli.ts --format esm --clean",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "yaml": "^2.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsup": "^8.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "license": "MIT"
+}

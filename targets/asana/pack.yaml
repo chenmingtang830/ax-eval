@@ -1,0 +1,82 @@
+# Asana target pack (v0) — the 8 demo tasks from plan.md §6, ranked by oracle
+# coverage. In the keyless path these run against the mock/hermes-stub harnesses
+# and mock oracle state. At M1 the same oracles run against live API readback.
+name: asana
+version: "0"
+auth_method: pat            # ASANA_PAT (a throwaway sandbox) — only needed at M1
+base_url: https://app.asana.com/api/1.0
+site_url: https://asana.com  # root for the static (agent-readiness) audit
+docs_urls:
+  - https://developers.asana.com/docs
+
+tasks:
+  - id: asana-create-task
+    title: Create a task in a project
+    prompt: Create a task titled "Draft launch plan" in the Marketing project.
+    oracles:
+      - type: exists
+        path: task.gid
+        description: a task was created (has a gid)
+      - type: equals
+        path: task.name
+        expected: Draft launch plan
+
+  - id: asana-assign-task
+    title: Assign a task to a user
+    prompt: Assign the "Draft launch plan" task to alex@example.com.
+    oracles:
+      - type: equals
+        path: task.assignee
+        expected: alex@example.com
+
+  - id: asana-due-date
+    title: Set a due date
+    prompt: Set the due date of "Draft launch plan" to 2026-06-05.
+    oracles:
+      - type: equals
+        path: task.due_on
+        expected: "2026-06-05"
+
+  - id: asana-create-project
+    title: Create a project
+    prompt: Create a project named "Q3 Launch".
+    oracles:
+      - type: exists
+        path: project.gid
+      - type: equals
+        path: project.name
+        expected: Q3 Launch
+
+  - id: asana-comment
+    title: Add a comment to a task
+    prompt: Comment "Looks good, shipping Friday" on the "Draft launch plan" task.
+    oracles:
+      - type: contains
+        path: task.stories
+        value: Looks good, shipping Friday
+
+  - id: asana-complete-task
+    title: Complete a task
+    prompt: Mark "Draft launch plan" as complete.
+    oracles:
+      - type: equals
+        path: task.completed
+        expected: true
+
+  - id: asana-subtask
+    title: Create a subtask
+    prompt: Add a subtask "Write copy" under "Draft launch plan".
+    oracles:
+      - type: exists
+        path: subtask.gid
+      - type: equals
+        path: subtask.parent
+        expected: Draft launch plan
+
+  - id: asana-move-section
+    title: Move a task between sections
+    prompt: Move "Draft launch plan" from "To Do" to "In Progress".
+    oracles:
+      - type: equals
+        path: task.section
+        expected: In Progress

@@ -1,0 +1,5 @@
+{
+  "issuer": "https://asana.com",
+  "authorization_endpoint": "https://app.asana.com/-/oauth_authorize",
+  "token_endpoint": "https://app.asana.com/-/oauth_token"
+}

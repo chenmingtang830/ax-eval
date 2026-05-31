@@ -12,6 +12,7 @@ build/
 
 # Run artifacts
 reports/
+results/
 transcripts/
 *.log
 

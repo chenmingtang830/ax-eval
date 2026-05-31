@@ -23,6 +23,23 @@ If we have that report, we have the damning demo and the proof the whole thesis 
 - One report: per-harness pass rate, cross-harness spread, failure list, + the static-audit score next to it (the gap).
 - Reproducible: `harness@version` + `model` + pinned task set recorded in every result.
 
+### Build status (updated 2026-05-31)
+
+The keyless skeleton is now built in TypeScript and runs end-to-end with **no API
+keys** (mock + Hermes-stub harnesses, mock oracles, real-or-fixture static audit).
+What exists today:
+
+- ✅ **Skeleton + CLI** — `ax-eval run | audit | report | list-harnesses` (TS, Node 22+, tsx/tsup/zod/vitest).
+- ✅ **Behavioral matrix** — 8 Asana tasks × 3 keyless harnesses (`mock`, `mock-weak`, `hermes` stub) → task×harness PASS/FAIL matrix + per-harness pass rate.
+- ✅ **Programmatic oracles** — `exists` / `equals` / `contains` over reported world-state (dotted paths).
+- ✅ **Static (agent-readiness / AEO) audit** — `ax-eval audit --site <url>`: llms.txt, AGENTS.md, llms-full.txt, OpenAPI, MCP, SDK, robots/sitemap, OAuth discovery; weighted 0–100 score; live fetch with offline-fixture fallback; errored checks excluded from the score.
+- ✅ **The gap** — `run` prints the static score next to behavioral pass rate; synthetic controls (a perfect mock) are excluded so the gap is honest.
+- ✅ **34 unit tests**, all keyless/offline. Local JSON result storage + a `report` renderer.
+
+Still **not** built (needs keys / later milestones): the real `claude-code` and
+`codex` adapters (M1+), live API-readback oracles, Hermes's real provider/auth,
+the editorial eval set, and `setup.ts`/`reset.ts` sandbox provisioning.
+
 ### Explicitly NOT in v0
 
 Self-serve onboarding, billing, hosted fleet, history storage, percentiles, auto-fix, community-pack review, and **self-serve auto-generation of the eval set / oracles from a docs URL** (the drop-a-link UX — that's v1+; log §13, `skill-spec.md` §11). Note: v0 is still authored **AI + human-in-the-loop** (AI-drafts, a human approves/edits — by hand or by prompting the AI); it's "hand-curated" only in that a human signs off on every oracle. That human-approved Asana set is the **ground truth** the later self-serve generator is validated against. (See `skill-spec.md` §10.)
@@ -84,21 +101,22 @@ These build the **behavioral** eval set above (the static checklist is by-hand f
 
 ### A. Task list + programmatic oracles  ← start here
 
-- Write the 5–8 tasks (§6) as `tasks/*.yaml` per skill-spec §3.
-- For each, write `checks/<task>.ts` that queries Asana with the verify key (`ASANA_VERIFY_PAT`, falls back to `ASANA_PAT`) and returns a bool.
-- **Prove the oracle in isolation first**: manually perform the task by hand, confirm the check returns `true`; leave it undone, confirm `false`. An oracle you haven't falsified is not trustworthy.
+- 🟡 The 8 tasks (§6) currently live inline in `targets/asana/pack.yaml` (one file, not `tasks/*.yaml` — fine for v0). Each carries its oracle specs.
+- 🟡 Oracle **types** are built as data-driven checks in `src/oracles.ts` (`exists`/`equals`/`contains` over reported world-state), not per-task `checks/<task>.ts`. The live API-readback variant (querying Asana with `ASANA_VERIFY_PAT` → `ASANA_PAT`) is the M1 piece still to write.
+- ⬜ **Prove the oracle in isolation first**: manually perform the task by hand, confirm `true`; leave it undone, confirm `false`. (Pending live mode.)
 
 ### B. Target pack — Asana (the reference pack)
 
-- `targets/asana/pack.yaml` (surfaces, `agent_env`/`verify_env`, setup/reset, tasks glob) per skill-spec §4.
-- `setup.ts` — ensure the sandbox project exists, return its gid.
-- `reset.ts` — delete everything created in the project between attempts (so `attempts: K` / pass@k don't contaminate each other). **Critical** — without this, repeated runs lie.
+- ✅ `targets/asana/pack.yaml` — 8 tasks + oracles + `site_url` (for the static audit) + `base_url`/`auth_method`/`docs_urls`.
+- ⬜ `setup.ts` — ensure the sandbox project exists, return its gid. (M1)
+- ⬜ `reset.ts` — delete everything created between attempts (so pass@k don't contaminate). **Critical** for repeated live runs. (M1)
 
 ### C. Harness adapters
 
-- `minimal` first (no external CLI, just an API call loop) — it's the simplest and gives a baseline immediately.
-- `claude-code`: `claude -p "<task>" --output-format json --max-turns N --allowedTools "..."`, parse JSON transcript → `RunResult`.
-- `codex`: `codex exec --sandbox workspace-write --output-schema schema.json "<task>"`, parse → `RunResult`.
+- 🟡 Adapter **interface + registry** built (`src/adapters/base.ts` + `registry.ts`); current keyless harnesses are `mock`, `mock-weak`, `hermes` (stub). The three real adapters below are the M1 work:
+- ⬜ `minimal` — no external CLI, just an API call loop; the deliberately-weak floor/baseline.
+- ⬜ `claude-code`: `claude -p "<task>" --output-format json --max-turns N --allowedTools "..."`, parse JSON transcript → `RunResult`.
+- ⬜ `codex`: `codex exec --sandbox workspace-write --output-schema schema.json "<task>"`, parse → `RunResult`.
 - Each adapter: `detect()` (installed+authed?) + `run()` → normalized `RunResult` (skill-spec §5–6).
 
 ### D. Report
@@ -132,8 +150,9 @@ Each runs with `attempts: 3` for pass@k. Some run docs-only vs MCP vs SDK to see
 
 ## 7. Milestones
 
-- **M0 — Setup (½ day):** accounts, keys, `.env`, CLIs installed, `claude -p` and `codex exec` each run a trivial hello-world headless. *Proves the harness path is real before we build on it.*
-- **M1 — Oracle spike (1–2 days):** tasks #1–#3 written + their checks proven by manual falsification. *Proves we can judge success programmatically — the riskiest bet.*
+- **M0 — Setup (½ day):** accounts, keys, `.env`, CLIs installed, `claude -p` and `codex exec` each run a trivial hello-world headless. *Proves the harness path is real before we build on it.* — ⬜ pending (needs real keys/CLIs).
+- **M0.5 — Keyless skeleton (DONE 2026-05-31):** the full pipe runs with **no keys** on fake harnesses + mock oracles + a real-or-fixture static audit. `ax-eval run --offline` prints the matrix, the static score, and the gap. *Proves the whole pipe connects before any key is spent — the runnable foundation M1–M4 build on.* See "Build status" above.
+- **M1 — Oracle spike (1–2 days):** tasks #1–#3 written + their checks proven by manual falsification. *Proves we can judge success programmatically — the riskiest bet.* — oracle **types** + mock-mode tests done; live API-readback checks still to do.
 - **M2 — One full vertical slice (2–3 days):** task #1 runs end-to-end through `minimal` → `RunResult` → printed. *Proves the whole pipe connects.*
 - **M3 — All 3 harnesses × tasks #1–#5 (3–5 days):** the spread appears. *First sight of the real signal.*
 - **M4 — Full task set + report + static gap (2–3 days):** the damning demo. Run it ourselves on Asana, look at it, decide if the thesis holds.
@@ -142,11 +161,11 @@ Each runs with `attempts: 3` for pass@k. Some run docs-only vs MCP vs SDK to see
 
 ## 8. Decisions to lock before coding (small but blocking)
 
-- **Language/stack:** **TypeScript** (confirmed 2026-05-30) — npx-installable = frictionless funnel; ecosystem fit with MCP/skills/agent-tooling; official `node-asana`. Node 22+ (also Claude Code's requirement). Suggested tooling: `tsx`/`tsup` for the CLI, `zod` for schema validation, `vitest` for the oracle tests.
-- **Repo layout:** proposed (TS/Node) `src/axeval/` (runner + CLI) · `targets/asana/` (pack: `pack.yaml`, `setup.ts`, `reset.ts`, `tasks/`, `checks/`) · `src/adapters/` (claude-code, codex, minimal) · `reports/`. Confirm or override.
-- **Minimal harness model:** which model + how barebones (just a tool-calling loop with web-fetch + http)? It's the floor, so keep it deliberately weak.
-- **Sandbox isolation for v0:** we run our own trusted pack, so full container isolation (skill-spec §9) can wait — but Codex should still run `--sandbox workspace-write`. Confirm we're OK deferring containerization to post-v0.
-- **Static audit scope for v0:** build our own tiny checker, or just eyeball Asana against the Cloudflare/axd.md dimensions by hand for the demo? (Proposed: by-hand for v0, automate later.)
+- **Language/stack:** ✅ **LOCKED + built — TypeScript** (confirmed 2026-05-30). Node 22+, `tsx` (run) / `tsup` (build) for the CLI, `zod` for schema validation, `vitest` for tests, `yaml` for pack loading.
+- **Repo layout:** ✅ **implemented** (slightly flattened from the proposal): `src/` (runner, CLI, oracles, config, reporting, storage, schemas) · `src/adapters/` (`base`, `mock`, `hermes`, `registry`) · `src/static/` (the audit module + `fixtures/`) · `targets/asana/pack.yaml` · `tests/`. `setup.ts`/`reset.ts` and a `checks/` dir are deferred to M1 (live mode).
+- **Minimal harness model:** ⬜ still open — which model + how barebones. The current `mock`/`mock-weak`/`hermes` are keyless stand-ins; the real "minimal" floor harness arrives with M1.
+- **Sandbox isolation for v0:** ⬜ still open (Codex should run `--sandbox workspace-write`; containerization deferred post-v0).
+- **Static audit scope for v0:** ✅ **decided + built — automated**, not by-hand. `src/static/` implements the Cloudflare/axd.md checklist as code (`ax-eval audit`), with offline fixtures so it runs without network. (Upgraded from the original "by-hand for v0" proposal.)
 
 ---
 
@@ -161,7 +180,11 @@ Each runs with `attempts: 3` for pass@k. Some run docs-only vs MCP vs SDK to see
 
 ## 10. Immediate next actions
 
-1. You: create the Asana account + sandbox project, generate the two PATs, fill `.env` from `.env.example`.
-2. Us: lock the remaining §8 decision (repo layout) — language is settled (TypeScript).
-3. Us: start workstream A — write tasks #1–#3 and their oracle checks, prove them by manual falsification (M1).
+The keyless skeleton (M0.5), the static audit, and the TS/layout decisions are
+done (see "Build status" + §8). Remaining next actions:
+
+1. You: create the Asana account + sandbox project, generate the PAT, fill `.env` from `.env.example` — unblocks M1 live runs.
+2. Us: build the real harness adapters (`claude-code` via `claude -p`, `codex` via `codex exec`, and a minimal floor) behind the existing registry, replacing the keyless stubs.
+3. Us: write live API-readback oracle types and prove tasks #1–#3 by manual falsification against the Asana sandbox (M1).
+4. Decide Hermes's real provider/auth (currently a keyless stub) and the minimal-harness model (§8).
 
