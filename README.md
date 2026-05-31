@@ -1,16 +1,20 @@
-# AX eval — working repo
+# SDK Agent Readiness Eval — working repo
 
-**Working name: AX eval.** A product exploration. This repo holds our thinking plus the v0 skeleton (TypeScript) — see the quickstart below.
+**Product name: SDK Agent Readiness Eval** (short handle: **AX eval**). A product exploration. This repo holds our thinking plus the v0 skeleton (TypeScript) — see the quickstart below.
 
-## The one-liner
+## Is your SDK agent ready?
 
-We test whether **AI agents can actually complete real tasks against a SaaS product's docs / API / MCP / CLI** — across multiple agent harnesses, continuously, with diagnosis of *why* they fail and *what to fix*.
+**We run real agents against your SDK and tell you where they fail and how to improve.**
+
+Your SDK — APIs, docs, OpenAPI spec, MCP server, SDKs, CLI — may be technically exposed. That doesn't mean an AI agent can actually use it. We run real agent harnesses against your SDK, give them realistic tasks, and measure whether they complete end-to-end — across multiple harnesses, continuously, with diagnosis of *why* they fail and *what to fix*.
 
 Not a static audit (does your site have `llms.txt`). Not an editorial benchmark (a third party ranks vendors). Not code-sample CI (does this snippet compile). It's the **integration test for Agent Experience (AX)**: audits lint, benchmarks review — we run the real thing and tell you if it works.
 
 ## Why now
 
 As agents become the primary operators of software, a SaaS has to win on three layers: get **discovered** (AEO/GEO), **expose** machine-operable surfaces (AX / agent-readiness), and actually **succeed** when an agent tries to use them. That third layer — verification — is empty. Everything shipping today is a static audit or an editorial benchmark. We fill the gap.
+
+Recent academic evidence confirms the gap is real: a 2026 EASE paper (*Making OpenAPI Documentation Agent-Ready*, Lima et al.) found that with original, unrevised OpenAPI docs, ~70% of agent automation tasks failed at the planning stage; with enriched docs, success jumped to 90%. Their conclusion: **structural validity does not imply agent-readiness.** That's the gap we measure — and fix.
 
 ## Quickstart (no keys)
 
@@ -94,4 +98,4 @@ The repo now has both the decision record (docs) and a runnable keyless skeleton
 
 ## TL;DR for a newcomer
 
-Agents are becoming the main users of APIs and docs. Nobody can tell a SaaS team whether agents actually *succeed* against their product. We can — across the agents people really use, in CI, with fixes. The skill is the funnel; hosted continuous cross-harness testing is the business.
+Agents are becoming the main users of APIs and docs. Nobody can tell a SaaS team whether agents actually *succeed* against their SDK. We can — across the agents people really use, in CI, with diagnosis and fixes. The open skill is the funnel; hosted continuous cross-harness testing is the business.
