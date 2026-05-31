@@ -58,15 +58,17 @@ oracle"). Real keys (Asana PAT, Anthropic, OpenAI) are only needed for live runs
 - ✅ Initial architecture decided — orchestrate real harnesses (Claude Code, Codex) via adapters, BYOK, cross-harness matrix as the paid tier (log §11, spec)
 - ✅ First target chosen — **Asana**, picked for high programmatic-oracle coverage (log §12.2); scope settled as static + behavioral + editorial, ranked (log §12.4); open-skill shape specced (`skill-spec.md`)
 - ✅ North-star UX + stack decided — **drop-a-link** auto-eval with a mandatory human **review gate** on auto-drafted oracles, tiered oracle generation (log §13); language locked to **TypeScript**; v0 build plan in [`plan.md`](./plan.md)
-- ⬜ Not yet decided: open/closed line, full oracle coverage per category, pricing, who blesses the harness standard, community-pack review/signing
-- ⬜ Not yet built: the v0 "damning demo" (Asana × 3 harnesses × a handful of tasks with programmatic oracles)
+- ✅ **Keyless v0 skeleton built (TypeScript)** — `ax-eval run/audit/report` runs end-to-end with no keys: behavioral matrix (8 Asana tasks × mock/mock-weak/hermes), programmatic oracles, the static (agent-readiness/AEO) audit, and the static×behavioral gap. 34 tests. See `plan.md` "Build status".
+- ⬜ Not yet decided: open/closed line, full oracle coverage per category, pricing, who blesses the harness standard, community-pack review/signing; Hermes's real provider/auth; the minimal-harness model
+- ⬜ Not yet built (needs keys, M1+): real `claude-code`/`codex` adapters, live API-readback oracles, sandbox setup/reset, the editorial eval set
 
 ## How to contribute
 
-This is a thinking repo, so the unit of work is a **decision**, not code (yet).
+The repo now has both the decision record (docs) and a runnable keyless skeleton.
 - Open questions live in **log §9** and **spec §12** — that's the to-do list. Disagree, narrow, or close one.
 - The log is the narrative/decision record (append revisions at the top). The spec is the buildable detail.
-- Next concrete milestone: the **v0 damning demo** (spec §11).
+- To run the code: see the quickstart above (`npm install`, `npm run ax-eval -- run --offline`).
+- Next concrete milestone: **M1** — real harness adapters + live oracles against an Asana sandbox (the full "damning demo").
 
 ## TL;DR for a newcomer
 
