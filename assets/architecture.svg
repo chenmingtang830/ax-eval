@@ -1,140 +1,93 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1120" height="860" viewBox="0 0 1120 860" font-family="-apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif">
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="760" viewBox="0 0 1280 760" role="img" aria-labelledby="title desc">
+  <title id="title">ax-eval architecture</title>
+  <desc id="desc">Pipeline from OpenAPI or GraphQL spec to reviewed task pack, host-agent execution, verifier, and HTML report.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#475569"/>
+      <path d="M0,0 L8,3 L0,6 Z" fill="#334155"/>
     </marker>
-    <marker id="arrowGreen" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L8,3 L0,6 Z" fill="#15803d"/>
-    </marker>
+    <linearGradient id="hero" x1="0" x2="1" y1="0" y2="1">
+      <stop offset="0%" stop-color="#eff6ff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+    <style>
+      text { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+      .title { font-size: 34px; font-weight: 800; fill: #0f172a; letter-spacing: -0.04em; }
+      .sub { font-size: 15px; fill: #475569; }
+      .label { font-size: 13px; font-weight: 800; fill: #0f172a; letter-spacing: 0.06em; text-transform: uppercase; }
+      .h { font-size: 18px; font-weight: 800; fill: #0f172a; }
+      .t { font-size: 13px; fill: #475569; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; fill: #64748b; }
+      .card { rx: 20; ry: 20; stroke-width: 1.5; }
+      .edge { stroke: #334155; stroke-width: 1.7; fill: none; marker-end: url(#arrow); }
+      .muted-edge { stroke: #cbd5e1; stroke-width: 1.5; fill: none; stroke-dasharray: 6 6; }
+    </style>
   </defs>
 
-  <style>
-    .title  { font-size: 24px; font-weight: 700; fill: #0f172a; }
-    .sub    { font-size: 13px; fill: #64748b; }
-    .box    { rx: 10; ry: 10; stroke-width: 1.5; }
-    .h      { font-size: 15px; font-weight: 700; }
-    .t      { font-size: 12px; fill: #334155; }
-    .path   { font-size: 11px; fill: #64748b; font-family: ui-monospace, Menlo, monospace; }
-    .band   { font-size: 13px; font-weight: 700; letter-spacing: .5px; }
-    .edge   { stroke: #475569; stroke-width: 1.6; fill: none; }
-    .edgeG  { stroke: #15803d; stroke-width: 2; fill: none; }
-  </style>
+  <rect width="1280" height="760" fill="url(#hero)"/>
+  <rect x="32" y="32" width="1216" height="696" rx="30" fill="#ffffff" stroke="#e2e8f0"/>
 
-  <!-- Header -->
-  <text x="40" y="42" class="title">AX eval — architecture &amp; execution flow</text>
-  <text x="40" y="64" class="sub">"Integration test for Agent Experience": run real tasks against a SaaS target across harnesses + audit its agent-readiness, then show the gap.</text>
+  <text x="72" y="92" class="title">ax-eval: from published surface to verified agent success</text>
+  <text x="72" y="124" class="sub">Generate tasks from a product spec, run them through the host agent, verify live sandbox state, and report the gap.</text>
 
-  <!-- ============ CLI ENTRY ============ -->
-  <rect x="40" y="90" width="1040" height="74" class="box" fill="#eef2ff" stroke="#6366f1"/>
-  <text x="60" y="116" class="h" fill="#3730a3">CLI entry — <tspan font-family="ui-monospace, monospace" font-size="13px">ax-eval</tspan>  (src/cli.ts)</text>
-  <rect x="62" y="126" width="150" height="28" rx="6" fill="#fff" stroke="#a5b4fc"/>
-  <text x="137" y="145" class="t" text-anchor="middle" font-weight="700">run</text>
-  <rect x="224" y="126" width="150" height="28" rx="6" fill="#fff" stroke="#a5b4fc"/>
-  <text x="299" y="145" class="t" text-anchor="middle" font-weight="700">audit</text>
-  <rect x="386" y="126" width="150" height="28" rx="6" fill="#fff" stroke="#a5b4fc"/>
-  <text x="461" y="145" class="t" text-anchor="middle" font-weight="700">report</text>
-  <rect x="548" y="126" width="180" height="28" rx="6" fill="#fff" stroke="#a5b4fc"/>
-  <text x="638" y="145" class="t" text-anchor="middle" font-weight="700">list-harnesses</text>
-  <text x="930" y="145" class="path" text-anchor="middle">--offline · --site · --pack</text>
+  <rect x="72" y="164" width="240" height="124" class="card" fill="#f8fafc" stroke="#cbd5e1"/>
+  <text x="96" y="198" class="label">Input</text>
+  <text x="96" y="232" class="h">Product surface</text>
+  <text x="96" y="258" class="t">OpenAPI or GraphQL</text>
+  <text x="96" y="278" class="mono">docs - auth - sandbox</text>
 
-  <!-- ============ CONFIG ============ -->
-  <rect x="40" y="186" width="1040" height="64" class="box" fill="#f8fafc" stroke="#94a3b8"/>
-  <text x="60" y="210" class="h" fill="#334155">Config / load  (src/config.ts, src/schemas.ts)</text>
-  <text x="60" y="232" class="t">loadDotenv(.env) → process.env   ·   loadPack(pack.yaml) → zod-validated TargetPack (tasks + oracles + site_url)</text>
+  <rect x="372" y="164" width="240" height="124" class="card" fill="#eef2ff" stroke="#818cf8"/>
+  <text x="396" y="198" class="label">1. Ingest</text>
+  <text x="396" y="232" class="h">Parse capabilities</text>
+  <text x="396" y="258" class="t">Resources, auth hints,</text>
+  <text x="396" y="278" class="t">create/read pairs</text>
 
-  <!-- arrow CLI -> config -->
-  <line x1="560" y1="164" x2="560" y2="186" class="edge" marker-end="url(#arrow)"/>
+  <rect x="672" y="164" width="240" height="124" class="card" fill="#ecfeff" stroke="#22d3ee"/>
+  <text x="696" y="198" class="label">2. Generate</text>
+  <text x="696" y="232" class="h">Frozen task pack</text>
+  <text x="696" y="258" class="t">L1-L4 tasks, discovery,</text>
+  <text x="696" y="278" class="t">round-trip oracles</text>
 
-  <!-- band labels -->
-  <text x="60" y="288" class="band" fill="#0e7490">① BEHAVIORAL EVAL  — can an agent actually do the job?</text>
-  <text x="600" y="288" class="band" fill="#b45309">② STATIC EVAL (AEO)  — is the plumbing even exposed?</text>
+  <rect x="972" y="164" width="204" height="124" class="card" fill="#fefce8" stroke="#facc15"/>
+  <text x="996" y="198" class="label">3. Review</text>
+  <text x="996" y="232" class="h">Human gate</text>
+  <text x="996" y="258" class="t">Approve executable</text>
+  <text x="996" y="278" class="t">tasks before run</text>
 
-  <!-- divider -->
-  <line x1="565" y1="300" x2="565" y2="660" stroke="#e2e8f0" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <path d="M312 226 H356" class="edge"/>
+  <path d="M612 226 H656" class="edge"/>
+  <path d="M912 226 H956" class="edge"/>
 
-  <!-- ===== BEHAVIORAL COLUMN (left) ===== -->
-  <!-- Pack -->
-  <rect x="60" y="300" width="470" height="56" class="box" fill="#ecfeff" stroke="#06b6d4"/>
-  <text x="76" y="322" class="h" fill="#155e75">TargetPack — 8 Asana tasks + oracles</text>
-  <text x="76" y="342" class="path">targets/asana/pack.yaml</text>
+  <rect x="72" y="378" width="280" height="168" class="card" fill="#f0f9ff" stroke="#38bdf8"/>
+  <text x="96" y="412" class="label">4. Execute</text>
+  <text x="96" y="446" class="h">Host-agent run</text>
+  <text x="96" y="474" class="t">The agent starts cold:</text>
+  <text x="96" y="498" class="t">discover docs/API, act through</text>
+  <text x="96" y="522" class="t">API, CLI, SDK, or MCP surface.</text>
 
-  <!-- Runner -->
-  <rect x="60" y="378" width="470" height="56" class="box" fill="#ecfeff" stroke="#06b6d4"/>
-  <text x="76" y="400" class="h" fill="#155e75">Runner — N tasks × M harnesses</text>
-  <text x="76" y="420" class="path">src/runner.ts  → matrix(), passRate()</text>
+  <rect x="428" y="378" width="280" height="168" class="card" fill="#f0fdf4" stroke="#22c55e"/>
+  <text x="452" y="412" class="label">5. Verify</text>
+  <text x="452" y="446" class="h">Read back real state</text>
+  <text x="452" y="474" class="t">Programmatic oracle checks</text>
+  <text x="452" y="498" class="t">the product, not the agent's</text>
+  <text x="452" y="522" class="t">self-report.</text>
 
-  <!-- Harnesses -->
-  <rect x="60" y="456" width="470" height="74" class="box" fill="#ecfeff" stroke="#06b6d4"/>
-  <text x="76" y="478" class="h" fill="#155e75">Harness adapters → world-state + trace</text>
-  <text x="76" y="497" class="path">src/adapters/  (base · registry)</text>
-  <rect x="76" y="503" width="120" height="20" rx="5" fill="#fff" stroke="#67e8f9"/>
-  <text x="136" y="517" class="t" text-anchor="middle" font-size="11px">mock (synthetic)</text>
-  <rect x="204" y="503" width="92" height="20" rx="5" fill="#fff" stroke="#67e8f9"/>
-  <text x="250" y="517" class="t" text-anchor="middle" font-size="11px">mock-weak</text>
-  <rect x="304" y="503" width="150" height="20" rx="5" fill="#fff" stroke="#67e8f9"/>
-  <text x="379" y="517" class="t" text-anchor="middle" font-size="11px">hermes (keyless stub)</text>
+  <rect x="784" y="378" width="392" height="168" class="card" fill="#fff7ed" stroke="#fb923c"/>
+  <text x="808" y="412" class="label">6. Report</text>
+  <text x="808" y="446" class="h">HTML + normalized result</text>
+  <text x="808" y="474" class="t">Pass@k, discovery score, spec smells, trace diffs,</text>
+  <text x="808" y="498" class="t">blocked surfaces, and recommendations.</text>
+  <text x="808" y="522" class="mono">static readiness x behavioral success</text>
 
-  <!-- Oracles -->
-  <rect x="60" y="552" width="470" height="62" class="box" fill="#ecfeff" stroke="#06b6d4"/>
-  <text x="76" y="574" class="h" fill="#155e75">Oracles score the world → RunResult</text>
-  <text x="76" y="594" class="path">src/oracles.ts  ·  exists / equals / contains</text>
+  <path d="M1074 288 V326 Q1074 346 1054 346 H212 Q192 346 192 366 V378" class="edge"/>
+  <path d="M352 462 H412" class="edge"/>
+  <path d="M708 462 H768" class="edge"/>
 
-  <!-- arrows behavioral -->
-  <line x1="295" y1="356" x2="295" y2="378" class="edge" marker-end="url(#arrow)"/>
-  <line x1="295" y1="434" x2="295" y2="456" class="edge" marker-end="url(#arrow)"/>
-  <line x1="295" y1="530" x2="295" y2="552" class="edge" marker-end="url(#arrow)"/>
+  <line x1="212" y1="566" x2="212" y2="616" class="muted-edge"/>
+  <line x1="568" y1="566" x2="568" y2="616" class="muted-edge"/>
+  <line x1="980" y1="566" x2="980" y2="616" class="muted-edge"/>
 
-  <!-- future adapters note -->
-  <text x="76" y="640" class="sub" font-size="11px" font-style="italic">M1+: real claude-code / codex / minimal adapters slot into the same registry</text>
-
-  <!-- ===== STATIC COLUMN (right) ===== -->
-  <rect x="600" y="300" width="480" height="56" class="box" fill="#fffbeb" stroke="#f59e0b"/>
-  <text x="616" y="322" class="h" fill="#92400e">site_url (from pack)  e.g. https://asana.com</text>
-  <text x="616" y="342" class="path">targets/asana/pack.yaml → site_url</text>
-
-  <rect x="600" y="378" width="480" height="56" class="box" fill="#fffbeb" stroke="#f59e0b"/>
-  <text x="616" y="400" class="h" fill="#92400e">Fetcher — live HTTP, fixture fallback</text>
-  <text x="616" y="420" class="path">src/static/fetcher.ts  ·  --offline → fixtures/</text>
-
-  <rect x="600" y="456" width="480" height="74" class="box" fill="#fffbeb" stroke="#f59e0b"/>
-  <text x="616" y="478" class="h" fill="#92400e">8 readiness checks → pass / fail / error</text>
-  <text x="616" y="497" class="path">src/static/checks.ts</text>
-  <text x="616" y="519" class="t" font-size="11px">llms.txt · AGENTS.md · OpenAPI · MCP · SDK · robots/sitemap · OAuth</text>
-
-  <rect x="600" y="552" width="480" height="62" class="box" fill="#fffbeb" stroke="#f59e0b"/>
-  <text x="616" y="574" class="h" fill="#92400e">Audit — weighted 0–100 readiness score</text>
-  <text x="616" y="594" class="path">src/static/audit.ts  ·  errored checks excluded</text>
-
-  <!-- arrows static -->
-  <line x1="840" y1="356" x2="840" y2="378" class="edge" marker-end="url(#arrow)"/>
-  <line x1="840" y1="434" x2="840" y2="456" class="edge" marker-end="url(#arrow)"/>
-  <line x1="840" y1="530" x2="840" y2="552" class="edge" marker-end="url(#arrow)"/>
-
-  <!-- ===== MERGE: REPORT + GAP ===== -->
-  <!-- converging arrows -->
-  <path d="M295,614 L295,672 Q295,688 311,688 L520,688" class="edgeG" marker-end="url(#arrowGreen)"/>
-  <path d="M840,614 L840,672 Q840,688 824,688 L610,688" class="edgeG" marker-end="url(#arrowGreen)"/>
-
-  <rect x="240" y="700" width="640" height="86" class="box" fill="#f0fdf4" stroke="#22c55e"/>
-  <text x="560" y="724" class="h" fill="#166534" text-anchor="middle">Reporting — matrix + pass rate  +  THE GAP</text>
-  <text x="560" y="744" class="path" text-anchor="middle">src/reporting.ts  ·  src/static/render.ts</text>
-  <text x="560" y="766" class="t" text-anchor="middle">"Readiness 75/100, but best real agent only 40% → exposed ≠ usable"</text>
-  <text x="560" y="780" class="sub" text-anchor="middle" font-size="11px">synthetic controls excluded · "not run" ≠ "failed" · errored ≠ absent</text>
-
-  <!-- storage -->
-  <rect x="916" y="700" width="164" height="86" class="box" fill="#f1f5f9" stroke="#94a3b8"/>
-  <text x="998" y="730" class="h" fill="#334155" text-anchor="middle" font-size="14px">Storage</text>
-  <text x="998" y="750" class="path" text-anchor="middle">src/storage.ts</text>
-  <text x="998" y="768" class="t" text-anchor="middle" font-size="11px">results/</text>
-  <text x="998" y="782" class="t" text-anchor="middle" font-size="11px">last-run.json</text>
-
-  <line x1="880" y1="743" x2="916" y2="743" class="edgeG" marker-end="url(#arrowGreen)"/>
-
-  <!-- command routing legend -->
-  <text x="40" y="826" class="sub" font-size="12px">
-    <tspan font-weight="700" fill="#3730a3">run</tspan> = ① + ② + gap   ·
-    <tspan font-weight="700" fill="#3730a3"> audit</tspan> = ② only   ·
-    <tspan font-weight="700" fill="#3730a3"> report</tspan> = re-render saved JSON   ·
-    <tspan font-weight="700" fill="#3730a3"> list-harnesses</tspan> = registry   ·   all run keyless (no API keys)
-  </text>
+  <rect x="72" y="616" width="1104" height="72" rx="18" fill="#0f172a"/>
+  <text x="104" y="648" fill="#e2e8f0" font-size="15" font-weight="700">Value proposition</text>
+  <text x="104" y="674" fill="#f8fafc" font-size="22" font-weight="800" letter-spacing="-0.03em">Being published is not the same as being usable by agents.</text>
+  <text x="820" y="674" fill="#cbd5e1" font-size="14">ax-eval makes that gap visible and actionable.</text>
 </svg>
