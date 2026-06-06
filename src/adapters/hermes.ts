@@ -1,6 +1,6 @@
 /**
- * Hermes harness — the planned third harness for the cross-harness matrix
- * (product-spec.md §4.3, the synthetic/third-column slot).
+ * Hermes harness — a planned additional harness (the synthetic/third-column
+ * slot for cross-agent comparison).
  *
  * Provider and auth are still TBD, so this ships as a *keyless stub*: it runs
  * without credentials and produces a deterministic, middling competence profile,

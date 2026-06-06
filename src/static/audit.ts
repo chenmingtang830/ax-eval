@@ -2,7 +2,7 @@
  * Run the static checklist against a site and compute a 0–100 readiness score.
  *
  * Score = weighted share of checks passed. A check worth weight 3 counts three
- * times as much as a weight-1 check (plan.md §4 ranks the surfaces by impact).
+ * times as much as a weight-1 check (surfaces are weighted by impact).
  */
 import { Fetcher, type FetcherOptions } from "./fetcher.js";
 import { CHECKS, type StaticCheck } from "./checks.js";

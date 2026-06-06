@@ -1,0 +1,186 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: deterministic@no-model+l4-curated
+# standard_set_version: gen-2026-06-05
+# run_id: 2026-06-05-ayeh4r
+name: asana-generated
+version: "0"
+standard_set_version: gen-2026-06-05
+run_id: 2026-06-05-ayeh4r
+generated_by: deterministic@no-model+l4-curated
+api_style: rest
+auth_method: pat
+auth:
+  type: bearer
+  env: ASANA_PAT
+  verify_env: ASANA_VERIFY_PAT
+sandbox_scope:
+  - name: project_id
+    env: ASANA_SANDBOX_PROJECT_ID
+    required: true
+    instructions: Create a throwaway Asana project and paste its id (or URL) here,
+      so the generated tasks create resources inside an isolated sandbox you can
+      safely reset.
+base_url: https://app.asana.com/api/1.0
+request_envelope: data
+response_envelope: data
+headers: {}
+surfaces:
+  sdk:
+    package: asana
+    language: node
+    reference_url: https://developers.asana.com/docs/overview
+  mcp:
+    server: https://mcp.asana.com/v2/mcp
+    transport: http
+    docs_url: https://developers.asana.com/docs/using-asanas-mcp-server
+site_url: https://developers.asana.com
+openapi_url: https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml
+docs_urls: &a1
+  - https://developers.asana.com/docs
+static:
+  site_url: https://developers.asana.com
+  docs_urls: *a1
+  checks: []
+discovery:
+  product: Asana
+  goal: You are about to operate Asana programmatically. First work out, from
+    scratch, how Asana's public API works — its base URL, how to authenticate,
+    the request/response shape, and how to create resources — then you will
+    perform several tasks. You are NOT given any endpoint, base URL, or
+    documentation link; find them yourself.
+  official_domains:
+    - developers.asana.com
+  canonical_endpoint: POST /tasks
+  deprecated_markers: []
+  auth_scheme: Bearer personal access token
+tasks:
+  - id: gen-l1-tasks
+    title: "L1: create a tasks"
+    difficulty: L1
+    prompt: Create one tasks named "AX probe tasks {ns}" in the sandbox workspace,
+      using the API you discovered. Report the created id.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /tasks
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read tasks back and assert name
+        readPathTemplate: /tasks/{gid}
+        responseEnvelope: data
+        assertField: name
+        expected: AX probe tasks {ns}
+  - id: gen-l1-projects
+    title: "L1: create a projects"
+    difficulty: L1
+    prompt: Create one projects named "AX probe projects {ns}" in the sandbox
+      workspace, using the API you discovered. Report the created id.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /projects
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read projects back and assert name
+        readPathTemplate: /projects/{gid}
+        responseEnvelope: data
+        assertField: name
+        expected: AX probe projects {ns}
+  - id: gen-l2-projects-sections
+    title: "L2: create a sections under a projects"
+    difficulty: L2
+    prompt: First create a projects. Then, using its id, create a sections under it
+      named "AX probe sections {ns}". Report both ids.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /projects/{project_gid}/sections
+    create_envelope: data
+    depends_on:
+      - projects
+    oracles:
+      - type: roundtrip
+        description: read sections back and assert name
+        readPathTemplate: /sections/{gid}
+        responseEnvelope: data
+        assertField: name
+        expected: AX probe sections {ns}
+  - id: gen-l3-tasks
+    title: "L3: ambiguous goal-level (comprehension)"
+    difficulty: L3
+    prompt: "A teammate messages you: \"Please add \\\"AX probe tasks-goal {ns}\\\"
+      to my to-do list in this workspace so I don't forget to do it.\" Work out
+      what to create to satisfy this and create it. Report the id of the item
+      you created."
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /tasks
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read tasks back and assert name
+        readPathTemplate: /tasks/{gid}
+        responseEnvelope: data
+        assertField: name
+        expected: AX probe tasks-goal {ns}
+  - id: gen-l4-task-complete
+    title: "L4: create then complete a task (state mutation)"
+    difficulty: L4
+    prompt: Create a task named "AX probe tasks-task-complete {ns}", then mark it
+      complete. Report the task id; it must read back as completed.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /tasks
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read tasks back and assert completed
+        readPathTemplate: /tasks/{gid}
+        responseEnvelope: data
+        assertField: completed
+        expected: true
+  - id: gen-l4-task-reschedule
+    title: "L4: create then reschedule a task (due-date mutation)"
+    difficulty: L4
+    prompt: Create a task named "AX probe tasks-task-reschedule {ns}", then set its
+      due date to 2026-06-30. Report the task id.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /tasks
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read tasks back and assert due_on
+        readPathTemplate: /tasks/{gid}
+        responseEnvelope: data
+        assertField: due_on
+        expected: 2026-06-30
+  - id: gen-l4-project-archive
+    title: "L4: create then archive a project (state mutation)"
+    difficulty: L4
+    prompt: Create a project named "AX probe projects-project-archive {ns}" in the
+      sandbox workspace, then archive it. Report the project id; it must read
+      back as archived.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /projects
+    create_envelope: data
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read projects back and assert archived
+        readPathTemplate: /projects/{gid}
+        responseEnvelope: data
+        assertField: archived
+        expected: true

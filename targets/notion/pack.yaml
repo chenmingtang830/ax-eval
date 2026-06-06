@@ -1,0 +1,140 @@
+# Notion target pack — second target, proving the target-agnostic runtime.
+#
+# Notion validates the abstraction in two ways Asana didn't exercise:
+#   1. a REQUIRED constant header (`Notion-Version`) on every request → `headers`,
+#   2. no field-selection query param (Asana's `opt_fields`) → `field_select_param`
+#      left unset so the round-trip read sends a clean GET.
+# Auth is Bearer (like Asana). Endpoints/base_url came from `ingest`-ing Notion's
+# public OpenAPI (https://developers.notion.com/openapi.json) — the OpenAPI path
+# generalized with no code change. Oracles are HAND-CURATED, not auto-generated:
+# Notion's create/read bodies are nested/polymorphic (a page title lives at
+# properties.title.title[].plain_text), which the flat-field generator can't infer.
+#
+# NOTE: oracle read-back paths are authored from the documented response shape and
+# must be confirmed against a live token before trusting the score (set NOTION_TOKEN
+# + NOTION_SANDBOX_PARENT_PAGE_ID, then `verify-generated`).
+name: notion
+version: "0"
+standard_set_version: notion-2026-06-04
+run_id: 2026-06-04-notion
+generated_by: hand-curated@no-model
+auth_method: bearer
+auth:
+  type: bearer
+  env: NOTION_TOKEN
+  verify_env: NOTION_VERIFY_TOKEN
+  header: Authorization
+headers:
+  Notion-Version: "2026-03-11"
+sandbox_scope:
+  - name: parent_page_id
+    env: NOTION_SANDBOX_PARENT_PAGE_ID
+    required: true
+    instructions: "Create a throwaway Notion page, share it with your integration, and paste its id or URL. New pages/comments are created under it."
+    url_pattern: "([0-9a-f]{32})"
+  - name: data_source_id
+    env: NOTION_SANDBOX_DATA_SOURCE_ID
+    required: false
+    instructions: "Optional: a data source (database) id, for tasks that create a row in a database."
+    url_pattern: "([0-9a-f]{32})"
+# Non-API surfaces Notion exposes (verification still reads back via the API).
+surfaces:
+  sdk:
+    package: "@notionhq/client"
+    language: node
+    reference_url: https://developers.notion.com/reference/intro
+    # The official client uses the same integration token as the REST API.
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.notion.com/mcp
+    transport: http
+    docs_url: https://developers.notion.com/guides/mcp/overview
+    # Notion's hosted MCP is OAuth-only. (A self-hosted server can take an
+    # integration token, but that path is soft-deprecated.) Headless runs are
+    # blocked until an OAuth app + refresh token are provided.
+    auth:
+      kind: oauth_app
+      client_id_env: NOTION_MCP_CLIENT_ID
+      client_secret_env: NOTION_MCP_CLIENT_SECRET
+      refresh_token_env: NOTION_MCP_REFRESH_TOKEN
+      instructions: "Create a Notion public OAuth integration, complete the OAuth flow once, and store the refresh token. The hosted MCP server has no token path."
+base_url: https://api.notion.com
+site_url: https://developers.notion.com
+docs_urls: &a1
+  - https://developers.notion.com/reference/intro
+static:
+  site_url: https://developers.notion.com
+  docs_urls: *a1
+  checks: []
+discovery:
+  product: Notion
+  goal: You are about to operate Notion programmatically. First work out, from
+    scratch, how Notion's public API works — its base URL, how to authenticate,
+    the REQUIRED version header, the request/response shape, and how to create a
+    page — then you will perform several tasks. You are NOT given any endpoint,
+    base URL, or documentation link; find them yourself.
+  official_domains:
+    - developers.notion.com
+  canonical_endpoint: POST /v1/pages
+  deprecated_markers:
+    - "2022-06-28"
+  auth_scheme: Bearer integration token + Notion-Version header
+# field_select_param omitted: Notion has no opt_fields, so the round-trip GET
+# sends no field-selection query param (Asana sets this to "opt_fields").
+tasks:
+  - id: notion-l1-page
+    title: "L1: create a page"
+    difficulty: L1
+    prompt: >
+      Create a page titled "AX probe page {ns}" under the parent page identified
+      by NOTION_SANDBOX_PARENT_PAGE_ID, using the API you discovered. Report the
+      created page id.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /v1/pages
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the page back and assert its title
+        readPathTemplate: /v1/pages/{gid}
+        assertField: properties.title.title.0.plain_text
+        expected: AX probe page {ns}
+
+  - id: notion-l1-comment
+    title: "L1: comment on the parent page"
+    difficulty: L1
+    prompt: >
+      Add a comment with the text "AX probe comment {ns}" to the page identified
+      by NOTION_SANDBOX_PARENT_PAGE_ID. Report the created comment id.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /v1/comments
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the comment back and assert its text
+        readPathTemplate: /v1/comments/{gid}
+        assertField: rich_text.0.plain_text
+        expected: AX probe comment {ns}
+
+  - id: notion-l4-archive
+    title: "L4: create then archive a page (state mutation)"
+    difficulty: L4
+    prompt: >
+      Create a page titled "AX probe archive {ns}" under the parent page
+      identified by NOTION_SANDBOX_PARENT_PAGE_ID, then archive it (move it to
+      trash). Report the page id; it must read back as trashed.
+    allowed_surfaces:
+      - api
+      - docs
+    create_path: /v1/pages
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the page back and assert it is in trash
+        readPathTemplate: /v1/pages/{gid}
+        assertField: in_trash
+        expected: true

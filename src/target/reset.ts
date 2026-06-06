@@ -1,0 +1,137 @@
+/**
+ * Generic sandbox teardown for pass@k hygiene.
+ *
+ * Repeated live runs leave probe resources behind (every generated resource is
+ * named `AX probe <type> <ns>`), which contaminates later runs. `reset` lists
+ * those candidate resources in the pack's declared sandbox scope and deletes
+ * them. The framework is target-agnostic (resolve scope → list → match `{ns}`
+ * naming convention → delete); reliable listing/deletion is target-specific, so
+ * a per-target resetter is registered. Asana is the concrete reference; targets
+ * without a resetter fail GRACEFULLY (a clear message, never a throw).
+ */
+import { PROBE_PREFIX } from "../generate/pack.js";
+import type { TargetPack } from "../schemas.js";
+
+/** The slice of the HTTP client a resetter needs (so tests stub it offline). */
+export interface ResetClient {
+  get<T = unknown>(path: string, query?: Record<string, string>): Promise<T>;
+  del(path: string): Promise<void>;
+}
+
+export interface ResetOptions {
+  /** Restrict deletion to names containing this namespace token; when unset,
+   *  every probe-named resource in scope is a candidate. */
+  ns?: string;
+  /** List + match but don't delete (preview). */
+  dryRun?: boolean;
+}
+
+export interface ResetResult {
+  /** False when no resetter is registered for the target. */
+  supported: boolean;
+  message: string;
+  /** Ids deleted (or that would be, under dryRun). */
+  deleted: string[];
+  /** Probe resources matched in scope. */
+  candidates: number;
+  errors: string[];
+}
+
+/** A probe resource is one whose name carries the AX prefix; when an ns is
+ *  given it must also belong to that namespace. */
+function isProbeName(name: unknown, ns?: string): boolean {
+  if (typeof name !== "string" || !name.startsWith(PROBE_PREFIX)) return false;
+  return ns ? name.includes(ns) : true;
+}
+
+/** Pick the scope value for a logical container, preferring a key that mentions
+ *  the hint (e.g. "project"), else the first declared scope value. */
+function containerId(scope: Record<string, string>, hint: string): string | undefined {
+  const key = Object.keys(scope).find((k) => k.toLowerCase().includes(hint));
+  return key ? scope[key] : Object.values(scope)[0];
+}
+
+interface ResetWork {
+  deleted: string[];
+  candidates: number;
+  errors: string[];
+}
+
+type Resetter = (
+  pack: TargetPack,
+  client: ResetClient,
+  scope: Record<string, string>,
+  opts: ResetOptions,
+) => Promise<ResetWork>;
+
+/**
+ * Asana reference: tasks are the sandbox-contained resource, listable under the
+ * throwaway project the scope names. List them, keep AX-probe names, DELETE each.
+ */
+const asanaReset: Resetter = async (_pack, client, scope, opts) => {
+  const project = containerId(scope, "project");
+  if (!project) {
+    return { deleted: [], candidates: 0, errors: ["no sandbox project id in scope — cannot list tasks to reset"] };
+  }
+  const tasks = await client.get<Array<{ gid?: string; name?: string }>>(`/projects/${project}/tasks`, {
+    opt_fields: "name",
+  });
+  const candidates = (Array.isArray(tasks) ? tasks : []).filter((t) => t.gid && isProbeName(t.name, opts.ns));
+  const deleted: string[] = [];
+  const errors: string[] = [];
+  for (const t of candidates) {
+    if (opts.dryRun) {
+      deleted.push(t.gid!);
+      continue;
+    }
+    try {
+      await client.del(`/tasks/${t.gid}`);
+      deleted.push(t.gid!);
+    } catch (err) {
+      errors.push(`delete /tasks/${t.gid}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+  return { deleted, candidates: candidates.length, errors };
+};
+
+/** Per-target resetters, keyed by pack name. */
+const RESETTERS: Record<string, Resetter> = {
+  asana: asanaReset,
+  "asana-generated": asanaReset,
+};
+
+/**
+ * Resolve the target's resetter and run it. Returns `supported: false` (not a
+ * throw) for targets whose listing/deletion isn't expressible yet, so callers
+ * can degrade gracefully.
+ */
+export async function resetPack(
+  pack: TargetPack,
+  client: ResetClient,
+  scope: Record<string, string>,
+  opts: ResetOptions = {},
+): Promise<ResetResult> {
+  const resetter = RESETTERS[pack.name];
+  if (!resetter) {
+    return {
+      supported: false,
+      message:
+        `No reset strategy for "${pack.name}" — sandbox listing/deletion isn't expressible yet for this target. ` +
+        `Delete probe resources (named "${PROBE_PREFIX} …") manually.`,
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+  const { deleted, candidates, errors } = await resetter(pack, client, scope, opts);
+  const verb = opts.dryRun ? "would delete" : "deleted";
+  return {
+    supported: true,
+    message: `Reset ${pack.name}: ${verb} ${deleted.length}/${candidates} probe resource(s)${
+      opts.ns ? ` in namespace "${opts.ns}"` : ""
+    }.`,
+    deleted,
+    candidates,
+    errors,
+  };
+}

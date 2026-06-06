@@ -1,5 +1,85 @@
 {
   "openapi": "3.0.0",
   "info": { "title": "Asana API", "version": "1.0" },
-  "paths": { "/tasks": { "post": { "summary": "Create a task" } } }
+  "servers": [{ "url": "https://app.asana.com/api/1.0" }],
+  "paths": {
+    "/tasks": {
+      "post": {
+        "operationId": "createTask",
+        "summary": "Create a task",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": {
+                      "name": { "type": "string" },
+                      "notes": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/tasks/{task_gid}": {
+      "get": { "operationId": "getTask", "summary": "Get a task" }
+    },
+    "/projects": {
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create a project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": { "name": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects/{project_gid}": {
+      "get": { "operationId": "getProject", "summary": "Get a project" }
+    },
+    "/projects/{project_gid}/sections": {
+      "post": {
+        "operationId": "createSectionForProject",
+        "summary": "Create a section in a project",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "data": {
+                    "type": "object",
+                    "required": ["name"],
+                    "properties": { "name": { "type": "string" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sections/{section_gid}": {
+      "get": { "operationId": "getSection", "summary": "Get a section" }
+    }
+  }
 }

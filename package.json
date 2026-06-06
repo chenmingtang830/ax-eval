@@ -1,14 +1,49 @@
 {
   "name": "ax-eval",
   "version": "0.0.1",
-  "description": "AX eval — test whether AI agents can complete real tasks against a SaaS product, across harnesses.",
+  "description": "AX eval — test whether a host agent can complete real tasks against a SaaS product.",
+  "keywords": [
+    "agent",
+    "agent-experience",
+    "eval",
+    "evaluation",
+    "saas",
+    "aeo",
+    "agent-readiness",
+    "mcp",
+    "openapi",
+    "graphql",
+    "llm"
+  ],
   "type": "module",
+  "license": "MIT",
+  "author": "Richard Tang (https://github.com/chenmingtang830)",
+  "homepage": "https://github.com/chenmingtang830/ax-eval#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chenmingtang830/ax-eval.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chenmingtang830/ax-eval/issues"
+  },
   "bin": {
     "ax-eval": "./dist/cli.js"
   },
+  "files": [
+    ".env.example",
+    "assets",
+    "CODE_OF_CONDUCT.md",
+    "CONTRIBUTING.md",
+    "dist",
+    "SKILL.md",
+    "targets",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean",
+    "prepublishOnly": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
@@ -16,6 +51,9 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@mondaydotcomorg/monday-api-mcp": "^3.1.2",
+    "asana": "^3.1.11",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
@@ -25,6 +63,5 @@
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^1.6.0"
-  },
-  "license": "MIT"
+  }
 }

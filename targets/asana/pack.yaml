@@ -1,18 +1,55 @@
-# Asana target pack (v0) — the 8 demo tasks from plan.md §6, ranked by oracle
+# Asana target pack (v0) — the 8 demo hand tasks, ranked by oracle
 # coverage. In the keyless path these run against the mock/hermes-stub harnesses
 # and mock oracle state. At M1 the same oracles run against live API readback.
 name: asana
 version: "0"
 auth_method: pat            # ASANA_PAT (a throwaway sandbox) — only needed at M1
+auth:
+  type: bearer
+  env: ASANA_PAT
+  verify_env: ASANA_VERIFY_PAT
+  header: Authorization
+sandbox_scope:
+  - name: project_gid
+    env: ASANA_SANDBOX_PROJECT_GID
+    required: true
+    instructions: "Create a throwaway Asana project; paste its gid or the project URL."
+    url_pattern: "/project/(\\d+)"
+# Non-API surfaces Asana exposes. Verification always reads back via the API
+# (base_url + auth) regardless of how the resource was created, so these only
+# change how the agent is told to act + what "discovery" means per surface.
+surfaces:
+  sdk:
+    package: asana
+    language: node
+    reference_url: https://developers.asana.com/docs/overview
+    # The official `asana` SDK authenticates with the same PAT as the REST API.
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.asana.com/v2/mcp
+    transport: http
+    docs_url: https://developers.asana.com/docs/using-asanas-mcp-server
+    # Asana's MCP server is OAuth-only (no PAT path), so a headless run is
+    # blocked until an OAuth app is registered and a refresh token stored.
+    auth:
+      kind: oauth_app
+      client_id_env: ASANA_MCP_CLIENT_ID
+      client_secret_env: ASANA_MCP_CLIENT_SECRET
+      refresh_token_env: ASANA_MCP_REFRESH_TOKEN
+      instructions: "Register an Asana OAuth app (https://app.asana.com/0/my-apps), complete the OAuth flow once, and store the refresh token. No PAT path exists for the hosted MCP server."
 base_url: https://app.asana.com/api/1.0
 site_url: https://asana.com  # root for the static (agent-readiness) audit
+openapi_url: https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml  # v3 content-quality audit target
 docs_urls:
   - https://developers.asana.com/docs
 
 tasks:
   - id: asana-create-task
     title: Create a task in a project
-    prompt: Create a task titled "Draft launch plan" in the Marketing project.
+    prompt: >
+      In the Asana project identified by ASANA_SANDBOX_PROJECT_GID (your QA sandbox),
+      create a task titled "Draft launch plan". Use the official Asana API or docs only.
     oracles:
       - type: exists
         path: task.gid
@@ -23,11 +60,13 @@ tasks:
 
   - id: asana-assign-task
     title: Assign a task to a user
-    prompt: Assign the "Draft launch plan" task to alex@example.com.
+    prompt: >
+      Assign the "Draft launch plan" task to a user (alex@example.com if they exist
+      in the workspace, otherwise yourself).
     oracles:
-      - type: equals
+      - type: exists
         path: task.assignee
-        expected: alex@example.com
+        description: task has an assignee
 
   - id: asana-due-date
     title: Set a due date
@@ -39,7 +78,9 @@ tasks:
 
   - id: asana-create-project
     title: Create a project
-    prompt: Create a project named "Q3 Launch".
+    prompt: >
+      In the same workspace as the sandbox project, create a new project named "Q3 Launch".
+      Use the official Asana API or docs only.
     oracles:
       - type: exists
         path: project.gid

@@ -1,10 +1,13 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { describe, expect, it } from "vitest";
+import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
+const PACK = resolve(ROOT, "targets", "asana", "pack.yaml");
 
 /** Run the CLI via tsx; return { code, out } (stdout+stderr merged). */
 function runCli(args: string[]): { code: number; out: string } {
@@ -40,5 +43,68 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["audit", "--offline"]);
     expect(code).toBe(0);
     expect(out).toContain("Agent-readiness score");
+  });
+});
+
+describe("exec-plan --surface fan-out", () => {
+  const dirs: string[] = [];
+  function freshDir(): string {
+    const d = mkdtempSync(resolve(tmpdir(), "ax-fanout-"));
+    dirs.push(d);
+    return d;
+  }
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("`--surface all` fans out over auth-runnable surfaces with isolated ns + tagged files", () => {
+    const dir = freshDir();
+    const { code, out } = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--surface", "all", "--harness", "floor", "--attempts", "1", "--run-dir", dir,
+    ]);
+    expect(code).toBe(0);
+    // asana declares sdk + mcp; api is always present. sdk inherits the PAT
+    // (runnable); mcp is OAuth-only, so it's auth-blocked rather than prompted.
+    expect(out).toContain("surface=api");
+    expect(out).toContain("surface=sdk");
+    expect(out).toContain("surface=mcp");
+    const files = readdirSync(dir).sort();
+    // A prompt per runnable surface, surface-tagged so they never collide.
+    expect(files).toContain("prompt-floor-api.txt");
+    expect(files).toContain("prompt-floor-sdk.txt");
+    // The OAuth-only MCP surface emits a blocked cube cell instead of a prompt.
+    expect(files).not.toContain("prompt-floor-mcp.txt");
+    expect(files).toContain("run-mcp-blocked.normalized.json");
+    expect(out).toContain("surface=mcp → BLOCKED (requires-oauth)");
+    // Namespaces are surface-scoped so concurrent surfaces don't clobber the live product.
+    expect(out).toMatch(/ns=gen-api-floor-/);
+    expect(out).toMatch(/ns=gen-sdk-floor-/);
+  });
+
+  it("a single declared surface tags its artifacts; the default api surface keeps legacy paths", () => {
+    const sdkDir = freshDir();
+    const sdk = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--surface", "sdk", "--harness", "floor", "--attempts", "1", "--run-dir", sdkDir]);
+    expect(sdk.code).toBe(0);
+    expect(readdirSync(sdkDir)).toContain("prompt-floor-sdk.txt");
+
+    const apiDir = freshDir();
+    const api = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--harness", "floor", "--attempts", "1", "--run-dir", apiDir]);
+    expect(api.code).toBe(0);
+    // Default (api-only) run is byte-for-byte the legacy layout — no surface suffix.
+    expect(readdirSync(apiDir)).toContain("prompt-floor.txt");
+  });
+
+  it("refuses a surface the pack does not declare, naming what is available", () => {
+    const dir = freshDir();
+    const { code, out } = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--surface", "cli", "--run-dir", dir]);
+    expect(code).toBe(1);
+    expect(out).toContain("surface 'cli' is not declared");
+    expect(out).toContain("declared: api, sdk, mcp");
+  });
+
+  it("rejects an unknown --surface value before doing any work", () => {
+    const { code, out } = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--surface", "graphql"]);
+    expect(code).toBe(1);
+    expect(out).toContain("--surface must be one of api|cli|sdk|mcp|all");
   });
 });

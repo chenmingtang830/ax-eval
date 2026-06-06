@@ -1,5 +1,5 @@
 /**
- * The harness adapter interface (product-spec.md §4.2).
+ * The harness adapter interface.
  *
  * An adapter drives an agent to attempt a task and normalizes its I/O to a
  * RunResult. Concretely it produces a *world state* (what it believes it

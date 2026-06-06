@@ -10,11 +10,20 @@ build/
 *.tsbuildinfo
 .npm/
 
-# Run artifacts
-reports/
+# Run artifacts (created on demand by the CLI) — local only, never published
 results/
+reports/
 transcripts/
+runs/
 *.log
+
+# Internal docs — kept on disk for the maintainer; not part of the public repo.
+# Public-facing content lives in README.md. Images the README embeds live in assets/.
+docs/
+
+# Maintainer scratch — live repro scripts (Asana/Monday); not part of the public
+# skill. Kept on disk locally; the product surface is the `ax-eval` CLI.
+scripts/
 
 # OS / editor
 .DS_Store

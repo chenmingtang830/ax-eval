@@ -4,7 +4,7 @@
  * "Static" eval asks: is the plumbing even exposed for an agent to use? It does
  * NOT drive an agent — it just inspects the product's public surfaces (does
  * llms.txt exist? is there an OpenAPI spec? an MCP server? etc.). Each check
- * borrows from the Cloudflare Agent Readiness + axd.md dimensions (plan.md §4).
+ * borrows from published agent-readiness dimensions (e.g. Cloudflare's).
  *
  * Contrast with behavioral eval (the harness matrix), which actually makes an
  * agent do tasks. The product's headline is the *gap* between the two:

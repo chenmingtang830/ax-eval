@@ -1,0 +1,127 @@
+# Linear target pack — first GraphQL target, proving the api_style abstraction.
+#
+# Linear exercises the runtime in ways the REST packs (Asana/Notion) didn't:
+#   1. api_style: graphql → the round-trip oracle POSTs a hand-authored read-back
+#      QUERY to a single endpoint (base_url) instead of GET-ing a REST path,
+#   2. auth type: api-key → the credential is sent as a RAW `Authorization` header
+#      with NO `Bearer ` prefix (Linear personal API keys).
+# There is one endpoint (https://api.linear.app/graphql); creates and reads both
+# go through it. Oracles are HAND-AUTHORED from Linear's GraphQL docs — GraphQL
+# mutations don't map to REST CRUD, so nothing here is auto-generated.
+#
+# NOTE: oracle read-back paths (the GraphQL queries + assertFields below) are
+# authored from the documented schema and MUST be confirmed against a live token
+# before trusting the score (set LINEAR_API_KEY + LINEAR_SANDBOX_TEAM_ID, then
+# `verify-generated`). Same caveat we used when Notion was added before its token.
+name: linear
+version: "0"
+standard_set_version: linear-2026-06-05
+run_id: 2026-06-05-linear
+generated_by: hand-curated@no-model
+api_style: graphql
+auth_method: api-key
+auth:
+  type: api-key
+  env: LINEAR_API_KEY
+  header: Authorization
+sandbox_scope:
+  - name: team_id
+    env: LINEAR_SANDBOX_TEAM_ID
+    required: true
+    instructions: "Create or pick a throwaway Linear team and paste its team id (Settings → Teams, or the GraphQL `teams` query). Issues are created under it."
+# Non-API surfaces Linear exposes (verification still reads back via the GraphQL API).
+surfaces:
+  sdk:
+    package: "@linear/sdk"
+    language: node
+    reference_url: https://linear.app/developers/sdk
+    # The SDK uses the same personal API key as the GraphQL API.
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.linear.app/mcp
+    transport: http
+    docs_url: https://linear.app/docs/mcp
+    # Linear's MCP supports OAuth AND direct personal API keys, so a headless run
+    # works with the same key as the API — no app registration required.
+    auth:
+      kind: token
+      token_env: LINEAR_API_KEY
+      instructions: "Linear's MCP accepts a personal API key (Settings → API). The same LINEAR_API_KEY used for the GraphQL API works for the MCP server."
+base_url: https://api.linear.app/graphql
+site_url: https://linear.app/developers
+docs_urls: &a1
+  - https://linear.app/developers/graphql
+static:
+  site_url: https://linear.app/developers
+  docs_urls: *a1
+  checks: []
+discovery:
+  product: Linear
+  goal: You are about to operate Linear programmatically. First work out, from
+    scratch, how Linear's public GraphQL API works — its single endpoint, how to
+    authenticate (a personal API key in the Authorization header, NOT a Bearer
+    token), the introspectable schema, and how to create an issue with the
+    `issueCreate` mutation — then you will perform several tasks. You are NOT
+    given any endpoint, base URL, or documentation link; find them yourself.
+  official_domains:
+    - linear.app
+    - developers.linear.app
+  canonical_endpoint: mutation issueCreate
+  deprecated_markers: []
+  auth_scheme: Personal API key in the raw Authorization header (no Bearer prefix)
+tasks:
+  - id: linear-l1-issue
+    title: "L1: create an issue"
+    difficulty: L1
+    prompt: >
+      Create an issue titled "AX probe {ns}" on the team identified by
+      LINEAR_SANDBOX_TEAM_ID, using the `issueCreate` mutation. Report the
+      created issue id.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the issue back and assert its title
+        readQueryTemplate: '{ issue(id: "{gid}") { title } }'
+        assertField: issue.title
+        expected: AX probe {ns}
+
+  - id: linear-l1-issue-priority
+    title: "L1: create an urgent issue (numeric field)"
+    difficulty: L1
+    prompt: >
+      Create an issue titled "AX probe priority {ns}" on the team identified by
+      LINEAR_SANDBOX_TEAM_ID with priority set to 1 (Urgent), using the
+      `issueCreate` mutation. Report the created issue id.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the issue back and assert its priority
+        readQueryTemplate: '{ issue(id: "{gid}") { priority } }'
+        assertField: issue.priority
+        expected: 1
+
+  - id: linear-l4-issue-complete
+    title: "L4: create then complete an issue (state mutation)"
+    difficulty: L4
+    prompt: >
+      Create an issue titled "AX probe complete {ns}" on the team identified by
+      LINEAR_SANDBOX_TEAM_ID, then move it to a completed workflow state (use
+      `issueUpdate` with a stateId whose type is "completed" for that team).
+      Report the issue id; it must read back with a completed state type.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the issue back and assert its workflow-state type
+        readQueryTemplate: '{ issue(id: "{gid}") { state { type } } }'
+        assertField: issue.state.type
+        expected: completed

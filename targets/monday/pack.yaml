@@ -1,0 +1,136 @@
+# Monday.com target pack — second GraphQL target, alongside Linear.
+#
+# Monday exercises the GraphQL path PLUS a required constant header:
+#   1. api_style: graphql → round-trip oracles POST a hand-authored read-back
+#      QUERY to the single endpoint (base_url) instead of GET-ing a REST path,
+#   2. auth type: api-key → the API token is the RAW `Authorization` header value
+#      (NO `Bearer ` prefix),
+#   3. headers: API-Version → Monday pins the GraphQL schema by a required version
+#      header on every request (the GraphQL analogue of Notion-Version). Pinned to
+#      the current GA quarterly version (months are 01/04/07/10; 2026-04 is the
+#      default/current as of 2026-06 — do NOT pin an unreleased RC like 2026-07).
+# One endpoint (https://api.monday.com/v2) serves creates and reads. Oracles are
+# HAND-AUTHORED from Monday's GraphQL docs; nothing is auto-generated.
+#
+# NOTE: oracle read-back paths (the GraphQL queries + assertFields below) are
+# authored from the documented schema and MUST be confirmed against a live token
+# before trusting the score (set MONDAY_API_KEY + MONDAY_SANDBOX_BOARD_ID, then
+# `verify-generated`). Same caveat we used when Notion was added before its token.
+name: monday
+version: "0"
+standard_set_version: monday-2026-06-05
+run_id: 2026-06-05-monday
+generated_by: hand-curated@no-model
+api_style: graphql
+auth_method: api-key
+auth:
+  type: api-key
+  env: MONDAY_API_KEY
+  header: Authorization
+headers:
+  API-Version: "2026-04"
+sandbox_scope:
+  - name: board_id
+    env: MONDAY_SANDBOX_BOARD_ID
+    required: true
+    instructions: "Create a throwaway Monday board and paste its board id (the numeric id in the board URL, or from the `boards` query). Items are created on it."
+# Non-API surfaces Monday exposes (verification still reads back via the GraphQL API).
+surfaces:
+  sdk:
+    package: "@mondaydotcomorg/api"
+    language: node
+    reference_url: https://developer.monday.com/api-reference/docs/introduction-to-graphql
+    # The SDK uses the same API token as the GraphQL API.
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.monday.com/mcp
+    transport: http
+    docs_url: https://developer.monday.com/api-reference/docs/monday-mcp-overview
+    # Monday's MCP is token-friendly: the local server (@mondaydotcomorg/monday-api-mcp)
+    # authenticates with the same API token, so a headless run works without OAuth.
+    auth:
+      kind: token
+      token_env: MONDAY_API_KEY
+      instructions: "Run the local MCP server `npx @mondaydotcomorg/monday-api-mcp -t $MONDAY_API_KEY` (Node 22+ for the isolated-vm build). The hosted server also supports OAuth, but the token path needs no app registration."
+base_url: https://api.monday.com/v2
+site_url: https://developer.monday.com
+docs_urls: &a1
+  - https://developer.monday.com/api-reference/docs
+static:
+  site_url: https://developer.monday.com
+  docs_urls: *a1
+  checks: []
+discovery:
+  product: Monday.com
+  goal: You are about to operate Monday.com programmatically. First work out, from
+    scratch, how Monday's public GraphQL API works — its single endpoint, how to
+    authenticate (an API token in the raw Authorization header, NOT a Bearer
+    token), the REQUIRED API-Version header, the introspectable schema, and how to
+    create an item with the `create_item` mutation — then you will perform several
+    tasks. You are NOT given any endpoint, base URL, or documentation link; find
+    them yourself.
+  official_domains:
+    - monday.com
+    - developer.monday.com
+  canonical_endpoint: mutation create_item
+  deprecated_markers: []
+  auth_scheme: API token in the raw Authorization header (no Bearer prefix) + API-Version header
+tasks:
+  - id: monday-l1-item
+    title: "L1: create an item"
+    difficulty: L1
+    prompt: >
+      Create an item named "AX probe {ns}" on the board identified by
+      MONDAY_SANDBOX_BOARD_ID, using the `create_item` mutation. Report the
+      created item id.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the item back and assert its name
+        readQueryTemplate: '{ items(ids: [{gid}]) { name } }'
+        assertField: items.0.name
+        expected: AX probe {ns}
+
+  - id: monday-l1-item-state
+    title: "L1: create an item and confirm it is active"
+    difficulty: L1
+    prompt: >
+      Create an item named "AX probe state {ns}" on the board identified by
+      MONDAY_SANDBOX_BOARD_ID, using the `create_item` mutation. Report the
+      created item id.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        description: read the item back and assert it is in the active state
+        readQueryTemplate: '{ items(ids: [{gid}]) { state } }'
+        assertField: items.0.state
+        expected: active
+
+  - id: monday-l4-item-archive
+    title: "L4: create then archive an item (state mutation)"
+    difficulty: L4
+    prompt: >
+      Create an item named "AX probe archive {ns}" on the board identified by
+      MONDAY_SANDBOX_BOARD_ID, then archive it with the `archive_item` mutation.
+      Report the item id; it must read back as archived.
+    allowed_surfaces:
+      - api
+      - docs
+    depends_on: []
+    oracles:
+      - type: roundtrip
+        # `items(ids:)` excludes non-active items by DEFAULT, so an archived item
+        # comes back as an empty array unless we opt in with exclude_nonactive:false
+        # (the only place that argument is honored is alongside `ids`). Without it
+        # this oracle would read undefined and falsely fail a successful archive.
+        description: read the item back and assert it is archived
+        readQueryTemplate: '{ items(ids: [{gid}], exclude_nonactive: false) { state } }'
+        assertField: items.0.state
+        expected: archived

@@ -25,7 +25,7 @@ export function renderAudit(audit: StaticAudit): string {
 /**
  * The headline of the whole product: put the static readiness score next to the
  * behavioral pass rate. A high static score with low task success is the "gap"
- * that proves "exposed ≠ usable" (plan.md §4).
+ * that proves "exposed ≠ usable".
  */
 export function renderGap(audit: StaticAudit, report: RunReport): string {
   const lines: string[] = [];

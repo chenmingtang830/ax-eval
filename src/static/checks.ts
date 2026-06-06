@@ -1,9 +1,14 @@
 /**
- * The static-audit checklist (plan.md §4, from Cloudflare Agent Readiness + axd.md).
+ * Static audit checks — **v0 stub** (conventional paths on `site_url` root).
  *
- * Each check probes one agent-readiness surface of a site and returns pass/fail
- * plus a weight. Checks only read public URLs — no keys, no agent. They are the
- * "is the plumbing exposed?" layer that sits next to the behavioral matrix.
+ * Product direction: static should mirror **how
+ * agents actually discover** surfaces (docs crawl, linked OpenAPI/MCP/SDK,
+ * registries) on the same ingested graph as behavioral — not this fixed checklist
+ * on the marketing homepage alone. That discovery simulation is now built as
+ * **static v2** in `discover.ts` (CLI `discover`); this v0 checklist is kept as a
+ * fast conventional-path baseline to contrast against the crawl-based score.
+ *
+ * Each check returns pass/fail + weight. No keys, no agent execution.
  */
 import type { FetchResult, Fetcher } from "./fetcher.js";
 import type { CheckStatus, StaticCheckResult, Weight } from "./types.js";
