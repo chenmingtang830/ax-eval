@@ -15,6 +15,11 @@ function runCli(args: string[]): { code: number; out: string } {
     const out = execFileSync("npx", ["tsx", CLI, ...args], {
       cwd: ROOT,
       encoding: "utf8",
+      env: {
+        ...process.env,
+        ASANA_PAT: "test-token",
+        ASANA_SANDBOX_PROJECT_GID: "123",
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     return { code: 0, out };
