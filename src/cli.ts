@@ -13,10 +13,11 @@
  *   ax-eval verify --pack <yaml> --results <run.json>...             generated-run verify + CI gate
  *       [--min-pass-rate 0.8] [--html path]
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
- *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → IngestedGraphql
+ *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → frozen pack
  *                    [--docs url,url] [--limit N] [--l2-limit N]       (product/auth/scope auto-derived from the spec)
- *                    [--l4-limit N] [--out yaml]                       L1 create · L2 chain · L3 goal · L4 lifecycle
+ *                    [--l4-limit N] [--base-url url] [--out yaml]
+ *                    REST: L1 create · L2 chain · L3 goal · L4 lifecycle; GraphQL: L1 create + read-back oracles
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   round-trip oracles → HTML report
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
@@ -35,8 +36,9 @@ import { auditSpecQuality, renderSpecQuality, renderSpecQualityHtml } from "./st
 import { renderAudit, renderGap } from "./static/render.js";
 import { loadReport, saveReport } from "./storage.js";
 import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
-import { ingestGraphql } from "./ingest/graphql.js";
+import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
+import { generateGraphqlPack, looksLikeGraphqlIngest } from "./generate/graphql-pack.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
 import {
   renderCompetitiveReport,
@@ -77,6 +79,7 @@ interface Parsed {
   openapi: string;
   graphql: string;
   from: string;
+  baseUrl: string;
   limit: number;
   l2Limit: number | undefined;
   l4Limit: number | undefined;
@@ -117,6 +120,7 @@ function parseArgs(argv: string[]): Parsed {
     openapi: "",
     graphql: "",
     from: "",
+    baseUrl: "",
     limit: 3,
     l2Limit: undefined,
     l4Limit: undefined,
@@ -161,6 +165,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--openapi") p.openapi = value(++i, "--openapi");
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
     else if (a === "--from") p.from = value(++i, "--from");
+    else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
     else if (a === "--l4-limit") p.l4Limit = Number(value(++i, "--l4-limit"));
@@ -434,15 +439,16 @@ async function cmdVerify(args: Parsed): Promise<number> {
 }
 
 async function cmdIngest(args: Parsed): Promise<number> {
-  // GraphQL ingest (best-effort, for coverage/provenance): introspect a single
-  // endpoint (or a saved introspection JSON / SDL) and list types + mutations.
+  // GraphQL ingest: persist rich introspection so `generate --from` can synthesize
+  // read-back oracles, while keeping the summary focused on types + mutations.
   if (args.graphql) {
-    const g = await ingestGraphql(args.graphql, { offline: args.offline });
+    const g = await ingestGraphqlDetailed(args.graphql, { offline: args.offline });
     console.log(`Ingested GraphQL schema (${g.source}) [${g.format}]`);
     console.log(`  query type:    ${g.queryType ?? "(none)"}`);
     console.log(`  mutation type: ${g.mutationType ?? "(none)"}`);
     console.log(`  object types:  ${g.objectTypes.length}`);
     console.log(`  mutations:     ${g.mutations.length} (create-style: ${g.createMutations.length})`);
+    console.log(`  rich fields:   queries=${g.queryTypeFields.length} types=${g.typeDetails.length}`);
     for (const name of g.createMutations.slice(0, 12)) console.log(`    + ${name}  (create-style)`);
     const out = args.out && args.out !== "results/last-run.json" ? args.out : "results/ingest-graphql.json";
     mkdirSync(dirname(out), { recursive: true });
@@ -531,7 +537,8 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
   ],
 };
 
-function cmdGenerate(args: Parsed): number {
+async function cmdGenerate(args: Parsed): Promise<number> {
+  loadDotenv();
   const from = args.from || "results/ingest.json";
   const spec = JSON.parse(readFileSync(from, "utf8"));
 
@@ -541,14 +548,41 @@ function cmdGenerate(args: Parsed): number {
     args.product.trim() ||
     String(spec.title ?? "").replace(/\s+API$/i, "").trim() ||
     "Target";
+  const docsUrls = args.docs
+    ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
+  if (looksLikeGraphqlIngest(spec)) {
+    const pack = generateGraphqlPack(spec, {
+      limit: args.limit,
+      runId: args.runId || undefined,
+      packName: `${slugify(product)}-generated`,
+      product,
+      baseUrl: args.baseUrl || undefined,
+      siteUrl: args.site || "",
+      ...(docsUrls ? { docsUrls } : {}),
+    });
+    const yaml = packToYaml(pack);
+    const out = args.out && args.out !== "results/last-run.json"
+      ? args.out
+      : `results/${slugify(product)}.generated.pack.yaml`;
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, yaml);
+    console.log(`Generated ${pack.tasks.length} GraphQL tasks for ${product} (generated_by: ${pack.generated_by}):`);
+    for (const t of pack.tasks) console.log(`  [${t.difficulty}] ${t.id} — surfaces:[${t.allowed_surfaces.join(",")}]`);
+    console.log(`\nFrozen pack → ${out}`);
+    console.log(
+      `\nNext: review derived GraphQL oracles before any run —\n  ax-eval review --pack ${out}\n` +
+      `Fill any sandbox id(s) it lists, then approve with --approve --by <name>.`,
+    );
+    return 0;
+  }
+
   const isAsana = product.toLowerCase() === "asana";
 
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
   // and resource graph — no per-product hardcoding.
-  const docsUrls = args.docs
-    ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
-    : undefined;
   const baseOpts: GenerateOptions = {
     limit: args.limit,
     ...(args.l2Limit !== undefined ? { l2Limit: args.l2Limit } : {}),

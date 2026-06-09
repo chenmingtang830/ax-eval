@@ -1,13 +1,17 @@
 /**
  * Best-effort GraphQL ingest, for coverage/provenance — the GraphQL analogue of
- * the OpenAPI ingest. It does NOT auto-generate oracles: GraphQL mutations don't
- * map cleanly to REST-style CRUD (a `create` may return a payload wrapper, take
- * arbitrary inputs, and have no symmetric "GET by id"), so oracles for GraphQL
- * packs are HAND-AUTHORED. What this gives us is a catalogue of the schema's
- * object types + mutations, with create-style mutations highlighted, so a pack
- * author (and the report) can see the surface that was available.
+ * the OpenAPI ingest. Provides two levels of detail:
  *
- * Input may be: a live endpoint URL (we POST the standard introspection query),
+ * 1. Basic (`ingestGraphql`): catalogue of object types + mutations. Used by the
+ *    existing pack/report pipeline. Oracles at this level are HAND-AUTHORED.
+ *
+ * 2. Detailed (`ingestGraphqlDetailed`): richer data including mutation return
+ *    types, query fields with args, and nested type fields. Used by
+ *    `src/generate/graphql-pack.ts` to deterministically derive first-pass
+ *    read-back oracles from common id/ids query conventions. A human still
+ *    approves the pack through the review gate before anything runs.
+ *
+ * Input may be: a live endpoint URL (we POST the introspection query),
  * a path to a saved introspection JSON or SDL file, or a raw introspection-JSON
  * / SDL string.
  */
@@ -173,4 +177,229 @@ export async function ingestGraphql(
   }
   // Treat the argument itself as schema text (introspection JSON or SDL).
   return parseGraphqlSchema(endpointOrSchema, "inline");
+}
+
+// ---------------------------------------------------------------------------
+// Detailed introspection — used by graphql-pack.ts for oracle derivation
+// ---------------------------------------------------------------------------
+
+/** Expanded introspection query that also fetches field types and arg names,
+ *  giving the pack generator enough context to write a read-back query. */
+export const DETAILED_INTROSPECTION_QUERY = `
+query AxDetailedIntrospection {
+  __schema {
+    queryType { name }
+    mutationType { name }
+    types {
+      kind
+      name
+      fields(includeDeprecated: false) {
+        name
+        type {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType { kind name }
+            }
+          }
+        }
+        args {
+          name
+          type {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType { kind name }
+              }
+            }
+          }
+        }
+      }
+      inputFields {
+        name
+        type {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType { kind name }
+            }
+          }
+        }
+      }
+    }
+  }
+}`.trim();
+
+/** A GraphQL type reference, potentially wrapped in NON_NULL / LIST. */
+export interface TypeRef {
+  kind: string;
+  name?: string | null;
+  ofType?: TypeRef | null;
+}
+
+/** A single field with its unwrapped type name and arg names. */
+export interface FieldDetail {
+  name: string;
+  typeName: string;
+  args: string[];
+  argDetails?: Array<{ name: string; typeName: string }>;
+}
+
+/** All fields of a named object type. */
+export interface ObjectTypeDetail {
+  name: string;
+  fields: FieldDetail[];
+}
+
+/** All fields of a named GraphQL input object type. */
+export interface InputObjectTypeDetail {
+  name: string;
+  fields: Array<{ name: string; typeName: string }>;
+}
+
+/** Richer ingestion result that includes per-mutation return types, query type
+ *  fields, and full field listings per object type — the data needed to derive
+ *  GraphQL read-back oracles. */
+export interface IngestedGraphqlRich extends IngestedGraphql {
+  mutationDetails: Array<{ name: string; returnTypeName: string; args: string[]; argDetails?: Array<{ name: string; typeName: string }> }>;
+  queryTypeFields: FieldDetail[];
+  typeDetails: ObjectTypeDetail[];
+  inputTypeDetails: InputObjectTypeDetail[];
+}
+
+/** Unwrap NON_NULL / LIST wrappers to get the named type. */
+function unwrapTypeName(type: TypeRef): string {
+  if (type.name) return type.name;
+  if (type.ofType) return unwrapTypeName(type.ofType);
+  return "Unknown";
+}
+
+function parseDetailedIntrospectionResult(root: Json, source: string): IngestedGraphqlRich {
+  const base = parseIntrospection(root, source);
+  const data = (root.data as Json | undefined) ?? root;
+  const schema = data.__schema as Json;
+  const types = (schema.types as Array<Record<string, unknown>>) ?? [];
+
+  type RawArg = { name: string; type?: TypeRef };
+  type RawInputField = { name: string; type?: TypeRef };
+  type RawField = { name: string; type?: TypeRef; args?: RawArg[] };
+  type RawType = { kind: string; name: string; fields?: RawField[] | null; inputFields?: RawInputField[] | null };
+
+  const typeMap = new Map<string, FieldDetail[]>();
+  for (const t of types as RawType[]) {
+    if (t.kind !== "OBJECT" || !t.name || t.name.startsWith("__")) continue;
+    typeMap.set(
+      t.name,
+      (t.fields ?? []).map((f) => ({
+        name: f.name,
+        typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
+        args: (f.args ?? []).map((a) => a.name),
+        argDetails: (f.args ?? []).map((a) => ({
+          name: a.name,
+          typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+        })),
+      })),
+    );
+  }
+
+  const inputTypeDetails: InputObjectTypeDetail[] = (types as RawType[])
+    .filter((t) => t.kind === "INPUT_OBJECT" && !!t.name)
+    .map((t) => ({
+      name: t.name,
+      fields: (t.inputFields ?? []).map((f) => ({
+        name: f.name,
+        typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
+      })),
+    }));
+
+  const mutType = (types as RawType[]).find((t) => t.name === base.mutationType);
+  const mutationDetails = (mutType?.fields ?? []).map((f) => ({
+    name: f.name,
+    returnTypeName: f.type ? unwrapTypeName(f.type) : "Unknown",
+    args: (f.args ?? []).map((a) => a.name),
+    argDetails: (f.args ?? []).map((a) => ({
+      name: a.name,
+      typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+    })),
+  }));
+
+  const qType = (types as RawType[]).find((t) => t.name === base.queryType);
+  const queryTypeFields: FieldDetail[] = (qType?.fields ?? []).map((f) => ({
+    name: f.name,
+    typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
+    args: (f.args ?? []).map((a) => a.name),
+    argDetails: (f.args ?? []).map((a) => ({
+      name: a.name,
+      typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+    })),
+  }));
+
+  const typeDetails: ObjectTypeDetail[] = [...typeMap.entries()].map(([name, fields]) => ({
+    name,
+    fields,
+  }));
+
+  return { ...base, mutationDetails, queryTypeFields, typeDetails, inputTypeDetails };
+}
+
+/** Like `ingestGraphql` but returns the richer `IngestedGraphqlRich` shape.
+ *  SDL inputs fall back to empty rich fields because deterministic generation
+ *  needs typed introspection JSON. */
+export async function ingestGraphqlDetailed(
+  endpointOrSchema: string,
+  opts: IngestGraphqlOptions = {},
+): Promise<IngestedGraphqlRich> {
+  const empty = (base: IngestedGraphql): IngestedGraphqlRich => ({
+    ...base,
+    mutationDetails: [],
+    queryTypeFields: [],
+    typeDetails: [],
+    inputTypeDetails: [],
+  });
+
+  const looksLikeUrl = /^https?:\/\//i.test(endpointOrSchema);
+  if (looksLikeUrl && !opts.offline) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
+    try {
+      const res = await fetch(endpointOrSchema, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ query: DETAILED_INTROSPECTION_QUERY }),
+        signal: controller.signal,
+      });
+      const json = (await res.json()) as Json;
+      if (!res.ok) throw new Error(`introspection HTTP ${res.status}`);
+      return parseDetailedIntrospectionResult(json, endpointOrSchema);
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  if (existsSync(endpointOrSchema)) {
+    const text = readFileSync(endpointOrSchema, "utf8").trim();
+    if (text.startsWith("{")) {
+      return parseDetailedIntrospectionResult(JSON.parse(text) as Json, `file:${endpointOrSchema}`);
+    }
+    return empty(parseSdl(text, `file:${endpointOrSchema}`));
+  }
+  const trimmed = endpointOrSchema.trim();
+  if (trimmed.startsWith("{")) {
+    return parseDetailedIntrospectionResult(JSON.parse(trimmed) as Json, "inline");
+  }
+  return empty(parseSdl(trimmed, "inline"));
 }

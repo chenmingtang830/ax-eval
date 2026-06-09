@@ -1,0 +1,167 @@
+{
+  "data": {
+    "__schema": {
+      "queryType": { "name": "Query" },
+      "mutationType": { "name": "Mutation" },
+      "types": [
+        {
+          "kind": "OBJECT",
+          "name": "Query",
+          "fields": [
+            {
+              "name": "issue",
+              "type": { "kind": "OBJECT", "name": "Issue" },
+              "args": [
+                {
+                  "name": "id",
+                  "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "ID" } }
+                }
+              ]
+            },
+            {
+              "name": "comment",
+              "type": { "kind": "OBJECT", "name": "Comment" },
+              "args": [
+                {
+                  "name": "id",
+                  "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "ID" } }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Mutation",
+          "fields": [
+            {
+              "name": "issueCreate",
+              "type": { "kind": "OBJECT", "name": "IssuePayload" },
+              "args": [
+                {
+                  "name": "input",
+                  "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "INPUT_OBJECT", "name": "IssueCreateInput" } }
+                }
+              ]
+            },
+            {
+              "name": "commentCreate",
+              "type": { "kind": "OBJECT", "name": "CommentPayload" },
+              "args": [
+                {
+                  "name": "input",
+                  "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "INPUT_OBJECT", "name": "CommentCreateInput" } }
+                }
+              ]
+            },
+            {
+              "name": "issueUpdate",
+              "type": { "kind": "OBJECT", "name": "IssuePayload" },
+              "args": [
+                {
+                  "name": "input",
+                  "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "INPUT_OBJECT", "name": "IssueUpdateInput" } }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "IssuePayload",
+          "fields": [
+            {
+              "name": "issue",
+              "type": { "kind": "OBJECT", "name": "Issue" },
+              "args": []
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "CommentPayload",
+          "fields": [
+            {
+              "name": "comment",
+              "type": { "kind": "OBJECT", "name": "Comment" },
+              "args": []
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Issue",
+          "fields": [
+            {
+              "name": "id",
+              "type": { "kind": "SCALAR", "name": "ID" },
+              "args": []
+            },
+            {
+              "name": "title",
+              "type": { "kind": "SCALAR", "name": "String" },
+              "args": []
+            }
+          ]
+        },
+        {
+          "kind": "OBJECT",
+          "name": "Comment",
+          "fields": [
+            {
+              "name": "id",
+              "type": { "kind": "SCALAR", "name": "ID" },
+              "args": []
+            },
+            {
+              "name": "text",
+              "type": { "kind": "SCALAR", "name": "String" },
+              "args": []
+            }
+          ]
+        },
+        {
+          "kind": "INPUT_OBJECT",
+          "name": "IssueCreateInput",
+          "fields": null,
+          "inputFields": [
+            {
+              "name": "title",
+              "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "String" } }
+            }
+          ]
+        },
+        {
+          "kind": "INPUT_OBJECT",
+          "name": "IssueUpdateInput",
+          "fields": null,
+          "inputFields": [
+            {
+              "name": "id",
+              "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "ID" } }
+            },
+            {
+              "name": "title",
+              "type": { "kind": "SCALAR", "name": "String" }
+            }
+          ]
+        },
+        {
+          "kind": "INPUT_OBJECT",
+          "name": "CommentCreateInput",
+          "fields": null,
+          "inputFields": [
+            {
+              "name": "issueId",
+              "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "ID" } }
+            },
+            {
+              "name": "text",
+              "type": { "kind": "NON_NULL", "name": null, "ofType": { "kind": "SCALAR", "name": "String" } }
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -90,6 +90,17 @@ npm run ax-eval -- verify --pack results/acme.generated.pack.yaml \
   --html results/runs/acme/eval.html
 ```
 
+GraphQL targets use the same review and verification gate. Their task ladder and
+read-back queries are derived deterministically from rich introspection and must
+still be reviewed before use:
+
+```bash
+npm run ax-eval -- ingest --graphql https://api.example.com/graphql \
+  --out results/acme-graphql-ingest.json
+npm run ax-eval -- generate --from results/acme-graphql-ingest.json \
+  --product Acme --out results/acme.generated.pack.yaml
+```
+
 The repo ships a few example target packs under `targets/` for REST and GraphQL
 products. They demonstrate the pack format; adding another SaaS should usually
 be a new pack, not a code change.
@@ -98,10 +109,10 @@ be a new pack, not a code change.
 
 ![ax-eval architecture](./assets/architecture.svg)
 
-1. **Ingest:** parse OpenAPI or GraphQL into resources, auth hints, and candidate
-   create/read pairs.
-2. **Generate:** synthesize an L1-L4 task ladder with round-trip oracles and
-   discovery requirements.
+1. **Ingest:** parse OpenAPI into resources/auth hints, or GraphQL into rich
+   schema metadata, typed inputs, create-style mutations, and update mutations.
+2. **Generate:** synthesize REST and GraphQL packs deterministically with an
+   L1-L4 task ladder, round-trip oracles, and discovery requirements.
 3. **Review:** require human approval before any generated task, oracle, setup,
    or reset logic can run.
 4. **Execute:** the host agent performs each task against a sandbox, with
@@ -126,8 +137,9 @@ be a new pack, not a code change.
 ## Command Map
 
 ```bash
-npm run ax-eval -- ingest --openapi <url>       # or --graphql <endpoint|file>
-npm run ax-eval -- generate --from <ingest.json>
+npm run ax-eval -- ingest --openapi <url>       # deterministic REST/OpenAPI path
+npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
+npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>]
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
