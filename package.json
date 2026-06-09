@@ -51,7 +51,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.39.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.1.2",
     "asana": "^3.1.11",

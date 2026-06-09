@@ -32,7 +32,7 @@ export const PROBE_PREFIX = "AX probe";
  * Per-generation id — a frozen *version tag* for the standard_set (pack
  * metadata), NOT part of resource names. Short, sortable: <date>-<6 base36>.
  */
-function newRunId(): string {
+export function newRunId(): string {
   const date = new Date().toISOString().slice(0, 10);
   const rand = Math.random().toString(36).slice(2, 8);
   return `${date}-${rand}`;
@@ -46,7 +46,7 @@ function newRunId(): string {
  */
 export const NS_PLACEHOLDER = "{ns}";
 
-function probeValue(resource: string): string {
+export function probeValue(resource: string): string {
   return `${PROBE_PREFIX} ${resource} ${NS_PLACEHOLDER}`;
 }
 

@@ -7,9 +7,9 @@
  *
  * 2. Detailed (`ingestGraphqlDetailed`): richer data including mutation return
  *    types, query fields with args, and nested type fields. Used by
- *    `src/generate/graphql-oracle.ts` to give an LLM enough context to
- *    synthesize a read-back oracle automatically (LLM drafts it; a human still
- *    approves it through the review gate before anything runs).
+ *    `src/generate/graphql-pack.ts` to deterministically derive first-pass
+ *    read-back oracles from common id/ids query conventions. A human still
+ *    approves the pack through the review gate before anything runs.
  *
  * Input may be: a live endpoint URL (we POST the introspection query),
  * a path to a saved introspection JSON or SDL file, or a raw introspection-JSON
@@ -180,11 +180,11 @@ export async function ingestGraphql(
 }
 
 // ---------------------------------------------------------------------------
-// Detailed introspection — used by graphql-oracle.ts for LLM oracle synthesis
+// Detailed introspection — used by graphql-pack.ts for oracle derivation
 // ---------------------------------------------------------------------------
 
 /** Expanded introspection query that also fetches field types and arg names,
- *  giving the oracle synthesizer enough context to write a read-back query. */
+ *  giving the pack generator enough context to write a read-back query. */
 export const DETAILED_INTROSPECTION_QUERY = `
 query AxDetailedIntrospection {
   __schema {
@@ -208,7 +208,38 @@ query AxDetailedIntrospection {
             }
           }
         }
-        args { name }
+        args {
+          name
+          type {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType {
+                kind
+                name
+                ofType { kind name }
+              }
+            }
+          }
+        }
+      }
+      inputFields {
+        name
+        type {
+          kind
+          name
+          ofType {
+            kind
+            name
+            ofType {
+              kind
+              name
+              ofType { kind name }
+            }
+          }
+        }
       }
     }
   }
@@ -226,6 +257,7 @@ export interface FieldDetail {
   name: string;
   typeName: string;
   args: string[];
+  argDetails?: Array<{ name: string; typeName: string }>;
 }
 
 /** All fields of a named object type. */
@@ -234,13 +266,20 @@ export interface ObjectTypeDetail {
   fields: FieldDetail[];
 }
 
+/** All fields of a named GraphQL input object type. */
+export interface InputObjectTypeDetail {
+  name: string;
+  fields: Array<{ name: string; typeName: string }>;
+}
+
 /** Richer ingestion result that includes per-mutation return types, query type
- *  fields, and full field listings per object type — the data needed to give an
- *  LLM enough context to synthesize a GraphQL read-back oracle. */
+ *  fields, and full field listings per object type — the data needed to derive
+ *  GraphQL read-back oracles. */
 export interface IngestedGraphqlRich extends IngestedGraphql {
-  mutationDetails: Array<{ name: string; returnTypeName: string; args: string[] }>;
+  mutationDetails: Array<{ name: string; returnTypeName: string; args: string[]; argDetails?: Array<{ name: string; typeName: string }> }>;
   queryTypeFields: FieldDetail[];
   typeDetails: ObjectTypeDetail[];
+  inputTypeDetails: InputObjectTypeDetail[];
 }
 
 /** Unwrap NON_NULL / LIST wrappers to get the named type. */
@@ -256,8 +295,10 @@ function parseDetailedIntrospectionResult(root: Json, source: string): IngestedG
   const schema = data.__schema as Json;
   const types = (schema.types as Array<Record<string, unknown>>) ?? [];
 
-  type RawField = { name: string; type?: TypeRef; args?: Array<{ name: string }> };
-  type RawType = { kind: string; name: string; fields?: RawField[] | null };
+  type RawArg = { name: string; type?: TypeRef };
+  type RawInputField = { name: string; type?: TypeRef };
+  type RawField = { name: string; type?: TypeRef; args?: RawArg[] };
+  type RawType = { kind: string; name: string; fields?: RawField[] | null; inputFields?: RawInputField[] | null };
 
   const typeMap = new Map<string, FieldDetail[]>();
   for (const t of types as RawType[]) {
@@ -268,15 +309,33 @@ function parseDetailedIntrospectionResult(root: Json, source: string): IngestedG
         name: f.name,
         typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
         args: (f.args ?? []).map((a) => a.name),
+        argDetails: (f.args ?? []).map((a) => ({
+          name: a.name,
+          typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+        })),
       })),
     );
   }
+
+  const inputTypeDetails: InputObjectTypeDetail[] = (types as RawType[])
+    .filter((t) => t.kind === "INPUT_OBJECT" && !!t.name)
+    .map((t) => ({
+      name: t.name,
+      fields: (t.inputFields ?? []).map((f) => ({
+        name: f.name,
+        typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
+      })),
+    }));
 
   const mutType = (types as RawType[]).find((t) => t.name === base.mutationType);
   const mutationDetails = (mutType?.fields ?? []).map((f) => ({
     name: f.name,
     returnTypeName: f.type ? unwrapTypeName(f.type) : "Unknown",
     args: (f.args ?? []).map((a) => a.name),
+    argDetails: (f.args ?? []).map((a) => ({
+      name: a.name,
+      typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+    })),
   }));
 
   const qType = (types as RawType[]).find((t) => t.name === base.queryType);
@@ -284,6 +343,10 @@ function parseDetailedIntrospectionResult(root: Json, source: string): IngestedG
     name: f.name,
     typeName: f.type ? unwrapTypeName(f.type) : "Unknown",
     args: (f.args ?? []).map((a) => a.name),
+    argDetails: (f.args ?? []).map((a) => ({
+      name: a.name,
+      typeName: a.type ? unwrapTypeName(a.type) : "Unknown",
+    })),
   }));
 
   const typeDetails: ObjectTypeDetail[] = [...typeMap.entries()].map(([name, fields]) => ({
@@ -291,12 +354,12 @@ function parseDetailedIntrospectionResult(root: Json, source: string): IngestedG
     fields,
   }));
 
-  return { ...base, mutationDetails, queryTypeFields, typeDetails };
+  return { ...base, mutationDetails, queryTypeFields, typeDetails, inputTypeDetails };
 }
 
 /** Like `ingestGraphql` but returns the richer `IngestedGraphqlRich` shape.
- *  Required before calling `synthesizeGraphqlOracle`. SDL inputs fall back to
- *  empty rich fields (the LLM synthesis path requires a live introspection JSON). */
+ *  SDL inputs fall back to empty rich fields because deterministic generation
+ *  needs typed introspection JSON. */
 export async function ingestGraphqlDetailed(
   endpointOrSchema: string,
   opts: IngestGraphqlOptions = {},
@@ -306,6 +369,7 @@ export async function ingestGraphqlDetailed(
     mutationDetails: [],
     queryTypeFields: [],
     typeDetails: [],
+    inputTypeDetails: [],
   });
 
   const looksLikeUrl = /^https?:\/\//i.test(endpointOrSchema);
