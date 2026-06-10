@@ -7,8 +7,8 @@
  *   Phase 0 — DISCOVERY (cold start). The agent is given only the product name
  *     and credentials. NO base URL, endpoint, request shape, or docs link. It
  *     must web-search to find how the API works, then carry that knowledge
- *     forward. This is the behavioral-AEO layer, run per profile (a low-effort
- *     "floor" discovers differently from a high-effort "ceiling").
+ *     forward. This is the behavioral-AEO layer, run per profile (the `low`
+ *     effort profile discovers differently from the `high` one).
  *
  *   Phase 1 — EXECUTION. The L1-L4 tasks, using ONLY what Phase 0 discovered.
  *     Task prompts are goal-level and never name the endpoint, so a bad

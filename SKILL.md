@@ -1,6 +1,6 @@
 ---
 name: ax-eval
-description: Run ax-eval against any SaaS to check whether it is agent-ready — drop in its OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, cold-start discover the API (behavioral AEO), execute against the live API as floor/ceiling profiles, and verify with programmatic round-trip oracles (host-agent harness).
+description: Run ax-eval against any SaaS to check whether it is agent-ready — drop in its OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, cold-start discover the API (behavioral AEO), execute against the live API at low/high effort, and verify with programmatic round-trip oracles (host-agent harness).
 ---
 
 # AX eval — host-agent skill
@@ -14,9 +14,9 @@ Two things make this real:
   shape, or docs link. You must web-search to discover the API first, then do
   every task with what you found. Record your search funnel honestly — it's
   scored.
-- **Effort profiles.** You run the set twice: `floor` (low-effort) and
-  `ceiling` (high-effort). Same model, same budget — only effort differs, so
-  the spread is attributable.
+- **Effort profiles.** You run the set twice at two effort levels: `low` and
+  `high`. Same model, same budget — only effort differs, so the spread is
+  attributable. (The old names `floor`/`ceiling` still work as aliases.)
 
 ## Prerequisites
 
@@ -91,7 +91,7 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir results/runs/<id>
 ```
 
 Writes `results/runs/<id>/prompt-<profile>-a<N>.txt` for each profile and
-attempt (default 3 attempts per profile), each a two-phase prompt (Phase 0
+attempt (default 1 attempt per profile; `--attempts N` for pass@k), each a two-phase prompt (Phase 0
 discovery → Phase 1 tasks) with a unique namespace per attempt.
 
 ### 4. Run each prompt (as the host agent / sub-agents)
@@ -106,8 +106,8 @@ For each profile prompt, follow it **exactly**:
   `run-<profile>-a<N>.trace.json` (every API call) to the paths in the
   prompt. Edit no other files.
 
-Honor the effort profile: `floor` does the minimum and gives up fast;
-`ceiling` investigates prerequisites, recovers from errors, and verifies
+Honor the effort profile: `low` does the minimum and gives up fast;
+`high` investigates prerequisites, recovers from errors, and verifies
 read-backs.
 
 Between attempts on the same profile, run `ax-eval reset --pack <pack>` to
@@ -125,13 +125,19 @@ npm run ax-eval -- verify --pack <pack.yaml> \
 The CLI GETs every resource back, scores round-trip oracles + each profile's
 discovery funnel, gates on `--min-pass-rate`, and writes a self-contained HTML
 report. Then summarize for the user:
-- Static readiness score (from `audit`, if run).
-- Pass rate by profile, difficulty (L1–L4), and pass@k across attempts.
-- **Discovery scorecard** per profile (reached docs / canonical endpoint /
-  hops / misled / auth).
+- Static discovery score (docs-site crawl) and agent discovery score
+  (behavioral Phase 0) as separate signals.
+- Pass rate by config/profile, difficulty (L1–L4), and pass@k across attempts.
+- If `--min-pass-rate` was used, call out both the overall gate and any
+  per-surface subgate failures.
+- **Discovery scorecard** per config/profile (reached source / canonical action /
+  hops / misled / auth), using surface-relative wording for API vs MCP/SDK/CLI.
+- Top recommendations, especially any MCP tool coverage gaps, as
+  Target / Evidence / Fix rather than a raw failure dump.
 - **Attribution:** separate genuine product/docs gaps from **plan-limited**
   (402, free tier) and **discovery-blocked** failures. The headline gap is
-  high static readiness with low behavioral success ("exposed ≠ usable").
+  high static discovery with low behavioral success, and only applies directly
+  on surfaces where the docs site is the agent's discovery path.
 
 ## Rules
 
@@ -143,11 +149,11 @@ report. Then summarize for the user:
   `--skip-review` only for a committed/trusted pack). A changed pack must be
   re-approved.
 - Do not skip `verify` — success requires oracle PASS against live state.
-- Report `harness: host-agent` and the host model; label floor↔ceiling as an
+- Report `harness: host-agent` and the host model; label the low↔high spread as an
   **effort** spread (same model), not a cross-model score. The `sonnet`/`gpt5`
   cross-model profiles only produce real cross-model data in Cursor Composer
   (where the `Task` tool spawns alternative-model sub-agents); a plain CLI host
-  should stick to `floor`/`ceiling`.
+  should stick to `low`/`high` (or pin a model per run with `--model`).
 
 ## References
 

@@ -203,13 +203,30 @@ export async function scoreDiscovery(
   // expected "Bearer personal access token".
   const foundScheme = authScheme(result.auth_scheme_found ?? "");
   const expectedScheme = authScheme(spec.auth_scheme);
-  const authOk =
-    !!foundScheme && foundScheme !== "other" && foundScheme === expectedScheme;
-  metrics.push({
-    id: "auth",
-    passed: authOk,
-    detail: `found=${result.auth_scheme_found || "(none)"} [${foundScheme || "?"}] expected=${spec.auth_scheme || "(none)"} [${expectedScheme || "?"}]`,
-  });
+  if (webOptional) {
+    // Non-API surfaces (mcp/sdk/cli): auth is managed by the transport (OAuth for
+    // hosted MCP, the SDK/CLI client for the rest), NOT a scheme the agent
+    // constructs per request. The pack's `auth_scheme` is the REST API's (e.g.
+    // "Bearer PAT"), so a literal comparison is a category error — it would FAIL
+    // a run that authenticated perfectly via OAuth. Success is instead implied:
+    // if the agent used the surface's tools at all, it authenticated (the
+    // round-trip oracle independently confirms the resulting state).
+    metrics.push({
+      id: "auth",
+      passed: !!used,
+      detail: used
+        ? `authenticated to the ${surface} surface (transport-managed${result.auth_scheme_found ? `; reported "${result.auth_scheme_found}"` : ""}) — used a tool, so auth succeeded`
+        : `no ${surface} tool used — could not confirm authentication`,
+    });
+  } else {
+    const authOk =
+      !!foundScheme && foundScheme !== "other" && foundScheme === expectedScheme;
+    metrics.push({
+      id: "auth",
+      passed: authOk,
+      detail: `found=${result.auth_scheme_found || "(none)"} [${foundScheme || "?"}] expected=${spec.auth_scheme || "(none)"} [${expectedScheme || "?"}]`,
+    });
+  }
 
   // 6) Outcome: independent round-trip on whatever it created.
   if (spec.outcome?.readPathTemplate && spec.outcome.assertField) {

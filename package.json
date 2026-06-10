@@ -1,6 +1,6 @@
 {
   "name": "ax-eval",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "AX eval — test whether a host agent can complete real tasks against a SaaS product.",
   "keywords": [
     "agent",
@@ -53,7 +53,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.1.2",
-    "asana": "^3.1.11",
+    "asana": "^3.1.12",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },

@@ -76,7 +76,7 @@ const RULES: HostRule[] = [
     weak: [],
     modelEnv: [],
     defaultModel: HOST_MODEL,
-    profiles: ["floor", "ceiling"],
+    profiles: ["low", "high"],
     reason: "Cursor host: host-default floor/ceiling effort sweep on the host-agent model",
   },
   {
@@ -106,7 +106,7 @@ const RULES: HostRule[] = [
     weak: [],
     modelEnv: [],
     defaultModel: null,
-    profiles: ["floor", "ceiling"],
+    profiles: ["low", "high"],
     reason: "Generic CI runner: host-default floor/ceiling effort sweep",
   },
 ];
@@ -179,7 +179,7 @@ export function probeHarness(env: Record<string, string | undefined> = process.e
       ...base,
       signals: [],
       suggestion: suggest(
-        ["floor", "ceiling"],
+        ["low", "high"],
         "Could not detect a host harness: host-default floor/ceiling effort sweep",
       ),
     };

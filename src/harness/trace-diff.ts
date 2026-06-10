@@ -1,5 +1,6 @@
 import type { TargetPack, Task, TraceConstraint } from "../schemas.js";
 import type { TraceStep } from "./executor.js";
+import type { SurfaceId } from "../surface/types.js";
 
 export type TraceDiffKind =
   | "missing_call"
@@ -37,9 +38,16 @@ function stepMatches(step: TraceStep, c: TraceConstraint): boolean {
   return true;
 }
 
-function taskConstraints(task: Task): TraceConstraint[] {
+function taskConstraints(task: Task, surface: SurfaceId): TraceConstraint[] {
+  // Hand-authored constraints are honored on every surface.
   if (task.trace.length) return task.trace;
   if (!task.create_path) return [];
+  // The auto-inferred constraint is a REST call (`POST <create_path>`). It only
+  // describes the API surface — on cli/sdk/mcp the agent acts through a command /
+  // SDK method / MCP tool, never that endpoint, so applying it would emit a false
+  // `missing_call`. There, the round-trip oracle is the structural gate, so we
+  // infer no REST constraint.
+  if (surface !== "api") return [];
   return [
     {
       type: "required_call",
@@ -59,12 +67,12 @@ function orderIndex(trace: TraceStep[], taskId: string | undefined): number {
   return trace.findIndex((s) => (taskId ? s.taskId === taskId : false));
 }
 
-export function diffTrace(pack: TargetPack, trace: TraceStep[]): TraceDiff[] {
+export function diffTrace(pack: TargetPack, trace: TraceStep[], surface: SurfaceId = "api"): TraceDiff[] {
   const diffs: TraceDiff[] = [];
   const knownTaskIds = new Set(pack.tasks.map((t) => t.id));
 
   for (const task of pack.tasks) {
-    for (const c of taskConstraints(task)) {
+    for (const c of taskConstraints(task, surface)) {
       if (c.type === "required_call") {
         const idx = firstIndex(trace, c);
         if (idx !== -1) continue;

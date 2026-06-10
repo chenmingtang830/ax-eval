@@ -14,6 +14,8 @@ import type { OracleResult, TargetPack, Task } from "../schemas.js";
 
 export interface ExecutorResults {
   profile: string;
+  /** Concrete harness/agent CLI that produced this result, when invoked by ax-eval. */
+  harness?: string;
   /** The per-execution namespace this run used; substituted into {ns} oracles. */
   ns?: string;
   /** Which surface the agent operated the product through (api/cli/sdk/mcp).
@@ -21,6 +23,9 @@ export interface ExecutorResults {
   surface?: string;
   /** Phase-0 discovery funnel this profile self-reported (behavioral AEO). */
   discovery?: DiscoveryResult;
+  /** The model the harness ACTUALLY ran as (stamped from harness output by
+   *  invoke.ts), not the profile's hardcoded label. undefined for older runs. */
+  model?: string;
   /** task id -> reported ids (at least { gid }). */
   results: Record<string, { gid?: string } & Record<string, unknown>>;
 }

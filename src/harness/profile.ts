@@ -17,11 +17,18 @@
  */
 
 /**
- * The model the host agent actually runs as. The skill executes inside the
- * current Cursor agent, so floor and ceiling share THIS model — the spread
- * between them is effort/autonomy config, NOT a model swap. True cross-model
- * runs require a host that can spawn alternative-model sub-agents (see
- * profilesAreCrossModel).
+ * Fallback label for the host agent's model when nothing better is known. The
+ * skill executes inside whatever agent invoked it, so floor and ceiling share
+ * THE SAME model — the spread between them is effort/autonomy config, NOT a
+ * model swap. True cross-model runs require a host that can spawn
+ * alternative-model sub-agents (see profilesAreCrossModel) or the `--model`
+ * flag on `exec-plan`.
+ *
+ * IMPORTANT: this is only a fallback. When a run is invoked through a CLI
+ * harness (claude-code/codex), invoke.ts stamps the model the harness ACTUALLY
+ * reported running and the report uses that ground truth instead of this
+ * constant. Declared profile models are `null` (host-default) so a missing
+ * stamp surfaces as "host-default" rather than a confidently wrong slug.
  */
 export const HOST_MODEL = "composer-2.5";
 
@@ -54,45 +61,47 @@ export interface HarnessProfile {
   /** Surfaces this profile is able to use. */
   surfaces: string[];
   maxTurns: number;
-  /** Marks the attribution upper-bound column. */
-  ceiling?: boolean;
+  /** Marks the attribution upper-bound column (the strongest configured run). */
+  upperBound?: boolean;
 }
 
+/** The default effort sweep is named by EFFORT LEVEL — `low` vs `high` — so the
+ *  knob being varied is explicit (the old `floor`/`ceiling` names are accepted
+ *  as aliases for back-compat; see PROFILE_ALIASES). */
 export const PROFILES: Record<string, HarnessProfile> = {
-  floor: {
-    name: "floor",
-    model: HOST_MODEL,
+  low: {
+    name: "low",
+    // null = host-default: the report uses the model stamped from harness output
+    // (ground truth). HOST_MODEL is only a last-resort label when nothing ran.
+    model: null,
     effort: "low",
     autonomy: "auto",
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
   },
-  ceiling: {
-    name: "ceiling",
-    model: HOST_MODEL,
+  high: {
+    name: "high",
+    model: null,
     effort: "high",
     autonomy: "auto",
     // Surfaces unused by REST-only Asana tasks; kept equal here so EFFORT is the
-    // only knob that differs from floor.
+    // only knob that differs from the low profile.
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
-    ceiling: true,
+    upperBound: true,
   },
-  // Cross-model profiles (the matrix-mode set). Unlike floor/ceiling — which
-  // share HOST_MODEL so EFFORT is the only variable — these vary the MODEL, so a
-  // run mixing them with floor/ceiling is auto-labeled cross-model in the report
+  // Cross-model profiles (the matrix-mode set). Unlike low/high — which
+  // share a model so EFFORT is the only variable — these vary the MODEL, so a
+  // run mixing them with low/high is auto-labeled cross-model in the report
   // (profilesAreCrossModel). `model` is the human-readable label recorded in the
   // RunResult; spawn the matching sub-agent with the slug noted alongside.
   //
   // ⚠ Local CLI hosts (Claude Code, Codex, plain shells) cannot spawn child
-  // agents on a different model — they're locked to the host's own model. Using
-  // these profiles there will record a `model` label that doesn't match what
-  // actually ran, producing a misleading cross-model report. Real cross-model
-  // data requires either:
-  //   1. Cursor Composer, where the `Task` tool can spawn `claude-4.6-sonnet`
-  //      / `gpt-5.5` sub-agents that genuinely run on those models, OR
-  //   2. a controlled minimal harness that calls each model's API directly.
-  // Plain CLI users should stick to `floor`/`ceiling` (effort-only spread).
+  // agents on a different model — they're locked to the host's own model. Use
+  // `--model` to pin the model a CLI harness runs as; the run records the model
+  // the harness actually reported. Real cross-model data requires either that
+  // `--model` (one run per model), Cursor Composer sub-agents, or a controlled
+  // minimal harness that calls each model's API directly.
   sonnet: {
     name: "sonnet",
     model: "claude-4.6-sonnet", // spawn slug: claude-4.6-sonnet-medium-thinking
@@ -100,7 +109,7 @@ export const PROFILES: Record<string, HarnessProfile> = {
     autonomy: "auto",
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
-    ceiling: true,
+    upperBound: true,
   },
   gpt5: {
     name: "gpt5",
@@ -109,8 +118,15 @@ export const PROFILES: Record<string, HarnessProfile> = {
     autonomy: "auto",
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
-    ceiling: true,
+    upperBound: true,
   },
+};
+
+/** Back-compat: the effort profiles were once named floor/ceiling. Old commands,
+ *  saved run files, and tests using those names still resolve to low/high. */
+export const PROFILE_ALIASES: Record<string, string> = {
+  floor: "low",
+  ceiling: "high",
 };
 
 /** True only when the given profiles actually differ by model (matrix-mode
@@ -122,8 +138,9 @@ export function profilesAreCrossModel(profiles: HarnessProfile[]): boolean {
 }
 
 export function getProfile(name: string): HarnessProfile {
-  const p = PROFILES[name];
-  if (!p) throw new Error(`unknown profile '${name}'; available: ${Object.keys(PROFILES).join(", ")}`);
+  const resolved = PROFILE_ALIASES[name] ?? name;
+  const p = PROFILES[resolved];
+  if (!p) throw new Error(`unknown profile '${name}'; available: ${Object.keys(PROFILES).join(", ")} (aliases: ${Object.keys(PROFILE_ALIASES).join(", ")})`);
   return p;
 }
 

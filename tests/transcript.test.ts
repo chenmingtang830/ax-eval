@@ -7,6 +7,11 @@ function evt(content: unknown[]): string {
   return JSON.stringify({ role: "assistant", message: { content } });
 }
 
+/** A Codex `--json` event: `{type:"item.completed", item:{...}}`. */
+function codexItem(item: Record<string, unknown>): string {
+  return JSON.stringify({ type: "item.completed", item });
+}
+
 describe("transcript objective capture", () => {
   it("extracts searches, curl calls, auth, and doc fetches", () => {
     const text = [
@@ -31,6 +36,22 @@ describe("transcript objective capture", () => {
     expect(run.sawBearer).toBe(true);
     expect(run.urlsFetched).toContain("https://developers.asana.com/docs");
     expect(observedToDiscovery(run).endpoint_used).toBe("POST /tasks");
+  });
+
+  it("recognizes Claude Code's `Bash` shell tool (not just `Shell`)", () => {
+    // Claude Code's shell tool is named `Bash`; if the parser only matched
+    // `Shell`, an API/curl run's calls would be invisible and discovery
+    // (canonical/auth) undercounted. Regression guard.
+    const text = evt([
+      {
+        type: "tool_use",
+        name: "Bash",
+        input: { command: `curl -X POST -H "Authorization: Bearer $PAT" ${BASE}/tasks -d '{}'` },
+      },
+    ]);
+    const run = parseTranscriptContent(text, { baseUrl: BASE });
+    expect(run.apiCalls).toContainEqual({ method: "POST", path: "/tasks", host: "app.asana.com" });
+    expect(run.sawBearer).toBe(true);
   });
 
   it("extracts code-style calls (python urllib req helper, no curl)", () => {
@@ -199,5 +220,48 @@ describe("transcript MCP-surface capture", () => {
     ]);
     const run = parseTranscriptContent(text, { mcpServer: "mcp.linear.app" });
     expect(run.mcpToolCalls).toHaveLength(0);
+  });
+
+  it("recognizes Claude Code's namespaced mcp__ tool names + ToolSearch listing", () => {
+    // The real shape from a `claude -p --output-format stream-json` run: MCP
+    // tools are invoked by their namespaced name, and ToolSearch enumerates them.
+    const text = [
+      evt([{ type: "tool_use", name: "ToolSearch", input: { query: "asana create task mcp" } }]),
+      evt([{ type: "tool_use", name: "mcp__claude_ai_Asana__create_tasks", input: { tasks: [] } }]),
+    ].join("\n");
+    const run = parseTranscriptContent(text, { mcpServer: "https://mcp.asana.com/v2/mcp" });
+    expect(run.mcpToolsListed).toBe(true); // ToolSearch with an mcp query = listing
+    expect(run.mcpToolCalls).toContain("mcp__claude_ai_Asana__create_tasks");
+    const disc = observedToDiscovery(run, undefined, "mcp");
+    expect(disc.endpoint_used).toBe("mcp__claude_ai_Asana__create_tasks");
+    expect(disc.inspected_local_source).toBe(true);
+  });
+});
+
+describe("transcript Codex-surface capture (codex exec --json)", () => {
+  it("parses codex item.completed events: web_search → searches/urls, command_execution → API calls", () => {
+    // The real shape from `codex exec --json`: events are top-level
+    // {type:"item.completed", item:{type:"web_search"|"command_execution", ...}}.
+    const text = [
+      codexItem({ id: "ws_1", type: "web_search", query: "Asana API create task authorization" }),
+      codexItem({ id: "ws_2", type: "web_search", query: "https://developers.asana.com/reference/createtask" }),
+      codexItem({
+        id: "cmd_1",
+        type: "command_execution",
+        command: `curl -X POST -H "Authorization: Bearer $ASANA_PAT" ${BASE}/tasks`,
+        exit_code: 0,
+        status: "completed",
+      }),
+    ].join("\n");
+    const run = parseTranscriptContent(text, { baseUrl: BASE });
+    expect(run.searches).toContain("Asana API create task authorization");
+    // A URL-shaped web_search is an opened page, not a search term.
+    expect(run.urlsFetched).toContain("https://developers.asana.com/reference/createtask");
+    expect(run.sawBearer).toBe(true);
+    expect(run.apiCalls).toContainEqual({ method: "POST", path: "/tasks", host: "app.asana.com" });
+    // Projected funnel: official docs reached + canonical create call + auth found.
+    const disc = observedToDiscovery(run, undefined, "api");
+    expect(disc.endpoint_used).toBe("POST /tasks");
+    expect(disc.searches.length).toBeGreaterThan(0);
   });
 });

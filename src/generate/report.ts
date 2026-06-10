@@ -18,7 +18,6 @@ import type { TraceStep } from "../harness/executor.js";
 import { diffTrace, type TraceDiff } from "../harness/trace-diff.js";
 import {
   getProfile,
-  profilesAreCrossModel,
   CONTROLLED_VARIABLES,
   VARIED_VARIABLE,
   type HarnessProfile,
@@ -26,9 +25,15 @@ import {
 import type { HarnessProbe } from "../harness/probe.js";
 import { REPORT_STYLE } from "../report-style.js";
 import { renderContentQualitySection, type SpecQualityAudit } from "../static/smells.js";
+import type { StaticCheckResult } from "../static/types.js";
 
 export interface ProfileRun {
   profile: string;
+  /** Concrete harness/agent CLI that produced this run, when known. */
+  harness?: string;
+  /** The model the harness ACTUALLY ran as (ground truth, stamped from harness
+   *  output). Preferred over the profile's hardcoded label in the report. */
+  model?: string;
   outcomes: RoundtripOutcome[];
   /** Surface this run drove the product through (api/cli/sdk/mcp). Defaults to
    *  "api" when unset so single-surface reports are unchanged. Used to tag the
@@ -63,6 +68,9 @@ export interface StaticReadiness {
   site: string;
   v0Score?: number;
   v2Score?: number;
+  /** The per-check v0 breakdown (llms.txt, OpenAPI, sitemap, …) behind v0Score, so
+   *  the report can show exactly where static-discovery points were lost. */
+  v0Checks?: StaticCheckResult[];
   source?: string;
   /** v3 content-quality (OpenAPI smell) score, 0–100. Orthogonal to v0/v2:
    *  those ask whether docs are *findable*; this asks whether the spec, once
@@ -78,6 +86,12 @@ export interface Recommendation {
   priority: "high" | "med" | "low";
   title: string;
   detail: string;
+  /** Agent-actionable triple — what to change, the evidence behind it, and the
+   *  concrete fix. Rendered as labeled rows so the HTML can be handed to a coding
+   *  agent. Optional + back-compat: recs without them just render `detail`. */
+  target?: string;
+  evidence?: string;
+  fix?: string;
 }
 
 const DIFFS = ["L1", "L2", "L3", "L4"];
@@ -89,6 +103,15 @@ const METRIC_LABEL: Record<string, string> = {
   misled: "Avoided outdated/wrong source",
   auth: "Discovered auth scheme",
   outcome: "Completed the goal (round-trip)",
+};
+
+const METRIC_FAILURE_LABEL: Record<string, string> = {
+  official: "did not reach official docs",
+  canonical: "did not find the canonical endpoint",
+  hops: "needed too many discovery hops",
+  misled: "used an outdated or wrong source",
+  auth: "did not discover the auth scheme",
+  outcome: "did not complete the goal",
 };
 
 /** Signal ids whose failure plausibly blocks downstream execution. Only
@@ -109,9 +132,32 @@ function pct(outcomes: RoundtripOutcome[]): number {
   return outcomes.length ? Math.round((passCount(outcomes) / outcomes.length) * 100) : 0;
 }
 
+/** First attempt per task id, in order. A merged multi-attempt run holds one
+ *  outcome per (task × attempt); the headline tables (matrix, difficulty, best%)
+ *  report **pass@1** over these so the number is defined regardless of attempts.
+ *  The Robustness section owns the full pass@k / all-k / flaky story. */
+function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
+  const seen = new Set<string>();
+  const out: RoundtripOutcome[] = [];
+  for (const o of outcomes) {
+    if (seen.has(o.taskId)) continue;
+    seen.add(o.taskId);
+    out.push(o);
+  }
+  return out;
+}
+
 /** "2/3 (67%)" label for a set of outcomes. */
 function rateLabel(outcomes: RoundtripOutcome[]): string {
   return `${passCount(outcomes)}/${outcomes.length} (${pct(outcomes)}%)`;
+}
+
+function runLabel(run: ProfileRun): string {
+  // harness/surface/profile so configs that share harness+profile across surfaces
+  // (e.g. claude-code/api/low vs claude-code/mcp/low) are distinguishable.
+  const h = run.harness ?? "host-agent";
+  const s = (run.surface ?? "api").toUpperCase();
+  return `${h}/${s}/${run.profile}`;
 }
 
 /** Overall pass rate (0–1) across every recorded outcome (all profiles/attempts). */
@@ -178,12 +224,61 @@ function planLimited(trace: TraceStep[] | undefined, taskId: string): boolean {
   );
 }
 
+function taskById(pack: TargetPack): Map<string, TargetPack["tasks"][number]> {
+  return new Map(pack.tasks.map((t) => [t.id, t]));
+}
+
+function taskDescriptor(pack: TargetPack, taskId: string): string {
+  const task = taskById(pack).get(taskId);
+  if (!task) return taskId;
+  const path = task.create_path ? ` (${task.create_path})` : "";
+  return `${task.id}${path}`;
+}
+
+function inferredCapability(pack: TargetPack, taskId: string): string {
+  const task = taskById(pack).get(taskId);
+  const hay = `${taskId} ${task?.title ?? ""} ${task?.prompt ?? ""} ${task?.create_path ?? ""}`.toLowerCase();
+  if (hay.includes("portfolio")) return "add project to portfolio";
+  if (hay.includes("project_brief") || hay.includes("project brief")) return "create project brief";
+  if (hay.includes("project_status") || hay.includes("project status")) return "create project status";
+  if (hay.includes("archive")) return "archive/update project";
+  if (hay.includes("section")) return "create project section";
+  if (hay.includes("complete")) return "complete/update task";
+  if (hay.includes("reschedule") || hay.includes("due date")) return "reschedule/update task";
+  if (hay.includes("project")) return "create/update project";
+  if (hay.includes("task")) return "create/update task";
+  return taskId;
+}
+
+function failureDetail(o: RoundtripOutcome): string {
+  return o.error ?? (o.oracleResults.map((x) => x.detail).filter(Boolean).join("; ") || "oracle failed");
+}
+
+function runPassPct(run: ProfileRun): number {
+  return pct(firstAttempts(run.outcomes));
+}
+
+function configLabel(run: ProfileRun): string {
+  return `${run.harness ?? "host-agent"}/${(run.surface ?? "api").toUpperCase()}/${run.profile}`;
+}
+
+function configPassPcts(runs: ProfileRun[]): number[] {
+  return runs.filter((r) => r.outcomes.length).map((r) => runPassPct(r));
+}
+
+function rangeLabel(nums: number[], unit = "%"): string {
+  if (!nums.length) return "not measured";
+  const lo = Math.min(...nums);
+  const hi = Math.max(...nums);
+  return lo === hi ? `${lo}${unit}` : `${lo}–${hi}${unit}`;
+}
+
 /** Highest behavioral pass rate across profiles (the strongest agent config). */
 function bestBehavioralPct(runs: ProfileRun[]): { pct: number; profile: string } | null {
   let best: { pct: number; profile: string } | null = null;
   for (const r of runs) {
     if (r.outcomes.length === 0) continue;
-    const p = pct(r.outcomes);
+    const p = pct(firstAttempts(r.outcomes)); // pass@1 — defined regardless of attempts
     if (!best || p > best.pct) best = { pct: p, profile: r.profile };
   }
   return best;
@@ -196,6 +291,21 @@ function readinessScore(stat?: StaticReadiness): number | undefined {
   if (!stat) return undefined;
   const scores = [stat.v0Score, stat.v2Score].filter((s): s is number => s !== undefined);
   return scores.length ? Math.max(...scores) : undefined;
+}
+
+/** Behavioral **agent discovery** score, 0–100: the fraction of scored Phase-0
+ *  signals the strongest run passed (hops excluded — it's efficiency, not
+ *  pass/fail). This is the agent-side counterpart to static docs discoverability,
+ *  and a top-level pillar. Undefined when no run carried a scored funnel. */
+function agentDiscoveryScore(runs: ProfileRun[]): number | undefined {
+  const scored = runs.filter((r) => r.discovery && r.discovery.metrics.length);
+  if (!scored.length) return undefined;
+  // Use the strongest run's funnel (matches "best agent" framing elsewhere).
+  const best = bestBehavioralPct(runs);
+  const rep = (best && scored.find((r) => r.profile === best.profile)) ?? scored[0]!;
+  const signals = rep.discovery!.metrics.filter((m) => m.id !== "hops");
+  if (!signals.length) return undefined;
+  return Math.round((signals.filter((m) => m.passed).length / signals.length) * 100);
 }
 
 // ---------------------------------------------------------------------------
@@ -216,6 +326,11 @@ export function buildRecommendations(
   const recs: Recommendation[] = [];
   const best = bestBehavioralPct(runs);
   const strongest = best ? (runs.find((r) => r.profile === best.profile) ?? null) : null;
+  const surface = dominantSurface(runs);
+  // The docs-site crawl only reflects the agent's discovery path on the API
+  // surface; for mcp/sdk/cli the gap-style recommendations below would conflate
+  // a website-crawlability signal with tool usability, so we gate them.
+  const gapMeaningful = staticReflectsAgentDiscovery(surface);
 
   // Representative discovery: prefer the strongest profile's, else any scored.
   const repDiscovery = strongest?.discovery ?? runs.find((r) => r.discovery)?.discovery;
@@ -226,13 +341,76 @@ export function buildRecommendations(
   const v2 = staticReadiness?.v2Score;
   const readiness = readinessScore(staticReadiness);
 
+  const mcpRuns = runs.filter((r) => (r.surface ?? "api") === "mcp");
+  const mcpFails = mcpRuns.flatMap((r) =>
+    firstAttempts(r.outcomes)
+      .filter((o) => !o.success && !planLimited(r.trace, o.taskId))
+      .map((o) => ({ run: r, outcome: o })),
+  );
+  if (mcpFails.length) {
+    const capabilities = [...new Set(mcpFails.map(({ outcome }) => inferredCapability(pack, outcome.taskId)))];
+    const capStats = new Map<string, { configs: Set<string>; tasks: Set<string>; examples: string[] }>();
+    for (const { run, outcome } of mcpFails) {
+      const cap = inferredCapability(pack, outcome.taskId);
+      const stat = capStats.get(cap) ?? { configs: new Set<string>(), tasks: new Set<string>(), examples: [] };
+      stat.configs.add(configLabel(run));
+      stat.tasks.add(taskDescriptor(pack, outcome.taskId));
+      if (stat.examples.length < 2) stat.examples.push(failureDetail(outcome));
+      capStats.set(cap, stat);
+    }
+    const worst = mcpRuns
+      .filter((r) => r.outcomes.length)
+      .sort((a, b) => runPassPct(a) - runPassPct(b))[0];
+    const evidence = [...capStats.entries()]
+      .map(([cap, stat]) => {
+        const examples = stat.examples.length ? `; examples: ${stat.examples.join("; ")}` : "";
+        return `${cap}: failed in ${stat.configs.size} config(s), ${stat.tasks.size} task(s)${examples}`;
+      })
+      .join(" | ");
+    recs.push({
+      priority: "high",
+      title: "Fill MCP tool coverage gaps",
+      detail:
+        `The MCP surface has ${mcpFails.length} non-plan failure(s)` +
+        (worst ? `; the weakest MCP config (${configLabel(worst)}) passed ${runPassPct(worst)}% of tasks` : "") +
+        `. The failures cluster around capabilities agents expected but could not reliably use: ${capabilities.join(", ")}.`,
+      target: `MCP tools/capabilities: ${capabilities.join(", ")}`,
+      evidence: `Round-trip failures from MCP runs — ${evidence}`,
+      fix:
+        "Expose or document first-class MCP tools for these operations, with returned ids matching the resource that the oracle can read back. Re-run MCP configs after adding coverage.",
+    });
+  }
+
+  const failedStatic = (staticReadiness?.v0Checks ?? []).filter((c) => c.status === "fail");
+  const failedIds = new Set(failedStatic.map((c) => c.id));
+  const missingEntrypoints: string[] = [];
+  if (failedIds.has("llms-txt") || failedIds.has("markdown-docs")) missingEntrypoints.push("llms-full.txt / markdown docs");
+  if (failedIds.has("openapi")) missingEntrypoints.push("discoverable OpenAPI link");
+  if (failedIds.has("mcp-server")) missingEntrypoints.push("MCP descriptor / endpoint");
+  if (failedIds.has("robots-sitemap")) missingEntrypoints.push("sitemap.xml");
+  if (failedIds.has("auth-discovery")) missingEntrypoints.push("OAuth authorization-server discovery");
+  if (missingEntrypoints.length) {
+    recs.push({
+      priority: "high",
+      title: "Publish machine-readable discovery entrypoints",
+      detail:
+        `Static discovery missed ${missingEntrypoints.length} agent entrypoint(s): ${missingEntrypoints.join(", ")}. ` +
+        "These are high-ROI docs changes because they help agents find the right surface before task execution starts.",
+      target: staticReadiness?.site || "public developer docs",
+      evidence: failedStatic.map((c) => `${c.label}: ${c.detail}`).join(" | "),
+      fix:
+        "Add explicit links from the docs root and conventional locations for llms-full.txt, OpenAPI, MCP descriptor/endpoint, sitemap.xml, and OAuth discovery where applicable.",
+    });
+  }
+
   // 1) High readiness + low behavioral → the headline "exposed ≠ usable" gap.
-  if (readiness !== undefined && best && readiness >= 50 && readiness - best.pct >= 20) {
+  //    Only meaningful when the docs site IS the agent's discovery path (API).
+  if (gapMeaningful && readiness !== undefined && best && readiness >= 50 && readiness - best.pct >= 20) {
     recs.push({
       priority: "high",
       title: "Close the gap between published and usable",
       detail:
-        `Discoverability is ${readiness}/100 but the best agent (${best.profile}) completed only ` +
+        `Docs-site discoverability is ${readiness}/100 but the best agent (${best.profile}) completed only ` +
         `${best.pct}% of tasks — a ${readiness - best.pct}-point gap. The API is published, but agents still ` +
         `can't reliably use it. The discovery and docs fixes below are the priority.`,
     });
@@ -272,7 +450,7 @@ export function buildRecommendations(
         (v0 !== undefined && v0 > v2
           ? ` (conventional-path readiness is ${v0}/100, so the content exists but isn't crawlable)`
           : "") +
-        ". Add server-rendered links, a sitemap.xml, and an llms.txt so non-JS crawlers and agents can traverse the docs.",
+        ". Add server-rendered links, sitemap.xml, llms-full.txt, and explicit OpenAPI/MCP/auth discovery links so non-JS crawlers and agents can traverse the docs.",
     });
   }
 
@@ -283,13 +461,25 @@ export function buildRecommendations(
     const held = !discoveryWeak(strongest.discovery);
     const productFails = held ? fails.filter((o) => !planLimited(strongest.trace, o.taskId)) : [];
     if (productFails.length) {
+      const ids = productFails.map((o) => o.taskId).join(", ");
+      // Surface the per-task oracle detail as evidence (what was asserted vs what
+      // read back), so a coding agent has the concrete failure to act on.
+      const evidence = productFails
+        .map((o) => {
+          const why = o.error ?? (o.oracleResults.map((x) => x.detail).filter(Boolean).join("; ") || "oracle failed");
+          return `${o.taskId}: ${why}`;
+        })
+        .join(" | ");
       recs.push({
         priority: "high",
         title: "Product/docs gap: the strongest agent still failed",
         detail:
           `The strongest profile (${strongest.profile}) failed ${productFails.length} non-plan task(s) ` +
-          `(${productFails.map((o) => o.taskId).join(", ")}) with discovery intact. When the best agent fails and ` +
-          "discovery held up, the gap points at the product/docs — fix the API ergonomics or the docs for these tasks.",
+          `(${ids}) with discovery intact. When the best agent fails and discovery held up, the gap points at the ` +
+          "product/docs, not at finding the API.",
+        target: `Tasks: ${ids} (the API endpoints / MCP tools they exercise)`,
+        evidence: `Round-trip oracle read-back — ${evidence}`,
+        fix: "Fix the API ergonomics or docs for these operations (missing capability, confusing field, or a tool that doesn't exist on this surface), then re-run to confirm the read-back passes.",
       });
     }
     // 6) Plan-limited failures → sandbox/plan limits, NOT product gaps.
@@ -332,9 +522,20 @@ export function buildRecommendations(
       detail:
         `The spec scores ${contentScore}/100 on content quality` +
         (cq ? ` (${cq.totalSmells} smell(s) across ${cq.endpointsAnalyzed} endpoints)` : "") +
-        ". Structural validity isn't agent-readiness — fix the documentation/REST smells flagged in the " +
-        "Content quality section (undocumented inputs, weak response schemas, unclear auth) so an agent can " +
-        "construct calls and interpret results without guessing.",
+        ". Structural validity isn't agent-readiness. For stable public APIs, don't churn existing paths just to satisfy style smells; prioritize additive fixes in the Content quality section: clearer parameter docs, examples, request/response schemas, auth notes, and rich-text/body requirements.",
+    });
+  }
+
+  if (maxAttempts(runs) <= 1 && runs.some((r) => r.outcomes.length > 0)) {
+    recs.push({
+      priority: "low",
+      title: "Re-run with pass@k before treating results as stable",
+      detail:
+        "This report has attempts per task = 1, so it identifies priority areas but does not prove reliability. " +
+        "Run multiple attempts with sandbox reset between attempts to distinguish stable failures from one-off agent variance.",
+      target: "Eval run configuration",
+      evidence: "Robustness section reports a single attempt per task.",
+      fix: "Re-run with --attempts 3 or higher after the first round of fixes, then compare pass@k/all-k/flaky tasks.",
     });
   }
 
@@ -380,6 +581,108 @@ function code(value: unknown): string {
 const STYLE = REPORT_STYLE;
 
 /** Section 1 — header with target name, timestamp, and compact provenance. */
+/** TL;DR — the executive summary that opens the report: a one-line takeaway, the
+ *  four pillar numbers as quick-scan pills, and jump-links into each section so a
+ *  reader (or a coding agent handed the HTML) lands on the detail fast. */
+function renderTldr(
+  pack: TargetPack,
+  runs: ProfileRun[],
+  stat: StaticReadiness | undefined,
+  recCount: number,
+): string {
+  const cells = matrixCells(runs);
+  if (!cells.length) return "";
+  const readiness = readinessScore(stat);
+  const content = stat?.contentScore;
+  const harnesses = [...new Set(cells.map((c) => c.harness))];
+
+  // A pill links to its detail section when one exists; Static discovery has no
+  // deeper section (its only detail is the v0/v2 breakdown in the sub-label), so
+  // it renders as a plain, non-clickable pill rather than jumping somewhere wrong.
+  const pill = (label: string, val: string, href?: string): string => {
+    const inner = `<span class="ax-tldr__pill-val">${val}</span><span class="ax-tldr__pill-label">${esc(label)}</span>`;
+    return href
+      ? `<a class="ax-tldr__pill" href="${href}">${inner}</a>`
+      : `<div class="ax-tldr__pill ax-tldr__pill--static">${inner}</div>`;
+  };
+  // Show the denominator so the scale is explicit: /100 for scores, % for the rate.
+  const num = (n: number | undefined, scale: "/100" | "%"): string =>
+    n === undefined ? "—" : `${esc(n)}<span class="ax-tldr__pill-scale">${scale}</span>`;
+  const links = [
+    `<a href="#agent-discovery">Agent discovery</a>`,
+    stat?.contentQuality ? `<a href="#content-quality">Content quality</a>` : "",
+    `<a href="#scores">Scores</a>`,
+    recCount ? `<a href="#recommendations">${recCount} recommendation${recCount === 1 ? "" : "s"}</a>` : "",
+  ].filter(Boolean);
+  const jump = `<p class="ax-tldr__jump">Jump to: ${links.join(" · ")}</p>`;
+
+  // Multi-harness: the two cell-level pillars (task success, agent discovery) are
+  // broken down PER HARNESS; the two product-level pillars stay single pills.
+  if (harnesses.length > 1) {
+    const surfaces = SURFACE_ORDER.filter((s) => cells.some((c) => c.surface === s));
+    const spread = rangeLabel(configPassPcts(runs));
+    const takeaway =
+      `<strong>${harnesses.length} harnesses × ${surfaces.length} surfaces</strong>, ${cells.length} cells. ` +
+      `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
+      `task success and agent discovery break down by harness below.`;
+    const productPills = [
+      pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
+      content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    ].filter(Boolean);
+    // Per-harness range across that harness's cells (min–max, or single value).
+    const range = (nums: (number | undefined)[], unit: string): string => {
+      const v = nums.filter((n): n is number => n !== undefined);
+      if (!v.length) return "—";
+      const a = Math.min(...v), b = Math.max(...v);
+      return a === b ? `${esc(a)}${unit}` : `${esc(a)}–${esc(b)}${unit}`;
+    };
+    const byHarness = harnesses
+      .map((h) => {
+        const hr = runs.filter((r) => (r.harness ?? "host-agent") === h);
+        const hc = cells.filter((c) => c.harness === h);
+        return `<div class="ax-tldr__hrow"><span class="ax-tldr__hname">${esc(h)}</span><span class="ax-tldr__hmetric">task success <strong>${rangeLabel(configPassPcts(hr))}</strong></span><span class="ax-tldr__hmetric">agent discovery <strong>${range(hc.map((c) => c.discovery), "/100")}</strong></span></div>`;
+      })
+      .join("");
+    return `<section class="ax-section ax-tldr" id="tldr">
+    <div class="ax-eyebrow">TL;DR</div>
+    <p class="ax-tldr__takeaway">${takeaway}</p>
+    <div class="ax-tldr__pills">${productPills.join("")}</div>
+    <div class="ax-tldr__byharness">
+      <div class="ax-tldr__byharness-h"><a href="#scores">By harness</a> — task success · agent discovery (range across surfaces):</div>
+      ${byHarness}
+    </div>
+    ${jump}
+  </section>`;
+  }
+
+  // Single harness (one cell, or one harness across profiles/attempts): the
+  // classic four-pillar TL;DR with a neutral, surface-aware takeaway.
+  const best = bestBehavioralPct(runs);
+  if (!best) return "";
+  const surface = dominantSurface(runs);
+  const agentDisc = agentDiscoveryScore(runs);
+  const fails = runs.find((r) => r.profile === best.profile)?.outcomes.filter((o) => !o.success) ?? [];
+  const failNote = fails.length
+    ? `${fails.length} task(s) still fail (${esc(fails.map((o) => o.taskId).join(", "))})`
+    : `every task passed`;
+  const takeaway =
+    `On the <strong>${esc(surface.toUpperCase())}</strong> surface, the best agent (${esc(best.profile)} effort) ` +
+    `completed <strong>${esc(best.pct)}%</strong> of real tasks; ${failNote}. ` +
+    `Static docs discovery and behavioral agent discovery are reported separately below.`;
+  const pills = [
+    pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
+    pill("Agent discovery", num(agentDisc, "/100"), "#agent-discovery"),
+    content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    pill("Task success", num(best.pct, "%"), "#scores"),
+  ].filter(Boolean);
+  return `<section class="ax-section ax-tldr" id="tldr">
+    <div class="ax-eyebrow">TL;DR</div>
+    <p class="ax-tldr__takeaway">${takeaway}</p>
+    <div class="ax-tldr__pills">${pills.join("")}</div>
+    ${jump}
+  </section>`;
+}
+
 function renderHeader(pack: TargetPack, generatedAt: string): string {
   const meta: Array<[string, string]> = [
     ["generated", esc(generatedAt)],
@@ -399,6 +702,15 @@ function renderHeader(pack: TargetPack, generatedAt: string): string {
   </header>`;
 }
 
+function renderProminentCaveat(warnings?: string[]): string {
+  const sample = (warnings ?? []).find((w) => /\bfake\b|\bsample\b/i.test(w));
+  if (!sample) return "";
+  return `<div class="ax-caveat ax-caveat--sample">
+      <span class="ax-caveat__label">Sample data only</span>
+      <span class="ax-caveat__detail">${esc(sample)}</span>
+    </div>`;
+}
+
 /** Pick a pass/warn/fail card modifier for the readiness↔behavioral gap. */
 function gapClass(gap: number): string {
   if (gap <= 0) return "ax-card--pass";
@@ -406,18 +718,249 @@ function gapClass(gap: number): string {
   return "ax-card--fail";
 }
 
-/** Section 2 — one-line verdict + 3 scorecard metric cards. */
+/** The surface most runs drove the product through (api/cli/sdk/mcp). Used to
+ *  decide whether the STATIC docs-site crawl actually reflects how the agent
+ *  discovered the product. For api/docs it does (the agent reads the website);
+ *  for mcp/sdk/cli it does NOT (the agent lists tools / introspects the SDK), so
+ *  the static score is a publisher-facing docs signal, not this run's discovery
+ *  path — and the report must say so instead of folding it into one number. */
+function dominantSurface(runs: ProfileRun[]): SurfaceId {
+  const counts = new Map<SurfaceId, number>();
+  for (const r of runs) counts.set(r.surface ?? "api", (counts.get(r.surface ?? "api") ?? 0) + 1);
+  let best: SurfaceId = "api";
+  let max = -1;
+  for (const [s, n] of counts) if (n > max) ((max = n), (best = s));
+  return best;
+}
+
+/** True when the run's surface discovers the product by reading the docs website
+ *  (api/docs) rather than by listing tools or introspecting an SDK (mcp/sdk/cli).
+ *  Only then does the static docs-site crawl measure the agent's real discovery
+ *  path; otherwise it's an orthogonal publisher-facing signal. */
+function staticReflectsAgentDiscovery(surface: SurfaceId): boolean {
+  return surface === "api";
+}
+
+/** A {harness × surface} cell of one product's run matrix. The two behavioral
+ *  pillars (task success, agent discovery) vary per cell; the two static pillars
+ *  (static discovery, content quality) are product-level and shown once. */
+interface MatrixCell {
+  harness: string;
+  surface: SurfaceId;
+  taskPct: number | undefined;
+  discovery: number | undefined;
+}
+
+/** Group runs into {harness × surface} cells (profiles/attempts collapse within
+ *  a cell to the best behavioral result). One cell = today's report; many cells
+ *  = the cross-harness / cross-surface matrix. */
+function matrixCells(runs: ProfileRun[]): MatrixCell[] {
+  const groups = new Map<string, ProfileRun[]>();
+  for (const r of runs) {
+    const key = `${r.harness ?? "host-agent"}::${r.surface ?? "api"}`;
+    const list = groups.get(key) ?? [];
+    list.push(r);
+    groups.set(key, list);
+  }
+  const cells: MatrixCell[] = [];
+  for (const [key, rs] of groups) {
+    const [harness, surface] = key.split("::") as [string, SurfaceId];
+    cells.push({ harness, surface, taskPct: bestBehavioralPct(rs)?.pct, discovery: agentDiscoveryScore(rs) });
+  }
+  return cells;
+}
+
+/** Strict score tier — green ONLY at a perfect 100, amber 60–99, red <60. Used
+ *  for every score color in the report so the same number always reads the same.
+ *  (Intentionally strict: a cell isn't "green/good" unless it's flawless.) */
+function scoreTier(n: number | undefined): "hi" | "mid" | "lo" | "na" {
+  if (n === undefined) return "na";
+  return n >= 100 ? "hi" : n >= 60 ? "mid" : "lo";
+}
+
+/** Shared 0–100 band → card pass/warn/fail class (strict scale). */
+function scoreBand(n: number | undefined): string {
+  const t = scoreTier(n);
+  return t === "hi" ? "ax-card--pass" : t === "mid" ? "ax-card--warn" : t === "lo" ? "ax-card--fail" : "";
+}
+
+function heatBadge(value: string, tier: ReturnType<typeof scoreTier>): string {
+  return `<span class="ax-heat ax-heat--${tier}">${esc(value)}</span>`;
+}
+
+function rateBadge(outcomes: RoundtripOutcome[]): string {
+  return heatBadge(rateLabel(outcomes), scoreTier(pct(outcomes)));
+}
+
+function countTier(n: number): "hi" | "mid" | "lo" {
+  return n === 0 ? "hi" : n <= 2 ? "mid" : "lo";
+}
+
+function countBadge(n: number): string {
+  return `<span class="ax-heat ax-heat--count ax-heat--${countTier(n)}">${esc(n)}</span>`;
+}
+
+/** The four-pillar formula explainer (shared by single-cell + matrix views). */
+function howScoredBlock(contentMeasured: boolean): string {
+  const items = [
+    `<strong>Static discovery /100</strong> — the higher of two docs-site audits: v0 (conventional-path checklist — llms.txt, OpenAPI, sitemap, OAuth discovery, …) and v2 (a docs-graph crawl scoring link-reachable surfaces). <code class="ax-code">max(v0, v2)</code>.`,
+    `<strong>Agent discovery /100</strong> — the share of a run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
+    contentMeasured
+      ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
+  ].filter(Boolean);
+  return `<details class="ax-howscored">
+      <summary>How these scores are computed</summary>
+      <ul>${items.map((h) => `<li>${h}</li>`).join("")}</ul>
+    </details>`;
+}
+
+/** Shared grouped-config tbody for the detail tables: surface (merged) · harness
+ *  (merged) · effort, then per-config data cells. Matches the Summary matrix's
+ *  Excel-style grouping + dividers so every detail table reads consistently.
+ *  `dataCells(r)` returns the `<td>`s for the columns after `effort`. */
+function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => string): string {
+  const surfaces = SURFACE_ORDER.filter((s) => runs.some((r) => (r.surface ?? "api") === s));
+  const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
+  let html = "";
+  for (const s of surfaces) {
+    const sRuns = runs.filter((r) => (r.surface ?? "api") === s);
+    const harnesses = [...new Set(sRuns.map((r) => r.harness ?? "host-agent"))].sort();
+    let firstOfSurface = true;
+    for (const h of harnesses) {
+      const hRuns = sRuns
+        .filter((r) => (r.harness ?? "host-agent") === h)
+        .sort((a, b) => profRank(a.profile) - profRank(b.profile) || a.profile.localeCompare(b.profile));
+      let firstOfHarness = true;
+      for (const r of hRuns) {
+        const cls = firstOfSurface ? ' class="ax-mx-group"' : "";
+        const surfaceCell = firstOfSurface ? `<td rowspan="${sRuns.length}" class="ax-mx-surface">${esc(s.toUpperCase())}</td>` : "";
+        const harnessCell = firstOfHarness ? `<td rowspan="${hRuns.length}" class="ax-mcell__harness">${esc(h)}</td>` : "";
+        html += `<tr${cls}>${surfaceCell}${harnessCell}<td>${esc(r.profile)}</td>${dataCells(r)}</tr>`;
+        firstOfSurface = false;
+        firstOfHarness = false;
+      }
+    }
+  }
+  return html;
+}
+
+/** Matrix Summary — used when more than one config (harness × surface × effort)
+ *  is present. Product-level pillars (static discovery, content quality) are
+ *  shown once; then EVERY config is printed in a grid: rows = harness · surface,
+ *  columns = effort (low/high). Neutral — all configs shown, none crowned. */
+function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
+  const readiness = readinessScore(stat);
+  const content = stat?.contentScore;
+  const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
+  const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
+
+  const allPct = runs.map((r) => pct(firstAttempts(r.outcomes)));
+  const lo = Math.min(...allPct), hi = Math.max(...allPct);
+  const nH = new Set(runs.map((r) => r.harness ?? "host-agent")).size;
+  const nS = new Set(runs.map((r) => r.surface ?? "api")).size;
+  const verdict =
+    `${nH} harness${nH === 1 ? "" : "es"} × ${nS} surface${nS === 1 ? "" : "s"} × ${profiles.length} effort = ${runs.length} configs. ` +
+    `Task success ${lo === hi ? `${hi}% across the board` : `${lo}–${hi}%`}. Static discovery and content quality are product-level (shown once); ` +
+    `every config's task success + agent discovery is below — all printed, none crowned "best".`;
+
+  // Cell: task success heat pill (strict scale) + agent-discovery colored text.
+  const cell = (r: ProfileRun | undefined): string => {
+    if (!r) return `<td class="ax-mcell ax-mcell--na">—</td>`;
+    const p = pct(firstAttempts(r.outcomes)); // pass@1 — defined regardless of attempts
+    const disc = agentDiscoveryScore([r]);
+    const discTxt = disc !== undefined ? `<span class="ax-mcell__sub ax-disc--${scoreTier(disc)}">disc ${esc(disc)}/100</span>` : "";
+    return `<td class="ax-mcell"><span class="ax-heat ax-heat--${scoreTier(p)}">${esc(p)}%</span> ${discTxt}</td>`;
+  };
+  // Excel-style layout: surface | harness | model | <effort columns>. The surface
+  // cell is merged (rowspan) across its harnesses, with a divider between groups.
+  const surfaces = SURFACE_ORDER.filter((s) => runs.some((r) => (r.surface ?? "api") === s));
+  const harnessesFor = (s: SurfaceId): string[] =>
+    [...new Set(runs.filter((r) => (r.surface ?? "api") === s).map((r) => r.harness ?? "host-agent"))].sort();
+  const runFor = (s: SurfaceId, h: string, p: string): ProfileRun | undefined =>
+    runs.find((r) => (r.surface ?? "api") === s && (r.harness ?? "host-agent") === h && r.profile === p);
+  const modelFor = (s: SurfaceId, h: string): string => {
+    const r = runs.find((rr) => (rr.surface ?? "api") === s && (rr.harness ?? "host-agent") === h);
+    return r?.model ?? "host-default";
+  };
+  const head = `<tr><th>surface</th><th>harness</th><th>model</th>${profiles.map((p) => `<th>${esc(p)} effort</th>`).join("")}</tr>`;
+  const body = surfaces
+    .map((s) => {
+      const hs = harnessesFor(s);
+      return hs
+        .map((h, i) => {
+          const surfaceCell = i === 0 ? `<td rowspan="${hs.length}" class="ax-mx-surface">${esc(s.toUpperCase())}</td>` : "";
+          const rowCls = i === 0 ? ' class="ax-mx-group"' : "";
+          return `<tr${rowCls}>${surfaceCell}<td class="ax-mcell__harness">${esc(h)}</td><td>${code(modelFor(s, h))}</td>${profiles.map((p) => cell(runFor(s, h, p))).join("")}</tr>`;
+        })
+        .join("");
+    })
+    .join("");
+
+  const v0 = stat?.v0Score, v2 = stat?.v2Score;
+  const readinessSub = [v0 !== undefined ? `v0 ${v0}` : null, v2 !== undefined ? `v2 ${v2}` : null].filter(Boolean).join(" · ") || "not measured";
+  const productCards = [
+    `<div class="ax-card ${scoreBand(readiness)}">
+        <span class="ax-card__value">${readiness !== undefined ? esc(readiness) : "—"}<span class="ax-card__scale">/100</span></span>
+        <span class="ax-card__label">${stat?.v0Checks?.length ? `<a href="#static-discovery">Static discovery</a>` : "Static discovery"}</span>
+        <span class="ax-card__sub">max(${esc(readinessSub)}) · docs-site crawl · product-level</span>
+      </div>`,
+    content !== undefined
+      ? `<div class="ax-card ${scoreBand(content)}">
+        <span class="ax-card__value">${esc(content)}<span class="ax-card__scale">/100</span></span>
+        <span class="ax-card__label"><a href="#content-quality">Content quality</a></span>
+        <span class="ax-card__sub">weighted OpenAPI smell score · product-level</span>
+      </div>`
+      : "",
+  ].filter(Boolean);
+
+  return `<section class="ax-section ax-scorecard-section">
+    <h2>Summary</h2>
+    <p class="ax-verdict">${esc(verdict)}</p>
+    <div class="ax-scorecard">
+      ${productCards.join("\n      ")}
+    </div>
+    <h3 class="ax-subhead">Task success / agent discovery — every config</h3>
+    <p class="ax-note">One row per harness · surface, one column per effort level. The pill is task success (round-trip oracles); <code class="ax-code">disc</code> is the behavioral agent-discovery score. Every config is printed — none crowned "best".</p>
+    <div class="ax-table-wrap">
+    <table class="ax-table ax-matrix">
+      <thead>${head}</thead>
+      <tbody>${body}</tbody>
+    </table>
+    </div>
+    ${howScoredBlock(content !== undefined)}
+  </section>`;
+}
+
+/** Section 2 — one-line verdict + scorecard metric cards. */
 function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
+  // More than one config (any of harness/surface/effort varies) → the neutral
+  // all-configs matrix. A single config falls through to the four-pillar scorecard.
+  if (runs.length > 1) return renderMatrixScorecard(stat, runs);
+
   const best = bestBehavioralPct(runs);
   const readiness = readinessScore(stat);
-  const haveGap = readiness !== undefined && best;
+  const surface = dominantSurface(runs);
+  // The docs-site gap is only a coherent single number when the agent actually
+  // discovers via the docs website (api/docs). For mcp/sdk/cli the static crawl
+  // and the behavioral run measure DIFFERENT discovery channels, so we don't
+  // subtract them — we report them side by side and say why.
+  const gapMeaningful = staticReflectsAgentDiscovery(surface);
+  const haveGap = readiness !== undefined && best && gapMeaningful;
   const gap = haveGap ? readiness! - best!.pct : undefined;
 
   let verdict: string;
   if (!best) {
     verdict = "No agent runs recorded yet — nothing to score.";
   } else if (readiness === undefined) {
-    verdict = `The best agent completed ${best.pct}% of tasks. (Discoverability wasn't measured for this run.)`;
+    verdict = `The best agent completed ${best.pct}% of tasks. (Docs-site discoverability wasn't measured for this run.)`;
+  } else if (!gapMeaningful) {
+    // Non-API surface: keep the two signals explicitly separate.
+    verdict =
+      `On the ${surface.toUpperCase()} surface the best agent completed ${best.pct}% of tasks. ` +
+      `Docs-site discoverability is a separate, publisher-facing signal (${readiness}/100, a static crawl of the docs website) — ` +
+      `the agent discovered the ${surface.toUpperCase()} tools by listing them, not by reading those docs.`;
   } else if (gap! > 0) {
     verdict = `The API is published and discoverable (${readiness}/100), but the best agent finished only ${best.pct}% of real tasks — a ${gap}-point gap. Being published isn't the same as being usable by agents.`;
   } else {
@@ -432,40 +975,66 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       .join(" · ") || "not measured";
 
   const content = stat?.contentScore;
-  const cards: string[] = [];
-  cards.push(
-    `<div class="ax-card">
-        <span class="ax-card__value">${readiness !== undefined ? esc(readiness) : "—"}</span>
-        <span class="ax-card__label">Discoverability</span>
-        <span class="ax-card__sub">${esc(readinessSub)}</span>
+  const agentDisc = agentDiscoveryScore(runs);
+  // Card color by the shared strict scale (only 100 green) so the four pillars
+  // read consistently with the matrix view.
+  const band = scoreBand;
+  // Render the value WITH its denominator so the scale is never ambiguous:
+  // "38/100" for the 0–100 scores, "86%" for the rate. "—" when unmeasured.
+  const val = (n: number | undefined, scale: "/100" | "%"): string =>
+    n === undefined
+      ? `<span class="ax-card__value">—</span>`
+      : `<span class="ax-card__value">${esc(n)}<span class="ax-card__scale">${scale}</span></span>`;
+
+  // The four pillars, in order. Each is a distinct axis — two discoveries (static
+  // docs-site crawl vs behavioral agent discovery) are deliberately separate
+  // cards, never folded into one "discoverability" number or a gap. The sub-label
+  // states how each number is derived; the "How these scores are computed" note
+  // below the cards spells out each formula in full.
+  const cards: string[] = [
+    // 1) Static discovery — a crawl of the docs WEBSITE (publisher signal). Links
+    //    to its breakdown section only when we captured the per-check detail.
+    `<div class="ax-card ${band(readiness)}">
+        ${val(readiness, "/100")}
+        <span class="ax-card__label">${stat?.v0Checks?.length ? `<a href="#static-discovery">Static discovery</a>` : "Static discovery"}</span>
+        <span class="ax-card__sub">max(${esc(readinessSub)}) · docs-site crawl</span>
       </div>`,
-  );
-  // Content quality (v3 smell audit) — the orthogonal "once found, is it usable?"
-  // axis. Only shown when an openapi_url was configured + audited.
+    // 2) Agent discovery — what THIS run's agent did to find the product.
+    `<div class="ax-card ${band(agentDisc)}">
+        ${val(agentDisc, "/100")}
+        <span class="ax-card__label"><a href="#agent-discovery">Agent discovery</a></span>
+        <span class="ax-card__sub">% of Phase-0 signals passed${best ? ` · ${esc(best.profile)}` : ""}</span>
+      </div>`,
+  ];
+  // 3) Content quality (v3 smell audit) — only when an openapi_url was audited.
   if (content !== undefined) {
-    const contentClass = content >= 80 ? "ax-card--pass" : content >= 50 ? "ax-card--warn" : "ax-card--fail";
     cards.push(
-      `<div class="ax-card ${contentClass}">
-        <span class="ax-card__value">${esc(content)}</span>
-        <span class="ax-card__label">Content quality</span>
-        <span class="ax-card__sub">spec smells · 0–100</span>
+      `<div class="ax-card ${band(content)}">
+        ${val(content, "/100")}
+        <span class="ax-card__label"><a href="#content-quality">Content quality</a></span>
+        <span class="ax-card__sub">weighted OpenAPI smell score</span>
       </div>`,
     );
   }
+  // 4) Task success — the behavioral pass rate (the headline outcome).
   cards.push(
-    `<div class="ax-card">
-        <span class="ax-card__value">${best ? esc(best.pct) + "%" : "—"}</span>
-        <span class="ax-card__label">Task success</span>
-        <span class="ax-card__sub">${best ? "best agent: " + esc(best.profile) : "no runs"}</span>
+    `<div class="ax-card ${band(best?.pct)}">
+        ${val(best?.pct, "%")}
+        <span class="ax-card__label"><a href="#scores">Task success</a></span>
+        <span class="ax-card__sub">${best ? `oracles passed · ${esc(best.profile)} · ${esc(surface.toUpperCase())}` : "no runs"}</span>
       </div>`,
   );
-  cards.push(
-    `<div class="ax-card ${gap !== undefined ? gapClass(gap) : ""}">
-        <span class="ax-card__value">${gap !== undefined ? (gap > 0 ? "+" : "") + esc(gap) : "—"}</span>
-        <span class="ax-card__label">Gap</span>
-        <span class="ax-card__sub">${gap !== undefined ? (gap > 0 ? "published but not usable" : "usable") : "needs both metrics"}</span>
-      </div>`,
-  );
+
+  // Spell out each formula so a reader can see how the report arrives at every
+  // number. Three pillars are 0–100 scores; task success is a percentage rate.
+  const howScored = [
+    `<strong>Static discovery /100</strong> — the higher of two docs-site audits: v0 (conventional-path checklist — llms.txt, OpenAPI, sitemap, OAuth discovery, …) and v2 (a docs-graph crawl scoring link-reachable surfaces). <code class="ax-code">max(v0, v2)</code>.`,
+    `<strong>Agent discovery /100</strong> — the share of the strongest run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
+    content !== undefined
+      ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed for the best profile: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
+  ].filter(Boolean);
 
   return `<section class="ax-section ax-scorecard-section">
     <h2>Summary</h2>
@@ -473,6 +1042,10 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
     <div class="ax-scorecard${cards.length >= 4 ? " ax-scorecard--four" : ""}">
       ${cards.join("\n      ")}
     </div>
+    <details class="ax-howscored">
+      <summary>How these scores are computed</summary>
+      <ul>${howScored.map((h) => `<li>${h}</li>`).join("")}</ul>
+    </details>
   </section>`;
 }
 
@@ -481,16 +1054,34 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
   const findings: string[] = [];
   const best = bestBehavioralPct(runs);
   const readiness = readinessScore(stat);
+  const surface = dominantSurface(runs);
+  const gapMeaningful = staticReflectsAgentDiscovery(surface);
+  const cells = matrixCells(runs);
 
-  if (best && readiness !== undefined) {
+  if (cells.length > 1) {
+    const measured = configPassPcts(runs);
+    if (measured.length) {
+      const lo = Math.min(...measured);
+      const hi = Math.max(...measured);
+      findings.push(
+        `Task success ranges ${lo === hi ? `${hi}%` : `${lo}–${hi}%`} across configs; static docs discoverability is ${readiness ?? "not measured"}${readiness !== undefined ? "/100" : ""}. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.`,
+      );
+    }
+  } else if (best && readiness !== undefined && gapMeaningful) {
     const gap = readiness - best.pct;
     findings.push(
       gap > 0
-        ? `Discoverability is ${readiness}/100 but only ${best.pct}% of tasks succeed — a ${gap}-point gap between published and usable.`
-        : `Task success (${best.pct}%) is on par with or above discoverability (${readiness}/100) — agents can actually use it.`,
+        ? `Docs-site discoverability is ${readiness}/100 but only ${best.pct}% of tasks succeed — a ${gap}-point gap between published and usable.`
+        : `Task success (${best.pct}%) is on par with or above docs-site discoverability (${readiness}/100) — agents can actually use it.`,
+    );
+  } else if (best && readiness !== undefined) {
+    // Non-API surface: report the two signals separately, do not subtract them.
+    findings.push(
+      `On the ${surface.toUpperCase()} surface the best agent completed ${best.pct}% of tasks. The ${readiness}/100 ` +
+        `docs-site discoverability is a static crawl of the docs website — a publisher signal, not how the agent found the ${surface.toUpperCase()} tools.`,
     );
   } else if (best) {
-    findings.push(`The best agent (${best.profile}) completed ${best.pct}% of tasks; discoverability wasn't measured.`);
+    findings.push(`The best agent (${best.profile}) completed ${best.pct}% of tasks; docs-site discoverability wasn't measured.`);
   }
 
   // Content-quality axis: flag when the spec, once found, is hard to use.
@@ -511,14 +1102,26 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     const missing = new Set<string>();
     for (const r of scored) {
       for (const m of r.discovery!.metrics) {
-        if (m.id !== "hops" && !m.passed) missing.add(METRIC_LABEL[m.id] ?? m.id);
+        if (m.id !== "hops" && !m.passed) missing.add(METRIC_FAILURE_LABEL[m.id] ?? `failed ${m.id}`);
       }
     }
     findings.push(
       missing.size
-        ? `Agents had trouble finding the API on their own: ${[...missing].join(", ")}.`
+        ? `The most common failed discovery signals were: ${[...missing].join(", ")}.`
         : "Agents reliably found the API on their own (every discovery signal passed).",
     );
+  }
+
+  if (cells.length > 1) {
+    const weak = runs
+      .filter((r) => r.outcomes.length && runPassPct(r) < 100)
+      .sort((a, b) => runPassPct(a) - runPassPct(b));
+    if (weak.length) {
+      const w = weak[0]!;
+      findings.push(
+        `Some configs still fail despite a stronger config passing: weakest config is ${configLabel(w)} at ${runPassPct(w)}% task success. Treat "best config" as a ceiling, not as product-wide success.`,
+      );
+    }
   }
 
   // Attribution finding from the strongest run.
@@ -536,7 +1139,12 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     } else if (planFails.length) {
       findings.push(`${planFails.length} failure(s) are plan/sandbox limits, not problems with the API itself.`);
     } else if (fails.length === 0) {
-      findings.push("The best agent passed every task.");
+      const allConfigsPassed = runs.every((r) => firstAttempts(r.outcomes).every((o) => o.success));
+      findings.push(
+        allConfigsPassed
+          ? "Every config passed every task."
+          : "At least one config passed every task, but other configs still failed; inspect the matrix before treating this as product-wide success.",
+      );
     }
   }
 
@@ -559,6 +1167,15 @@ function renderFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadi
 
 /** Section 4 — recommendations from the engine. */
 function renderRecommendations(recs: Recommendation[]): string {
+  const actionable = (r: Recommendation): string => {
+    // Structured target/evidence/fix rows when present (agent-actionable shape).
+    const rows = [
+      r.target ? `<div class="ax-rec__row"><span class="ax-rec__key">Target</span><span>${esc(r.target)}</span></div>` : "",
+      r.evidence ? `<div class="ax-rec__row"><span class="ax-rec__key">Evidence</span><span>${esc(r.evidence)}</span></div>` : "",
+      r.fix ? `<div class="ax-rec__row"><span class="ax-rec__key">Fix</span><span>${esc(r.fix)}</span></div>` : "",
+    ].filter(Boolean).join("");
+    return rows ? `<div class="ax-rec__grid">${rows}</div>` : "";
+  };
   const body = recs.length
     ? `<ol class="ax-recs">${recs
         .map(
@@ -567,13 +1184,15 @@ function renderRecommendations(recs: Recommendation[]): string {
         <div class="ax-rec__body">
           <h3 class="ax-rec__title">${esc(r.title)}</h3>
           <p class="ax-rec__detail">${esc(r.detail)}</p>
+          ${actionable(r)}
         </div>
       </li>`,
         )
         .join("\n      ")}</ol>`
     : `<p class="ax-empty">No recommendations — nothing actionable surfaced from this run.</p>`;
-  return `<section class="ax-section">
+  return `<section class="ax-section" id="recommendations">
     <h2>Recommendations</h2>
+    <p class="ax-note">Prioritized, agent-actionable fixes — each with a <strong>target</strong> (what to change), the <strong>evidence</strong> behind it, and a concrete <strong>fix</strong>. Hand this report to a coding agent to act on them; the per-endpoint <a href="#content-quality">suggested fixes</a> are machine-applicable too.</p>
     ${body}
   </section>`;
 }
@@ -581,84 +1200,112 @@ function renderRecommendations(recs: Recommendation[]): string {
 /** A by-difficulty × profile pass-rate table (HTML). */
 function difficultyTable(pack: TargetPack, runs: ProfileRun[]): string {
   const presentDiffs = DIFFS.filter((d) => pack.tasks.some((t) => t.difficulty === d));
-  const head = `<tr><th>difficulty</th>${runs.map((r) => `<th>${esc(r.profile)}</th>`).join("")}</tr>`;
-  const rows = presentDiffs
-    .map(
-      (d) =>
-        `<tr><td>${esc(d)}</td>${runs
-          .map((r) => `<td>${esc(rateLabel(r.outcomes.filter((o) => o.difficulty === d)))}</td>`)
-          .join("")}</tr>`,
-    )
-    .join("");
-  return `<table class="ax-table">
+  // Same grouped layout as the Summary matrix: surface · harness · effort rows,
+  // difficulty columns.
+  const head = `<tr><th>surface</th><th>harness</th><th>effort</th>${presentDiffs.map((d) => `<th>${esc(d)}</th>`).join("")}</tr>`;
+  const body = groupedConfigRows(runs, (r) =>
+    presentDiffs.map((d) => `<td>${rateBadge(firstAttempts(r.outcomes).filter((o) => o.difficulty === d))}</td>`).join(""),
+  );
+  return `<div class="ax-table-wrap"><table class="ax-table ax-matrix">
       <thead>${head}</thead>
-      <tbody>${rows}</tbody>
-    </table>`;
+      <tbody>${body}</tbody>
+    </table></div>`;
 }
 
-/** A by-profile overall pass-rate table (HTML). */
-function profileTable(runs: ProfileRun[], profileOf: (n: string) => HarnessProfile | null): string {
-  const rows = runs
-    .map((r) => {
-      const tag = r.profile === "ceiling" ? " (ceiling / upper bound)" : "";
-      const model = profileOf(r.profile)?.model ?? "host-default";
-      return `<tr><td>${esc(r.profile + tag)}</td><td>${code(model)}</td><td>${esc(rateLabel(r.outcomes))}</td></tr>`;
-    })
-    .join("");
-  return `<table class="ax-table">
-      <thead><tr><th>profile</th><th>model</th><th>overall</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-/** Discovery scorecard: signals × profiles matrix (HTML). */
+/** Discovery scorecard: configs × signals matrix (HTML). Transposed — each
+ *  CONFIG is a row and the signals are the (few) columns — so a 12-config run is
+ *  12 readable rows instead of 12 unreadable columns. */
 function discoveryTable(spec: DiscoverySpec, runs: ProfileRun[]): string {
   const scored = runs.filter((r) => r.discovery);
   if (scored.length === 0) return "";
   const order = ["official", "canonical", "hops", "misled", "auth", "outcome"];
-  const head = `<tr><th>signal</th>${scored
-    .map((r) => `<th>${esc(r.profile)} (${esc(r.discoverySource ?? "self-report")})</th>`)
-    .join("")}</tr>`;
-  const rows: string[] = [];
-  for (const id of order) {
-    if (!scored.some((r) => r.discovery!.metrics.some((m) => m.id === id))) continue;
-    const cells = scored
-      .map((r) => {
-        const m = r.discovery!.metrics.find((x) => x.id === id);
-        if (!m) return `<td>—</td>`;
-        if (id === "hops") return `<td>${esc(r.discovery!.hops)}</td>`;
-        const cls = m.passed ? "ax-pill--pass" : "ax-pill--fail";
-        return `<td><span class="ax-pill ${cls}">${m.passed ? "PASS" : "FAIL"}</span></td>`;
-      })
-      .join("");
-    rows.push(`<tr><td>${esc(METRIC_LABEL[id] ?? id)}</td>${cells}</tr>`);
-  }
-  const summaries = scored
-    .map((r) => {
-      const failed = r.discovery!.metrics.filter((m) => m.id !== "hops" && !m.passed).map((m) => m.id);
-      const summary = failed.length ? `missed: ${failed.join(", ")}` : "all signals passed";
-      return `<li>${esc(r.profile)} (${esc(r.discovery!.hops)} hops): ${esc(summary)}.</li>`;
-    })
-    .join("");
-  return `<h3 class="ax-subhead">Discovery scorecard (Phase 0, per profile)</h3>
-    <p class="ax-note">Each profile cold-starts from only the product name + credentials — no endpoint, docs, or spec — and must find the API itself. A gap here is a behavioral-AEO finding: the surface exists statically but the agent didn't find or use it.</p>
-    <table class="ax-table">
+  const present = order.filter((id) => scored.some((r) => r.discovery!.metrics.some((m) => m.id === id)));
+  const cellFor = (r: ProfileRun, id: string): string => {
+    const m = r.discovery!.metrics.find((x) => x.id === id);
+    if (!m) return `<td>—</td>`;
+    if (id === "hops") return `<td>${esc(r.discovery!.hops)}</td>`;
+    const cls = m.passed ? "ax-pill--pass" : "ax-pill--fail";
+    return `<td><span class="ax-pill ${cls}">${m.passed ? "PASS" : "FAIL"}</span></td>`;
+  };
+  const head = `<tr><th>surface</th><th>harness</th><th>effort</th>${present.map((id) => `<th>${esc(METRIC_LABEL[id] ?? id)}</th>`).join("")}<th>source</th></tr>`;
+  const body = groupedConfigRows(
+    scored,
+    (r) => present.map((id) => cellFor(r, id)).join("") + `<td>${esc(r.discoverySource ?? "self-report")}</td>`,
+  );
+  return `<h3 class="ax-subhead">Discovery scorecard (Phase 0, per config)</h3>
+    <p class="ax-note">Each config cold-starts from only the product name + credentials — no endpoint, docs, or spec — and must find the API itself. A gap here is a behavioral-AEO finding: the surface exists statically but the agent didn't find or use it.</p>
+    <div class="ax-table-wrap">
+    <table class="ax-table ax-matrix">
       <thead>${head}</thead>
-      <tbody>${rows.join("")}</tbody>
+      <tbody>${body}</tbody>
     </table>
-    <ul class="ax-oracles">${summaries}</ul>`;
+    </div>`;
 }
 
-/** Discovery (Phase 0) section — the behavioral discoverability detail. Kept as
- *  its own section (ahead of content quality + pass rate) because it gates
- *  everything below: if the agent never finds the API, downstream pass rates
- *  can't be interpreted. Empty when the pack declares no discovery target. */
+/** Static discovery section — the breakdown behind the "Static discovery" pillar:
+ *  the per-check v0 conventional-path audit (which weighted checks passed/failed)
+ *  plus the v2 docs-graph crawl score. This is where a publisher sees *where they
+ *  lose points* and what to add (llms.txt, sitemap, OpenAPI link, …). Empty when
+ *  no per-check breakdown was captured (e.g. openapi-only packs with no site). */
+function renderStaticDiscovery(stat?: StaticReadiness): string {
+  const checks = stat?.v0Checks;
+  if (!checks || !checks.length) return "";
+  const evaluable = checks.filter((c) => c.status !== "error");
+  const totalWeight = evaluable.reduce((s, c) => s + c.weight, 0);
+  const earned = evaluable.reduce((s, c) => s + (c.status === "pass" ? c.weight : 0), 0);
+  const lost = evaluable.filter((c) => c.status === "fail");
+  const pill = (s: string): string =>
+    s === "pass"
+      ? `<span class="ax-pill ax-pill--pass">PASS</span>`
+      : s === "fail"
+        ? `<span class="ax-pill ax-pill--fail">MISSING</span>`
+        : `<span class="ax-pill">n/a</span>`;
+  const rows = checks
+    .map(
+      (c) => `<tr>
+        <td>${esc(c.label)}</td>
+        <td>${esc(c.weight)}</td>
+        <td>${pill(c.status)}</td>
+        <td>${esc(c.detail)}${c.url ? ` <code class="ax-code">${esc(c.url)}</code>` : ""}</td>
+      </tr>`,
+    )
+    .join("");
+  const v2 = stat?.v2Score;
+  const v2Note =
+    v2 !== undefined
+      ? ` The v2 docs-graph crawl scored <strong>${esc(v2)}/100</strong> (agent-followable links from the docs root); the headline Static discovery score is <code class="ax-code">max(v0, v2)</code>.`
+      : "";
+  const lostNote = lost.length
+    ? `Points are lost on ${lost.length} missing surface(s): <strong>${esc(lost.map((c) => c.label).join(", "))}</strong>. Adding each (weighted by impact) raises the score.`
+    : `All evaluable checks passed.`;
+  return `<section class="ax-section" id="static-discovery">
+    <h2>Static discovery (docs-site audit)</h2>
+    <p class="ax-note">A keyless crawl of the docs <em>website</em> — can an agent-style crawler find the conventional surfaces? Score = weighted share of checks passed: <strong>${esc(earned)}/${esc(totalWeight)} weight → ${esc(stat?.v0Score ?? 0)}/100</strong> (v0).${v2Note} ${lostNote}</p>
+    <table class="ax-table">
+      <thead><tr><th>surface</th><th>weight</th><th>status</th><th>detail</th></tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+  </section>`;
+}
+
+/** Agent discovery (Phase 0) section — the BEHAVIORAL discovery detail: what
+ *  THIS run's agent actually did to find the product (cold-start searches, the
+ *  endpoint/tools it landed on, auth scheme). This is distinct from the static
+ *  docs-site audit above (which crawls the docs website regardless of any run).
+ *  Kept as its own section (ahead of content quality + pass rate) because it
+ *  gates everything below: if the agent never finds the product, downstream pass
+ *  rates can't be interpreted. Empty when the pack declares no discovery target. */
 function renderDiscovery(pack: TargetPack, runs: ProfileRun[]): string {
   if (!pack.discovery?.product) return "";
   const table = discoveryTable(pack.discovery, runs);
   if (!table) return "";
-  return `<section class="ax-section">
-    <h2>Discovery (Phase 0)</h2>
+  const surface = dominantSurface(runs);
+  const intro = staticReflectsAgentDiscovery(surface)
+    ? `What the agent actually did this run to find the API on its own — distinct from the static docs-site crawl in the Summary.`
+    : `What the agent actually did this run to find the ${surface.toUpperCase()} tools (by listing them, not by crawling the docs website). This is the discovery channel that gates the ${surface.toUpperCase()} task results — distinct from the static docs-site crawl in the Summary.`;
+  return `<section class="ax-section" id="agent-discovery">
+    <h2>Agent discovery (Phase 0, behavioral)</h2>
+    <p class="ax-note">${esc(intro)}</p>
     ${table}
   </section>`;
 }
@@ -669,12 +1316,14 @@ function renderScores(
   runs: ProfileRun[],
   profileOf: (n: string) => HarnessProfile | null,
 ): string {
-  const parts: string[] = [];
-  parts.push(`<h3 class="ax-subhead">Pass rate by difficulty</h3>`, difficultyTable(pack, runs));
-  parts.push(`<h3 class="ax-subhead">Pass rate by profile</h3>`, profileTable(runs, profileOf));
-  return `<section class="ax-section">
+  // Per-config overall task success + model already live in the Summary matrix;
+  // Scores adds the per-difficulty (L1–L4) breakdown, same grouped layout.
+  void profileOf;
+  return `<section class="ax-section" id="scores">
     <h2>Scores</h2>
-    ${parts.join("\n    ")}
+    <h3 class="ax-subhead">Pass rate by difficulty (L1–L4) — per config</h3>
+    <p class="ax-note">Each config's pass rate split by task difficulty. Overall task success per config is in the <a href="#tldr">Summary</a> matrix.</p>
+    ${difficultyTable(pack, runs)}
   </section>`;
 }
 
@@ -689,25 +1338,18 @@ function renderEvidence(runs: ProfileRun[]): string {
     (r) => r.evidence && (r.evidence.results?.length || r.evidence.trace?.length || r.evidence.transcript),
   );
   if (!withEvidence.length) return "";
-  const rows = withEvidence
-    .map((r) => {
-      const ev = r.evidence!;
-      const list = (paths?: string[]): string =>
-        paths && paths.length ? paths.map((p) => code(p)).join("<br>") : "—";
-      return `<tr>
-        <td>${esc(r.profile)}</td>
-        <td>${list(ev.results)}</td>
-        <td>${list(ev.trace)}</td>
-        <td>${ev.transcript ? code(ev.transcript) : "—"}</td>
-      </tr>`;
-    })
-    .join("");
-  return `<h3 class="ax-subhead">Evidence files (per profile)</h3>
+  const list = (paths?: string[]): string =>
+    paths && paths.length ? paths.map((p) => code(p)).join("<br>") : "—";
+  const rows = groupedConfigRows(withEvidence, (r) => {
+    const ev = r.evidence!;
+    return `<td>${list(ev.results)}</td><td>${list(ev.trace)}</td><td>${ev.transcript ? code(ev.transcript) : "—"}</td>`;
+  });
+  return `<h3 class="ax-subhead">Evidence files (per config)</h3>
     <p class="ax-note">Raw artifacts this report was assembled from. Open these files to inspect anything the rendered HTML doesn't show — agent reasoning, full tool I/O, or the unfiltered call sequence.</p>
-    <table class="ax-table">
-      <thead><tr><th>profile</th><th>results</th><th>trace</th><th>transcript</th></tr></thead>
+    <div class="ax-table-wrap"><table class="ax-table ax-matrix">
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>results</th><th>trace</th><th>transcript</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>`;
+    </table></div>`;
 }
 
 /** Run provenance: the host harness AX Eval executed in (additive, optional). */
@@ -751,8 +1393,10 @@ function renderRunConfig(
         ? String(profiles[0]!.maxTurns)
         : "varies by profile";
   const profileNames = runs.map((r) => r.profile).join(", ") || "—";
+  const harnessNames = [...new Set(runs.map((r) => r.harness ?? "host-agent"))].join(", ") || "—";
   const rows: Array<[string, string]> = [
     ["tasks in set", code(String(pack.tasks.length))],
+    ["harnesses run", code(harnessNames)],
     ["profiles run", `${runs.length} (${esc(profileNames)})`],
     [
       "attempts per task",
@@ -777,34 +1421,44 @@ function renderMethodology(
   warnings?: string[],
 ): string {
   const profiles = runs.map((r) => profileOf(r.profile)).filter((p): p is HarnessProfile => !!p);
-  const crossModel = profilesAreCrossModel(profiles);
+  // Ground-truth model per run: what the harness reported running, falling back
+  // to the profile's declared label. Cross-model is judged on these ACTUAL
+  // models so two runs of the same profile on different `--model` slugs are
+  // correctly flagged as a model comparison (not an effort-only spread).
+  const ranModel = (r: ProfileRun): string => r.model ?? profileOf(r.profile)?.model ?? "host-default";
+  const crossModel = new Set(runs.map(ranModel)).size > 1;
 
-  const rows = runs
-    .map((r) => {
-      const p = profileOf(r.profile);
-      const ns = r.ns ? code(r.ns) : "—";
-      if (!p) {
-        // Unregistered profile (e.g. an ad-hoc `live`): render gracefully.
-        return `<tr><td>${esc(r.profile)}</td><td>${code("host-default")}</td><td>unregistered</td><td>unregistered</td><td>unregistered</td><td>${ns}</td></tr>`;
-      }
-      const model = p.model ?? "host-default";
-      return `<tr><td>${esc(p.name + (p.ceiling ? " (ceiling)" : ""))}</td><td>${code(model)}</td><td>${esc(p.effort)}</td><td>${esc(p.autonomy)}</td><td>${esc(p.maxTurns)}</td><td>${ns}</td></tr>`;
-    })
-    .join("");
+  const rows = groupedConfigRows(runs, (r) => {
+    const p = profileOf(r.profile);
+    const ns = r.ns ? code(r.ns) : "—";
+    const model = ranModel(r);
+    if (!p) return `<td>${code(model)}</td><td>unregistered</td><td>unregistered</td><td>${ns}</td>`;
+    return `<td>${code(model)}</td><td>${esc(p.autonomy)}</td><td>${esc(p.maxTurns)}</td><td>${ns}</td>`;
+  });
 
   const notes: string[] = [];
   if (profiles.length > 1) {
     const uniformTurns = new Set(profiles.map((p) => p.maxTurns)).size === 1;
+    const varied = crossModel ? "model + effort" : VARIED_VARIABLE;
+    const controlled = crossModel
+      ? CONTROLLED_VARIABLES.filter((v) => v !== "model").join(", ")
+      : CONTROLLED_VARIABLES.join(", ");
     notes.push(
-      `Experiment design — controlled: ${CONTROLLED_VARIABLES.join(", ")}` +
-        `${uniformTurns ? ` (maxTurns=${profiles[0]!.maxTurns} for all)` : " (⚠ maxTurns differs — confounded)"}; varied: ${VARIED_VARIABLE}.`,
+      `Experiment design — controlled: ${controlled}` +
+        `${uniformTurns ? ` (maxTurns=${profiles[0]!.maxTurns} for all)` : " (⚠ maxTurns differs — confounded)"}; varied: ${varied}.`,
     );
   }
-  if (!crossModel && profiles.length > 1) {
-    const sharedModel = profiles[0]!.model ?? "host-default";
+  if (crossModel && runs.length > 1) {
+    const models = [...new Set(runs.map(ranModel))];
     notes.push(
-      `All profiles ran on the same model (${sharedModel}, the host agent) with the same turn budget, so the ` +
-        `floor↔ceiling spread reflects effort only — not a model, turn-budget, or harness difference.`,
+      `Cross-model run: profiles ran on different models (${models.join(", ")}), so differences in task success may reflect ` +
+        `the model, the effort setting, or both — not the product alone. Compare same-model rows to isolate effort.`,
+    );
+  } else if (!crossModel && runs.length > 1) {
+    const sharedModel = ranModel(runs[0]!);
+    notes.push(
+      `All profiles ran on the same model (${sharedModel}) with the same turn budget, so the ` +
+        `effort spread (low↔high) reflects effort only — not a model, turn-budget, or harness difference.`,
     );
   }
   notes.push(
@@ -827,14 +1481,14 @@ function renderMethodology(
     </div>`
     : "";
 
-  return `<section class="ax-section">
+  return `<section class="ax-section" id="methodology">
     <h2>Methodology &amp; provenance</h2>
     ${renderRunConfig(pack, runs, profiles)}
     <h3 class="ax-subhead">Harness profiles (execution config)</h3>
-    <table class="ax-table">
-      <thead><tr><th>profile</th><th>model</th><th>effort</th><th>autonomy</th><th>max turns</th><th>namespace</th></tr></thead>
+    <div class="ax-table-wrap"><table class="ax-table ax-matrix">
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>model</th><th>autonomy</th><th>max turns</th><th>namespace</th></tr></thead>
       <tbody>${rows}</tbody>
-    </table>
+    </table></div>
     ${notes.map((n) => `<p class="ax-note">${esc(n)}</p>`).join("\n    ")}
     ${warningsBlock}
     ${renderEvidence(runs)}
@@ -889,7 +1543,7 @@ function renderAppendix(pack: TargetPack, runs: ProfileRun[]): string {
                 )
                 .join("")}</ul>`
             : "";
-          return `<p class="ax-outcome"><span class="${markClass}">${esc(r.profile)}: ${esc(mark)}</span>${attemptTag}${
+          return `<p class="ax-outcome"><span class="${markClass}">${esc(runLabel(r))}: ${esc(mark)}</span>${attemptTag}${
             o.error ? " " + esc(`(${o.error})`) : ""
           }</p>
           <ul class="ax-oracles">${oracleItems}</ul>${traceList}`;
@@ -918,11 +1572,25 @@ function renderGate(runs: ProfileRun[], gate?: ReportGate): string {
   const ok = rate >= gate.minPassRate;
   const ratePct = Math.round(rate * 100);
   const minPct = Math.round(gate.minPassRate * 100);
-  return `<div class="ax-gate ${ok ? "ax-gate--pass" : "ax-gate--fail"}">
-      <span class="ax-gate__status">CI gate: ${ok ? "PASS" : "FAIL"}</span>
-      <span class="ax-gate__detail">Pass rate ${ratePct}% (${passed}/${total}) ${
+  const surfaces = SURFACE_ORDER.filter((s) => runs.some((r) => (r.surface ?? "api") === s));
+  const subgates = surfaces.map((s) => {
+    const outcomes = runs.filter((r) => (r.surface ?? "api") === s).flatMap((r) => r.outcomes);
+    const pass = outcomes.filter((o) => o.success).length;
+    const pct0 = outcomes.length ? Math.round((pass / outcomes.length) * 100) : 0;
+    return { surface: s, pct: pct0, pass, total: outcomes.length, ok: pct0 >= minPct };
+  });
+  const anySubFail = subgates.some((s) => !s.ok);
+  const gateClass = ok ? (anySubFail ? "ax-gate--warn" : "ax-gate--pass") : "ax-gate--fail";
+  const subgateLabel = subgates.length > 1
+    ? ` Surface subgates: ${subgates
+        .map((s) => `${s.surface.toUpperCase()} ${s.ok ? "PASS" : "FAIL"} ${s.pct}% (${s.pass}/${s.total})`)
+        .join(" · ")}.`
+    : "";
+  return `<div class="ax-gate ${gateClass}">
+      <span class="ax-gate__status">Overall gate: ${ok ? "PASS" : "FAIL"}${ok && anySubFail ? " · Surface gate: FAIL" : ""}</span>
+      <span class="ax-gate__detail">Overall pass rate ${ratePct}% (${passed}/${total}) ${
         ok ? "meets" : "is below"
-      } the required minimum of ${minPct}%.</span>
+      } the required minimum of ${minPct}%.${subgateLabel}</span>
     </div>`;
 }
 
@@ -940,35 +1608,58 @@ function renderRobustness(runs: ProfileRun[]): string {
   </section>`;
   }
 
-  const rows = runs
-    .map((r) => {
-      const tasks = robustnessByTask(r);
-      const total = tasks.length;
-      const anyPass = tasks.filter((t) => t.passes >= 1).length;
-      const allPass = tasks.filter((t) => t.passes === t.attempts).length;
-      const flaky = tasks.filter((t) => t.passes > 0 && t.passes < t.attempts);
-      const k0 = tasks.length ? Math.max(...tasks.map((t) => t.attempts)) : k;
-      const flakyLabel = flaky.length
-        ? flaky.map((t) => `${t.taskId} (${t.passes}/${t.attempts})`).join(", ")
-        : "none";
-      const flakyClass = flaky.length ? "ax-fail" : "ax-pass";
-      return `<tr>
-        <td>${esc(r.profile)}</td>
-        <td>${esc(k0)}</td>
-        <td>${esc(anyPass)}/${esc(total)}</td>
-        <td>${esc(allPass)}/${esc(total)}</td>
-        <td class="${flakyClass}">${esc(flakyLabel)}</td>
-      </tr>`;
-    })
-    .join("");
+  // Same grouped layout as the matrix — this is the ONE section that grows with
+  // attempts, and it grows by content (a flaky list), never by columns.
+  const body = groupedConfigRows(runs, (r) => {
+    const tasks = robustnessByTask(r);
+    const total = tasks.length;
+    const anyPass = tasks.filter((t) => t.passes >= 1).length;
+    const allPass = tasks.filter((t) => t.passes === t.attempts).length;
+    const flaky = tasks.filter((t) => t.passes > 0 && t.passes < t.attempts);
+    const k0 = tasks.length ? Math.max(...tasks.map((t) => t.attempts)) : k;
+    const flakyLabel = flaky.length ? flaky.map((t) => `${t.taskId} (${t.passes}/${t.attempts})`).join(", ") : "none";
+    const flakyClass = flaky.length ? "ax-fail" : "ax-pass";
+    return `<td>${esc(k0)}</td><td>${esc(anyPass)}/${esc(total)}</td><td>${esc(allPass)}/${esc(total)}</td><td class="${flakyClass}">${esc(flakyLabel)}</td>`;
+  });
 
   return `<section class="ax-section">
     <h2>Robustness (pass@k)</h2>
-    <p class="ax-note">Each task ran up to ${esc(k)} times per profile with a sandbox reset between attempts. <strong>pass@k</strong> = solved on at least one attempt; <strong>all-k</strong> = solved on every attempt (fully reliable); <strong>flaky</strong> = solved on some but not all. This measures host-agent reliability across repeated attempts — not a comparison across models or agents.</p>
-    <table class="ax-table">
-      <thead><tr><th>profile</th><th>attempts (k)</th><th>pass@k</th><th>all-k</th><th>flaky tasks</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table>
+    <p class="ax-note">Each task ran up to ${esc(k)} times per config with a sandbox reset between attempts. <strong>pass@k</strong> = solved on at least one attempt; <strong>all-k</strong> = solved on every attempt (fully reliable); <strong>flaky</strong> = solved on some but not all. The headline matrix reports pass@1; this section is where the multi-attempt detail lives.</p>
+    <div class="ax-table-wrap"><table class="ax-table ax-matrix">
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>attempts (k)</th><th>pass@k</th><th>all-k</th><th>flaky tasks</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+  </section>`;
+}
+
+function countRetryishCalls(trace: TraceStep[] | undefined): number {
+  const seen = new Map<string, number>();
+  for (const s of trace ?? []) {
+    if (!s.method || !s.path) continue;
+    const key = `${s.taskId}:${s.method}:${s.path}`;
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  return [...seen.values()].filter((n) => n > 1).length;
+}
+
+function renderProcessQuality(runs: ProfileRun[]): string {
+  if (!runs.length) return "";
+  const body = groupedConfigRows(runs, (r) => {
+    const trace = r.trace ?? [];
+    const calls = trace.filter((s) => s.method || s.path);
+    const failed = calls.filter((s) => s.status !== undefined && s.status >= 400).length;
+    const retryish = countRetryishCalls(trace);
+    const source = r.discoverySource ?? (r.discovery ? "self-report" : "not measured");
+    const sourceCls = source === "observed" ? "ax-proc-source--ok" : source === "not measured" ? "ax-proc-source--bad" : "ax-proc-source--warn";
+    return `<td><span class="ax-count">${esc(calls.length)}</span></td><td>${countBadge(failed)}</td><td>${countBadge(retryish)}</td><td><span class="ax-proc-source ${sourceCls}">${esc(source)}</span></td>`;
+  });
+  return `<section class="ax-section">
+    <h2>Process quality</h2>
+    <p class="ax-note">These are trace-derived process signals only. They explain how the agent worked; final task success is still decided by deterministic read-back oracles.</p>
+    <div class="ax-table-wrap"><table class="ax-table ax-matrix">
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>calls</th><th>failed calls</th><th>retry-ish repeats</th><th>discovery evidence</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
   </section>`;
 }
 
@@ -1001,39 +1692,35 @@ function renderTraceChecks(pack: TargetPack, runs: ProfileRun[]): string {
   </section>`;
   }
 
-  const blocks = withTrace
-    .map((r) => {
-      const diffs = dedupeDiffs(diffTrace(pack, r.trace!));
-      if (!diffs.length) {
-        return `<h3 class="ax-subhead">${esc(r.profile)}</h3>
-        <p class="ax-outcome"><span class="ax-pass">PASS — no structural mismatches</span> across ${esc(
-          r.trace!.length,
-        )} recorded call(s).</p>`;
-      }
-      const rows = diffs
-        .map(
-          (d) => `<tr>
-          <td><span class="ax-kind">${esc(d.kind)}</span></td>
-          <td>${d.taskId ? code(d.taskId) : "—"}</td>
-          <td>${d.expected ? code(d.expected) : "—"}</td>
-          <td>${d.actual ? code(d.actual) : "—"}</td>
-        </tr>`,
-        )
-        .join("");
-      return `<h3 class="ax-subhead">${esc(r.profile)} — ${esc(diffs.length)} mismatch${
-        diffs.length === 1 ? "" : "es"
-      }</h3>
-        <table class="ax-table">
-          <thead><tr><th>kind</th><th>task</th><th>expected</th><th>observed</th></tr></thead>
-          <tbody>${rows}</tbody>
-        </table>`;
-    })
+  // One grouped row per config with a result cell; per-config mismatch detail
+  // (rare) is listed below, so we don't emit 12 repetitive "PASS" blocks.
+  const diffsByLabel: Array<{ label: string; diffs: TraceDiff[] }> = [];
+  const resultCell = (r: ProfileRun): string => {
+    const surface = r.surface ?? "api";
+    if (surface !== "api") return `<td><span class="ax-mcell__sub">n/a — ${esc(surface.toUpperCase())} tools, oracle-gated</span></td>`;
+    const diffs = dedupeDiffs(diffTrace(pack, r.trace!, surface));
+    if (!diffs.length) return `<td><span class="ax-pill ax-pill--pass">PASS</span> <span class="ax-mcell__sub">${esc(r.trace!.length)} call(s)</span></td>`;
+    diffsByLabel.push({ label: runLabel(r), diffs });
+    return `<td><span class="ax-pill ax-pill--fail">${esc(diffs.length)} mismatch${diffs.length === 1 ? "" : "es"}</span></td>`;
+  };
+  const body = groupedConfigRows(withTrace, resultCell);
+  const details = diffsByLabel
+    .map(
+      ({ label, diffs }) => `<h4 class="ax-subhead">${esc(label)}</h4>
+        <table class="ax-table"><thead><tr><th>kind</th><th>task</th><th>expected</th><th>observed</th></tr></thead><tbody>${diffs
+          .map((d) => `<tr><td><span class="ax-kind">${esc(d.kind)}</span></td><td>${d.taskId ? code(d.taskId) : "—"}</td><td>${d.expected ? code(d.expected) : "—"}</td><td>${d.actual ? code(d.actual) : "—"}</td></tr>`)
+          .join("")}</tbody></table>`,
+    )
     .join("\n    ");
 
   return `<section class="ax-section">
     <h2>Trace checks</h2>
-    <p class="ax-note">Each profile's recorded API calls are compared against the expected call pattern. Diff kinds: <code class="ax-code">missing_call</code>, <code class="ax-code">extra_call</code>, <code class="ax-code">forbidden_call</code>, <code class="ax-code">order_mismatch</code>, <code class="ax-code">argument_mismatch</code>.</p>
-    ${blocks}
+    <p class="ax-note">Each config's recorded API calls are compared against the expected call pattern (REST surfaces only; mcp/sdk are oracle-gated). Diff kinds: <code class="ax-code">missing_call</code>, <code class="ax-code">extra_call</code>, <code class="ax-code">forbidden_call</code>, <code class="ax-code">order_mismatch</code>, <code class="ax-code">argument_mismatch</code>.</p>
+    <div class="ax-table-wrap"><table class="ax-table ax-matrix">
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>trace check</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table></div>
+    ${details ? `<p class="ax-note">Mismatch detail:</p>\n    ${details}` : ""}
   </section>`;
 }
 
@@ -1047,7 +1734,7 @@ export interface ReportGate {
  *
  * - `gate`: CI threshold for the gate banner.
  * - `warnings`: runtime issues the CLI hit while assembling the report (e.g.
- *   "trace file missing for ceiling/a3", "transcript path unreadable",
+ *   "trace file missing for high/a3", "transcript path unreadable",
  *   "static discover skipped: site_url not set"). Surfaced verbatim in
  *   Methodology so the reader sees what couldn't be measured rather than
  *   silently missing data.
@@ -1091,16 +1778,21 @@ export function renderGeneratedReport(
   const body = [
     renderHeader(pack, generatedAt),
     `<main class="ax-main-inner">`,
+    renderProminentCaveat(warnings),
+    renderTldr(pack, runs, stat, recs.length),
     renderGate(runs, gate),
     renderScorecard(stat, runs),
     renderFindings(pack, runs, stat),
     renderRecommendations(recs),
-    // Discoverability detail → content-quality detail → pass rate: the content
-    // quality section sits between "can the agent find it" and "did it succeed".
+    // Pillar-order detail sections: static discovery → agent discovery → content
+    // quality → task success (scores). The two discoveries stay adjacent but
+    // clearly separate, each with its own breakdown of where points are lost.
+    renderStaticDiscovery(stat),
     renderDiscovery(pack, runs),
     stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
     renderScores(pack, runs, profileOf),
     renderRobustness(runs),
+    renderProcessQuality(runs),
     renderTraceChecks(pack, runs),
     renderMethodology(pack, runs, profileOf, probe, warnings),
     renderAppendix(pack, runs),
@@ -1142,7 +1834,14 @@ function heat(n: number | null | undefined): string {
  *  Distinct from a 0% so a reader never confuses "blocked on credentials" with
  *  "the agent failed the tasks". */
 function blockedPill(reason: string): string {
-  const label = reason === "requires-oauth" ? "OAuth req'd" : "no cred";
+  const label =
+    reason === "requires-oauth"
+      ? "OAuth req'd"
+      : reason === "missing-harness"
+        ? "no CLI"
+        : reason === "invoke-failed"
+          ? "invoke failed"
+          : "no cred";
   return `<span class="ax-heat ax-heat--blocked" title="blocked: ${esc(reason)}">${esc(label)}</span>`;
 }
 
@@ -1267,13 +1966,63 @@ function renderCrossProduct(records: NormalizedResult[]): string {
   </section>`;
 }
 
+function renderCrossHarness(records: NormalizedResult[]): string {
+  const harnesses = new Set(records.map((r) => r.harness));
+  if (harnesses.size <= 1) return "";
+  const byCell = new Map<string, NormalizedResult[]>();
+  for (const r of records) {
+    const key = `${r.product}::${r.surface}`;
+    const list = byCell.get(key) ?? [];
+    list.push(r);
+    byCell.set(key, list);
+  }
+  const blocks = [...byCell.entries()]
+    .filter(([, rs]) => new Set(rs.map((r) => r.harness)).size > 1)
+    .map(([key, rs]) => {
+      const [product, surface] = key.split("::");
+      const runnable = rs.filter((r) => !r.blocked).sort((a, b) => b.pass_at_1 - a.pass_at_1 || b.pass_at_k - a.pass_at_k);
+      const best = runnable[0];
+      const rows = rs
+        .sort((a, b) => a.harness.localeCompare(b.harness))
+        .map((r) => {
+          const win = best && r.harness === best.harness && runnable.length > 1;
+          if (r.blocked) {
+            return `<tr class="ax-row--blocked">
+          <td>${esc(r.harness)}</td>
+          <td>${blockedPill(r.blocked)}</td>
+          <td>${blockedPill(r.blocked)}</td>
+          <td>${heat(r.discovery_score)}</td>
+          <td>${heat(r.content_quality)}</td>
+        </tr>`;
+          }
+          return `<tr${win ? ' class="ax-row--best"' : ""}>
+          <td>${esc(r.harness)}${win ? ' <span class="ax-task__diff">best</span>' : ""}</td>
+          <td>${heat(r.pass_at_1)}</td>
+          <td>${heat(r.pass_at_k)}</td>
+          <td>${heat(r.discovery_score)}</td>
+          <td>${heat(r.content_quality)}</td>
+        </tr>`;
+        })
+        .join("");
+      return `<h3 class="ax-subhead">${esc(product)} / ${esc(surface)}</h3>
+      <table class="ax-table">
+        <thead><tr><th>harness</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+    })
+    .join("\n      ");
+  if (!blocks) return "";
+  return `<section class="ax-section">
+    <h2>Cross-harness (same product + surface)</h2>
+    <p class="ax-note">When multiple local harnesses have records for the same product/surface cell, this compares them without changing the oracle. A blocked local CLI is shown as blocked, not as a failed task run.</p>
+    ${blocks}
+  </section>`;
+}
+
 /**
  * Render the local competitive report: the surface × product plane, from
- * normalized records. The third axis (which agent/harness ran the tasks) is
- * intentionally NOT computed here; this report covers a single harness and
- * emits normalized records that can be aggregated across many runs later.
- * `harnessNote` surfaces which harness produced these records so a reader
- * knows the records are single-harness.
+ * normalized records. If records contain more than one harness, it also renders
+ * a local cross-harness view for matching product/surface cells.
  */
 export function renderCompetitiveReport(
   records: NormalizedResult[],
@@ -1305,9 +2054,10 @@ export function renderCompetitiveReport(
     `<main class="ax-main-inner">`,
     renderCrossSurface(records),
     renderCrossProduct(records),
+    renderCrossHarness(records),
     `<section class="ax-section">
       <h2>Methodology &amp; scope</h2>
-      <p class="ax-note">Each cell is a normalized <code class="ax-code">${esc(NORMALIZED_RESULT_SCHEMA)}</code> record keyed by { surface, product, harness }. Metrics report the strongest profile. These records are single-harness by design — the skill computes the surface × product plane locally and emits normalized records that can be aggregated across many runs later without re-deriving anything.</p>
+      <p class="ax-note">Each cell is a normalized <code class="ax-code">${esc(NORMALIZED_RESULT_SCHEMA)}</code> record keyed by { surface, product, harness }. Metrics report the strongest profile. The surface × product tables answer which interface serves agents best; the optional cross-harness table answers which local agent CLI performed best for the same product/surface, without changing the deterministic oracle.</p>
     </section>`,
     `</main>`,
   ].join("\n");

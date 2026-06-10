@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readdirSync, rmSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -10,7 +10,7 @@ const CLI = resolve(ROOT, "src", "cli.ts");
 const PACK = resolve(ROOT, "targets", "asana", "pack.yaml");
 
 /** Run the CLI via tsx; return { code, out } (stdout+stderr merged). */
-function runCli(args: string[]): { code: number; out: string } {
+function runCli(args: string[], env: Record<string, string> = {}): { code: number; out: string } {
   try {
     const out = execFileSync("npx", ["tsx", CLI, ...args], {
       cwd: ROOT,
@@ -19,6 +19,7 @@ function runCli(args: string[]): { code: number; out: string } {
         ...process.env,
         ASANA_PAT: "test-token",
         ASANA_SANDBOX_PROJECT_GID: "123",
+        ...env,
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -64,9 +65,15 @@ describe("exec-plan --surface fan-out", () => {
 
   it("`--surface all` fans out over auth-runnable surfaces with isolated ns + tagged files", () => {
     const dir = freshDir();
-    const { code, out } = runCli([
-      "exec-plan", "--pack", PACK, "--skip-review", "--surface", "all", "--harness", "floor", "--attempts", "1", "--run-dir", dir,
-    ]);
+    const { code, out } = runCli(
+      [
+        "exec-plan", "--pack", PACK, "--skip-review", "--surface", "all", "--harness", "floor", "--attempts", "1", "--run-dir", dir,
+      ],
+      // Hermetic: explicitly clear the MCP OAuth creds so a developer's populated
+      // .env can't leak in and make the OAuth-only surface look runnable. Empty
+      // strings count as "set in process.env", so loadDotenv won't override them.
+      { ASANA_MCP_CLIENT_ID: "", ASANA_MCP_CLIENT_SECRET: "", ASANA_MCP_REFRESH_TOKEN: "" },
+    );
     expect(code).toBe(0);
     // asana declares sdk + mcp; api is always present. sdk inherits the PAT
     // (runnable); mcp is OAuth-only, so it's auth-blocked rather than prompted.
@@ -111,5 +118,95 @@ describe("exec-plan --surface fan-out", () => {
     const { code, out } = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--surface", "graphql"]);
     expect(code).toBe(1);
     expect(out).toContain("--surface must be one of api|cli|sdk|mcp|all");
+  });
+
+  it("`--invoke` runs a local harness CLI and stamps the result with the harness id", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const fakeClaude = resolve(binDir, "claude");
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  console.log("claude fake-test");
+  process.exit(0);
+}
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+if (!resultPath || !tracePath) {
+  console.error("missing paths");
+  process.exit(1);
+}
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "floor",
+  ns: "fake-ns",
+  surface: "api",
+  discovery: { base_url_found: "", searches: [], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: "" },
+  results: {}
+}, null, 2));
+fs.writeFileSync(tracePath, "[]");
+console.log(JSON.stringify({ ok: true }));
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+
+    const { code, out } = runCli(
+      [
+        "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "claude-code",
+        "--profile", "floor", "--attempts", "1", "--run-dir", dir,
+      ],
+      { PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    );
+
+    expect(code).toBe(0);
+    expect(out).toContain("claude-code/API/floor"); // per-job progress label in the concurrency pool
+    expect(out).toContain("Verify invoked runs:");
+    expect(out).toContain("--harness claude-code");
+    const files = readdirSync(dir).sort();
+    expect(files).toContain("prompt-claude-code-floor.txt");
+    expect(files).toContain("run-claude-code-floor.json");
+    expect(files).toContain("run-claude-code-floor.trace.json");
+    expect(files).toContain("run-claude-code-floor.transcript.jsonl");
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.json"), "utf8"));
+    expect(executor.harness).toBe("claude-code");
+    expect(executor.profile).toBe("floor");
+  });
+
+  it("runs multiple configs through the concurrency pool (parallel by default)", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const fakeClaude = resolve(binDir, "claude");
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) { console.log("claude fake-test"); process.exit(0); }
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+fs.writeFileSync(resultPath, JSON.stringify({ profile: "x", ns: "n", surface: "api", discovery: {}, results: {} }));
+fs.writeFileSync(tracePath, "[]");
+console.log(JSON.stringify({ ok: true }));
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+    const { code, out } = runCli(
+      [
+        "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "claude-code",
+        "--profile", "low", "--profile", "high", "--attempts", "1", "--run-dir", dir,
+      ],
+      { PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    );
+    expect(code).toBe(0);
+    // Two configs (low + high) ran via the pool — both files exist, and the pool
+    // announces its concurrency.
+    expect(out).toContain("at concurrency=2");
+    const files = readdirSync(dir).sort();
+    expect(files).toContain("run-claude-code-low.json");
+    expect(files).toContain("run-claude-code-high.json");
   });
 });

@@ -22,10 +22,12 @@
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
+ *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile ceiling] run prompts locally
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
 import { render } from "./reporting.js";
@@ -53,9 +55,18 @@ import { getSurface, resolveSurfaceSelection } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { scoreDiscovery } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
+import {
+  defaultInvokePaths,
+  detectInvokeHarness,
+  INVOKE_HARNESS_IDS,
+  isInvokeHarnessId,
+  runInvokeHarness,
+  type InvokeHarnessId,
+  type InvokeRunOptions,
+} from "./harness/invoke.js";
 import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
-import { getProfile } from "./harness/profile.js";
+import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
@@ -63,10 +74,24 @@ import { resetPack } from "./target/reset.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "asana", "pack.yaml");
+const INVOKE_HARNESS_LIST = INVOKE_HARNESS_IDS.join("|");
 
 interface Parsed {
   pack: string;
   harness: string[];
+  profile: string[];
+  /** Optional model slug to run the harness as (`--model`). Overrides the
+   *  profile's declared model; lets a user compare arbitrary models by issuing
+   *  one run per model and stacking the records with `competitive`. */
+  model: string;
+  /** Optional effort level (`--effort low|medium|high`). Overrides the profile's
+   *  effort, and is translated to each harness's native convention at invocation
+   *  (codex → model_reasoning_effort; claude-code → prompt-level). */
+  effort: string;
+  /** Max harness invocations to run at once (`--concurrency`, default 4). Parallel
+   *  by default for speed; `1` forces serial. Concurrent runs use distinct
+   *  namespaces so they don't collide in the sandbox. */
+  concurrency: number;
   out: string;
   site: string;
   product: string;
@@ -92,6 +117,7 @@ interface Parsed {
   approve: boolean;
   by: string;
   skipReview: boolean;
+  invoke: boolean;
   dryRun: boolean;
   ns: string;
   attempts: number;
@@ -108,6 +134,10 @@ function parseArgs(argv: string[]): Parsed {
   const p: Parsed = {
     pack: DEFAULT_PACK,
     harness: [],
+    profile: [],
+    model: "",
+    effort: "",
+    concurrency: 4,
     out: "results/last-run.json",
     site: "",
     product: "",
@@ -133,9 +163,10 @@ function parseArgs(argv: string[]): Parsed {
     approve: false,
     by: "",
     skipReview: false,
+    invoke: false,
     dryRun: false,
     ns: "",
-    attempts: 3,
+    attempts: 1,
     minPassRate: undefined,
     trace: "",
     _: [],
@@ -153,6 +184,20 @@ function parseArgs(argv: string[]): Parsed {
     const a = argv[i];
     if (a === "--pack") p.pack = value(++i, "--pack");
     else if (a === "--harness") p.harness.push(value(++i, "--harness"));
+    else if (a === "--profile") p.profile.push(value(++i, "--profile"));
+    else if (a === "--model") p.model = value(++i, "--model");
+    else if (a === "--effort") {
+      const v = value(++i, "--effort");
+      if (!["low", "medium", "high"].includes(v)) {
+        throw new Error(`--effort must be one of low|medium|high (got ${v})`);
+      }
+      p.effort = v;
+    }
+    else if (a === "--concurrency") {
+      const n = Number(value(++i, "--concurrency"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--concurrency must be a positive integer (got ${n})`);
+      p.concurrency = n;
+    }
     else if (a === "--out") p.out = value(++i, "--out");
     else if (a === "--site") p.site = value(++i, "--site");
     else if (a === "--product") p.product = value(++i, "--product");
@@ -182,6 +227,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--approve") p.approve = true;
     else if (a === "--by") p.by = value(++i, "--by");
     else if (a === "--skip-review") p.skipReview = true;
+    else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
@@ -669,7 +715,7 @@ function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
 }
 
-function cmdExecPlan(args: Parsed): number {
+async function cmdExecPlan(args: Parsed): Promise<number> {
   // Load .env so the per-surface auth gate sees the credentials the developer
   // has set (otherwise every surface would read as blocked).
   loadDotenv();
@@ -687,7 +733,19 @@ function cmdExecPlan(args: Parsed): number {
       return 1;
     }
   }
-  const profileNames = args.harness.length ? args.harness : ["floor", "ceiling"];
+  const invokeHarnesses: InvokeHarnessId[] = [];
+  if (args.invoke) {
+    const rawHarnesses = args.harness.length ? args.harness : ["claude-code"];
+    for (const h of rawHarnesses) {
+      if (!isInvokeHarnessId(h)) {
+        throw new Error(`--invoke --harness must be one of ${INVOKE_HARNESS_LIST} (got ${h})`);
+      }
+      invokeHarnesses.push(h);
+    }
+  }
+  const profileNames = args.invoke
+    ? (args.profile.length ? args.profile : ["high"])
+    : (args.harness.length ? args.harness : ["low", "high"]);
   if (!Number.isInteger(args.attempts) || args.attempts < 1) {
     throw new Error("--attempts must be a positive integer");
   }
@@ -702,8 +760,24 @@ function cmdExecPlan(args: Parsed): number {
   const dir = args.runDir;
   mkdirSync(dir, { recursive: true });
   const resultPaths: string[] = [];
+  const resultPathsByHarness = new Map<string, string[]>();
+  const observeByHarness = new Map<string, Array<{ profile: string; path: string }>>();
   const resetHints: string[] = [];
   const blockedNotes: string[] = [];
+  // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
+  // collected) then EXECUTED through a concurrency pool after — so cells run in
+  // parallel (default) instead of one blocking spawnSync at a time.
+  interface InvokeJob {
+    harness: InvokeHarnessId;
+    profileName: string;
+    surfaceId: SurfaceId;
+    attempt: number;
+    ns: string;
+    paths: ReturnType<typeof defaultInvokePaths>;
+    runOpts: InvokeRunOptions;
+    label: string;
+  }
+  const invokeJobs: InvokeJob[] = [];
   for (const surfaceId of surfaceIds) {
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
@@ -712,15 +786,22 @@ function cmdExecPlan(args: Parsed): number {
     // tell the developer exactly which env vars to add.
     const auth = surfaceAuthStatus(pack, surfaceId);
     if (auth.blocked) {
-      const harness = probeHarness().host;
-      const record = buildBlockedResult(pack, surfaceId, harness, auth.blocked);
-      const recordPath = `${dir}/run-${surfaceId}-blocked.normalized.json`;
-      writeFileSync(recordPath, JSON.stringify(record, null, 2));
+      const harnesses = args.invoke ? invokeHarnesses : [probeHarness().host];
+      for (const harness of harnesses) {
+        const record = buildBlockedResult(pack, surfaceId, harness, auth.blocked);
+        const suffix = args.invoke ? `-${harness}` : "";
+        const recordPath = `${dir}/run-${surfaceId}${suffix}-blocked.normalized.json`;
+        writeFileSync(recordPath, JSON.stringify(record, null, 2));
+        console.log(
+          args.invoke
+            ? `surface=${surfaceId} harness=${harness} → BLOCKED (${auth.blocked}) → ${recordPath}`
+            : `surface=${surfaceId} → BLOCKED (${auth.blocked}) → ${recordPath}`,
+        );
+      }
       const add = auth.missing.length ? ` Add to .env: ${auth.missing.join(", ")}.` : "";
       const why = auth.blocked === "requires-oauth"
         ? "OAuth-only surface — register an OAuth app and store a refresh token"
         : "missing this surface's credential";
-      console.log(`surface=${surfaceId} → BLOCKED (${auth.blocked}): ${why}.${add} → ${recordPath}`);
       blockedNotes.push(
         `  ${surfaceId}: ${auth.blocked}.${add}` +
           (auth.instructions ? `\n    ${auth.instructions}` : ""),
@@ -729,35 +810,137 @@ function cmdExecPlan(args: Parsed): number {
     }
     const surface = getSurface(surfaceId);
     const sfx = tagSurface ? `-${surfaceId}` : "";
+    // Plan header per surface: what configs are queued for it (execution is
+    // pooled/parallel afterward, so this lists rather than sequences them).
+    if (args.invoke) {
+      const seq = `${profileNames.join(", ")}${invokeHarnesses.length ? ` × ${invokeHarnesses.join(", ")}` : ""}`;
+      console.log(`  queued ${surfaceId.toUpperCase()}: ${seq}${args.attempts > 1 ? ` × ${args.attempts} attempts` : ""}`);
+    }
     for (const name of profileNames) {
       const profile = getProfile(name);
       for (let attempt = 1; attempt <= args.attempts; attempt++) {
-        // The label feeds both the namespace and the filenames; the surface tag
-        // keeps concurrent surfaces from colliding on the live product's ns.
-        const base = tagSurface ? `${surfaceId}-${name}` : name;
-        const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
-        const ns = resolveNs(pack.run_id, attemptLabel);
-        const stem = args.attempts === 1 ? `${name}${sfx}` : `${name}${sfx}-a${attempt}`;
-        const resultsPath = `${dir}/run-${stem}.json`;
-        const tracePath = `${dir}/run-${stem}.trace.json`;
-        const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
-        const out = `${dir}/prompt-${stem}.txt`;
-        writeFileSync(out, prompt);
-        resultPaths.push(resultsPath);
-        console.log(
-          `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
-            `(results→${resultsPath}, trace→${tracePath})`,
-        );
-        if (attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${ns}`);
+        if (args.invoke) {
+          for (const harness of invokeHarnesses) {
+            const detection = detectInvokeHarness(harness);
+            if (!detection.ok) {
+              const record = buildBlockedResult(pack, surfaceId, harness, "missing-harness");
+              const recordPath = `${dir}/run-${surfaceId}-${harness}-blocked.normalized.json`;
+              writeFileSync(recordPath, JSON.stringify(record, null, 2));
+              console.log(
+                `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (${detection.reason}): ` +
+                  `${detection.detail ?? detection.command} → ${recordPath}`,
+              );
+              continue;
+            }
+            const base = tagSurface ? `${surfaceId}-${harness}-${name}` : `${harness}-${name}`;
+            const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
+            const ns = resolveNs(pack.run_id, attemptLabel);
+            const stem = args.attempts === 1 ? `${harness}-${name}${sfx}` : `${harness}-${name}${sfx}-a${attempt}`;
+            const paths = defaultInvokePaths(dir, stem, harness);
+            // When the user pins a model/effort, reflect it in the profile the
+            // prompt describes so the agent's self-report matches what runs.
+            const runProfile = {
+              ...profile,
+              ...(args.model ? { model: args.model } : {}),
+              ...(args.effort ? { effort: args.effort as HarnessProfile["effort"] } : {}),
+            };
+            const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
+            writeFileSync(paths.promptPath, prompt);
+            // Collect the job; it runs in the concurrency pool after planning.
+            invokeJobs.push({
+              harness,
+              profileName: name,
+              surfaceId,
+              attempt,
+              ns,
+              paths,
+              label: `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`,
+              runOpts: {
+                pack,
+                harness,
+                profile: name,
+                surface: surfaceId,
+                ns,
+                paths,
+                cwd: process.cwd(),
+                model: args.model || undefined,
+                effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
+              },
+            });
+          }
+        } else {
+          // The label feeds both the namespace and the filenames; the surface tag
+          // keeps concurrent surfaces from colliding on the live product's ns.
+          const base = tagSurface ? `${surfaceId}-${name}` : name;
+          const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
+          const ns = resolveNs(pack.run_id, attemptLabel);
+          const stem = args.attempts === 1 ? `${name}${sfx}` : `${name}${sfx}-a${attempt}`;
+          const resultsPath = `${dir}/run-${stem}.json`;
+          const tracePath = `${dir}/run-${stem}.trace.json`;
+          const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
+          const out = `${dir}/prompt-${stem}.txt`;
+          writeFileSync(out, prompt);
+          resultPaths.push(resultsPath);
+          console.log(
+            `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
+              `(results→${resultsPath}, trace→${tracePath})`,
+          );
+          if (attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${ns}`);
+        }
       }
     }
   }
-  console.log(
-    `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
-      `  ax-eval verify --pack ${args.pack} ` +
-      resultPaths.map((p) => `--results ${p}`).join(" ") +
-      ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
-  );
+  // Execute the planned invoke jobs through the concurrency pool (parallel by
+  // default; --concurrency 1 forces serial). Distinct namespaces per job mean
+  // concurrent runs don't collide in the sandbox. Bookkeeping is collected in
+  // deterministic (planned) order regardless of completion order.
+  if (invokeJobs.length) {
+    const conc = Math.max(1, Math.min(args.concurrency, invokeJobs.length));
+    const started = Date.now();
+    console.log(
+      `\nRunning ${invokeJobs.length} harness invocation(s) at concurrency=${conc}` +
+        `${conc === 1 ? " (serial)" : ""}… this may take several minutes.`,
+    );
+    await runPool(invokeJobs, conc, async (job) => {
+      console.log(`  ▶ start  ${job.label}`);
+      const invoke = await runInvokeHarness(job.runOpts);
+      console.log(`  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"} (results→${job.paths.resultsPath})`);
+    });
+    for (const job of invokeJobs) {
+      resultPaths.push(job.paths.resultsPath);
+      const grouped = resultPathsByHarness.get(job.harness) ?? [];
+      grouped.push(job.paths.resultsPath);
+      resultPathsByHarness.set(job.harness, grouped);
+      const obs = observeByHarness.get(job.harness) ?? [];
+      obs.push({ profile: job.profileName, path: job.paths.transcriptPath });
+      observeByHarness.set(job.harness, obs);
+      if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
+    }
+    console.log(`Finished ${invokeJobs.length} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
+  }
+  if (args.invoke) {
+    if (resultPathsByHarness.size) {
+      console.log("\nVerify invoked runs:");
+      for (const [harness, paths] of resultPathsByHarness) {
+        const observeArgs = (observeByHarness.get(harness) ?? [])
+          .map((o) => `--observe ${o.profile}=${o.path}`)
+          .join(" ");
+        console.log(
+          `  ax-eval verify-generated --pack ${args.pack} --harness ${harness} ` +
+            paths.map((p) => `--results ${p}`).join(" ") +
+            (observeArgs ? ` ${observeArgs}` : "") +
+            ` --min-pass-rate 0.8 --html ${dir}/generated-eval-${harness}.html`,
+        );
+      }
+    }
+  } else {
+    console.log(
+      `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
+        `  ax-eval verify --pack ${args.pack} ` +
+        resultPaths.map((p) => `--results ${p}`).join(" ") +
+        ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
+    );
+  }
   if (resetHints.length) {
     console.log(`\nBetween attempts, reset the previous namespace so pass@k is isolated:\n${resetHints.join("\n")}`);
   }
@@ -772,12 +955,30 @@ function cmdExecPlan(args: Parsed): number {
   return 0;
 }
 
+/** Run `worker` over `items` with at most `limit` in flight at once, preserving
+ *  result order. A tiny fixed-worker pool — enough for the exec-plan fan-out
+ *  without pulling in a dependency. */
+async function runPool<T, R>(items: T[], limit: number, worker: (item: T, index: number) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const runners = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+    for (;;) {
+      const i = next++;
+      if (i >= items.length) return;
+      results[i] = await worker(items[i]!, i);
+    }
+  });
+  await Promise.all(runners);
+  return results;
+}
+
 function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
   const grouped = new Map<string, ProfileRun>();
   for (const run of runs) {
-    const current = grouped.get(run.profile);
+    const key = `${run.harness ?? ""}::${run.surface ?? ""}::${run.profile}`;
+    const current = grouped.get(key);
     if (!current) {
-      grouped.set(run.profile, {
+      grouped.set(key, {
         ...run,
         trace: [...(run.trace ?? [])],
         outcomes: [...run.outcomes],
@@ -849,6 +1050,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   if (!args.pack) throw new Error("usage: ax-eval verify-generated --pack <yaml> --results <run.json>...");
   if (args.results.length === 0) throw new Error("provide at least one --results <run.json>");
   const pack = loadPack(args.pack);
+  console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
   const client = new BearerClient({
     baseUrl: pack.base_url,
     token: resolveToken(pack),
@@ -885,6 +1087,8 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // is not an override — each result keeps its own self-reported surface.
     const surface: SurfaceId =
       concreteSurface(args) ?? (isSurfaceId(executor.surface) ? executor.surface : "api");
+    const passCount = Object.values(executor.results).filter((r) => r?.gid).length;
+    console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${pack.tasks.length} tasks reported a gid)…`);
     const outcomes = await verifyGeneratedPack(pack, executor, client);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
@@ -894,11 +1098,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       );
     }
     // Behavioral AEO: score this profile's Phase-0 discovery funnel. Prefer the
-    // OBJECTIVE funnel parsed from the harness transcript (--observe) over the
-    // agent's self-report; fall back to self-report, labeling the provenance.
+    // OBJECTIVE funnel parsed from the harness transcript over the agent's
+    // self-report; fall back to self-report, labeling the provenance.
+    //
+    // Transcript resolution, in order: (1) an explicit `--observe <profile>=<path>`
+    // override, else (2) the per-result sibling transcript (`run-*.transcript.jsonl`,
+    // like the trace sibling). The sibling is keyed to THIS result, so a multi-cell
+    // report (several harness×surface runs that share a profile name) scores each
+    // cell against its OWN transcript instead of colliding on `--observe[profile]`.
     let discovery;
     let discoverySource: ProfileRun["discoverySource"];
-    const obsPath = args.observe[executor.profile];
+    const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
+    const obsPath = args.observe[executor.profile] ?? (existsSync(siblingTranscript) ? siblingTranscript : undefined);
     if (pack.discovery?.product && obsPath) {
       if (!existsSync(obsPath)) {
         warnings.push(
@@ -935,6 +1146,8 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const traceExisted = existsSync(tracePath);
     byAttempt.push({
       profile: executor.profile,
+      harness: executor.harness,
+      model: executor.model,
       outcomes,
       surface,
       ns: executor.ns,
@@ -962,8 +1175,11 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const mode = args.offline ? "fixture" : "live";
     staticReadiness = { site: site || "" };
     if (site) {
+      console.log("  Auditing static site readiness (v0 + v2)…");
       try {
-        staticReadiness.v0Score = (await auditSite(site, { mode })).score;
+        const v0 = await auditSite(site, { mode });
+        staticReadiness.v0Score = v0.score;
+        staticReadiness.v0Checks = v0.checks;
       } catch (err) {
         warnings.push(`Static v0 audit failed: ${err instanceof Error ? err.message : String(err)}.`);
       }
@@ -980,6 +1196,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // v3 content-quality (OpenAPI smell) audit — the "once found, is it usable?"
     // axis. Best-effort, like v0/v2: never fail an already-completed run.
     if (pack.openapi_url) {
+      console.log("  Auditing OpenAPI spec quality (v3)…");
       try {
         const { text, source } = await fetchSpecText(pack.openapi_url, { offline: args.offline });
         const audit = auditSpecQuality(text, source);
@@ -992,6 +1209,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       warnings.push("Content-quality (v3) audit skipped: pack has no openapi_url.");
     }
   }
+  console.log("  Rendering report…");
   const html = renderGeneratedReport(pack, byProfile, staticReadiness, probeHarness(), {
     gate: { minPassRate: args.minPassRate },
     warnings,
@@ -1003,15 +1221,27 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, html);
   console.log(`Saved report → ${outPath}`);
+  if (process.stdout.isTTY) {
+    const opener = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
+    spawnSync(opener, [outPath], { stdio: "ignore" });
+  }
   // Emit the normalized cell { surface, product, harness } next to the report.
   // This is the durable, aggregatable artifact: the local `competitive` command
   // (or any later aggregator) stacks these across harnesses without re-deriving
   // anything from the raw run files.
   const cellSurface: SurfaceId = byProfile.find((r) => r.surface)?.surface ?? "api";
+  const runHarnesses = [...new Set(byProfile.map((r) => r.harness).filter((h): h is string => !!h))];
+  const recordHarness = args.harness.length === 1
+    ? args.harness[0]!
+    : runHarnesses.length === 1
+      ? runHarnesses[0]!
+      : runHarnesses.length > 1
+        ? "mixed-local"
+        : probeHarness().host;
   const record = buildNormalizedResult(
     pack,
     cellSurface,
-    probeHarness().host,
+    recordHarness,
     byProfile,
     // Content quality is product-level (the spec audit), normalized to 0–1 for
     // the competitive heat cells. null when no openapi_url / audit didn't run.
@@ -1022,6 +1252,13 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   console.log(`Saved normalized record → ${recordPath}`);
   const anyFail = byProfile.some((p) => p.outcomes.some((o) => !o.success));
   const rate = passRate(byProfile);
+  for (const p of byProfile) {
+    for (const o of p.outcomes) {
+      const mark = o.success ? "✓" : "✗";
+      const detail = o.error ?? o.oracleResults.map((r) => r.detail).filter(Boolean).join("; ");
+      console.log(`  ${mark} [${p.profile}] ${o.taskId}${detail ? ` — ${detail}` : ""}`);
+    }
+  }
   console.log(`Pass rate: ${Math.round(rate * 100)}% (${byProfile.flatMap((p) => p.outcomes).filter((o) => o.success).length}/${byProfile.flatMap((p) => p.outcomes).length})`);
   if (args.minPassRate !== undefined && rate < args.minPassRate) {
     console.error(`CI gate failed: pass rate ${rate.toFixed(2)} < required ${args.minPassRate.toFixed(2)}`);

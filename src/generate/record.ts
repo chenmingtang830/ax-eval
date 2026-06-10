@@ -16,6 +16,8 @@ import type { DiscoveryReport } from "./discovery.js";
 
 export const NORMALIZED_RESULT_SCHEMA = "ax.normalized-result/v1" as const;
 
+export type BlockedReason = "requires-oauth" | "missing-credential" | "missing-harness" | "invoke-failed";
+
 export interface NormalizedResult {
   schema: typeof NORMALIZED_RESULT_SCHEMA;
   /** Axis 1 — how the agent drove the product. */
@@ -46,11 +48,15 @@ export interface NormalizedResult {
   profiles: string[];
   /** The profile whose metrics this record reports (the strongest one). */
   best_profile: string | null;
+  /** The model the best profile ACTUALLY ran as (ground truth, stamped from
+   *  harness output). Lets `competitive` compare the same product/surface across
+   *  models. null when no run stamped a model (older records). */
+  model: string | null;
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
    *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
    *  "missing-credential" (the developer hasn't set the surface's token). */
-  blocked?: "requires-oauth" | "missing-credential";
+  blocked?: BlockedReason;
 }
 
 /** First attempt per task id, in task order — pass@1 is computed over these. */
@@ -142,6 +148,7 @@ export function buildNormalizedResult(
     content_quality: contentQuality,
     profiles: runs.map((r) => r.profile),
     best_profile: best?.profile ?? null,
+    model: best?.model ?? null,
   };
 }
 
@@ -156,7 +163,7 @@ export function buildBlockedResult(
   pack: TargetPack,
   surface: SurfaceId,
   harness: string,
-  blocked: "requires-oauth" | "missing-credential",
+  blocked: BlockedReason,
 ): NormalizedResult {
   return {
     schema: NORMALIZED_RESULT_SCHEMA,
@@ -174,6 +181,7 @@ export function buildBlockedResult(
     content_quality: null,
     profiles: [],
     best_profile: null,
+    model: null,
     blocked,
   };
 }
