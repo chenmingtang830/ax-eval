@@ -131,6 +131,9 @@ export const SurfaceAuthSchema = z.object({
   client_id_env: z.string().optional(),
   client_secret_env: z.string().optional(),
   refresh_token_env: z.string().optional(),
+  /** OAuth token endpoint used to exchange the refresh token for a short-lived
+   *  bearer token before invoking a headless harness. */
+  token_url: z.string().url().optional(),
   /** What the developer must do to provision these (shown by check-env / init). */
   instructions: z.string().optional(),
 });

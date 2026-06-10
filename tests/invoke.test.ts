@@ -7,6 +7,7 @@ import {
   defaultInvokePaths,
   detectInvokeHarness,
   runInvokeHarness,
+  type AsyncSpawn,
   type InvokeRunOptions,
 } from "../src/harness/invoke.js";
 
@@ -135,5 +136,46 @@ describe("runInvokeHarness", () => {
     expect(executor.profile).toBe("ceiling");
     expect(executor.results.t1.gid).toBeNull();
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
+  });
+
+  it("retries a failed invocation once, then succeeds on the second attempt", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    let calls = 0;
+    const spawn: AsyncSpawn = async () => {
+      calls += 1;
+      if (calls === 1) {
+        // First attempt crashes without writing a results file.
+        return spawnResult({ status: 1, stdout: Buffer.from(""), stderr: Buffer.from("transient") });
+      }
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+    const result = await runInvokeHarness({ ...run, retries: 1 }, spawn);
+    expect(calls).toBe(2);
+    expect(result.ok).toBe(true);
+    expect(result.attempts).toBe(2);
+  });
+
+  it("passes the timeout cap to the spawn and records a timeout as a failure", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    let seenTimeout: number | undefined;
+    const spawn: AsyncSpawn = async (_command, _args, _cwd, spawnOpts) => {
+      seenTimeout = spawnOpts?.timeoutMs;
+      // Simulate the child being killed by the wall-clock cap (no results written).
+      return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, stdout: Buffer.from("") });
+    };
+    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, retries: 0 }, spawn);
+    expect(seenTimeout).toBe(1000);
+    expect(result.timedOut).toBe(true);
+    expect(result.ok).toBe(false);
+    expect(result.attempts).toBe(1);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
   });
 });

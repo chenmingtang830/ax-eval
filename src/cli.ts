@@ -64,6 +64,7 @@ import {
   type InvokeHarnessId,
   type InvokeRunOptions,
 } from "./harness/invoke.js";
+import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
 import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
@@ -92,6 +93,14 @@ interface Parsed {
    *  by default for speed; `1` forces serial. Concurrent runs use distinct
    *  namespaces so they don't collide in the sandbox. */
   concurrency: number;
+  /** Per-invocation wall-clock cap in seconds (`--invoke-timeout`, default 900).
+   *  A harness child that exceeds it is killed so one wedged agent can't stall
+   *  the whole matrix; the cell is retried (see `invokeRetries`) then recorded
+   *  as a timeout failure. 0 disables the cap. */
+  invokeTimeout: number;
+  /** Retries for a failed/timed-out invocation (`--invoke-retries`, default 1).
+   *  0 disables retries. */
+  invokeRetries: number;
   out: string;
   site: string;
   product: string;
@@ -138,6 +147,8 @@ function parseArgs(argv: string[]): Parsed {
     model: "",
     effort: "",
     concurrency: 4,
+    invokeTimeout: 900,
+    invokeRetries: 1,
     out: "results/last-run.json",
     site: "",
     product: "",
@@ -192,6 +203,16 @@ function parseArgs(argv: string[]): Parsed {
         throw new Error(`--effort must be one of low|medium|high (got ${v})`);
       }
       p.effort = v;
+    }
+    else if (a === "--invoke-timeout") {
+      const n = Number(value(++i, "--invoke-timeout"));
+      if (!Number.isInteger(n) || n < 0) throw new Error(`--invoke-timeout must be a non-negative integer (seconds; got ${n})`);
+      p.invokeTimeout = n;
+    }
+    else if (a === "--invoke-retries") {
+      const n = Number(value(++i, "--invoke-retries"));
+      if (!Number.isInteger(n) || n < 0) throw new Error(`--invoke-retries must be a non-negative integer (got ${n})`);
+      p.invokeRetries = n;
     }
     else if (a === "--concurrency") {
       const n = Number(value(++i, "--concurrency"));
@@ -549,6 +570,28 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
     project_briefs: "title",
     project_statuses: "title",
   },
+  surfaces: {
+    sdk: {
+      package: "asana",
+      language: "node",
+      reference_url: "https://developers.asana.com/docs/overview",
+      auth: { kind: "inherit" },
+    },
+    mcp: {
+      server: "https://mcp.asana.com/v2/mcp",
+      transport: "http",
+      docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
+      auth: {
+        kind: "oauth_app",
+        client_id_env: "ASANA_MCP_CLIENT_ID",
+        client_secret_env: "ASANA_MCP_CLIENT_SECRET",
+        refresh_token_env: "ASANA_MCP_REFRESH_TOKEN",
+        token_url: "https://app.asana.com/-/oauth_token",
+        instructions:
+          "Register an Asana OAuth app, complete the OAuth flow once, and store the refresh token. ax-eval exchanges it for a short-lived MCP bearer token at invoke time.",
+      },
+    },
+  },
   l4: [
     {
       idSuffix: "task-complete",
@@ -761,7 +804,6 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   mkdirSync(dir, { recursive: true });
   const resultPaths: string[] = [];
   const resultPathsByHarness = new Map<string, string[]>();
-  const observeByHarness = new Map<string, Array<{ profile: string; path: string }>>();
   const resetHints: string[] = [];
   const blockedNotes: string[] = [];
   // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
@@ -837,6 +879,25 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
             const ns = resolveNs(pack.run_id, attemptLabel);
             const stem = args.attempts === 1 ? `${harness}-${name}${sfx}` : `${harness}-${name}${sfx}-a${attempt}`;
             const paths = defaultInvokePaths(dir, stem, harness);
+            let provisioning: Awaited<ReturnType<typeof provisionHarnessForSurface>>;
+            try {
+              provisioning = await provisionHarnessForSurface({
+                pack,
+                harness,
+                surface: surfaceId,
+                paths,
+                cwd: process.cwd(),
+              });
+            } catch (e) {
+              const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+              const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
+              writeFileSync(recordPath, JSON.stringify(record, null, 2));
+              console.log(
+                `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (mcp provisioning failed): ` +
+                  `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
+              );
+              continue;
+            }
             // When the user pins a model/effort, reflect it in the profile the
             // prompt describes so the agent's self-report matches what runs.
             const runProfile = {
@@ -865,6 +926,10 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                 cwd: process.cwd(),
                 model: args.model || undefined,
                 effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
+                timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
+                retries: args.invokeRetries,
+                env: provisioning.env,
+                provisioning: provisioning.meta,
               },
             });
           }
@@ -904,34 +969,44 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     await runPool(invokeJobs, conc, async (job) => {
       console.log(`  ▶ start  ${job.label}`);
       const invoke = await runInvokeHarness(job.runOpts);
-      console.log(`  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"} (results→${job.paths.resultsPath})`);
+      const note = [
+        invoke.timedOut ? "timed out" : null,
+        (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
+      ].filter(Boolean).join(", ");
+      console.log(
+        `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
+          `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
+      );
     });
     for (const job of invokeJobs) {
       resultPaths.push(job.paths.resultsPath);
       const grouped = resultPathsByHarness.get(job.harness) ?? [];
       grouped.push(job.paths.resultsPath);
       resultPathsByHarness.set(job.harness, grouped);
-      const obs = observeByHarness.get(job.harness) ?? [];
-      obs.push({ profile: job.profileName, path: job.paths.transcriptPath });
-      observeByHarness.set(job.harness, obs);
       if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
     }
     console.log(`Finished ${invokeJobs.length} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
   }
   if (args.invoke) {
     if (resultPathsByHarness.size) {
-      console.log("\nVerify invoked runs:");
-      for (const [harness, paths] of resultPathsByHarness) {
-        const observeArgs = (observeByHarness.get(harness) ?? [])
-          .map((o) => `--observe ${o.profile}=${o.path}`)
-          .join(" ");
-        console.log(
-          `  ax-eval verify-generated --pack ${args.pack} --harness ${harness} ` +
-            paths.map((p) => `--results ${p}`).join(" ") +
-            (observeArgs ? ` ${observeArgs}` : "") +
-            ` --min-pass-rate 0.8 --html ${dir}/generated-eval-${harness}.html`,
-        );
-      }
+      // ONE combined verify-generated over every cell → the cross-harness ×
+      // cross-surface matrix report. verify-generated groups results into
+      // {harness × surface × profile} cells on its own, and scores each cell's
+      // discovery against its OWN sibling transcript (auto-paired by result
+      // path). So we deliberately omit BOTH --observe (keyed by profile NAME, it
+      // would bleed one cell's transcript across every same-named cell) and
+      // --harness (the records carry their harness; the report groups them). One
+      // command, one report — not a per-harness split.
+      const allInvoked = [...resultPathsByHarness.values()].flat();
+      const harnessCount = resultPathsByHarness.size;
+      console.log(
+        `\nVerify ${harnessCount > 1 ? "the matrix (cross-harness × cross-surface)" : "the invoked runs"} — one report over all cells:`,
+      );
+      console.log(
+        `  ax-eval verify-generated --pack ${args.pack} ` +
+          allInvoked.map((p) => `--results ${p}`).join(" ") +
+          ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
+      );
     }
   } else {
     console.log(

@@ -163,8 +163,11 @@ console.log(JSON.stringify({ ok: true }));
 
     expect(code).toBe(0);
     expect(out).toContain("claude-code/API/floor"); // per-job progress label in the concurrency pool
-    expect(out).toContain("Verify invoked runs:");
-    expect(out).toContain("--harness claude-code");
+    // One combined verify-generated command (no per-harness split, no --harness flag).
+    expect(out).toContain("ax-eval verify-generated");
+    expect(out).toContain("--html");
+    expect(out).toContain("generated-eval.html");
+    expect(out).not.toContain("--harness claude-code"); // verify command groups by record, not flag
     const files = readdirSync(dir).sort();
     expect(files).toContain("prompt-claude-code-floor.txt");
     expect(files).toContain("run-claude-code-floor.json");

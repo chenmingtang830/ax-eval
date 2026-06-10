@@ -250,6 +250,28 @@ function inferredCapability(pack: TargetPack, taskId: string): string {
   return taskId;
 }
 
+function traceCapability(step: TraceStep): string | null {
+  const hay = `${step.taskId ?? ""} ${step.action ?? ""} ${step.method ?? ""} ${step.path ?? ""} ${step.note ?? ""}`.toLowerCase();
+  if (hay.includes("portfolio") || hay.includes("additem")) return "add project to portfolio";
+  if (hay.includes("project_brief") || hay.includes("project brief")) return "create project brief";
+  if (hay.includes("archive") || hay.includes("archived")) return "archive/update project";
+  return null;
+}
+
+function traceShowsCoverageGap(step: TraceStep): boolean {
+  const hay = `${step.action ?? ""} ${step.path ?? ""} ${step.note ?? ""}`.toLowerCase();
+  return (
+    /no (mcp |discovered |exposed )?(tool|mutation|capabilit)/.test(hay) ||
+    /tool (unavailable|not available|missing|not exposed)/.test(hay) ||
+    /used rest api|rest fallback|fallback to rest|used curl|post curl|put curl/.test(hay)
+  );
+}
+
+function traceShowsApprovalIssue(step: TraceStep): boolean {
+  const hay = `${step.action ?? ""} ${step.note ?? ""}`.toLowerCase();
+  return step.status === 499 || /user cancelled|approval|permission denied|cancelled mcp tool call/.test(hay);
+}
+
 function failureDetail(o: RoundtripOutcome): string {
   return o.error ?? (o.oracleResults.map((x) => x.detail).filter(Boolean).join("; ") || "oracle failed");
 }
@@ -342,20 +364,53 @@ export function buildRecommendations(
   const readiness = readinessScore(staticReadiness);
 
   const mcpRuns = runs.filter((r) => (r.surface ?? "api") === "mcp");
-  const mcpFails = mcpRuns.flatMap((r) =>
-    firstAttempts(r.outcomes)
-      .filter((o) => !o.success && !planLimited(r.trace, o.taskId))
-      .map((o) => ({ run: r, outcome: o })),
-  );
-  if (mcpFails.length) {
-    const capabilities = [...new Set(mcpFails.map(({ outcome }) => inferredCapability(pack, outcome.taskId)))];
+  const coverageSignals: Array<{ run: ProfileRun; capability: string; taskId: string; detail: string }> = [];
+  const approvalSignals: Array<{ run: ProfileRun; taskId: string; detail: string }> = [];
+  for (const r of mcpRuns) {
+    for (const step of r.trace ?? []) {
+      if (traceShowsApprovalIssue(step)) {
+        approvalSignals.push({
+          run: r,
+          taskId: step.taskId || "unknown",
+          detail: `${step.action || "MCP tool call"}: ${step.note || step.status || "approval issue"}`,
+        });
+        continue;
+      }
+      if (traceShowsCoverageGap(step)) {
+        const capability = traceCapability(step);
+        if (capability) {
+          coverageSignals.push({
+            run: r,
+            capability,
+            taskId: step.taskId || "unknown",
+            detail: `${step.action || "trace"}: ${step.note || step.path || "coverage gap"}`,
+          });
+        }
+      }
+    }
+    for (const outcome of firstAttempts(r.outcomes).filter((o) => !o.success && !planLimited(r.trace, o.taskId))) {
+      const steps = (r.trace ?? []).filter((s) => s.taskId === outcome.taskId);
+      if (steps.some(traceShowsApprovalIssue)) {
+        approvalSignals.push({ run: r, taskId: outcome.taskId, detail: failureDetail(outcome) });
+        continue;
+      }
+      const capability = inferredCapability(pack, outcome.taskId);
+      if (capability === "complete/update task" || capability === "reschedule/update task") {
+        approvalSignals.push({ run: r, taskId: outcome.taskId, detail: failureDetail(outcome) });
+        continue;
+      }
+      coverageSignals.push({ run: r, capability, taskId: outcome.taskId, detail: failureDetail(outcome) });
+    }
+  }
+  if (coverageSignals.length) {
+    const capabilities = [...new Set(coverageSignals.map((s) => s.capability))];
     const capStats = new Map<string, { configs: Set<string>; tasks: Set<string>; examples: string[] }>();
-    for (const { run, outcome } of mcpFails) {
-      const cap = inferredCapability(pack, outcome.taskId);
+    for (const signal of coverageSignals) {
+      const { run, capability: cap, taskId, detail } = signal;
       const stat = capStats.get(cap) ?? { configs: new Set<string>(), tasks: new Set<string>(), examples: [] };
       stat.configs.add(configLabel(run));
-      stat.tasks.add(taskDescriptor(pack, outcome.taskId));
-      if (stat.examples.length < 2) stat.examples.push(failureDetail(outcome));
+      stat.tasks.add(taskDescriptor(pack, taskId));
+      if (stat.examples.length < 2) stat.examples.push(detail);
       capStats.set(cap, stat);
     }
     const worst = mcpRuns
@@ -371,13 +426,28 @@ export function buildRecommendations(
       priority: "high",
       title: "Fill MCP tool coverage gaps",
       detail:
-        `The MCP surface has ${mcpFails.length} non-plan failure(s)` +
+        `The MCP surface has ${coverageSignals.length} coverage-gap signal(s)` +
         (worst ? `; the weakest MCP config (${configLabel(worst)}) passed ${runPassPct(worst)}% of tasks` : "") +
-        `. The failures cluster around capabilities agents expected but could not reliably use: ${capabilities.join(", ")}.`,
+        `. The gaps cluster around capabilities agents expected but could not reliably use: ${capabilities.join(", ")}.`,
       target: `MCP tools/capabilities: ${capabilities.join(", ")}`,
-      evidence: `Round-trip failures from MCP runs — ${evidence}`,
+      evidence: `Round-trip failures and trace evidence from MCP runs — ${evidence}`,
       fix:
         "Expose or document first-class MCP tools for these operations, with returned ids matching the resource that the oracle can read back. Re-run MCP configs after adding coverage.",
+    });
+  }
+  if (approvalSignals.length) {
+    const configs = new Set(approvalSignals.map((s) => configLabel(s.run)));
+    const tasks = new Set(approvalSignals.map((s) => taskDescriptor(pack, s.taskId)));
+    const examples = approvalSignals.slice(0, 3).map((s) => `${configLabel(s.run)} ${s.taskId}: ${s.detail}`).join(" | ");
+    recs.push({
+      priority: "med",
+      title: "Separate MCP approval failures from tool coverage",
+      detail:
+        `Some MCP failures were caused by tool-call approval or cancellation in ${configs.size} config(s), not by missing Asana task-update tools.`,
+      target: `Harness/MCP approval flow for ${[...tasks].join(", ")}`,
+      evidence: examples,
+      fix:
+        "Run MCP eval cells with deterministic non-interactive approval policy, or mark approval-blocked cells separately from product/tool coverage gaps.",
     });
   }
 
@@ -1715,7 +1785,7 @@ function renderTraceChecks(pack: TargetPack, runs: ProfileRun[]): string {
 
   return `<section class="ax-section">
     <h2>Trace checks</h2>
-    <p class="ax-note">Each config's recorded API calls are compared against the expected call pattern (REST surfaces only; mcp/sdk are oracle-gated). Diff kinds: <code class="ax-code">missing_call</code>, <code class="ax-code">extra_call</code>, <code class="ax-code">forbidden_call</code>, <code class="ax-code">order_mismatch</code>, <code class="ax-code">argument_mismatch</code>.</p>
+    <p class="ax-note">Each config's recorded calls are compared against trace expectations as a process diagnostic; final success is still decided by deterministic read-back oracles. For generated parent→child tasks, a trace mismatch can mean the agent recorded the parent create (for example <code class="ax-code">POST /projects</code>) while the expected child call was separate; treat these as workflow/debugging evidence, not as overriding a 100% task-success cell. Diff kinds: <code class="ax-code">missing_call</code>, <code class="ax-code">extra_call</code>, <code class="ax-code">forbidden_call</code>, <code class="ax-code">order_mismatch</code>, <code class="ax-code">argument_mismatch</code>.</p>
     <div class="ax-table-wrap"><table class="ax-table ax-matrix">
       <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>trace check</th></tr></thead>
       <tbody>${body}</tbody>

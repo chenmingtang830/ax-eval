@@ -34,10 +34,20 @@ surfaces:
     package: asana
     language: node
     reference_url: https://developers.asana.com/docs/overview
+    auth:
+      kind: inherit
   mcp:
     server: https://mcp.asana.com/v2/mcp
     transport: http
     docs_url: https://developers.asana.com/docs/using-asanas-mcp-server
+    auth:
+      kind: oauth_app
+      client_id_env: ASANA_MCP_CLIENT_ID
+      client_secret_env: ASANA_MCP_CLIENT_SECRET
+      refresh_token_env: ASANA_MCP_REFRESH_TOKEN
+      token_url: https://app.asana.com/-/oauth_token
+      instructions: Register an Asana OAuth app, complete the OAuth flow once, and store the refresh token.
+        ax-eval exchanges it for a short-lived MCP bearer token at invoke time.
 site_url: https://developers.asana.com
 openapi_url: https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml
 docs_urls: &a1
