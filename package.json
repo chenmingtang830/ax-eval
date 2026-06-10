@@ -1,6 +1,6 @@
 {
   "name": "ax-eval",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "AX eval — test whether a host agent can complete real tasks against a SaaS product.",
   "keywords": [
     "agent",
