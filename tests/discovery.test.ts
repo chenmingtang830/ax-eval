@@ -181,6 +181,44 @@ describe("surface-aware discovery scoring", () => {
     const report = await scoreDiscovery(spec, result, client, { surface: "cli" });
     expect(report.metrics.find((m) => m.id === "official")!.passed).toBe(true);
   });
+
+  it("MCP auth PASSES when a tool was used, even though the found scheme (OAuth) != the API's Bearer-PAT", async () => {
+    // The pack's auth_scheme is the REST API's "Bearer PAT"; the MCP surface uses
+    // OAuth, handled by the transport. Grading the found OAuth against Bearer-PAT
+    // would be a false FAIL — success is implied by having used the surface.
+    const result: DiscoveryResult = {
+      searches: [],
+      urls_visited: [],
+      endpoint_used: "mcp.linear.app.create_issue",
+      auth_scheme_found: "OAuth via the hosted MCP server",
+      inspected_local_source: true,
+    };
+    const report = await scoreDiscovery(spec, result, client, { surface: "mcp" });
+    expect(report.metrics.find((m) => m.id === "auth")!.passed).toBe(true);
+  });
+
+  it("MCP auth FAILS only when no tool was used (couldn't authenticate at all)", async () => {
+    const result: DiscoveryResult = {
+      searches: ["linear mcp"],
+      urls_visited: [],
+      endpoint_used: "",
+      auth_scheme_found: "",
+      inspected_local_source: false,
+    };
+    const report = await scoreDiscovery(spec, result, client, { surface: "mcp" });
+    expect(report.metrics.find((m) => m.id === "auth")!.passed).toBe(false);
+  });
+
+  it("API surface still grades auth strictly (OAuth != Bearer-PAT is a real FAIL)", async () => {
+    const result: DiscoveryResult = {
+      searches: [],
+      urls_visited: ["https://developers.linear.app"],
+      endpoint_used: "create_issue",
+      auth_scheme_found: "OAuth",
+    };
+    const report = await scoreDiscovery(spec, result, client, { surface: "api" });
+    expect(report.metrics.find((m) => m.id === "auth")!.passed).toBe(false);
+  });
 });
 
 describe("graphql canonical scoring (single endpoint → match by mutation name)", () => {

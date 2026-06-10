@@ -20,6 +20,11 @@ sandbox_scope:
     instructions: Create a throwaway Asana project and paste its id (or URL) here,
       so the generated tasks create resources inside an isolated sandbox you can
       safely reset.
+  - name: portfolio_gid
+    env: ASANA_SANDBOX_PORTFOLIO_GID
+    required: true
+    instructions: "Portfolio GID that contains the sandbox project. All new projects
+      you create must be added to this portfolio so they stay in the sandbox."
 base_url: https://app.asana.com/api/1.0
 request_envelope: data
 response_envelope: data
@@ -57,8 +62,8 @@ tasks:
   - id: gen-l1-tasks
     title: "L1: create a tasks"
     difficulty: L1
-    prompt: Create one tasks named "AX probe tasks {ns}" in the sandbox workspace,
-      using the API you discovered. Report the created id.
+    prompt: Create one task named "AX probe tasks {ns}" in the sandbox project
+      (ASANA_SANDBOX_PROJECT_ID), using the API you discovered. Report the created id.
     allowed_surfaces:
       - api
       - docs
@@ -75,8 +80,9 @@ tasks:
   - id: gen-l1-projects
     title: "L1: create a projects"
     difficulty: L1
-    prompt: Create one projects named "AX probe projects {ns}" in the sandbox
-      workspace, using the API you discovered. Report the created id.
+    prompt: Create one project named "AX probe projects {ns}" in the sandbox workspace,
+      then add it to the portfolio (ASANA_SANDBOX_PORTFOLIO_GID). Use the API you
+      discovered. Report the created project id.
     allowed_surfaces:
       - api
       - docs
@@ -93,8 +99,9 @@ tasks:
   - id: gen-l2-projects-sections
     title: "L2: create a sections under a projects"
     difficulty: L2
-    prompt: First create a projects. Then, using its id, create a sections under it
-      named "AX probe sections {ns}". Report both ids.
+    prompt: First create a project in the sandbox workspace and add it to the portfolio
+      (ASANA_SANDBOX_PORTFOLIO_GID). Then, using its id, create a section under it
+      named "AX probe sections {ns}". Report both ids (project id and section id).
     allowed_surfaces:
       - api
       - docs
@@ -114,8 +121,8 @@ tasks:
     difficulty: L3
     prompt: "A teammate messages you: \"Please add \\\"AX probe tasks-goal {ns}\\\"
       to my to-do list in this workspace so I don't forget to do it.\" Work out
-      what to create to satisfy this and create it. Report the id of the item
-      you created."
+      what to create to satisfy this and create it in the sandbox project
+      (ASANA_SANDBOX_PROJECT_ID). Report the id of the item you created."
     allowed_surfaces:
       - api
       - docs
@@ -132,8 +139,9 @@ tasks:
   - id: gen-l4-task-complete
     title: "L4: create then complete a task (state mutation)"
     difficulty: L4
-    prompt: Create a task named "AX probe tasks-task-complete {ns}", then mark it
-      complete. Report the task id; it must read back as completed.
+    prompt: Create a task named "AX probe tasks-task-complete {ns}" in the sandbox
+      project (ASANA_SANDBOX_PROJECT_ID), then mark it complete. Report the task id;
+      it must read back as completed.
     allowed_surfaces:
       - api
       - docs
@@ -150,8 +158,9 @@ tasks:
   - id: gen-l4-task-reschedule
     title: "L4: create then reschedule a task (due-date mutation)"
     difficulty: L4
-    prompt: Create a task named "AX probe tasks-task-reschedule {ns}", then set its
-      due date to 2026-06-30. Report the task id.
+    prompt: Create a task named "AX probe tasks-task-reschedule {ns}" in the sandbox
+      project (ASANA_SANDBOX_PROJECT_ID), then set its due date to 2026-06-30.
+      Report the task id.
     allowed_surfaces:
       - api
       - docs
@@ -169,8 +178,8 @@ tasks:
     title: "L4: create then archive a project (state mutation)"
     difficulty: L4
     prompt: Create a project named "AX probe projects-project-archive {ns}" in the
-      sandbox workspace, then archive it. Report the project id; it must read
-      back as archived.
+      sandbox workspace and add it to the portfolio (ASANA_SANDBOX_PORTFOLIO_GID),
+      then archive it. Report the project id; it must read back as archived.
     allowed_surfaces:
       - api
       - docs

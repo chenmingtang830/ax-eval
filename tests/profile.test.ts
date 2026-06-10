@@ -2,12 +2,17 @@ import { describe, expect, it } from "vitest";
 import { getProfile, profileLabel, profilesAreCrossModel, PROFILES } from "../src/harness/profile.js";
 
 describe("harness profiles", () => {
-  it("floor/ceiling share the host model (effort-only spread)", () => {
-    expect(profilesAreCrossModel([PROFILES.floor, PROFILES.ceiling])).toBe(false);
+  it("low/high share the host model (effort-only spread)", () => {
+    expect(profilesAreCrossModel([PROFILES.low, PROFILES.high])).toBe(false);
+  });
+
+  it("floor/ceiling resolve to low/high as back-compat aliases", () => {
+    expect(getProfile("floor")).toBe(PROFILES.low);
+    expect(getProfile("ceiling")).toBe(PROFILES.high);
   });
 
   it("mixing in a model profile makes the run cross-model", () => {
-    expect(profilesAreCrossModel([PROFILES.floor, PROFILES.sonnet])).toBe(true);
+    expect(profilesAreCrossModel([PROFILES.low, PROFILES.sonnet])).toBe(true);
     expect(profilesAreCrossModel([PROFILES.sonnet, PROFILES.gpt5])).toBe(true);
   });
 

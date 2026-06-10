@@ -244,6 +244,60 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
     mcpToolsListed: false,
   };
 
+  // Scan a shell command / script for API calls, auth, and surface signals.
+  // Shared by Claude Code's `Shell` tool_use and Codex's `command_execution`
+  // events so both harnesses are parsed the same way.
+  const scanCommand = (cmd: string): void => {
+    if (!cmd) return;
+    // Matches both curl headers (`authorization: Bearer`) and code/JSON forms.
+    if (/authorization["'\s]*:["'\s]*bearer/i.test(cmd)) run.sawBearer = true;
+    // Strategy A: literal curl URLs.
+    for (const { method, url } of extractCurls(cmd)) {
+      let host = "";
+      let path = url;
+      try {
+        const u = new URL(url);
+        host = u.host;
+        path = u.pathname;
+      } catch {
+        /* keep raw */
+      }
+      if (apiHost && host === apiHost) {
+        if (prefix && path.startsWith(prefix)) path = path.slice(prefix.length) || "/";
+        run.apiCalls.push({ method, path: path.replace(/\/+$/, "") || "/", host });
+      } else {
+        // A curl to a non-API host is a doc/page fetch in disguise.
+        run.urlsFetched.push(url);
+      }
+    }
+    // Strategy B: code-style calls (python/node), method + relative path.
+    run.apiCalls.push(...extractCodeCalls(cmd));
+    // Surface-specific signals (only when the surface declares an identifier).
+    if (opts.cliBin) {
+      run.cliCommands.push(...extractCliCommands(cmd, opts.cliBin));
+      if (inspectsCliHelp(cmd, opts.cliBin)) run.cliHelpInspected = true;
+    }
+    if (opts.sdkPackage) run.sdkUsage.push(...extractSdkUsage(cmd, opts.sdkPackage));
+    // A `tools/list` may also be issued as a raw shell/JSON-RPC line.
+    if (/tools\/list/i.test(cmd)) run.mcpToolsListed = true;
+  };
+
+  // Codex (`codex exec --json`) emits `{type:"item.completed", item:{...}}` events
+  // with a different shape from Claude's `tool_use`. Map them onto the same run:
+  // web_search → searches/urls, command_execution → scanCommand.
+  const handleCodexItem = (item: Record<string, unknown>): void => {
+    const itype = item.type;
+    if (itype === "web_search" && typeof item.query === "string") {
+      const q = item.query;
+      // Codex folds "open this URL" into web_search too — a query that is a URL is
+      // a page visit, not a search term.
+      if (/^https?:\/\//i.test(q)) run.urlsFetched.push(q);
+      else run.searches.push(q);
+    } else if (itype === "command_execution" && typeof item.command === "string") {
+      scanCommand(item.command);
+    }
+  };
+
   for (const line of text.split("\n")) {
     if (!line.trim()) continue;
     let evt: unknown;
@@ -252,6 +306,13 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
     } catch {
       continue;
     }
+    // Codex event stream.
+    const e = evt as { type?: string; item?: Record<string, unknown> };
+    if (e.type === "item.completed" && e.item) {
+      handleCodexItem(e.item);
+      continue;
+    }
+    // Claude Code (stream-json / single-result) tool_use content.
     const content = (evt as { message?: { content?: unknown } })?.message?.content;
     if (!Array.isArray(content)) continue;
     for (const part of content) {
@@ -260,11 +321,23 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
       const input = p.input;
       if (p.name === "WebSearch" && typeof input.search_term === "string") {
         run.searches.push(input.search_term);
+      } else if (p.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
+        // ToolSearch is how a Claude Code agent enumerates available (incl. MCP)
+        // tools — the `tools/list` equivalent for this harness. A query that
+        // targets MCP tools means the agent inspected the surface's own toolset.
+        run.mcpToolsListed = true;
       } else if (p.name && FETCH_TOOLS.has(p.name) && typeof input.url === "string") {
         run.urlsFetched.push(input.url);
+      } else if (p.name && p.name.startsWith("mcp__")) {
+        // Claude Code surfaces MCP tools as namespaced tool_use names:
+        // `mcp__<server>__<tool>` (e.g. mcp__claude_ai_Asana__create_tasks).
+        // This is the actual shape in a real run — record it as an MCP call.
+        // The URL-scoping used for CallMcpTool can't apply (the name carries no
+        // URL), and a pack on the mcp surface wants these counted regardless.
+        run.mcpToolCalls.push(p.name);
       } else if (p.name === "CallMcpTool") {
-        // An MCP tool invocation surfaces as a CallMcpTool tool_use. Scope to the
-        // product's server when one is configured; otherwise record any MCP call.
+        // An MCP tool invocation may also surface as a CallMcpTool tool_use. Scope
+        // to the product's server when one is configured; else record any MCP call.
         const server = typeof input.server === "string" ? input.server : "";
         const tool =
           (typeof input.toolName === "string" && input.toolName) ||
@@ -273,9 +346,12 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
         if (!opts.mcpServer || !server || server.includes(opts.mcpServer) || opts.mcpServer.includes(server)) {
           run.mcpToolCalls.push([server, tool].filter(Boolean).join(".") || "(mcp tool)");
         }
-      } else if ((p.name === "ListMcpResources" || /tools?[_/]?list/i.test(p.name ?? "")) && p.name !== "Shell") {
+      } else if ((p.name === "ListMcpResources" || /tools?[_/]?list/i.test(p.name ?? "")) && p.name !== "Shell" && p.name !== "Bash") {
         run.mcpToolsListed = true;
-      } else if (p.name === "Shell" || p.name === "Write" || p.name === "Edit") {
+      } else if (p.name === "Shell" || p.name === "Bash" || p.name === "Write" || p.name === "Edit") {
+        // Claude Code's shell tool is `Bash`; other hosts use `Shell`. Both carry
+        // the agent's curl/script commands — without recognizing `Bash`, an API
+        // run's calls are invisible and discovery (canonical/auth) is undercounted.
         if ((p.name === "Write" || p.name === "Edit") && typeof input.path === "string") {
           run.filesWritten.push(input.path);
         }
@@ -285,39 +361,7 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
           (typeof input.contents === "string" && input.contents) ||
           (typeof input.new_string === "string" && input.new_string) ||
           "";
-        if (!cmd) continue;
-        // Matches both curl headers (`authorization: Bearer`) and code/JSON
-        // forms (`"Authorization":"Bearer "`).
-        if (/authorization["'\s]*:["'\s]*bearer/i.test(cmd)) run.sawBearer = true;
-        // Strategy A: literal curl URLs.
-        for (const { method, url } of extractCurls(cmd)) {
-          let host = "";
-          let path = url;
-          try {
-            const u = new URL(url);
-            host = u.host;
-            path = u.pathname;
-          } catch {
-            /* keep raw */
-          }
-          if (apiHost && host === apiHost) {
-            if (prefix && path.startsWith(prefix)) path = path.slice(prefix.length) || "/";
-            run.apiCalls.push({ method, path: path.replace(/\/+$/, "") || "/", host });
-          } else {
-            // A curl to a non-API host is a doc/page fetch in disguise.
-            run.urlsFetched.push(url);
-          }
-        }
-        // Strategy B: code-style calls (python/node), method + relative path.
-        run.apiCalls.push(...extractCodeCalls(cmd));
-        // Surface-specific signals (only when the surface declares an identifier).
-        if (opts.cliBin) {
-          run.cliCommands.push(...extractCliCommands(cmd, opts.cliBin));
-          if (inspectsCliHelp(cmd, opts.cliBin)) run.cliHelpInspected = true;
-        }
-        if (opts.sdkPackage) run.sdkUsage.push(...extractSdkUsage(cmd, opts.sdkPackage));
-        // A `tools/list` may also be issued as a raw shell/JSON-RPC line.
-        if (/tools\/list/i.test(cmd)) run.mcpToolsListed = true;
+        scanCommand(cmd);
       }
     }
   }

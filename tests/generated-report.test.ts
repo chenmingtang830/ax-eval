@@ -43,6 +43,8 @@ type TaskInput = {
   id: string;
   difficulty: "L1" | "L2" | "L3" | "L4";
   prompt: string;
+  title?: string;
+  create_path?: string;
   weak?: boolean;
 };
 
@@ -57,8 +59,10 @@ function makePack(tasks: TaskInput[], withDiscovery = true): TargetPack {
     ...(withDiscovery ? { discovery: { product: "Demo" } } : {}),
     tasks: tasks.map((t) => ({
       id: t.id,
+      title: t.title,
       difficulty: t.difficulty,
       prompt: t.prompt,
+      create_path: t.create_path,
       oracles: t.weak
         ? [{ type: "exists", path: "id" }]
         : [{ type: "roundtrip", readPathTemplate: "/x/{gid}", assertField: "ok", expected: true }],
@@ -182,11 +186,20 @@ describe("renderGeneratedReport (HTML)", () => {
     // Single-attempt runs nudge the reader to enable robustness.
     expect(html).toContain("--attempts");
 
-    // Scorecard + design-system-ready class hooks.
+    // TL;DR block opens the report with the four pillars + jump links.
+    expect(html).toContain("ax-tldr");
+    expect(html).toContain("TL;DR");
+    // Four-pillar scorecard: static discovery and behavioral agent discovery are
+    // distinct cards (never one conflated "discoverability" number), plus content
+    // quality and task success.
     expect(html).toContain("ax-scorecard");
-    expect(html).toContain("Discoverability");
+    expect(html).toContain("Static discovery");
+    expect(html).toContain("docs-site crawl");
+    expect(html).toContain("Agent discovery"); // pillar card
+    expect(html).toContain("Agent discovery (Phase 0, behavioral)"); // detail section
     expect(html).toContain("Task success");
-    expect(html).toContain("ax-card--fail"); // 30-point gap → fail coloring
+    expect(html).toContain('id="agent-discovery"'); // anchor for the TL;DR/card link
+    expect(html).toContain("ax-card--warn"); // 60% task success → warn band
     expect(html).toContain("ax-rec--high");
   });
 
@@ -196,10 +209,11 @@ describe("renderGeneratedReport (HTML)", () => {
     const statCQ: StaticReadiness = { ...stat, contentScore: audit.score, contentQuality: audit };
     const html = renderGeneratedReport(pack, runs, statCQ);
 
-    // Scorecard gains a 4th (Content quality) card → switches to the 4-col grid.
-    expect(html).toContain('class="ax-scorecard ax-scorecard--four"');
+    // Multi-config → the matrix Summary, where Content quality is a product-level
+    // card alongside Static discovery (the behavioral pillars move into the grid).
+    expect(html).toContain('class="ax-scorecard"');
     expect(html).toContain("Content quality");
-    expect(html).toContain(">" + audit.score + "<"); // the score value renders
+    expect(html).toContain(">" + audit.score + '<span class="ax-card__scale">'); // score renders with its /100 scale
 
     // A dedicated content-quality section with the prevalence table renders.
     expect(html).toContain("Content quality (spec smells)");
@@ -248,6 +262,103 @@ describe("renderGeneratedReport (HTML)", () => {
     const plan = recs.find((r) => r.title.includes("plan/sandbox"))!;
     expect(plan.detail).toContain("t-plan");
     expect(plan.priority).toBe("low");
+  });
+
+  it("turns MCP-specific failures into a top tool-coverage recommendation", () => {
+    const pack = makePack([
+      {
+        id: "gen-l1-projects",
+        difficulty: "L1",
+        prompt: "Create a project and add it to the portfolio.",
+        create_path: "/projects",
+      },
+      {
+        id: "gen-l2-projects-project_briefs",
+        difficulty: "L2",
+        prompt: "Create a project_briefs under a project.",
+        create_path: "/projects/{project_gid}/project_briefs",
+      },
+      {
+        id: "gen-l4-project-archive",
+        difficulty: "L4",
+        prompt: "Create a project, then archive it.",
+        create_path: "/projects",
+      },
+    ]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "high",
+        harness: "codex",
+        surface: "mcp",
+        discoverySource: "observed",
+        discovery: discovery({}),
+        outcomes: [
+          outcome("gen-l1-projects", "L1", "high", false, "tools/list did not expose add project to portfolio"),
+          outcome("gen-l2-projects-project_briefs", "L2", "high", false, "no gid reported by executor"),
+          outcome("gen-l4-project-archive", "L4", "high", false, "tool unavailable: archive project"),
+        ],
+      },
+      {
+        profile: "high",
+        harness: "codex",
+        surface: "api",
+        discoverySource: "observed",
+        discovery: discovery({}),
+        outcomes: [
+          outcome("gen-l1-projects", "L1", "high", true),
+          outcome("gen-l2-projects-project_briefs", "L2", "high", true),
+          outcome("gen-l4-project-archive", "L4", "high", true),
+        ],
+      },
+    ];
+    const recs = buildRecommendations(pack, runs, { site: "https://demo.test", v0Score: 100, v2Score: 100 });
+    expect(recs[0]!.title).toBe("Fill MCP tool coverage gaps");
+    expect(recs[0]!.target).toContain("add project to portfolio");
+    expect(recs[0]!.target).toContain("create project brief");
+    expect(recs[0]!.target).toContain("archive/update project");
+
+    const html = renderGeneratedReport(pack, runs, { site: "https://demo.test", v0Score: 100, v2Score: 100 });
+    expect(html).toContain("weakest config is codex/MCP/high");
+    expect(html).toContain("best config");
+
+    const gated = renderGeneratedReport(pack, runs, { site: "https://demo.test", v0Score: 100, v2Score: 100 }, undefined, {
+      minPassRate: 0.4,
+    });
+    expect(gated).toContain("ax-gate--warn");
+    expect(gated).toContain("Overall gate: PASS · Surface gate: FAIL");
+    expect(gated).toContain("Surface subgates:");
+    expect(gated).toContain("API PASS 100%");
+    expect(gated).toContain("MCP FAIL 0%");
+  });
+
+  it("recommends machine-readable discovery entrypoints and pass@k for single-attempt runs", () => {
+    const pack = makePack([{ id: "t1", difficulty: "L1", prompt: "do a thing" }]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "high",
+        harness: "codex",
+        surface: "api",
+        outcomes: [outcome("t1", "L1", "high", true)],
+      },
+    ];
+    const stat: StaticReadiness = {
+      site: "https://demo.test",
+      v0Score: 50,
+      v2Score: 0,
+      v0Checks: [
+        { id: "openapi", label: "OpenAPI spec", status: "fail", weight: 3, detail: "not linked", source: "live" },
+        { id: "mcp-server", label: "MCP server", status: "fail", weight: 2, detail: "not advertised", source: "live" },
+        { id: "robots-sitemap", label: "Sitemap", status: "fail", weight: 1, detail: "missing", source: "live" },
+        { id: "auth-discovery", label: "OAuth discovery", status: "fail", weight: 1, detail: "missing", source: "live" },
+      ],
+    };
+    const recs = buildRecommendations(pack, runs, stat);
+    const entry = recs.find((r) => r.title === "Publish machine-readable discovery entrypoints")!;
+    expect(entry.detail).toContain("discoverable OpenAPI link");
+    expect(entry.detail).toContain("MCP descriptor / endpoint");
+    expect(entry.detail).toContain("sitemap.xml");
+    expect(entry.detail).toContain("OAuth authorization-server discovery");
+    expect(recs.map((r) => r.title)).toContain("Re-run with pass@k before treating results as stable");
   });
 
   it("recommends discovery/AEO fixes when official + canonical are missed", () => {
@@ -368,16 +479,16 @@ describe("renderGeneratedReport (HTML)", () => {
     // comprehensive best/overall pass rate is well under 90%.
     const failHtml = renderGeneratedReport(pack, runs, stat, undefined, { minPassRate: 0.9 });
     expect(failHtml).toContain("ax-gate--fail");
-    expect(failHtml).toContain("CI gate: FAIL");
+    expect(failHtml).toContain("Overall gate: FAIL");
     expect(failHtml).toContain("required minimum of 90%");
 
     const passHtml = renderGeneratedReport(pack, runs, stat, undefined, { minPassRate: 0.1 });
     expect(passHtml).toContain("ax-gate--pass");
-    expect(passHtml).toContain("CI gate: PASS");
+    expect(passHtml).toContain("Overall gate: PASS");
 
     // No gate flag ⇒ no banner.
     const noGate = renderGeneratedReport(pack, runs, stat);
-    expect(noGate).not.toContain("CI gate:");
+    expect(noGate).not.toContain("Overall gate:");
   });
 
   it("surfaces runtime warnings in Methodology when the CLI passes them", () => {
@@ -393,6 +504,12 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("Runtime notes &amp; caveats");
     expect(html).toContain("No trace file at run-floor-a3.trace.json");
     expect(html).toContain("Static v2 discover failed: connection refused.");
+
+    const sampleHtml = renderGeneratedReport(pack, runs, stat, undefined, {
+      warnings: ["Fake data only: this report is for layout review."],
+    });
+    expect(sampleHtml).toContain("Sample data only");
+    expect(sampleHtml).toContain("Fake data only: this report is for layout review.");
 
     // Empty warnings ⇒ no block (don't pollute clean reports).
     const cleanHtml = renderGeneratedReport(pack, runs, stat, undefined, {
@@ -474,7 +591,7 @@ describe("renderGeneratedReport (HTML)", () => {
       },
     ];
     const html = renderGeneratedReport(pack, runs);
-    expect(html).toContain("Evidence files (per profile)");
+    expect(html).toContain("Evidence files (per config)");
     expect(html).toContain("run-ceiling-a1.json");
     expect(html).toContain("run-ceiling-a2.json");
     expect(html).toContain("run-ceiling-a1.trace.json");
@@ -556,7 +673,7 @@ describe("renderGeneratedReport (HTML)", () => {
     writeFileSync(out, html);
     expect(html.length).toBeGreaterThan(2000);
     expect(html).toContain("Robustness (pass@k)");
-    expect(html).toContain("CI gate:");
+    expect(html).toContain("Overall gate:");
     expect(html).toContain("forbidden_call");
     expect(html).toContain("Content quality (spec smells)");
   });

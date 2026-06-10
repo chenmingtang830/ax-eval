@@ -20,6 +20,9 @@ reviewed task pack, asks a host agent to complete real sandbox work, and verifie
 the result with programmatic read-back oracles. The output is a self-contained
 HTML report showing what passed, what failed, and whether the gap came from
 discovery, docs/spec quality, auth/setup, product behavior, or weak verification.
+Matrix reports keep product-level signals separate from config-level results, so
+an overall pass can still surface a failing MCP/SDK/API subgate instead of hiding
+it behind one green number.
 
 **Being published is not the same as being usable by agents.**
 
@@ -39,14 +42,22 @@ gap.
 
 ## What It Measures
 
-- **Discoverability:** can an agent find the docs, API shape, auth model, and
-  right surface from a cold start?
+- **Docs discoverability (static):** crawling the docs *website*, can the docs,
+  API shape, and auth model be found by an agent-style crawler? A publisher-facing
+  signal, measured independent of any run.
+- **Agent discovery (behavioral):** what a real agent *actually did* from a cold
+  start to find the product — web search for the API surface, or listing the MCP
+  tools / introspecting the SDK for those surfaces. Scored per run, and kept
+  distinct from the static docs crawl above.
 - **Spec quality:** once found, is the OpenAPI/GraphQL surface clear enough for
   an agent to plan from?
 - **Behavioral success:** did the agent create or mutate the real sandbox state
   the task asked for?
 - **Robustness:** does the result hold across repeated attempts, or was it a
   lucky pass?
+- **Actionable gaps:** recommendations are written as `Target / Evidence / Fix`
+  rows. MCP tool coverage failures are grouped by missing capability instead of
+  buried in raw trace text.
 - **Competitive position:** how does one product or surface compare against
   another when you stack normalized result records into a competitive report?
 
@@ -130,6 +141,8 @@ be a new pack, not a code change.
   sandbox ids are needed; secrets stay local in `.env`.
 - **Static and behavioral in one report.** A product can be published and still
   not be usable by agents. The report shows that gap directly.
+- **Layered gates, not misleading green.** `--min-pass-rate` reports the overall
+  gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across
   products or surfaces to see where competitors, SDKs, CLIs, APIs, or MCP servers
   are easier for agents to operate.

@@ -788,12 +788,12 @@ export function renderContentQualitySection(
         : `Content quality ${a.score}/100 — being published isn't enough; ${a.totalSmells} smell(s) across ${a.endpointsAnalyzed} endpoints block reliable autonomous use.`;
   const { blocks, shown, offenders } = smellEndpointDetails(a, opts.maxEndpoints ?? 8);
   const detail = offenders
-    ? `<h3 class="ax-subhead">Endpoints with smells (${shown} of ${offenders})</h3>
+    ? `<h3 class="ax-subhead">Suggested fixes — endpoints with smells (${shown} of ${offenders})</h3>
     ${blocks}`
     : `<p class="ax-empty">No content-quality smells detected — the spec is semantically agent-ready. 🎉</p>`;
-  return `<section class="ax-section">
+  return `<section class="ax-section" id="content-quality">
     <h2>Content quality (spec smells)</h2>
-    <p class="ax-note">Discoverability asks whether an agent can <em>find</em> the docs; this asks whether the OpenAPI spec, once found, is <em>usable</em>. Scored against the Hermes smell taxonomy (Lima et al., EASE 2026) on <code class="ax-code">${escH(a.source)}</code>.</p>
+    <p class="ax-note">Discoverability asks whether an agent can <em>find</em> the docs; this asks whether the OpenAPI spec, once found, is <em>usable</em>. Scored against the Hermes smell taxonomy (Lima et al., EASE 2026) on <code class="ax-code">${escH(a.source)}</code>. Each entry below is a <strong>suggested fix</strong> (the <code class="ax-code">→</code> line) the API owner can apply to make the spec more agent-ready.</p>
     <p class="ax-verdict">${escH(verdict)}</p>
     <h3 class="ax-subhead">Smell prevalence</h3>
     ${smellPrevalenceTable(a)}

@@ -210,4 +210,17 @@ describe("renderCompetitiveReport", () => {
     expect(html).toContain("<th>content</th>");
     expect(html).toContain("—");
   });
+
+  it("renders a cross-harness section when records share a product/surface cell", () => {
+    const records: NormalizedResult[] = [
+      rec({ product: "asana", surface: "api", harness: "claude-code", pass_at_1: 0.8 }),
+      rec({ product: "asana", surface: "api", harness: "codex", pass_at_1: 0.6 }),
+      rec({ product: "asana", surface: "api", harness: "other-local", blocked: "missing-harness", tasks_total: 0, tasks_passed: 0, pass_at_1: 0, pass_at_k: 0 }),
+    ];
+    const html = renderCompetitiveReport(records);
+    expect(html).toContain("Cross-harness (same product + surface)");
+    expect(html).toContain(">claude-code");
+    expect(html).toContain(">codex");
+    expect(html).toContain("no CLI");
+  });
 });

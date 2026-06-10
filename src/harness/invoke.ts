@@ -1,0 +1,412 @@
+import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import type { SurfaceId } from "../surface/types.js";
+import type { TargetPack } from "../schemas.js";
+
+export type InvokeHarnessId = "claude-code" | "codex";
+
+export const INVOKE_HARNESS_IDS: readonly InvokeHarnessId[] = ["claude-code", "codex"];
+
+export function isInvokeHarnessId(value: unknown): value is InvokeHarnessId {
+  return typeof value === "string" && (INVOKE_HARNESS_IDS as readonly string[]).includes(value);
+}
+
+export interface InvokeDetection {
+  ok: boolean;
+  command: string;
+  version?: string;
+  reason?: "missing-harness" | "detect-failed";
+  detail?: string;
+}
+
+export interface InvokePaths {
+  promptPath: string;
+  resultsPath: string;
+  tracePath: string;
+  stdoutPath: string;
+  stderrPath: string;
+  transcriptPath: string;
+  metaPath: string;
+  codexSchemaPath?: string;
+}
+
+export interface InvokeRunOptions {
+  pack: TargetPack;
+  harness: InvokeHarnessId;
+  profile: string;
+  surface: SurfaceId;
+  ns: string;
+  paths: InvokePaths;
+  cwd: string;
+  /** Optional model slug to pass to the harness CLI (`claude --model`,
+   *  `codex -m`). When set, this is what the agent actually runs as; when
+   *  omitted, the harness uses its own configured default and we record the
+   *  model it reports back. */
+  model?: string;
+  /** Canonical effort level. Translated to each harness's native convention at
+   *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
+   *  convention); claude-code applies effort at the prompt level (no CLI knob),
+   *  so this is informational there. */
+  effort?: "low" | "medium" | "high";
+}
+
+export interface InvokeRunResult {
+  harness: InvokeHarnessId;
+  ok: boolean;
+  exitCode: number | null;
+  signal: NodeJS.Signals | null;
+  stdoutPath: string;
+  stderrPath: string;
+  transcriptPath: string;
+  metaPath: string;
+  resultsPath: string;
+  tracePath: string;
+  error?: string;
+}
+
+// Sync spawn — used only for the quick `--version` detection probe.
+type Spawn = (
+  command: string,
+  args: string[],
+  options?: Parameters<typeof spawnSync>[2],
+) => SpawnSyncReturns<Buffer>;
+
+const DEFAULT_SPAWN: Spawn = (command, args, options) =>
+  spawnSync(command, args, {
+    ...options,
+    encoding: "buffer",
+    maxBuffer: 50 * 1024 * 1024,
+  });
+
+/** The outcome of a finished child process — the subset runInvokeHarness needs.
+ *  (Same shape whether produced by sync spawnSync or the async runner.) */
+export interface ProcResult {
+  stdout: Buffer | string;
+  stderr: Buffer | string;
+  status: number | null;
+  signal: NodeJS.Signals | null;
+  error?: Error;
+}
+
+/** Async spawn — runs the harness without blocking the event loop, so multiple
+ *  harness invocations can execute concurrently (the concurrency pool in
+ *  exec-plan). Collects stdout/stderr and resolves when the process closes;
+ *  never rejects (a spawn error resolves with `error` set, like spawnSync). */
+export type AsyncSpawn = (command: string, args: string[], cwd: string) => Promise<ProcResult>;
+
+const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd) =>
+  new Promise<ProcResult>((resolve) => {
+    const child = spawn(command, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const out: Buffer[] = [];
+    const err: Buffer[] = [];
+    child.stdout?.on("data", (d: Buffer) => out.push(d));
+    child.stderr?.on("data", (d: Buffer) => err.push(d));
+    child.on("error", (error) => resolve({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error }));
+    child.on("close", (status, signal) =>
+      resolve({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status, signal: signal ?? null }),
+    );
+  });
+
+function commandFor(id: InvokeHarnessId): string {
+  return id === "claude-code" ? "claude" : "codex";
+}
+
+function text(buf: Buffer | string | null | undefined): string {
+  if (!buf) return "";
+  return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
+}
+
+function detectWith(command: string, spawn: Spawn): InvokeDetection {
+  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+  if (res.error) {
+    const code = (res.error as NodeJS.ErrnoException).code;
+    return {
+      ok: false,
+      command,
+      reason: code === "ENOENT" ? "missing-harness" : "detect-failed",
+      detail: res.error.message,
+    };
+  }
+  if ((res.status ?? 1) !== 0) {
+    return {
+      ok: false,
+      command,
+      reason: "detect-failed",
+      detail: text(res.stderr) || `exit ${res.status}`,
+    };
+  }
+  return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
+}
+
+export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_SPAWN): InvokeDetection {
+  return detectWith(commandFor(id), spawn);
+}
+
+function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
+  // OpenAI strict structured-output (codex `--output-schema`) requires EVERY
+  // object to set `additionalProperties: false` and list ALL its properties in
+  // `required`. A permissive (`additionalProperties: true`) or partially-required
+  // object 400s with `invalid_json_schema` before the agent does anything — so the
+  // discovery sub-object is fully specified rather than left free-form.
+  const taskProps = Object.fromEntries(pack.tasks.map((t) => [t.id, {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      gid: { anyOf: [{ type: "string" }, { type: "null" }] },
+    },
+    required: ["gid"],
+  }]));
+  const strArray = { type: "array", items: { type: "string" } };
+  return {
+    type: "object",
+    additionalProperties: false,
+    properties: {
+      profile: { type: "string" },
+      ns: { type: "string" },
+      surface: { type: "string" },
+      discovery: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          base_url_found: { type: "string" },
+          searches: strArray,
+          urls_visited: strArray,
+          endpoint_used: { type: "string" },
+          auth_scheme_found: { type: "string" },
+          notes: { type: "string" },
+        },
+        required: ["base_url_found", "searches", "urls_visited", "endpoint_used", "auth_scheme_found", "notes"],
+      },
+      results: {
+        type: "object",
+        additionalProperties: false,
+        properties: taskProps,
+        required: pack.tasks.map((t) => t.id),
+      },
+    },
+    required: ["profile", "ns", "surface", "discovery", "results"],
+  };
+}
+
+function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOptions): { command: string; args: string[] } {
+  if (id === "claude-code") {
+    const modelArgs = opts.model ? ["--model", opts.model] : [];
+    // stream-json emits the full event stream (assistant tool_use, tool_result,
+    // …) to stdout, ending with a `type:result` line — so the transcript carries
+    // REAL tool events for --observe discovery scoring, not just a summary blob.
+    // Print mode requires --verbose for stream-json. (Claude Code has no
+    // reasoning-effort CLI knob, so effort is applied at the prompt level.)
+    return {
+      command: "claude",
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs],
+    };
+  }
+  if (!opts.paths.codexSchemaPath) {
+    throw new Error("codex invocation requires codexSchemaPath");
+  }
+  writeFileSync(
+    opts.paths.codexSchemaPath,
+    JSON.stringify(codexOutputSchema(opts.pack, `${id}:${opts.profile}`, opts.surface, opts.ns), null, 2),
+  );
+  const modelArgs = opts.model ? ["-m", opts.model] : [];
+  // Codex/GPT convention: reasoning effort is a model config knob, passed via -c.
+  const effortArgs = opts.effort ? ["-c", `model_reasoning_effort=${opts.effort}`] : [];
+  // The eval REQUIRES outbound network (the agent calls the product's API / MCP
+  // server and web-searches in discovery). codex's `workspace-write` sandbox
+  // denies network by default (`network_access: false`) — every curl then fails
+  // with "fetch failed; local shell network unavailable" and all gids come back
+  // null. Enable it explicitly while keeping the filesystem sandbox intact.
+  const networkArgs = ["-c", "sandbox_workspace_write.network_access=true"];
+  // `--output-last-message <resultsPath>` writes codex's final (schema-shaped)
+  // message straight to the results file, so we don't depend on the agent doing a
+  // shell write of the exact path. `--json` streams events to stdout so the
+  // transcript carries real tool calls for --observe discovery scoring.
+  return {
+    command: "codex",
+    args: [
+      "exec",
+      "--sandbox", "workspace-write",
+      ...networkArgs,
+      "--json",
+      ...modelArgs,
+      ...effortArgs,
+      "--output-schema", opts.paths.codexSchemaPath,
+      "--output-last-message", opts.paths.resultsPath,
+      prompt,
+    ],
+  };
+}
+
+/** Pull the model out of one parsed harness JSON object: prefer `modelUsage`
+ *  (Claude Code), pick the model that did the most work; else a top-level
+ *  `model` string (Codex). Returns undefined when neither is present. */
+function modelFromJson(json: Record<string, unknown>): string | undefined {
+  const usage = json.modelUsage as Record<string, unknown> | undefined;
+  if (usage && typeof usage === "object") {
+    // Pick the model that did the most work (highest output tokens), so a stray
+    // sub-agent call doesn't mislabel the run.
+    const ranked = Object.entries(usage).sort(
+      (a, b) =>
+        Number((b[1] as { outputTokens?: number })?.outputTokens ?? 0) -
+        Number((a[1] as { outputTokens?: number })?.outputTokens ?? 0),
+    );
+    if (ranked[0]) return ranked[0][0];
+  }
+  if (typeof json.model === "string") return json.model;
+  return undefined;
+}
+
+/** Read the model the harness ACTUALLY ran as out of its stdout, so the report
+ *  records ground truth instead of a hardcoded profile label. Handles both
+ *  shapes: a single JSON object (`--output-format json`, Codex), and NDJSON
+ *  (`--output-format stream-json`) where the model lives on the final
+ *  `type:result` line. Returns undefined when nothing parseable is found (we
+ *  then fall back to the requested/profile model). */
+function detectRanModel(stdoutPath: string): string | undefined {
+  if (!existsSync(stdoutPath)) return undefined;
+  const raw = readFileSync(stdoutPath, "utf8").trim();
+  if (!raw) return undefined;
+  // Fast path: the whole file is one JSON object.
+  try {
+    return modelFromJson(JSON.parse(raw) as Record<string, unknown>);
+  } catch {
+    /* fall through to NDJSON scan */
+  }
+  // stream-json: scan lines, last detectable model wins (the result line carries
+  // the authoritative modelUsage; assistant lines may also carry it).
+  let found: string | undefined;
+  for (const line of raw.split("\n")) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      const m = modelFromJson(JSON.parse(t) as Record<string, unknown>);
+      if (m) found = m;
+    } catch {
+      /* skip non-JSON lines */
+    }
+  }
+  return found;
+}
+
+/** Codex prints its model in the run banner (to stderr): a line like
+ *  `model: gpt-5.5`. Its `--json` event stream / output file don't expose it in a
+ *  field, so this banner is the ground-truth source for codex runs. */
+function modelFromCodexBanner(stderrPath: string): string | undefined {
+  if (!existsSync(stderrPath)) return undefined;
+  const m = readFileSync(stderrPath, "utf8").match(/^\s*model:\s*(\S+)/m);
+  return m ? m[1] : undefined;
+}
+
+function stampResultFile(opts: InvokeRunOptions): void {
+  if (!existsSync(opts.paths.resultsPath)) return;
+  const parsed = JSON.parse(readFileSync(opts.paths.resultsPath, "utf8")) as Record<string, unknown>;
+  parsed.harness = opts.harness;
+  parsed.profile = String(parsed.profile ?? opts.profile);
+  parsed.surface = opts.surface;
+  parsed.ns = parsed.ns ?? opts.ns;
+  // Ground-truth model: what the harness reported running > what we requested.
+  // Never the hardcoded profile default — that's the bug we're fixing. Codex
+  // doesn't carry the model in its output, so fall back to its stderr banner.
+  const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
+  parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
+  writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+}
+
+function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
+  const results = Object.fromEntries(opts.pack.tasks.map((t) => [t.id, { gid: null }]));
+  writeFileSync(
+    opts.paths.resultsPath,
+    JSON.stringify(
+      {
+        profile: opts.profile,
+        harness: opts.harness,
+        ns: opts.ns,
+        surface: opts.surface,
+        discovery: {
+          base_url_found: "",
+          searches: [],
+          urls_visited: [],
+          endpoint_used: "",
+          auth_scheme_found: "",
+          notes: message,
+        },
+        results,
+      },
+      null,
+      2,
+    ),
+  );
+  writeFileSync(
+    opts.paths.tracePath,
+    JSON.stringify(
+      [
+        {
+          step: 1,
+          taskId: "discovery",
+          action: "invoke harness",
+          note: message,
+        },
+      ],
+      null,
+      2,
+    ),
+  );
+}
+
+export async function runInvokeHarness(
+  opts: InvokeRunOptions,
+  spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
+): Promise<InvokeRunResult> {
+  const prompt = readFileSync(opts.paths.promptPath, "utf8");
+  const { command, args } = buildInvocation(opts.harness, prompt, opts);
+  const res = await spawnAsync(command, args, opts.cwd);
+  const stdout = text(res.stdout);
+  const stderr = text(res.stderr);
+  writeFileSync(opts.paths.stdoutPath, stdout);
+  writeFileSync(opts.paths.stderrPath, stderr);
+  // Keep a single transcript file path for verify --observe / report evidence.
+  // If a harness emits structured JSONL later, this path can hold it directly.
+  writeFileSync(opts.paths.transcriptPath, stdout || stderr);
+
+  const exitCode = res.status ?? null;
+  const signal = res.signal ?? null;
+  const error = res.error?.message;
+  const ok = !res.error && exitCode === 0 && existsSync(opts.paths.resultsPath);
+  if (existsSync(opts.paths.resultsPath)) {
+    stampResultFile(opts);
+  } else {
+    const reason = error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`;
+    writeFailureArtifacts(opts, reason);
+  }
+
+  const exitLabel = exitCode ?? (signal ?? "unknown");
+  const meta: InvokeRunResult = {
+    harness: opts.harness,
+    ok,
+    exitCode,
+    signal,
+    stdoutPath: opts.paths.stdoutPath,
+    stderrPath: opts.paths.stderrPath,
+    transcriptPath: opts.paths.transcriptPath,
+    metaPath: opts.paths.metaPath,
+    resultsPath: opts.paths.resultsPath,
+    tracePath: opts.paths.tracePath,
+    error: ok ? undefined : (error ?? stderr.trim()) || `exit ${exitLabel}`,
+  };
+  writeFileSync(opts.paths.metaPath, JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath }, null, 2));
+  return meta;
+}
+
+export function defaultInvokePaths(dir: string, stem: string, harness: InvokeHarnessId): InvokePaths {
+  return {
+    promptPath: `${dir}/prompt-${stem}.txt`,
+    resultsPath: `${dir}/run-${stem}.json`,
+    tracePath: `${dir}/run-${stem}.trace.json`,
+    stdoutPath: `${dir}/run-${stem}.stdout.txt`,
+    stderrPath: `${dir}/run-${stem}.stderr.txt`,
+    transcriptPath: `${dir}/run-${stem}.transcript.jsonl`,
+    metaPath: `${dir}/run-${stem}.invoke.json`,
+    codexSchemaPath: harness === "codex" ? `${dirname(`${dir}/run-${stem}.json`)}/run-${stem}.schema.json` : undefined,
+  };
+}
