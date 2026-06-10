@@ -1,28 +1,33 @@
-# ax-eval — Agent Experience integration tests for your product's agent surfaces
+# ax-eval — Cross-harness Agent Experience evals for product surfaces
 
 API / CLI / SDK / MCP
 
-## Is your product ready for agents?
+## Can agents use your product across harnesses and surfaces?
 
 Agents are becoming users of software. They read your docs, call your APIs,
 invoke your MCP server, install your SDK, and try to complete work without a
 human sitting beside them.
 
 Most teams know what they have published. They do **not** know whether an agent
-can actually operate it.
+can actually operate it, or whether success depends on the particular harness
+and surface combination being tested.
 
-That uncertainty is now a competitive risk. If agents fail on your surface while
-they succeed on a competitor's, you do not just miss integrations or automation
-opportunities. **You risk becoming irrelevant in the age of agents.**
+`ax-eval` turns that into a real integration matrix. It runs the same reviewed
+task pack across host agents and product surfaces — for example Claude Code vs.
+Codex, and API vs. SDK vs. MCP — then verifies the resulting sandbox state with
+programmatic read-back oracles. The report shows which cells passed, which cells
+failed, and whether the gap is product docs, surface coverage, auth setup,
+harness behavior, or verification.
 
-`ax-eval` answers that question. It turns an OpenAPI or GraphQL surface into a
-reviewed task pack, asks a host agent to complete real sandbox work, and verifies
-the result with programmatic read-back oracles. The output is a self-contained
-HTML report showing what passed, what failed, and whether the gap came from
-discovery, docs/spec quality, auth/setup, product behavior, or weak verification.
-Matrix reports keep product-level signals separate from config-level results, so
-an overall pass can still surface a failing MCP/SDK/API subgate instead of hiding
-it behind one green number.
+That matters because agent readiness is no longer a single green check. API docs
+can be usable while MCP tools are missing. Claude Code can recover through REST
+fallbacks while a headless Codex run exposes an approval or provisioning gap. A
+static docs score can look fine while a real agent still cannot complete the job.
+
+Matrix reports keep those signals separate: product-level discovery and spec
+quality, per-harness behavioral success, per-surface subgates, and evidence-backed
+recommendations. An overall pass can still surface a failing MCP/SDK/API cell
+instead of hiding it behind one number.
 
 **Being published is not the same as being usable by agents.**
 
