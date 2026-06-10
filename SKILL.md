@@ -41,11 +41,14 @@ verbatim, so you never need to know a target's specifics in advance.
 
 **Per-surface auth.** Each surface (api/cli/sdk/mcp) authenticates independently,
 declared in `surfaces.<s>.auth`: `inherit` (reuse the API token — SDKs/CLIs),
-`token` (its own key — Monday/Linear MCP), or `oauth_app` (OAuth-only, no headless
-token — Asana/Notion MCP). You don't pre-configure everything: gating is **lazy and
-per-surface**. When `exec-plan --surface all` hits a surface it can't authenticate,
-it skips the prompt, writes a **blocked cube cell** (`run-<surface>-blocked.normalized.json`,
-`blocked: requires-oauth | missing-credential`), and prints the exact env keys to add.
+`token` (its own key — Monday/Linear MCP), or `oauth_app` (registered OAuth app +
+refresh token — hosted MCP surfaces such as Asana). You don't pre-configure everything:
+gating is **lazy and per-surface**. When `exec-plan --surface all` hits a surface it
+can't authenticate, it skips the prompt, writes a **blocked cube cell**
+(`run-<surface>-blocked.normalized.json`, `blocked: requires-oauth | missing-credential`),
+and prints the exact env keys to add. When the OAuth env vars are present and the harness
+supports provisioning, ax-eval exchanges the refresh token at invoke time and passes a
+short-lived bearer token through an isolated harness config/env.
 The api surface (and any token surface you have creds for) still runs; the blocked
 surface shows as a distinct cell in the competitive report, never a 0%. To unblock,
 add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
@@ -110,8 +113,10 @@ Honor the effort profile: `low` does the minimum and gives up fast;
 `high` investigates prerequisites, recovers from errors, and verifies
 read-backs.
 
-Between attempts on the same profile, run `ax-eval reset --pack <pack>` to
-clean the sandbox so pass@k attempts don't contaminate each other.
+Between repeated attempts on the same profile, run `ax-eval reset --pack <pack>`
+only when the user explicitly asks you to prepare the next attempt. Do not clean
+up by default: `verify` reads live product state, so deleting resources before
+the report is rendered corrupts scores.
 
 ### 5. Verify + report
 
@@ -134,10 +139,36 @@ report. Then summarize for the user:
   hops / misled / auth), using surface-relative wording for API vs MCP/SDK/CLI.
 - Top recommendations, especially any MCP tool coverage gaps, as
   Target / Evidence / Fix rather than a raw failure dump.
+- Keep MCP tool coverage separate from harness/approval failures: missing
+  project-brief/archive/portfolio capabilities are product/tool gaps, while
+  `user cancelled MCP tool call` on an existing update tool is a harness
+  interaction signal.
 - **Attribution:** separate genuine product/docs gaps from **plan-limited**
   (402, free tier) and **discovery-blocked** failures. The headline gap is
   high static discovery with low behavioral success, and only applies directly
   on surfaces where the docs site is the agent's discovery path.
+- Label a first live matrix as a **directional draft**, not a final benchmark,
+  unless it has repeated attempts (`--attempts N`) and the product owner has
+  sanity-checked attribution. Share the HTML together with result JSON, trace,
+  transcript/stdout/stderr, and a manifest/artifact bundle.
+
+### Cross-harness / cross-surface (optional, CLI-driven)
+
+The steps above make *you* the harness. To compare harnesses instead, let the
+CLI drive them as subprocesses: `exec-plan --invoke --harness claude-code
+--harness codex --surface all` runs the same reviewed pack through each agent
+CLI (parallel by default, `--concurrency N` to bound it), stamps the model each
+harness actually reported, and writes one normalized `{surface, product,
+harness}` record per cell. `verify` then renders them as a single **neutral
+matrix** (surface · harness · effort) — no cell is crowned "best". Codex needs
+its sandbox network opened and an OpenAI-strict output schema; the adapter
+handles both. This is one product across harnesses/surfaces — `competitive` is
+reserved for cross-*product* comparison.
+
+When consolidating a report for review, put every cell's artifacts in one run
+directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
+stdout/stderr, invoke metadata, and a small manifest together so reviewers can
+deep-dive without hunting through prior scratch runs.
 
 ## Rules
 

@@ -140,6 +140,8 @@ export interface GenerateOptions {
   sandboxScope?: ScopeParam[];
   /** Extra constant headers merged over the ingested ones. */
   headers?: Record<string, string>;
+  /** Non-API surfaces exposed by this product (SDK/MCP/CLI). */
+  surfaces?: TargetPack["surfaces"];
 }
 
 /** UPPER_SNAKE slug of a product/pack name, for env-var derivation. */
@@ -439,6 +441,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       ? { site_url: opts.siteUrl, docs_urls: opts.docsUrls ?? [], checks: [] }
       : undefined,
     discovery,
+    surfaces: opts.surfaces,
     tasks,
   };
 }

@@ -331,6 +331,63 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(gated).toContain("MCP FAIL 0%");
   });
 
+  it("keeps MCP approval cancellations separate from missing tool coverage", () => {
+    const pack = makePack([
+      {
+        id: "gen-l2-projects-project_briefs",
+        difficulty: "L2",
+        prompt: "Create a project_briefs under a project.",
+        create_path: "/projects/{project_gid}/project_briefs",
+      },
+      {
+        id: "gen-l4-task-complete",
+        difficulty: "L4",
+        prompt: "Create a task, then mark it complete.",
+        create_path: "/tasks",
+      },
+    ]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "low",
+        harness: "codex",
+        surface: "mcp",
+        discoverySource: "observed",
+        discovery: discovery({}),
+        trace: [
+          {
+            step: 1,
+            taskId: "gen-l2-projects-project_briefs",
+            action: "create project",
+            method: "POST",
+            path: "/projects",
+            status: 201,
+            note: "created project; no discovered project-brief tool",
+          },
+          {
+            step: 2,
+            taskId: "gen-l4-task-complete",
+            action: "mark task complete",
+            method: "PUT",
+            path: "/tasks/1",
+            status: 499,
+            note: "user cancelled MCP tool call",
+          },
+        ],
+        outcomes: [
+          outcome("gen-l2-projects-project_briefs", "L2", "low", false, "no gid reported by executor"),
+          outcome("gen-l4-task-complete", "L4", "low", false, "no gid reported by executor"),
+        ],
+      },
+    ];
+    const recs = buildRecommendations(pack, runs, { site: "https://demo.test", v0Score: 100, v2Score: 100 });
+    const coverage = recs.find((r) => r.title === "Fill MCP tool coverage gaps")!;
+    expect(coverage.target).toContain("create project brief");
+    expect(coverage.target).not.toContain("complete/update task");
+
+    const approval = recs.find((r) => r.title === "Separate MCP approval failures from tool coverage")!;
+    expect(approval.evidence).toContain("user cancelled MCP tool call");
+  });
+
   it("recommends machine-readable discovery entrypoints and pass@k for single-attempt runs", () => {
     const pack = makePack([{ id: "t1", difficulty: "L1", prompt: "do a thing" }]);
     const runs: ProfileRun[] = [

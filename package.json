@@ -1,6 +1,6 @@
 {
   "name": "ax-eval",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AX eval — test whether a host agent can complete real tasks against a SaaS product.",
   "keywords": [
     "agent",
@@ -44,7 +44,7 @@
     "ax-eval": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean",
     "prepublishOnly": "npm run build",
-    "test": "vitest run",
+    "test": "vitest run tests",
     "typecheck": "tsc --noEmit"
   },
   "engines": {

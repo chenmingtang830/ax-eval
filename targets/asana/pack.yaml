@@ -37,7 +37,8 @@ surfaces:
       client_id_env: ASANA_MCP_CLIENT_ID
       client_secret_env: ASANA_MCP_CLIENT_SECRET
       refresh_token_env: ASANA_MCP_REFRESH_TOKEN
-      instructions: "Register an Asana OAuth app (https://app.asana.com/0/my-apps), complete the OAuth flow once, and store the refresh token. No PAT path exists for the hosted MCP server."
+      token_url: https://app.asana.com/-/oauth_token
+      instructions: "Register an Asana OAuth app (https://app.asana.com/0/my-apps), complete the OAuth flow once, and store the refresh token. ax-eval exchanges it for a short-lived MCP bearer token at invoke time."
 base_url: https://app.asana.com/api/1.0
 site_url: https://asana.com  # root for the static (agent-readiness) audit
 openapi_url: https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml  # v3 content-quality audit target

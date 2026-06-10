@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import type { TargetPack } from "../schemas.js";
@@ -49,6 +49,20 @@ export interface InvokeRunOptions {
    *  convention); claude-code applies effort at the prompt level (no CLI knob),
    *  so this is informational there. */
   effort?: "low" | "medium" | "high";
+  /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
+   *  exceeds it, it is killed and the attempt counts as a timeout failure
+   *  (eligible for a retry). 0 / undefined disables the cap. */
+  timeoutMs?: number;
+  /** How many times to retry a failed or timed-out invocation before giving up.
+   *  Default 1 (one retry → up to two attempts total); 0 disables retries. A
+   *  retry re-runs the same prompt from a clean slate (any partial results file
+   *  is removed first). */
+  retries?: number;
+  /** Env overrides for the harness child process. Used for isolated per-cell
+   *  MCP config, not for secrets printed to prompts. */
+  env?: Record<string, string>;
+  /** Non-secret provisioning metadata written to the invoke meta artifact. */
+  provisioning?: Record<string, unknown>;
 }
 
 export interface InvokeRunResult {
@@ -63,6 +77,10 @@ export interface InvokeRunResult {
   resultsPath: string;
   tracePath: string;
   error?: string;
+  /** Attempts actually made (1 = succeeded or no retry; 2 = retried once). */
+  attempts?: number;
+  /** True when the final attempt was killed by the timeout cap. */
+  timedOut?: boolean;
 }
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -87,24 +105,56 @@ export interface ProcResult {
   status: number | null;
   signal: NodeJS.Signals | null;
   error?: Error;
+  /** True when the child was killed by the wall-clock timeout cap rather than
+   *  exiting on its own. */
+  timedOut?: boolean;
 }
 
 /** Async spawn — runs the harness without blocking the event loop, so multiple
  *  harness invocations can execute concurrently (the concurrency pool in
  *  exec-plan). Collects stdout/stderr and resolves when the process closes;
- *  never rejects (a spawn error resolves with `error` set, like spawnSync). */
-export type AsyncSpawn = (command: string, args: string[], cwd: string) => Promise<ProcResult>;
+ *  never rejects (a spawn error resolves with `error` set, like spawnSync).
+ *  An optional `timeoutMs` hard-caps the run: on expiry the child is sent
+ *  SIGTERM (then SIGKILL after a short grace) and the result is flagged
+ *  `timedOut` — this is what stops a wedged headless agent from hanging the
+ *  whole matrix indefinitely. */
+export type AsyncSpawn = (
+  command: string,
+  args: string[],
+  cwd: string,
+  opts?: { timeoutMs?: number; env?: Record<string, string> },
+) => Promise<ProcResult>;
 
-const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd) =>
+const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
-    const child = spawn(command, args, { cwd, stdio: ["ignore", "pipe", "pipe"] });
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      env: opts?.env ? { ...process.env, ...opts.env } : process.env,
+    });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
+    let timedOut = false;
+    let killTimer: NodeJS.Timeout | undefined;
+    let timer: NodeJS.Timeout | undefined;
+    if (opts?.timeoutMs && opts.timeoutMs > 0) {
+      timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+        // If it ignores SIGTERM, hard-kill so the pool slot is freed.
+        killTimer = setTimeout(() => child.kill("SIGKILL"), 5000);
+      }, opts.timeoutMs);
+    }
+    const finish = (r: ProcResult) => {
+      if (timer) clearTimeout(timer);
+      if (killTimer) clearTimeout(killTimer);
+      resolve(r);
+    };
     child.stdout?.on("data", (d: Buffer) => out.push(d));
     child.stderr?.on("data", (d: Buffer) => err.push(d));
-    child.on("error", (error) => resolve({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error }));
+    child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut }));
     child.on("close", (status, signal) =>
-      resolve({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status, signal: signal ?? null }),
+      finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status, signal: signal ?? null, timedOut }),
     );
   });
 
@@ -360,9 +410,30 @@ export async function runInvokeHarness(
 ): Promise<InvokeRunResult> {
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
   const { command, args } = buildInvocation(opts.harness, prompt, opts);
-  const res = await spawnAsync(command, args, opts.cwd);
-  const stdout = text(res.stdout);
-  const stderr = text(res.stderr);
+  const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
+
+  // Re-run on failure/timeout up to `retries` times. A clean attempt (exit 0 +
+  // a results file written) breaks early; a hang (killed by the timeout cap) or
+  // a crash retries from a clean slate. This is what keeps one wedged headless
+  // agent (e.g. an MCP server stuck on an auth prompt) from stalling the matrix.
+  let res!: ProcResult;
+  let attempt = 0;
+  let ok = false;
+  let stdout = "";
+  let stderr = "";
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    res = await spawnAsync(command, args, opts.cwd, { timeoutMs: opts.timeoutMs, env: opts.env });
+    stdout = text(res.stdout);
+    stderr = text(res.stderr);
+    ok = !res.error && (res.status ?? null) === 0 && existsSync(opts.paths.resultsPath);
+    if (ok || attempt >= maxAttempts) break;
+    // Failed and a retry is left: drop any partial results file so the next
+    // attempt is scored on its own output, not stale leftovers.
+    if (existsSync(opts.paths.resultsPath)) {
+      try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
+    }
+  }
   writeFileSync(opts.paths.stdoutPath, stdout);
   writeFileSync(opts.paths.stderrPath, stderr);
   // Keep a single transcript file path for verify --observe / report evidence.
@@ -371,8 +442,9 @@ export async function runInvokeHarness(
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
-  const error = res.error?.message;
-  const ok = !res.error && exitCode === 0 && existsSync(opts.paths.resultsPath);
+  const timedOut = res.timedOut ?? false;
+  const error = res.error?.message
+    ?? (timedOut ? `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})` : undefined);
   if (existsSync(opts.paths.resultsPath)) {
     stampResultFile(opts);
   } else {
@@ -386,6 +458,8 @@ export async function runInvokeHarness(
     ok,
     exitCode,
     signal,
+    attempts: attempt,
+    timedOut,
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
@@ -394,7 +468,10 @@ export async function runInvokeHarness(
     tracePath: opts.paths.tracePath,
     error: ok ? undefined : (error ?? stderr.trim()) || `exit ${exitLabel}`,
   };
-  writeFileSync(opts.paths.metaPath, JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath }, null, 2));
+  writeFileSync(
+    opts.paths.metaPath,
+    JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2),
+  );
   return meta;
 }
 

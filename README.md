@@ -57,13 +57,25 @@ gap.
   lucky pass?
 - **Actionable gaps:** recommendations are written as `Target / Evidence / Fix`
   rows. MCP tool coverage failures are grouped by missing capability instead of
-  buried in raw trace text.
+  buried in raw trace text; harness/tool-call approval failures are reported
+  separately so they are not mistaken for missing product tools.
 - **Competitive position:** how does one product or surface compare against
   another when you stack normalized result records into a competitive report?
 
 The open skill runs through the agent you already have open (`host-agent`) and
-labels reports with that host/model. Cross-harness comparison is a separate
-layer; a single local run should be read as local proof, not a universal score.
+labels reports with that host/model. The CLI can also drive other agent
+harnesses as subprocesses — `exec-plan --invoke --harness claude-code|codex`
+runs the same reviewed pack through each (parallel by default) and stamps the
+model the harness *actually* reported running, so one report can lay harnesses
+and surfaces out side by side as a neutral matrix. A single local run should
+still be read as local proof, not a universal score.
+
+For product-owner review, treat a first live matrix as a **directional draft**:
+it is enough to start an engineering discussion, but it is not a final benchmark
+until the team has sanity-checked attribution and repeated the run with
+`--attempts N` for pass@k. Send the HTML together with the raw result, trace,
+transcript, stdout/stderr, and `MANIFEST.json` artifacts so owners can inspect
+the evidence behind each recommendation.
 
 ## Quickstart
 
@@ -157,6 +169,8 @@ npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
 npm run ax-eval -- verify --pack <pack.yaml> --results <run.json>... --html <out.html>
 npm run ax-eval -- reset --pack <pack.yaml> [--dry-run]
 
@@ -171,7 +185,16 @@ npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
 Live evals make real writes. Use a sandbox, never production. `init` prints the
 env stub a pack declares; `.env` is git-ignored. Surfaces authenticate
 independently, so an unavailable SDK/CLI/MCP credential becomes a blocked cell in
-the report instead of a misleading failure.
+the report instead of a misleading failure. OAuth-backed MCP surfaces can be run
+headlessly when the pack declares client id, client secret, refresh token, and token
+URL env names: ax-eval exchanges the refresh token at invoke time, passes the
+short-lived bearer only to the child harness environment, and keeps secret values out
+of tracked files.
+
+`verify-generated` reads live product state. Do not reset or sweep the sandbox
+until after the report is rendered and the user explicitly asks for cleanup.
+Cleaning first will make otherwise valid result ids read back as missing and
+will corrupt the report.
 
 Generated packs are executable intent. `exec-plan` refuses unreviewed or changed
 packs unless you explicitly bypass the review gate.
