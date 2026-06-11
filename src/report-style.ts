@@ -203,6 +203,11 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 /* Smell tags (content-quality audit) — small category chips on an endpoint. */
 .ax-tags { display: inline-flex; flex-wrap: wrap; gap: var(--s1); margin-left: var(--s2); vertical-align: middle; }
 .ax-tag { font-family: var(--mono); font-size: 10.5px; font-weight: 700; letter-spacing: 0.03em; padding: 1px 6px; border-radius: 5px; color: var(--fail); background: color-mix(in srgb, var(--fail) 9%, var(--card)); border: 1px solid color-mix(in srgb, var(--fail) 25%, var(--card)); }
+.ax-smell-groups { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--s2); padding: 0; margin: var(--s3) 0; list-style: none; }
+.ax-smell-group { display: flex; gap: var(--s2); align-items: flex-start; border: 1px solid var(--hair); border-radius: var(--radius-sm); background: var(--card); padding: var(--s3); min-width: 0; }
+.ax-smell-group__count { flex: 0 0 auto; min-width: 26px; font-family: var(--mono); font-size: 17px; font-weight: 700; color: var(--accent); line-height: 1.1; }
+.ax-smell-group__body { display: grid; gap: 2px; min-width: 0; font-size: 12.5px; color: var(--muted); }
+.ax-smell-group__body strong { color: var(--ink); font-size: 13px; }
 .ax-smell { margin: var(--s2) 0; }
 .ax-smell__head { font-weight: 600; font-size: 13px; color: var(--ink); }
 .ax-smell__fix { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
@@ -211,5 +216,6 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 @media (max-width: 680px) {
   .ax-main { padding: var(--s5); }
   .ax-scorecard { grid-template-columns: 1fr; }
+  .ax-smell-groups { grid-template-columns: 1fr; }
 }
 `;

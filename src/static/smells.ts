@@ -44,6 +44,22 @@ export const SMELL_CATEGORIES: SmellCategory[] = [
   "SECURITY",
 ];
 
+export type SmellGroup = "documentation" | "contract" | "rest-style" | "auth";
+
+const SMELL_GROUPS: SmellGroup[] = ["documentation", "contract", "rest-style", "auth"];
+
+export const SMELL_CATEGORY_GROUP: Record<SmellCategory, SmellGroup> = {
+  LAZY: "documentation",
+  BLOATED: "documentation",
+  TANGLED: "documentation",
+  FRAGMENTED: "contract",
+  INPUT: "contract",
+  RESPONSE: "contract",
+  PATH: "rest-style",
+  METHOD: "rest-style",
+  SECURITY: "auth",
+};
+
 /**
  * Per-category weight toward the content-quality score (impact on agent
  * reasoning). Calibrated against the paper's prevalence + how badly each smell
@@ -461,12 +477,18 @@ export function renderSpecQuality(a: SpecQualityAudit, opts: { maxEndpoints?: nu
   lines.push("");
   lines.push("## Smell prevalence");
   lines.push("");
-  lines.push("| smell | weight | endpoints | % |");
-  lines.push("|---|---|---|---|");
+  lines.push(
+    "Smells are grouped so API owners can filter intentional design-style conventions (for example action-oriented paths) and focus on the remaining documentation, contract, and auth gaps.",
+  );
+  lines.push("");
+  lines.push("| smell | group | weight | endpoints | % |");
+  lines.push("|---|---|---|---|---|");
   const total = a.endpointsAnalyzed || 1;
   for (const c of [...SMELL_CATEGORIES].sort((x, y) => a.byCategory[y] - a.byCategory[x])) {
     const n = a.byCategory[c];
-    lines.push(`| ${c} | ${SMELL_WEIGHTS[c]} | ${n} | ${Math.round((n / total) * 100)}% |`);
+    lines.push(
+      `| ${c} | ${GROUP_LABEL[SMELL_CATEGORY_GROUP[c]]} | ${SMELL_WEIGHTS[c]} | ${n} | ${Math.round((n / total) * 100)}% |`,
+    );
   }
   lines.push("");
 
@@ -509,6 +531,20 @@ const CATEGORY_LABEL: Record<SmellCategory, string> = {
   SECURITY: "Unclear auth requirements",
 };
 
+const GROUP_LABEL: Record<SmellGroup, string> = {
+  documentation: "Documentation clarity",
+  contract: "Input/output contract",
+  "rest-style": "REST design style",
+  auth: "Auth guidance",
+};
+
+const GROUP_DETAIL: Record<SmellGroup, string> = {
+  documentation: "Text that helps an agent understand purpose and constraints.",
+  contract: "Schemas, parameters, and responses an agent needs to construct and verify calls.",
+  "rest-style": "URI/method conventions that may be deliberate API design choices.",
+  auth: "Credential, scope, and permission guidance.",
+};
+
 function escH(value: unknown): string {
   return String(value)
     .replace(/&/g, "&amp;")
@@ -548,9 +584,21 @@ function weightPriority(weight: number): "high" | "med" | "low" {
 function representativeFix(a: SpecQualityAudit, category: SmellCategory): string {
   for (const ep of a.endpoints) {
     const f = ep.smells.find((s) => s.category === category);
-    if (f) return f.suggestion.replace(/^\[[A-Z]+\]\s*-\s*/, "");
+    if (f) {
+      const fix = f.suggestion.replace(/^\[[A-Z]+\]\s*-\s*/, "");
+      if (SMELL_CATEGORY_GROUP[category] === "rest-style") {
+        return `${fix} If this is an intentional product convention, mark it as a design-style exception and focus remediation on the other groups.`;
+      }
+      return fix;
+    }
   }
   return "Improve this aspect of the spec.";
+}
+
+function smellGroupCounts(a: SpecQualityAudit): Record<SmellGroup, number> {
+  const counts = Object.fromEntries(SMELL_GROUPS.map((g) => [g, 0])) as Record<SmellGroup, number>;
+  for (const c of SMELL_CATEGORIES) counts[SMELL_CATEGORY_GROUP[c]] += a.byCategory[c];
+  return counts;
 }
 
 /** Build 2–3 plain-text findings from the audit (mirrors the behavioral report). */
@@ -645,6 +693,23 @@ function renderSmellScorecard(a: SpecQualityAudit): string {
   </section>`;
 }
 
+function smellGroupSummary(a: SpecQualityAudit): string {
+  const counts = smellGroupCounts(a);
+  const rows = SMELL_GROUPS.map((g) => {
+    const n = counts[g];
+    return `<li class="ax-smell-group">
+        <span class="ax-smell-group__count">${escH(n)}</span>
+        <span class="ax-smell-group__body">
+          <strong>${escH(GROUP_LABEL[g])}</strong>
+          <span>${escH(GROUP_DETAIL[g])}</span>
+        </span>
+      </li>`;
+  }).join("\n      ");
+  return `<ul class="ax-smell-groups" aria-label="Smell groups">
+      ${rows}
+    </ul>`;
+}
+
 function renderSmellFindings(a: SpecQualityAudit): string {
   const findings = buildSmellFindings(a);
   const body = findings.length
@@ -697,6 +762,7 @@ function smellPrevalenceTable(a: SpecQualityAudit): string {
     .map(
       (c) => `<tr>
         <td>${codeH(c)} <span class="ax-task__diff">${escH(CATEGORY_LABEL[c])}</span></td>
+        <td>${escH(GROUP_LABEL[SMELL_CATEGORY_GROUP[c]])}</td>
         <td>${escH(SMELL_WEIGHTS[c])}</td>
         <td>${escH(a.byCategory[c])}</td>
         <td>${prevalenceHeat(a.byCategory[c], total)}</td>
@@ -704,7 +770,7 @@ function smellPrevalenceTable(a: SpecQualityAudit): string {
     )
     .join("");
   return `<table class="ax-table">
-      <thead><tr><th>smell</th><th>weight</th><th>endpoints</th><th>% affected</th></tr></thead>
+      <thead><tr><th>smell</th><th>group</th><th>weight</th><th>endpoints</th><th>% affected</th></tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
 }
@@ -744,7 +810,8 @@ function smellEndpointDetails(
 function renderSmellPrevalence(a: SpecQualityAudit): string {
   return `<section class="ax-section">
     <h2>Smell prevalence</h2>
-    <p class="ax-note">How many of the ${escH(a.endpointsAnalyzed)} analyzed endpoint(s) exhibit each smell (the paper's Table-2 shape). Weight is the smell's impact on autonomous use — RESPONSE / INPUT / LAZY are weighted heaviest because they most directly block an agent from constructing calls or interpreting results.</p>
+    <p class="ax-note">How many of the ${escH(a.endpointsAnalyzed)} analyzed endpoint(s) exhibit each smell (the paper's Table-2 shape). Groups let API owners filter intentional design-style conventions, such as action-oriented paths, and look at the remaining documentation, contract, and auth gaps. Weight is the smell's impact on autonomous use — RESPONSE / INPUT / LAZY are weighted heaviest because they most directly block an agent from constructing calls or interpreting results.</p>
+    ${smellGroupSummary(a)}
     ${smellPrevalenceTable(a)}
   </section>`;
 }
@@ -793,9 +860,10 @@ export function renderContentQualitySection(
     : `<p class="ax-empty">No content-quality smells detected — the spec is semantically agent-ready. 🎉</p>`;
   return `<section class="ax-section" id="content-quality">
     <h2>Content quality (spec smells)</h2>
-    <p class="ax-note">Discoverability asks whether an agent can <em>find</em> the docs; this asks whether the OpenAPI spec, once found, is <em>usable</em>. Scored against the Hermes smell taxonomy (Lima et al., EASE 2026) on <code class="ax-code">${escH(a.source)}</code>. Each entry below is a <strong>suggested fix</strong> (the <code class="ax-code">→</code> line) the API owner can apply to make the spec more agent-ready.</p>
+    <p class="ax-note">Discoverability asks whether an agent can <em>find</em> the docs; this asks whether the OpenAPI spec, once found, is <em>usable</em>. Scored against the Hermes smell taxonomy (Lima et al., EASE 2026) on <code class="ax-code">${escH(a.source)}</code>. Smells are grouped so API owners can filter intentional design-style conventions and focus on the remaining documentation, contract, and auth gaps. Each entry below is a <strong>suggested fix</strong> (the <code class="ax-code">→</code> line) the API owner can apply to make the spec more agent-ready.</p>
     <p class="ax-verdict">${escH(verdict)}</p>
     <h3 class="ax-subhead">Smell prevalence</h3>
+    ${smellGroupSummary(a)}
     ${smellPrevalenceTable(a)}
     ${detail}
   </section>`;

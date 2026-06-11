@@ -316,6 +316,8 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(recs[0]!.target).toContain("add project to portfolio");
     expect(recs[0]!.target).toContain("create project brief");
     expect(recs[0]!.target).toContain("archive/update project");
+    expect(recs[0]!.fix).toContain("intentionally keeps a small tool surface");
+    expect(recs[0]!.fix).toContain("coverage exceptions");
 
     const html = renderGeneratedReport(pack, runs, { site: "https://demo.test", v0Score: 100, v2Score: 100 });
     expect(html).toContain("weakest config is codex/MCP/high");

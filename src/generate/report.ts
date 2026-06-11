@@ -432,7 +432,7 @@ export function buildRecommendations(
       target: `MCP tools/capabilities: ${capabilities.join(", ")}`,
       evidence: `Round-trip failures and trace evidence from MCP runs — ${evidence}`,
       fix:
-        "Expose or document first-class MCP tools for these operations, with returned ids matching the resource that the oracle can read back. Re-run MCP configs after adding coverage.",
+        "Expose or document first-class MCP tools for these operations, with returned ids matching the resource that the oracle can read back. If the server intentionally keeps a small tool surface, document the intended composition path or mark those capability gaps as product-owned coverage exceptions before re-running MCP configs.",
     });
   }
   if (approvalSignals.length) {

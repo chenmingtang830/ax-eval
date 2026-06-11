@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { auditSpecQuality, renderSpecQuality, type SmellCategory } from "../src/static/smells.js";
+import { auditSpecQuality, renderSpecQuality, renderSpecQualityHtml, type SmellCategory } from "../src/static/smells.js";
 
 /** Categories detected on the first endpoint of a single-operation spec. */
 function categories(spec: object): Set<SmellCategory> {
@@ -162,7 +162,27 @@ describe("content-quality smell audit", () => {
     const md = renderSpecQuality(a);
     expect(md).toContain("Content-quality audit");
     expect(md).toContain("Smell prevalence");
+    expect(md).toContain("| smell | group | weight | endpoints | % |");
+    expect(md).toContain("REST design style");
     expect(md).toContain("POST /createThing");
+  });
+
+  it("renders smell groups so owners can filter intentional style conventions", () => {
+    const spec = {
+      openapi: "3.0.0",
+      info: { title: "Grouped" },
+      ...SECURE_COMPONENTS,
+      paths: {
+        "/createThing": { post: { ...cleanOperation(), summary: "", description: "" } },
+      },
+    };
+    const a = auditSpecQuality(JSON.stringify(spec), "grouped-spec");
+    const html = renderSpecQualityHtml(a, { generatedAt: "2026-06-11T00:00:00.000Z" });
+
+    expect(html).toContain("Documentation clarity");
+    expect(html).toContain("REST design style");
+    expect(html).toContain("intentional product convention");
+    expect(html).toContain("design-style exception");
   });
 
   it("empty spec scores 0 with no endpoints", () => {
