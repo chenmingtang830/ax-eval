@@ -1,8 +1,8 @@
-# ax-eval — Cross-harness Agent Experience evals for product surfaces
+# ax-eval — Agent operability evals for product surfaces
 
 API / CLI / SDK / MCP
 
-## Can agents use your product across harnesses and surfaces?
+## Can agents actually operate your product?
 
 Agents are becoming users of software. They read your docs, call your APIs,
 invoke your MCP server, install your SDK, and try to complete work without a
@@ -19,17 +19,23 @@ programmatic read-back oracles. The report shows which cells passed, which cells
 failed, and whether the gap is product docs, surface coverage, auth setup,
 harness behavior, or verification.
 
-That matters because agent readiness is no longer a single green check. API docs
-can be usable while MCP tools are missing. Claude Code can recover through REST
+That matters because agent operability is not a single green check. API docs can
+be usable while MCP tools are missing. Claude Code can recover through REST
 fallbacks while a headless Codex run exposes an approval or provisioning gap. A
-static docs score can look fine while a real agent still cannot complete the job.
+static readiness score can look fine while a real agent still cannot complete the
+job.
 
 Matrix reports keep those signals separate: product-level discovery and spec
 quality, per-harness behavioral success, per-surface subgates, and evidence-backed
 recommendations. An overall pass can still surface a failing MCP/SDK/API cell
 instead of hiding it behind one number.
 
-**Being published is not the same as being usable by agents.**
+**Being published is not the same as being operable by agents.**
+
+`AX` means **Agent Experience**: how agents discover, understand, authenticate
+against, and use your product surfaces. `ax-eval` measures the hardest outcome
+inside AX: **agent operability** — whether an agent can complete real sandbox
+work and have that work verified by live read-back.
 
 ## The Problem
 
@@ -40,8 +46,8 @@ instead of hiding it behind one number.
 - Editorial benchmarks can rank vendors. They do not give your team a local,
   repeatable integration test for your own product surface.
 
-`ax-eval` is the behavioral layer: run the task, check the real state, show the
-gap.
+`ax-eval` is the operability layer: run the task, check the real state, show the
+gap between exposed interfaces and verified agent success.
 
 ![Sample ax-eval HTML report](./assets/sample-report.png)
 
