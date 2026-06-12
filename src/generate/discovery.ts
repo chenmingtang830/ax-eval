@@ -69,6 +69,10 @@ function isOfficial(url: string, domains: string[]): boolean {
   return domains.some((d) => h === d.toLowerCase() || h.endsWith(`.${d.toLowerCase()}`));
 }
 
+function isWebUrl(url: string): boolean {
+  return /^https?:\/\//i.test(url);
+}
+
 /** Normalize "post  /tasks/" → "POST /tasks" for the canonical comparison. */
 function normEndpoint(e: string): string {
   const m = e.trim().match(/^([a-z]+)\s+(\S+)/i);
@@ -125,12 +129,13 @@ export async function scoreDiscovery(
   const webOptional = surface !== "api";
   const ns = result.ns;
   const urls = result.urls_visited ?? [];
+  const webUrls = urls.filter(isWebUrl);
   const searches = result.searches ?? [];
   const used = result.endpoint_used ? normEndpoint(result.endpoint_used) : "";
   const metrics: DiscoveryMetric[] = [];
 
   // 1) Reached the authoritative discovery source for this surface.
-  const officialHits = urls.filter((u) => isOfficial(u, spec.official_domains));
+  const officialHits = webUrls.filter((u) => isOfficial(u, spec.official_domains));
   // Local discovery counts when the agent objectively inspected the surface's
   // self-describing source (preferred signal), or — as a fallback for self-report
   // funnels that don't carry it — when it used the artifact without any web pages.
@@ -185,8 +190,8 @@ export async function scoreDiscovery(
   // 4) Misled by an outdated / non-official source.
   const haystack = [result.endpoint_used, result.notes, ...urls].filter(Boolean).join(" ").toLowerCase();
   const hitMarker = spec.deprecated_markers.find((m) => haystack.includes(m.toLowerCase()));
-  const firstUrl = urls[0];
-  const startedNonOfficial = !!firstUrl && !isOfficial(firstUrl, spec.official_domains);
+  const firstUrl = webUrls[0];
+  const startedNonOfficial = !discoveredLocally && !!firstUrl && !isOfficial(firstUrl, spec.official_domains);
   const misled = !!hitMarker || startedNonOfficial;
   metrics.push({
     id: "misled",

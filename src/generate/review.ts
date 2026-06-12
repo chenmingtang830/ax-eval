@@ -2,8 +2,9 @@
  * The review gate.
  *
  * Generated tasks + oracles (and, later, setup/reset) are executable intent that
- * will run write-ops against the developer's sandbox. Nothing may run un-reviewed:
- * a human must read the generated set and explicitly approve it. This is the
+ * may call a live product. Mutating packs run against a developer sandbox;
+ * stateless/search packs may only read/query. Nothing may run un-reviewed: a
+ * human must read the generated set and explicitly approve it. This is the
  * credibility + safety gate — no AI-approves-AI.
  *
  * Enforcement is content-addressed: approval records a hash of the reviewable
@@ -120,9 +121,11 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
 export function reviewSummary(pack: TargetPack): string {
   const lines: string[] = [];
   lines.push(`# Review — ${pack.name} (standard_set ${pack.standard_set_version || "unversioned"})`, "");
+  const scoped = pack.sandbox_scope.length > 0;
   lines.push(
-    `Approving this set authorizes ${pack.tasks.length} task(s) to run write-ops against the ` +
-      `sandbox named by its credential/scope. Read every task + oracle before approving.`,
+    scoped
+      ? `Approving this set authorizes ${pack.tasks.length} task(s) to run live operations against the sandbox named by its credential/scope. Read every task + oracle before approving.`
+      : `Approving this set authorizes ${pack.tasks.length} task(s) to call the live product with the declared credential. No sandbox scope is declared; read every task + oracle before approving.`,
     "",
   );
 
@@ -159,7 +162,9 @@ export function reviewSummary(pack: TargetPack): string {
     }
     for (const o of t.oracles) {
       const { tier, confidence, why } = oracleTier(o);
-      const target = o.assertField ? ` assert \`${o.assertField}\`=${JSON.stringify(o.expected)}` : "";
+      const aliases = o.expectedAny?.length ? ` (+${o.expectedAny.length} accepted alias${o.expectedAny.length === 1 ? "" : "es"})` : "";
+      const mode = o.matchMode ? ` mode=${o.matchMode}` : "";
+      const target = o.assertField ? ` assert \`${o.assertField}\`=${JSON.stringify(o.expected)}${aliases}${mode}` : "";
       lines.push(`- [${tier}/${confidence}] ${o.type}${target} — ${why}`);
     }
     lines.push("");

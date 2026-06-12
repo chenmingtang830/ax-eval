@@ -21,10 +21,21 @@ export const OracleSpecSchema = z.object({
   type: z.string(),
   path: z.string().optional(),
   expected: z.unknown().optional(),
+  /** Additional acceptable expected values. Used when a product can return
+   *  several canonical-equivalent URLs or versioned documentation aliases. */
+  expectedAny: z.array(z.unknown()).optional(),
+  /** Comparison mode for round-trip assertions. `exact` is the default; `url`
+   *  normalizes harmless URL differences such as hashes and trailing slashes. */
+  matchMode: z.enum(["exact", "url"]).optional(),
   value: z.unknown().optional(),
   description: z.string().default(""),
   // roundtrip-only fields (ignored by exists/equals/contains)
+  /** REST round-trip read method. Defaults to GET for existing packs; POST lets
+   *  stateless/read APIs verify through a live read endpoint such as /contents. */
+  readMethod: z.enum(["GET", "POST"]).optional(),
   readPathTemplate: z.string().optional(),
+  /** JSON body template for POST read-back. String leaves may contain {gid}. */
+  readBodyTemplate: z.unknown().optional(),
   /** GraphQL round-trip read: a query string with a `{gid}` placeholder. Used
    *  instead of `readPathTemplate` when the pack's `api_style` is "graphql".
    *  The verifier substitutes `{gid}`, POSTs the query, and resolves the dotted
@@ -223,6 +234,15 @@ export const ScopeParamSchema = z.object({
 });
 export type ScopeParam = z.infer<typeof ScopeParamSchema>;
 
+export const GeneratorProvenanceSchema = z.object({
+  harness: z.string().default("host-agent"),
+  model: z.string().default("host-default"),
+  effort: z.enum(["low", "medium", "high"]).default("high"),
+  prompt_version: z.string().default("ax-eval-generator-v1"),
+  source_docs: z.array(z.string()).default([]),
+});
+export type GeneratorProvenance = z.infer<typeof GeneratorProvenanceSchema>;
+
 /** Versioned bundle describing a target and its task set. */
 export const TargetPackSchema = z.object({
   name: z.string(),
@@ -233,10 +253,15 @@ export const TargetPackSchema = z.object({
    *  standard_set; NOT part of resource names (those carry a per-execution
    *  `{ns}` placeholder resolved per harness × attempt). */
   run_id: z.string().default(""),
-  /** Provenance of generation. `deterministic@no-model` for rule-derived sets;
-   *  `<model>@<date>` when an LLM authored (L4). Generation harness ≠ execution
-   *  harness — recorded so a score is never confused with who authored it. */
+  /** Coarse provenance of generation (`llm-assisted` by default,
+   *  `deterministic@no-model` for the rule-derived fallback). Generation
+   *  harness ≠ execution harness — recorded so a score is never confused with
+   *  who authored it. */
   generated_by: z.string().default(""),
+  /** Optional authoring provenance for LLM-assisted generation. Frozen packs are
+   *  still reviewed/hash-locked before execution; this records who authored the
+   *  draft, not who executed it. */
+  generator: GeneratorProvenanceSchema.optional(),
   auth_method: z.string().default("none"),
   /** API style of the target. "rest" (default) keeps Asana/Notion unchanged:
    *  the round-trip oracle does `GET readPathTemplate`. "graphql" routes the

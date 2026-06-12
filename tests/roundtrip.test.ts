@@ -45,6 +45,9 @@ function fakeClient(store: Record<string, Record<string, unknown>>) {
       if (!body) throw new Error(`404 ${path}`);
       return body;
     },
+    async post(path: string, body: unknown) {
+      return { path, body };
+    },
   } as unknown as import("../src/http/client.js").BearerClient;
 }
 
@@ -90,6 +93,66 @@ describe("round-trip verification", () => {
     const other: ExecutorResults = { ...exec, ns: "joaufx-floor-zz99" };
     const fail = await verifyGeneratedPack(nsPack, other, fakeClient({ "1": { name: "AX probe tasks joaufx-ceiling-ab12" } }));
     expect(fail[0]!.success).toBe(false);
+  });
+
+  it("can verify stateless REST APIs by POSTing a read-back body with the reported gid", async () => {
+    const postPack: TargetPack = {
+      ...pack,
+      response_envelope: undefined,
+      tasks: [
+        {
+          ...pack.tasks[0]!,
+          oracles: [
+            {
+              type: "roundtrip",
+              description: "",
+              readMethod: "POST",
+              readPathTemplate: "/contents",
+              readBodyTemplate: { urls: ["{gid}"], text: false },
+              assertField: "body.urls.0",
+              expected: "https://example.com/guide",
+            },
+          ],
+        },
+      ],
+    };
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      results: { "gen-l1-tasks": { gid: "https://example.com/guide" } },
+    };
+    const out = await verifyGeneratedPack(postPack, exec, fakeClient({}));
+    expect(out[0]!.success).toBe(true);
+  });
+
+  it("can match URL oracles against normalized aliases", async () => {
+    const urlPack: TargetPack = {
+      ...pack,
+      response_envelope: undefined,
+      tasks: [
+        {
+          ...pack.tasks[0]!,
+          oracles: [
+            {
+              type: "roundtrip",
+              description: "",
+              readMethod: "POST",
+              readPathTemplate: "/contents",
+              readBodyTemplate: { urls: ["{gid}"], text: false },
+              assertField: "body.urls.0",
+              expected: "https://nodejs.org/api/fs.html",
+              expectedAny: ["https://nodejs.org/docs/latest-v26.x/api/fs.html"],
+              matchMode: "url",
+            },
+          ],
+        },
+      ],
+    };
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      results: { "gen-l1-tasks": { gid: "https://nodejs.org/docs/latest-v26.x/api/fs.html#promises-api" } },
+    };
+    const out = await verifyGeneratedPack(urlPack, exec, fakeClient({}));
+    expect(out[0]!.success).toBe(true);
   });
 });
 

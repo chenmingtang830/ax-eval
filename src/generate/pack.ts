@@ -1,8 +1,9 @@
 /**
- * Deterministic pack generation: turn an IngestedSpec into a frozen
- * standard_set (tasks + programmatic round-trip oracles), with a difficulty
- * ladder. No model is involved — the bank is reproducible and independent of
- * whatever harness later executes it (`generated_by: deterministic@no-model`).
+ * Pack drafting helpers: turn an IngestedSpec plus optional authoring hints into
+ * a standard_set draft (tasks + programmatic round-trip oracles), with a
+ * difficulty ladder. The deterministic rule-derived path is still available for
+ * CI/offline fixtures; product-quality CLI generation records LLM-assisted
+ * authoring provenance and becomes reproducible only after review approval.
  *
  * Difficulty comes from what the executor is told, not from how we check. Task
  * prompts are GOAL-LEVEL and never name the endpoint, base URL, or request
@@ -20,7 +21,7 @@
  */
 import { stringify as yamlStringify } from "yaml";
 import type { IngestedSpec, CrudResource } from "../ingest/openapi.js";
-import type { Auth, OracleSpec, ScopeParam, Task, TargetPack } from "../schemas.js";
+import type { Auth, GeneratorProvenance, OracleSpec, ScopeParam, Task, TargetPack } from "../schemas.js";
 
 export const GENERATED_BY = "deterministic@no-model";
 
@@ -95,6 +96,22 @@ export interface L4Template {
   expected: unknown;
 }
 
+export interface OperationTaskTemplate {
+  id: string;
+  title: string;
+  difficulty: Task["difficulty"];
+  prompt: string;
+  /** Operation calls expected in the executor trace. */
+  trace?: Task["trace"];
+  /** Live read-back URL the executor must report as gid. */
+  expectedUrl: string;
+  /** Other URL forms that should count as the same correct source. */
+  expectedAny?: string[];
+  matchMode?: OracleSpec["matchMode"];
+  /** POST endpoint used by verification to read the reported URL back. */
+  readPath?: string;
+}
+
 export interface GenerateOptions {
   /** Max number of L1 single-create tasks (default 3). L1 is breadth/smoke; the
    *  depth lives in the L4 lifecycle tier, so this stays small. */
@@ -138,10 +155,21 @@ export interface GenerateOptions {
   authHeader?: string;
   /** Replace the derived sandbox-scope scaffold with explicit params. */
   sandboxScope?: ScopeParam[];
-  /** Extra constant headers merged over the ingested ones. */
+  /** Constant headers to use instead of the ingested defaults. */
   headers?: Record<string, string>;
   /** Non-API surfaces exposed by this product (SDK/MCP/CLI). */
   surfaces?: TargetPack["surfaces"];
+  /** POST-only / stateless operation tasks for APIs that don't expose CRUD
+   *  resources for their core value path (e.g. search/content APIs). */
+  operationTasks?: OperationTaskTemplate[];
+  /** Override the discovery probe when the canonical product action is not a
+   *  CRUD create endpoint. */
+  discoveryGoal?: string;
+  discoveryCanonicalEndpoint?: string;
+  deprecatedMarkers?: string[];
+  /** Override pack provenance for LLM-assisted authoring flows. */
+  generatedBy?: string;
+  generator?: GeneratorProvenance;
 }
 
 /** UPPER_SNAKE slug of a product/pack name, for env-var derivation. */
@@ -376,6 +404,35 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
     });
   }
 
+  let usedOperationTasks = false;
+  for (const tmpl of opts.operationTasks ?? []) {
+    usedOperationTasks = true;
+    tasks.push({
+      id: tmpl.id,
+      title: tmpl.title,
+      difficulty: tmpl.difficulty,
+      prompt: tmpl.prompt,
+      allowed_surfaces: ["api", "docs"],
+      depends_on: [],
+      trace: tmpl.trace ?? [
+        { type: "required_call", method: "POST", path: "/search", description: "operate the documented search endpoint" },
+      ],
+      oracles: [
+        {
+          type: "roundtrip",
+          description: "read the reported URL back through a live content endpoint",
+          readMethod: "POST",
+          readPathTemplate: tmpl.readPath ?? "/contents",
+          readBodyTemplate: { urls: ["{gid}"], text: false },
+          assertField: "results.0.url",
+          expected: tmpl.expectedUrl,
+          ...(tmpl.expectedAny ? { expectedAny: tmpl.expectedAny } : {}),
+          ...(tmpl.matchMode ? { matchMode: tmpl.matchMode } : {}),
+        },
+      ],
+    });
+  }
+
   // Discovery (behavioral AEO) — NOT a separate run. This spec configures Phase
   // 0 of every profile (see harness/executor): the cold-start where the agent
   // must find the API base URL, auth, and create call by itself before doing any
@@ -384,22 +441,22 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // create; there is no separate `outcome` — the L1-L4 tasks ARE the outcome.
   let discovery: TargetPack["discovery"];
   const discoveryRes = simple[0];
-  if (opts.product && discoveryRes) {
+  if (opts.product && (discoveryRes || opts.discoveryCanonicalEndpoint)) {
     const officialDomains = [
       hostOf(opts.siteUrl ?? ""),
       ...(opts.docsUrls ?? []).map(hostOf),
     ].filter((h, i, a) => h && a.indexOf(h) === i);
     discovery = {
       product: opts.product,
-      goal:
+      goal: opts.discoveryGoal ??
         `You are about to operate ${opts.product} programmatically. First work out, ` +
         `from scratch, how ${opts.product}'s public API works — its base URL, how to ` +
         `authenticate, the request/response shape, and how to create resources — then ` +
         `you will perform several tasks. You are NOT given any endpoint, base URL, or ` +
         `documentation link; find them yourself.`,
       official_domains: officialDomains,
-      canonical_endpoint: `POST ${discoveryRes.createPath}`,
-      deprecated_markers: [],
+      canonical_endpoint: opts.discoveryCanonicalEndpoint ?? `POST ${discoveryRes!.createPath}`,
+      deprecated_markers: opts.deprecatedMarkers ?? [],
       auth_scheme: opts.authScheme ?? (opts.authMethod === "pat" ? "Bearer personal access token" : opts.authMethod ?? ""),
     };
   }
@@ -411,7 +468,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   const slug = productSlug(product);
   const auth = deriveAuth(spec, opts, slug);
   const sandbox_scope = opts.sandboxScope ?? deriveScopeScaffold(product, slug, simple, composed);
-  const headers = { ...(spec.constantHeaders ?? {}), ...(opts.headers ?? {}) };
+  const headers = opts.headers ?? (spec.constantHeaders ?? {});
 
   return {
     name: opts.packName,
@@ -420,7 +477,12 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
     run_id: runId,
     // L4 templates are hand-curated (strongest-config authored), so the pack is
     // no longer purely rule-derived once they're included — record that.
-    generated_by: usedL4 ? `${GENERATED_BY}+l4-curated` : GENERATED_BY,
+    generated_by: opts.generatedBy ?? [
+      GENERATED_BY,
+      usedL4 ? "l4-curated" : "",
+      usedOperationTasks ? "operation-curated" : "",
+    ].filter(Boolean).join("+"),
+    generator: opts.generator,
     // OpenAPI-derived packs are REST by construction.
     api_style: "rest",
     auth_method: opts.authMethod ?? "pat",

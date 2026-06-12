@@ -99,7 +99,7 @@ npm test
 Run a live drop-a-link eval against a sandbox:
 
 ```bash
-# 1. Generate a reviewed task pack from a public spec.
+# 1. Draft a task pack from a public spec/docs, then review/freeze it.
 npm run ax-eval -- ingest --openapi https://example.com/openapi.json \
   --out results/acme-ingest.json
 npm run ax-eval -- generate --from results/acme-ingest.json
@@ -119,13 +119,20 @@ npm run ax-eval -- verify --pack results/acme.generated.pack.yaml \
 ```
 
 GraphQL targets use the same review and verification gate. Their task ladder and
-read-back queries are derived deterministically from rich introspection and must
-still be reviewed before use:
+read-back queries are drafted from rich introspection and must still be reviewed
+before use:
 
 ```bash
 npm run ax-eval -- ingest --graphql https://api.example.com/graphql \
   --out results/acme-graphql-ingest.json
 npm run ax-eval -- generate --from results/acme-graphql-ingest.json \
+  --product Acme --out results/acme.generated.pack.yaml
+```
+
+For CI/offline fixtures, keep the rule-derived path explicit:
+
+```bash
+npm run ax-eval -- generate --deterministic --from results/acme-ingest.json \
   --product Acme --out results/acme.generated.pack.yaml
 ```
 
@@ -139,10 +146,12 @@ be a new pack, not a code change.
 
 1. **Ingest:** parse OpenAPI into resources/auth hints, or GraphQL into rich
    schema metadata, typed inputs, create-style mutations, and update mutations.
-2. **Generate:** synthesize REST and GraphQL packs deterministically with an
-   L1-L4 task ladder, round-trip oracles, and discovery requirements.
+2. **Generate:** draft REST and GraphQL packs with LLM-assisted authoring from
+   docs/specs, producing an L1-L4 task ladder, round-trip oracles, and discovery
+   requirements.
 3. **Review:** require human approval before any generated task, oracle, setup,
-   or reset logic can run.
+   or reset logic can run. The reviewed pack is hash-locked and becomes the
+   reproducible benchmark artifact.
 4. **Execute:** the host agent performs each task against a sandbox, with
    discovery as Phase 0.
 5. **Verify:** the CLI reads live state back through the API and scores the run,
@@ -170,6 +179,7 @@ be a new pack, not a code change.
 npm run ax-eval -- ingest --openapi <url>       # deterministic REST/OpenAPI path
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
 npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>]
+npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
@@ -184,6 +194,10 @@ npm run ax-eval -- discover --site <url>
 npm run ax-eval -- smells --openapi <url>
 npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
 ```
+
+CI should validate frozen packs, approvals, deterministic fixtures, tests, and
+typecheck. It should not depend on live LLM regeneration; fresh authoring is a
+developer workflow that ends at `review --approve`.
 
 ## Safety
 

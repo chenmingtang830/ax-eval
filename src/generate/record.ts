@@ -152,6 +152,49 @@ export function buildNormalizedResult(
   };
 }
 
+function cellKey(run: ProfileRun): string {
+  return `${run.harness ?? "unknown"}\0${run.surface ?? "api"}`;
+}
+
+function cellFileStem(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "unknown";
+}
+
+export interface NormalizedResultCell {
+  harness: string;
+  surface: SurfaceId;
+  fileStem: string;
+  runs: ProfileRun[];
+  record: NormalizedResult;
+}
+
+/** Build one normalized record per actual {harness, surface} cell in a mixed
+ *  report. A single HTML report can summarize many cells, but competitive
+ *  aggregation wants these durable records at cell granularity. */
+export function buildNormalizedResultCells(
+  pack: TargetPack,
+  runs: ProfileRun[],
+  contentQuality: number | null = null,
+  fallbackHarness = "unknown",
+): NormalizedResultCell[] {
+  const grouped = new Map<string, ProfileRun[]>();
+  for (const run of runs) {
+    const key = cellKey(run);
+    grouped.set(key, [...(grouped.get(key) ?? []), run]);
+  }
+  return [...grouped.values()].map((cellRuns) => {
+    const harness = cellRuns.find((r) => r.harness)?.harness ?? fallbackHarness;
+    const surface = cellRuns.find((r) => r.surface)?.surface ?? "api";
+    return {
+      harness,
+      surface,
+      fileStem: `${cellFileStem(harness)}.${surface}`,
+      runs: cellRuns,
+      record: buildNormalizedResult(pack, surface, harness, cellRuns, contentQuality),
+    };
+  });
+}
+
 /**
  * Build a "blocked" cube cell for a surface that can't be evaluated headlessly
  * (no credential / OAuth-only). Metrics are zeroed and `blocked` is set so the

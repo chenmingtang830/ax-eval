@@ -1,0 +1,444 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: llm-assisted
+# standard_set_version: gen-2026-06-12
+# run_id: 2026-06-12-69ai39
+name: exa
+version: "0"
+standard_set_version: gen-2026-06-12
+run_id: 2026-06-12-69ai39
+generated_by: llm-assisted
+generator:
+  harness: codex
+  model: host-default
+  effort: high
+  prompt_version: ax-eval-generator-v1
+  source_docs:
+    - https://docs.exa.ai/reference/search-api-guide
+    - https://docs.exa.ai/reference/search-api-guide-for-coding-agents
+    - https://docs.exa.ai/reference/openapi-spec
+auth_method: api-key
+api_style: rest
+auth:
+  type: api-key
+  env: EXA_API_KEY
+  header: x-api-key
+sandbox_scope: []
+surfaces:
+  sdk:
+    package: exa-js
+    language: node
+    reference_url: https://docs.exa.ai/reference/typescript-sdk-specification
+    auth:
+      kind: inherit
+  mcp:
+    server: exa-mcp-server
+    transport: stdio
+    docs_url: https://docs.exa.ai/reference/exa-mcp
+    auth:
+      kind: token
+      token_env: EXA_API_KEY
+      instructions: Configure the Exa MCP server with EXA_API_KEY. Verification still
+        reads back through the Exa REST API.
+base_url: https://api.exa.ai
+headers:
+  Exa-Beta: agent-2026-05-07
+site_url: https://exa.ai
+openapi_url: https://docs.exa.ai/exa-spec.json
+docs_urls:
+  - https://docs.exa.ai/reference/search-api-guide
+  - https://docs.exa.ai/reference/search-api-guide-for-coding-agents
+  - https://docs.exa.ai/reference/openapi-spec
+static:
+  site_url: https://exa.ai
+  docs_urls:
+    - https://docs.exa.ai/reference/search-api-guide
+    - https://docs.exa.ai/reference/search-api-guide-for-coding-agents
+    - https://docs.exa.ai/reference/openapi-spec
+  checks: []
+discovery:
+  product: Exa
+  goal: You are about to operate Exa programmatically. First work out, from
+    scratch, how Exa's public Search API works — its base URL, how to
+    authenticate with an API key in the `x-api-key` header, the `/search`
+    request shape, and how content options such as `contents.highlights` are
+    nested — then you will perform several tasks. You are NOT given any
+    endpoint, base URL, or documentation link; find them yourself.
+  official_domains:
+    - exa.ai
+    - docs.exa.ai
+  canonical_endpoint: POST /search
+  deprecated_markers:
+    - useAutoprompt
+    - includeUrls
+    - excludeUrls
+    - livecrawl
+  auth_scheme: API key in the x-api-key header
+tasks:
+  - id: exa-l1-python-taskgroup
+    title: "L1: find official Python TaskGroup docs"
+    prompt: Use Exa Search to find the official Python documentation page for the
+      `asyncio.TaskGroup` API. Request highlights for the result, and report the
+      canonical result URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://docs.python.org/3/library/asyncio-task.html
+        expectedAny:
+          - https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l1-mdn-fetch
+    title: "L1: find MDN Fetch API docs"
+    prompt: Use Exa Search to find MDN's Fetch API reference page. Request
+      highlights for the result, and report the canonical result URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l1-rfc-9110
+    title: "L1: find RFC 9110"
+    prompt: Use Exa Search to find the HTML page for IETF RFC 9110, HTTP Semantics.
+      Request highlights for the result, and report the canonical RFC Editor URL
+      as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://www.rfc-editor.org/rfc/rfc9110.html
+        expectedAny:
+          - https://www.rfc-editor.org/info/rfc9110/
+          - https://datatracker.ietf.org/doc/html/rfc9110
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l2-domain-filter-mdn-abortcontroller
+    title: "L2: constrain search to MDN"
+    prompt: Use Exa Search to find MDN's AbortController reference page while
+      restricting results to the MDN domain. Request highlights for the result,
+      and report the canonical result URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://developer.mozilla.org/en-US/docs/Web/API/AbortController
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l2-domain-filter-python-pathlib
+    title: "L2: constrain search to Python docs"
+    prompt: Use Exa Search to find Python's official `pathlib` documentation while
+      restricting results to the Python documentation domain. Request highlights
+      for the result, and report the canonical result URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://docs.python.org/3/library/pathlib.html
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l2-official-wcag
+    title: "L2: find official WCAG recommendation"
+    prompt: Use Exa Search to find the official W3C WCAG 2.2 recommendation. Avoid
+      non-W3C mirrors or explainers if they appear above the official source,
+      request highlights, and report the official recommendation URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://www.w3.org/TR/WCAG22/
+        expectedAny:
+          - https://www.w3.org/TR/2023/REC-WCAG22-20231005/
+          - https://www.w3.org/TR/WCAG22/Overview.html
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l2-result-date-filter-node
+    title: "L2: search current Node documentation"
+    prompt: Use Exa Search to find the current Node.js documentation page for the
+      `fsPromises` API. Prefer the official Node.js documentation domain,
+      request highlights, and report the canonical documentation URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://nodejs.org/api/fs.html
+        expectedAny:
+          - https://nodejs.org/docs/latest-v26.x/api/fs.html
+          - https://nodejs.org/dist/latest/docs/api/fs.html
+          - https://nodejs.org/api/fs.html#promises-api
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search
+  - id: exa-l3-search-then-contents-rfc
+    title: "L3: search then retrieve RFC content"
+    prompt: Use Exa Search to locate the RFC Editor page for RFC 9110, then use Exa
+      Contents to retrieve clean content for the located URL. Report the
+      canonical RFC Editor URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://www.rfc-editor.org/rfc/rfc9110.html
+        expectedAny:
+          - https://www.rfc-editor.org/info/rfc9110/
+          - https://datatracker.ietf.org/doc/html/rfc9110
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: first locate the page with Exa Search
+      - type: required_call
+        method: POST
+        path: /contents
+        description: then retrieve content with Exa Contents
+  - id: exa-l3-summary-react-useeffect
+    title: "L3: request targeted summaries"
+    prompt: Use Exa Search to find the React documentation page for `useEffect`.
+      Request a per-result summary focused on cleanup functions, and report the
+      canonical React documentation URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://react.dev/reference/react/useEffect
+        expectedAny:
+          - https://react.dev/learn/synchronizing-with-effects
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search with summary content requested
+  - id: exa-l3-capped-contents-cloudflare
+    title: "L3: retrieve capped documentation text"
+    prompt: Use Exa Search to find Cloudflare's official cache rules documentation,
+      then use Exa Contents to retrieve text for the page with a character cap
+      so the response stays small. Report the canonical Cloudflare documentation
+      URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://developers.cloudflare.com/cache/how-to/cache-rules/
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: first locate the page with Exa Search
+      - type: required_call
+        method: POST
+        path: /contents
+        description: then retrieve capped text content
+  - id: exa-l4-structured-output-kubernetes-probes
+    title: "L4: synthesize official source with structured output"
+    prompt: Use Exa Search with structured output to identify the official current
+      Kubernetes documentation page for liveness, readiness, and startup probes.
+      Prefer official Kubernetes sources using the search instructions available
+      to the API, request highlights, and report the grounded source URL as the
+      id.
+    oracles:
+      - type: roundtrip
+        expected: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/
+        expectedAny:
+          - https://kubernetes.io/docs/concepts/workloads/pods/probes/
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search with structured output
+  - id: exa-l4-deep-additional-queries-postgres
+    title: "L4: deep multi-angle documentation search"
+    prompt: Use a deep-capable Exa Search with multiple query angles to find the
+      official PostgreSQL documentation page about transaction isolation levels.
+      Prefer postgresql.org sources, request highlights, and report the
+      canonical documentation URL as the id.
+    oracles:
+      - type: roundtrip
+        expected: https://www.postgresql.org/docs/current/transaction-iso.html
+        expectedAny:
+          - https://www.postgresql.org/docs/18/transaction-iso.html
+        matchMode: url
+        description: read the reported URL back through Exa Contents
+        readMethod: POST
+        readPathTemplate: /contents
+        readBodyTemplate:
+          urls:
+            - "{gid}"
+          text: false
+        assertField: results.0.url
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace:
+      - type: required_call
+        method: POST
+        path: /search
+        description: search must use Exa Search with a deep-capable query strategy

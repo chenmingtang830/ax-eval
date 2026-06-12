@@ -31,6 +31,21 @@ function runCli(args: string[], env: Record<string, string> = {}): { code: numbe
 }
 
 describe("cli arg handling", () => {
+  it("top-level help prints usage with exit 0", () => {
+    const { code, out } = runCli(["--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval");
+    expect(out).toContain("generate");
+  });
+
+  it("subcommand help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["generate", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval generate --from <ingest.json>");
+    expect(out).toContain("--deterministic");
+    expect(out).not.toContain("unknown flag");
+  });
+
   it("an unknown command prints usage with exit 2 (not a flag error)", () => {
     const { code, out } = runCli(["frobnicate", "--offlne"]);
     expect(code).toBe(2);
@@ -49,6 +64,106 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["audit", "--offline"]);
     expect(code).toBe(0);
     expect(out).toContain("Agent-readiness score");
+  });
+});
+
+describe("generate provenance", () => {
+  const dirs: string[] = [];
+  function freshDir(): string {
+    const d = mkdtempSync(resolve(tmpdir(), "ax-generate-"));
+    dirs.push(d);
+    return d;
+  }
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  function writeIngest(dir: string): string {
+    const path = resolve(dir, "ingest.json");
+    writeFileSync(
+      path,
+      JSON.stringify({
+        source: "https://docs.example.test/openapi.json",
+        title: "Widget API",
+        baseUrl: "https://api.widget.test",
+        requestEnvelope: null,
+        responseEnvelope: null,
+        auth: { type: "api-key", header: "x-api-key" },
+        constantHeaders: {},
+        resources: [
+          {
+            name: "widgets",
+            createPath: "/widgets",
+            createOp: "createWidget",
+            readPath: "/widgets/{id}",
+            readParam: "id",
+            identityField: "name",
+            createFields: ["name"],
+            dependsOn: [],
+            canUpdate: true,
+            canDelete: false,
+          },
+        ],
+      }),
+    );
+    return path;
+  }
+
+  it("defaults to LLM-assisted generation provenance", () => {
+    const dir = freshDir();
+    const ingest = writeIngest(dir);
+    const outPath = resolve(dir, "pack.yaml");
+    const fixture = resolve(dir, "llm-pack.json");
+    writeFileSync(
+      fixture,
+      JSON.stringify({
+        name: "widget-generated",
+        standard_set_version: "gen-test",
+        run_id: "run-test",
+        base_url: "https://api.widget.test",
+        auth_method: "api-key",
+        auth: { type: "api-key", env: "WIDGET_API_KEY", header: "x-api-key" },
+        sandbox_scope: [],
+        discovery: { product: "Widget", canonical_endpoint: "POST /widgets" },
+        tasks: [
+          {
+            id: "widget-l1",
+            difficulty: "L1",
+            prompt: "Create a widget named {ns}.",
+            allowed_surfaces: ["api", "docs"],
+            oracles: [{ type: "roundtrip", readPathTemplate: "/widgets/{gid}", assertField: "name", expected: "AX {ns}" }],
+          },
+        ],
+      }),
+    );
+    const { code, out } = runCli([
+      "generate",
+      "--from", ingest,
+      "--product", "Widget",
+      "--generator-harness", "codex",
+      "--generator-model", "gpt-5",
+      "--generator-effort", "high",
+      "--out", outPath,
+    ], { AX_EVAL_GENERATOR_FIXTURE: fixture });
+    expect(code).toBe(0);
+    expect(out).toContain("generated_by: llm-assisted");
+    const yaml = readFileSync(outPath, "utf8");
+    expect(yaml).toContain("generated_by: llm-assisted");
+    expect(yaml).toContain("generator:");
+    expect(yaml).toContain("harness: codex");
+    expect(yaml).toContain("model: gpt-5");
+    expect(yaml).toContain("effort: high");
+  });
+
+  it("preserves rule-derived generation with --deterministic", () => {
+    const dir = freshDir();
+    const ingest = writeIngest(dir);
+    const outPath = resolve(dir, "pack.yaml");
+    const { code } = runCli(["generate", "--deterministic", "--from", ingest, "--product", "Widget", "--out", outPath]);
+    expect(code).toBe(0);
+    const yaml = readFileSync(outPath, "utf8");
+    expect(yaml).toContain("generated_by: deterministic@no-model");
+    expect(yaml).not.toContain("generator:");
   });
 });
 

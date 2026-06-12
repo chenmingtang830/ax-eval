@@ -286,3 +286,65 @@ describe("L4 generic lifecycle generation (spec-derived)", () => {
     expect(pack.tasks.some((t) => t.id === "gen-l4-widgets-lifecycle")).toBe(false);
   });
 });
+
+describe("operation-task generation", () => {
+  const spec = parseSpec(JSON.stringify({
+    openapi: "3.0.0",
+    info: { title: "Search API" },
+    servers: [{ url: "https://api.search.test" }],
+    paths: {
+      "/search": {
+        post: {
+          operationId: "search",
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { query: { type: "string" } }, required: ["query"] },
+              },
+            },
+          },
+        },
+      },
+      "/contents": {
+        post: {
+          operationId: "contents",
+          requestBody: {
+            content: {
+              "application/json": {
+                schema: { type: "object", properties: { urls: { type: "array", items: { type: "string" } } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  }), "search");
+
+  it("emits stateless POST read-back tasks for search/content APIs", () => {
+    const pack = generatePack(spec, {
+      packName: "search",
+      product: "Search",
+      limit: 0,
+      sandboxScope: [],
+      discoveryCanonicalEndpoint: "POST /search",
+      operationTasks: [
+        {
+          id: "search-l1-doc",
+          title: "L1: find a doc",
+          difficulty: "L1",
+          prompt: "Use Search to find a stable doc. Report https://example.com/doc as the id.",
+          expectedUrl: "https://example.com/doc",
+        },
+      ],
+    });
+    expect(pack.tasks).toHaveLength(1);
+    expect(pack.sandbox_scope).toEqual([]);
+    expect(pack.discovery!.canonical_endpoint).toBe("POST /search");
+    expect(pack.generated_by).toContain("operation-curated");
+    const oracle = pack.tasks[0]!.oracles[0]!;
+    expect(oracle.readMethod).toBe("POST");
+    expect(oracle.readPathTemplate).toBe("/contents");
+    expect(oracle.readBodyTemplate).toEqual({ urls: ["{gid}"], text: false });
+    expect(oracle.expected).toBe("https://example.com/doc");
+  });
+});

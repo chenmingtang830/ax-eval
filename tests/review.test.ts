@@ -79,4 +79,10 @@ describe("review gate", () => {
     const md = reviewSummary(pack({ tasks: [{ id: "naked", prompt: "do it", oracles: [] }] }));
     expect(md).toMatch(/NO ORACLE/);
   });
+
+  it("does not describe stateless packs as write operations", () => {
+    const md = reviewSummary(pack({ sandbox_scope: [] }));
+    expect(md).toMatch(/call the live product/);
+    expect(md).not.toMatch(/write-ops/);
+  });
 });
