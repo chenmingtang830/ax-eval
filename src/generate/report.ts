@@ -754,6 +754,7 @@ function renderTldr(
 }
 
 function renderHeader(pack: TargetPack, generatedAt: string): string {
+  const product = pack.discovery?.product || pack.name.replace(/-generated$/, "");
   const meta: Array<[string, string]> = [
     ["generated", esc(generatedAt)],
     ["standard_set_version", code(pack.standard_set_version || "(unset)")],
@@ -764,7 +765,7 @@ function renderHeader(pack: TargetPack, generatedAt: string): string {
   const rows = meta.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("\n      ");
   return `<header class="ax-header">
     <div class="ax-eyebrow">Agent-readiness report</div>
-    <h1 class="ax-title">How well can an AI agent use <span class="ax-target">${esc(pack.name)}</span>?</h1>
+    <h1 class="ax-title">How well can an AI agent use <span class="ax-target">${esc(product)}</span>?</h1>
     <p class="ax-subtitle">We ran live tasks against the API to measure what an AI agent can actually complete — not just what the docs expose.</p>
     <dl class="ax-meta">
       ${rows}

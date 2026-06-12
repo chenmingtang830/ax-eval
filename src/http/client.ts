@@ -99,6 +99,24 @@ export class BearerClient {
     return json as T;
   }
 
+  /** POST JSON to a path (relative to baseUrl), unwrapping the response envelope. */
+  async post<T = unknown>(path: string, body?: unknown): Promise<T> {
+    const url = new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { ...this.headers(), "Content-Type": "application/json" },
+      body: JSON.stringify(body ?? {}),
+    });
+    const json = (await res.json()) as Record<string, unknown>;
+    if (!res.ok) {
+      const errors = json.errors as Array<{ message?: string }> | undefined;
+      const msg = errors?.[0]?.message ?? (typeof json.error === "string" ? json.error : res.statusText);
+      throw new HttpApiError(`POST ${path}: ${msg}`, res.status, json);
+    }
+    if (this.envelope && this.envelope in json) return json[this.envelope] as T;
+    return json as T;
+  }
+
   /** DELETE a path (relative to baseUrl). Throws HttpApiError on a non-2xx, so
    *  teardown (reset) can report per-resource failures. */
   async del(path: string): Promise<void> {

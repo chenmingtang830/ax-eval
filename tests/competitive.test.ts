@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import {
   buildNormalizedResult,
+  buildNormalizedResultCells,
   discoveryScore,
   NORMALIZED_RESULT_SCHEMA,
   type NormalizedResult,
@@ -121,6 +122,45 @@ describe("buildNormalizedResult", () => {
     expect(rec.pass_at_1).toBe(0);
     expect(rec.pass_at_k).toBe(0);
     expect(rec.discovery_score).toBeNull();
+  });
+
+  it("splits mixed report runs into normalized harness/surface cells", () => {
+    const pack = makePack("exa-generated");
+    const cells = buildNormalizedResultCells(
+      pack,
+      [
+        {
+          profile: "low",
+          harness: "claude-code",
+          surface: "mcp",
+          discovery: discovery({ auth: false }),
+          outcomes: [outcome("t1", true, "low"), outcome("t2", true, "low")],
+        },
+        {
+          profile: "high",
+          harness: "claude-code",
+          surface: "mcp",
+          discovery: discovery({}),
+          outcomes: [outcome("t1", true, "high"), outcome("t2", true, "high")],
+        },
+        {
+          profile: "low",
+          harness: "codex",
+          surface: "api",
+          discovery: discovery({ canonical: false }),
+          outcomes: [outcome("t1", true, "low"), outcome("t2", false, "low")],
+        },
+      ],
+      0.7,
+    );
+    expect(cells.map((c) => c.fileStem).sort()).toEqual(["claude-code.mcp", "codex.api"]);
+    const mcp = cells.find((c) => c.fileStem === "claude-code.mcp")!.record;
+    expect(mcp.product).toBe("exa");
+    expect(mcp.surface).toBe("mcp");
+    expect(mcp.harness).toBe("claude-code");
+    expect(mcp.profiles).toEqual(["low", "high"]);
+    expect(mcp.pass_at_1).toBe(1);
+    expect(mcp.content_quality).toBe(0.7);
   });
 });
 

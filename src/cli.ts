@@ -14,9 +14,10 @@
  *       [--min-pass-rate 0.8] [--html path]
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
  *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
- *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → frozen pack
- *                    [--docs url,url] [--limit N] [--l2-limit N]       (product/auth/scope auto-derived from the spec)
- *                    [--l4-limit N] [--base-url url] [--out yaml]
+ *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
+ *                    [--docs url,url] [--limit N] [--l2-limit N]       (review freezes the pack)
+ *                    [--l4-limit N] [--base-url url] [--out yaml] [--deterministic]
+ *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort high]
  *                    REST: L1 create · L2 chain · L3 goal · L4 lifecycle; GraphQL: L1 create + read-back oracles
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   round-trip oracles → HTML report
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
@@ -26,7 +27,8 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -48,12 +50,17 @@ import {
   type ProfileRun,
   type StaticReadiness,
 } from "./generate/report.js";
-import { buildNormalizedResult, buildBlockedResult, type NormalizedResult } from "./generate/record.js";
+import {
+  buildNormalizedResult,
+  buildNormalizedResultCells,
+  buildBlockedResult,
+  type NormalizedResult,
+} from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import type { TargetPack } from "./schemas.js";
+import { TargetPackSchema, type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
-import { scoreDiscovery } from "./generate/discovery.js";
+import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
 import {
   defaultInvokePaths,
@@ -76,6 +83,80 @@ import { resetPack } from "./target/reset.js";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "asana", "pack.yaml");
 const INVOKE_HARNESS_LIST = INVOKE_HARNESS_IDS.join("|");
+const COMMANDS = [
+  "run",
+  "audit",
+  "discover",
+  "smells",
+  "report",
+  "list-harnesses",
+  "probe",
+  "check-env",
+  "init",
+  "verify",
+  "ingest",
+  "generate",
+  "review",
+  "exec-plan",
+  "verify-generated",
+  "competitive",
+  "trace-diff",
+  "reset",
+] as const;
+const COMMAND_SET = new Set<string>(COMMANDS);
+const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
+
+function isHelpToken(value: string | undefined): boolean {
+  return value === "--help" || value === "-h" || value === "help";
+}
+
+function commandUsage(command: string | undefined): string {
+  switch (command) {
+    case "smells":
+      return "usage: ax-eval smells --openapi <url> [--html out.html] [--out json] [--offline]";
+    case "report":
+      return "usage: ax-eval report <results.json>";
+    case "ingest":
+      return "usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file>) [--out json] [--offline]";
+    case "generate":
+      return [
+        "usage: ax-eval generate --from <ingest.json> [--product P] [--site url]",
+        "                       [--docs url,url] [--limit N] [--l2-limit N] [--l4-limit N]",
+        "                       [--base-url url] [--out yaml] [--deterministic]",
+        "                       [--generator-harness codex|claude-code] [--generator-model m]",
+        "                       [--generator-effort low|medium|high]",
+      ].join("\n");
+    case "review":
+      return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
+    case "exec-plan":
+      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--surface api|cli|sdk|mcp|all] [--invoke]`;
+    case "verify-generated":
+    case "verify":
+      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--min-pass-rate 0.8]";
+    case "competitive":
+      return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
+    case "trace-diff":
+      return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
+    case "reset":
+      return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
+    case "run":
+      return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
+    case "audit":
+      return "usage: ax-eval audit [--pack <yaml> | --site url] [--offline]";
+    case "discover":
+      return "usage: ax-eval discover [--pack <yaml> | --site url] [--max-pages N] [--max-depth N] [--offline]";
+    case "list-harnesses":
+      return "usage: ax-eval list-harnesses";
+    case "probe":
+      return "usage: ax-eval probe [--out json]";
+    case "check-env":
+      return "usage: ax-eval check-env --pack <yaml> [--surface api|cli|sdk|mcp|all]";
+    case "init":
+      return "usage: ax-eval init --pack <yaml> [--surface api|cli|sdk|mcp|all]";
+    default:
+      return USAGE;
+  }
+}
 
 interface Parsed {
   pack: string;
@@ -89,6 +170,10 @@ interface Parsed {
    *  effort, and is translated to each harness's native convention at invocation
    *  (codex → model_reasoning_effort; claude-code → prompt-level). */
   effort: string;
+  deterministic: boolean;
+  generatorHarness: string;
+  generatorModel: string;
+  generatorEffort: string;
   /** Max harness invocations to run at once (`--concurrency`, default 4). Parallel
    *  by default for speed; `1` forces serial. Concurrent runs use distinct
    *  namespaces so they don't collide in the sandbox. */
@@ -146,6 +231,10 @@ function parseArgs(argv: string[]): Parsed {
     profile: [],
     model: "",
     effort: "",
+    deterministic: false,
+    generatorHarness: "",
+    generatorModel: "",
+    generatorEffort: "high",
     concurrency: 4,
     invokeTimeout: 900,
     invokeRetries: 1,
@@ -203,6 +292,22 @@ function parseArgs(argv: string[]): Parsed {
         throw new Error(`--effort must be one of low|medium|high (got ${v})`);
       }
       p.effort = v;
+    }
+    else if (a === "--deterministic") p.deterministic = true;
+    else if (a === "--generator-harness") {
+      const v = value(++i, "--generator-harness");
+      if (!["codex", "claude-code", "host-agent"].includes(v)) {
+        throw new Error(`--generator-harness must be one of codex|claude-code|host-agent (got ${v})`);
+      }
+      p.generatorHarness = v;
+    }
+    else if (a === "--generator-model") p.generatorModel = value(++i, "--generator-model");
+    else if (a === "--generator-effort") {
+      const v = value(++i, "--generator-effort");
+      if (!["low", "medium", "high"].includes(v)) {
+        throw new Error(`--generator-effort must be one of low|medium|high (got ${v})`);
+      }
+      p.generatorEffort = v;
     }
     else if (a === "--invoke-timeout") {
       const n = Number(value(++i, "--invoke-timeout"));
@@ -626,6 +731,338 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
   ],
 };
 
+const exaUrlOracleTrace = (description: string): NonNullable<GenerateOptions["operationTasks"]>[number]["trace"] => [
+  { type: "required_call", method: "POST", path: "/search", description },
+];
+
+const EXA_PRESET: Partial<GenerateOptions> = {
+  packName: "exa",
+  siteUrl: "https://exa.ai",
+  openapiUrl: "https://docs.exa.ai/exa-spec.json",
+  docsUrls: [
+    "https://docs.exa.ai/reference/search-api-guide",
+    "https://docs.exa.ai/reference/search-api-guide-for-coding-agents",
+    "https://docs.exa.ai/reference/openapi-spec",
+  ],
+  authMethod: "api-key",
+  authScheme: "API key in the x-api-key header",
+  authType: "api-key",
+  authEnv: "EXA_API_KEY",
+  authHeader: "x-api-key",
+  headers: {},
+  sandboxScope: [],
+  limit: 0,
+  l2Limit: 0,
+  l4Limit: 0,
+  discoveryCanonicalEndpoint: "POST /search",
+  discoveryGoal:
+    "You are about to operate Exa programmatically. First work out, from scratch, how Exa's public Search API works — its base URL, how to authenticate with an API key in the `x-api-key` header, the `/search` request shape, and how content options such as `contents.highlights` are nested — then you will perform several tasks. You are NOT given any endpoint, base URL, or documentation link; find them yourself.",
+  deprecatedMarkers: ["useAutoprompt", "includeUrls", "excludeUrls", "livecrawl"],
+  surfaces: {
+    sdk: {
+      package: "exa-js",
+      language: "node",
+      reference_url: "https://docs.exa.ai/reference/typescript-sdk-specification",
+      auth: { kind: "inherit" },
+    },
+    mcp: {
+      server: "exa-mcp-server",
+      transport: "stdio",
+      docs_url: "https://docs.exa.ai/reference/exa-mcp",
+      auth: {
+        kind: "token",
+        token_env: "EXA_API_KEY",
+        instructions: "Configure the Exa MCP server with EXA_API_KEY. Verification still reads back through the Exa REST API.",
+      },
+    },
+  },
+  operationTasks: [
+    {
+      id: "exa-l1-python-taskgroup",
+      title: "L1: find official Python docs",
+      difficulty: "L1",
+      prompt:
+        "Use Exa Search to find the official Python documentation page for the `asyncio.TaskGroup` API. Request highlights via `contents.highlights`, and report the result URL `https://docs.python.org/3/library/asyncio-task.html` as the id if it is returned.",
+      expectedUrl: "https://docs.python.org/3/library/asyncio-task.html",
+      expectedAny: ["https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup"],
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l1-mdn-fetch",
+      title: "L1: find MDN Fetch API docs",
+      difficulty: "L1",
+      prompt:
+        "Use Exa Search to find MDN's Fetch API reference. Request highlights via `contents.highlights`, and report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API` as the id if it is returned.",
+      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l1-rfc-9110",
+      title: "L1: find an RFC",
+      difficulty: "L1",
+      prompt:
+        "Use Exa Search to find the HTML page for IETF RFC 9110, HTTP Semantics. Request highlights via `contents.highlights`, and report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
+      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
+      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l2-domain-filter-mdn",
+      title: "L2: constrain search to one domain",
+      difficulty: "L2",
+      prompt:
+        "Use Exa Search to find MDN's AbortController reference. Use `includeDomains` to restrict results to developer.mozilla.org and request `contents.highlights`. Report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/AbortController` as the id if it is returned.",
+      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l2-domain-filter-python",
+      title: "L2: constrain search to Python docs",
+      difficulty: "L2",
+      prompt:
+        "Use Exa Search to find Python's official `pathlib` documentation. Use `includeDomains` to restrict results to docs.python.org and request `contents.highlights`. Report the result URL `https://docs.python.org/3/library/pathlib.html` as the id if it is returned.",
+      expectedUrl: "https://docs.python.org/3/library/pathlib.html",
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l2-exclude-domain",
+      title: "L2: exclude a misleading domain",
+      difficulty: "L2",
+      prompt:
+        "Use Exa Search to find the W3C WCAG 2.2 recommendation. Exclude misleading mirrors or explainers if they crowd out the official W3C result, request `contents.highlights`, and report the result URL `https://www.w3.org/TR/WCAG22/` as the id if it is returned.",
+      expectedUrl: "https://www.w3.org/TR/WCAG22/",
+      expectedAny: ["https://www.w3.org/TR/2023/REC-WCAG22-20231005/", "https://www.w3.org/TR/WCAG22/Overview.html"],
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
+    },
+    {
+      id: "exa-l3-contents-readback-rfc",
+      title: "L3: search then retrieve clean content",
+      difficulty: "L3",
+      prompt:
+        "Use Exa Search to locate the IETF RFC 9110 HTTP Semantics page on rfc-editor.org, then use Exa Contents to retrieve clean content for the URL. Report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
+      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
+      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
+      matchMode: "url",
+      trace: [
+        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
+        { type: "required_call", method: "POST", path: "/contents", description: "retrieve content for the located URL" },
+      ],
+    },
+    {
+      id: "exa-l3-summary-content",
+      title: "L3: request per-result summaries",
+      difficulty: "L3",
+      prompt:
+        "Use Exa Search to find the React documentation page for `useEffect`. Request `contents.summary` with a query focused on cleanup functions, and report the result URL `https://react.dev/reference/react/useEffect` as the id if it is returned.",
+      expectedUrl: "https://react.dev/reference/react/useEffect",
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must request summary content"),
+    },
+    {
+      id: "exa-l3-text-content-cap",
+      title: "L3: retrieve capped text content",
+      difficulty: "L3",
+      prompt:
+        "Use Exa Search to find the Node.js documentation page for `fsPromises`. Then use Exa Contents to retrieve text for the page with a character cap so the response stays small. Report the result URL `https://nodejs.org/api/fs.html` as the id if it is returned.",
+      expectedUrl: "https://nodejs.org/api/fs.html",
+      expectedAny: ["https://nodejs.org/docs/latest-v26.x/api/fs.html", "https://nodejs.org/dist/latest/docs/api/fs.html", "https://nodejs.org/api/fs.html#promises-api"],
+      matchMode: "url",
+      trace: [
+        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
+        { type: "required_call", method: "POST", path: "/contents", description: "retrieve capped text content" },
+      ],
+    },
+    {
+      id: "exa-l4-structured-output-official-source",
+      title: "L4: synthesize structured output from official sources",
+      difficulty: "L4",
+      prompt:
+        "Use Exa Search with `outputSchema` to synthesize the official current Kubernetes documentation page for probes. Prefer official sources with a `systemPrompt`, request highlights, and report the source URL `https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/` as the id if it is returned in results or grounding.",
+      expectedUrl: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
+      expectedAny: ["https://kubernetes.io/docs/concepts/workloads/pods/probes/"],
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use structured output"),
+    },
+    {
+      id: "exa-l4-deep-comparison",
+      title: "L4: deep search comparison",
+      difficulty: "L4",
+      prompt:
+        "Use a deep Exa Search variant to compare official PostgreSQL documentation pages about transaction isolation levels. Prefer postgresql.org sources, request highlights, and report the result URL `https://www.postgresql.org/docs/current/transaction-iso.html` as the id if it is returned.",
+      expectedUrl: "https://www.postgresql.org/docs/current/transaction-iso.html",
+      expectedAny: ["https://www.postgresql.org/docs/18/transaction-iso.html"],
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use a deep search variant"),
+    },
+    {
+      id: "exa-l4-multi-angle-query",
+      title: "L4: multi-angle search",
+      difficulty: "L4",
+      prompt:
+        "Use Exa Search with a deep-capable search type and `additionalQueries` to find the official Cloudflare documentation page for cache rules. Use one query angle for \"cache rules\" and another for \"set cache eligibility\", and report the result URL `https://developers.cloudflare.com/cache/how-to/cache-rules/` as the id if it is returned.",
+      expectedUrl: "https://developers.cloudflare.com/cache/how-to/cache-rules/",
+      matchMode: "url",
+      trace: exaUrlOracleTrace("search must use additional query angles"),
+    },
+  ],
+};
+
+function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specSource: unknown): NonNullable<TargetPack["generator"]> {
+  const detected = probeHarness().host;
+  const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
+  const sourceDocs = docsUrls && docsUrls.length
+    ? docsUrls
+    : typeof specSource === "string" && /^https?:\/\//.test(specSource)
+      ? [specSource]
+      : [];
+  return {
+    harness,
+    model: args.generatorModel || "host-default",
+    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    prompt_version: "ax-eval-generator-v1",
+    source_docs: sourceDocs,
+  };
+}
+
+function taskSummary(pack: TargetPack): unknown {
+  return pack.tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    difficulty: t.difficulty,
+    prompt: t.prompt,
+    allowed_surfaces: t.allowed_surfaces,
+    oracles: t.oracles,
+    trace: t.trace ?? [],
+  }));
+}
+
+function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack): string {
+  const specSummary = JSON.stringify({
+    source: (spec as { source?: unknown }).source,
+    title: (spec as { title?: unknown }).title,
+    baseUrl: (spec as { baseUrl?: unknown }).baseUrl,
+    auth: (spec as { auth?: unknown }).auth,
+    constantHeaders: (spec as { constantHeaders?: unknown }).constantHeaders,
+    resources: (spec as { resources?: unknown }).resources,
+  }, null, 2);
+  const seedJson = JSON.stringify({
+    ...seed,
+    tasks: taskSummary(seed),
+  }, null, 2);
+  return [
+    `You are the ax-eval pack generator for ${product}.`,
+    "",
+    "Create one product-quality TargetPack JSON object. Return ONLY valid JSON: no markdown, no commentary.",
+    "",
+    "Hard requirements:",
+    "- Preserve the target product, auth env names, base URL, surfaces, docs URLs, and discovery shape unless the seed is clearly wrong.",
+    "- Produce exactly 12 tasks unless the seed has fewer than 12 viable operation tasks.",
+    "- Include L1, L2, L3, and L4 tasks, with at least one L4 task.",
+    "- Prompts must be goal-level: do not hand the agent a curl command or exact endpoint implementation steps.",
+    "- Every task must have at least one programmatic oracle.",
+    "- For stateless search/read APIs, use roundtrip POST read-back oracles where appropriate, with readMethod/readPathTemplate/readBodyTemplate.",
+    "- For URL assertions, prefer matchMode:\"url\" and include expectedAny aliases for canonical-equivalent, versioned, anchor, or redirect URLs that should count as the same correct source.",
+    "- Do not include secrets or secret values. Use only env-var names.",
+    "- Keep generated_by/generator fields if present; the CLI will normalize provenance after validation.",
+    "",
+    "Ingested spec summary:",
+    specSummary,
+    "",
+    "Seed pack JSON to improve or preserve:",
+    seedJson,
+  ].join("\n");
+}
+
+function extractJsonObject(raw: string): string {
+  const trimmed = raw.trim();
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  if (fenced?.[1]) return extractJsonObject(fenced[1]);
+  const first = trimmed.indexOf("{");
+  const last = trimmed.lastIndexOf("}");
+  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  throw new Error("generator harness did not return a JSON object");
+}
+
+function normalizeHarnessText(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed) return trimmed;
+  try {
+    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
+    if (typeof parsed.result === "string") return parsed.result;
+    if (typeof parsed.message === "string") return parsed.message;
+    if (typeof parsed.output === "string") return parsed.output;
+  } catch {
+    // Plain JSON pack or plain text; extractJsonObject handles both.
+  }
+  return trimmed;
+}
+
+function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): string {
+  const fixture = process.env.AX_EVAL_GENERATOR_FIXTURE;
+  if (fixture) return readFileSync(fixture, "utf8");
+
+  const harness = provenance.harness;
+  if (harness === "codex") {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-generator-"));
+    const outPath = resolve(dir, "pack.json");
+    const modelArgs = args.generatorModel ? ["-m", args.generatorModel] : [];
+    const effortArgs = provenance.effort ? ["-c", `model_reasoning_effort=${provenance.effort}`] : [];
+    const res = spawnSync("codex", [
+      "exec",
+      "--sandbox", "workspace-write",
+      "-c", "sandbox_workspace_write.network_access=true",
+      "--json",
+      ...modelArgs,
+      ...effortArgs,
+      "--output-last-message", outPath,
+      prompt,
+    ], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    if (res.error || (res.status ?? 1) !== 0) {
+      throw new Error(`generator harness codex failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
+    }
+    return existsSync(outPath) ? readFileSync(outPath, "utf8") : res.stdout;
+  }
+
+  if (harness === "claude-code") {
+    const modelArgs = args.generatorModel ? ["--model", args.generatorModel] : [];
+    const res = spawnSync("claude", ["-p", prompt, "--output-format", "json", ...modelArgs], {
+      cwd: process.cwd(),
+      encoding: "utf8",
+      maxBuffer: 50 * 1024 * 1024,
+    });
+    if (res.error || (res.status ?? 1) !== 0) {
+      throw new Error(`generator harness claude-code failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
+    }
+    return normalizeHarnessText(res.stdout);
+  }
+
+  throw new Error(`generator harness ${harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
+}
+
+function authorPackWithLlm(product: string, spec: unknown, seed: TargetPack, args: Parsed, docsUrls: string[] | undefined): TargetPack {
+  const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
+  const prompt = buildGeneratorPrompt(product, spec, { ...seed, generated_by: "llm-assisted", generator: provenance });
+  const raw = runGeneratorHarness(prompt, args, provenance);
+  const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
+  const pack = TargetPackSchema.parse({
+    ...parsed,
+    generated_by: "llm-assisted",
+    generator: provenance,
+  });
+  return pack;
+}
+
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
   const from = args.from || "results/ingest.json";
@@ -642,7 +1079,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     : undefined;
 
   if (looksLikeGraphqlIngest(spec)) {
-    const pack = generateGraphqlPack(spec, {
+    const generated = generateGraphqlPack(spec, {
       limit: args.limit,
       runId: args.runId || undefined,
       packName: `${slugify(product)}-generated`,
@@ -651,6 +1088,9 @@ async function cmdGenerate(args: Parsed): Promise<number> {
       siteUrl: args.site || "",
       ...(docsUrls ? { docsUrls } : {}),
     });
+    const pack: TargetPack = args.deterministic
+      ? generated
+      : authorPackWithLlm(product, spec, generated, args, docsUrls);
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
@@ -668,6 +1108,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   }
 
   const isAsana = product.toLowerCase() === "asana";
+  const isExa = product.toLowerCase() === "exa";
 
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
@@ -689,16 +1130,24 @@ async function cmdGenerate(args: Parsed): Promise<number> {
 
   // Asana keeps its hand-curated extras (see ASANA_PRESET). Explicit --site/--docs
   // flags still win over the preset's defaults.
-  const opts: GenerateOptions = isAsana
+  const preset = isAsana ? ASANA_PRESET : isExa ? EXA_PRESET : undefined;
+  const opts: GenerateOptions = preset
     ? {
-        ...ASANA_PRESET,
+        ...preset,
         ...baseOpts,
-        ...(args.site ? { siteUrl: args.site } : { siteUrl: ASANA_PRESET.siteUrl }),
-        ...(docsUrls ? { docsUrls } : { docsUrls: ASANA_PRESET.docsUrls }),
+        ...(preset.packName ? { packName: preset.packName } : {}),
+        ...(args.limit === 3 && preset.limit !== undefined ? { limit: preset.limit } : {}),
+        ...(args.site ? { siteUrl: args.site } : { siteUrl: preset.siteUrl }),
+        ...(docsUrls ? { docsUrls } : { docsUrls: preset.docsUrls }),
       }
     : baseOpts;
 
-  const pack = generatePack(spec, opts);
+  const provenanceDocs = opts.docsUrls ?? docsUrls;
+  const seed = generatePack(
+    spec,
+    args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
+  );
+  const pack = args.deterministic ? seed : authorPackWithLlm(product, spec, seed, args, provenanceDocs);
   const yaml = packToYaml(pack);
   // Default output: Asana keeps its committed target path; everything else lands
   // in results/<slug>.generated.pack.yaml unless --out is given.
@@ -709,6 +1158,12 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, yaml);
   console.log(`Generated ${pack.tasks.length} tasks for ${product} (generated_by: ${pack.generated_by}):`);
+  if (pack.generator) {
+    console.log(
+      `  generator: ${pack.generator.harness}/${pack.generator.model} effort=${pack.generator.effort} ` +
+        `prompt=${pack.generator.prompt_version}`,
+    );
+  }
   for (const t of pack.tasks) console.log(`  [${t.difficulty}] ${t.id} — surfaces:[${t.allowed_surfaces.join(",")}]`);
   console.log(`\nFrozen pack → ${out}`);
   if (!isAsana) {
@@ -1088,6 +1543,21 @@ function passRate(runs: ProfileRun[]): number {
   return outcomes.filter((o) => o.success).length / outcomes.length;
 }
 
+function mergeDiscoveryResults(observed: DiscoveryResult, selfReported: DiscoveryResult | undefined): DiscoveryResult {
+  if (!selfReported) return observed;
+  const uniq = (values: (string | undefined)[]): string[] => [...new Set(values.filter((v): v is string => !!v))];
+  return {
+    ns: observed.ns ?? selfReported.ns,
+    completed_gid: observed.completed_gid ?? selfReported.completed_gid,
+    searches: uniq([...(observed.searches ?? []), ...(selfReported.searches ?? [])]),
+    urls_visited: uniq([...(observed.urls_visited ?? []), ...(selfReported.urls_visited ?? [])]),
+    endpoint_used: observed.endpoint_used || selfReported.endpoint_used,
+    auth_scheme_found: observed.auth_scheme_found || selfReported.auth_scheme_found,
+    inspected_local_source: observed.inspected_local_source === true || selfReported.inspected_local_source === true,
+    notes: uniq([observed.notes, selfReported.notes]).join("; "),
+  };
+}
+
 /**
  * Render the local competitive report from normalized records. Reads every
  * `--results <*.normalized.json>` (the cube cells emitted by verify-generated)
@@ -1176,15 +1646,17 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // OBJECTIVE funnel parsed from the harness transcript over the agent's
     // self-report; fall back to self-report, labeling the provenance.
     //
-    // Transcript resolution, in order: (1) an explicit `--observe <profile>=<path>`
-    // override, else (2) the per-result sibling transcript (`run-*.transcript.jsonl`,
-    // like the trace sibling). The sibling is keyed to THIS result, so a multi-cell
-    // report (several harness×surface runs that share a profile name) scores each
-    // cell against its OWN transcript instead of colliding on `--observe[profile]`.
+    // Transcript resolution, in order: (1) the per-result sibling transcript
+    // (`run-*.transcript.jsonl`, like the trace sibling), else (2) an explicit
+    // `--observe <profile>=<path>` fallback. Sibling-first is intentional:
+    // multi-cell reports reuse profile names (low/high) across harness×surface
+    // runs, so a profile-keyed observe map would otherwise let one transcript
+    // overwrite all sibling cells with the same profile.
     let discovery;
     let discoverySource: ProfileRun["discoverySource"];
     const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
-    const obsPath = args.observe[executor.profile] ?? (existsSync(siblingTranscript) ? siblingTranscript : undefined);
+    const profileObservedTranscript = args.observe[executor.profile];
+    const obsPath = existsSync(siblingTranscript) ? siblingTranscript : profileObservedTranscript;
     if (pack.discovery?.product && obsPath) {
       if (!existsSync(obsPath)) {
         warnings.push(
@@ -1198,9 +1670,12 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       } else {
         try {
           const run = parseTranscript(obsPath, parseOpts);
+          const selfReported = executor.discovery
+            ? { ...executor.discovery, ns: executor.discovery.ns ?? executor.ns }
+            : undefined;
           discovery = await scoreDiscovery(
             pack.discovery,
-            observedToDiscovery(run, executor.ns, surface),
+            mergeDiscoveryResults(observedToDiscovery(run, executor.ns, surface), selfReported),
             client,
             { surface, apiStyle: pack.api_style },
           );
@@ -1325,6 +1800,19 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const recordPath = outPath.replace(/\.[^.]+$/, "") + ".normalized.json";
   writeFileSync(recordPath, JSON.stringify(record, null, 2));
   console.log(`Saved normalized record → ${recordPath}`);
+  const contentQuality =
+    staticReadiness?.contentScore !== undefined ? staticReadiness.contentScore / 100 : null;
+  const cells = buildNormalizedResultCells(pack, byProfile, contentQuality, probeHarness().host);
+  if (cells.length > 1) {
+    const base = outPath.replace(/\.[^.]+$/, "");
+    const cellPaths: string[] = [];
+    for (const cell of cells) {
+      const path = `${base}.${cell.fileStem}.normalized.json`;
+      writeFileSync(path, JSON.stringify(cell.record, null, 2));
+      cellPaths.push(path);
+    }
+    console.log(`Saved normalized cell records → ${cellPaths.join(", ")}`);
+  }
   const anyFail = byProfile.some((p) => p.outcomes.some((o) => !o.success));
   const rate = passRate(byProfile);
   for (const p of byProfile) {
@@ -1387,34 +1875,19 @@ async function cmdReset(args: Parsed): Promise<number> {
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
+  if (isHelpToken(command)) {
+    console.log(USAGE);
+    return 0;
+  }
   // Validate the command before parsing flags, so an unknown command shows the
   // usage message rather than a flag-parse error from a stray --typo.
-  const COMMANDS = new Set([
-    "run",
-    "audit",
-    "discover",
-    "smells",
-    "report",
-    "list-harnesses",
-    "probe",
-    "check-env",
-    "init",
-    "verify",
-    "ingest",
-    "generate",
-    "review",
-    "exec-plan",
-    "verify-generated",
-    "competitive",
-    "trace-diff",
-    "reset",
-  ]);
-  const USAGE =
-    "usage: ax-eval <run|audit|discover|smells|report|verify|check-env|init|" +
-    "list-harnesses|probe|ingest|generate|review|exec-plan|verify-generated|competitive|trace-diff|reset> [options]";
-  if (command === undefined || !COMMANDS.has(command)) {
+  if (command === undefined || !COMMAND_SET.has(command)) {
     console.error(USAGE);
     return 2;
+  }
+  if (argv.slice(1).some(isHelpToken)) {
+    console.log(commandUsage(command));
+    return 0;
   }
   const args = parseArgs(argv.slice(1));
   switch (command) {

@@ -197,6 +197,20 @@ describe("surface-aware discovery scoring", () => {
     expect(report.metrics.find((m) => m.id === "auth")!.passed).toBe(true);
   });
 
+  it("local artifact paths are not treated as misleading web landings", async () => {
+    const result: DiscoveryResult = {
+      searches: [],
+      urls_visited: ["targets/exa/pack.yaml"],
+      endpoint_used: "web_search_exa",
+      auth_scheme_found: "EXA_API_KEY environment variable",
+      inspected_local_source: true,
+    };
+    const report = await scoreDiscovery(spec, result, client, { surface: "mcp" });
+    expect(report.metrics.find((m) => m.id === "misled")!.passed).toBe(true);
+    expect(report.metrics.find((m) => m.id === "canonical")!.passed).toBe(true);
+    expect(report.metrics.find((m) => m.id === "auth")!.passed).toBe(true);
+  });
+
   it("MCP auth FAILS only when no tool was used (couldn't authenticate at all)", async () => {
     const result: DiscoveryResult = {
       searches: ["linear mcp"],

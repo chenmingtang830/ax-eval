@@ -160,6 +160,23 @@ function comprehensiveScenario(): { pack: TargetPack; runs: ProfileRun[]; stat: 
 // ---------------------------------------------------------------------------
 
 describe("renderGeneratedReport (HTML)", () => {
+  it("uses the product name in the headline, not the generated pack id", () => {
+    const pack = TargetPackSchema.parse({
+      ...makePack([{ id: "t", difficulty: "L1", prompt: "x" }]),
+      name: "asana-generated",
+      discovery: { product: "Asana" },
+    });
+    const html = renderGeneratedReport(pack, [
+      {
+        profile: "high",
+        outcomes: [outcome("t", "L1", "high", true)],
+        trace: [],
+      },
+    ]);
+    expect(html).toContain("How well can an AI agent use <span class=\"ax-target\">Asana</span>?");
+    expect(html).not.toContain("use <span class=\"ax-target\">asana-generated</span>");
+  });
+
   it("emits a self-contained, semantic HTML document with every section", () => {
     const { pack, runs, stat } = comprehensiveScenario();
     const html = renderGeneratedReport(pack, runs, stat);
@@ -172,7 +189,7 @@ describe("renderGeneratedReport (HTML)", () => {
 
     // Section landmarks (top → bottom).
     expect(html).toContain("AX eval");
-    expect(html).toContain(">demo<");
+    expect(html).toContain(">Demo<");
     expect(html).toContain("standard_set_version");
     expect(html).toContain("<h2>Summary</h2>");
     expect(html).toContain("Key findings");
