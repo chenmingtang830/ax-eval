@@ -146,6 +146,18 @@ The repo ships a few example target packs under `targets/` for REST and GraphQL
 products. They demonstrate the pack format; adding another SaaS should usually
 be a new pack, not a code change.
 
+## Examples
+
+The repo now ships two full HTML report examples under [`examples/`](./examples/):
+
+- [Asana cross-harness, cross-surface report](./examples/asana-cross-harness-cross-surface.html)
+- [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
+
+These are stable copies of real run artifacts, meant to show new contributors
+what a finished ax-eval report looks like without making them dig through
+`results/runs/`. If you are new here, open one of those reports before changing
+the reporting pipeline or adding a new target.
+
 ## How It Works
 
 ![ax-eval architecture](./assets/architecture.svg)
