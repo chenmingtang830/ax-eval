@@ -58,7 +58,7 @@ import {
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { TargetPackSchema, type TargetPack } from "./schemas.js";
-import { getSurface, resolveSurfaceSelection } from "./surface/index.js";
+import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
@@ -1632,9 +1632,10 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // is not an override — each result keeps its own self-reported surface.
     const surface: SurfaceId =
       concreteSurface(args) ?? (isSurfaceId(executor.surface) ? executor.surface : "api");
+    const taskCount = tasksForSurface(pack, surface).length;
     const passCount = Object.values(executor.results).filter((r) => r?.gid).length;
-    console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${pack.tasks.length} tasks reported a gid)…`);
-    const outcomes = await verifyGeneratedPack(pack, executor, client);
+    console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${taskCount} tasks reported a gid on ${surface})…`);
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
     if (!existsSync(tracePath)) {

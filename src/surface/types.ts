@@ -3,7 +3,7 @@
  * only schemas) so the adapters can depend on it without creating a cycle with
  * the registry in index.ts (which imports the adapters).
  */
-import type { TargetPack } from "../schemas.js";
+import type { TargetPack, Task } from "../schemas.js";
 
 export type SurfaceId = "api" | "cli" | "sdk" | "mcp";
 
@@ -21,6 +21,24 @@ export const DISCOVERY_HEADER = "=== PHASE 0 — DISCOVERY (cold start, scored) 
 /** The product label an agent is told to operate (discovery.product or pack.name). */
 export function productName(pack: TargetPack): string {
   return pack.discovery?.product || pack.name;
+}
+
+/** Concrete execution surfaces explicitly named on a task, excluding helper
+ *  affordances like `docs`. Empty means the task bank hasn't been narrowed for
+ *  execution surfaces yet, so the task applies everywhere. */
+export function taskExecutionSurfaces(task: Pick<Task, "allowed_surfaces">): SurfaceId[] {
+  return task.allowed_surfaces.filter(isSurfaceId);
+}
+
+/** Whether a task should run on the selected execution surface. */
+export function taskSupportsSurface(task: Pick<Task, "allowed_surfaces">, surface: SurfaceId): boolean {
+  const concrete = taskExecutionSurfaces(task);
+  return concrete.length === 0 || concrete.includes(surface);
+}
+
+/** Subset of tasks that apply to the selected execution surface. */
+export function tasksForSurface(pack: Pick<TargetPack, "tasks">, surface: SurfaceId): Task[] {
+  return pack.tasks.filter((task) => taskSupportsSurface(task, surface));
 }
 
 /**

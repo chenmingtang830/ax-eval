@@ -71,6 +71,35 @@ describe("round-trip verification", () => {
     expect(out[0]!.success).toBe(false);
   });
 
+  it("verifies only the tasks that apply to the selected surface", async () => {
+    const surfacePack: TargetPack = {
+      ...pack,
+      tasks: [
+        pack.tasks[0]!,
+        {
+          ...pack.tasks[0]!,
+          id: "gen-l1-mcp-only",
+          title: "MCP only",
+          allowed_surfaces: ["mcp", "docs"],
+          oracles: [
+            {
+              ...pack.tasks[0]!.oracles[0]!,
+              expected: "from-mcp",
+            },
+          ],
+        },
+      ],
+    };
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      surface: "mcp",
+      results: { "gen-l1-mcp-only": { gid: "2" } },
+    };
+    const out = await verifyGeneratedPack(surfacePack, exec, fakeClient({ "2": { name: "from-mcp" } }), "mcp");
+    expect(out.map((row) => row.taskId)).toEqual(["gen-l1-mcp-only"]);
+    expect(out[0]!.success).toBe(true);
+  });
+
   it("substitutes the executor's ns into a {ns} expected before comparing", async () => {
     const nsPack: TargetPack = {
       ...pack,

@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import {
+  DEFAULT_ASYNC_SPAWN,
   defaultInvokePaths,
   detectInvokeHarness,
   runInvokeHarness,
@@ -138,6 +139,72 @@ describe("runInvokeHarness", () => {
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
   });
 
+  it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    let seenArgs: string[] = [];
+    const spawn: AsyncSpawn = async (_command, args) => {
+      seenArgs = args;
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    expect(seenArgs).toContain("-c");
+    expect(seenArgs).toContain('approval_policy="never"');
+  });
+
+  it("restricts the codex output schema to tasks that apply to the selected surface", async () => {
+    const dir = freshDir();
+    const surfacePack = TargetPackSchema.parse({
+      ...pack(),
+      tasks: [
+        {
+          id: "api-only",
+          prompt: "Create one thing.",
+          allowed_surfaces: ["api", "docs"],
+          oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "x" }],
+        },
+        {
+          id: "mcp-only",
+          prompt: "Create one thing through MCP.",
+          allowed_surfaces: ["mcp", "docs"],
+          oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "y" }],
+        },
+      ],
+    });
+    const paths = defaultInvokePaths(dir, "codex-mcp", "codex");
+    writeFileSync(paths.promptPath, "Do the task and write files.");
+    const run: InvokeRunOptions = {
+      pack: surfacePack,
+      harness: "codex",
+      profile: "ceiling",
+      surface: "mcp",
+      ns: "demo-high-mcp",
+      paths,
+      cwd: dir,
+    };
+
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "mcp", discovery: {}, results: { "mcp-only": { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const schema = JSON.parse(readFileSync(paths.codexSchemaPath!, "utf8"));
+    expect(Object.keys(schema.properties.results.properties)).toEqual(["mcp-only"]);
+  });
+
   it("retries a failed invocation once, then succeeds on the second attempt", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
@@ -177,5 +244,101 @@ describe("runInvokeHarness", () => {
     expect(result.attempts).toBe(1);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
+  });
+
+  it("terminates a lingering wrapper once the required artifacts exist", async () => {
+    const dir = freshDir();
+    const resultsPath = resolve(dir, "result.json");
+    const tracePath = resolve(dir, "trace.json");
+    const started = Date.now();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/bin/sh",
+      [
+        "-c",
+        `node -e "const fs=require('fs'); fs.writeFileSync(${JSON.stringify(resultsPath)}, '{}'); fs.writeFileSync(${JSON.stringify(tracePath)}, '[]'); setTimeout(() => {}, 30000)" & wait`,
+      ],
+      dir,
+      { timeoutMs: 60000, successPaths: [resultsPath, tracePath] },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("recovers a Claude-written result file from the transcript and treats a completed run as successful", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const transcript = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "Write",
+              input: {
+                file_path: resolve(dir, run.paths.resultsPath),
+                content: JSON.stringify({
+                  profile: "ceiling",
+                  ns: run.ns,
+                  surface: "api",
+                  discovery: { notes: "recovered" },
+                  results: { t1: { gid: "gid-recovered" } },
+                }),
+              },
+            },
+            {
+              type: "tool_use",
+              name: "Write",
+              input: {
+                file_path: resolve(dir, run.paths.tracePath),
+                content: JSON.stringify([{ step: 1, taskId: "t1", action: "create thing" }]),
+              },
+            },
+          ],
+        },
+      }),
+      JSON.stringify({ type: "result", subtype: "success", terminal_reason: "completed" }),
+    ].join("\n");
+
+    const result = await runInvokeHarness(
+      { ...run, timeoutMs: 1000, retries: 0 },
+      async () => spawnResult({ status: null, signal: "SIGTERM", timedOut: true, stdout: Buffer.from(transcript) }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.timedOut).toBe(true);
+    expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-recovered");
+    expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))[0].action).toBe("create thing");
+  });
+
+  it("recovers a Codex agent-message result when the file is missing", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const payload = {
+      profile: "ceiling",
+      ns: run.ns,
+      surface: "api",
+      discovery: { notes: "codex recovered" },
+      results: { t1: { gid: "gid-codex" } },
+    };
+    const stdout = [
+      JSON.stringify({
+        type: "item.completed",
+        item: {
+          type: "agent_message",
+          text: JSON.stringify(payload),
+        },
+      }),
+    ].join("\n");
+
+    const result = await runInvokeHarness(
+      run,
+      async () => spawnResult({ status: 0, stdout: Buffer.from(stdout) }),
+    );
+
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-codex");
   });
 });

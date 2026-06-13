@@ -45,6 +45,7 @@ type TaskInput = {
   prompt: string;
   title?: string;
   create_path?: string;
+  allowed_surfaces?: string[];
   weak?: boolean;
 };
 
@@ -63,6 +64,7 @@ function makePack(tasks: TaskInput[], withDiscovery = true): TargetPack {
       difficulty: t.difficulty,
       prompt: t.prompt,
       create_path: t.create_path,
+      allowed_surfaces: t.allowed_surfaces,
       oracles: t.weak
         ? [{ type: "exists", path: "id" }]
         : [{ type: "roundtrip", readPathTemplate: "/x/{gid}", assertField: "ok", expected: true }],
@@ -206,6 +208,7 @@ describe("renderGeneratedReport (HTML)", () => {
     // TL;DR block opens the report with the four pillars + jump links.
     expect(html).toContain("ax-tldr");
     expect(html).toContain("TL;DR");
+    expect(html).toContain("agent operability");
     // Four-pillar scorecard: static discovery and behavioral agent discovery are
     // distinct cards (never one conflated "discoverability" number), plus content
     // quality and task success.
@@ -229,6 +232,7 @@ describe("renderGeneratedReport (HTML)", () => {
     // Multi-config → the matrix Summary, where Content quality is a product-level
     // card alongside Static discovery (the behavioral pillars move into the grid).
     expect(html).toContain('class="ax-scorecard"');
+    expect(html).toContain("agent operability");
     expect(html).toContain("Content quality");
     expect(html).toContain(">" + audit.score + '<span class="ax-card__scale">'); // score renders with its /100 scale
 
@@ -346,6 +350,40 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(gated).toContain("Surface subgates:");
     expect(gated).toContain("API PASS 100%");
     expect(gated).toContain("MCP FAIL 0%");
+  });
+
+  it("adds a Scores footnote when a surface uses a narrower task subset", () => {
+    const pack = makePack([
+      { id: "api-l1", difficulty: "L1", prompt: "Create a customer.", allowed_surfaces: ["api", "mcp"] },
+      { id: "api-l2", difficulty: "L2", prompt: "Create a price.", allowed_surfaces: ["api", "mcp"] },
+      { id: "api-l3", difficulty: "L3", prompt: "Create a subscription.", allowed_surfaces: ["api"] },
+      { id: "api-l4", difficulty: "L4", prompt: "Create a checkout session.", allowed_surfaces: ["api"] },
+    ]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "low",
+        harness: "codex",
+        surface: "mcp",
+        outcomes: [outcome("api-l1", "L1", "low", true), outcome("api-l2", "L2", "low", true)],
+      },
+      {
+        profile: "low",
+        harness: "codex",
+        surface: "api",
+        outcomes: [
+          outcome("api-l1", "L1", "low", true),
+          outcome("api-l2", "L2", "low", true),
+          outcome("api-l3", "L3", "low", true),
+          outcome("api-l4", "L4", "low", true),
+        ],
+      },
+    ];
+
+    const html = renderGeneratedReport(pack, runs);
+    expect(html).toContain("<strong>Footnote.</strong>");
+    expect(html).toContain("MCP is scored on a surface-aware subset in this report: 2/4 task(s) total");
+    expect(html).toContain("L1 1, L2 1, L3 0, L4 0");
+    expect(html).toContain("A 0/0 cell means there were no scored tasks for that surface in that difficulty bucket");
   });
 
   it("keeps MCP approval cancellations separate from missing tool coverage", () => {
@@ -545,7 +583,7 @@ describe("renderGeneratedReport (HTML)", () => {
 
     const html = renderGeneratedReport(pack, runs, stat);
     expect(html).toContain("ax-card--pass"); // gap ≤ 0 → pass coloring
-    expect(html).toContain("Agents can actually use this API");
+    expect(html).toContain("Strong agent operability");
   });
 
   it("renders a CI-gate banner that fails below and passes above the threshold", () => {

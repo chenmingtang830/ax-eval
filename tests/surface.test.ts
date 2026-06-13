@@ -3,6 +3,7 @@ import {
   availableSurfaces,
   getSurface,
   resolveSurfaceSelection,
+  tasksForSurface,
 } from "../src/surface/index.js";
 import { buildExecutorPrompt } from "../src/harness/executor.js";
 import { getProfile } from "../src/harness/profile.js";
@@ -28,6 +29,16 @@ const apiOnly = TargetPackSchema.parse(base);
 
 const multi = TargetPackSchema.parse({
   ...base,
+  tasks: [
+    ...base.tasks,
+    {
+      id: "l2-mcp-only",
+      difficulty: "L2",
+      prompt: `Create an MCP-only thing named "AX probe MCP {ns}".`,
+      allowed_surfaces: ["mcp", "docs"],
+      oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "AX probe MCP {ns}" }],
+    },
+  ],
   surfaces: {
     cli: { bin: "demo", install: "npm i -g @demo/cli" },
     sdk: { package: "@demo/sdk", language: "node" },
@@ -63,6 +74,11 @@ describe("surface registry", () => {
     expect(() => resolveSurfaceSelection(apiOnly, "cli")).toThrow(/not declared/);
     // api is always selectable.
     expect(resolveSurfaceSelection(apiOnly, "api")).toEqual(["api"]);
+  });
+
+  it("can narrow a task bank to the selected execution surface", () => {
+    expect(tasksForSurface(multi, "api").map((t) => t.id)).toEqual(["l1-thing"]);
+    expect(tasksForSurface(multi, "mcp").map((t) => t.id)).toEqual(["l2-mcp-only"]);
   });
 });
 
@@ -100,6 +116,8 @@ describe("surface-parameterized executor prompt", () => {
     expect(p).toContain("tools/list");
     expect(p).toContain("Call the MCP server's tools");
     expect(p).toContain('"surface": "mcp"');
+    expect(p).toContain("l2-mcp-only");
+    expect(p).not.toContain("l1-thing");
   });
 
   it("never leaks {ns} for any surface", () => {
