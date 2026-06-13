@@ -29,6 +29,11 @@ The quickest local sanity check:
 npm run ax-eval -- run --offline    # behavioral matrix + static gap, no network
 ```
 
+If you are new to the repo, also open one of the full HTML examples in
+[`examples/`](./examples/) before changing reporting
+or target-pack behavior. They are the fastest way to see the intended output
+shape.
+
 ## Conventions
 
 - **TypeScript, ESM, Node 22.** `"type": "module"` — use ESM imports, not
