@@ -12,7 +12,7 @@
 import type { DiscoverySpec, TargetPack } from "../schemas.js";
 import type { RoundtripOutcome } from "./verify.js";
 import type { DiscoveryReport } from "./discovery.js";
-import type { SurfaceId } from "../surface/types.js";
+import { tasksForSurface, type SurfaceId } from "../surface/types.js";
 import { NORMALIZED_RESULT_SCHEMA, type NormalizedResult } from "./record.js";
 import type { TraceStep } from "../harness/executor.js";
 import { diffTrace, type TraceDiff } from "../harness/trace-diff.js";
@@ -293,6 +293,77 @@ function rangeLabel(nums: number[], unit = "%"): string {
   const lo = Math.min(...nums);
   const hi = Math.max(...nums);
   return lo === hi ? `${lo}${unit}` : `${lo}–${hi}${unit}`;
+}
+
+interface ProcessStats {
+  run: ProfileRun;
+  calls: number;
+  failed: number;
+  retryish: number;
+}
+
+function countRetryishCalls(trace: TraceStep[] | undefined): number {
+  const seen = new Map<string, number>();
+  for (const s of trace ?? []) {
+    if (!s.method || !s.path) continue;
+    const key = `${s.taskId}:${s.method}:${s.path}`;
+    seen.set(key, (seen.get(key) ?? 0) + 1);
+  }
+  return [...seen.values()].filter((n) => n > 1).length;
+}
+
+function processStats(runs: ProfileRun[]): ProcessStats[] {
+  return runs.map((run) => {
+    const trace = run.trace ?? [];
+    const calls = trace.filter((s) => s.method || s.path);
+    return {
+      run,
+      calls: calls.length,
+      failed: calls.filter((s) => s.status !== undefined && s.status >= 400).length,
+      retryish: countRetryishCalls(trace),
+    };
+  });
+}
+
+function worstProcessStats(runs: ProfileRun[]): ProcessStats | undefined {
+  return processStats(runs)
+    .filter((s) => s.calls || s.failed || s.retryish)
+    .sort((a, b) => b.failed - a.failed || b.retryish - a.retryish || b.calls - a.calls)[0];
+}
+
+function processStatsLabel(s: ProcessStats): string {
+  return `${s.run.harness ?? "host-agent"}/${(s.run.surface ?? "api").toUpperCase()}/${s.run.profile}`;
+}
+
+function processQualityTakeaway(runs: ProfileRun[]): string {
+  const worst = worstProcessStats(runs);
+  if (!worst) return "Process quality was not measured from trace data.";
+  if (worst.failed === 0 && worst.retryish === 0) {
+    return `Process quality was clean in the noisiest recorded config (${processStatsLabel(worst)}: ${worst.calls} calls, no failed calls, no retry-ish repeats).`;
+  }
+  return `Process quality warning: ${processStatsLabel(worst)} needed ${worst.calls} calls with ${worst.failed} failed call${worst.failed === 1 ? "" : "s"} and ${worst.retryish} retry-ish repeat${worst.retryish === 1 ? "" : "s"}.`;
+}
+
+function operabilityLabel(taskPct: number | undefined, agentDiscovery: number | undefined): string {
+  if (taskPct === undefined) return "Agent operability not measured";
+  if (taskPct >= 100 && (agentDiscovery ?? 0) >= 80) return "Strong agent operability";
+  if (taskPct >= 100) return "Strong execution, partial agent operability";
+  if (taskPct >= 80) return "Partial agent operability";
+  return "Weak agent operability";
+}
+
+function operabilityTakeaway(taskPct: number | undefined, agentDiscovery: number | undefined): string {
+  if (taskPct === undefined) return "No live task run was available, so agent operability could not be scored.";
+  if (taskPct >= 100 && (agentDiscovery ?? 0) >= 80) {
+    return "Agents can find the right path and reliably operate the product.";
+  }
+  if (taskPct >= 100) {
+    return "Agents can reliably operate the product once on the right path, but cold-start discovery is not yet as strong as execution.";
+  }
+  if (taskPct >= 80) {
+    return "Agents can operate much of the product, but some real workflows still fail round-trip verification.";
+  }
+  return "Agents cannot yet operate the product reliably across the reviewed workflow set.";
 }
 
 /** Highest behavioral pass rate across profiles (the strongest agent config). */
@@ -690,9 +761,17 @@ function renderTldr(
   // broken down PER HARNESS; the two product-level pillars stay single pills.
   if (harnesses.length > 1) {
     const surfaces = SURFACE_ORDER.filter((s) => cells.some((c) => c.surface === s));
+    const profiles = [...new Set(runs.map((r) => r.profile))];
     const spread = rangeLabel(configPassPcts(runs));
+    const bestTask = Math.max(...configPassPcts(runs));
+    const bestDiscoveryValues = cells.map((c) => c.discovery).filter((n): n is number => n !== undefined);
+    const bestDiscovery = bestDiscoveryValues.length ? Math.max(...bestDiscoveryValues) : undefined;
+    const opLabel = operabilityLabel(bestTask, bestDiscovery);
+    const opTakeaway = operabilityTakeaway(bestTask, bestDiscovery);
     const takeaway =
-      `<strong>${harnesses.length} harnesses × ${surfaces.length} surfaces</strong>, ${cells.length} cells. ` +
+      `<strong>${esc(opLabel)}</strong>. ${esc(opTakeaway)} ${esc(processQualityTakeaway(runs))} ` +
+      `<strong>${harnesses.length} harnesses × ${surfaces.length} surface${surfaces.length === 1 ? "" : "s"} × ${profiles.length} effort level${profiles.length === 1 ? "" : "s"} = ${runs.length} configs</strong>, ` +
+      `summarized into ${cells.length} harness × surface cell${cells.length === 1 ? "" : "s"}. ` +
       `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
       `task success and agent discovery break down by harness below.`;
     const productPills = [
@@ -731,11 +810,14 @@ function renderTldr(
   if (!best) return "";
   const surface = dominantSurface(runs);
   const agentDisc = agentDiscoveryScore(runs);
+  const opLabel = operabilityLabel(best.pct, agentDisc);
+  const opTakeaway = operabilityTakeaway(best.pct, agentDisc);
   const fails = runs.find((r) => r.profile === best.profile)?.outcomes.filter((o) => !o.success) ?? [];
   const failNote = fails.length
     ? `${fails.length} task(s) still fail (${esc(fails.map((o) => o.taskId).join(", "))})`
     : `every task passed`;
   const takeaway =
+    `<strong>${esc(opLabel)}</strong>. ${esc(opTakeaway)} ${esc(processQualityTakeaway(runs))} ` +
     `On the <strong>${esc(surface.toUpperCase())}</strong> surface, the best agent (${esc(best.profile)} effort) ` +
     `completed <strong>${esc(best.pct)}%</strong> of real tasks; ${failNote}. ` +
     `Static docs discovery and behavioral agent discovery are reported separately below.`;
@@ -929,9 +1011,14 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
 
   const allPct = runs.map((r) => pct(firstAttempts(r.outcomes)));
   const lo = Math.min(...allPct), hi = Math.max(...allPct);
+  const cellDiscovery = matrixCells(runs).map((c) => c.discovery).filter((n): n is number => n !== undefined);
+  const bestDiscovery = cellDiscovery.length ? Math.max(...cellDiscovery) : undefined;
+  const opLabel = operabilityLabel(hi, bestDiscovery);
+  const opTakeaway = operabilityTakeaway(hi, bestDiscovery);
   const nH = new Set(runs.map((r) => r.harness ?? "host-agent")).size;
   const nS = new Set(runs.map((r) => r.surface ?? "api")).size;
   const verdict =
+    `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} ` +
     `${nH} harness${nH === 1 ? "" : "es"} × ${nS} surface${nS === 1 ? "" : "s"} × ${profiles.length} effort = ${runs.length} configs. ` +
     `Task success ${lo === hi ? `${hi}% across the board` : `${lo}–${hi}%`}. Static discovery and content quality are product-level (shown once); ` +
     `every config's task success + agent discovery is below — all printed, none crowned "best".`;
@@ -1023,19 +1110,28 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
 
   let verdict: string;
   if (!best) {
-    verdict = "No agent runs recorded yet — nothing to score.";
+    verdict = `${operabilityLabel(undefined, undefined)}: ${operabilityTakeaway(undefined, undefined)} ${processQualityTakeaway(runs)}`;
   } else if (readiness === undefined) {
-    verdict = `The best agent completed ${best.pct}% of tasks. (Docs-site discoverability wasn't measured for this run.)`;
+    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} The best agent completed ${best.pct}% of tasks. (Docs-site discoverability wasn't measured for this run.)`;
   } else if (!gapMeaningful) {
     // Non-API surface: keep the two signals explicitly separate.
+    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
     verdict =
+      `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} ` +
       `On the ${surface.toUpperCase()} surface the best agent completed ${best.pct}% of tasks. ` +
       `Docs-site discoverability is a separate, publisher-facing signal (${readiness}/100, a static crawl of the docs website) — ` +
       `the agent discovered the ${surface.toUpperCase()} tools by listing them, not by reading those docs.`;
   } else if (gap! > 0) {
-    verdict = `The API is published and discoverable (${readiness}/100), but the best agent finished only ${best.pct}% of real tasks — a ${gap}-point gap. Being published isn't the same as being usable by agents.`;
+    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} The API is published and discoverable (${readiness}/100), but the best agent finished only ${best.pct}% of real tasks — a ${gap}-point gap. Being published isn't the same as being usable by agents.`;
   } else {
-    verdict = `Agents can actually use this API: task success (${best.pct}%) is on par with or above its discoverability (${readiness}/100).`;
+    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} Task success (${best.pct}%) is on par with or above docs-site discoverability (${readiness}/100).`;
   }
 
   const v0 = stat?.v0Score;
@@ -1153,6 +1249,14 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     );
   } else if (best) {
     findings.push(`The best agent (${best.profile}) completed ${best.pct}% of tasks; docs-site discoverability wasn't measured.`);
+  }
+
+  const process = worstProcessStats(runs);
+  if (process && (process.failed > 0 || process.retryish >= 3)) {
+    findings.push(
+      `${processStatsLabel(process)} completed with ${process.calls} recorded call(s), ${process.failed} failed call(s), and ` +
+        `${process.retryish} retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.`,
+    );
   }
 
   // Content-quality axis: flag when the spec, once found, is hard to use.
@@ -1283,6 +1387,29 @@ function difficultyTable(pack: TargetPack, runs: ProfileRun[]): string {
     </table></div>`;
 }
 
+function scoreSubsetFootnotes(pack: TargetPack, runs: ProfileRun[]): string {
+  const total = pack.tasks.length;
+  if (!total) return "";
+  const surfaces = [...new Set(runs.map((r) => r.surface ?? "api"))];
+  const notes = surfaces
+    .map((surface) => {
+      const subset = tasksForSurface(pack, surface);
+      if (subset.length === total) return "";
+      const byDifficulty = DIFFS.map((d) => `${d} ${subset.filter((t) => t.difficulty === d).length}`).join(", ");
+      const hasEmptyBucket = DIFFS.some(
+        (d) => pack.tasks.some((t) => t.difficulty === d) && subset.every((t) => t.difficulty !== d),
+      );
+      return `${surface.toUpperCase()} is scored on a surface-aware subset in this report: ${subset.length}/${total} task(s) total (${byDifficulty}).${
+        hasEmptyBucket
+          ? " A 0/0 cell means there were no scored tasks for that surface in that difficulty bucket, not that the agent failed hidden tasks."
+          : ""
+      }`;
+    })
+    .filter(Boolean);
+  if (!notes.length) return "";
+  return `<p class="ax-note"><strong>Footnote.</strong> ${notes.map(esc).join(" ")}</p>`;
+}
+
 /** Discovery scorecard: configs × signals matrix (HTML). Transposed — each
  *  CONFIG is a row and the signals are the (few) columns — so a 12-config run is
  *  12 readable rows instead of 12 unreadable columns. */
@@ -1390,11 +1517,13 @@ function renderScores(
   // Per-config overall task success + model already live in the Summary matrix;
   // Scores adds the per-difficulty (L1–L4) breakdown, same grouped layout.
   void profileOf;
+  const footnote = scoreSubsetFootnotes(pack, runs);
   return `<section class="ax-section" id="scores">
     <h2>Scores</h2>
     <h3 class="ax-subhead">Pass rate by difficulty (L1–L4) — per config</h3>
     <p class="ax-note">Each config's pass rate split by task difficulty. Overall task success per config is in the <a href="#tldr">Summary</a> matrix.</p>
     ${difficultyTable(pack, runs)}
+    ${footnote}
   </section>`;
 }
 
@@ -1703,16 +1832,6 @@ function renderRobustness(runs: ProfileRun[]): string {
   </section>`;
 }
 
-function countRetryishCalls(trace: TraceStep[] | undefined): number {
-  const seen = new Map<string, number>();
-  for (const s of trace ?? []) {
-    if (!s.method || !s.path) continue;
-    const key = `${s.taskId}:${s.method}:${s.path}`;
-    seen.set(key, (seen.get(key) ?? 0) + 1);
-  }
-  return [...seen.values()].filter((n) => n > 1).length;
-}
-
 function renderProcessQuality(runs: ProfileRun[]): string {
   if (!runs.length) return "";
   const body = groupedConfigRows(runs, (r) => {
@@ -1724,9 +1843,11 @@ function renderProcessQuality(runs: ProfileRun[]): string {
     const sourceCls = source === "observed" ? "ax-proc-source--ok" : source === "not measured" ? "ax-proc-source--bad" : "ax-proc-source--warn";
     return `<td><span class="ax-count">${esc(calls.length)}</span></td><td>${countBadge(failed)}</td><td>${countBadge(retryish)}</td><td><span class="ax-proc-source ${sourceCls}">${esc(source)}</span></td>`;
   });
+  const takeaway = processQualityTakeaway(runs);
   return `<section class="ax-section">
     <h2>Process quality</h2>
-    <p class="ax-note">These are trace-derived process signals only. They explain how the agent worked; final task success is still decided by deterministic read-back oracles.</p>
+    <p class="ax-verdict">${esc(takeaway)}</p>
+    <p class="ax-note">These are trace-derived process signals only. They explain how much work the agent needed after discovery: total recorded calls, calls that failed before recovery, and repeated same-task/same-path operations that look retry-ish. Final task success is still decided by deterministic read-back oracles.</p>
     <div class="ax-table-wrap"><table class="ax-table ax-matrix">
       <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>calls</th><th>failed calls</th><th>retry-ish repeats</th><th>discovery evidence</th></tr></thead>
       <tbody>${body}</tbody>

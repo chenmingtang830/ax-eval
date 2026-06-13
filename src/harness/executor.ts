@@ -28,6 +28,7 @@ import type { HarnessProfile } from "./profile.js";
 import type { TargetPack, Task } from "../schemas.js";
 import { apiSurface } from "../surface/api.js";
 import type { Surface } from "../surface/index.js";
+import { tasksForSurface } from "../surface/index.js";
 
 export const NS_PLACEHOLDER = "{ns}";
 
@@ -115,7 +116,8 @@ export interface BuildPromptOptions {
 export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const { pack, profile, ns, resultsPath, tracePath } = opts;
   const surface = opts.surface ?? apiSurface;
-  const ids = pack.tasks.map((t) => t.id);
+  const tasks = tasksForSurface(pack, surface.id);
+  const ids = tasks.map((t) => t.id);
   const resultsShape = ids.map((id) => `      "${id}": {"gid": "<gid or null>"}`).join(",\n");
 
   return [
@@ -138,7 +140,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     `with EXACTLY those names — do not change them.`,
     ``,
     `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
-    ...pack.tasks.map((t) => taskLine(t, ns)),
+    ...tasks.map((t) => taskLine(t, ns)),
     ``,
     `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
     `id). If a task truly fails, record gid as null.`,

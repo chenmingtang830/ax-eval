@@ -32,11 +32,13 @@ export const mcpSurface: Surface = {
       `- List the server's tools (tools/list) and read each tool's name, description, and input schema.`,
       `- Determine: which tool creates each resource and the exact arguments it needs.`,
       `- Rely ONLY on the tool schemas/descriptions the server exposes — do NOT guess from memory.`,
+      `- For write operations, execute MCP tool calls STRICTLY ONE AT A TIME. Do not issue parallel, batched, or overlapping write calls.`,
+      `- Wait for each MCP write tool result before starting the next write, even if tasks are independent.`,
       `- Everything you do in Phase 1 MUST use the tools you discovered here.`,
       ``,
     ];
   },
-  actionGuidance: () => "Call the MCP server's tools for every action (not raw curl).",
+  actionGuidance: () => "Call the MCP server's tools for every action (not raw curl), and keep MCP write calls strictly serial.",
   resultsHints: {
     base: "<the MCP server you connected to>",
     endpoint: "<the MCP tool you used to create, e.g. `create_task`>",

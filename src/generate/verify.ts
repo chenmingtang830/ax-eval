@@ -9,6 +9,8 @@
 import { readFileSync } from "node:fs";
 import { BearerClient, resolveDotted, type ApiStyle } from "../http/client.js";
 import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import type { SurfaceId } from "../surface/types.js";
+import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 
@@ -194,9 +196,11 @@ export async function verifyGeneratedPack(
   pack: TargetPack,
   executor: ExecutorResults,
   client: BearerClient,
+  surface?: SurfaceId,
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
-  for (const task of pack.tasks) {
+  const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
+  for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
     let error: string | null = null;

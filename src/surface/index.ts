@@ -25,6 +25,7 @@ import { mcpSurface } from "./mcp.js";
 
 export type { Surface, SurfaceId } from "./types.js";
 export { DISCOVERY_HEADER, productName } from "./types.js";
+export { taskExecutionSurfaces, taskSupportsSurface, tasksForSurface } from "./types.js";
 
 export const SURFACES: Record<SurfaceId, Surface> = {
   api: apiSurface,
