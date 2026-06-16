@@ -1,7 +1,7 @@
 {
   "name": "ax-eval",
   "version": "0.2.0",
-  "description": "AX eval — test whether a host agent can complete real tasks against a SaaS product.",
+  "description": "ax-eval — measure whether software products can be operated by AI agents, across API, CLI, SDK, and MCP surfaces.",
   "keywords": [
     "agent",
     "agent-experience",
