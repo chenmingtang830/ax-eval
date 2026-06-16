@@ -146,6 +146,23 @@ The repo ships a few example target packs under `targets/` for REST and GraphQL
 products. They demonstrate the pack format; adding another SaaS should usually
 be a new pack, not a code change.
 
+## Architecture
+
+`ax-eval` is a pack-centered, surface-aware eval system.
+
+- **Contracts:** `TargetPack`, `Task`, `OracleSpec`, and per-surface auth/config
+  live in versioned schemas and act as the stable center of the system.
+- **Execution matrix:** the same reviewed pack runs across one or more harnesses
+  and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
+  the agent discovers and acts rather than changing the oracle model.
+- **Truth layer:** executors report ids, but success is decided by independent
+  read-back verification against live product state.
+- **Interpretation layer:** HTML reports and normalized records turn raw results,
+  traces, and transcripts into operability findings, recommendations, and
+  cross-surface / cross-product comparisons.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
+
 ## How It Works
 
 ![ax-eval architecture](./assets/architecture.svg)
