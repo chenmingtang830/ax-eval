@@ -153,10 +153,37 @@ The repo now ships two full HTML report examples under [`examples/`](./examples/
 - [Asana cross-harness, cross-surface report](./examples/asana-cross-harness-cross-surface.html)
 - [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
 
+Stripe is the current flagship example: one product evaluated across
+`API / SDK / CLI / MCP`, with both `claude-code` and `codex` in the same
+matrix. These examples are the fastest way to see what a finished ax-eval
+artifact looks like.
+
 These are stable copies of real run artifacts, meant to show new contributors
 what a finished ax-eval report looks like without making them dig through
 `results/runs/`. If you are new here, open one of those reports before changing
 the reporting pipeline or adding a new target.
+
+## Architecture
+
+`ax-eval` is a pack-centered, surface-aware eval system.
+
+- **Contracts:** `TargetPack`, `Task`, `OracleSpec`, and per-surface auth/config
+  live in versioned schemas and act as the stable center of the system.
+- **Execution matrix:** the same reviewed pack runs across one or more harnesses
+  and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
+  the agent discovers and acts rather than changing the oracle model.
+- **Truth layer:** executors report ids, but success is decided by independent
+  read-back verification against live product state.
+- **Interpretation layer:** HTML reports and normalized records turn raw results,
+  traces, and transcripts into operability findings, recommendations, and
+  cross-surface / cross-product comparisons.
+
+MCP is scored as a first-class surface, but not assumed to be a perfect mirror
+of the product API. When a pack narrows MCP to the operations the MCP surface
+actually exposes, the report makes that explicit rather than folding unsupported
+operations into misleading failures.
+
+See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 ## How It Works
 
@@ -239,6 +266,7 @@ packs unless you explicitly bypass the review gate.
 ## Repository Layout
 
 ```text
+ARCHITECTURE.md     full technical architecture and system design
 src/                CLI, generation, verification, reporting, static checks
 src/ingest/         OpenAPI and GraphQL ingestion
 src/generate/       task-pack generation, review, report, normalized records
@@ -246,6 +274,7 @@ src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
 targets/            example target packs and approvals
+examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots
 docs/               maintainer-local notes, intentionally not public docs
