@@ -1,0 +1,400 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: llm-assisted
+# standard_set_version: gen-2026-06-12
+# run_id: 2026-06-12-277rt4
+name: stripe
+version: "0"
+standard_set_version: gen-2026-06-12
+run_id: 2026-06-12-277rt4
+generated_by: llm-assisted
+generator:
+  harness: codex
+  model: host-default
+  effort: high
+  prompt_version: ax-eval-generator-v1
+  source_docs:
+    - https://docs.stripe.com/api
+    - https://docs.stripe.com/testing
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: STRIPE_API_KEY
+  header: Authorization
+sandbox_scope:
+  - name: customer_id
+    env: STRIPE_SANDBOX_CUSTOMER_ID
+    required: true
+    instructions: Create a throwaway Stripe test-mode customer and paste its id or
+      Dashboard URL here. Tasks that need an existing customer must use this
+      sandbox customer so writes stay isolated.
+surfaces:
+  sdk:
+    package: stripe
+    language: node
+    install: npm install stripe
+    reference_url: https://docs.stripe.com/sdks/node
+    auth:
+      kind: inherit
+  cli:
+    bin: stripe
+    install: brew install stripe/stripe-cli/stripe
+    help: stripe --help
+    docs_url: https://docs.stripe.com/cli
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.stripe.com
+    transport: http
+    docs_url: https://docs.stripe.com/mcp
+    tool_approval_mode:
+      stripe_api_write: approve
+    auth:
+      kind: token
+      token_env: STRIPE_MCP_API_KEY
+      instructions: Configure Stripe's official MCP server with a restricted API
+        key scoped for the MCP tasks. ax-eval provisions the remote MCP server
+        with this bearer token and still verifies writes through the Stripe REST
+        API.
+base_url: https://api.stripe.com/
+headers: {}
+site_url: https://stripe.com
+openapi_url: https://raw.githubusercontent.com/stripe/openapi/master/openapi/spec3.json
+docs_urls:
+  - https://docs.stripe.com/api
+  - https://docs.stripe.com/testing
+static:
+  site_url: https://stripe.com
+  docs_urls:
+    - https://docs.stripe.com/api
+    - https://docs.stripe.com/testing
+  checks: []
+discovery:
+  product: Stripe
+  goal: "You are about to operate Stripe programmatically. First work out, from
+    scratch, how Stripe's public API works: its base URL, how to authenticate
+    with a secret key, the request and response shape, and how to create a
+    simple test-mode customer. You are NOT given any endpoint, base URL, or
+    documentation link; find them yourself."
+  official_domains:
+    - stripe.com
+    - docs.stripe.com
+  canonical_endpoint: POST /v1/customers
+  deprecated_markers: []
+  auth_scheme: Bearer secret key
+tasks:
+  - id: stripe-l1-customer
+    title: "L1: create a test customer"
+    prompt: Create a Stripe test-mode customer named "AX probe customer {ns}" with
+      email "ax-probe-{ns}@example.com". Report the customer id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe customer {ns}
+        description: read the customer back and assert its name
+        readPathTemplate: /v1/customers/{gid}
+        assertField: name
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/customers
+    depends_on: []
+    trace: []
+  - id: stripe-l1-product
+    title: "L1: create a product"
+    prompt: Create a Stripe catalog product named "AX probe product {ns}". Report
+      the product id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe product {ns}
+        description: read the product back and assert its name
+        readPathTemplate: /v1/products/{gid}
+        assertField: name
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/products
+    depends_on: []
+    trace: []
+  - id: stripe-l1-coupon
+    title: "L1: create a coupon"
+    prompt: Create a once-only 25 percent off Stripe coupon named "AX coupon" and
+      tag it with metadata ax_eval_name="AX probe coupon {ns}". Report the
+      coupon id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe coupon {ns}
+        description: read the coupon back and assert metadata
+        readPathTemplate: /v1/coupons/{gid}
+        assertField: metadata.ax_eval_name
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/coupons
+    depends_on: []
+    trace: []
+  - id: stripe-l2-price-for-product
+    title: "L2: create a product price"
+    prompt: Create a new product named "AX probe priced product {ns}", then create a
+      one-time USD price for it with unit amount 1234 cents and nickname "AX
+      probe price {ns}". Report the price id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe price {ns}
+        description: read the price back and assert its nickname
+        readPathTemplate: /v1/prices/{gid}
+        assertField: nickname
+      - type: roundtrip
+        expected: 1234
+        description: read the price back and assert its unit amount
+        readPathTemplate: /v1/prices/{gid}
+        assertField: unit_amount
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/prices
+    depends_on:
+      - products
+    trace: []
+  - id: stripe-l2-invoice-item
+    title: "L2: create an invoice item for the sandbox customer"
+    prompt: Using the sandbox customer identified by STRIPE_SANDBOX_CUSTOMER_ID, add
+      a pending invoice item for 789 cents USD with description "AX probe
+      invoice item {ns}". Report the invoice item id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe invoice item {ns}
+        description: read the invoice item back and assert its description
+        readPathTemplate: /v1/invoiceitems/{gid}
+        assertField: description
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/invoiceitems
+    depends_on:
+      - customer_id
+    trace: []
+  - id: stripe-l2-setup-intent
+    title: "L2: create a setup intent"
+    prompt: Create a safe test-mode Stripe SetupIntent for the sandbox customer
+      identified by STRIPE_SANDBOX_CUSTOMER_ID. Do not confirm it. Tag it with
+      metadata ax_eval_name="AX probe setup intent {ns}". Report the setup
+      intent id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe setup intent {ns}
+        description: read the setup intent back and assert metadata
+        readPathTemplate: /v1/setup_intents/{gid}
+        assertField: metadata.ax_eval_name
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/setup_intents
+    depends_on:
+      - customer_id
+    trace: []
+  - id: stripe-l2-tax-rate
+    title: "L2: create a tax rate"
+    prompt: Create an exclusive Stripe tax rate with display name "AX tax" and
+      percentage 7.25. Tag it with metadata ax_eval_name="AX probe tax rate
+      {ns}". Report the tax rate id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe tax rate {ns}
+        description: read the tax rate back and assert metadata
+        readPathTemplate: /v1/tax_rates/{gid}
+        assertField: metadata.ax_eval_name
+      - type: roundtrip
+        expected: 7.25
+        description: read the tax rate back and assert its percentage
+        readPathTemplate: /v1/tax_rates/{gid}
+        assertField: percentage
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/tax_rates
+    depends_on: []
+    trace: []
+  - id: stripe-l3-payment-intent
+    title: "L3: prepare a safe test payment intent"
+    prompt: Finance needs a safe test-mode Stripe object for collecting a 2026-cent
+      USD card payment later. Create the appropriate payment object, leave it
+      unconfirmed, and tag it with metadata ax_eval_name="AX probe payment
+      intent {ns}". Report the payment object id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe payment intent {ns}
+        description: read the payment intent back and assert metadata
+        readPathTemplate: /v1/payment_intents/{gid}
+        assertField: metadata.ax_eval_name
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/payment_intents
+    depends_on: []
+    trace: []
+  - id: stripe-l3-checkout-session
+    title: "L3: create a hosted checkout session"
+    prompt: Create a hosted Stripe Checkout session for a one-time 1500-cent USD
+      test purchase of a new product named "AX probe checkout product {ns}". Use
+      example.com success and cancel pages, set client reference id
+      "ax-probe-checkout-{ns}", and report the Checkout Session id.
+    oracles:
+      - type: roundtrip
+        expected: ax-probe-checkout-{ns}
+        description: read the checkout session back and assert client reference id
+        readPathTemplate: /v1/checkout/sessions/{gid}
+        assertField: client_reference_id
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/checkout/sessions
+    depends_on:
+      - products
+      - prices
+    trace: []
+  - id: stripe-l3-webhook-endpoint
+    title: "L3: register a webhook endpoint"
+    prompt: Register a test webhook endpoint at
+      "https://example.com/ax-eval/stripe/{ns}" that listens for successful
+      payment intents and refunded charges. Give it description "AX probe
+      webhook {ns}" and report the webhook endpoint id.
+    oracles:
+      - type: roundtrip
+        expected: https://example.com/ax-eval/stripe/{ns}
+        expectedAny:
+          - https://example.com/ax-eval/stripe/{ns}/
+        matchMode: url
+        description: read the webhook endpoint back and assert the URL
+        readPathTemplate: /v1/webhook_endpoints/{gid}
+        assertField: url
+      - type: roundtrip
+        expected: AX probe webhook {ns}
+        description: read the webhook endpoint back and assert the description
+        readPathTemplate: /v1/webhook_endpoints/{gid}
+        assertField: description
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/webhook_endpoints
+    depends_on: []
+    trace: []
+  - id: stripe-l4-payment-link-catalog
+    title: "L4: publish a shareable payment link"
+    prompt: Set up a shareable Stripe payment link for a new catalog item named "AX
+      probe payment link product {ns}". The link should sell one unit at 2468
+      cents USD and the payment link itself must carry metadata ax_eval_name="AX
+      probe payment link {ns}". Report the payment link id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe payment link {ns}
+        description: read the payment link back and assert metadata
+        readPathTemplate: /v1/payment_links/{gid}
+        assertField: metadata.ax_eval_name
+      - type: roundtrip
+        expected: true
+        description: read the payment link back and assert it is active
+        readPathTemplate: /v1/payment_links/{gid}
+        assertField: active
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - mcp
+      - docs
+    create_path: /v1/payment_links
+    depends_on:
+      - products
+      - prices
+    trace:
+      - type: required_call
+        taskId: stripe-l4-payment-link-catalog
+        method: POST
+        path: /v1/products
+        description: create catalog product for payment link
+      - type: required_call
+        taskId: stripe-l4-payment-link-catalog
+        method: POST
+        path: /v1/prices
+        description: create price for payment link
+      - type: required_call
+        taskId: stripe-l4-payment-link-catalog
+        method: POST
+        path: /v1/payment_links
+        description: create payment link
+  - id: stripe-l4-subscription-setup
+    title: "L4: prepare a test subscription"
+    prompt: Prepare a safe test subscription for the sandbox customer identified by
+      STRIPE_SANDBOX_CUSTOMER_ID. Create a new product named "AX probe
+      subscription product {ns}", create a monthly recurring USD price for 3210
+      cents, then create the subscription for the sandbox customer with metadata
+      ax_eval_name="AX probe subscription {ns}". Leave it unpaid or incomplete
+      if no payment method is available. Report the subscription id.
+    oracles:
+      - type: roundtrip
+        expected: AX probe subscription {ns}
+        description: read the subscription back and assert metadata
+        readPathTemplate: /v1/subscriptions/{gid}
+        assertField: metadata.ax_eval_name
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - cli
+      - sdk
+      - docs
+    create_path: /v1/subscriptions
+    depends_on:
+      - customer_id
+      - products
+      - prices
+    trace:
+      - type: required_call
+        taskId: stripe-l4-subscription-setup
+        method: POST
+        path: /v1/products
+        description: create subscription product
+      - type: required_call
+        taskId: stripe-l4-subscription-setup
+        method: POST
+        path: /v1/prices
+        description: create recurring price
+      - type: required_call
+        taskId: stripe-l4-subscription-setup
+        method: POST
+        path: /v1/subscriptions
+        description: create subscription

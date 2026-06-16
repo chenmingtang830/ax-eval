@@ -30,6 +30,9 @@ function pack(): TargetPack {
       mcp: {
         server: "https://mcp.asana.com/v2/mcp",
         transport: "http",
+        tool_approval_mode: {
+          create_task: "approve",
+        },
         auth: {
           kind: "oauth_app",
           client_id_env: "ASANA_MCP_CLIENT_ID",
@@ -81,9 +84,63 @@ describe("provisionHarnessForSurface", () => {
     expect(text).toContain("[mcp_servers.asana]");
     expect(text).toContain('url = "https://mcp.asana.com/v2/mcp"');
     expect(text).toContain('bearer_token_env_var = "AX_EVAL_MCP_BEARER_TOKEN_ASANA"');
+    expect(text).toContain("[mcp_servers.asana.tools.create_task]");
+    expect(text).toContain('approval_mode = "approve"');
     expect(provisioning.env.AX_EVAL_MCP_BEARER_TOKEN_ASANA).toBe("short-lived-access-token");
     expect(text).not.toContain("short-lived-access-token");
     expect(text).not.toContain("refresh-token");
     expect(text).not.toContain("client-secret");
+  });
+
+  it("writes an isolated Claude MCP config with a header helper instead of embedding the token", async () => {
+    const dir = freshDir();
+    process.env.ASANA_MCP_CLIENT_ID = "client-id";
+    process.env.ASANA_MCP_CLIENT_SECRET = "client-secret";
+    process.env.ASANA_MCP_REFRESH_TOKEN = "refresh-token";
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ access_token: "short-lived-access-token" }),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchMock);
+
+    const paths = defaultInvokePaths(dir, "claude-low-mcp", "claude-code");
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "claude-code",
+      surface: "mcp",
+      paths,
+      cwd: "/repo",
+    });
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(provisioning.env.HOME).toContain(".invoke-home");
+    expect(provisioning.env.AX_EVAL_MCP_BEARER_TOKEN_ASANA).toBe("short-lived-access-token");
+    expect(provisioning.meta?.mcp_provisioning).toBe("oauth_refresh_to_bearer");
+
+    const config = resolve(provisioning.env.HOME!, ".claude.json");
+    expect(existsSync(config)).toBe(true);
+    const configText = readFileSync(config, "utf8");
+    expect(configText).toContain('"projects"');
+    expect(configText).toContain('"/repo"');
+    expect(configText).toContain('"mcpServers"');
+    expect(configText).toContain('"asana"');
+    expect(configText).toContain('"type": "http"');
+    expect(configText).toContain('"url": "https://mcp.asana.com/v2/mcp"');
+    expect(configText).toContain('"headersHelper": "node ');
+    expect(configText).not.toContain("short-lived-access-token");
+    expect(configText).not.toContain("refresh-token");
+    expect(configText).not.toContain("client-secret");
+
+    const helper = String(provisioning.meta?.claude_headers_helper ?? "");
+    expect(helper).toContain(".claude/asana-mcp-headers-helper.js");
+    expect(existsSync(helper)).toBe(true);
+    const helperText = readFileSync(helper, "utf8");
+    expect(helperText).toContain("AX_EVAL_MCP_BEARER_TOKEN_ASANA");
+    expect(helperText).toContain('process.stdout.write(JSON.stringify({ Authorization: "Bearer " + token }))');
+    expect(helperText).not.toContain("short-lived-access-token");
+
+    const settings = resolve(provisioning.env.HOME!, ".claude/settings.json");
+    expect(existsSync(settings)).toBe(true);
+    expect(readFileSync(settings, "utf8")).toContain('"defaultMode": "bypassPermissions"');
   });
 });

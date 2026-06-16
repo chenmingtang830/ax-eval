@@ -1,7 +1,8 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
 import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, resolve } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
+import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
@@ -122,40 +123,92 @@ export type AsyncSpawn = (
   command: string,
   args: string[],
   cwd: string,
-  opts?: { timeoutMs?: number; env?: Record<string, string> },
+  opts?: { timeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
 ) => Promise<ProcResult>;
 
-const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
+export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
     const child = spawn(command, args, {
       cwd,
+      detached: true,
       stdio: ["ignore", "pipe", "pipe"],
       env: opts?.env ? { ...process.env, ...opts.env } : process.env,
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let timedOut = false;
+    let completedAfterOutputs = false;
     let killTimer: NodeJS.Timeout | undefined;
     let timer: NodeJS.Timeout | undefined;
+    let outputPoll: NodeJS.Timeout | undefined;
+    let outputReadyTimer: NodeJS.Timeout | undefined;
+    const successPaths = opts?.successPaths?.filter(Boolean) ?? [];
+    const outputsReady = () => successPaths.length > 0 && successPaths.every((p) => existsSync(p));
+    const killChild = (signal: NodeJS.Signals) => {
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, signal);
+          return;
+        } catch {
+          /* fall back to the direct child below */
+        }
+      }
+      try {
+        child.kill(signal);
+      } catch {
+        /* best effort */
+      }
+    };
     if (opts?.timeoutMs && opts.timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
-        child.kill("SIGTERM");
+        killChild("SIGTERM");
         // If it ignores SIGTERM, hard-kill so the pool slot is freed.
-        killTimer = setTimeout(() => child.kill("SIGKILL"), 5000);
+        killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
       }, opts.timeoutMs);
+    }
+    if (successPaths.length > 0) {
+      outputPoll = setInterval(() => {
+        if (!outputsReady()) {
+          if (outputReadyTimer) {
+            clearTimeout(outputReadyTimer);
+            outputReadyTimer = undefined;
+          }
+          return;
+        }
+        if (outputReadyTimer) return;
+        // Some wrapper CLIs keep helper processes alive briefly after the
+        // required result artifacts have already been written. Once both files
+        // exist, give the wrapper a short grace period, then terminate it so a
+        // finished cell doesn't stall the serial matrix.
+        outputReadyTimer = setTimeout(() => {
+          if (timedOut || child.killed) return;
+          completedAfterOutputs = true;
+          killChild("SIGTERM");
+          killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
+        }, 2000);
+      }, 500);
     }
     const finish = (r: ProcResult) => {
       if (timer) clearTimeout(timer);
       if (killTimer) clearTimeout(killTimer);
+      if (outputPoll) clearInterval(outputPoll);
+      if (outputReadyTimer) clearTimeout(outputReadyTimer);
       resolve(r);
     };
     child.stdout?.on("data", (d: Buffer) => out.push(d));
     child.stderr?.on("data", (d: Buffer) => err.push(d));
     child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut }));
-    child.on("close", (status, signal) =>
-      finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status, signal: signal ?? null, timedOut }),
-    );
+    child.on("close", (status, signal) => {
+      const afterOutputs = completedAfterOutputs && outputsReady();
+      finish({
+        stdout: Buffer.concat(out),
+        stderr: Buffer.concat(err),
+        status: afterOutputs ? 0 : status,
+        signal: afterOutputs ? null : (signal ?? null),
+        timedOut,
+      });
+    });
   });
 
 function commandFor(id: InvokeHarnessId): string {
@@ -199,7 +252,8 @@ function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId
   // `required`. A permissive (`additionalProperties: true`) or partially-required
   // object 400s with `invalid_json_schema` before the agent does anything — so the
   // discovery sub-object is fully specified rather than left free-form.
-  const taskProps = Object.fromEntries(pack.tasks.map((t) => [t.id, {
+  const tasks = tasksForSurface(pack, surface);
+  const taskProps = Object.fromEntries(tasks.map((t) => [t.id, {
     type: "object",
     additionalProperties: false,
     properties: {
@@ -232,7 +286,7 @@ function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId
         type: "object",
         additionalProperties: false,
         properties: taskProps,
-        required: pack.tasks.map((t) => t.id),
+        required: tasks.map((t) => t.id),
       },
     },
     required: ["profile", "ns", "surface", "discovery", "results"],
@@ -262,6 +316,11 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   const modelArgs = opts.model ? ["-m", opts.model] : [];
   // Codex/GPT convention: reasoning effort is a model config knob, passed via -c.
   const effortArgs = opts.effort ? ["-c", `model_reasoning_effort=${opts.effort}`] : [];
+  // Invoked eval runs are fully non-interactive. Codex's exec path reads
+  // approval policy from config-style `-c` overrides, not the interactive TUI
+  // flag shape. If we leave the default in place, remote MCP write-tool calls
+  // can collapse into "user cancelled MCP tool call" in headless runs.
+  const approvalArgs = ["-c", 'approval_policy="never"'];
   // The eval REQUIRES outbound network (the agent calls the product's API / MCP
   // server and web-searches in discovery). codex's `workspace-write` sandbox
   // denies network by default (`network_access: false`) — every curl then fails
@@ -275,6 +334,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   return {
     command: "codex",
     args: [
+      ...approvalArgs,
       "exec",
       "--sandbox", "workspace-write",
       ...networkArgs,
@@ -363,8 +423,127 @@ function stampResultFile(opts: InvokeRunOptions): void {
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
 }
 
+function parseResultPayload(text: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(text) as Record<string, unknown>;
+    if (
+      parsed &&
+      typeof parsed === "object" &&
+      typeof parsed.profile === "string" &&
+      typeof parsed.ns === "string" &&
+      typeof parsed.surface === "string" &&
+      parsed.results &&
+      typeof parsed.results === "object"
+    ) {
+      return parsed;
+    }
+  } catch {
+    /* ignore invalid JSON */
+  }
+  return undefined;
+}
+
+function samePath(candidate: string | undefined, target: string, cwd: string): boolean {
+  if (!candidate) return false;
+  return resolve(cwd, candidate) === resolve(cwd, target);
+}
+
+function recoverClaudeWrite(stdout: string, targetPath: string, cwd: string): string | undefined {
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        message?: {
+          content?: Array<{
+            type?: string;
+            name?: string;
+            input?: { file_path?: string; content?: string };
+          }>;
+        };
+      };
+      const content = parsed.message?.content ?? [];
+      for (const block of content) {
+        if (block?.type === "tool_use" && block?.name === "Write" && samePath(block.input?.file_path, targetPath, cwd)) {
+          return typeof block.input?.content === "string" ? block.input.content : undefined;
+        }
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return undefined;
+}
+
+function recoverCodexAgentMessage(stdout: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        item?: { type?: string; text?: string };
+      };
+      if (parsed.type === "item.completed" && parsed.item?.type === "agent_message" && typeof parsed.item.text === "string") {
+        if (parseResultPayload(parsed.item.text)) found = parsed.item.text;
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return found;
+}
+
+function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
+  if (existsSync(opts.paths.resultsPath)) return true;
+  const recovered =
+    opts.harness === "claude-code"
+      ? recoverClaudeWrite(stdout, opts.paths.resultsPath, opts.cwd)
+      : recoverCodexAgentMessage(stdout);
+  if (!recovered) return false;
+  const parsed = parseResultPayload(recovered);
+  if (!parsed) return false;
+  writeFileSync(opts.paths.resultsPath, `${JSON.stringify(parsed, null, 2)}\n`);
+  return true;
+}
+
+function recoverTraceFile(opts: InvokeRunOptions, stdout: string): boolean {
+  if (existsSync(opts.paths.tracePath)) return true;
+  if (opts.harness !== "claude-code") return false;
+  const recovered = recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd);
+  if (!recovered) return false;
+  try {
+    const parsed = JSON.parse(recovered);
+    if (!Array.isArray(parsed)) return false;
+    writeFileSync(opts.paths.tracePath, `${JSON.stringify(parsed, null, 2)}\n`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function transcriptShowsSuccess(harness: InvokeHarnessId, stdout: string): boolean {
+  if (!stdout.trim()) return false;
+  if (harness === "claude-code") {
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as { type?: string; subtype?: string; terminal_reason?: string };
+        if (parsed.type === "result" && parsed.subtype === "success") return true;
+      } catch {
+        /* ignore */
+      }
+    }
+    return false;
+  }
+  return false;
+}
+
 function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
-  const results = Object.fromEntries(opts.pack.tasks.map((t) => [t.id, { gid: null }]));
+  const results = Object.fromEntries(tasksForSurface(opts.pack, opts.surface).map((t) => [t.id, { gid: null }]));
   writeFileSync(
     opts.paths.resultsPath,
     JSON.stringify(
@@ -423,10 +602,19 @@ export async function runInvokeHarness(
   let stderr = "";
   while (attempt < maxAttempts) {
     attempt += 1;
-    res = await spawnAsync(command, args, opts.cwd, { timeoutMs: opts.timeoutMs, env: opts.env });
+    res = await spawnAsync(command, args, opts.cwd, {
+      timeoutMs: opts.timeoutMs,
+      env: opts.env,
+      successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
+    });
     stdout = text(res.stdout);
     stderr = text(res.stderr);
-    ok = !res.error && (res.status ?? null) === 0 && existsSync(opts.paths.resultsPath);
+    recoverResultFile(opts, stdout);
+    recoverTraceFile(opts, stdout);
+    ok =
+      !res.error &&
+      existsSync(opts.paths.resultsPath) &&
+      (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
     if (ok || attempt >= maxAttempts) break;
     // Failed and a retry is left: drop any partial results file so the next
     // attempt is scored on its own output, not stale leftovers.

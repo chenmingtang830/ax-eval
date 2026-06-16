@@ -148,7 +148,7 @@ be a new pack, not a code change.
 
 ## Examples
 
-The repo ships stable example reports under [`examples/`](./examples/):
+The repo now ships two full HTML report examples under [`examples/`](./examples/):
 
 - [Asana cross-harness, cross-surface report](./examples/asana-cross-harness-cross-surface.html)
 - [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
@@ -157,6 +157,11 @@ Stripe is the current flagship example: one product evaluated across
 `API / SDK / CLI / MCP`, with both `claude-code` and `codex` in the same
 matrix. These examples are the fastest way to see what a finished ax-eval
 artifact looks like.
+
+These are stable copies of real run artifacts, meant to show new contributors
+what a finished ax-eval report looks like without making them dig through
+`results/runs/`. If you are new here, open one of those reports before changing
+the reporting pipeline or adding a new target.
 
 ## Architecture
 

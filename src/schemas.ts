@@ -186,6 +186,9 @@ export const McpSurfaceSchema = z.object({
   setup: z.string().optional(),
   /** MCP docs URL (an authoritative discovery source). */
   docs_url: z.string().optional(),
+  /** Optional per-tool approval overrides for headless clients that distinguish
+   *  read vs write tools at the MCP layer (e.g. Stripe's `stripe_api_write`). */
+  tool_approval_mode: z.record(z.string(), z.enum(["auto", "prompt", "approve"])).optional(),
   /** Per-surface auth. Hosted OAuth-only servers (Asana/Notion) set
    *  kind="oauth_app"; token-friendly servers (Monday/Linear) set kind="token". */
   auth: SurfaceAuthSchema.optional(),

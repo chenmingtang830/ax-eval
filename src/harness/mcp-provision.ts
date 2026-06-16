@@ -23,6 +23,19 @@ function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
 }
 
+function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string): void {
+  const script =
+    `#!/usr/bin/env node\n` +
+    `const token = process.env[${JSON.stringify(bearerTokenEnvVar)}]?.trim();\n` +
+    `if (!token) {\n` +
+    `  console.error("Missing MCP bearer token env ${bearerTokenEnvVar}");\n` +
+    `  process.exit(1);\n` +
+    `}\n` +
+    `process.stdout.write(JSON.stringify({ Authorization: "Bearer " + token }));\n`;
+  writeFileSync(scriptPath, script, { mode: 0o700 });
+  try { chmodSync(scriptPath, 0o700); } catch { /* best effort */ }
+}
+
 async function exchangeRefreshToken(auth: SurfaceAuth): Promise<string> {
   if (auth.kind === "token") {
     const token = env(auth.token_env);
@@ -87,12 +100,63 @@ function writeCodexMcpHome(opts: {
     `[mcp_servers.${serverName}]\n` +
     `url = ${tomlString(mcp.server)}\n` +
     typeLine +
-    `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n\n` +
+    `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n` +
+    Object.entries(mcp.tool_approval_mode ?? {})
+      .map(([toolName, mode]) => `\n[mcp_servers.${serverName}.tools.${toolName}]\napproval_mode = ${tomlString(mode)}\n`)
+      .join("") +
+    `\n` +
     `[projects.${tomlString(opts.cwd)}]\n` +
     `trust_level = "trusted"\n`;
   writeFileSync(configPath, config, { mode: 0o600 });
   try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
   return { home, configPath, serverName };
+}
+
+function writeClaudeMcpHome(opts: {
+  pack: TargetPack;
+  paths: InvokePaths;
+  cwd: string;
+  bearerTokenEnvVar: string;
+}): { home: string; configPath: string; headersHelperPath: string; serverName: string } {
+  const mcp = opts.pack.surfaces?.mcp;
+  if (!mcp?.server) throw new Error("Pack does not declare an MCP server URL");
+  const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-claude-mcp`);
+  const claudeDir = resolve(home, ".claude");
+  mkdirSync(claudeDir, { recursive: true });
+
+  const headersHelperPath = resolve(claudeDir, `${serverName}-mcp-headers-helper.js`);
+  writeSecretHeaderHelper(headersHelperPath, opts.bearerTokenEnvVar);
+
+  // Invoked eval runs are fully headless. Without an explicit permission mode,
+  // Claude will stop at the first remote MCP write and ask for approval instead
+  // of exercising the surface. Keep this scoped to the isolated temp home.
+  const settingsPath = resolve(claudeDir, "settings.json");
+  const settings = {
+    permissions: {
+      defaultMode: "bypassPermissions",
+    },
+  };
+  writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
+  try { chmodSync(settingsPath, 0o600); } catch { /* best effort */ }
+
+  const configPath = resolve(home, ".claude.json");
+  const config = {
+    projects: {
+      [opts.cwd]: {
+        mcpServers: {
+          [serverName]: {
+            type: mcp.transport === "http" ? "http" : "streamable-http",
+            url: mcp.server,
+            headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
+          },
+        },
+      },
+    },
+  };
+  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
+  try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
+  return { home, configPath, headersHelperPath, serverName };
 }
 
 /**
@@ -110,30 +174,49 @@ export async function provisionHarnessForSurface(opts: {
   const auth = opts.pack.surfaces?.mcp?.auth;
   if (!auth || auth.kind === "inherit") return { env: {} };
 
-  if (opts.harness !== "codex") {
+  const bearerToken = await exchangeRefreshToken(auth);
+  const bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
+  const authMode = auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token";
+
+  if (opts.harness === "codex") {
+    const codex = writeCodexMcpHome({ pack: opts.pack, paths: opts.paths, cwd: opts.cwd, bearerTokenEnvVar });
     return {
-      env: {},
+      env: {
+        HOME: codex.home,
+        CODEX_HOME: resolve(codex.home, ".codex"),
+        [bearerTokenEnvVar]: bearerToken,
+      },
       meta: {
-        mcp_provisioning: "not-configured-for-harness",
-        harness: opts.harness,
+        mcp_provisioning: authMode,
+        codex_home: codex.home,
+        codex_config: codex.configPath,
+        mcp_server: codex.serverName,
       },
     };
   }
 
-  const bearerToken = await exchangeRefreshToken(auth);
-  const bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
-  const codex = writeCodexMcpHome({ pack: opts.pack, paths: opts.paths, cwd: opts.cwd, bearerTokenEnvVar });
+  if (opts.harness === "claude-code") {
+    const claude = writeClaudeMcpHome({ pack: opts.pack, paths: opts.paths, cwd: opts.cwd, bearerTokenEnvVar });
+    return {
+      env: {
+        HOME: claude.home,
+        [bearerTokenEnvVar]: bearerToken,
+      },
+      meta: {
+        mcp_provisioning: authMode,
+        claude_home: claude.home,
+        claude_config: claude.configPath,
+        claude_headers_helper: claude.headersHelperPath,
+        mcp_server: claude.serverName,
+      },
+    };
+  }
+
   return {
-    env: {
-      HOME: codex.home,
-      CODEX_HOME: resolve(codex.home, ".codex"),
-      [bearerTokenEnvVar]: bearerToken,
-    },
+    env: {},
     meta: {
-      mcp_provisioning: auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token",
-      codex_home: codex.home,
-      codex_config: codex.configPath,
-      mcp_server: codex.serverName,
+      mcp_provisioning: "not-configured-for-harness",
+      harness: opts.harness,
     },
   };
 }
