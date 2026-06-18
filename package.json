@@ -51,9 +51,6 @@
     "node": ">=22"
   },
   "dependencies": {
-    "@linear/sdk": "^86.0.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "asana": "^3.1.12",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
