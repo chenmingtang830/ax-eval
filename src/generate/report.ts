@@ -795,10 +795,6 @@ function renderTldr(
       `summarized into ${cells.length} harness × surface cell${cells.length === 1 ? "" : "s"}. ` +
       `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
       `task success and agent discovery break down by harness below.`;
-    const productPills = [
-      pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
-      content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
-    ].filter(Boolean);
     // Per-harness range across that harness's cells (min–max, or single value).
     const range = (nums: (number | undefined)[], unit: string): string => {
       const v = nums.filter((n): n is number => n !== undefined);
@@ -807,9 +803,6 @@ function renderTldr(
       return a === b ? `${esc(a)}${unit}` : `${esc(a)}–${esc(b)}${unit}`;
     };
     const discSpread = range(cells.map((c) => c.discovery), "/100");
-    const takeaway =
-      `<strong>${harnesses.length} harnesses × ${surfaces.length} surfaces</strong>, ${cells.length} cells. ` +
-      `Read this report in two passes: <strong>Discovery</strong> asks whether agents could find and interpret the surface; <strong>Execution</strong> asks whether they could complete real tasks once there.`;
     const discoveryPills = [
       pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
       pill("Agent discovery", discSpread === "—" ? "—" : `${esc(discSpread)}`, "#agent-discovery"),
@@ -1338,7 +1331,8 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
 
   const process = worstProcessStats(runs);
   if (process && (process.failed > 0 || process.retryish >= 3)) {
-    findings.push(
+    pushFinding(
+      "execution",
       `${processStatsLabel(process)} completed with ${process.calls} recorded call(s), ${process.failed} failed call(s), and ` +
         `${process.retryish} retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.`,
     );
