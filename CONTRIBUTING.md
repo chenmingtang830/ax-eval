@@ -64,6 +64,19 @@ declare its `auth` / `sandbox_scope` / any required `headers`, then run
 If you need a code change to land a new target, that's a signal the abstraction
 is missing something — call it out in the PR.
 
+Two details matter for public packs:
+
+- `auth.env` is the canonical API credential name, but packs may also declare
+  `env_aliases` / `verify_env_aliases` for older local env setups.
+- SDK/CLI/MCP surfaces declare their own auth contract in `surfaces.*.auth`.
+  Token-based surfaces can add `token_env_aliases`; OAuth-only surfaces should
+  be modeled as `kind: oauth_app` so the report shows an honest blocked cell
+  instead of a fake 0%.
+
+Also note that `profile` and `surface` are different axes: the pack declares
+which product surfaces exist, while harness profiles vary execution settings
+(effort/model/autonomy). Do not use profiles to smuggle in or hide surfaces.
+
 ## Pull requests
 
 - **Tests green.** CI runs `npm ci → npm run typecheck → npm test` on Node 22.

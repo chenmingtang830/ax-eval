@@ -11,13 +11,14 @@ function fixturePack(): TargetPack {
     name: "acme",
     auth: { type: "bearer", env: "ACME_TOKEN" },
     surfaces: {
-      sdk: { package: "acme-sdk", auth: { kind: "inherit" } },
-      cli: { bin: "acme", auth: { kind: "token", token_env: "ACME_CLI_TOKEN" } },
+      sdk: { package: "acme-sdk", auth: { kind: "inherit", token_env_aliases: [] } },
+      cli: { bin: "acme", auth: { kind: "token", token_env: "ACME_CLI_TOKEN", token_env_aliases: [] } },
       mcp: {
         server: "https://mcp.acme.test/mcp",
         transport: "http",
         auth: {
           kind: "oauth_app",
+          token_env_aliases: [],
           client_id_env: "ACME_MCP_CLIENT_ID",
           client_secret_env: "ACME_MCP_CLIENT_SECRET",
           refresh_token_env: "ACME_MCP_REFRESH_TOKEN",

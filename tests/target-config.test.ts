@@ -16,6 +16,8 @@ const ENV_KEYS = [
   "TARGET_KEY",
   "TARGET_VERIFY",
   "TARGET_REPO",
+  "STRIPE_API_KEY",
+  "STRIPE_TOKEN",
 ];
 
 function pack(overrides: Record<string, unknown> = {}) {
@@ -55,6 +57,19 @@ describe("target config (generic auth + sandbox_scope)", () => {
     const p = pack({ auth: { type: "bearer", env: "TARGET_KEY" } });
     expect(() => resolveToken(p)).toThrow(TargetConfigError);
     expect(() => resolveToken(p)).toThrow(/TARGET_KEY/);
+  });
+
+  it("accepts declared auth env aliases", () => {
+    process.env.STRIPE_TOKEN = "legacy-stripe";
+    const p = pack({ auth: { type: "bearer", env: "STRIPE_API_KEY", env_aliases: ["STRIPE_TOKEN"] } });
+    expect(resolveToken(p)).toBe("legacy-stripe");
+    expect(describeRequiredEnv(p).find((r) => r.env === "STRIPE_API_KEY")?.set).toBe(true);
+  });
+
+  it("accepts built-in env aliases for legacy Stripe packs", () => {
+    process.env.STRIPE_API_KEY = "canonical-stripe";
+    const p = pack({ auth: { type: "bearer", env: "STRIPE_TOKEN" } });
+    expect(resolveToken(p)).toBe("canonical-stripe");
   });
 
   it("extracts a scope id from a pasted URL via url_pattern", () => {

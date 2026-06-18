@@ -35,6 +35,7 @@ function pack(): TargetPack {
         },
         auth: {
           kind: "oauth_app",
+          token_env_aliases: [],
           client_id_env: "ASANA_MCP_CLIENT_ID",
           client_secret_env: "ASANA_MCP_CLIENT_SECRET",
           refresh_token_env: "ASANA_MCP_REFRESH_TOKEN",

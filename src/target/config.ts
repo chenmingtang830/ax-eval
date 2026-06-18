@@ -21,19 +21,58 @@ export class TargetConfigError extends Error {
 
 const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
 
+const GLOBAL_ENV_ALIAS_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [
+  ["STRIPE_API_KEY", "STRIPE_TOKEN"],
+];
+
+function globalEnvAliases(name: string | undefined): string[] {
+  if (!name) return [];
+  for (const group of GLOBAL_ENV_ALIAS_GROUPS) {
+    if (group.includes(name)) return group.filter((entry) => entry !== name);
+  }
+  return [];
+}
+
+function envCandidates(primary: string | undefined, aliases: string[] = []): string[] {
+  const ordered = [primary, ...aliases, ...globalEnvAliases(primary)];
+  return [...new Set(ordered.filter((name): name is string => Boolean(name)))];
+}
+
+function resolveEnvValue(primary: string | undefined, aliases: string[] = []): string | undefined {
+  for (const name of envCandidates(primary, aliases)) {
+    const value = env(name);
+    if (value) return value;
+  }
+  return undefined;
+}
+
+function envHint(primary: string | undefined, aliases: string[] = []): string {
+  const names = envCandidates(primary, aliases);
+  if (names.length === 0) return "(unset)";
+  if (names.length === 1) return names[0]!;
+  return `${names[0]} (aliases: ${names.slice(1).join(", ")})`;
+}
+
 /** Resolve the credential the runner uses for verification/oracles. Prefers the
  *  pack's declared `verify_env` then `env`; legacy fallback = ASANA_VERIFY_PAT
  *  → ASANA_PAT so packs without an `auth` block still work. */
 export function resolveToken(pack: TargetPack): string {
   const a = pack.auth;
   const candidates = a?.env
-    ? [a.verify_env, a.env]
+    ? [
+        envCandidates(a.verify_env, a.verify_env_aliases),
+        envCandidates(a.env, a.env_aliases),
+      ].flat()
     : ["ASANA_VERIFY_PAT", "ASANA_PAT"];
   for (const name of candidates) {
-    const v = name ? env(name) : undefined;
+    const v = env(name);
     if (v) return v;
   }
-  const named = a?.env ? `${a.verify_env ? `${a.verify_env} or ` : ""}${a.env}` : "ASANA_PAT";
+  const named = a?.env
+    ? [envHint(a.verify_env, a.verify_env_aliases), envHint(a.env, a.env_aliases)]
+      .filter((hint) => hint !== "(unset)")
+      .join(" or ")
+    : "ASANA_PAT";
   throw new TargetConfigError(
     `Missing credential for ${pack.name}: set ${named} in .env (the agent's sandbox key).`,
   );
@@ -91,12 +130,18 @@ export interface EnvRequirement {
 export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
   const reqs: EnvRequirement[] = [];
   const authEnv = pack.auth?.env || "ASANA_PAT";
+  const authAliases = pack.auth?.env_aliases ?? [];
+  const verifyEnv = pack.auth?.verify_env;
+  const verifyAliases = pack.auth?.verify_env_aliases ?? [];
   reqs.push({
     role: "auth",
     env: authEnv,
     required: true,
-    set: Boolean(env(authEnv) || env(pack.auth?.verify_env ?? "")),
-    instructions: "the agent's sandbox credential",
+    set: Boolean(resolveEnvValue(verifyEnv, verifyAliases) || resolveEnvValue(authEnv, authAliases)),
+    instructions: [
+      "the agent's sandbox credential",
+      envCandidates(authEnv, authAliases).length > 1 ? `aliases accepted: ${envCandidates(authEnv, authAliases).slice(1).join(", ")}` : "",
+    ].filter(Boolean).join(" — "),
   });
   for (const p of pack.sandbox_scope) {
     reqs.push({
@@ -143,6 +188,10 @@ function apiAuthEnv(pack: TargetPack): string {
   return pack.auth?.env || "ASANA_PAT";
 }
 
+function apiAuthAliases(pack: TargetPack): string[] {
+  return pack.auth?.env_aliases ?? [];
+}
+
 /**
  * Resolve what a surface needs to authenticate and whether it's currently
  * blocked. This is the single source of truth behind `check-env --surface`,
@@ -158,7 +207,7 @@ export function surfaceAuthStatus(pack: TargetPack, surface: SurfaceId): Surface
     role,
     env: envName,
     required: true,
-    set: Boolean(env(envName)),
+    set: Boolean(resolveEnvValue(envName)),
     instructions,
   });
 
@@ -180,9 +229,17 @@ export function surfaceAuthStatus(pack: TargetPack, surface: SurfaceId): Surface
   // token / inherit: a single credential. "token" uses the surface's own
   // token_env; "inherit" (and api) reuse the top-level API credential.
   const envName = kind === "token" ? a?.token_env || apiAuthEnv(pack) : apiAuthEnv(pack);
+  const aliases = kind === "token" ? (a?.token_env_aliases ?? []) : apiAuthAliases(pack);
   const role = kind === "token" ? `${surface} token` : "auth";
-  const requirement = req(envName, role);
-  const missing = requirement.set ? [] : [envName];
+  const requirement = {
+    ...req(envName, role),
+    set: Boolean(resolveEnvValue(envName, aliases)),
+    instructions: [
+      instructions,
+      envCandidates(envName, aliases).length > 1 ? `aliases accepted: ${envCandidates(envName, aliases).slice(1).join(", ")}` : "",
+    ].filter(Boolean).join(" — ") || undefined,
+  };
+  const missing = requirement.set ? [] : [envHint(envName, aliases)];
   return {
     surface,
     kind,

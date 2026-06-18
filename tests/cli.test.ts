@@ -109,6 +109,75 @@ describe("generate provenance", () => {
     return path;
   }
 
+  function writeRichIngest(dir: string): string {
+    const path = resolve(dir, "rich-ingest.json");
+    writeFileSync(path, JSON.stringify({
+      source: "https://docs.example.test/openapi.json",
+      title: "Widget API",
+      baseUrl: "https://api.widget.test",
+      requestEnvelope: null,
+      responseEnvelope: null,
+      auth: { type: "api-key", header: "x-api-key" },
+      constantHeaders: {},
+      resources: [
+        { name: "tasks", createPath: "/tasks", createOp: "createTask", readPath: "/tasks/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: [], canUpdate: true, canDelete: false },
+        { name: "projects", createPath: "/projects", createOp: "createProject", readPath: "/projects/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: [], canUpdate: true, canDelete: false },
+        { name: "goals", createPath: "/goals", createOp: "createGoal", readPath: "/goals/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: [], canUpdate: true, canDelete: false },
+        { name: "portfolios", createPath: "/portfolios", createOp: "createPortfolio", readPath: "/portfolios/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: [], canUpdate: true, canDelete: false },
+        { name: "milestones", createPath: "/milestones", createOp: "createMilestone", readPath: "/milestones/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: [], canUpdate: false, canDelete: false },
+        { name: "sections", createPath: "/projects/{project_id}/sections", createOp: "createSection", readPath: "/sections/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: ["projects"], canUpdate: false, canDelete: false },
+        { name: "comments", createPath: "/tasks/{task_id}/comments", createOp: "createComment", readPath: "/comments/{id}", readParam: "id", identityField: "name", createFields: ["name"], dependsOn: ["tasks"], canUpdate: false, canDelete: false },
+      ],
+    }));
+    return path;
+  }
+
+  function writeGraphqlIngest(dir: string): string {
+    const path = resolve(dir, "graphql-ingest.json");
+    writeFileSync(path, JSON.stringify({
+      source: "https://api.linear.app/graphql",
+      format: "introspection",
+      queryType: "Query",
+      mutationType: "Mutation",
+      objectTypes: ["Issue", "IssuePayload"],
+      mutations: [{ name: "issueCreate", isCreate: true }],
+      createMutations: ["issueCreate"],
+      mutationDetails: [
+        {
+          name: "issueCreate",
+          returnTypeName: "IssuePayload",
+          args: ["input"],
+          argDetails: [{ name: "input", typeName: "IssueCreateInput" }],
+        },
+      ],
+      queryTypeFields: [
+        {
+          name: "issue",
+          typeName: "Issue",
+          args: ["id"],
+          argDetails: [{ name: "id", typeName: "ID" }],
+        },
+      ],
+      typeDetails: [
+        {
+          name: "IssuePayload",
+          fields: [{ name: "issue", typeName: "Issue", args: [], argDetails: [] }],
+        },
+        {
+          name: "Issue",
+          fields: [{ name: "title", typeName: "String", args: [], argDetails: [] }],
+        },
+      ],
+      inputTypeDetails: [
+        {
+          name: "IssueCreateInput",
+          fields: [{ name: "title", typeName: "String" }],
+        },
+      ],
+    }));
+    return path;
+  }
+
   it("defaults to LLM-assisted generation provenance", () => {
     const dir = freshDir();
     const ingest = writeIngest(dir);
@@ -164,6 +233,42 @@ describe("generate provenance", () => {
     const yaml = readFileSync(outPath, "utf8");
     expect(yaml).toContain("generated_by: deterministic@no-model");
     expect(yaml).not.toContain("generator:");
+  });
+
+  it("treats generated.full.pack.yaml as a harder 12-task preset by default", () => {
+    const dir = freshDir();
+    const ingest = writeRichIngest(dir);
+    const outPath = resolve(dir, "widget.generated.full.pack.yaml");
+    const { code } = runCli(["generate", "--deterministic", "--from", ingest, "--product", "Widget", "--out", outPath]);
+    expect(code).toBe(0);
+    const yaml = readFileSync(outPath, "utf8");
+    expect((yaml.match(/\n  - id:/g) ?? []).length).toBe(12);
+    expect((yaml.match(/difficulty: L3/g) ?? []).length).toBeGreaterThan(1);
+    expect((yaml.match(/difficulty: L4/g) ?? []).length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("applies the Linear GraphQL preset surfaces to deterministic generation", () => {
+    const dir = freshDir();
+    const ingest = writeGraphqlIngest(dir);
+    const outPath = resolve(dir, "linear.generated.pack.yaml");
+    const { code } = runCli([
+      "generate",
+      "--deterministic",
+      "--from", ingest,
+      "--product", "Linear",
+      "--out", outPath,
+    ]);
+    expect(code).toBe(0);
+    const yaml = readFileSync(outPath, "utf8");
+    expect(yaml).toContain("surfaces:");
+    expect(yaml).toContain("sdk:");
+    expect(yaml).toContain("package: \"@linear/sdk\"");
+    expect(yaml).toContain("mcp:");
+    expect(yaml).toContain("server: https://mcp.linear.app/mcp");
+    expect(yaml).toContain("allowed_surfaces:");
+    expect(yaml).toContain("- sdk");
+    expect(yaml).toContain("- mcp");
+    expect(yaml).not.toContain("\n  cli:");
   });
 });
 

@@ -196,6 +196,7 @@ describe("harness profiles", () => {
   it("a profile must cover every surface a task allows", () => {
     expect(profileSatisfies(getProfile("ceiling"), ["docs", "api"])).toBe(true);
     expect(profileSatisfies(getProfile("floor"), ["docs", "mcp"])).toBe(false);
+    expect(profileSatisfies(getProfile("floor"), ["docs", "api", "sdk", "mcp", "cli"])).toBe(false);
     expect(profileSatisfies(getProfile("floor"), [])).toBe(true);
   });
 });

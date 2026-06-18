@@ -44,6 +44,29 @@ describe("deterministic generation", () => {
     expect(l3.prompt).toMatch(/to-do list/);
   });
 
+  it("can emit multiple L3 tasks when requested", () => {
+    const richSpec = parseSpec(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Work API" },
+      servers: [{ url: "https://api.work.test/v1" }],
+      paths: {
+        "/tasks": { post: { operationId: "create_task", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/tasks/{task_id}": { get: { operationId: "get_task" }, patch: { operationId: "update_task" } },
+        "/projects": { post: { operationId: "create_project", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/projects/{project_id}": { get: { operationId: "get_project" }, patch: { operationId: "update_project" } },
+        "/goals": { post: { operationId: "create_goal", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/goals/{goal_id}": { get: { operationId: "get_goal" } },
+      },
+    }), "work");
+    const expanded = generatePack(richSpec, {
+      packName: "test",
+      limit: 2,
+      l3Limit: 3,
+      prefer: ["tasks", "projects", "goals"],
+    });
+    expect(expanded.tasks.filter((t) => t.difficulty === "L3")).toHaveLength(3);
+  });
+
   it("task prompts never inject the endpoint (goal-level only)", () => {
     for (const t of pack.tasks) {
       expect(t.prompt, t.id).not.toMatch(/POST \//);
@@ -88,6 +111,36 @@ describe("deterministic generation", () => {
     const fixed = generatePack(spec, { packName: "test", limit: 2, runId: "2026-06-02-abc123" });
     expect(fixed.run_id).toBe("2026-06-02-abc123");
     expect(fixed.tasks[0]!.oracles[0]!.expected).toContain("{ns}");
+  });
+
+  it("full-pack backfill prefers harder tiers before widening L1 breadth", () => {
+    const richSpec = parseSpec(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Work API" },
+      servers: [{ url: "https://api.work.test/v1" }],
+      paths: {
+        "/tasks": { post: { operationId: "create_task", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/tasks/{task_id}": { get: { operationId: "get_task" }, patch: { operationId: "update_task" } },
+        "/projects": { post: { operationId: "create_project", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/projects/{project_id}": { get: { operationId: "get_project" }, patch: { operationId: "update_project" } },
+        "/goals": { post: { operationId: "create_goal", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/goals/{goal_id}": { get: { operationId: "get_goal" }, patch: { operationId: "update_goal" } },
+        "/portfolios": { post: { operationId: "create_portfolio", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/portfolios/{portfolio_id}": { get: { operationId: "get_portfolio" }, patch: { operationId: "update_portfolio" } },
+      },
+    }), "work");
+    const full = generatePack(richSpec, {
+      packName: "test",
+      limit: 3,
+      l2Limit: 0,
+      l3Limit: 3,
+      l4Limit: 3,
+      targetTaskCount: 10,
+      prefer: ["tasks", "projects", "goals", "portfolios"],
+    });
+    expect(full.tasks).toHaveLength(10);
+    expect(full.tasks.filter((t) => t.difficulty === "L3")).toHaveLength(3);
+    expect(full.tasks.filter((t) => t.difficulty === "L4").length).toBeGreaterThanOrEqual(3);
   });
 
   it("serializes to a re-loadable frozen pack", () => {
