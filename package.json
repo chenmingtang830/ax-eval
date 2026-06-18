@@ -53,16 +53,15 @@
   "dependencies": {
     "@linear/sdk": "^86.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@mondaydotcomorg/monday-api-mcp": "^3.1.2",
     "asana": "^3.1.12",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.9"
   }
 }
