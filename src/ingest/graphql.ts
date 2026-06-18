@@ -55,6 +55,16 @@ export interface IngestGraphqlOptions {
   timeoutMs?: number;
 }
 
+class GraphqlIngestError extends Error {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly body?: unknown,
+  ) {
+    super(message);
+  }
+}
+
 /** A mutation field name that looks like a resource create. */
 function isCreateMutation(name: string): boolean {
   return /create/i.test(name) || /(^add|^new)[A-Z_]/.test(name);
@@ -245,6 +255,72 @@ query AxDetailedIntrospection {
   }
 }`.trim();
 
+const SCHEMA_CATALOG_QUERY = `
+query AxSchemaCatalog {
+  __schema {
+    queryType { name }
+    mutationType { name }
+    types {
+      kind
+      name
+    }
+  }
+}`.trim();
+
+const TYPE_DETAIL_SELECTION = `
+kind
+name
+fields(includeDeprecated: false) {
+  name
+  type {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType { kind name }
+      }
+    }
+  }
+  args {
+    name
+    type {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType {
+          kind
+          name
+          ofType { kind name }
+        }
+      }
+    }
+  }
+}
+inputFields {
+  name
+  type {
+    kind
+    name
+    ofType {
+      kind
+      name
+      ofType {
+        kind
+        name
+        ofType { kind name }
+      }
+    }
+  }
+}`.trim();
+
+const TYPE_BATCH_SIZE = 24;
+
 /** A GraphQL type reference, potentially wrapped in NON_NULL / LIST. */
 export interface TypeRef {
   kind: string;
@@ -357,6 +433,87 @@ function parseDetailedIntrospectionResult(root: Json, source: string): IngestedG
   return { ...base, mutationDetails, queryTypeFields, typeDetails, inputTypeDetails };
 }
 
+function summarizeGraphqlBody(body: unknown): string {
+  if (typeof body === "string") return body.slice(0, 240);
+  try {
+    return JSON.stringify(body).slice(0, 240);
+  } catch {
+    return String(body).slice(0, 240);
+  }
+}
+
+function isComplexityError(error: unknown): boolean {
+  if (!(error instanceof GraphqlIngestError)) return false;
+  const summary = `${error.message} ${summarizeGraphqlBody(error.body)}`.toLowerCase();
+  return error.status === 400 && summary.includes("complex");
+}
+
+async function fetchGraphqlJson(endpoint: string, query: string, signal: AbortSignal): Promise<Json> {
+  const res = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ query }),
+    signal,
+  });
+  const raw = await res.text();
+  let body: unknown = {};
+  try {
+    body = raw ? JSON.parse(raw) : {};
+  } catch {
+    body = raw;
+  }
+  if (!res.ok) {
+    throw new GraphqlIngestError(`introspection HTTP ${res.status}: ${summarizeGraphqlBody(body)}`, res.status, body);
+  }
+  const errors = Array.isArray((body as Json | undefined)?.errors) ? ((body as Json).errors as unknown[]) : [];
+  if (errors.length) {
+    throw new GraphqlIngestError(`introspection GraphQL errors: ${summarizeGraphqlBody(errors)}`, res.status, body);
+  }
+  if (!body || typeof body !== "object") {
+    throw new GraphqlIngestError("introspection returned a non-JSON body", res.status, body);
+  }
+  return body as Json;
+}
+
+function buildTypeBatchQuery(typeNames: string[]): string {
+  const selections = typeNames
+    .map((name, i) => `t${i}: __type(name: ${JSON.stringify(name)}) { ${TYPE_DETAIL_SELECTION} }`)
+    .join("\n");
+  return `query AxTypeBatch {\n${selections}\n}`;
+}
+
+async function fetchDetailedIntrospectionInBatches(endpoint: string, signal: AbortSignal): Promise<Json> {
+  const catalog = await fetchGraphqlJson(endpoint, SCHEMA_CATALOG_QUERY, signal);
+  const schema = ((catalog.data as Json | undefined)?.__schema as Json | undefined) ?? {};
+  const queryType = ((schema.queryType as Json | undefined)?.name as string | undefined) ?? null;
+  const mutationType = ((schema.mutationType as Json | undefined)?.name as string | undefined) ?? null;
+  const types = Array.isArray(schema.types) ? (schema.types as Array<Record<string, unknown>>) : [];
+  const detailNames = types
+    .filter((t) => (t.kind === "OBJECT" || t.kind === "INPUT_OBJECT") && typeof t.name === "string" && !t.name.startsWith("__"))
+    .map((t) => t.name as string);
+
+  const detailedTypes: Json[] = [];
+  for (let i = 0; i < detailNames.length; i += TYPE_BATCH_SIZE) {
+    const batch = detailNames.slice(i, i + TYPE_BATCH_SIZE);
+    const chunk = await fetchGraphqlJson(endpoint, buildTypeBatchQuery(batch), signal);
+    const data = (chunk.data as Json | undefined) ?? {};
+    for (let j = 0; j < batch.length; j += 1) {
+      const detail = data[`t${j}`];
+      if (detail && typeof detail === "object") detailedTypes.push(detail as Json);
+    }
+  }
+
+  return {
+    data: {
+      __schema: {
+        queryType: { name: queryType },
+        mutationType: { name: mutationType },
+        types: detailedTypes,
+      },
+    },
+  };
+}
+
 /** Like `ingestGraphql` but returns the richer `IngestedGraphqlRich` shape.
  *  SDL inputs fall back to empty rich fields because deterministic generation
  *  needs typed introspection JSON. */
@@ -377,15 +534,14 @@ export async function ingestGraphqlDetailed(
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
     try {
-      const res = await fetch(endpointOrSchema, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ query: DETAILED_INTROSPECTION_QUERY }),
-        signal: controller.signal,
-      });
-      const json = (await res.json()) as Json;
-      if (!res.ok) throw new Error(`introspection HTTP ${res.status}`);
-      return parseDetailedIntrospectionResult(json, endpointOrSchema);
+      try {
+        const json = await fetchGraphqlJson(endpointOrSchema, DETAILED_INTROSPECTION_QUERY, controller.signal);
+        return parseDetailedIntrospectionResult(json, endpointOrSchema);
+      } catch (error) {
+        if (!isComplexityError(error)) throw error;
+        const json = await fetchDetailedIntrospectionInBatches(endpointOrSchema, controller.signal);
+        return parseDetailedIntrospectionResult(json, endpointOrSchema);
+      }
     } finally {
       clearTimeout(timer);
     }

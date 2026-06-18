@@ -15,12 +15,14 @@
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
  *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
- *                    [--docs url,url] [--limit N] [--l2-limit N]       (review freezes the pack)
+ *                    [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N]
  *                    [--l4-limit N] [--base-url url] [--out yaml] [--deterministic]
  *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort high]
  *                    REST: L1 create · L2 chain · L3 goal · L4 lifecycle; GraphQL: L1 create + read-back oracles
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   round-trip oracles → HTML report
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
+ *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
+ *       [--html path] without re-running live verification
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile ceiling] run prompts locally
@@ -42,8 +44,15 @@ import { loadReport, saveReport } from "./storage.js";
 import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
 import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
-import { generateGraphqlPack, looksLikeGraphqlIngest } from "./generate/graphql-pack.js";
+import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
+import {
+  GENERATED_REPORT_SNAPSHOT_SCHEMA,
+  loadGeneratedReportSnapshot,
+  renderGeneratedSnapshot,
+  saveGeneratedReportSnapshot,
+  type GeneratedReportSnapshot,
+} from "./generate/snapshot.js";
 import {
   renderCompetitiveReport,
   renderGeneratedReport,
@@ -99,6 +108,7 @@ const COMMANDS = [
   "review",
   "exec-plan",
   "verify-generated",
+  "render-generated",
   "competitive",
   "trace-diff",
   "reset",
@@ -121,7 +131,7 @@ function commandUsage(command: string | undefined): string {
     case "generate":
       return [
         "usage: ax-eval generate --from <ingest.json> [--product P] [--site url]",
-        "                       [--docs url,url] [--limit N] [--l2-limit N] [--l4-limit N]",
+        "                       [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N] [--l4-limit N]",
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
@@ -132,9 +142,11 @@ function commandUsage(command: string | undefined): string {
       return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--surface api|cli|sdk|mcp|all] [--invoke]`;
     case "verify-generated":
     case "verify":
-      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--min-pass-rate 0.8]";
+      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
     case "competitive":
       return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
+    case "render-generated":
+      return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
     case "trace-diff":
       return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
     case "reset":
@@ -197,10 +209,12 @@ interface Parsed {
   html: string;
   openapi: string;
   graphql: string;
+  snapshot: string;
   from: string;
   baseUrl: string;
   limit: number;
   l2Limit: number | undefined;
+  l3Limit: number | undefined;
   l4Limit: number | undefined;
   results: string[];
   runId: string;
@@ -249,10 +263,12 @@ function parseArgs(argv: string[]): Parsed {
     html: "",
     openapi: "",
     graphql: "",
+    snapshot: "",
     from: "",
     baseUrl: "",
     limit: 3,
     l2Limit: undefined,
+    l3Limit: undefined,
     l4Limit: undefined,
     results: [],
     runId: "",
@@ -335,10 +351,12 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--html") p.html = value(++i, "--html");
     else if (a === "--openapi") p.openapi = value(++i, "--openapi");
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
+    else if (a === "--snapshot") p.snapshot = value(++i, "--snapshot");
     else if (a === "--from") p.from = value(++i, "--from");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
+    else if (a === "--l3-limit") p.l3Limit = Number(value(++i, "--l3-limit"));
     else if (a === "--l4-limit") p.l4Limit = Number(value(++i, "--l4-limit"));
     else if (a === "--results") p.results.push(value(++i, "--results"));
     else if (a === "--run-id") p.runId = value(++i, "--run-id");
@@ -650,6 +668,22 @@ function slugify(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 }
 
+function isFullPackPath(path: string | undefined): boolean {
+  return typeof path === "string" && /(^|\/)[^/]*generated\.full\.pack\.ya?ml$/i.test(path);
+}
+
+function resolvedGeneratePolicy(args: Parsed, allowFullPreset = true): Pick<GenerateOptions, "limit" | "l2Limit" | "l3Limit" | "l4Limit" | "targetTaskCount"> {
+  const wantsFull = allowFullPreset && isFullPackPath(args.out && args.out !== "results/last-run.json" ? args.out : undefined);
+  const explicitTierFlags = args.limit !== 3 || args.l2Limit !== undefined || args.l3Limit !== undefined || args.l4Limit !== undefined;
+  return {
+    limit: args.limit,
+    l2Limit: args.l2Limit ?? (wantsFull ? 2 : undefined),
+    l3Limit: args.l3Limit ?? (wantsFull ? 3 : undefined),
+    l4Limit: args.l4Limit ?? (wantsFull ? 3 : undefined),
+    targetTaskCount: wantsFull && !explicitTierFlags ? 12 : undefined,
+  };
+}
+
 /**
  * Curated, Asana-specific generation extras. Asana's OpenAPI declares no
  * `securitySchemes` and several resources read back under `title` not `name`,
@@ -680,7 +714,7 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
       package: "asana",
       language: "node",
       reference_url: "https://developers.asana.com/docs/overview",
-      auth: { kind: "inherit" },
+      auth: { kind: "inherit", token_env_aliases: [] },
     },
     mcp: {
       server: "https://mcp.asana.com/v2/mcp",
@@ -688,6 +722,7 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
       docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
       auth: {
         kind: "oauth_app",
+        token_env_aliases: [],
         client_id_env: "ASANA_MCP_CLIENT_ID",
         client_secret_env: "ASANA_MCP_CLIENT_SECRET",
         refresh_token_env: "ASANA_MCP_REFRESH_TOKEN",
@@ -763,7 +798,7 @@ const EXA_PRESET: Partial<GenerateOptions> = {
       package: "exa-js",
       language: "node",
       reference_url: "https://docs.exa.ai/reference/typescript-sdk-specification",
-      auth: { kind: "inherit" },
+      auth: { kind: "inherit", token_env_aliases: [] },
     },
     mcp: {
       server: "exa-mcp-server",
@@ -772,6 +807,7 @@ const EXA_PRESET: Partial<GenerateOptions> = {
       auth: {
         kind: "token",
         token_env: "EXA_API_KEY",
+        token_env_aliases: [],
         instructions: "Configure the Exa MCP server with EXA_API_KEY. Verification still reads back through the Exa REST API.",
       },
     },
@@ -911,6 +947,37 @@ const EXA_PRESET: Partial<GenerateOptions> = {
       trace: exaUrlOracleTrace("search must use additional query angles"),
     },
   ],
+};
+
+const LINEAR_GRAPHQL_PRESET: Partial<GenerateGraphqlPackOptions> = {
+  packName: "linear-generated",
+  baseUrl: "https://api.linear.app/graphql",
+  siteUrl: "https://linear.app/developers",
+  docsUrls: ["https://linear.app/developers/graphql"],
+  authMethod: "api-key",
+  authType: "api-key",
+  authEnv: "LINEAR_API_KEY",
+  authHeader: "Authorization",
+  surfaces: {
+    sdk: {
+      package: "@linear/sdk",
+      language: "node",
+      reference_url: "https://linear.app/developers/sdk",
+      auth: { kind: "inherit", token_env_aliases: [] },
+    },
+    mcp: {
+      server: "https://mcp.linear.app/mcp",
+      transport: "http",
+      docs_url: "https://linear.app/docs/mcp",
+      auth: {
+        kind: "token",
+        token_env: "LINEAR_API_KEY",
+        token_env_aliases: [],
+        instructions:
+          "Linear's MCP server supports direct API keys in the Authorization header. The same LINEAR_API_KEY used for the GraphQL API works for MCP.",
+      },
+    },
+  },
 };
 
 function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specSource: unknown): NonNullable<TargetPack["generator"]> {
@@ -1077,16 +1144,23 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   const docsUrls = args.docs
     ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
     : undefined;
+  const generatePolicy = resolvedGeneratePolicy(args);
 
   if (looksLikeGraphqlIngest(spec)) {
-    const generated = generateGraphqlPack(spec, {
-      limit: args.limit,
+    const isLinear = product.toLowerCase() === "linear";
+    const preset = isLinear ? LINEAR_GRAPHQL_PRESET : undefined;
+    const graphqlOpts: GenerateGraphqlPackOptions = {
+      ...(preset ?? {}),
+      ...generatePolicy,
       runId: args.runId || undefined,
       packName: `${slugify(product)}-generated`,
       product,
-      baseUrl: args.baseUrl || undefined,
-      siteUrl: args.site || "",
-      ...(docsUrls ? { docsUrls } : {}),
+      baseUrl: args.baseUrl || preset?.baseUrl || undefined,
+      siteUrl: args.site || preset?.siteUrl || "",
+      ...(docsUrls ? { docsUrls } : preset?.docsUrls ? { docsUrls: preset.docsUrls } : {}),
+    };
+    const generated = generateGraphqlPack(spec, {
+      ...graphqlOpts,
     });
     const pack: TargetPack = args.deterministic
       ? generated
@@ -1113,10 +1187,10 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
   // and resource graph — no per-product hardcoding.
+  const presetAllowsFull = !Boolean(EXA_PRESET.operationTasks && isExa);
+  const presetAwarePolicy = resolvedGeneratePolicy(args, presetAllowsFull);
   const baseOpts: GenerateOptions = {
-    limit: args.limit,
-    ...(args.l2Limit !== undefined ? { l2Limit: args.l2Limit } : {}),
-    ...(args.l4Limit !== undefined ? { l4Limit: args.l4Limit } : {}),
+    ...presetAwarePolicy,
     runId: args.runId || undefined,
     packName: `${slugify(product)}-generated`,
     product,
@@ -1137,6 +1211,10 @@ async function cmdGenerate(args: Parsed): Promise<number> {
         ...baseOpts,
         ...(preset.packName ? { packName: preset.packName } : {}),
         ...(args.limit === 3 && preset.limit !== undefined ? { limit: preset.limit } : {}),
+        ...(args.l2Limit === undefined && preset.l2Limit !== undefined ? { l2Limit: preset.l2Limit } : {}),
+        ...(args.l3Limit === undefined && preset.l3Limit !== undefined ? { l3Limit: preset.l3Limit } : {}),
+        ...(args.l4Limit === undefined && preset.l4Limit !== undefined ? { l4Limit: preset.l4Limit } : {}),
+        ...(baseOpts.targetTaskCount === undefined && preset.targetTaskCount !== undefined ? { targetTaskCount: preset.targetTaskCount } : {}),
         ...(args.site ? { siteUrl: args.site } : { siteUrl: preset.siteUrl }),
         ...(docsUrls ? { docsUrls } : { docsUrls: preset.docsUrls }),
       }
@@ -1590,6 +1668,38 @@ async function cmdCompetitive(args: Parsed): Promise<number> {
   return 0;
 }
 
+function absoluteIfPresent(path: string | undefined): string | undefined {
+  return path ? resolve(path) : undefined;
+}
+
+function snapshotRuns(runs: ProfileRun[]): ProfileRun[] {
+  return runs.map((run) => ({
+    ...run,
+    trace: [...(run.trace ?? [])],
+    outcomes: [...run.outcomes],
+    evidence: run.evidence
+      ? {
+          results: (run.evidence.results ?? []).map((p) => resolve(p)),
+          trace: (run.evidence.trace ?? []).map((p) => resolve(p)),
+          transcript: absoluteIfPresent(run.evidence.transcript),
+        }
+      : undefined,
+  }));
+}
+
+async function cmdRenderGenerated(args: Parsed): Promise<number> {
+  if (!args.snapshot) {
+    throw new Error("usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]");
+  }
+  const snapshot = loadGeneratedReportSnapshot(args.snapshot);
+  const html = renderGeneratedSnapshot(snapshot);
+  const outPath = args.html || args.snapshot.replace(/\.snapshot\.json$/i, ".html");
+  mkdirSync(dirname(outPath), { recursive: true });
+  writeFileSync(outPath, html);
+  console.log(`Saved report → ${outPath}`);
+  return 0;
+}
+
 async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval verify-generated --pack <yaml> --results <run.json>...");
@@ -1772,6 +1882,19 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   mkdirSync(dirname(outPath), { recursive: true });
   writeFileSync(outPath, html);
   console.log(`Saved report → ${outPath}`);
+  const snapshotPath = args.snapshot || `${args.runDir}/generated-eval.snapshot.json`;
+  const snapshot: GeneratedReportSnapshot = {
+    schema: GENERATED_REPORT_SNAPSHOT_SCHEMA,
+    pack,
+    runs: snapshotRuns(byProfile),
+    staticReadiness,
+    harness: probeHarness(),
+    warnings,
+    minPassRate: args.minPassRate,
+  };
+  mkdirSync(dirname(snapshotPath), { recursive: true });
+  saveGeneratedReportSnapshot(snapshotPath, snapshot);
+  console.log(`Saved render snapshot → ${snapshotPath}`);
   if (process.stdout.isTTY) {
     const opener = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
     spawnSync(opener, [outPath], { stdio: "ignore" });
@@ -1922,6 +2045,8 @@ async function main(): Promise<number> {
       return cmdExecPlan(args);
     case "verify-generated":
       return cmdVerifyGenerated(args);
+    case "render-generated":
+      return cmdRenderGenerated(args);
     case "competitive":
       return cmdCompetitive(args);
     case "trace-diff":

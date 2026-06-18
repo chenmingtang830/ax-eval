@@ -118,9 +118,14 @@ export interface GenerateOptions {
   limit?: number;
   /** Max number of L2 composed chains to emit (default 3). */
   l2Limit?: number;
+  /** Max number of L3 ambiguous goal-level tasks to emit (default 1). */
+  l3Limit?: number;
   /** Max number of generic L4 lifecycle tasks (create→rename→read-back) derived
    *  from spec update endpoints (default 3). 0 disables generic lifecycle. */
   l4Limit?: number;
+  /** Soft target for the total task count. If earlier tiers come up short,
+   *  generation backfills from harder tiers before widening L1 breadth. */
+  targetTaskCount?: number;
   packName: string;
   version?: string;
   standardSetVersion?: string;
@@ -207,7 +212,14 @@ function deriveAuth(spec: IngestedSpec, opts: GenerateOptions, slug: string): Au
   if (opts.authHeader) header = opts.authHeader;
   else if (type === "api-key" && specAuth.header) header = specAuth.header;
   else if (specAuth.header && specAuth.header !== "Authorization") header = specAuth.header;
-  return { type, env, ...(opts.authVerifyEnv ? { verify_env: opts.authVerifyEnv } : {}), ...(header ? { header } : {}) };
+  return {
+    type,
+    env,
+    env_aliases: [],
+    verify_env_aliases: [],
+    ...(opts.authVerifyEnv ? { verify_env: opts.authVerifyEnv } : {}),
+    ...(header ? { header } : {}),
+  };
 }
 
 /**
@@ -256,8 +268,59 @@ function orderByPreference<T extends { name: string }>(items: T[], prefer: strin
   return [...items].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
+const REST_L3_PROMPTS = [
+  (val: string) =>
+    `A teammate messages you: "Please add \\"${val}\\" to my to-do list in this workspace so I don't forget to do it." Work out what to create to satisfy this and create it. Report the id of the item you created.`,
+  (val: string) =>
+    `A coworker says: "Can you set up \\"${val}\\" in this workspace for me?" Decide what kind of record best satisfies that request, create it, and report its id.`,
+  (val: string) =>
+    `Someone asks: "I need \\"${val}\\" tracked in this workspace today." Infer what object to create, create it, and report the created id.`,
+] as const;
+
+function restGoalRank(res: CrudResource): number {
+  if (res.name === "tasks") return 100;
+  if (/task|todo|issue/i.test(res.name)) return 80;
+  return 0;
+}
+
+function restL3Task(
+  res: CrudResource,
+  spec: IngestedSpec,
+  env: string | null,
+  assertField: string,
+  index: number,
+): Task {
+  const val = probeValue(`${res.name}-goal-${index + 1}`);
+  return {
+    id: `gen-l3-${res.name}-${index + 1}`,
+    title: `L3: ambiguous goal-level — ${singularize(res.name)}`,
+    difficulty: "L3",
+    prompt: REST_L3_PROMPTS[index % REST_L3_PROMPTS.length]!(val),
+    allowed_surfaces: ["api", "docs"],
+    create_path: res.createPath,
+    create_envelope: spec.requestEnvelope ?? undefined,
+    depends_on: [],
+    trace: [],
+    oracles: [roundtripOracle(res, val, env, assertField)],
+  };
+}
+
+function appendUntil(target: Task[], pool: Task[], maxCount: number): void {
+  const seen = new Set(target.map((t) => t.id));
+  for (const task of pool) {
+    if (target.length >= maxCount) break;
+    if (seen.has(task.id)) continue;
+    target.push(task);
+    seen.add(task.id);
+  }
+}
+
 export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetPack {
   const limit = opts.limit ?? 3;
+  const l2Limit = opts.l2Limit ?? 3;
+  const l3Limit = opts.l3Limit ?? 1;
+  const l4Limit = opts.l4Limit ?? 3;
+  const targetTaskCount = opts.targetTaskCount;
   const prefer = opts.prefer ?? [];
   const runId = opts.runId ?? newRunId();
   const env = spec.responseEnvelope;
@@ -266,7 +329,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   const idField = (res: CrudResource): string => overrides[res.name] ?? res.identityField;
   const simpleAll = spec.resources.filter(isSimple);
   const simpleNames = new Set(simpleAll.map((r) => r.name));
-  const simple = orderByPreference(simpleAll, prefer).slice(0, limit);
+  const simpleOrdered = orderByPreference(simpleAll, prefer);
+  const simple = simpleOrdered.slice(0, limit);
   // Composed chains: only genuinely-nested resources (no simple create of the
   // same name), so we don't pick a team-scoped duplicate of a top-level create.
   const composed = orderByPreference(
@@ -276,13 +340,10 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
     prefer,
   );
 
-  const tasks: Task[] = [];
-
-  // L1 — single create + read-back. Goal-level: name the resource type, but NOT
-  // the endpoint (the executor discovered the API in Phase 0).
-  for (const res of simple) {
+  const l1Pool: Task[] = [];
+  for (const res of simpleOrdered) {
     const val = probeValue(res.name);
-    tasks.push({
+    l1Pool.push({
       id: `gen-l1-${res.name}`,
       title: `L1: create a ${res.name}`,
       difficulty: "L1",
@@ -301,16 +362,15 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // L2 — composed chains: create parent, then create child under it. Multiple
   // chains (capped) whose parent is a simple, preference-ranked resource. Still
   // goal-level: no endpoints named.
-  const l2Limit = opts.l2Limit ?? 3;
   const seenChild = new Set<string>();
+  const l2Pool: Task[] = [];
   for (const chain of composed) {
-    if (tasks.filter((t) => t.difficulty === "L2").length >= l2Limit) break;
     const parentName = chain.dependsOn[0]!;
     const parent = spec.resources.find((r) => r.name === parentName && isSimple(r));
     if (!parent || seenChild.has(chain.name)) continue;
     seenChild.add(chain.name);
     const childVal = probeValue(chain.name);
-    tasks.push({
+    l2Pool.push({
       id: `gen-l2-${parent.name}-${chain.name}`,
       title: `L2: create a ${chain.name} under a ${parent.name}`,
       difficulty: "L2",
@@ -331,25 +391,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // L3 — ambiguous, natural-language goal (comprehension). The resource type is
   // NOT named; the agent must infer that a to-do item ("task") satisfies it. The
   // oracle still reads back a concrete resource, so scoring stays programmatic.
-  const l3 = simple.find((r) => r.name === "tasks") ?? simple[0];
-  if (l3) {
-    const val = probeValue(`${l3.name}-goal`);
-    tasks.push({
-      id: `gen-l3-${l3.name}`,
-      title: `L3: ambiguous goal-level (comprehension)`,
-      difficulty: "L3",
-      prompt:
-        `A teammate messages you: "Please add \\"${val}\\" to my to-do list in this ` +
-        `workspace so I don't forget to do it." Work out what to create to satisfy ` +
-        `this and create it. Report the id of the item you created.`,
-      allowed_surfaces: ["api", "docs"],
-      create_path: l3.createPath,
-      create_envelope: spec.requestEnvelope ?? undefined,
-      depends_on: [],
-      trace: [],
-      oracles: [roundtripOracle(l3, val, env)],
-    });
-  }
+  const l3Candidates = [...simpleOrdered].sort((a, b) => restGoalRank(b) - restGoalRank(a) || a.name.localeCompare(b.name));
+  const l3Pool = l3Candidates.map((res, index) => restL3Task(res, spec, env, idField(res), index));
 
   // L4 (generic) — full create→update→read-back lifecycle, derived from the spec
   // (no authoring). For each top simple resource whose item path exposes an
@@ -358,13 +401,13 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // holds the NEW value — so passing requires the update to have really landed,
   // not just the create. This is the depth tier (vs L1 breadth). Resources a
   // curated L4 already mutates are skipped to avoid exercising the same flow twice.
-  const l4Limit = opts.l4Limit ?? 3;
   const curatedResources = new Set((opts.l4 ?? []).map((t) => t.resource));
-  const lifecycleCandidates = simple.filter((r) => r.canUpdate && !curatedResources.has(r.name));
-  for (const res of lifecycleCandidates.slice(0, l4Limit)) {
+  const lifecycleCandidates = simpleOrdered.filter((r) => r.canUpdate && !curatedResources.has(r.name));
+  const l4GenericPool: Task[] = [];
+  for (const res of lifecycleCandidates) {
     const before = probeValue(`${res.name}-pre`);
     const after = probeValue(`${res.name}-renamed`);
-    tasks.push({
+    l4GenericPool.push({
       id: `gen-l4-${res.name}-lifecycle`,
       title: `L4: full lifecycle — create then rename a ${res.name}`,
       difficulty: "L4",
@@ -384,13 +427,14 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // L4 (curated) — multi-step state mutations (create then change state, assert
   // the changed field reads back) that aren't derivable from the spec, e.g.
   // complete / reschedule / archive. Skipped silently if the resource is absent.
+  const l4CuratedPool: Task[] = [];
   let usedL4 = false;
   for (const tmpl of opts.l4 ?? []) {
     const res = simpleAll.find((r) => r.name === tmpl.resource);
     if (!res) continue;
     usedL4 = true;
     const val = probeValue(`${tmpl.resource}-${tmpl.idSuffix}`);
-    tasks.push({
+    l4CuratedPool.push({
       id: `gen-l4-${tmpl.idSuffix}`,
       title: tmpl.title,
       difficulty: "L4",
@@ -403,6 +447,23 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       oracles: [roundtripOracle(res, tmpl.expected, env, tmpl.assertField)],
     });
   }
+
+  const selectedL1 = l1Pool.slice(0, limit);
+  const selectedL2 = l2Pool.slice(0, l2Limit);
+  const selectedL3 = l3Pool.slice(0, l3Limit);
+  const selectedL4 = [...l4GenericPool.slice(0, l4Limit), ...l4CuratedPool];
+  if (targetTaskCount && targetTaskCount > 0) {
+    let total = selectedL1.length + selectedL2.length + selectedL3.length + selectedL4.length;
+    if (total < targetTaskCount) appendUntil(selectedL4, l4GenericPool.slice(l4Limit), targetTaskCount - total + selectedL4.length);
+    total = selectedL1.length + selectedL2.length + selectedL3.length + selectedL4.length;
+    if (total < targetTaskCount) appendUntil(selectedL3, l3Pool.slice(l3Limit), targetTaskCount - total + selectedL3.length);
+    total = selectedL1.length + selectedL2.length + selectedL3.length + selectedL4.length;
+    if (total < targetTaskCount) appendUntil(selectedL2, l2Pool.slice(l2Limit), targetTaskCount - total + selectedL2.length);
+    total = selectedL1.length + selectedL2.length + selectedL3.length + selectedL4.length;
+    if (total < targetTaskCount) appendUntil(selectedL1, l1Pool.slice(limit), targetTaskCount - total + selectedL1.length);
+  }
+
+  const tasks: Task[] = [...selectedL1, ...selectedL2, ...selectedL3, ...selectedL4];
 
   let usedOperationTasks = false;
   for (const tmpl of opts.operationTasks ?? []) {

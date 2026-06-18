@@ -124,6 +124,15 @@ npm run ax-eval -- verify --pack results/acme.generated.pack.yaml \
   --html results/runs/acme/eval.html
 ```
 
+`verify-generated` writes a saved report snapshot next to the HTML by default.
+You can re-render that exact report later without touching live state:
+
+```bash
+npm run ax-eval -- render-generated \
+  --snapshot results/runs/acme/generated-eval.snapshot.json \
+  --html results/runs/acme/generated-eval.html
+```
+
 GraphQL targets use the same review and verification gate. Their task ladder and
 read-back queries are drafted from rich introspection and must still be reviewed
 before use:
@@ -232,6 +241,9 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
 npm run ax-eval -- verify --pack <pack.yaml> --results <run.json>... --html <out.html>
+npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
+  --html <out.html> [--snapshot <out.snapshot.json>]
+npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
 npm run ax-eval -- reset --pack <pack.yaml> [--dry-run]
 
 npm run ax-eval -- audit --site <url>
@@ -255,10 +267,21 @@ URL env names: ax-eval exchanges the refresh token at invoke time, passes the
 short-lived bearer only to the child harness environment, and keeps secret values out
 of tracked files.
 
+Packs can declare backward-compatible env aliases too: top-level auth supports
+`env_aliases` / `verify_env_aliases`, and token-authenticated SDK/CLI/MCP
+surfaces support `token_env_aliases`. The first name stays canonical in packs
+and prompts; aliases let an older local setup keep working without changing the
+benchmark artifact.
+
 `verify-generated` reads live product state. Do not reset or sweep the sandbox
 until after the report is rendered and the user explicitly asks for cleanup.
 Cleaning first will make otherwise valid result ids read back as missing and
 will corrupt the report.
+
+If you want a stable artifact for examples, review, or later design work, keep
+the saved report snapshot and use `render-generated` instead of re-running live
+verification. Re-rendering from the snapshot preserves the report inputs; a new
+`verify-generated` is a fresh measurement.
 
 Generated packs are executable intent. `exec-plan` refuses unreviewed or changed
 packs unless you explicitly bypass the review gate.

@@ -1,0 +1,262 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: deterministic@graphql-pack
+# standard_set_version: gen-2026-06-17
+# run_id: 2026-06-17-dr4tjp
+name: linear-generated
+version: "0"
+standard_set_version: gen-2026-06-17
+run_id: 2026-06-17-dr4tjp
+generated_by: deterministic@graphql-pack
+api_style: graphql
+auth_method: api-key
+auth:
+  type: api-key
+  env: LINEAR_API_KEY
+  header: Authorization
+sandbox_scope: []
+base_url: https://api.linear.app/graphql
+headers: {}
+site_url: https://linear.app/developers
+openapi_url: ""
+docs_urls: &a1
+  - https://linear.app/developers/graphql
+static:
+  site_url: https://linear.app/developers
+  docs_urls: *a1
+  checks: []
+surfaces:
+  sdk:
+    package: "@linear/sdk"
+    language: node
+    reference_url: https://linear.app/developers/sdk
+    auth:
+      kind: inherit
+  mcp:
+    server: https://mcp.linear.app/mcp
+    transport: http
+    docs_url: https://linear.app/docs/mcp
+    auth:
+      kind: token
+      token_env: LINEAR_API_KEY
+      instructions: Linear's MCP server supports direct API keys in the Authorization
+        header. The same LINEAR_API_KEY used for the GraphQL API works for MCP.
+discovery:
+  product: Linear
+  goal: You are about to operate Linear programmatically. First work out, from
+    scratch, how Linear's public GraphQL API works — its single endpoint, how to
+    authenticate, the introspectable schema, and how to create resources — then
+    you will perform several tasks. You are NOT given any endpoint, base URL, or
+    documentation link; find them yourself.
+  official_domains:
+    - linear.app
+  canonical_endpoint: mutation issueCreate
+  deprecated_markers: []
+  auth_scheme: api-key
+tasks:
+  - id: gen-gql-l1-issue
+    title: "L1: create an issue"
+    difficulty: L1
+    prompt: Create one issue named "AX probe issue {ns}" using the GraphQL API you
+      discovered. Report the created id.
+    allowed_surfaces: &a2
+      - docs
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Issue back by id and assert title
+        readQueryTemplate: '{ issue(id: "{gid}") { title } }'
+        assertField: issue.title
+        expected: AX probe issue {ns}
+  - id: gen-gql-l1-comment
+    title: "L1: create a comment"
+    difficulty: L1
+    prompt: Create one comment with body "AX probe comment {ns}" using the GraphQL
+      API you discovered. Report the created id.
+    allowed_surfaces: *a2
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Comment back by id and assert body
+        readQueryTemplate: '{ comment(id: "{gid}") { body } }'
+        assertField: comment.body
+        expected: AX probe comment {ns}
+  - id: gen-gql-l1-document
+    title: "L1: create a document"
+    difficulty: L1
+    prompt: Create one document named "AX probe document {ns}" using the GraphQL API
+      you discovered. Report the created id.
+    allowed_surfaces: *a2
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Document back by id and assert title
+        readQueryTemplate: '{ document(id: "{gid}") { title } }'
+        assertField: document.title
+        expected: AX probe document {ns}
+  - id: gen-gql-l3-issue-1
+    title: "L3: ambiguous goal-level — issue"
+    difficulty: L3
+    prompt: "A teammate messages you: \"Please add \\\"AX probe issue-goal-1
+      {ns}\\\" to my to-do list in this workspace so I don't forget to do it.\"
+      Work out what to create to satisfy this and create it with the GraphQL API
+      you discovered. Report the id of the item you created."
+    allowed_surfaces: *a2
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Issue back by id and assert title
+        readQueryTemplate: '{ issue(id: "{gid}") { title } }'
+        assertField: issue.title
+        expected: AX probe issue-goal-1 {ns}
+  - id: gen-gql-l3-document-2
+    title: "L3: ambiguous goal-level — document"
+    difficulty: L3
+    prompt: 'A coworker asks: "Can you set up \"AX probe document-goal-2 {ns}\" in
+      this workspace for me?" Infer what object best satisfies that request,
+      create it with the GraphQL API you discovered, and report its id.'
+    allowed_surfaces: *a2
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Document back by id and assert title
+        readQueryTemplate: '{ document(id: "{gid}") { title } }'
+        assertField: document.title
+        expected: AX probe document-goal-2 {ns}
+  - id: gen-gql-l4-issue-lifecycle
+    title: "L4: full lifecycle — create then rename an issue"
+    difficulty: L4
+    prompt: Create one issue named "AX probe issue-pre {ns}" using the GraphQL API
+      you discovered, then update that same issue so its title is "AX probe
+      issue-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Issue back by id and assert title
+        readQueryTemplate: '{ issue(id: "{gid}") { title } }'
+        assertField: issue.title
+        expected: AX probe issue-renamed {ns}
+  - id: gen-gql-l4-comment-lifecycle
+    title: "L4: full lifecycle — create then rename a comment"
+    difficulty: L4
+    prompt: Create one comment with body "AX probe comment-pre {ns}" using the
+      GraphQL API you discovered, then update that same comment so its body is
+      "AX probe comment-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Comment back by id and assert body
+        readQueryTemplate: '{ comment(id: "{gid}") { body } }'
+        assertField: comment.body
+        expected: AX probe comment-renamed {ns}
+  - id: gen-gql-l4-document-lifecycle
+    title: "L4: full lifecycle — create then rename a document"
+    difficulty: L4
+    prompt: Create one document named "AX probe document-pre {ns}" using the GraphQL
+      API you discovered, then update that same document so its title is "AX
+      probe document-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+      - mcp
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Document back by id and assert title
+        readQueryTemplate: '{ document(id: "{gid}") { title } }'
+        assertField: document.title
+        expected: AX probe document-renamed {ns}
+  - id: gen-gql-l4-project-label-lifecycle
+    title: "L4: full lifecycle — create then rename a project label"
+    difficulty: L4
+    prompt: Create one project label named "AX probe project label-pre {ns}" using
+      the GraphQL API you discovered, then update that same project label so its
+      name is "AX probe project label-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read ProjectLabel back by id and assert name
+        readQueryTemplate: '{ projectLabel(id: "{gid}") { name } }'
+        assertField: projectLabel.name
+        expected: AX probe project label-renamed {ns}
+  - id: gen-gql-l4-initiative-lifecycle
+    title: "L4: full lifecycle — create then rename an initiative"
+    difficulty: L4
+    prompt: Create one initiative named "AX probe initiative-pre {ns}" using the
+      GraphQL API you discovered, then update that same initiative so its name
+      is "AX probe initiative-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read Initiative back by id and assert name
+        readQueryTemplate: '{ initiative(id: "{gid}") { name } }'
+        assertField: initiative.name
+        expected: AX probe initiative-renamed {ns}
+  - id: gen-gql-l4-issue-label-lifecycle
+    title: "L4: full lifecycle — create then rename an issue label"
+    difficulty: L4
+    prompt: Create one issue label named "AX probe issue label-pre {ns}" using the
+      GraphQL API you discovered, then update that same issue label so its name
+      is "AX probe issue label-renamed {ns}". Report its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read IssueLabel back by id and assert name
+        readQueryTemplate: '{ issueLabel(id: "{gid}") { name } }'
+        assertField: issueLabel.name
+        expected: AX probe issue label-renamed {ns}
+  - id: gen-gql-l4-project-milestone-lifecycle
+    title: "L4: full lifecycle — create then rename a project milestone"
+    difficulty: L4
+    prompt: Create one project milestone named "AX probe project milestone-pre {ns}"
+      using the GraphQL API you discovered, then update that same project
+      milestone so its name is "AX probe project milestone-renamed {ns}". Report
+      its id.
+    allowed_surfaces:
+      - docs
+      - api
+      - sdk
+    depends_on: []
+    trace: []
+    oracles:
+      - type: roundtrip
+        description: read ProjectMilestone back by id and assert name
+        readQueryTemplate: '{ projectMilestone(id: "{gid}") { name } }'
+        assertField: projectMilestone.name
+        expected: AX probe project milestone-renamed {ns}

@@ -193,9 +193,15 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("AX eval");
     expect(html).toContain(">Demo<");
     expect(html).toContain("standard_set_version");
-    expect(html).toContain("<h2>Summary</h2>");
-    expect(html).toContain("Key findings");
-    expect(html).toContain("Recommendations");
+    expect(html).toContain("<h2>Overview</h2>");
+    expect(html).toContain("Discovery snapshot");
+    expect(html).toContain("Execution snapshot");
+    expect(html).toContain('id="discovery"');
+    expect(html).toContain('id="execution"');
+    expect(html).toContain("Discovery findings");
+    expect(html).toContain("Execution findings");
+    expect(html).toContain("Discovery recommendations");
+    expect(html).toContain("Execution recommendations");
     expect(html).toContain("<h2>Scores</h2>");
     expect(html).toContain("Robustness (pass@k)");
     expect(html).toContain("Trace checks");
@@ -209,6 +215,7 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("ax-tldr");
     expect(html).toContain("TL;DR");
     expect(html).toContain("agent operability");
+    expect(html).toContain('class="ax-tldr__split"');
     // Four-pillar scorecard: static discovery and behavioral agent discovery are
     // distinct cards (never one conflated "discoverability" number), plus content
     // quality and task success.
@@ -229,7 +236,7 @@ describe("renderGeneratedReport (HTML)", () => {
     const statCQ: StaticReadiness = { ...stat, contentScore: audit.score, contentQuality: audit };
     const html = renderGeneratedReport(pack, runs, statCQ);
 
-    // Multi-config → the matrix Summary, where Content quality is a product-level
+    // Multi-config → the matrix Overview, where Content quality is a product-level
     // card alongside Static discovery (the behavioral pillars move into the grid).
     expect(html).toContain('class="ax-scorecard"');
     expect(html).toContain("agent operability");

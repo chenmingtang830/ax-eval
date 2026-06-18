@@ -1,7 +1,7 @@
 /**
  * Harness profiles — the *execution* config, kept separate from the (frozen,
  * model-agnostic) standard_set. A profile is a feature-profile point: model,
- * reasoning/thinking effort, autonomy, the surfaces it can use, and caps.
+ * reasoning/thinking effort, autonomy, a legacy capability list, and caps.
  *
  * Generation harness != execution harness. The bank declares only what a task
  * requires (allowed_surfaces, max_turns); a profile must SATISFY those. Each
@@ -58,7 +58,8 @@ export interface HarnessProfile {
   effort: "low" | "medium" | "high";
   /** Autonomy: does it just act, or ask/confirm. */
   autonomy: "auto" | "ask";
-  /** Surfaces this profile is able to use. */
+  /** Legacy capability list. Surface selection is controlled by the pack +
+   *  `--surface`; profiles vary effort/model, not which interface is exposed. */
   surfaces: string[];
   maxTurns: number;
   /** Marks the attribution upper-bound column (the strongest configured run). */
@@ -84,8 +85,6 @@ export const PROFILES: Record<string, HarnessProfile> = {
     model: null,
     effort: "high",
     autonomy: "auto",
-    // Surfaces unused by REST-only Asana tasks; kept equal here so EFFORT is the
-    // only knob that differs from the low profile.
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
     upperBound: true,

@@ -83,6 +83,7 @@ export interface StaticReadiness {
 
 /** One actionable, prioritized recommendation produced by the engine below. */
 export interface Recommendation {
+  category?: "discovery" | "execution";
   priority: "high" | "med" | "low";
   title: string;
   detail: string;
@@ -92,6 +93,11 @@ export interface Recommendation {
   target?: string;
   evidence?: string;
   fix?: string;
+}
+
+interface Finding {
+  category: "discovery" | "execution";
+  detail: string;
 }
 
 const DIFFS = ["L1", "L2", "L3", "L4"];
@@ -494,6 +500,7 @@ export function buildRecommendations(
       })
       .join(" | ");
     recs.push({
+      category: "execution",
       priority: "high",
       title: "Fill MCP tool coverage gaps",
       detail:
@@ -511,6 +518,7 @@ export function buildRecommendations(
     const tasks = new Set(approvalSignals.map((s) => taskDescriptor(pack, s.taskId)));
     const examples = approvalSignals.slice(0, 3).map((s) => `${configLabel(s.run)} ${s.taskId}: ${s.detail}`).join(" | ");
     recs.push({
+      category: "execution",
       priority: "med",
       title: "Separate MCP approval failures from tool coverage",
       detail:
@@ -532,6 +540,7 @@ export function buildRecommendations(
   if (failedIds.has("auth-discovery")) missingEntrypoints.push("OAuth authorization-server discovery");
   if (missingEntrypoints.length) {
     recs.push({
+      category: "discovery",
       priority: "high",
       title: "Publish machine-readable discovery entrypoints",
       detail:
@@ -548,6 +557,7 @@ export function buildRecommendations(
   //    Only meaningful when the docs site IS the agent's discovery path (API).
   if (gapMeaningful && readiness !== undefined && best && readiness >= 50 && readiness - best.pct >= 20) {
     recs.push({
+      category: "discovery",
       priority: "high",
       title: "Close the gap between published and usable",
       detail:
@@ -560,6 +570,7 @@ export function buildRecommendations(
   // 2) Discovery missed `official` → agents never reached the official docs.
   if (missed("official")) {
     recs.push({
+      category: "discovery",
       priority: "high",
       title: "Agents never reached your official docs",
       detail:
@@ -572,6 +583,7 @@ export function buildRecommendations(
   // 3) Discovery missed `canonical` → docs don't surface the right endpoint.
   if (missed("canonical")) {
     recs.push({
+      category: "discovery",
       priority: "high",
       title: "Official docs don't surface the canonical endpoint",
       detail:
@@ -584,6 +596,7 @@ export function buildRecommendations(
   // 4) v2 docs-graph crawl ~0 → docs aren't link-reachable (likely an SPA).
   if (v2 !== undefined && v2 <= 10) {
     recs.push({
+      category: "discovery",
       priority: "med",
       title: "Docs aren't link-reachable (likely a client-rendered SPA)",
       detail:
@@ -612,6 +625,7 @@ export function buildRecommendations(
         })
         .join(" | ");
       recs.push({
+        category: "execution",
         priority: "high",
         title: "Product/docs gap: the strongest agent still failed",
         detail:
@@ -626,6 +640,7 @@ export function buildRecommendations(
     // 6) Plan-limited failures → sandbox/plan limits, NOT product gaps.
     if (planFails.length) {
       recs.push({
+        category: "execution",
         priority: "low",
         title: "Some failures are plan/sandbox limits, not product gaps",
         detail:
@@ -642,6 +657,7 @@ export function buildRecommendations(
   );
   if (weakTasks.length) {
     recs.push({
+      category: "execution",
       priority: "med",
       title: "Strengthen weak task verification",
       detail:
@@ -658,6 +674,7 @@ export function buildRecommendations(
   if (contentScore !== undefined && contentScore < 80) {
     const cq = staticReadiness?.contentQuality;
     recs.push({
+      category: "discovery",
       priority: contentScore < 50 ? "high" : "med",
       title: "Improve the OpenAPI spec's content quality",
       detail:
@@ -669,6 +686,7 @@ export function buildRecommendations(
 
   if (maxAttempts(runs) <= 1 && runs.some((r) => r.outcomes.length > 0)) {
     recs.push({
+      category: "execution",
       priority: "low",
       title: "Re-run with pass@k before treating results as stable",
       detail:
@@ -684,6 +702,7 @@ export function buildRecommendations(
   const ranOutcomes = runs.flatMap((r) => r.outcomes);
   if (ranOutcomes.length > 0 && !ranOutcomes.some((o) => !o.success)) {
     recs.push({
+      category: "execution",
       priority: "low",
       title: "All tasks pass — raise the bar",
       detail:
@@ -750,12 +769,14 @@ function renderTldr(
   const num = (n: number | undefined, scale: "/100" | "%"): string =>
     n === undefined ? "—" : `${esc(n)}<span class="ax-tldr__pill-scale">${scale}</span>`;
   const links = [
-    `<a href="#agent-discovery">Agent discovery</a>`,
-    stat?.contentQuality ? `<a href="#content-quality">Content quality</a>` : "",
-    `<a href="#scores">Scores</a>`,
-    recCount ? `<a href="#recommendations">${recCount} recommendation${recCount === 1 ? "" : "s"}</a>` : "",
+    `<a href="#discovery">Discovery</a>`,
+    `<a href="#execution">Execution</a>`,
+    recCount ? `<a href="#discovery-recommendations">${recCount} recommendation${recCount === 1 ? "" : "s"}</a>` : "",
+    `<a href="#methodology">Methodology</a>`,
   ].filter(Boolean);
   const jump = `<p class="ax-tldr__jump">Jump to: ${links.join(" · ")}</p>`;
+  const section = (title: string, body: string): string =>
+    `<div class="ax-tldr__section"><div class="ax-tldr__section-h">${title}</div>${body}</div>`;
 
   // Multi-harness: the two cell-level pillars (task success, agent discovery) are
   // broken down PER HARNESS; the two product-level pillars stay single pills.
@@ -774,10 +795,6 @@ function renderTldr(
       `summarized into ${cells.length} harness × surface cell${cells.length === 1 ? "" : "s"}. ` +
       `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
       `task success and agent discovery break down by harness below.`;
-    const productPills = [
-      pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
-      content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
-    ].filter(Boolean);
     // Per-harness range across that harness's cells (min–max, or single value).
     const range = (nums: (number | undefined)[], unit: string): string => {
       const v = nums.filter((n): n is number => n !== undefined);
@@ -785,20 +802,35 @@ function renderTldr(
       const a = Math.min(...v), b = Math.max(...v);
       return a === b ? `${esc(a)}${unit}` : `${esc(a)}–${esc(b)}${unit}`;
     };
+    const discSpread = range(cells.map((c) => c.discovery), "/100");
+    const discoveryPills = [
+      pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
+      pill("Agent discovery", discSpread === "—" ? "—" : `${esc(discSpread)}`, "#agent-discovery"),
+      content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    ].filter(Boolean);
     const byHarness = harnesses
       .map((h) => {
         const hr = runs.filter((r) => (r.harness ?? "host-agent") === h);
         const hc = cells.filter((c) => c.harness === h);
-        return `<div class="ax-tldr__hrow"><span class="ax-tldr__hname">${esc(h)}</span><span class="ax-tldr__hmetric">task success <strong>${rangeLabel(configPassPcts(hr))}</strong></span><span class="ax-tldr__hmetric">agent discovery <strong>${range(hc.map((c) => c.discovery), "/100")}</strong></span></div>`;
+        return {
+          name: h,
+          task: rangeLabel(configPassPcts(hr)),
+          disc: range(hc.map((c) => c.discovery), "/100"),
+        };
       })
+    ;
+    const discoveryRows = byHarness
+      .map((h) => `<div class="ax-tldr__hrow"><span class="ax-tldr__hname">${esc(h.name)}</span><span class="ax-tldr__hmetric">agent discovery <strong>${esc(h.disc)}</strong></span></div>`)
+      .join("");
+    const executionRows = byHarness
+      .map((h) => `<div class="ax-tldr__hrow"><span class="ax-tldr__hname">${esc(h.name)}</span><span class="ax-tldr__hmetric">task success <strong>${esc(h.task)}</strong></span></div>`)
       .join("");
     return `<section class="ax-section ax-tldr" id="tldr">
     <div class="ax-eyebrow">TL;DR</div>
     <p class="ax-tldr__takeaway">${takeaway}</p>
-    <div class="ax-tldr__pills">${productPills.join("")}</div>
-    <div class="ax-tldr__byharness">
-      <div class="ax-tldr__byharness-h"><a href="#scores">By harness</a> — task success · agent discovery (range across surfaces):</div>
-      ${byHarness}
+    <div class="ax-tldr__split">
+      ${section(`<a href="#discovery">Discovery</a>`, `<div class="ax-tldr__pills">${discoveryPills.join("")}</div><div class="ax-tldr__byharness"><div class="ax-tldr__byharness-h">By harness — agent discovery range across surfaces:</div>${discoveryRows}</div>`)}
+      ${section(`<a href="#execution">Execution</a>`, `<div class="ax-tldr__pills">${pill("Task success", spread === "—" ? "—" : `${esc(spread)}`, "#scores")}</div><div class="ax-tldr__byharness"><div class="ax-tldr__byharness-h">By harness — task success range across surfaces:</div>${executionRows}</div>`)}
     </div>
     ${jump}
   </section>`;
@@ -821,16 +853,19 @@ function renderTldr(
     `On the <strong>${esc(surface.toUpperCase())}</strong> surface, the best agent (${esc(best.profile)} effort) ` +
     `completed <strong>${esc(best.pct)}%</strong> of real tasks; ${failNote}. ` +
     `Static docs discovery and behavioral agent discovery are reported separately below.`;
-  const pills = [
+  const discoveryPills = [
     pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
     pill("Agent discovery", num(agentDisc, "/100"), "#agent-discovery"),
     content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
-    pill("Task success", num(best.pct, "%"), "#scores"),
   ].filter(Boolean);
+  const executionBody = `<div class="ax-tldr__pills">${pill("Task success", num(best.pct, "%"), "#scores")}</div><p class="ax-tldr__section-note">On the <strong>${esc(surface.toUpperCase())}</strong> surface with <strong>${esc(best.profile)}</strong> effort, ${failNote}.</p>`;
   return `<section class="ax-section ax-tldr" id="tldr">
     <div class="ax-eyebrow">TL;DR</div>
     <p class="ax-tldr__takeaway">${takeaway}</p>
-    <div class="ax-tldr__pills">${pills.join("")}</div>
+    <div class="ax-tldr__split">
+      ${section(`<a href="#discovery">Discovery</a>`, `<div class="ax-tldr__pills">${discoveryPills.join("")}</div>`)}
+      ${section(`<a href="#execution">Execution</a>`, executionBody)}
+    </div>
     ${jump}
   </section>`;
 }
@@ -1006,6 +1041,7 @@ function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => str
 function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const agentDisc = agentDiscoveryScore(runs);
   const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
   const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
 
@@ -1020,8 +1056,7 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
   const verdict =
     `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} ` +
     `${nH} harness${nH === 1 ? "" : "es"} × ${nS} surface${nS === 1 ? "" : "s"} × ${profiles.length} effort = ${runs.length} configs. ` +
-    `Task success ${lo === hi ? `${hi}% across the board` : `${lo}–${hi}%`}. Static discovery and content quality are product-level (shown once); ` +
-    `every config's task success + agent discovery is below — all printed, none crowned "best".`;
+    `Read this report in two passes: Discovery asks whether agents can find and interpret the surface; Execution asks whether they can complete real tasks once there.`;
 
   // Cell: task success heat pill (strict scale) + agent-discovery colored text.
   const cell = (r: ProfileRun | undefined): string => {
@@ -1071,15 +1106,40 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
         <span class="ax-card__sub">weighted OpenAPI smell score · product-level</span>
       </div>`
       : "",
+    `<div class="ax-card ${scoreBand(agentDisc)}">
+        <span class="ax-card__value">${agentDisc !== undefined ? esc(agentDisc) : "—"}${agentDisc !== undefined ? '<span class="ax-card__scale">/100</span>' : ""}</span>
+        <span class="ax-card__label"><a href="#agent-discovery">Agent discovery</a></span>
+        <span class="ax-card__sub">best observed Phase-0 score across configs</span>
+      </div>`,
   ].filter(Boolean);
+  const executionCards = [
+    `<div class="ax-card ${scoreBand(hi)}">
+        <span class="ax-card__value">${esc(lo === hi ? hi : `${lo}–${hi}`)}<span class="ax-card__scale">%</span></span>
+        <span class="ax-card__label"><a href="#scores">Task success</a></span>
+        <span class="ax-card__sub">${lo === hi ? "same across configs" : "range across configs"}</span>
+      </div>`,
+  ];
 
   return `<section class="ax-section ax-scorecard-section">
-    <h2>Summary</h2>
+    <h2>Overview</h2>
     <p class="ax-verdict">${esc(verdict)}</p>
-    <div class="ax-scorecard">
-      ${productCards.join("\n      ")}
+    <div class="ax-overview-split">
+      <div class="ax-overview-block">
+        <h3 class="ax-overview-block__title">Discovery snapshot</h3>
+        <p class="ax-overview-block__note">Product-level docs and schema signals, plus the strongest behavioral discovery score across configs.</p>
+        <div class="ax-scorecard">
+          ${productCards.join("\n          ")}
+        </div>
+      </div>
+      <div class="ax-overview-block">
+        <h3 class="ax-overview-block__title">Execution snapshot</h3>
+        <p class="ax-overview-block__note">Behavior once discovery is intact: real task completion across harnesses, surfaces, and effort levels.</p>
+        <div class="ax-scorecard">
+          ${executionCards.join("\n          ")}
+        </div>
+      </div>
     </div>
-    <h3 class="ax-subhead">Task success / agent discovery — every config</h3>
+    <h3 class="ax-subhead">Execution matrix — every config</h3>
     <p class="ax-note">One row per harness · surface, one column per effort level. The pill is task success (round-trip oracles); <code class="ax-code">disc</code> is the behavioral agent-discovery score. Every config is printed — none crowned "best".</p>
     <div class="ax-table-wrap">
     <table class="ax-table ax-matrix">
@@ -1183,14 +1243,13 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       </div>`,
     );
   }
-  // 4) Task success — the behavioral pass rate (the headline outcome).
-  cards.push(
+  const executionCards = [
     `<div class="ax-card ${band(best?.pct)}">
         ${val(best?.pct, "%")}
         <span class="ax-card__label"><a href="#scores">Task success</a></span>
         <span class="ax-card__sub">${best ? `oracles passed · ${esc(best.profile)} · ${esc(surface.toUpperCase())}` : "no runs"}</span>
       </div>`,
-  );
+  ];
 
   // Spell out each formula so a reader can see how the report arrives at every
   // number. Three pillars are 0–100 scores; task success is a percentage rate.
@@ -1204,10 +1263,23 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
   ].filter(Boolean);
 
   return `<section class="ax-section ax-scorecard-section">
-    <h2>Summary</h2>
+    <h2>Overview</h2>
     <p class="ax-verdict">${esc(verdict)}</p>
-    <div class="ax-scorecard${cards.length >= 4 ? " ax-scorecard--four" : ""}">
-      ${cards.join("\n      ")}
+    <div class="ax-overview-split">
+      <div class="ax-overview-block">
+        <h3 class="ax-overview-block__title">Discovery snapshot</h3>
+        <p class="ax-overview-block__note">Can the agent find the authoritative surface and infer how to authenticate and create the target object?</p>
+        <div class="ax-scorecard${cards.length >= 3 ? " ax-scorecard--three" : ""}">
+          ${cards.join("\n          ")}
+        </div>
+      </div>
+      <div class="ax-overview-block">
+        <h3 class="ax-overview-block__title">Execution snapshot</h3>
+        <p class="ax-overview-block__note">Once discovery is intact, does the agent complete the real tasks and read back server-confirmed state?</p>
+        <div class="ax-scorecard">
+          ${executionCards.join("\n          ")}
+        </div>
+      </div>
     </div>
     <details class="ax-howscored">
       <summary>How these scores are computed</summary>
@@ -1216,44 +1288,51 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
   </section>`;
 }
 
-/** Build 2–3 prioritized plain-text findings from the data. */
-function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadiness): string[] {
-  const findings: string[] = [];
+/** Build prioritized plain-text findings, split by report section. */
+function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadiness): Finding[] {
+  const findings: Finding[] = [];
   const best = bestBehavioralPct(runs);
   const readiness = readinessScore(stat);
   const surface = dominantSurface(runs);
   const gapMeaningful = staticReflectsAgentDiscovery(surface);
   const cells = matrixCells(runs);
+  const pushFinding = (category: Finding["category"], detail: string): void => {
+    findings.push({ category, detail });
+  };
 
   if (cells.length > 1) {
     const measured = configPassPcts(runs);
     if (measured.length) {
       const lo = Math.min(...measured);
       const hi = Math.max(...measured);
-      findings.push(
+      pushFinding(
+        "execution",
         `Task success ranges ${lo === hi ? `${hi}%` : `${lo}–${hi}%`} across configs; static docs discoverability is ${readiness ?? "not measured"}${readiness !== undefined ? "/100" : ""}. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.`,
       );
     }
   } else if (best && readiness !== undefined && gapMeaningful) {
     const gap = readiness - best.pct;
-    findings.push(
+    pushFinding(
+      "discovery",
       gap > 0
         ? `Docs-site discoverability is ${readiness}/100 but only ${best.pct}% of tasks succeed — a ${gap}-point gap between published and usable.`
         : `Task success (${best.pct}%) is on par with or above docs-site discoverability (${readiness}/100) — agents can actually use it.`,
     );
   } else if (best && readiness !== undefined) {
     // Non-API surface: report the two signals separately, do not subtract them.
-    findings.push(
+    pushFinding(
+      "discovery",
       `On the ${surface.toUpperCase()} surface the best agent completed ${best.pct}% of tasks. The ${readiness}/100 ` +
         `docs-site discoverability is a static crawl of the docs website — a publisher signal, not how the agent found the ${surface.toUpperCase()} tools.`,
     );
   } else if (best) {
-    findings.push(`The best agent (${best.profile}) completed ${best.pct}% of tasks; docs-site discoverability wasn't measured.`);
+    pushFinding("execution", `The best agent (${best.profile}) completed ${best.pct}% of tasks; docs-site discoverability wasn't measured.`);
   }
 
   const process = worstProcessStats(runs);
   if (process && (process.failed > 0 || process.retryish >= 3)) {
-    findings.push(
+    pushFinding(
+      "execution",
       `${processStatsLabel(process)} completed with ${process.calls} recorded call(s), ${process.failed} failed call(s), and ` +
         `${process.retryish} retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.`,
     );
@@ -1265,7 +1344,8 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     const top = (Object.keys(cq.byCategory) as (keyof typeof cq.byCategory)[])
       .filter((c) => cq.byCategory[c] > 0)
       .sort((a, b) => cq.byCategory[b] - cq.byCategory[a])[0];
-    findings.push(
+    pushFinding(
+      "discovery",
       `OpenAPI content quality is ${stat.contentScore}/100 (${cq.totalSmells} spec smell(s) across ${cq.endpointsAnalyzed} endpoints)` +
         (top ? `, most often ${top}` : "") +
         " — agents may struggle to construct calls even after finding the docs.",
@@ -1280,7 +1360,8 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
         if (m.id !== "hops" && !m.passed) missing.add(METRIC_FAILURE_LABEL[m.id] ?? `failed ${m.id}`);
       }
     }
-    findings.push(
+    pushFinding(
+      "discovery",
       missing.size
         ? `The most common failed discovery signals were: ${[...missing].join(", ")}.`
         : "Agents reliably found the API on their own (every discovery signal passed).",
@@ -1293,7 +1374,8 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
       .sort((a, b) => runPassPct(a) - runPassPct(b));
     if (weak.length) {
       const w = weak[0]!;
-      findings.push(
+      pushFinding(
+        "execution",
         `Some configs still fail despite a stronger config passing: weakest config is ${configLabel(w)} at ${runPassPct(w)}% task success. Treat "best config" as a ceiling, not as product-wide success.`,
       );
     }
@@ -1308,14 +1390,16 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
       ? fails.filter((o) => !planLimited(strongest.trace, o.taskId))
       : [];
     if (productFails.length) {
-      findings.push(
+      pushFinding(
+        "execution",
         `Even the best agent failed ${productFails.length} task(s) it could find — the friction is in the API or docs, not discovery.`,
       );
     } else if (planFails.length) {
-      findings.push(`${planFails.length} failure(s) are plan/sandbox limits, not problems with the API itself.`);
+      pushFinding("execution", `${planFails.length} failure(s) are plan/sandbox limits, not problems with the API itself.`);
     } else if (fails.length === 0) {
       const allConfigsPassed = runs.every((r) => firstAttempts(r.outcomes).every((o) => o.success));
-      findings.push(
+      pushFinding(
+        "execution",
         allConfigsPassed
           ? "Every config passed every task."
           : "At least one config passed every task, but other configs still failed; inspect the matrix before treating this as product-wide success.",
@@ -1328,20 +1412,17 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
   return findings.slice(0, stat?.contentQuality ? 4 : 3);
 }
 
-/** Section 3 — key findings. */
-function renderFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadiness): string {
-  const findings = buildFindings(pack, runs, stat);
+function renderFindings(title: string, findings: Finding[], id?: string): string {
   const body = findings.length
-    ? `<ul class="ax-findings">${findings.map((f) => `<li class="ax-finding">${esc(f)}</li>`).join("")}</ul>`
+    ? `<ul class="ax-findings">${findings.map((f) => `<li class="ax-finding">${esc(f.detail)}</li>`).join("")}</ul>`
     : `<p class="ax-empty">No findings — no runs recorded.</p>`;
-  return `<section class="ax-section">
-    <h2>Key findings</h2>
+  return `<section class="ax-section"${id ? ` id="${esc(id)}"` : ""}>
+    <h2>${esc(title)}</h2>
     ${body}
   </section>`;
 }
 
-/** Section 4 — recommendations from the engine. */
-function renderRecommendations(recs: Recommendation[]): string {
+function renderRecommendations(title: string, recs: Recommendation[], note: string, id?: string): string {
   const actionable = (r: Recommendation): string => {
     // Structured target/evidence/fix rows when present (agent-actionable shape).
     const rows = [
@@ -1365,9 +1446,9 @@ function renderRecommendations(recs: Recommendation[]): string {
         )
         .join("\n      ")}</ol>`
     : `<p class="ax-empty">No recommendations — nothing actionable surfaced from this run.</p>`;
-  return `<section class="ax-section" id="recommendations">
-    <h2>Recommendations</h2>
-    <p class="ax-note">Prioritized, agent-actionable fixes — each with a <strong>target</strong> (what to change), the <strong>evidence</strong> behind it, and a concrete <strong>fix</strong>. Hand this report to a coding agent to act on them; the per-endpoint <a href="#content-quality">suggested fixes</a> are machine-applicable too.</p>
+  return `<section class="ax-section"${id ? ` id="${esc(id)}"` : ""}>
+    <h2>${esc(title)}</h2>
+    <p class="ax-note">${note}</p>
     ${body}
   </section>`;
 }
@@ -1855,6 +1936,19 @@ function renderProcessQuality(runs: ProfileRun[]): string {
   </section>`;
 }
 
+function renderSectionGroup(id: string, title: string, intro: string, sections: string[]): string {
+  const body = sections.filter(Boolean).join("\n");
+  if (!body) return "";
+  return `<section class="ax-group" id="${esc(id)}">
+    <div class="ax-group__head">
+      <div class="ax-eyebrow">Part</div>
+      <h2 class="ax-group__title">${esc(title)}</h2>
+      <p class="ax-group__intro">${esc(intro)}</p>
+    </div>
+    ${body}
+  </section>`;
+}
+
 /** Dedupe structural diffs by their identifying fields (merged multi-attempt
  *  traces can repeat the same mismatch once per attempt). */
 function dedupeDiffs(diffs: TraceDiff[]): TraceDiff[] {
@@ -1966,6 +2060,11 @@ export function renderGeneratedReport(
       staticReadiness.contentScore !== undefined);
   const stat = hasStatic ? staticReadiness : undefined;
   const recs = buildRecommendations(pack, runs, stat);
+  const findings = buildFindings(pack, runs, stat);
+  const discoveryFindings = findings.filter((f) => f.category === "discovery");
+  const executionFindings = findings.filter((f) => f.category === "execution");
+  const discoveryRecs = recs.filter((r) => r.category === "discovery");
+  const executionRecs = recs.filter((r) => r.category !== "discovery");
 
   const body = [
     renderHeader(pack, generatedAt),
@@ -1974,20 +2073,43 @@ export function renderGeneratedReport(
     renderTldr(pack, runs, stat, recs.length),
     renderGate(runs, gate),
     renderScorecard(stat, runs),
-    renderFindings(pack, runs, stat),
-    renderRecommendations(recs),
-    // Pillar-order detail sections: static discovery → agent discovery → content
-    // quality → task success (scores). The two discoveries stay adjacent but
-    // clearly separate, each with its own breakdown of where points are lost.
-    renderStaticDiscovery(stat),
-    renderDiscovery(pack, runs),
-    stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
-    renderScores(pack, runs, profileOf),
-    renderRobustness(runs),
-    renderProcessQuality(runs),
-    renderTraceChecks(pack, runs),
+    renderSectionGroup(
+      "discovery",
+      "Discovery",
+      "Can agents find the right surface, reach the authoritative source, and get enough usable docs or schema to start operating?",
+      [
+        renderFindings("Discovery findings", discoveryFindings),
+        renderRecommendations(
+          "Discovery recommendations",
+          discoveryRecs,
+          'Prioritized fixes for findability and usability before execution starts: docs entrypoints, auth discovery, canonical calls, and schema quality. The per-endpoint <a href="#content-quality">suggested fixes</a> remain machine-applicable.',
+          "discovery-recommendations",
+        ),
+        renderStaticDiscovery(stat),
+        renderDiscovery(pack, runs),
+        stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
+      ],
+    ),
+    renderSectionGroup(
+      "execution",
+      "Execution",
+      "Once discovery is intact, can the agent complete real tasks reliably, and what does the trace say about how cleanly it got there?",
+      [
+        renderFindings("Execution findings", executionFindings),
+        renderRecommendations(
+          "Execution recommendations",
+          executionRecs,
+          "Prioritized fixes for task completion and run quality: capability gaps, verification, retry behavior, and harder follow-up eval design.",
+          "execution-recommendations",
+        ),
+        renderScores(pack, runs, profileOf),
+        renderRobustness(runs),
+        renderProcessQuality(runs),
+        renderTraceChecks(pack, runs),
+        renderAppendix(pack, runs),
+      ],
+    ),
     renderMethodology(pack, runs, profileOf, probe, warnings),
-    renderAppendix(pack, runs),
     `</main>`,
   ].join("\n");
 

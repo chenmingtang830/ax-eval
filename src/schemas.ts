@@ -138,6 +138,9 @@ export const SurfaceAuthSchema = z.object({
   kind: z.enum(["inherit", "token", "oauth_app"]).default("inherit"),
   /** Env var holding this surface's own token (kind="token"). */
   token_env: z.string().optional(),
+  /** Back-compat aliases accepted for `token_env`. The first name remains the
+   *  canonical key shown in prompts and generated packs. */
+  token_env_aliases: z.array(z.string()).default([]),
   /** OAuth app credentials (kind="oauth_app"). */
   client_id_env: z.string().optional(),
   client_secret_env: z.string().optional(),
@@ -213,8 +216,12 @@ export const AuthSchema = z.object({
   type: z.enum(["bearer", "api-key", "oauth", "none"]).default("bearer"),
   /** Env var holding the agent's credential, e.g. ASANA_PAT. */
   env: z.string().default(""),
+  /** Back-compat aliases accepted for `env`. The first name remains canonical. */
+  env_aliases: z.array(z.string()).default([]),
   /** Optional separate (narrower) credential for the verification oracle. */
   verify_env: z.string().optional(),
+  /** Back-compat aliases accepted for `verify_env`. */
+  verify_env_aliases: z.array(z.string()).default([]),
   /** Header name for the credential (default by type: bearer/api-key → Authorization). */
   header: z.string().optional(),
 });
