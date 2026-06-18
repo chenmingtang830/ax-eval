@@ -157,9 +157,10 @@ be a new pack, not a code change.
 
 ## Examples
 
-The repo now ships two full HTML report examples under [`examples/`](./examples/):
+The repo now ships three full HTML report examples under [`examples/`](./examples/):
 
 - [Asana cross-harness, cross-surface report](./examples/asana-cross-harness-cross-surface.html)
+- [Linear GraphQL cross-harness, cross-surface report](./examples/linear-graphql-cross-surface-cross-harness.html)
 - [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
 
 These are stable copies of real run artifacts, meant to show new contributors
