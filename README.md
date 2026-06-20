@@ -224,7 +224,7 @@ src/generate/       task-pack generation, review, report, normalized records
 src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
-targets/            example target packs and approvals
+targets/            example target packs and approvals (see targets/README.md)
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots
