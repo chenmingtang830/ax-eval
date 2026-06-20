@@ -1,9 +1,9 @@
-# Contributing to AX eval
+# Contributing to ax-eval
 
-Thanks for wanting to help. AX eval is the **integration test for Agent
-Experience (AX)** — we run real agents against a SaaS product's SDK and measure
-whether they actually succeed. This guide covers how to get set up, the project
-conventions, and what we expect on a PR.
+Thanks for wanting to help. ax-eval is the **integration test for agent operability**
+— we run real agents against a SaaS product's surfaces and measure whether they
+actually succeed. This guide covers how to get set up, the project conventions,
+and what we expect on a PR.
 
 By participating you agree to our [Code of Conduct](./CODE_OF_CONDUCT.md).
 
