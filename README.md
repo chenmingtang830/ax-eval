@@ -1,93 +1,41 @@
 # ax-eval — Eval your product for agents.
 
-API · CLI · SDK · MCP — across models and harnesses
+API · CLI · SDK · MCP — across harnesses
 
-*v0.2 · now supporting Claude Code and Codex*
+*v0.2 · Claude Code and Codex support*
 
 ## Can agents actually operate your product?
 
-Agents are becoming users of software. They read your docs, call your APIs,
-invoke your MCP server, install your SDK, and try to complete work without a
-human sitting beside them.
+Agents now read docs, call APIs, invoke MCP servers, install SDKs, and try to
+complete product work on their own. Most teams know what they have published;
+they do not know whether an agent can actually operate it.
 
-Most teams know what they have published. They do **not** know whether an agent
-can actually operate it, or whether success depends on the particular harness
-and surface combination being tested.
-
-`ax-eval` turns that into a real integration matrix. It runs the same reviewed
-task pack across host agents and product surfaces — for example Claude Code vs.
-Codex, and API vs. SDK vs. MCP — then verifies the resulting sandbox state with
-programmatic read-back oracles. The report shows which cells passed, which cells
-failed, and whether the gap is product docs, surface coverage, auth setup,
-harness behavior, or verification.
-
-That matters because agent operability is not a single green check. API docs can
-be usable while MCP tools are missing. Claude Code can recover through REST
-fallbacks while a headless Codex run exposes an approval or provisioning gap. A
-static readiness score can look fine while a real agent still cannot complete the
-job.
-
-Matrix reports keep those signals separate: product-level discovery and spec
-quality, per-harness behavioral success, per-surface subgates, and evidence-backed
-recommendations. An overall pass can still surface a failing MCP/SDK/API cell
-instead of hiding it behind one number.
+`ax-eval` runs a reviewed task pack against real sandbox state across product
+surfaces (`API / CLI / SDK / MCP`) and agent harnesses (`claude-code`, `codex`).
+It then verifies outcomes with programmatic read-back oracles. The result is a
+matrix report: what passed, what failed, and whether the gap is docs, auth,
+surface coverage, harness behavior, or verification.
 
 **Being published is not the same as being operable by agents.**
-
-## The Problem
-
-- A static readiness score can tell you that `llms.txt`, OpenAPI, SDK docs, or an
-  MCP entry point exists. It cannot prove an agent can finish the job.
-- Code-sample CI can prove a snippet compiles. It cannot prove an agent can find
-  the right path from a cold start.
-- Editorial benchmarks can rank vendors. They do not give your team a local,
-  repeatable integration test for your own product surface.
-
-`ax-eval` is the operability layer: run the task, check the real state, show the
-gap between exposed interfaces and verified agent success.
 
 ![Sample ax-eval HTML report](./assets/sample-report.png)
 
 ## What It Measures
 
-- **Docs discoverability (static):** crawling the docs *website*, can the docs,
-  API shape, and auth model be found by an agent-style crawler? A publisher-facing
-  signal, measured independent of any run.
-- **Agent discovery (behavioral):** what a real agent *actually did* from a cold
-  start to find the product — web search for the API surface, or listing the MCP
-  tools / introspecting the SDK for those surfaces. Scored per run, and kept
-  distinct from the static docs crawl above.
-- **Spec quality:** once found, is the OpenAPI/GraphQL surface clear enough for
-  an agent to plan from?
-- **Behavioral success:** did the agent create or mutate the real sandbox state
-  the task asked for?
-- **Robustness:** does the result hold across repeated attempts, or was it a
-  lucky pass?
-- **Actionable gaps:** recommendations are written as `Target / Evidence / Fix`
-  rows. MCP tool coverage failures are grouped by missing capability instead of
-  buried in raw trace text; harness/tool-call approval failures are reported
-  separately so they are not mistaken for missing product tools.
-- **Competitive position:** how does one product or surface compare against
-  another when you stack normalized result records into a competitive report?
+- **Docs discoverability:** can an agent-style crawl find docs, auth, and machine-readable surfaces?
+- **Agent discovery:** what did the real agent do from a cold start?
+- **Spec quality:** is the OpenAPI/GraphQL surface clear enough to plan from?
+- **Task success:** did the sandbox state actually change as requested?
+- **Surface gaps:** does API pass while SDK, CLI, or MCP fails?
+- **Actionability:** recommendations are written as `Target / Evidence / Fix`.
 
-The open skill runs through the agent you already have open (`host-agent`) and
-labels reports with that host/model. The CLI can also drive other agent
-harnesses as subprocesses — `exec-plan --invoke --harness claude-code|codex`
-runs the same reviewed pack through each (parallel by default) and stamps the
-model the harness *actually* reported running, so one report can lay harnesses
-and surfaces out side by side as a neutral matrix. A single local run should
-still be read as local proof, not a universal score.
-
-For product-owner review, treat a first live matrix as a **directional draft**:
-it is enough to start an engineering discussion, but it is not a final benchmark
-until the team has sanity-checked attribution and repeated the run with
-`--attempts N` for pass@k. Send the HTML together with the raw result, trace,
-transcript, stdout/stderr, and `MANIFEST.json` artifacts so owners can inspect
-the evidence behind each recommendation.
+The open skill can run through the agent you already have open. The CLI can also
+drive local harnesses directly with `exec-plan --invoke --harness
+claude-code|codex`, producing the same neutral report matrix.
 
 ## Quickstart
 
-Install and run the keyless checks first:
+Install and run the keyless checks:
 
 ```bash
 git clone https://github.com/chenmingtang830/ax-eval.git
@@ -99,10 +47,10 @@ npm run ax-eval -- audit --offline
 npm test
 ```
 
-Run a live drop-a-link eval against a sandbox:
+Run a live eval against a sandbox:
 
 ```bash
-# 1. Draft a task pack from a public spec/docs, then review/freeze it.
+# 1. Draft a task pack from a public spec, then review/freeze it.
 npm run ax-eval -- ingest --openapi https://example.com/openapi.json \
   --out results/acme-ingest.json
 npm run ax-eval -- generate --from results/acme-ingest.json
@@ -112,7 +60,7 @@ npm run ax-eval -- review --pack results/acme.generated.pack.yaml --approve --by
 npm run ax-eval -- init --pack results/acme.generated.pack.yaml >> .env
 npm run ax-eval -- check-env --pack results/acme.generated.pack.yaml
 
-# 3. Emit host-agent prompts, run them, then verify with read-back oracles.
+# 3. Emit prompts, run them, then verify with read-back oracles.
 npm run ax-eval -- exec-plan --pack results/acme.generated.pack.yaml \
   --run-dir results/runs/acme
 npm run ax-eval -- verify --pack results/acme.generated.pack.yaml \
@@ -130,9 +78,7 @@ npm run ax-eval -- render-generated \
   --html results/runs/acme/generated-eval.html
 ```
 
-GraphQL targets use the same review and verification gate. Their task ladder and
-read-back queries are drafted from rich introspection and must still be reviewed
-before use:
+GraphQL targets use the same review and verification gate:
 
 ```bash
 npm run ax-eval -- ingest --graphql https://api.example.com/graphql \
@@ -148,13 +94,12 @@ npm run ax-eval -- generate --deterministic --from results/acme-ingest.json \
   --product Acme --out results/acme.generated.pack.yaml
 ```
 
-The repo ships a few example target packs under `targets/` for REST and GraphQL
-products. They demonstrate the pack format; adding another SaaS should usually
-be a new pack, not a code change.
+The repo ships example target packs under `targets/`. Adding another SaaS should
+usually be a new pack, not a code change.
 
 ## Examples
 
-The repo ships shareable, self-contained HTML report examples under [`examples/`](./examples/):
+The repo ships self-contained HTML reports under [`examples/`](./examples/):
 
 - [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
 - [Notion four-surface cross-harness report](./examples/notion-four-surface-cross-harness.html)
@@ -167,14 +112,12 @@ matrix. Linear shows the GraphQL path; Exa shows a non-CRUD/search API case.
 These examples are the fastest way to see what a finished ax-eval artifact looks
 like.
 
-These are stable copies of real run artifacts, meant to show new contributors
-what a finished ax-eval report looks like without making them dig through
-`results/runs/`. If you are new here, open one of those reports before changing
-the reporting pipeline or adding a new target.
+These are stable copies of real run artifacts, so you can inspect the output
+without digging through `results/runs/`.
 
 ## Architecture
 
-`ax-eval` is a pack-centered, surface-aware eval system.
+`ax-eval` is pack-centered and surface-aware.
 
 - **Contracts:** `TargetPack`, `Task`, `OracleSpec`, and per-surface auth/config
   live in versioned schemas and act as the stable center of the system.
@@ -183,14 +126,8 @@ the reporting pipeline or adding a new target.
   the agent discovers and acts rather than changing the oracle model.
 - **Truth layer:** executors report ids, but success is decided by independent
   read-back verification against live product state.
-- **Interpretation layer:** HTML reports and normalized records turn raw results,
-  traces, and transcripts into operability findings, recommendations, and
-  cross-surface / cross-product comparisons.
-
-MCP is scored as a first-class surface, but not assumed to be a perfect mirror
-of the product API. When a pack narrows MCP to the operations the MCP surface
-actually exposes, the report makes that explicit rather than folding unsupported
-operations into misleading failures.
+- **Interpretation layer:** reports and normalized records turn results, traces,
+  and transcripts into recommendations and comparisons.
 
 See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
@@ -198,18 +135,11 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 ![ax-eval architecture](./assets/architecture.svg)
 
-1. **Ingest:** parse OpenAPI into resources/auth hints, or GraphQL into rich
-   schema metadata, typed inputs, create-style mutations, and update mutations.
-2. **Generate:** draft REST and GraphQL packs with LLM-assisted authoring from
-   docs/specs, producing an L1-L4 task ladder, round-trip oracles, and discovery
-   requirements.
-3. **Review:** require human approval before any generated task, oracle, setup,
-   or reset logic can run. The reviewed pack is hash-locked and becomes the
-   reproducible benchmark artifact.
-4. **Execute:** the host agent performs each task against a sandbox, with
-   discovery as Phase 0.
-5. **Verify:** the CLI reads live state back through the API and scores the run,
-   then writes the HTML report and normalized result record.
+1. **Ingest:** parse OpenAPI, GraphQL, docs, auth, and sandbox hints.
+2. **Generate:** draft an L1-L4 task pack with round-trip oracles.
+3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
+4. **Execute:** run the same pack across selected surfaces and harnesses.
+5. **Verify:** read live state back, score the matrix, and write reports.
 
 ## Why It Is Different
 
@@ -219,8 +149,6 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
   the expected state back from the product.
 - **Target-declared auth and sandbox scope.** Packs say exactly which env vars and
   sandbox ids are needed; secrets stay local in `.env`.
-- **Static and behavioral in one report.** A product can be published and still
-  not be usable by agents. The report shows that gap directly.
 - **Layered gates, not misleading green.** `--min-pass-rate` reports the overall
   gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across

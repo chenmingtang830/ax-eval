@@ -3,7 +3,7 @@ name: ax-eval
 description: Eval your product for agents — drop in an OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
 ---
 
-# AX eval — host-agent skill
+# ax-eval — host-agent skill
 
 You are the **harness**. The eval is a frozen, auto-generated `standard_set`
 (per-target pack); you run it against the **live** API and the CLI verifies
@@ -20,9 +20,9 @@ Two things make this real:
 
 ## Prerequisites
 
-Pick a target. The repo ships example packs at `targets/{asana,notion,linear,monday}/pack.yaml`,
-or generate one for any new SaaS via `ingest → generate → review` (see workflow
-below). Then:
+Pick a target. The repo ships example packs under `targets/`, or you can
+generate one for any SaaS via `ingest → generate → review` (see workflow below).
+Then:
 
 ```bash
 npm install
@@ -188,7 +188,7 @@ deep-dive without hunting through prior scratch runs.
 
 ## References
 
-- Example packs: `targets/{asana,notion,linear,monday}/pack.yaml`
+- Example packs: `targets/*/pack.yaml`
 - Every command + flag: `src/cli.ts`
 - Expected behavior, documented: the `tests/` suite (keyless/offline)
 - Report rendering: `src/generate/report.ts`
