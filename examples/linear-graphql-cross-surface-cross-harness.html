@@ -416,7 +416,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
         <span class="ax-rec__badge">med</span>
         <div class="ax-rec__body">
           <h3 class="ax-rec__title">Separate MCP approval failures from tool coverage</h3>
-          <p class="ax-rec__detail">Some MCP failures were caused by tool-call approval or cancellation in 2 config(s), not by missing Asana task-update tools.</p>
+          <p class="ax-rec__detail">Some MCP failures were caused by tool-call approval or cancellation in 2 config(s), not by missing product MCP tools.</p>
           <div class="ax-rec__grid"><div class="ax-rec__row"><span class="ax-rec__key">Target</span><span>Harness/MCP approval flow for gen-gql-l1-issue, gen-gql-l3-issue-1, gen-gql-l1-document, gen-gql-l3-document-2, gen-gql-l4-issue-lifecycle, gen-gql-l1-comment, gen-gql-l4-comment-lifecycle, gen-gql-l4-document-lifecycle, gen-gql-l4-project-milestone-lifecycle</span></div><div class="ax-rec__row"><span class="ax-rec__key">Evidence</span><span>codex/MCP/high gen-gql-l1-issue: create issue via host MCP tool: host-mediated tool call returned: user cancelled MCP tool call | codex/MCP/low gen-gql-l1-issue: create issue: user cancelled MCP tool call | codex/MCP/low gen-gql-l3-issue-1: create assigned issue: user cancelled MCP tool call</span></div><div class="ax-rec__row"><span class="ax-rec__key">Fix</span><span>Run MCP eval cells with deterministic non-interactive approval policy, or mark approval-blocked cells separately from product/tool coverage gaps.</span></div></div>
         </div>
       </li>

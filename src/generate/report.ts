@@ -522,7 +522,7 @@ export function buildRecommendations(
       priority: "med",
       title: "Separate MCP approval failures from tool coverage",
       detail:
-        `Some MCP failures were caused by tool-call approval or cancellation in ${configs.size} config(s), not by missing Asana task-update tools.`,
+        `Some MCP failures were caused by tool-call approval or cancellation in ${configs.size} config(s), not by missing product MCP tools.`,
       target: `Harness/MCP approval flow for ${[...tasks].join(", ")}`,
       evidence: examples,
       fix:
