@@ -1,7 +1,7 @@
 {
   "name": "ax-eval",
   "version": "0.2.0",
-  "description": "ax-eval — measure whether software products can be operated by AI agents, across API, CLI, SDK, and MCP surfaces.",
+  "description": "ax-eval — Eval your product for agents. API, CLI, SDK, and MCP surfaces.",
   "keywords": [
     "agent",
     "agent-experience",
@@ -61,9 +61,9 @@
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "tsup": "^8.0.0",
+    "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0"
+    "vitest": "^4.1.9"
   }
 }
