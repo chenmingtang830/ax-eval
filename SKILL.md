@@ -1,6 +1,6 @@
 ---
 name: ax-eval
-description: Run ax-eval against any SaaS to check whether it is agent-ready — drop in its OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, cold-start discover the API (behavioral AEO), execute against the live API at low/high effort, and verify with programmatic round-trip oracles (host-agent harness).
+description: Eval your product for agents — drop in an OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
 ---
 
 # AX eval — host-agent skill

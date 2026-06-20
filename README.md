@@ -1,6 +1,8 @@
-# ax-eval — Agent operability evals for product surfaces
+# ax-eval — Eval your product for agents.
 
-API / CLI / SDK / MCP
+API · CLI · SDK · MCP — across models and harnesses
+
+*v0.2 · now supporting Claude Code and Codex*
 
 ## Can agents actually operate your product?
 
@@ -31,11 +33,6 @@ recommendations. An overall pass can still surface a failing MCP/SDK/API cell
 instead of hiding it behind one number.
 
 **Being published is not the same as being operable by agents.**
-
-`AX` means **Agent Experience**: how agents discover, understand, authenticate
-against, and use your product surfaces. `ax-eval` measures the hardest outcome
-inside AX: **agent operability** — whether an agent can complete real sandbox
-work and have that work verified by live read-back.
 
 ## The Problem
 
