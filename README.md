@@ -1,6 +1,8 @@
 # ax-eval — Eval your product for agents.
 
-API · CLI · SDK · MCP
+API · CLI · SDK · MCP — across models and harnesses
+
+*v0.2 · now supporting Claude Code and Codex*
 
 ## Can agents actually operate your product?
 
