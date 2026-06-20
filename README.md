@@ -154,16 +154,18 @@ be a new pack, not a code change.
 
 ## Examples
 
-The repo now ships three full HTML report examples under [`examples/`](./examples/):
+The repo ships shareable, self-contained HTML report examples under [`examples/`](./examples/):
 
-- [Asana cross-harness, cross-surface report](./examples/asana-cross-harness-cross-surface.html)
-- [Linear GraphQL cross-harness, cross-surface report](./examples/linear-graphql-cross-surface-cross-harness.html)
 - [Stripe four-surface cross-harness report](./examples/stripe-four-surface-cross-harness.html)
+- [Notion four-surface cross-harness report](./examples/notion-four-surface-cross-harness.html)
+- [Linear GraphQL cross-surface, cross-harness report](./examples/linear-graphql-cross-surface-cross-harness.html)
+- [Exa cross-harness, cross-surface report](./examples/exa-cross-harness-cross-surface.html)
 
-Stripe is the current flagship example: one product evaluated across
-`API / SDK / CLI / MCP`, with both `claude-code` and `codex` in the same
-matrix. These examples are the fastest way to see what a finished ax-eval
-artifact looks like.
+Stripe and Notion are the current four-surface examples: one product evaluated
+across `API / SDK / CLI / MCP`, with both `claude-code` and `codex` in the same
+matrix. Linear shows the GraphQL path; Exa shows a non-CRUD/search API case.
+These examples are the fastest way to see what a finished ax-eval artifact looks
+like.
 
 These are stable copies of real run artifacts, meant to show new contributors
 what a finished ax-eval report looks like without making them dig through
