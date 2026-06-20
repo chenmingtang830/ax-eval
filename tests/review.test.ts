@@ -7,6 +7,7 @@ import {
   approvalPath,
   checkApproval,
   oracleTier,
+  packQaIssues,
   packContentHash,
   reviewSummary,
   writeApproval,
@@ -84,5 +85,93 @@ describe("review gate", () => {
     const md = reviewSummary(pack({ sandbox_scope: [] }));
     expect(md).toMatch(/call the live product/);
     expect(md).not.toMatch(/write-ops/);
+  });
+
+  it("flags free-choice prompts with a tightly bound oracle resource", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "decisions-log",
+          difficulty: "L3",
+          prompt: "Choose an appropriate Notion structure called AX decisions {ns}. Report its id.",
+          allowed_surfaces: ["api", "cli", "sdk", "mcp", "docs"],
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/v1/data_sources/{gid}",
+              assertField: "title.0.plain_text",
+              expected: "AX decisions {ns}",
+            },
+          ],
+        },
+      ],
+    });
+    const issues = packQaIssues(p);
+    expect(issues.map((i) => i.code)).toContain("free-choice-bound-oracle");
+    expect(reviewSummary(p)).toMatch(/Pack QA/);
+  });
+
+  it("flags prompt/oracle resource mismatches", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "database-read-as-data-source",
+          prompt: "Create a Notion database titled AX decisions {ns}. Report the database id.",
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/v1/data_sources/{gid}",
+              assertField: "title.0.plain_text",
+              expected: "AX decisions {ns}",
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).toContain("prompt-oracle-resource-mismatch");
+  });
+
+  it("does not flag an explicit database prompt with a database oracle", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "decisions-log",
+          prompt: "Create a Notion database titled AX decisions {ns}. Report the database id.",
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/v1/databases/{gid}",
+              assertField: "title.0.plain_text",
+              expected: "AX decisions {ns}",
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).not.toContain("free-choice-bound-oracle");
+    expect(packQaIssues(p).map((i) => i.code)).not.toContain("prompt-oracle-resource-mismatch");
+  });
+
+  it("flags advanced data source/view tasks enabled on every surface", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "data-source-view",
+          prompt: "Create a data source and add a table view named AX view {ns}. Report the view id.",
+          allowed_surfaces: ["api", "cli", "sdk", "mcp"],
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/v1/views/{gid}",
+              assertField: "name",
+              expected: "AX view {ns}",
+            },
+          ],
+        },
+      ],
+    });
+    const codes = packQaIssues(p).map((i) => i.code);
+    expect(codes).toContain("surface-risk");
+    expect(codes).not.toContain("ambiguous-reported-id");
   });
 });

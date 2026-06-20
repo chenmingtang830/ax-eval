@@ -37,11 +37,33 @@ sandbox_scope:
     required: false
     instructions: "Optional: a data source (database) id, for tasks that create a row in a database."
     url_pattern: "([0-9a-f]{32})"
+  - name: workspace_id
+    env: NOTION_WORKSPACE_ID
+    required: false
+    instructions: "Optional: workspace id used by the Notion CLI (`ntn api`) when running headlessly."
+  - name: api_version
+    env: NOTION_API_VERSION
+    required: false
+    instructions: "Optional: Notion API version used by the Notion CLI; should match the pack's Notion-Version header."
 # Non-API surfaces Notion exposes (verification still reads back via the API).
 surfaces:
+  cli:
+    bin: ntn
+    install: curl -fsSL https://ntn.dev | bash
+    help: ntn --help
+    docs_url: https://developers.notion.com/cli/get-started/overview
+    # ntn api reads NOTION_API_TOKEN in headless mode; accept NOTION_TOKEN so an
+    # existing API sandbox credential can be mirrored locally without changing
+    # the benchmark token name.
+    auth:
+      kind: token
+      token_env: NOTION_API_TOKEN
+      token_env_aliases:
+        - NOTION_TOKEN
   sdk:
     package: "@notionhq/client"
     language: node
+    install: npm install @notionhq/client
     reference_url: https://developers.notion.com/reference/intro
     # The official client uses the same integration token as the REST API.
     auth:
@@ -49,20 +71,15 @@ surfaces:
   mcp:
     server: https://mcp.notion.com/mcp
     transport: http
+    setup: Use the locally authenticated Notion MCP server configured in Claude Code/Codex.
     docs_url: https://developers.notion.com/guides/mcp/overview
-    # Notion's hosted MCP is OAuth-only. (A self-hosted server can take an
-    # integration token, but that path is soft-deprecated.) Headless runs are
-    # blocked until an OAuth app + refresh token are provided.
-    auth:
-      kind: oauth_app
-      client_id_env: NOTION_MCP_CLIENT_ID
-      client_secret_env: NOTION_MCP_CLIENT_SECRET
-      refresh_token_env: NOTION_MCP_REFRESH_TOKEN
-      instructions: "Create a Notion public OAuth integration, complete the OAuth flow once, and store the refresh token. The hosted MCP server has no token path."
 base_url: https://api.notion.com
 site_url: https://developers.notion.com
+openapi_url: https://developers.notion.com/openapi.json
 docs_urls: &a1
   - https://developers.notion.com/reference/intro
+  - https://developers.notion.com/cli/get-started/overview
+  - https://developers.notion.com/guides/mcp/overview
 static:
   site_url: https://developers.notion.com
   docs_urls: *a1
@@ -88,10 +105,12 @@ tasks:
     difficulty: L1
     prompt: >
       Create a page titled "AX probe page {ns}" under the parent page identified
-      by NOTION_SANDBOX_PARENT_PAGE_ID, using the API you discovered. Report the
-      created page id.
+      by NOTION_SANDBOX_PARENT_PAGE_ID. Report the created page id.
     allowed_surfaces:
       - api
+      - cli
+      - sdk
+      - mcp
       - docs
     create_path: /v1/pages
     depends_on: []
@@ -110,6 +129,9 @@ tasks:
       by NOTION_SANDBOX_PARENT_PAGE_ID. Report the created comment id.
     allowed_surfaces:
       - api
+      - cli
+      - sdk
+      - mcp
       - docs
     create_path: /v1/comments
     depends_on: []
@@ -129,6 +151,9 @@ tasks:
       trash). Report the page id; it must read back as trashed.
     allowed_surfaces:
       - api
+      - cli
+      - sdk
+      - mcp
       - docs
     create_path: /v1/pages
     depends_on: []

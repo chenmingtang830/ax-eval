@@ -13,7 +13,7 @@
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import type { OracleSpec, TargetPack } from "../schemas.js";
+import type { OracleSpec, TargetPack, Task } from "../schemas.js";
 
 /** Oracle confidence tier: T1 strong (round-trip), T2 weak
  *  (existence / 2xx), T3 curated (human-authored). We can only *derive* T1/T2
@@ -116,6 +116,133 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
   return { ok: true };
 }
 
+export interface PackQaIssue {
+  taskId: string;
+  severity: "warn";
+  code: "free-choice-bound-oracle" | "prompt-oracle-resource-mismatch" | "surface-risk" | "ambiguous-reported-id";
+  message: string;
+}
+
+const FREE_CHOICE_PATTERNS = [
+  /\bchoose (?:an? )?(?:appropriate|right|suitable)\b/i,
+  /\bdecide (?:the|an?)? ?(?:right|appropriate|suitable)\b/i,
+  /\bchoose .*structure\b/i,
+  /\bdecide .*object\b/i,
+];
+
+const RESOURCE_TERMS: Array<{ resource: string; labels: string[]; pattern: RegExp }> = [
+  { resource: "pages", labels: ["page"], pattern: /\b(?:page|child page|note)\b/i },
+  { resource: "databases", labels: ["database"], pattern: /\bdatabase\b/i },
+  { resource: "data_sources", labels: ["data source"], pattern: /\bdata[- ]source\b/i },
+  { resource: "comments", labels: ["comment"], pattern: /\bcomment\b/i },
+  { resource: "views", labels: ["view"], pattern: /\bview\b/i },
+];
+
+function oracleResource(o: OracleSpec): string | undefined {
+  const path = o.readPathTemplate ?? "";
+  const m = path.match(/^\/v\d+\/([^/{?]+)/);
+  return m?.[1];
+}
+
+function promptResources(task: Task): Set<string> {
+  const out = new Set<string>();
+  for (const r of RESOURCE_TERMS) {
+    if (r.pattern.test(task.prompt)) out.add(r.resource);
+  }
+  return out;
+}
+
+function resourceLabel(resource: string | undefined): string {
+  if (!resource) return "unknown resource";
+  return RESOURCE_TERMS.find((r) => r.resource === resource)?.labels[0] ?? resource;
+}
+
+function isFreeChoicePrompt(task: Task): boolean {
+  return FREE_CHOICE_PATTERNS.some((p) => p.test(task.prompt));
+}
+
+function allExecutionSurfaces(task: Task): boolean {
+  return ["api", "cli", "sdk", "mcp"].every((s) => task.allowed_surfaces.includes(s));
+}
+
+function taskMentionsAdvancedNotionObjects(task: Task): boolean {
+  return /\bdata[- ]source\b/i.test(task.prompt)
+    || /\bview\b/i.test(task.prompt)
+    || task.oracles.some((o) => /\/v\d+\/(?:data_sources|views)\//.test(o.readPathTemplate ?? ""));
+}
+
+function hasAmbiguousReportId(task: Task, resources: Set<string>): boolean {
+  const prompt = task.prompt.toLowerCase();
+  if (!/\breport (?:the )?(?:new |created )?.*\bid\b/.test(prompt)) return false;
+  if (/\breport (?:the )?(?:new |created )?(?:page|child page|database|data[- ]source|comment|view|entry|item) id\b/.test(prompt)) {
+    return false;
+  }
+  if (/\bnot the\b/.test(prompt) || /\bonly\b/.test(prompt)) return false;
+  return resources.size > 1 && (/\bthen\b/.test(prompt) || /\band\b/.test(prompt));
+}
+
+/** Heuristic QA for generated/hand-authored packs. These checks are advisory:
+ *  they catch prompt↔oracle contract smells before live runs, but do not close
+ *  the approval gate because product surfaces use diverse terminology. */
+export function packQaIssues(pack: TargetPack): PackQaIssue[] {
+  const issues: PackQaIssue[] = [];
+  for (const task of pack.tasks) {
+    const resources = promptResources(task);
+    const oracleResources = new Set(task.oracles.map(oracleResource).filter((r): r is string => !!r));
+    const freeChoice = isFreeChoicePrompt(task);
+
+    if (freeChoice && oracleResources.size === 1) {
+      const only = [...oracleResources][0];
+      issues.push({
+        taskId: task.id,
+        severity: "warn",
+        code: "free-choice-bound-oracle",
+        message:
+          `Prompt lets the agent choose the object/structure, but all round-trip oracles read ` +
+          `${resourceLabel(only)}. Make the prompt explicit or accept every valid structure.`,
+      });
+    }
+
+    if (!freeChoice && resources.size > 0 && oracleResources.size > 0) {
+      for (const r of oracleResources) {
+        if (!resources.has(r)) {
+          issues.push({
+            taskId: task.id,
+            severity: "warn",
+            code: "prompt-oracle-resource-mismatch",
+            message:
+              `Prompt appears to ask for ${[...resources].map(resourceLabel).join(", ")}, ` +
+              `but an oracle reads ${resourceLabel(r)}. Confirm the reported id and read-back endpoint match.`,
+          });
+        }
+      }
+    }
+
+    if (allExecutionSurfaces(task) && taskMentionsAdvancedNotionObjects(task)) {
+      issues.push({
+        taskId: task.id,
+        severity: "warn",
+        code: "surface-risk",
+        message:
+          `Task is enabled on API/CLI/SDK/MCP and uses data source/view concepts. ` +
+          `Confirm every declared surface can create and report the same resource id shape.`,
+      });
+    }
+
+    if (hasAmbiguousReportId(task, resources)) {
+      issues.push({
+        taskId: task.id,
+        severity: "warn",
+        code: "ambiguous-reported-id",
+        message:
+          `Prompt mentions multiple resource types and asks to report an id. ` +
+          `Specify exactly which id to report (for example child page id vs database id vs view id).`,
+      });
+    }
+  }
+  return issues;
+}
+
 /** Human-readable summary of what is being approved, grouped by difficulty and
  *  flagged by oracle tier so weak checks can't masquerade as strong ones. */
 export function reviewSummary(pack: TargetPack): string {
@@ -143,6 +270,21 @@ export function reviewSummary(pack: TargetPack): string {
     }
   }
   lines.push("");
+
+  const qa = packQaIssues(pack);
+  lines.push("## Pack QA", "");
+  if (qa.length === 0) {
+    lines.push("- No prompt/oracle contract warnings detected.", "");
+  } else {
+    lines.push(
+      `- ⚠ ${qa.length} warning(s). Review these before approving; they often mean the task prompt, oracle, difficulty, or allowed surfaces need tightening.`,
+      "",
+    );
+    for (const issue of qa) {
+      lines.push(`- [${issue.code}] \`${issue.taskId}\`: ${issue.message}`);
+    }
+    lines.push("");
+  }
 
   // Tier tally so the reviewer sees the strong/weak mix at a glance.
   const tally: Record<string, number> = {};
