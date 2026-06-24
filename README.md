@@ -237,3 +237,8 @@ docs/               maintainer-local notes, intentionally not public docs
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md). The best first contribution is a new
 target pack generated from a public spec, reviewed with the gate, and backed by a
 focused test or oracle improvement.
+
+## Contact
+
+Questions, target ideas, or agent-usability examples? Open an issue or reach me
+on X: [@richardt830](https://x.com/richardt830).

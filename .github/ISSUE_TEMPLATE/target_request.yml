@@ -1,0 +1,77 @@
+name: Target request
+description: Suggest a SaaS/API/SDK/CLI/MCP target for ax-eval.
+title: "[Target]: "
+labels: ["target"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Target packs are the best way to expand ax-eval. Please share public docs/spec links only; do not include credentials.
+
+  - type: input
+    id: product
+    attributes:
+      label: Product
+      placeholder: "Example: Stripe, Linear, Exa"
+    validations:
+      required: true
+
+  - type: textarea
+    id: surfaces
+    attributes:
+      label: Surfaces to evaluate
+      description: Which surfaces exist and should agents use?
+      value: |
+        - API:
+        - CLI:
+        - SDK:
+        - MCP:
+    validations:
+      required: true
+
+  - type: textarea
+    id: links
+    attributes:
+      label: Public docs / specs
+      description: Link docs, OpenAPI/GraphQL schema, SDK docs, CLI docs, MCP docs, and auth docs.
+      placeholder: |
+        Docs:
+        OpenAPI / GraphQL:
+        SDK:
+        CLI:
+        MCP:
+        Auth:
+    validations:
+      required: true
+
+  - type: textarea
+    id: sandbox
+    attributes:
+      label: Sandbox story
+      description: Is there a free tier, test mode, demo tenant, or safe non-production workspace?
+      placeholder: "Example: Stripe test mode supports safe write workflows."
+
+  - type: textarea
+    id: workflows
+    attributes:
+      label: Useful workflows to test
+      description: Goal-level tasks an agent should be able to complete.
+      placeholder: |
+        - Create ...
+        - Update ...
+        - Search ...
+        - Archive/delete ...
+
+  - type: textarea
+    id: oracle
+    attributes:
+      label: Read-back verification
+      description: How can ax-eval verify success by reading product state back?
+      placeholder: "Example: GET /projects/{id} returns the created name and metadata."
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything unusual about auth, rate limits, paid plans, or cleanup?
+
