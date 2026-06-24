@@ -224,7 +224,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 <body>
 <div class="ax-main">
 <header class="ax-header">
-    <div class="ax-eyebrow">Agent-readiness report</div>
+    <div class="ax-eyebrow">Agent usability report</div>
     <h1 class="ax-title">How well can an AI agent use <span class="ax-target">Notion</span>?</h1>
     <p class="ax-subtitle">We ran live tasks against the API to measure what an AI agent can actually complete — not just what the docs expose.</p>
     <dl class="ax-meta">
@@ -239,7 +239,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 
 <section class="ax-section ax-tldr" id="tldr">
     <div class="ax-eyebrow">TL;DR</div>
-    <p class="ax-tldr__takeaway"><strong>Strong agent operability</strong>. Agents can find the right path and reliably operate the product. Process quality warning: claude-code/MCP/high needed 42 calls with 11 failed calls and 2 retry-ish repeats. <strong>2 harnesses × 4 surfaces × 2 effort levels = 16 configs</strong>, summarized into 8 harness × surface cells. Task success 25–100% across configs. Static discovery and content quality are product-level; task success and agent discovery break down by harness below.</p>
+    <p class="ax-tldr__takeaway"><strong>Strong agent usability</strong>. Agents can find the right path and use the product successfully. Process quality warning: claude-code/MCP/high needed 42 calls with 11 failed calls and 2 retry-ish repeats. <strong>2 harnesses × 4 surfaces × 2 effort levels = 16 configs</strong>, summarized into 8 harness × surface cells. Task success 25–100% across configs. Static discovery and content quality are product-level; task success and agent discovery break down by harness below.</p>
     <div class="ax-tldr__split">
       <div class="ax-tldr__section"><div class="ax-tldr__section-h"><a href="#discovery">Discovery</a></div><div class="ax-tldr__pills"><a class="ax-tldr__pill" href="#static-discovery"><span class="ax-tldr__pill-val">88<span class="ax-tldr__pill-scale">/100</span></span><span class="ax-tldr__pill-label">Static discovery</span></a><a class="ax-tldr__pill" href="#agent-discovery"><span class="ax-tldr__pill-val">75–100/100</span><span class="ax-tldr__pill-label">Agent discovery</span></a><a class="ax-tldr__pill" href="#content-quality"><span class="ax-tldr__pill-val">41<span class="ax-tldr__pill-scale">/100</span></span><span class="ax-tldr__pill-label">Content quality</span></a></div><div class="ax-tldr__byharness"><div class="ax-tldr__byharness-h">By harness — agent discovery range across surfaces:</div><div class="ax-tldr__hrow"><span class="ax-tldr__hname">claude-code</span><span class="ax-tldr__hmetric">agent discovery <strong>75–100/100</strong></span></div><div class="ax-tldr__hrow"><span class="ax-tldr__hname">codex</span><span class="ax-tldr__hmetric">agent discovery <strong>100/100</strong></span></div></div></div>
       <div class="ax-tldr__section"><div class="ax-tldr__section-h"><a href="#execution">Execution</a></div><div class="ax-tldr__pills"><a class="ax-tldr__pill" href="#scores"><span class="ax-tldr__pill-val">25–100%</span><span class="ax-tldr__pill-label">Task success</span></a></div><div class="ax-tldr__byharness"><div class="ax-tldr__byharness-h">By harness — task success range across surfaces:</div><div class="ax-tldr__hrow"><span class="ax-tldr__hname">claude-code</span><span class="ax-tldr__hmetric">task success <strong>25–100%</strong></span></div><div class="ax-tldr__hrow"><span class="ax-tldr__hname">codex</span><span class="ax-tldr__hmetric">task success <strong>67–100%</strong></span></div></div></div>
@@ -252,7 +252,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
     </div>
 <section class="ax-section ax-scorecard-section">
     <h2>Overview</h2>
-    <p class="ax-verdict">Strong agent operability: Agents can find the right path and reliably operate the product. Process quality warning: claude-code/MCP/high needed 42 calls with 11 failed calls and 2 retry-ish repeats. 2 harnesses × 4 surfaces × 2 effort = 16 configs. Read this report in two passes: Discovery asks whether agents can find and interpret the surface; Execution asks whether they can complete real tasks once there.</p>
+    <p class="ax-verdict">Strong agent usability: Agents can find the right path and use the product successfully. Process quality warning: claude-code/MCP/high needed 42 calls with 11 failed calls and 2 retry-ish repeats. 2 harnesses × 4 surfaces × 2 effort = 16 configs. Read this report in two passes: Discovery asks whether agents can find and interpret the surface; Execution asks whether they can complete real tasks once there.</p>
     <div class="ax-overview-split">
       <div class="ax-overview-block">
         <h3 class="ax-overview-block__title">Discovery snapshot</h3>
@@ -594,7 +594,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
     </div>
     <section class="ax-section">
     <h2>Execution findings</h2>
-    <ul class="ax-findings"><li class="ax-finding">Task success ranges 25–100% across configs; static docs discoverability is 88/100. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.</li><li class="ax-finding">claude-code/MCP/high completed with 42 recorded call(s), 11 failed call(s), and 2 retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.</li></ul>
+    <ul class="ax-findings"><li class="ax-finding">Task success ranges 25–100% across configs; static discoverability is 88/100. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.</li><li class="ax-finding">claude-code/MCP/high completed with 42 recorded call(s), 11 failed call(s), and 2 retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.</li></ul>
   </section>
 <section class="ax-section" id="execution-recommendations">
     <h2>Execution recommendations</h2>

@@ -1,7 +1,7 @@
 {
   "name": "ax-eval",
   "version": "0.2.0",
-  "description": "ax-eval — Eval your product for agents. API, CLI, SDK, and MCP surfaces.",
+  "description": "ax-eval — Test whether AI agents can use your product across API, CLI, SDK, and MCP surfaces.",
   "keywords": [
     "agent",
     "agent-experience",

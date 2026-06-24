@@ -350,26 +350,26 @@ function processQualityTakeaway(runs: ProfileRun[]): string {
   return `Process quality warning: ${processStatsLabel(worst)} needed ${worst.calls} calls with ${worst.failed} failed call${worst.failed === 1 ? "" : "s"} and ${worst.retryish} retry-ish repeat${worst.retryish === 1 ? "" : "s"}.`;
 }
 
-function operabilityLabel(taskPct: number | undefined, agentDiscovery: number | undefined): string {
-  if (taskPct === undefined) return "Agent operability not measured";
-  if (taskPct >= 100 && (agentDiscovery ?? 0) >= 80) return "Strong agent operability";
-  if (taskPct >= 100) return "Strong execution, partial agent operability";
-  if (taskPct >= 80) return "Partial agent operability";
-  return "Weak agent operability";
+function usabilityLabel(taskPct: number | undefined, agentDiscovery: number | undefined): string {
+  if (taskPct === undefined) return "Agent usability not measured";
+  if (taskPct >= 100 && (agentDiscovery ?? 0) >= 80) return "Strong agent usability";
+  if (taskPct >= 100) return "Strong execution, partial agent usability";
+  if (taskPct >= 80) return "Partial agent usability";
+  return "Weak agent usability";
 }
 
-function operabilityTakeaway(taskPct: number | undefined, agentDiscovery: number | undefined): string {
-  if (taskPct === undefined) return "No live task run was available, so agent operability could not be scored.";
+function usabilityTakeaway(taskPct: number | undefined, agentDiscovery: number | undefined): string {
+  if (taskPct === undefined) return "No live task run was available, so agent usability could not be scored.";
   if (taskPct >= 100 && (agentDiscovery ?? 0) >= 80) {
-    return "Agents can find the right path and reliably operate the product.";
+    return "Agents can find the right path and use the product successfully.";
   }
   if (taskPct >= 100) {
-    return "Agents can reliably operate the product once on the right path, but cold-start discovery is not yet as strong as execution.";
+    return "Agents can use the product successfully once on the right path, but cold-start discovery is not yet as strong as execution.";
   }
   if (taskPct >= 80) {
-    return "Agents can operate much of the product, but some real workflows still fail round-trip verification.";
+    return "Agents can use much of the product, but some real workflows still fail round-trip verification.";
   }
-  return "Agents cannot yet operate the product reliably across the reviewed workflow set.";
+  return "Agents cannot yet use the product reliably across the reviewed workflow set.";
 }
 
 /** Highest behavioral pass rate across profiles (the strongest agent config). */
@@ -394,7 +394,7 @@ function readinessScore(stat?: StaticReadiness): number | undefined {
 
 /** Behavioral **agent discovery** score, 0–100: the fraction of scored Phase-0
  *  signals the strongest run passed (hops excluded — it's efficiency, not
- *  pass/fail). This is the agent-side counterpart to static docs discoverability,
+ *  pass/fail). This is the agent-side counterpart to static discoverability,
  *  and a top-level pillar. Undefined when no run carried a scored funnel. */
 function agentDiscoveryScore(runs: ProfileRun[]): number | undefined {
   const scored = runs.filter((r) => r.discovery && r.discovery.metrics.length);
@@ -787,8 +787,8 @@ function renderTldr(
     const bestTask = Math.max(...configPassPcts(runs));
     const bestDiscoveryValues = cells.map((c) => c.discovery).filter((n): n is number => n !== undefined);
     const bestDiscovery = bestDiscoveryValues.length ? Math.max(...bestDiscoveryValues) : undefined;
-    const opLabel = operabilityLabel(bestTask, bestDiscovery);
-    const opTakeaway = operabilityTakeaway(bestTask, bestDiscovery);
+    const opLabel = usabilityLabel(bestTask, bestDiscovery);
+    const opTakeaway = usabilityTakeaway(bestTask, bestDiscovery);
     const takeaway =
       `<strong>${esc(opLabel)}</strong>. ${esc(opTakeaway)} ${esc(processQualityTakeaway(runs))} ` +
       `<strong>${harnesses.length} harnesses × ${surfaces.length} surface${surfaces.length === 1 ? "" : "s"} × ${profiles.length} effort level${profiles.length === 1 ? "" : "s"} = ${runs.length} configs</strong>, ` +
@@ -842,8 +842,8 @@ function renderTldr(
   if (!best) return "";
   const surface = dominantSurface(runs);
   const agentDisc = agentDiscoveryScore(runs);
-  const opLabel = operabilityLabel(best.pct, agentDisc);
-  const opTakeaway = operabilityTakeaway(best.pct, agentDisc);
+  const opLabel = usabilityLabel(best.pct, agentDisc);
+  const opTakeaway = usabilityTakeaway(best.pct, agentDisc);
   const fails = runs.find((r) => r.profile === best.profile)?.outcomes.filter((o) => !o.success) ?? [];
   const failNote = fails.length
     ? `${fails.length} task(s) still fail (${esc(fails.map((o) => o.taskId).join(", "))})`
@@ -881,7 +881,7 @@ function renderHeader(pack: TargetPack, generatedAt: string): string {
   ];
   const rows = meta.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("\n      ");
   return `<header class="ax-header">
-    <div class="ax-eyebrow">Agent-readiness report</div>
+    <div class="ax-eyebrow">Agent usability report</div>
     <h1 class="ax-title">How well can an AI agent use <span class="ax-target">${esc(product)}</span>?</h1>
     <p class="ax-subtitle">We ran live tasks against the API to measure what an AI agent can actually complete — not just what the docs expose.</p>
     <dl class="ax-meta">
@@ -1049,8 +1049,8 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
   const lo = Math.min(...allPct), hi = Math.max(...allPct);
   const cellDiscovery = matrixCells(runs).map((c) => c.discovery).filter((n): n is number => n !== undefined);
   const bestDiscovery = cellDiscovery.length ? Math.max(...cellDiscovery) : undefined;
-  const opLabel = operabilityLabel(hi, bestDiscovery);
-  const opTakeaway = operabilityTakeaway(hi, bestDiscovery);
+  const opLabel = usabilityLabel(hi, bestDiscovery);
+  const opTakeaway = usabilityTakeaway(hi, bestDiscovery);
   const nH = new Set(runs.map((r) => r.harness ?? "host-agent")).size;
   const nS = new Set(runs.map((r) => r.surface ?? "api")).size;
   const verdict =
@@ -1170,27 +1170,27 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
 
   let verdict: string;
   if (!best) {
-    verdict = `${operabilityLabel(undefined, undefined)}: ${operabilityTakeaway(undefined, undefined)} ${processQualityTakeaway(runs)}`;
+    verdict = `${usabilityLabel(undefined, undefined)}: ${usabilityTakeaway(undefined, undefined)} ${processQualityTakeaway(runs)}`;
   } else if (readiness === undefined) {
-    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
-    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    const opLabel = usabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = usabilityTakeaway(best.pct, agentDiscoveryScore(runs));
     verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} The best agent completed ${best.pct}% of tasks. (Docs-site discoverability wasn't measured for this run.)`;
   } else if (!gapMeaningful) {
     // Non-API surface: keep the two signals explicitly separate.
-    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
-    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    const opLabel = usabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = usabilityTakeaway(best.pct, agentDiscoveryScore(runs));
     verdict =
       `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} ` +
       `On the ${surface.toUpperCase()} surface the best agent completed ${best.pct}% of tasks. ` +
       `Docs-site discoverability is a separate, publisher-facing signal (${readiness}/100, a static crawl of the docs website) — ` +
       `the agent discovered the ${surface.toUpperCase()} tools by listing them, not by reading those docs.`;
   } else if (gap! > 0) {
-    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
-    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    const opLabel = usabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = usabilityTakeaway(best.pct, agentDiscoveryScore(runs));
     verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} The API is published and discoverable (${readiness}/100), but the best agent finished only ${best.pct}% of real tasks — a ${gap}-point gap. Being published isn't the same as being usable by agents.`;
   } else {
-    const opLabel = operabilityLabel(best.pct, agentDiscoveryScore(runs));
-    const opTakeaway = operabilityTakeaway(best.pct, agentDiscoveryScore(runs));
+    const opLabel = usabilityLabel(best.pct, agentDiscoveryScore(runs));
+    const opTakeaway = usabilityTakeaway(best.pct, agentDiscoveryScore(runs));
     verdict = `${opLabel}: ${opTakeaway} ${processQualityTakeaway(runs)} Task success (${best.pct}%) is on par with or above docs-site discoverability (${readiness}/100).`;
   }
 
@@ -1307,7 +1307,7 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
       const hi = Math.max(...measured);
       pushFinding(
         "execution",
-        `Task success ranges ${lo === hi ? `${hi}%` : `${lo}–${hi}%`} across configs; static docs discoverability is ${readiness ?? "not measured"}${readiness !== undefined ? "/100" : ""}. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.`,
+        `Task success ranges ${lo === hi ? `${hi}%` : `${lo}–${hi}%`} across configs; static discoverability is ${readiness ?? "not measured"}${readiness !== undefined ? "/100" : ""}. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.`,
       );
     }
   } else if (best && readiness !== undefined && gapMeaningful) {
@@ -2355,7 +2355,7 @@ export function renderCompetitiveReport(
   ];
   const rows = meta.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v}</dd></div>`).join("\n      ");
   const header = `<header class="ax-header">
-    <div class="ax-eyebrow">Agent Experience — competitive report</div>
+    <div class="ax-eyebrow">Agent usability — competitive report</div>
     <h1 class="ax-title">Which surface serves agents best?</h1>
     <p class="ax-subtitle">The same tasks + read-back oracle, run across every surface (API / CLI / SDK / MCP) each product exposes. This is the surface × product plane.</p>
     <dl class="ax-meta">

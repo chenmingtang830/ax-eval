@@ -1,6 +1,6 @@
 # Architecture
 
-`ax-eval` is a pack-centered, surface-aware agent eval system.
+`ax-eval` is a pack-centered, surface-aware agent usability eval system.
 
 At a high level, it turns a product spec or docs surface into a reviewed task
 pack, runs that same pack through one or more agent harnesses and product
@@ -262,7 +262,7 @@ It does more than template HTML. It also:
 - renders TLDR, scorecards, discovery, content quality, scores, robustness, and
   appendix sections
 
-The report is now explicitly framed around **agent operability**, not just
+The report is now explicitly framed around **agent usability**, not just
 readiness.
 
 ### Normalized records
@@ -340,7 +340,7 @@ reliable eval system.
 
 The report layer now has a clearer architecture too:
 
-- operability-first TLDR
+- usability-first TLDR
 - matrix-native narrative for multi-surface / multi-harness runs
 - trace-derived process quality
 - MCP score footnotes for surface-aware subsets
