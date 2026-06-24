@@ -214,7 +214,7 @@ describe("renderGeneratedReport (HTML)", () => {
     // TL;DR block opens the report with the four pillars + jump links.
     expect(html).toContain("ax-tldr");
     expect(html).toContain("TL;DR");
-    expect(html).toContain("agent operability");
+    expect(html).toContain("agent usability");
     expect(html).toContain('class="ax-tldr__split"');
     // Four-pillar scorecard: static discovery and behavioral agent discovery are
     // distinct cards (never one conflated "discoverability" number), plus content
@@ -239,7 +239,7 @@ describe("renderGeneratedReport (HTML)", () => {
     // Multi-config → the matrix Overview, where Content quality is a product-level
     // card alongside Static discovery (the behavioral pillars move into the grid).
     expect(html).toContain('class="ax-scorecard"');
-    expect(html).toContain("agent operability");
+    expect(html).toContain("agent usability");
     expect(html).toContain("Content quality");
     expect(html).toContain(">" + audit.score + '<span class="ax-card__scale">'); // score renders with its /100 scale
 
@@ -590,7 +590,7 @@ describe("renderGeneratedReport (HTML)", () => {
 
     const html = renderGeneratedReport(pack, runs, stat);
     expect(html).toContain("ax-card--pass"); // gap ≤ 0 → pass coloring
-    expect(html).toContain("Strong agent operability");
+    expect(html).toContain("Strong agent usability");
   });
 
   it("renders a CI-gate banner that fails below and passes above the threshold", () => {

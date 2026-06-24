@@ -209,7 +209,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 <body>
 <div class="ax-main">
 <header class="ax-header">
-    <div class="ax-eyebrow">Agent-readiness report</div>
+    <div class="ax-eyebrow">Agent usability report</div>
     <h1 class="ax-title">How well can an AI agent use <span class="ax-target">Stripe</span>?</h1>
     <p class="ax-subtitle">We ran live tasks against the API to measure what an AI agent can actually complete — not just what the docs expose.</p>
     <dl class="ax-meta">
@@ -224,7 +224,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
 
 <section class="ax-section ax-tldr" id="tldr">
     <div class="ax-eyebrow">TL;DR</div>
-    <p class="ax-tldr__takeaway"><strong>Strong agent operability</strong>. Agents can find the right path and reliably operate the product. Process quality warning: codex/CLI/high needed 49 calls with 3 failed calls and 19 retry-ish repeats. <strong>2 harnesses × 4 surfaces × 2 effort levels = 16 configs</strong>, summarized into 8 harness × surface cells. Task success 100% across configs. Static discovery and content quality are product-level; task success and agent discovery break down by harness below.</p>
+    <p class="ax-tldr__takeaway"><strong>Strong agent usability</strong>. Agents can find the right path and use the product successfully. Process quality warning: codex/CLI/high needed 49 calls with 3 failed calls and 19 retry-ish repeats. <strong>2 harnesses × 4 surfaces × 2 effort levels = 16 configs</strong>, summarized into 8 harness × surface cells. Task success 100% across configs. Static discovery and content quality are product-level; task success and agent discovery break down by harness below.</p>
     <div class="ax-tldr__pills"><a class="ax-tldr__pill" href="#static-discovery"><span class="ax-tldr__pill-val">31<span class="ax-tldr__pill-scale">/100</span></span><span class="ax-tldr__pill-label">Static discovery</span></a><a class="ax-tldr__pill" href="#content-quality"><span class="ax-tldr__pill-val">63<span class="ax-tldr__pill-scale">/100</span></span><span class="ax-tldr__pill-label">Content quality</span></a></div>
     <div class="ax-tldr__byharness">
       <div class="ax-tldr__byharness-h"><a href="#scores">By harness</a> — task success · agent discovery (range across surfaces):</div>
@@ -238,7 +238,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
     </div>
 <section class="ax-section ax-scorecard-section">
     <h2>Summary</h2>
-    <p class="ax-verdict">Strong agent operability: Agents can find the right path and reliably operate the product. Process quality warning: codex/CLI/high needed 49 calls with 3 failed calls and 19 retry-ish repeats. 2 harnesses × 4 surfaces × 2 effort = 16 configs. Task success 100% across the board. Static discovery and content quality are product-level (shown once); every config&#39;s task success + agent discovery is below — all printed, none crowned &quot;best&quot;.</p>
+    <p class="ax-verdict">Strong agent usability: Agents can find the right path and use the product successfully. Process quality warning: codex/CLI/high needed 49 calls with 3 failed calls and 19 retry-ish repeats. 2 harnesses × 4 surfaces × 2 effort = 16 configs. Task success 100% across the board. Static discovery and content quality are product-level (shown once); every config&#39;s task success + agent discovery is below — all printed, none crowned &quot;best&quot;.</p>
     <div class="ax-scorecard">
       <div class="ax-card ax-card--fail">
         <span class="ax-card__value">31<span class="ax-card__scale">/100</span></span>
@@ -266,7 +266,7 @@ a.ax-tldr__pill:hover { border-color: var(--accent); }
   </section>
 <section class="ax-section">
     <h2>Key findings</h2>
-    <ul class="ax-findings"><li class="ax-finding">Task success ranges 100% across configs; static docs discoverability is 31/100. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.</li><li class="ax-finding">codex/CLI/high completed with 49 recorded call(s), 3 failed call(s), and 19 retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.</li><li class="ax-finding">OpenAPI content quality is 63/100 (1422 spec smell(s) across 587 endpoints), most often RESPONSE — agents may struggle to construct calls even after finding the docs.</li><li class="ax-finding">The most common failed discovery signals were: did not find the canonical endpoint, did not discover the auth scheme.</li></ul>
+    <ul class="ax-findings"><li class="ax-finding">Task success ranges 100% across configs; static discoverability is 31/100. Read the matrix by surface/harness/profile — the best config is a ceiling, not a product-wide result.</li><li class="ax-finding">codex/CLI/high completed with 49 recorded call(s), 3 failed call(s), and 19 retry-ish repeat(s). Final task success still comes from read-back oracles, but this is an efficiency/ergonomics warning.</li><li class="ax-finding">OpenAPI content quality is 63/100 (1422 spec smell(s) across 587 endpoints), most often RESPONSE — agents may struggle to construct calls even after finding the docs.</li><li class="ax-finding">The most common failed discovery signals were: did not find the canonical endpoint, did not discover the auth scheme.</li></ul>
   </section>
 <section class="ax-section" id="recommendations">
     <h2>Recommendations</h2>

@@ -1,28 +1,29 @@
-# ax-eval — Eval your product for agents.
+# ax-eval — Test whether AI agents can use your product.
 
-API · CLI · SDK · MCP — across harnesses
+API · CLI · SDK · MCP usability reports across agents
 
 *v0.2 · Claude Code and Codex support*
 
-## Can agents actually operate your product?
+## Can AI agents actually use your product?
 
 Agents now read docs, call APIs, invoke MCP servers, install SDKs, and try to
 complete product work on their own. Most teams know what they have published;
-they do not know whether an agent can actually operate it.
+they do not know whether an agent can find the right path, authenticate, and
+finish real workflows in a sandbox.
 
 `ax-eval` runs a reviewed task pack against real sandbox state across product
 surfaces (`API / CLI / SDK / MCP`) and agent harnesses (`claude-code`, `codex`).
-It then verifies outcomes with programmatic read-back oracles. The result is a
-matrix report: what passed, what failed, and whether the gap is docs, auth,
+It verifies outcomes with programmatic read-back oracles. The result is an agent
+usability report: what passed, what failed, and whether the gap is docs, auth,
 surface coverage, harness behavior, or verification.
 
-**Being published is not the same as being operable by agents.**
+**Being published is not the same as being usable by agents.**
 
 ![Sample ax-eval HTML report](./assets/sample-report.png)
 
 ## What It Measures
 
-- **Docs discoverability:** can an agent-style crawl find docs, auth, and machine-readable surfaces?
+- **Discoverability:** can an agent-style crawl find docs, auth, and machine-readable surfaces?
 - **Agent discovery:** what did the real agent do from a cold start?
 - **Spec quality:** is the OpenAPI/GraphQL surface clear enough to plan from?
 - **Task success:** did the sandbox state actually change as requested?
@@ -153,7 +154,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
   gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across
   products or surfaces to see where competitors, SDKs, CLIs, APIs, or MCP servers
-  are easier for agents to operate.
+  are easier for agents to use successfully.
 
 ## Command Map
 

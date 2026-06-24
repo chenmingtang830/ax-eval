@@ -1,6 +1,6 @@
 ---
 name: ax-eval
-description: Eval your product for agents — drop in an OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
+description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
 ---
 
 # ax-eval — host-agent skill
