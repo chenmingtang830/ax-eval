@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a bug in the CLI, generated reports, packs, or docs.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Please do not include API keys, tokens, workspace ids, or private sandbox data.
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened?
+      placeholder: "Example: verify-generated marks an MCP task as failed even though the resource exists."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the command(s), pack, surface, and harness if relevant.
+      placeholder: |
+        1. Run `npm run ax-eval -- ...`
+        2. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead? Paste short excerpts only; redact secrets.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - ingest / generate
+        - review gate
+        - exec-plan / harness
+        - verify / oracles
+        - report rendering
+        - target pack
+        - static discovery / smells
+        - docs / examples
+        - unsure
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: Paste `ax-eval` version, tag, or git commit if known.
+      placeholder: "v0.3.0 or commit SHA"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, harness, surface, and whether this was offline or live.
+      placeholder: |
+        Node:
+        OS:
+        Harness:
+        Surface:
+        Offline or live:
+
+  - type: textarea
+    id: artifacts
+    attributes:
+      label: Artifacts
+      description: Link or paste relevant report snippets, normalized records, traces, or logs. Redact secrets and private ids.
+
