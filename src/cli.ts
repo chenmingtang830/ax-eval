@@ -90,7 +90,7 @@ import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfac
 import { resetPack } from "./target/reset.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const DEFAULT_PACK = resolve(HERE, "..", "targets", "asana", "pack.yaml");
+const DEFAULT_PACK = resolve(HERE, "..", "targets", "examples", "asana", "pack.yaml");
 const INVOKE_HARNESS_LIST = INVOKE_HARNESS_IDS.join("|");
 const COMMANDS = [
   "run",
@@ -1228,8 +1228,9 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   );
   const pack = args.deterministic ? seed : authorPackWithLlm(product, spec, seed, args, provenanceDocs);
   const yaml = packToYaml(pack);
-  // Default output: Asana keeps its committed target path; everything else lands
-  // in results/<slug>.generated.pack.yaml unless --out is given.
+  // Default output: committed example packs live under targets/examples/, but
+  // locally generated packs still default to targets/<product>/ so a user can
+  // iterate on their own target without overwriting the shipped examples.
   const defaultOut = isAsana
     ? "targets/asana/generated.pack.yaml"
     : `results/${slugify(product)}.generated.pack.yaml`;

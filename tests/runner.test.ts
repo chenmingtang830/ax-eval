@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { loadPack } from "../src/config.js";
 import { matrix, passRate, run } from "../src/runner.js";
 
-const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "asana", "pack.yaml");
+const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "examples", "asana", "pack.yaml");
 
 describe("runner", () => {
   it("a competent mock passes everything", async () => {

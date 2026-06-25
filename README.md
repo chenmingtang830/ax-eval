@@ -90,7 +90,7 @@ npm run ax-eval -- generate --deterministic --from results/acme-ingest.json \
   --product Acme --out results/acme.generated.pack.yaml
 ```
 
-The repo ships example target packs under `targets/`. Adding another SaaS should
+The repo ships example target packs under `targets/examples/`. Adding another SaaS should
 usually be a new pack, not a code change.
 
 ## Examples
@@ -220,7 +220,7 @@ src/generate/       task-pack generation, review, report, normalized records
 src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
-targets/            example target packs and approvals (see targets/README.md)
+targets/            target-pack index and example pack directories (see targets/README.md)
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots

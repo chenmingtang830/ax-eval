@@ -36,8 +36,8 @@
     "examples",
     "SKILL.md",
     "targets/README.md",
-    "targets/*/pack.yaml",
-    "targets/*/pack.approval.json",
+    "targets/examples/*/pack.yaml",
+    "targets/examples/*/pack.approval.json",
     "README.md",
     "LICENSE"
   ],

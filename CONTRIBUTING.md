@@ -66,9 +66,9 @@ A new SaaS is **a pack, not code.** The runner is target-agnostic: a pack
 the executor prompt, and the verifier all read those declarations.
 
 To add one, start from `ingest → generate → review` when a public OpenAPI or
-GraphQL surface exists, or hand-write `targets/<name>/pack.yaml` when the target
-needs curation. Model REST packs on `targets/notion/pack.yaml` or
-`targets/stripe/pack.yaml`; model GraphQL packs on `targets/linear/pack.yaml`.
+GraphQL surface exists, or hand-write `targets/examples/<name>/pack.yaml` when the target
+needs curation. Model REST packs on `targets/examples/notion/pack.yaml` or
+`targets/examples/stripe/pack.yaml`; model GraphQL packs on `targets/examples/linear/pack.yaml`.
 Declare `auth` / `sandbox_scope` / any required `headers`, then run
 `ax-eval check-env --pack <pack>` and `ax-eval review --pack <pack> --approve`.
 If you need a code change to land a new target, that's a signal the abstraction

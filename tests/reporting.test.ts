@@ -8,7 +8,7 @@ import { render } from "../src/reporting.js";
 import { run } from "../src/runner.js";
 import { loadReport, saveReport } from "../src/storage.js";
 
-const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "asana", "pack.yaml");
+const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "examples", "asana", "pack.yaml");
 
 describe("reporting + storage", () => {
   let dir: string;
