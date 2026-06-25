@@ -1,8 +1,6 @@
-# ax-eval — Test whether AI agents can use your product.
+# ax-eval is the open-source, CLI-first way to test whether AI agents can discover and use your product.
 
-API · CLI · SDK · MCP usability reports across agents
-
-*v0.3 · Claude Code and Codex support*
+## API · CLI · SDK · MCP across Codex and Claude Code
 
 ## Can AI agents actually use your product?
 

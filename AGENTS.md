@@ -60,6 +60,28 @@ npm run ax-eval -- <command>   # run the CLI in dev (tsx)
 - **Match the surrounding code.** Comment density, naming, and idioms — read the
   neighbors before adding.
 
+## Public change checklist
+
+When behavior changes, update the public surface that teaches that behavior.
+Use this before opening a PR:
+
+- CLI command, flag, or output changes → update `README.md` command examples,
+  `SKILL.md` workflow guidance, and CLI/help tests.
+- Generation, review, schemas, or pack semantics change → update `README.md`,
+  `CONTRIBUTING.md`, `ARCHITECTURE.md`, `SKILL.md`, and schema/review tests.
+- Harness, transcript, profile, or invoke behavior changes → update
+  `SKILL.md`, `ARCHITECTURE.md`, and harness/transcript tests for both Codex
+  and Claude Code.
+- Report scoring, recommendations, or HTML structure changes → update report
+  tests/snapshots and refresh public examples/assets when the public artifact
+  changed.
+- Target, auth, surface, or env behavior changes → update `.env.example`,
+  `targets/README.md`, affected pack approvals, and surface-auth tests.
+- Package contents or release behavior changes → update `package.json` `files`,
+  release notes/checklist text, and run `npm --cache .npm-cache pack --dry-run`.
+- Always finish with `npm test` and `npm run typecheck`; also run
+  `npm run build` when the CLI bundle or publish path could be affected.
+
 ## Where things live
 
 - `src/cli.ts` — the `ax-eval` entrypoint and every command/flag.
