@@ -7,12 +7,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
-const PACK = resolve(ROOT, "targets", "asana", "pack.yaml");
+const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
 
-/** Run the CLI via tsx; return { code, out } (stdout+stderr merged). */
+/** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
 function runCli(args: string[], env: Record<string, string> = {}): { code: number; out: string } {
   try {
-    const out = execFileSync("npx", ["tsx", CLI, ...args], {
+    const out = execFileSync("node", ["--import", "tsx", CLI, ...args], {
       cwd: ROOT,
       encoding: "utf8",
       env: {

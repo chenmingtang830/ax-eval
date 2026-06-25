@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { loadDotenv, loadPack } from "../src/config.js";
 
-const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "asana", "pack.yaml");
+const PACK = resolve(dirname(fileURLToPath(import.meta.url)), "..", "targets", "examples", "asana", "pack.yaml");
 
 describe("config", () => {
   it("loads and validates the asana pack", () => {

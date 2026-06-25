@@ -20,7 +20,7 @@ Two things make this real:
 
 ## Prerequisites
 
-Pick a target. The repo ships example packs under `targets/`, or you can
+Pick a target. The repo ships example packs under `targets/examples/`, or you can
 generate one for any SaaS via `ingest → generate → review` (see workflow below).
 Then:
 
@@ -63,7 +63,7 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
 ### 1. Generate the frozen task set (or use a committed example)
 
-Already have an example pack at `targets/<name>/pack.yaml`? Skip to step 2. To
+Already have an example pack at `targets/examples/<name>/pack.yaml`? Skip to step 2. To
 build one for a new target:
 
 ```bash
@@ -199,7 +199,7 @@ deep-dive without hunting through prior scratch runs.
 
 ## References
 
-- Example packs: `targets/*/pack.yaml`
+- Example packs: `targets/examples/*/pack.yaml`
 - Every command + flag: `src/cli.ts`
 - Expected behavior, documented: the `tests/` suite (keyless/offline)
 - Report rendering: `src/generate/report.ts`

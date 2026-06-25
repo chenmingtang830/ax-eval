@@ -200,7 +200,7 @@ describe("surface-aware discovery scoring", () => {
   it("local artifact paths are not treated as misleading web landings", async () => {
     const result: DiscoveryResult = {
       searches: [],
-      urls_visited: ["targets/exa/pack.yaml"],
+      urls_visited: ["targets/examples/exa/pack.yaml"],
       endpoint_used: "web_search_exa",
       auth_scheme_found: "EXA_API_KEY environment variable",
       inspected_local_source: true,

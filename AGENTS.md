@@ -92,8 +92,8 @@ Use this before opening a PR:
 - `src/surface/` — API/CLI/SDK/MCP prompt adapters.
 - `src/target/` — pack-declared auth + sandbox scope + reset.
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).
-- `targets/` — example target packs (Notion, Stripe, Linear, Exa, Monday, Asana)
-  + approvals.
+- `targets/` — target-pack index; example target packs live under
+  `targets/examples/` (Notion, Stripe, Linear, Exa, Monday, Asana) with approvals.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored** (`roadmap.md`, `dev-guide.md`,
   `spec/`, `strategy/`). Present in a maintainer checkout, not on the public
@@ -112,8 +112,8 @@ The release artifact is a **GPG-signed git tag** plus the npm package. Bump
 `package.json` with `npm version <x.y.z> --no-git-tag-version`, keep CI green,
 then smoke-test the package contents with `npm --cache .npm-cache pack --dry-run`.
 The tarball should contain `dist/`, `README.md`, `SKILL.md`, `.env.example`,
-public examples/assets, and the curated `targets/*/pack.yaml` +
-`targets/*/pack.approval.json` files — not `docs/`, `results/`, `.env`, or
+public examples/assets, and the curated `targets/examples/*/pack.yaml` +
+`targets/examples/*/pack.approval.json` files — not `docs/`, `results/`, `.env`, or
 scratch scripts. Tag the merge commit with `git tag -s v<x.y.z> <sha>` (signed,
 not just `-a`), push the tag, then publish from the same clean checkout.
 Pre-1.0 SemVer: a feature drop bumps the minor.
