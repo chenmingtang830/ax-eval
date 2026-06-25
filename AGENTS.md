@@ -18,11 +18,14 @@ published. Read `README.md` for the full pitch.
 npm install
 npm test            # vitest — all keyless/offline, no network or secrets
 npm run typecheck   # tsc --noEmit, must be clean
-npm run build       # tsup → dist/ (esm)
+npm run build       # tsup → dist/ (required before package smoke tests)
 npm run ax-eval -- <command>   # run the CLI in dev (tsx)
 ```
 
 - **Node ≥ 22.** TypeScript, ESM.
+- Prefer `npm run ax-eval -- <command>` while developing; it runs local source.
+  Use `node dist/cli.js <command>` after `npm run build` only when you need to
+  smoke-test the published CLI entrypoint.
 - **Always run `npm test` and `npm run typecheck` before proposing a change.** CI
   (`.github/workflows/ci.yml`) runs both on Node 22 and is required to merge.
 
@@ -77,12 +80,17 @@ Prefer a **new pack over a code change**. Ingest a public spec, `generate`, then
 `review --approve`. A new SaaS should usually be a pack plus, at most, a focused
 test or oracle improvement. See `CONTRIBUTING.md`.
 
-## Releasing
+## Releasing / Publishing
 
-The release artifact is a **GPG-signed git tag** (no npm publish yet). Bump
-`package.json` with `npm version <x.y.z> --no-git-tag-version`, merge with CI
-green, then `git tag -s v<x.y.z> <sha>` (signed, not just `-a`) and push the
-tag. Pre-1.0 SemVer: a feature drop bumps the minor.
+The release artifact is a **GPG-signed git tag** plus the npm package. Bump
+`package.json` with `npm version <x.y.z> --no-git-tag-version`, keep CI green,
+then smoke-test the package contents with `npm --cache .npm-cache pack --dry-run`.
+The tarball should contain `dist/`, `README.md`, `SKILL.md`, `.env.example`,
+public examples/assets, and the curated `targets/*/pack.yaml` +
+`targets/*/pack.approval.json` files — not `docs/`, `results/`, `.env`, or
+scratch scripts. Tag the merge commit with `git tag -s v<x.y.z> <sha>` (signed,
+not just `-a`), push the tag, then publish from the same clean checkout.
+Pre-1.0 SemVer: a feature drop bumps the minor.
 
 ## Safety
 

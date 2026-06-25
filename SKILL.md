@@ -34,6 +34,12 @@ npm run ax-eval -- init      --pack <pack.yaml> --surface all
 npm run ax-eval -- check-env --pack <pack.yaml> --surface all
 ```
 
+When you are working from a cloned ax-eval repository, use
+`npm run ax-eval -- <command>` for every command in this skill. That runs the
+local checkout, including unpublished changes. A globally installed `ax-eval`
+binary is fine for released workflows, but it will not see local source edits
+until the package is rebuilt and linked/installed.
+
 Each pack declares its own `auth` (which env var holds the credential) and
 `sandbox_scope` (the isolation level — workspace, project, board, etc. — that
 the developer must provision). `init` and `check-env` read the declarations

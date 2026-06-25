@@ -14,7 +14,7 @@ Node 22+ is required (see `engines` in `package.json`).
 ```bash
 npm ci            # install exactly what the lockfile pins
 npm run build     # bundle the CLI to dist/ (tsup)
-npm test          # vitest — 152 tests, all keyless/offline
+npm test          # vitest — all keyless/offline
 npm run typecheck # tsc --noEmit, must be clean
 ```
 
@@ -28,6 +28,11 @@ The quickest local sanity check:
 ```bash
 npm run ax-eval -- run --offline    # behavioral matrix + static gap, no network
 ```
+
+While developing from a clone, prefer `npm run ax-eval -- <command>` so you are
+running the local TypeScript entrypoint rather than any globally installed
+package. If you need to test the installed command shape, run `npm run build`
+and then `npm link` or `node dist/cli.js <command>` from the checkout.
 
 If you are new to the repo, also open one of the full HTML examples in
 [`examples/`](./examples/) before changing reporting
@@ -86,3 +91,6 @@ which product surfaces exist, while harness profiles vary execution settings
   (the host-agent workflow) and the zod schemas in `src/schemas.ts` (the
   `Task` / `TargetPack` / `RunResult` contract) in sync — those are the
   source of truth a contributor needs.
+- If you're changing publishable files, run `npm --cache .npm-cache pack
+  --dry-run` and confirm the tarball contains only the public CLI, examples,
+  target packs, and docs you intend to ship.

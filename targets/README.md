@@ -15,7 +15,9 @@ live here; run `ax-eval init --pack <pack.yaml> --surface all` to print the exac
 
 ## Additional Packs
 
-- `asana/pack.yaml` — original REST reference pack and internal benchmark.
+- `asana/pack.yaml` — legacy REST reference pack and internal benchmark; review
+  and approve it before live runs, or use one of the committed generated Asana
+  variants in this repository.
 - `monday/pack.yaml` — GraphQL work-management pack; useful for local rehearsal.
 
 Generated variants such as `generated.pack.yaml` and `generated.full.pack.yaml`
