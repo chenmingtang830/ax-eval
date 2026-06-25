@@ -4,18 +4,12 @@
 
 ## Can AI agents actually use your product?
 
-Agents now read docs, call APIs, invoke MCP servers, install SDKs, and try to
-complete product work on their own. Most teams know what they have published;
-they do not know whether an agent can find the right path, authenticate, and
-finish real workflows in a sandbox.
+AI agents are becoming users of software. But most teams still test docs, APIs,
+SDKs, CLIs, and MCP servers as developer-facing artifacts, not as interfaces
+agents must discover and operate. `ax-eval` runs reviewed sandbox tasks through
+real agent harnesses, then verifies outcomes with read-back oracles.
 
-`ax-eval` runs a reviewed task pack against real sandbox state across product
-surfaces (`API / CLI / SDK / MCP`) and agent harnesses (`claude-code`, `codex`).
-It verifies outcomes with programmatic read-back oracles. The result is an agent
-usability report: what passed, what failed, and whether the gap is docs, auth,
-surface coverage, harness behavior, or verification.
-
-**Being published is not the same as being usable by agents.**
+**Agent-facing surfaces need integration tests, not just publication checks.**
 
 ![Sample ax-eval HTML report](./assets/sample-report.png)
 
