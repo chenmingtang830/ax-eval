@@ -12,6 +12,7 @@ The core data flow is:
 ```text
 spec/docs
   -> ingest
+  -> generate (rule seed + LLM-assisted authoring, or deterministic fallback)
   -> reviewed TargetPack
   -> exec-plan per harness x surface x effort
   -> results + trace + transcript

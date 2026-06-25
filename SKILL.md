@@ -1,13 +1,13 @@
 ---
 name: ax-eval
-description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to auto-generate an L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
+description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to generate a reviewed L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
 ---
 
 # ax-eval — host-agent skill
 
-You are the **harness**. The eval is a frozen, auto-generated `standard_set`
-(per-target pack); you run it against the **live** API and the CLI verifies
-success via **programmatic oracles** (API readback), not self-report.
+You are the **harness**. The eval is a reviewed, frozen per-target `TargetPack`;
+you run it against the **live** product surface and the CLI verifies success via
+**programmatic oracles** (API readback), not self-report.
 
 Two things make this real:
 - **Discovery is Phase 0.** You are NOT told the endpoint, base URL, request
@@ -16,7 +16,7 @@ Two things make this real:
   scored.
 - **Effort profiles.** You run the set twice at two effort levels: `low` and
   `high`. Same model, same budget — only effort differs, so the spread is
-  attributable. (The old names `floor`/`ceiling` still work as aliases.)
+  attributable.
 
 ## Prerequisites
 
@@ -71,6 +71,11 @@ npm run ax-eval -- ingest   --openapi <spec-url>            # or --graphql <endp
 npm run ax-eval -- generate --from results/<name>-ingest.json
 #    → writes results/<name>.generated.pack.yaml (auto-derives product, auth, sandbox scope)
 ```
+
+Default generation is LLM-assisted: ax-eval builds a rule-derived seed from the
+spec, then asks a local generator harness (`codex` or `claude-code`) to improve
+it. Pass `--deterministic` for keyless/offline fixtures. Either way, the output
+is only a draft until the review gate approves it.
 
 This produces an **L1–L4 ladder** (L1 single create · L2 composed chain · L3
 ambiguous goal-level comprehension · L4 state mutation) with goal-level prompts
@@ -127,7 +132,7 @@ the report is rendered corrupts scores.
 ### 5. Verify + report
 
 ```bash
-npm run ax-eval -- verify --pack <pack.yaml> \
+npm run ax-eval -- verify-generated --pack <pack.yaml> \
   --results results/runs/<id>/run-*.json \
   --min-pass-rate 0.8 \
   --html results/runs/<id>/generated-eval.html

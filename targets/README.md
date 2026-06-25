@@ -3,7 +3,8 @@
 Each target pack declares the product contract ax-eval needs: auth env names,
 sandbox scope, available surfaces, tasks, and read-back oracles. Secrets never
 live here; run `ax-eval init --pack <pack.yaml> --surface all` to print the exact
-`.env` stub for a pack.
+`.env` stub for a pack. Generated packs are drafts until their matching
+`*.approval.json` passes the review gate.
 
 ## Good Starting Points
 

@@ -54,6 +54,9 @@ shape.
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
+- **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
+  rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
+  paths must produce schema-valid packs, and neither path replaces human review.
 
 ## Adding a new target
 
@@ -62,9 +65,11 @@ A new SaaS is **a pack, not code.** The runner is target-agnostic: a pack
 `sandbox_scope` (the isolation the developer must provision), and `check-env`,
 the executor prompt, and the verifier all read those declarations.
 
-To add one, drop a `targets/<name>/pack.yaml` (model it on
-`targets/asana/pack.yaml` for REST or `targets/linear/pack.yaml` for GraphQL),
-declare its `auth` / `sandbox_scope` / any required `headers`, then run
+To add one, start from `ingest → generate → review` when a public OpenAPI or
+GraphQL surface exists, or hand-write `targets/<name>/pack.yaml` when the target
+needs curation. Model REST packs on `targets/notion/pack.yaml` or
+`targets/stripe/pack.yaml`; model GraphQL packs on `targets/linear/pack.yaml`.
+Declare `auth` / `sandbox_scope` / any required `headers`, then run
 `ax-eval check-env --pack <pack>` and `ax-eval review --pack <pack> --approve`.
 If you need a code change to land a new target, that's a signal the abstraction
 is missing something — call it out in the PR.

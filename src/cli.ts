@@ -3,14 +3,14 @@
  * `ax-eval` command-line entrypoint.
  *
  *   ax-eval run [--pack p] [--harness h]... [--out o] [--offline]  behavioral matrix + static gap
- *   ax-eval audit [--pack p | --site url] [--offline]              static (agent-readiness) audit only
+ *   ax-eval audit [--pack p | --site url] [--offline]              static readiness audit only
  *   ax-eval smells --openapi <url> [--html out] [--out json] [--offline]  content-quality (OpenAPI smell) audit
  *   ax-eval report <results.json>                                  render a saved result file
  *   ax-eval list-harnesses                                         show registered harnesses
  *   ax-eval probe [--out json]                                     detect host harness + suggest profile
  *   ax-eval init --pack <yaml>                                     print a .env stub for a pack
  *   ax-eval check-env --pack <yaml>                                  show env required by the pack
- *   ax-eval verify --pack <yaml> --results <run.json>...             generated-run verify + CI gate
+ *   ax-eval verify-generated --pack <yaml> --results <run.json>...   generated-run verify + CI gate
  *       [--min-pass-rate 0.8] [--html path]
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
  *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
@@ -25,7 +25,7 @@
  *       [--html path] without re-running live verification
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
- *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile ceiling] run prompts locally
+ *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile high] run prompts locally
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
@@ -400,7 +400,7 @@ async function cmdRun(args: Parsed): Promise<number> {
   console.log(`\nSaved results → ${args.out}\n`);
   console.log(render(report));
 
-  // Static (agent-readiness) audit next to the behavioral matrix — the "gap".
+  // Static readiness audit next to the behavioral matrix — the "gap".
   if (pack.site_url) {
     const audit = await auditSite(pack.site_url, { mode: args.offline ? "fixture" : "live" });
     console.log("\n" + renderAudit(audit));
@@ -617,9 +617,10 @@ async function cmdInit(args: Parsed): Promise<number> {
 }
 
 /**
- * `ax-eval verify --pack <yaml> --results <run.json>...` —
+ * `ax-eval verify-generated --pack <yaml> --results <run.json>...` —
  *
- * Generated-pack verifier and CI gate. Replays each recorded run against the
+ * Generated-pack verifier and CI gate. `verify` is kept as a compatibility
+ * alias. Replays each recorded run against the
  * pack's expected_calls + round-trip oracles, computes pass-rate, and writes
  * a self-contained HTML report. Target-agnostic: every per-target detail
  * (auth, base URL, env names, sandbox scope) comes from the pack YAML.
@@ -1256,8 +1257,8 @@ async function cmdGenerate(args: Parsed): Promise<number> {
 /**
  * Emit a ready-to-run executor prompt per profile (resolving a fresh namespace
  * each). Each prompt is a single two-phase run: Phase 0 cold-start discovery
- * (behavioral AEO) followed by the L1-L4 tasks built on what it discovered — so
- * discovery is NOT a separate agent, it's step 0 of floor and ceiling. ns and
+ * followed by the L1-L4 tasks built on what it discovered — so discovery is
+ * NOT a separate agent, it's step 0 of low and high. ns and
  * the discovery/results/trace contract are baked in by the builder, so execution
  * is reproducible. Artifacts land under --run-dir (default results/).
  */
@@ -1544,7 +1545,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   } else {
     console.log(
       `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
-        `  ax-eval verify --pack ${args.pack} ` +
+        `  ax-eval verify-generated --pack ${args.pack} ` +
         resultPaths.map((p) => `--results ${p}`).join(" ") +
         ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
     );
@@ -1753,7 +1754,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         `No trace file at ${rel(tracePath)} — trace checks for ${executor.profile} fall back to whatever the agent self-reported (or none).`,
       );
     }
-    // Behavioral AEO: score this profile's Phase-0 discovery funnel. Prefer the
+    // Behavioral discovery: score this profile's Phase-0 discovery funnel. Prefer the
     // OBJECTIVE funnel parsed from the harness transcript over the agent's
     // self-report; fall back to self-report, labeling the provenance.
     //
@@ -1823,7 +1824,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     });
   }
   const byProfile = mergeProfileRuns(byAttempt);
-  // The headline gap: measure static agent-readiness on the same target and put
+  // The headline gap: measure static readiness on the same target and put
   // it next to behavioral success. Best-effort — never let a static/network
   // hiccup fail the (already-completed) behavioral verification.
   let staticReadiness: StaticReadiness | undefined;

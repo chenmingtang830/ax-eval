@@ -33,9 +33,11 @@ npm run ax-eval -- <command>   # run the CLI in dev (tsx)
 
 - **Tests are keyless and offline by default.** Never add a test that needs a
   live network call or a real credential. Use fixtures (`tests/fixtures/`).
-- **Deterministic generation.** `generate` must produce the same pack from the
-  same spec — no LLM in the v0 generation path. Don't introduce nondeterminism
-  into `src/generate/pack.ts` / `graphql-pack.ts`.
+- **Generation has two paths.** Default `generate` is LLM-assisted: it first
+  builds a rule-derived seed from `src/generate/pack.ts` or `graphql-pack.ts`,
+  then asks the configured generator harness to improve the pack. The
+  `--deterministic` path must remain keyless, stable, and suitable for CI
+  fixtures. Do not let LLM output bypass schema validation or human review.
 - **The review gate is load-bearing.** Generated packs are executable intent.
   `exec-plan` refuses an un-reviewed or edited pack unless `--skip-review`.
   Changing a committed pack changes its content hash and re-opens approval — do
@@ -67,8 +69,9 @@ npm run ax-eval -- <command>   # run the CLI in dev (tsx)
   transcript + trace parsing, probe.
 - `src/surface/` — API/CLI/SDK/MCP prompt adapters.
 - `src/target/` — pack-declared auth + sandbox scope + reset.
-- `src/static/` — static AEO audit (discoverability + OpenAPI smells).
-- `targets/` — example target packs (Asana, Notion, Linear, Monday) + approvals.
+- `src/static/` — static readiness audit (discoverability + OpenAPI smells).
+- `targets/` — example target packs (Notion, Stripe, Linear, Exa, Monday, Asana)
+  + approvals.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored** (`roadmap.md`, `dev-guide.md`,
   `spec/`, `strategy/`). Present in a maintainer checkout, not on the public
@@ -76,7 +79,8 @@ npm run ax-eval -- <command>   # run the CLI in dev (tsx)
 
 ## Adding a target
 
-Prefer a **new pack over a code change**. Ingest a public spec, `generate`, then
+Prefer a **new pack over a code change**. Ingest a public spec, run
+LLM-assisted `generate` for authoring (or `--deterministic` for fixtures), then
 `review --approve`. A new SaaS should usually be a pack plus, at most, a focused
 test or oracle improvement. See `CONTRIBUTING.md`.
 

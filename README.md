@@ -2,7 +2,7 @@
 
 API · CLI · SDK · MCP usability reports across agents
 
-*v0.2 · Claude Code and Codex support*
+*v0.3 · Claude Code and Codex support*
 
 ## Can AI agents actually use your product?
 
@@ -48,7 +48,10 @@ npm run ax-eval -- audit --offline
 npm test
 ```
 
-Run a live eval against a sandbox:
+Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
+builds a rule-derived seed from the spec, then asks a local generator harness
+(`codex` or `claude-code`) to turn it into a product-quality pack. Use
+`--deterministic` when you need a keyless CI/offline fixture instead.
 
 ```bash
 # 1. Draft a task pack from a public spec, then review/freeze it.
@@ -64,7 +67,7 @@ npm run ax-eval -- check-env --pack results/acme.generated.pack.yaml
 # 3. Emit prompts, run them, then verify with read-back oracles.
 npm run ax-eval -- exec-plan --pack results/acme.generated.pack.yaml \
   --run-dir results/runs/acme
-npm run ax-eval -- verify --pack results/acme.generated.pack.yaml \
+npm run ax-eval -- verify-generated --pack results/acme.generated.pack.yaml \
   --results results/runs/acme/run-*.json \
   --min-pass-rate 0.8 \
   --html results/runs/acme/eval.html
@@ -137,7 +140,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ![ax-eval architecture](./assets/architecture.svg)
 
 1. **Ingest:** parse OpenAPI, GraphQL, docs, auth, and sandbox hints.
-2. **Generate:** draft an L1-L4 task pack with round-trip oracles.
+2. **Generate:** draft an L1-L4 task pack with rule-derived oracles and
+   LLM-assisted task authoring by default.
 3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
 4. **Execute:** run the same pack across selected surfaces and harnesses.
 5. **Verify:** read live state back, score the matrix, and write reports.
@@ -159,9 +163,9 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ## Command Map
 
 ```bash
-npm run ax-eval -- ingest --openapi <url>       # deterministic REST/OpenAPI path
+npm run ax-eval -- ingest --openapi <url>       # parse REST/OpenAPI into an ingest file
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
-npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>]
+npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>] # LLM-assisted by default
 npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
@@ -169,7 +173,6 @@ npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
-npm run ax-eval -- verify --pack <pack.yaml> --results <run.json>... --html <out.html>
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
@@ -182,8 +185,8 @@ npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
 ```
 
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
-typecheck. It should not depend on live LLM regeneration; fresh authoring is a
-developer workflow that ends at `review --approve`.
+typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
+authoring is a developer workflow that ends at `review --approve`.
 
 ## Safety
 
