@@ -112,6 +112,7 @@ const COMMANDS = [
   "competitive",
   "trace-diff",
   "reset",
+  "mcp-server",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -2055,10 +2056,18 @@ async function main(): Promise<number> {
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
+    case "mcp-server":
+      return cmdMcpServer();
     default:
       console.error(USAGE);
       return 2;
   }
+}
+
+async function cmdMcpServer(): Promise<number> {
+  const { startMcpServer } = await import("./mcp-server.js");
+  await startMcpServer();
+  return 0;
 }
 
 main().then((code) => process.exit(code)).catch((err) => {
