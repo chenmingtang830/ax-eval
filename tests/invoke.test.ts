@@ -205,6 +205,48 @@ describe("runInvokeHarness", () => {
     expect(Object.keys(schema.properties.results.properties)).toEqual(["mcp-only"]);
   });
 
+  it("includes extra per-task context ids in the codex output schema when verification needs them", async () => {
+    const dir = freshDir();
+    const schemaPack = TargetPackSchema.parse({
+      ...pack(),
+      tasks: [
+        {
+          id: "page-task",
+          prompt: "Create a page.",
+          allowed_surfaces: ["mcp", "docs"],
+          create_path: "/docs/{docId}/pages",
+          oracles: [{ type: "roundtrip", readPathTemplate: "/docs/{docId}/pages/{gid}", assertField: "name", expected: "x" }],
+        },
+      ],
+    });
+    const paths = defaultInvokePaths(dir, "codex-mcp-extra", "codex");
+    writeFileSync(paths.promptPath, "Do the task and write files.");
+    const run: InvokeRunOptions = {
+      pack: schemaPack,
+      harness: "codex",
+      profile: "ceiling",
+      surface: "mcp",
+      ns: "demo-high-mcp",
+      paths,
+      cwd: dir,
+    };
+
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "mcp", discovery: {}, results: { "page-task": { gid: "g", docId: "d" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const schema = JSON.parse(readFileSync(paths.codexSchemaPath!, "utf8"));
+    expect(schema.properties.results.properties["page-task"].required).toEqual(["gid", "docId"]);
+    expect(schema.properties.results.properties["page-task"].properties.docId).toBeTruthy();
+  });
+
   it("retries a failed invocation once, then succeeds on the second attempt", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -64,6 +64,220 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["audit", "--offline"]);
     expect(code).toBe(0);
     expect(out).toContain("Agent-readiness score");
+  });
+
+  it("automate-report help documents the one-shot workflow", () => {
+    const { code, out } = runCli(["automate-report", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+    expect(out).toContain("--smoke-only");
+    expect(out).toContain("--approve-by");
+  });
+
+  it("automate-report requires --company", () => {
+    const { code, out } = runCli(["automate-report"]);
+    expect(code).toBe(1);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+  });
+});
+
+describe("automate-report", () => {
+  const dirs: string[] = [];
+  function freshDir(prefix = "ax-auto-"): string {
+    const d = mkdtempSync(resolve(tmpdir(), prefix));
+    dirs.push(d);
+    return d;
+  }
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  function writeOpenapiFixture(dir: string): string {
+    const path = resolve(dir, "openapi.json");
+    writeFileSync(path, JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Widget API", version: "1" },
+      servers: [{ url: "https://api.widget.test" }],
+      components: {
+        securitySchemes: {
+          widgetApiKey: {
+            type: "apiKey",
+            in: "header",
+            name: "x-api-key",
+          },
+        },
+      },
+      security: [{ widgetApiKey: [] }],
+      paths: {},
+    }));
+    return path;
+  }
+
+  function writeDiscoveryFixture(dir: string, openapiPath: string): string {
+    const path = resolve(dir, "discovery.json");
+    writeFileSync(path, JSON.stringify({
+      site_url: "https://docs.widget.test",
+      docs_urls: ["https://docs.widget.test"],
+      openapi_url: openapiPath,
+      auth_notes: ["Create a sandbox API key."],
+      surface_notes: ["API surface only."],
+    }));
+    return path;
+  }
+
+  function writeGeneratedPackFixture(dir: string): string {
+    const path = resolve(dir, "pack.json");
+    writeFileSync(path, JSON.stringify({
+      name: "widget-generated",
+      standard_set_version: "automation-test",
+      run_id: "auto-test",
+      base_url: "https://api.widget.test",
+      auth_method: "api-key",
+      auth: { type: "api-key", env: "WIDGET_API_KEY", header: "x-api-key" },
+      sandbox_scope: [],
+      discovery: { product: "Widget", canonical_endpoint: "POST /widgets" },
+      tasks: [],
+    }));
+    return path;
+  }
+
+  function writeFakeCodex(dir: string): string {
+    const binDir = resolve(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    const fake = resolve(binDir, "codex");
+    writeFileSync(fake, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  console.log("codex fake-test");
+  process.exit(0);
+}
+const outIdx = args.indexOf("--output-last-message");
+const resultPath = outIdx >= 0 ? args[outIdx + 1] : "";
+const prompt = args[args.length - 1] || "";
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1] || resultPath.replace(/\\.json$/, ".trace.json");
+if (!resultPath) process.exit(1);
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "low",
+  ns: "fake-ns",
+  surface: "api",
+  discovery: { base_url_found: "", searches: [], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: "" },
+  results: {}
+}, null, 2));
+fs.writeFileSync(tracePath, "[]");
+console.error("model: fake-codex");
+console.log(JSON.stringify({ model: "fake-codex", ok: true }));
+`);
+    chmodSync(fake, 0o755);
+    return binDir;
+  }
+
+  it("fails company-only discovery cleanly without mentioning Exa env or APIs", () => {
+    const dir = freshDir();
+    const { code, out } = runCli(["automate-report", "--company", "No Such Product", "--offline", "--run-dir", dir]);
+    expect(code).toBe(1);
+    expect(out).toContain("Could not find a trustworthy official OpenAPI or GraphQL spec");
+    expect(out).toContain("--openapi");
+    expect(out).not.toContain("EXA_API_KEY");
+    expect(out).not.toContain("Exa API");
+  });
+
+  it("uses fixture discovery and stops with an auth checklist when config is missing", () => {
+    const dir = freshDir();
+    const openapi = writeOpenapiFixture(dir);
+    const discovery = writeDiscoveryFixture(dir, openapi);
+    const pack = writeGeneratedPackFixture(dir);
+    const { code, out } = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      WIDGET_API_KEY: "",
+    });
+    expect(code).toBe(1);
+    expect(out).toContain("Configuration checklist");
+    expect(out).toContain("WIDGET_API_KEY");
+    expect(out).toContain("missing required auth or sandbox configuration");
+    expect(readFileSync(resolve(dir, "automation-manifest.json"), "utf8")).toContain("configuration-checklist.md");
+  });
+
+  it("falls back to deterministic generation when LLM-assisted generation fails", () => {
+    const dir = freshDir();
+    const openapi = writeOpenapiFixture(dir);
+    const discovery = writeDiscoveryFixture(dir, openapi);
+    const { code, out } = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: resolve(dir, "missing-pack.json"),
+      WIDGET_API_KEY: "",
+    });
+    expect(code).toBe(1);
+    expect(out).toContain("falling back to deterministic generation");
+    expect(existsSync(resolve(dir, "widget.generated.full.pack.yaml"))).toBe(true);
+  });
+
+  it("runs smoke then full when fixture verification passes", () => {
+    const dir = freshDir();
+    const openapi = writeOpenapiFixture(dir);
+    const discovery = writeDiscoveryFixture(dir, openapi);
+    const pack = writeGeneratedPackFixture(dir);
+    const binDir = writeFakeCodex(dir);
+    const { code, out } = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--surface", "api",
+      "--harness", "codex",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(code).toBe(0);
+    expect(out).toContain("Running smoke gate");
+    expect(out).toContain("Smoke passed. Running full report");
+    expect(readdirSync(resolve(dir, "smoke"))).toContain("generated-eval.html");
+    expect(readdirSync(resolve(dir, "full"))).toContain("generated-eval.html");
+    expect(readFileSync(resolve(dir, "share-summary.md"), "utf8")).toContain("Widget Agent Usability Report");
+  });
+
+  it("stops after smoke when smoke verification fails", () => {
+    const dir = freshDir();
+    const openapi = writeOpenapiFixture(dir);
+    const discovery = writeDiscoveryFixture(dir, openapi);
+    const pack = writeGeneratedPackFixture(dir);
+    const binDir = writeFakeCodex(dir);
+    const { code, out } = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--harness", "codex",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "fail",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(code).toBe(1);
+    expect(out).toContain("Verification fixture failed");
+    expect(out).not.toContain("Smoke passed. Running full report");
+    expect(existsSync(resolve(dir, "full"))).toBe(false);
   });
 });
 

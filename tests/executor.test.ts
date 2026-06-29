@@ -74,4 +74,34 @@ describe("buildExecutorPrompt", () => {
     expect(prompt).toContain("LOW-EFFORT");
     expect(prompt).toMatch(/~40 API actions/);
   });
+
+  it("includes extra context ids in the required results shape when a task oracle needs them", () => {
+    const extraPack = TargetPackSchema.parse({
+      ...pack,
+      tasks: [
+        {
+          id: "page-task",
+          difficulty: "L2",
+          prompt: 'Create a page "AX probe page {ns}" and report gid/docId.',
+          allowed_surfaces: ["api", "docs"],
+          create_path: "/docs/{docId}/pages",
+          oracles: [{ type: "roundtrip", readPathTemplate: "/docs/{docId}/pages/{gid}", assertField: "name", expected: "AX probe page {ns}" }],
+        },
+      ],
+    });
+    const extraPrompt = buildExecutorPrompt({
+      pack: extraPack,
+      profile: getProfile("floor"),
+      ns: "demo-floor-ab12",
+      resultsPath: "results/run-floor.json",
+      tracePath: "results/run-floor.trace.json",
+    });
+    expect(extraPrompt).toContain('"page-task": {"gid": "<gid or null>", "docId": "<docId or null>"}');
+    expect(extraPrompt).toContain("extra context ids");
+  });
+
+  it("tells the executor to keep created ids even when read-after-write is temporarily unavailable", () => {
+    expect(prompt).toContain("still record the created id");
+    expect(prompt).toContain("202/404/409");
+  });
 });

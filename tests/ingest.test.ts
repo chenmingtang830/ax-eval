@@ -76,6 +76,54 @@ describe("openapi security + constant headers", () => {
     expect(spec.constantHeaders).toEqual({ "Demo-Version": "2026-01-01" });
   });
 
+  it("prefers the read-back identity field when it differs from the create payload", () => {
+    const spec = parseSpec(
+      JSON.stringify({
+        openapi: "3.0.0",
+        info: { title: "Docs" },
+        servers: [{ url: "https://api.docs.test/v1" }],
+        paths: {
+          "/docs": {
+            post: {
+              operationId: "createDoc",
+              requestBody: {
+                content: {
+                  "application/json": {
+                    schema: {
+                      type: "object",
+                      properties: { title: { type: "string" }, workspaceId: { type: "string" } },
+                      required: ["title"],
+                    },
+                  },
+                },
+              },
+            },
+          },
+          "/docs/{docId}": {
+            get: {
+              operationId: "getDoc",
+              responses: {
+                "200": {
+                  content: {
+                    "application/json": {
+                      schema: {
+                        type: "object",
+                        properties: { id: { type: "string" }, name: { type: "string" } },
+                        required: ["id", "name"],
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+      "docs",
+    );
+    expect(spec.resources.find((r) => r.name === "docs")?.identityField).toBe("name");
+  });
+
   it("classifies http bearer + oauth2 schemes and resolves a server variable", () => {
     const bearer = parseSpec(
       JSON.stringify({

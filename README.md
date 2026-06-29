@@ -42,8 +42,25 @@ npm test
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
-(`codex` or `claude-code`) to turn it into a product-quality pack. Use
+(`codex` or `claude-code`) to turn it into a product-quality pack. Product
+presets can add authoring hints for the fuzzy parts, but code still enforces
+surface coverage, schema validity, and a repair pass if the first draft drops
+required metadata or tasks. Use
 `--deterministic` when you need a keyless CI/offline fixture instead.
+
+For a one-shot report workflow, `automate-report` bootstraps discovery, pack
+generation, review/auth handoff, smoke execution, verification, and final report
+packaging. It never uses Exa; pass explicit official URLs when you have them, or
+let the configured local harness find candidates with its native web/search
+capability and ax-eval will validate them by fetching official pages directly.
+
+```bash
+npm run ax-eval -- automate-report --company Acme \
+  --openapi https://example.com/openapi.json \
+  --approve-by you \
+  --surface all \
+  --harness codex
+```
 
 ```bash
 # 1. Draft a task pack from a public spec, then review/freeze it.
@@ -119,7 +136,10 @@ without digging through `results/runs/`.
   live in versioned schemas and act as the stable center of the system.
 - **Execution matrix:** the same reviewed pack runs across one or more harnesses
   and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
-  the agent discovers and acts rather than changing the oracle model.
+  the agent discovers and acts rather than changing the oracle model. When a
+  surface only covers part of the product, generation narrows that surface to
+  the subset of tasks it can actually support instead of forcing API-shaped
+  tasks onto it.
 - **Truth layer:** executors report ids, but success is decided by independent
   read-back verification against live product state.
 - **Interpretation layer:** reports and normalized records turn results, traces,
@@ -135,7 +155,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 2. **Generate:** draft an L1-L4 task pack with rule-derived oracles and
    LLM-assisted task authoring by default.
 3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
-4. **Execute:** run the same pack across selected surfaces and harnesses.
+4. **Execute:** run the same pack across selected surfaces and harnesses, with
+   each surface taking the tasks that generation marked as truly supported.
 5. **Verify:** read live state back, score the matrix, and write reports.
 
 ## Why It Is Different
@@ -162,6 +183,7 @@ npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fa
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
+npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>] # no Exa; smoke then full report
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)

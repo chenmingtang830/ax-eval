@@ -74,8 +74,29 @@ npm run ax-eval -- generate --from results/<name>-ingest.json
 
 Default generation is LLM-assisted: ax-eval builds a rule-derived seed from the
 spec, then asks a local generator harness (`codex` or `claude-code`) to improve
-it. Pass `--deterministic` for keyless/offline fixtures. Either way, the output
-is only a draft until the review gate approves it.
+it. Product presets can add authoring hints and surface-shaping rules, but code
+still validates the generated pack and will trigger one repair pass before
+giving up. Pass `--deterministic` for keyless/offline fixtures. Either way, the
+output is only a draft until the review gate approves it.
+
+Generation is surface-aware at task-selection time too: if a declared CLI/SDK/MCP
+surface only covers part of the product, ax-eval narrows that surface to the
+tasks it can actually support instead of assuming it mirrors the full API.
+
+For a one-command report pass, use automation:
+
+```bash
+npm run ax-eval -- automate-report --company <name> \
+  --openapi <spec-url> \
+  --approve-by <name> \
+  --surface all --harness codex
+```
+
+`automate-report` never uses Exa. It prefers explicit official `--openapi`,
+`--graphql`, `--site`, or `--docs` inputs; if only a company name is provided it
+asks the configured local harness to find official candidates, then validates
+them with direct fetch/crawl before ingesting anything. It always runs an API
+low-effort smoke gate before the fuller requested report.
 
 This produces an **L1–L4 ladder** (L1 single create · L2 composed chain · L3
 ambiguous goal-level comprehension · L4 state mutation) with goal-level prompts

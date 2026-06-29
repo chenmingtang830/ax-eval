@@ -186,6 +186,148 @@ describe("deterministic generation", () => {
     expect(p.auth!.header).toBe("X-Linear-Key");
     expect(p.headers).toEqual({ "Linear-Version": "2026" });
   });
+
+  it("passes through declared non-api surfaces onto the generated REST pack", () => {
+    const withSurfaces = generatePack(spec, {
+      packName: "test",
+      limit: 2,
+      surfaces: {
+        cli: { bin: "demo", docs_url: "https://example.test/cli" },
+        sdk: { package: "@demo/sdk", language: "node" },
+        mcp: { server: "https://example.test/mcp", transport: "http" },
+      },
+    });
+    expect(withSurfaces.surfaces).toEqual({
+      cli: { bin: "demo", docs_url: "https://example.test/cli" },
+      sdk: { package: "@demo/sdk", language: "node" },
+      mcp: { server: "https://example.test/mcp", transport: "http" },
+    });
+    expect(withSurfaces.tasks.every((task) => task.allowed_surfaces.includes("docs"))).toBe(true);
+    expect(withSurfaces.tasks.every((task) => task.allowed_surfaces.includes("api"))).toBe(true);
+    expect(withSurfaces.tasks.every((task) => task.allowed_surfaces.includes("cli"))).toBe(true);
+    expect(withSurfaces.tasks.every((task) => task.allowed_surfaces.includes("sdk"))).toBe(true);
+    expect(withSurfaces.tasks.every((task) => task.allowed_surfaces.includes("mcp"))).toBe(true);
+  });
+
+  it("filters per-surface task coverage from generation-time policies", () => {
+    const codaLike = parseSpec(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Docs API" },
+      servers: [{ url: "https://api.docs.test/v1" }],
+      paths: {
+        "/docs": { post: { operationId: "create_doc", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } }, get: { operationId: "list_docs" } },
+        "/docs/{doc_id}": { get: { operationId: "get_doc" }, patch: { operationId: "update_doc" } },
+        "/folders": { post: { operationId: "create_folder", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/folders/{folder_id}": { get: { operationId: "get_folder" }, patch: { operationId: "update_folder" } },
+        "/packs": { post: { operationId: "create_pack", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/packs/{pack_id}": { get: { operationId: "get_pack" }, patch: { operationId: "update_pack" } },
+        "/docs/{doc_id}/pages": { post: { operationId: "create_page", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/docs/{doc_id}/pages/{page_id}": { get: { operationId: "get_page" } },
+        "/docs/{doc_id}/tables/{table_id}/rows": { post: { operationId: "create_row", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/docs/{doc_id}/tables/{table_id}/rows/{row_id}": { get: { operationId: "get_row" } },
+        "/docs/{doc_id}/pages/{page_id}/export": { post: { operationId: "create_export", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/docs/{doc_id}/pages/{page_id}/export/{export_id}": { get: { operationId: "get_export" } },
+      },
+    }), "docs");
+
+    const pack = generatePack(codaLike, {
+      packName: "docs-generated",
+      limit: 3,
+      l2Limit: 3,
+      l3Limit: 3,
+      l4Limit: 3,
+      targetTaskCount: 12,
+      prefer: ["docs", "folders", "packs"],
+      surfaces: {
+        mcp: { server: "https://example.test/mcp", transport: "http" },
+      },
+      surfaceTaskPolicies: {
+        api: {
+          simpleResources: ["docs", "folders", "packs"],
+          nestedResources: ["docs", "pages"],
+          goalResources: [],
+          lifecycleResources: ["docs", "folders", "packs"],
+        },
+        mcp: {
+          simpleResources: ["docs"],
+          nestedResources: ["docs", "pages", "rows"],
+          goalResources: [],
+          lifecycleResources: [],
+        },
+      },
+    });
+
+    expect(pack.tasks.find((task) => task.id === "gen-l1-docs")!.allowed_surfaces).toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l1-folders")!.allowed_surfaces).not.toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l2-docs-rows")!.allowed_surfaces).not.toContain("api");
+    expect(pack.tasks.find((task) => task.id === "gen-l2-docs-pages")!.allowed_surfaces).toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l2-docs-rows")!.allowed_surfaces).toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l2-docs-export")).toBeUndefined();
+    expect(pack.tasks.find((task) => task.id === "gen-l3-docs-1")!.allowed_surfaces).not.toContain("api");
+    expect(pack.tasks.find((task) => task.id === "gen-l3-docs-1")!.allowed_surfaces).not.toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l3-folders-2")!.allowed_surfaces).not.toContain("mcp");
+    expect(pack.tasks.find((task) => task.id === "gen-l4-docs-lifecycle")!.allowed_surfaces).not.toContain("mcp");
+  });
+
+  it("appends fully-authored curated tasks and records curated provenance", () => {
+    const curated = generatePack(spec, {
+      packName: "test",
+      limit: 1,
+      l2Limit: 0,
+      l3Limit: 0,
+      l4Limit: 0,
+      curatedTasks: [
+        {
+          id: "custom-page",
+          title: "L4: custom page flow",
+          difficulty: "L4",
+          prompt: 'Create a page "AX probe custom {ns}". Report gid and docId.',
+          allowed_surfaces: ["docs", "mcp"],
+          create_path: "/docs/{docId}/pages",
+          depends_on: [],
+          trace: [],
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/docs/{docId}/pages/{gid}",
+              assertField: "name",
+              expected: "AX probe custom {ns}",
+            },
+          ],
+        },
+      ],
+    });
+
+    const task = curated.tasks.find((t) => t.id === "custom-page");
+    expect(task).toBeTruthy();
+    expect(task!.allowed_surfaces).toEqual(["docs", "mcp"]);
+    expect(curated.generated_by).toContain("task-curated");
+  });
+
+  it("can exclude resource families from generic deterministic generation", () => {
+    const codaLike = parseSpec(JSON.stringify({
+      openapi: "3.0.0",
+      info: { title: "Docs API" },
+      servers: [{ url: "https://api.docs.test/v1" }],
+      paths: {
+        "/docs": { post: { operationId: "create_doc", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/docs/{doc_id}": { get: { operationId: "get_doc" }, patch: { operationId: "update_doc" } },
+        "/docs/{doc_id}/tables/{table_id}/rows": { post: { operationId: "create_row", requestBody: { content: { "application/json": { schema: { type: "object", properties: { name: { type: "string" } } } } } } } },
+        "/docs/{doc_id}/tables/{table_id}/rows/{row_id}": { get: { operationId: "get_row" } },
+      },
+    }), "docs");
+
+    const pack = generatePack(codaLike, {
+      packName: "docs-generated",
+      limit: 2,
+      l2Limit: 2,
+      l3Limit: 1,
+      l4Limit: 1,
+      excludeResources: ["rows"],
+    });
+
+    expect(pack.tasks.find((task) => task.id === "gen-l2-docs-rows")).toBeUndefined();
+  });
 });
 
 describe("L4 curated generation", () => {

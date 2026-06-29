@@ -29,8 +29,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -45,6 +44,7 @@ import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
 import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
+import { authorPackWithLlm } from "./generate/authoring.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
 import {
   GENERATED_REPORT_SNAPSHOT_SCHEMA,
@@ -66,7 +66,7 @@ import {
   type NormalizedResult,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { TargetPackSchema, type TargetPack } from "./schemas.js";
+import { type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
@@ -88,6 +88,18 @@ import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { resetPack } from "./target/reset.js";
+import {
+  buildEnvChecklist,
+  defaultAutomationRunDir,
+  discoverAutomationTarget,
+  hasMissingRequiredConfig,
+  selectSmokeTasks,
+  slugifyAutomationName,
+  writeAutomationManifest,
+  writeShareSummary,
+  type AutomationManifest,
+} from "./automation.js";
+import { resolveGraphqlGeneratePreset, resolveOpenApiGeneratePreset } from "./presets/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "examples", "asana", "pack.yaml");
@@ -112,6 +124,7 @@ const COMMANDS = [
   "competitive",
   "trace-diff",
   "reset",
+  "automate-report",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -151,6 +164,13 @@ function commandUsage(command: string | undefined): string {
       return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
     case "reset":
       return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
+    case "automate-report":
+      return [
+        "usage: ax-eval automate-report --company <name>",
+        "       [--site url] [--docs url,url] [--openapi url] [--graphql endpoint|file]",
+        `       [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]`,
+        "       [--effort low|medium|high] [--run-dir dir] [--smoke-only] [--approve-by name]",
+      ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
     case "audit":
@@ -227,6 +247,7 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
+  smokeOnly: boolean;
   ns: string;
   attempts: number;
   minPassRate: number | undefined;
@@ -235,6 +256,8 @@ interface Parsed {
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
   surface?: string;
+  company: string;
+  approveBy: string;
   _: string[];
 }
 
@@ -281,10 +304,13 @@ function parseArgs(argv: string[]): Parsed {
     skipReview: false,
     invoke: false,
     dryRun: false,
+    smokeOnly: false,
     ns: "",
     attempts: 1,
     minPassRate: undefined,
     trace: "",
+    company: "",
+    approveBy: "",
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -373,6 +399,9 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--skip-review") p.skipReview = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
+    else if (a === "--smoke-only") p.smokeOnly = true;
+    else if (a === "--company") p.company = value(++i, "--company");
+    else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
@@ -685,302 +714,6 @@ function resolvedGeneratePolicy(args: Parsed, allowFullPreset = true): Pick<Gene
   };
 }
 
-/**
- * Curated, Asana-specific generation extras. Asana's OpenAPI declares no
- * `securitySchemes` and several resources read back under `title` not `name`,
- * so these can't be derived from the spec — they're hand-curated for the Asana
- * target. Layered on ONLY when the product resolves to Asana; every other
- * product generates generically from the ingested spec.
- */
-const ASANA_PRESET: Partial<GenerateOptions> = {
-  packName: "asana-generated",
-  siteUrl: "https://developers.asana.com",
-  openapiUrl: "https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml",
-  docsUrls: ["https://developers.asana.com/docs"],
-  authMethod: "pat",
-  authScheme: "Bearer personal access token",
-  authType: "bearer",
-  authEnv: "ASANA_PAT",
-  authVerifyEnv: "ASANA_VERIFY_PAT",
-  prefer: [
-    "tasks", "projects", "tags", "goals", "portfolios",
-    "sections", "project_briefs", "project_statuses", "stories",
-  ],
-  identityOverrides: {
-    project_briefs: "title",
-    project_statuses: "title",
-  },
-  surfaces: {
-    sdk: {
-      package: "asana",
-      language: "node",
-      reference_url: "https://developers.asana.com/docs/overview",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "https://mcp.asana.com/v2/mcp",
-      transport: "http",
-      docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
-      auth: {
-        kind: "oauth_app",
-        token_env_aliases: [],
-        client_id_env: "ASANA_MCP_CLIENT_ID",
-        client_secret_env: "ASANA_MCP_CLIENT_SECRET",
-        refresh_token_env: "ASANA_MCP_REFRESH_TOKEN",
-        token_url: "https://app.asana.com/-/oauth_token",
-        instructions:
-          "Register an Asana OAuth app, complete the OAuth flow once, and store the refresh token. ax-eval exchanges it for a short-lived MCP bearer token at invoke time.",
-      },
-    },
-  },
-  l4: [
-    {
-      idSuffix: "task-complete",
-      title: "L4: create then complete a task (state mutation)",
-      resource: "tasks",
-      prompt:
-        `Create a task named "{val}", then mark it complete. Report the task id; ` +
-        `it must read back as completed.`,
-      assertField: "completed",
-      expected: true,
-    },
-    {
-      idSuffix: "task-reschedule",
-      title: "L4: create then reschedule a task (due-date mutation)",
-      resource: "tasks",
-      prompt:
-        `Create a task named "{val}", then set its due date to 2026-06-30. ` +
-        `Report the task id.`,
-      assertField: "due_on",
-      expected: "2026-06-30",
-    },
-    {
-      idSuffix: "project-archive",
-      title: "L4: create then archive a project (state mutation)",
-      resource: "projects",
-      prompt:
-        `Create a project named "{val}" in the sandbox workspace, then archive it. ` +
-        `Report the project id; it must read back as archived.`,
-      assertField: "archived",
-      expected: true,
-    },
-  ],
-};
-
-const exaUrlOracleTrace = (description: string): NonNullable<GenerateOptions["operationTasks"]>[number]["trace"] => [
-  { type: "required_call", method: "POST", path: "/search", description },
-];
-
-const EXA_PRESET: Partial<GenerateOptions> = {
-  packName: "exa",
-  siteUrl: "https://exa.ai",
-  openapiUrl: "https://docs.exa.ai/exa-spec.json",
-  docsUrls: [
-    "https://docs.exa.ai/reference/search-api-guide",
-    "https://docs.exa.ai/reference/search-api-guide-for-coding-agents",
-    "https://docs.exa.ai/reference/openapi-spec",
-  ],
-  authMethod: "api-key",
-  authScheme: "API key in the x-api-key header",
-  authType: "api-key",
-  authEnv: "EXA_API_KEY",
-  authHeader: "x-api-key",
-  headers: {},
-  sandboxScope: [],
-  limit: 0,
-  l2Limit: 0,
-  l4Limit: 0,
-  discoveryCanonicalEndpoint: "POST /search",
-  discoveryGoal:
-    "You are about to operate Exa programmatically. First work out, from scratch, how Exa's public Search API works — its base URL, how to authenticate with an API key in the `x-api-key` header, the `/search` request shape, and how content options such as `contents.highlights` are nested — then you will perform several tasks. You are NOT given any endpoint, base URL, or documentation link; find them yourself.",
-  deprecatedMarkers: ["useAutoprompt", "includeUrls", "excludeUrls", "livecrawl"],
-  surfaces: {
-    sdk: {
-      package: "exa-js",
-      language: "node",
-      reference_url: "https://docs.exa.ai/reference/typescript-sdk-specification",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "exa-mcp-server",
-      transport: "stdio",
-      docs_url: "https://docs.exa.ai/reference/exa-mcp",
-      auth: {
-        kind: "token",
-        token_env: "EXA_API_KEY",
-        token_env_aliases: [],
-        instructions: "Configure the Exa MCP server with EXA_API_KEY. Verification still reads back through the Exa REST API.",
-      },
-    },
-  },
-  operationTasks: [
-    {
-      id: "exa-l1-python-taskgroup",
-      title: "L1: find official Python docs",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find the official Python documentation page for the `asyncio.TaskGroup` API. Request highlights via `contents.highlights`, and report the result URL `https://docs.python.org/3/library/asyncio-task.html` as the id if it is returned.",
-      expectedUrl: "https://docs.python.org/3/library/asyncio-task.html",
-      expectedAny: ["https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l1-mdn-fetch",
-      title: "L1: find MDN Fetch API docs",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find MDN's Fetch API reference. Request highlights via `contents.highlights`, and report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API` as the id if it is returned.",
-      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l1-rfc-9110",
-      title: "L1: find an RFC",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find the HTML page for IETF RFC 9110, HTTP Semantics. Request highlights via `contents.highlights`, and report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
-      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
-      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-domain-filter-mdn",
-      title: "L2: constrain search to one domain",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find MDN's AbortController reference. Use `includeDomains` to restrict results to developer.mozilla.org and request `contents.highlights`. Report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/AbortController` as the id if it is returned.",
-      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-domain-filter-python",
-      title: "L2: constrain search to Python docs",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find Python's official `pathlib` documentation. Use `includeDomains` to restrict results to docs.python.org and request `contents.highlights`. Report the result URL `https://docs.python.org/3/library/pathlib.html` as the id if it is returned.",
-      expectedUrl: "https://docs.python.org/3/library/pathlib.html",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-exclude-domain",
-      title: "L2: exclude a misleading domain",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find the W3C WCAG 2.2 recommendation. Exclude misleading mirrors or explainers if they crowd out the official W3C result, request `contents.highlights`, and report the result URL `https://www.w3.org/TR/WCAG22/` as the id if it is returned.",
-      expectedUrl: "https://www.w3.org/TR/WCAG22/",
-      expectedAny: ["https://www.w3.org/TR/2023/REC-WCAG22-20231005/", "https://www.w3.org/TR/WCAG22/Overview.html"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l3-contents-readback-rfc",
-      title: "L3: search then retrieve clean content",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to locate the IETF RFC 9110 HTTP Semantics page on rfc-editor.org, then use Exa Contents to retrieve clean content for the URL. Report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
-      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
-      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
-      matchMode: "url",
-      trace: [
-        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
-        { type: "required_call", method: "POST", path: "/contents", description: "retrieve content for the located URL" },
-      ],
-    },
-    {
-      id: "exa-l3-summary-content",
-      title: "L3: request per-result summaries",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to find the React documentation page for `useEffect`. Request `contents.summary` with a query focused on cleanup functions, and report the result URL `https://react.dev/reference/react/useEffect` as the id if it is returned.",
-      expectedUrl: "https://react.dev/reference/react/useEffect",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must request summary content"),
-    },
-    {
-      id: "exa-l3-text-content-cap",
-      title: "L3: retrieve capped text content",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to find the Node.js documentation page for `fsPromises`. Then use Exa Contents to retrieve text for the page with a character cap so the response stays small. Report the result URL `https://nodejs.org/api/fs.html` as the id if it is returned.",
-      expectedUrl: "https://nodejs.org/api/fs.html",
-      expectedAny: ["https://nodejs.org/docs/latest-v26.x/api/fs.html", "https://nodejs.org/dist/latest/docs/api/fs.html", "https://nodejs.org/api/fs.html#promises-api"],
-      matchMode: "url",
-      trace: [
-        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
-        { type: "required_call", method: "POST", path: "/contents", description: "retrieve capped text content" },
-      ],
-    },
-    {
-      id: "exa-l4-structured-output-official-source",
-      title: "L4: synthesize structured output from official sources",
-      difficulty: "L4",
-      prompt:
-        "Use Exa Search with `outputSchema` to synthesize the official current Kubernetes documentation page for probes. Prefer official sources with a `systemPrompt`, request highlights, and report the source URL `https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/` as the id if it is returned in results or grounding.",
-      expectedUrl: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
-      expectedAny: ["https://kubernetes.io/docs/concepts/workloads/pods/probes/"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use structured output"),
-    },
-    {
-      id: "exa-l4-deep-comparison",
-      title: "L4: deep search comparison",
-      difficulty: "L4",
-      prompt:
-        "Use a deep Exa Search variant to compare official PostgreSQL documentation pages about transaction isolation levels. Prefer postgresql.org sources, request highlights, and report the result URL `https://www.postgresql.org/docs/current/transaction-iso.html` as the id if it is returned.",
-      expectedUrl: "https://www.postgresql.org/docs/current/transaction-iso.html",
-      expectedAny: ["https://www.postgresql.org/docs/18/transaction-iso.html"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use a deep search variant"),
-    },
-    {
-      id: "exa-l4-multi-angle-query",
-      title: "L4: multi-angle search",
-      difficulty: "L4",
-      prompt:
-        "Use Exa Search with a deep-capable search type and `additionalQueries` to find the official Cloudflare documentation page for cache rules. Use one query angle for \"cache rules\" and another for \"set cache eligibility\", and report the result URL `https://developers.cloudflare.com/cache/how-to/cache-rules/` as the id if it is returned.",
-      expectedUrl: "https://developers.cloudflare.com/cache/how-to/cache-rules/",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use additional query angles"),
-    },
-  ],
-};
-
-const LINEAR_GRAPHQL_PRESET: Partial<GenerateGraphqlPackOptions> = {
-  packName: "linear-generated",
-  baseUrl: "https://api.linear.app/graphql",
-  siteUrl: "https://linear.app/developers",
-  docsUrls: ["https://linear.app/developers/graphql"],
-  authMethod: "api-key",
-  authType: "api-key",
-  authEnv: "LINEAR_API_KEY",
-  authHeader: "Authorization",
-  surfaces: {
-    sdk: {
-      package: "@linear/sdk",
-      language: "node",
-      reference_url: "https://linear.app/developers/sdk",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "https://mcp.linear.app/mcp",
-      transport: "http",
-      docs_url: "https://linear.app/docs/mcp",
-      auth: {
-        kind: "token",
-        token_env: "LINEAR_API_KEY",
-        token_env_aliases: [],
-        instructions:
-          "Linear's MCP server supports direct API keys in the Authorization header. The same LINEAR_API_KEY used for the GraphQL API works for MCP.",
-      },
-    },
-  },
-};
-
 function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specSource: unknown): NonNullable<TargetPack["generator"]> {
   const detected = probeHarness().host;
   const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
@@ -998,139 +731,6 @@ function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specS
   };
 }
 
-function taskSummary(pack: TargetPack): unknown {
-  return pack.tasks.map((t) => ({
-    id: t.id,
-    title: t.title,
-    difficulty: t.difficulty,
-    prompt: t.prompt,
-    allowed_surfaces: t.allowed_surfaces,
-    oracles: t.oracles,
-    trace: t.trace ?? [],
-  }));
-}
-
-function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack): string {
-  const specSummary = JSON.stringify({
-    source: (spec as { source?: unknown }).source,
-    title: (spec as { title?: unknown }).title,
-    baseUrl: (spec as { baseUrl?: unknown }).baseUrl,
-    auth: (spec as { auth?: unknown }).auth,
-    constantHeaders: (spec as { constantHeaders?: unknown }).constantHeaders,
-    resources: (spec as { resources?: unknown }).resources,
-  }, null, 2);
-  const seedJson = JSON.stringify({
-    ...seed,
-    tasks: taskSummary(seed),
-  }, null, 2);
-  return [
-    `You are the ax-eval pack generator for ${product}.`,
-    "",
-    "Create one product-quality TargetPack JSON object. Return ONLY valid JSON: no markdown, no commentary.",
-    "",
-    "Hard requirements:",
-    "- Preserve the target product, auth env names, base URL, surfaces, docs URLs, and discovery shape unless the seed is clearly wrong.",
-    "- Produce exactly 12 tasks unless the seed has fewer than 12 viable operation tasks.",
-    "- Include L1, L2, L3, and L4 tasks, with at least one L4 task.",
-    "- Prompts must be goal-level: do not hand the agent a curl command or exact endpoint implementation steps.",
-    "- Every task must have at least one programmatic oracle.",
-    "- For stateless search/read APIs, use roundtrip POST read-back oracles where appropriate, with readMethod/readPathTemplate/readBodyTemplate.",
-    "- For URL assertions, prefer matchMode:\"url\" and include expectedAny aliases for canonical-equivalent, versioned, anchor, or redirect URLs that should count as the same correct source.",
-    "- Do not include secrets or secret values. Use only env-var names.",
-    "- Keep generated_by/generator fields if present; the CLI will normalize provenance after validation.",
-    "",
-    "Ingested spec summary:",
-    specSummary,
-    "",
-    "Seed pack JSON to improve or preserve:",
-    seedJson,
-  ].join("\n");
-}
-
-function extractJsonObject(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return extractJsonObject(fenced[1]);
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  throw new Error("generator harness did not return a JSON object");
-}
-
-function normalizeHarnessText(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return trimmed;
-  try {
-    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    if (typeof parsed.result === "string") return parsed.result;
-    if (typeof parsed.message === "string") return parsed.message;
-    if (typeof parsed.output === "string") return parsed.output;
-  } catch {
-    // Plain JSON pack or plain text; extractJsonObject handles both.
-  }
-  return trimmed;
-}
-
-function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): string {
-  const fixture = process.env.AX_EVAL_GENERATOR_FIXTURE;
-  if (fixture) return readFileSync(fixture, "utf8");
-
-  const harness = provenance.harness;
-  if (harness === "codex") {
-    const dir = mkdtempSync(resolve(tmpdir(), "ax-generator-"));
-    const outPath = resolve(dir, "pack.json");
-    const modelArgs = args.generatorModel ? ["-m", args.generatorModel] : [];
-    const effortArgs = provenance.effort ? ["-c", `model_reasoning_effort=${provenance.effort}`] : [];
-    const res = spawnSync("codex", [
-      "exec",
-      "--sandbox", "workspace-write",
-      "-c", "sandbox_workspace_write.network_access=true",
-      "--json",
-      ...modelArgs,
-      ...effortArgs,
-      "--output-last-message", outPath,
-      prompt,
-    ], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness codex failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
-    }
-    return existsSync(outPath) ? readFileSync(outPath, "utf8") : res.stdout;
-  }
-
-  if (harness === "claude-code") {
-    const modelArgs = args.generatorModel ? ["--model", args.generatorModel] : [];
-    const res = spawnSync("claude", ["-p", prompt, "--output-format", "json", ...modelArgs], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness claude-code failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
-    }
-    return normalizeHarnessText(res.stdout);
-  }
-
-  throw new Error(`generator harness ${harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
-}
-
-function authorPackWithLlm(product: string, spec: unknown, seed: TargetPack, args: Parsed, docsUrls: string[] | undefined): TargetPack {
-  const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
-  const prompt = buildGeneratorPrompt(product, spec, { ...seed, generated_by: "llm-assisted", generator: provenance });
-  const raw = runGeneratorHarness(prompt, args, provenance);
-  const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
-  const pack = TargetPackSchema.parse({
-    ...parsed,
-    generated_by: "llm-assisted",
-    generator: provenance,
-  });
-  return pack;
-}
-
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
   const from = args.from || "results/ingest.json";
@@ -1146,26 +746,44 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
     : undefined;
   const generatePolicy = resolvedGeneratePolicy(args);
+  const generatorHarnessTimeoutRaw = process.env.AX_EVAL_GENERATOR_TIMEOUT_MS?.trim();
+  const generatorTimeoutMs =
+    generatorHarnessTimeoutRaw && Number.isFinite(Number(generatorHarnessTimeoutRaw)) && Number(generatorHarnessTimeoutRaw) > 0
+      ? Number(generatorHarnessTimeoutRaw)
+      : 120_000;
 
   if (looksLikeGraphqlIngest(spec)) {
-    const isLinear = product.toLowerCase() === "linear";
-    const preset = isLinear ? LINEAR_GRAPHQL_PRESET : undefined;
+    const preset = resolveGraphqlGeneratePreset(product);
+    const presetOptions = preset?.options;
     const graphqlOpts: GenerateGraphqlPackOptions = {
-      ...(preset ?? {}),
+      ...(presetOptions ?? {}),
       ...generatePolicy,
       runId: args.runId || undefined,
       packName: `${slugify(product)}-generated`,
       product,
-      baseUrl: args.baseUrl || preset?.baseUrl || undefined,
-      siteUrl: args.site || preset?.siteUrl || "",
-      ...(docsUrls ? { docsUrls } : preset?.docsUrls ? { docsUrls: preset.docsUrls } : {}),
+      baseUrl: args.baseUrl || presetOptions?.baseUrl || undefined,
+      siteUrl: args.site || presetOptions?.siteUrl || "",
+      ...(docsUrls ? { docsUrls } : presetOptions?.docsUrls ? { docsUrls: presetOptions.docsUrls } : {}),
     };
     const generated = generateGraphqlPack(spec, {
       ...graphqlOpts,
     });
+    const provenance = generatorProvenance(args, graphqlOpts.docsUrls ?? docsUrls, (spec as { source?: unknown }).source);
     const pack: TargetPack = args.deterministic
       ? generated
-      : authorPackWithLlm(product, spec, generated, args, docsUrls);
+      : authorPackWithLlm({
+          product,
+          spec,
+          seed: generated,
+          provenance,
+          harness: {
+            harness: provenance.harness,
+            model: args.generatorModel || undefined,
+            effort: provenance.effort,
+            timeoutMs: generatorTimeoutMs,
+          },
+          authoringHints: preset?.authoringHints,
+        });
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
@@ -1182,13 +800,12 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     return 0;
   }
 
-  const isAsana = product.toLowerCase() === "asana";
-  const isExa = product.toLowerCase() === "exa";
-
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
   // and resource graph — no per-product hardcoding.
-  const presetAllowsFull = !Boolean(EXA_PRESET.operationTasks && isExa);
+  const preset = resolveOpenApiGeneratePreset(product);
+  const presetOptions = preset?.options;
+  const presetAllowsFull = preset?.allowFullPreset ?? true;
   const presetAwarePolicy = resolvedGeneratePolicy(args, presetAllowsFull);
   const baseOpts: GenerateOptions = {
     ...presetAwarePolicy,
@@ -1203,37 +820,47 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     ...(docsUrls ? { docsUrls } : {}),
   };
 
-  // Asana keeps its hand-curated extras (see ASANA_PRESET). Explicit --site/--docs
-  // flags still win over the preset's defaults.
-  const preset = isAsana ? ASANA_PRESET : isExa ? EXA_PRESET : undefined;
-  const opts: GenerateOptions = preset
+  const opts: GenerateOptions = presetOptions
     ? {
-        ...preset,
+        ...presetOptions,
         ...baseOpts,
-        ...(preset.packName ? { packName: preset.packName } : {}),
-        ...(args.limit === 3 && preset.limit !== undefined ? { limit: preset.limit } : {}),
-        ...(args.l2Limit === undefined && preset.l2Limit !== undefined ? { l2Limit: preset.l2Limit } : {}),
-        ...(args.l3Limit === undefined && preset.l3Limit !== undefined ? { l3Limit: preset.l3Limit } : {}),
-        ...(args.l4Limit === undefined && preset.l4Limit !== undefined ? { l4Limit: preset.l4Limit } : {}),
-        ...(baseOpts.targetTaskCount === undefined && preset.targetTaskCount !== undefined ? { targetTaskCount: preset.targetTaskCount } : {}),
-        ...(args.site ? { siteUrl: args.site } : { siteUrl: preset.siteUrl }),
-        ...(docsUrls ? { docsUrls } : { docsUrls: preset.docsUrls }),
+        ...(presetOptions.packName ? { packName: presetOptions.packName } : {}),
+        ...(args.limit === 3 && presetOptions.limit !== undefined ? { limit: presetOptions.limit } : {}),
+        ...(args.l2Limit === undefined && presetOptions.l2Limit !== undefined ? { l2Limit: presetOptions.l2Limit } : {}),
+        ...(args.l3Limit === undefined && presetOptions.l3Limit !== undefined ? { l3Limit: presetOptions.l3Limit } : {}),
+        ...(args.l4Limit === undefined && presetOptions.l4Limit !== undefined ? { l4Limit: presetOptions.l4Limit } : {}),
+        ...(baseOpts.targetTaskCount === undefined && presetOptions.targetTaskCount !== undefined ? { targetTaskCount: presetOptions.targetTaskCount } : {}),
+        ...(args.site ? { siteUrl: args.site } : { siteUrl: presetOptions.siteUrl }),
+        ...(docsUrls ? { docsUrls } : { docsUrls: presetOptions.docsUrls }),
       }
     : baseOpts;
 
   const provenanceDocs = opts.docsUrls ?? docsUrls;
+  const provenance = generatorProvenance(args, provenanceDocs, spec.source);
   const seed = generatePack(
     spec,
-    args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
+    args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: provenance },
   );
-  const pack = args.deterministic ? seed : authorPackWithLlm(product, spec, seed, args, provenanceDocs);
+  const pack = args.deterministic
+    ? seed
+    : authorPackWithLlm({
+        product,
+        spec,
+        seed,
+        provenance,
+        harness: {
+          harness: provenance.harness,
+          model: args.generatorModel || undefined,
+          effort: provenance.effort,
+          timeoutMs: generatorTimeoutMs,
+        },
+        authoringHints: preset?.authoringHints,
+      });
   const yaml = packToYaml(pack);
   // Default output: committed example packs live under targets/examples/, but
   // locally generated packs still default to targets/<product>/ so a user can
   // iterate on their own target without overwriting the shipped examples.
-  const defaultOut = isAsana
-    ? "targets/asana/generated.pack.yaml"
-    : `results/${slugify(product)}.generated.pack.yaml`;
+  const defaultOut = preset?.defaultOut ?? `results/${slugify(product)}.generated.pack.yaml`;
   const out = args.out && args.out !== "results/last-run.json" ? args.out : defaultOut;
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, yaml);
@@ -1246,7 +873,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   }
   for (const t of pack.tasks) console.log(`  [${t.difficulty}] ${t.id} — surfaces:[${t.allowed_surfaces.join(",")}]`);
   console.log(`\nFrozen pack → ${out}`);
-  if (!isAsana) {
+  if (!preset?.skipReviewReminder) {
     console.log(
       `\nNext: review it before any run —\n  ax-eval review --pack ${out}\n` +
       `Fill the sandbox id(s) it lists, then approve with --approve --by <name>.`,
@@ -1747,9 +1374,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const taskCount = tasksForSurface(pack, surface).length;
     const passCount = Object.values(executor.results).filter((r) => r?.gid).length;
     console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${taskCount} tasks reported a gid on ${surface})…`);
-    const outcomes = await verifyGeneratedPack(pack, executor, client, surface);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, trace);
     if (!existsSync(tracePath)) {
       warnings.push(
         `No trace file at ${rel(tracePath)} — trace checks for ${executor.profile} fall back to whatever the agent self-reported (or none).`,
@@ -1998,6 +1625,275 @@ async function cmdReset(args: Parsed): Promise<number> {
   return result.errors.length ? 1 : 0;
 }
 
+function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
+  return {
+    ...args,
+    harness: [...(overrides.harness ?? args.harness)],
+    profile: [...(overrides.profile ?? args.profile)],
+    results: [...(overrides.results ?? args.results)],
+    observe: { ...(overrides.observe ?? args.observe) },
+    _: [...(overrides._ ?? args._)],
+    ...overrides,
+  };
+}
+
+function jsonRunResults(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((f) => /^run-.*\.json$/.test(f) && !/(\.trace|\.normalized)\.json$/.test(f))
+    .map((f) => resolve(dir, f))
+    .sort();
+}
+
+async function verifyAutomationResults(args: Parsed, dir: string, packPath: string, html: string): Promise<number> {
+  const forced = process.env.AX_EVAL_AUTOMATION_VERIFY_FIXTURE;
+  if (forced === "pass") {
+    mkdirSync(dirname(html), { recursive: true });
+    writeFileSync(html, "<!doctype html><title>AX eval automation fixture pass</title>");
+    console.log(`Verification fixture passed → ${html}`);
+    return 0;
+  }
+  if (forced === "fail") {
+    console.error("Verification fixture failed.");
+    return 1;
+  }
+  const results = jsonRunResults(dir);
+  if (!results.length) {
+    console.error(`No run result files found in ${dir}; cannot verify.`);
+    return 1;
+  }
+  return cmdVerifyGenerated(cloneArgs(args, {
+    pack: packPath,
+    results,
+    html,
+    runDir: dir,
+    minPassRate: 0.8,
+    surface: undefined,
+  }));
+}
+
+function fullProfiles(effort: string): string[] {
+  return effort === "low" ? ["low"] : ["low", "high"];
+}
+
+async function cmdAutomateReport(args: Parsed): Promise<number> {
+  loadDotenv();
+  if (!args.company.trim()) {
+    throw new Error("usage: ax-eval automate-report --company <name>");
+  }
+  const company = args.company.trim();
+  const slug = slugifyAutomationName(company);
+  const runDir = args.runDir && args.runDir !== "results" ? args.runDir : defaultAutomationRunDir(company);
+  const harnesses = args.harness.length ? args.harness : ["codex"];
+  for (const h of harnesses) {
+    if (!isInvokeHarnessId(h)) {
+      throw new Error(`--harness for automate-report must be one of ${INVOKE_HARNESS_LIST} (got ${h})`);
+    }
+  }
+  mkdirSync(runDir, { recursive: true });
+
+  const manifestPath = resolve(runDir, "automation-manifest.json");
+  const sharePath = resolve(runDir, "share-summary.md");
+  const artifacts: Record<string, string> = {
+    manifest: manifestPath,
+    share_summary: sharePath,
+  };
+  const nextSteps: string[] = [];
+
+  console.log(`Automating report for ${company} → ${runDir}`);
+  const discovery = await discoverAutomationTarget({
+    company,
+    site: args.site || undefined,
+    docs: args.docs ? args.docs.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+    openapi: args.openapi || undefined,
+    graphql: args.graphql || undefined,
+    harness: harnesses[0]!,
+    offline: args.offline,
+  }, { timeoutMs: 8000 });
+
+  const manifest: AutomationManifest = {
+    schema: "ax.automation-manifest/v1",
+    company,
+    slug,
+    run_dir: runDir,
+    generated_at: new Date().toISOString(),
+    discovery,
+    artifacts,
+    next_steps: nextSteps,
+  };
+  writeAutomationManifest(manifestPath, manifest);
+
+  if (!discovery.openapi_url && !discovery.graphql_url) {
+    nextSteps.push("Provide an official --openapi URL or --graphql endpoint/file, or pass --site/--docs so automation can validate candidates.");
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(
+      `Could not find a trustworthy official OpenAPI or GraphQL spec for ${company}. ` +
+        "No third-party search API was used. Re-run with --openapi <url> or --graphql <endpoint|file>.",
+    );
+    return 1;
+  }
+
+  const ingestPath = resolve(runDir, discovery.graphql_url ? "ingest-graphql.json" : "ingest.json");
+  const packPath = resolve(runDir, `${slug}.generated.full.pack.yaml`);
+  const smokePackPath = resolve(runDir, `${slug}.generated.smoke.pack.yaml`);
+  artifacts.ingest = ingestPath;
+  artifacts.pack = packPath;
+  artifacts.smoke_pack = smokePackPath;
+
+  if (discovery.graphql_url) {
+    const g = await ingestGraphqlDetailed(discovery.graphql_url, { offline: args.offline });
+    writeFileSync(ingestPath, JSON.stringify(g, null, 2));
+    console.log(`Ingested GraphQL schema → ${ingestPath}`);
+  } else {
+    const spec = await ingestFromUrl(discovery.openapi_url!, { offline: args.offline });
+    writeFileSync(ingestPath, JSON.stringify(spec, null, 2));
+    console.log(`Ingested OpenAPI spec → ${ingestPath}`);
+  }
+
+  const generateArgs = cloneArgs(args, {
+    from: ingestPath,
+    out: packPath,
+    product: company,
+    site: discovery.site_url ?? args.site,
+    docs: discovery.docs_urls.join(","),
+    baseUrl: discovery.graphql_url ?? args.baseUrl,
+    runDir,
+  });
+  let generateCode: number;
+  try {
+    generateCode = await cmdGenerate(generateArgs);
+  } catch (err) {
+    const detail = err instanceof Error ? err.message : String(err);
+    manifest.discovery.warnings.push(`LLM-assisted generation failed; falling back to deterministic generation (${detail}).`);
+    console.error(`LLM-assisted generate failed; falling back to deterministic generation: ${detail}`);
+    generateCode = await cmdGenerate(cloneArgs(generateArgs, { deterministic: true }));
+  }
+  if (generateCode !== 0) return generateCode;
+
+  const pack = loadPack(packPath);
+  const reviewPath = resolve(runDir, "review.txt");
+  const checklistPath = resolve(runDir, "configuration-checklist.md");
+  artifacts.review = reviewPath;
+  artifacts.configuration_checklist = checklistPath;
+  writeFileSync(reviewPath, reviewSummary(pack));
+  const checklist = buildEnvChecklist(pack, args.surface ?? "api");
+  writeFileSync(checklistPath, checklist);
+  console.log(`Review summary → ${reviewPath}`);
+  console.log(`Configuration checklist → ${checklistPath}`);
+
+  const smokeSelection = selectSmokeTasks(pack);
+  const smokePack: TargetPack = {
+    ...pack,
+    name: `${pack.name}-smoke`,
+    tasks: smokeSelection.tasks,
+  };
+  writeFileSync(smokePackPath, packToYaml(smokePack));
+  console.log(
+    `Smoke pack → ${smokePackPath} (${smokePack.tasks.length}/${pack.tasks.length} tasks selected: ${smokePack.tasks.map((t) => t.id).join(", ")})`,
+  );
+
+  let approval = checkApproval(pack, packPath);
+  if (!approval.ok && args.approveBy) {
+    const written = writeApproval(packPath, pack, args.approveBy);
+    artifacts.approval = packPath.replace(/\.ya?ml$/i, ".approval.json");
+    console.log(`Approved generated pack by "${args.approveBy}" (hash ${written.content_hash}).`);
+    approval = checkApproval(pack, packPath);
+  }
+  if (!approval.ok) {
+    nextSteps.push(`Review the generated pack: ax-eval review --pack ${packPath}`);
+    nextSteps.push(`Approve it after review: ax-eval review --pack ${packPath} --approve --by <name>`);
+    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --openapi ${discovery.openapi_url ?? ""} --graphql ${discovery.graphql_url ?? ""} --run-dir ${runDir} --approve-by <name>`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Stopping before live execution: ${approval.reason}.`);
+    return 1;
+  }
+
+  let smokeApproval = checkApproval(smokePack, smokePackPath);
+  if (!smokeApproval.ok && args.approveBy) {
+    writeApproval(smokePackPath, smokePack, args.approveBy);
+    smokeApproval = checkApproval(smokePack, smokePackPath);
+  }
+  if (!smokeApproval.ok) {
+    nextSteps.push(`Review the derived smoke pack: ax-eval review --pack ${smokePackPath}`);
+    nextSteps.push(`Approve it after review: ax-eval review --pack ${smokePackPath} --approve --by <name>`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Stopping before smoke execution: ${smokeApproval.reason}.`);
+    return 1;
+  }
+
+  if (hasMissingRequiredConfig(pack, args.surface ?? "api")) {
+    nextSteps.push(`Fill the missing values in ${checklistPath}.`);
+    nextSteps.push(`Verify configuration: ax-eval check-env --pack ${packPath} --surface ${args.surface ?? "api"}`);
+    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url} --run-dir ${runDir} --approve-by "${args.approveBy || "reviewer"}"`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Stopping before live execution: missing required auth or sandbox configuration.\n${checklist}`);
+    return 1;
+  }
+
+  const smokeDir = resolve(runDir, "smoke");
+  artifacts.smoke_dir = smokeDir;
+  console.log("Running smoke gate: API surface, low effort, one attempt.");
+  const smokeExec = await cmdExecPlan(cloneArgs(args, {
+    pack: smokePackPath,
+    invoke: true,
+    harness: [harnesses[0]!],
+    profile: ["low"],
+    effort: "low",
+    surface: "api",
+    runDir: smokeDir,
+    attempts: 1,
+  }));
+  if (smokeExec !== 0) return smokeExec;
+  const smokeHtml = resolve(smokeDir, "generated-eval.html");
+  artifacts.smoke_report = smokeHtml;
+  const smokeVerify = await verifyAutomationResults(args, smokeDir, smokePackPath, smokeHtml);
+  if (smokeVerify !== 0) {
+    nextSteps.push(`Inspect smoke artifacts in ${smokeDir}; full matrix was not run because the smoke gate failed.`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest, smokeHtml);
+    return smokeVerify;
+  }
+
+  if (args.smokeOnly) {
+    nextSteps.push(`Smoke passed. Re-run without --smoke-only to produce the full requested report.`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest, smokeHtml);
+    console.log(`Smoke-only automation complete → ${smokeHtml}`);
+    return 0;
+  }
+
+  const fullDir = resolve(runDir, "full");
+  const fullSurface = args.surface ?? "api";
+  const fullEffort = args.effort || "high";
+  const profiles = fullProfiles(fullEffort);
+  artifacts.full_dir = fullDir;
+  console.log(
+    `Smoke passed. Running full report: surface=${fullSurface}, profiles=${profiles.join(",")}, harness=${harnesses.join(",")}.`,
+  );
+  const fullExec = await cmdExecPlan(cloneArgs(args, {
+    pack: packPath,
+    invoke: true,
+    harness: harnesses as InvokeHarnessId[],
+    profile: profiles,
+    effort: fullEffort,
+    surface: fullSurface,
+    runDir: fullDir,
+    attempts: 1,
+  }));
+  if (fullExec !== 0) return fullExec;
+  const fullHtml = resolve(fullDir, "generated-eval.html");
+  artifacts.final_report = fullHtml;
+  const fullVerify = await verifyAutomationResults(args, fullDir, packPath, fullHtml);
+  nextSteps.push(fullVerify === 0 ? `Share ${fullHtml} or ${sharePath}.` : `Inspect failed full-run artifacts in ${fullDir}.`);
+  writeAutomationManifest(manifestPath, manifest);
+  writeShareSummary(sharePath, manifest, fullHtml);
+  return fullVerify;
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
@@ -2055,6 +1951,8 @@ async function main(): Promise<number> {
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
+    case "automate-report":
+      return cmdAutomateReport(args);
     default:
       console.error(USAGE);
       return 2;

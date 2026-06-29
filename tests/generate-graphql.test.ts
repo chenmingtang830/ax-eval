@@ -596,7 +596,7 @@ describe("GraphQL pack generation", () => {
     expect(pack.tasks.some((task) => task.id === "gen-gql-l4-cycle-lifecycle")).toBe(false);
   });
 
-  it("drops MCP from Linear lifecycle tasks whose tool coverage is incomplete", async () => {
+  it("drops MCP from lifecycle tasks whose coverage policy omits those resources", async () => {
     const schema = await ingestGraphqlDetailed(FIXTURE);
     schema.createMutations = [
       ...schema.createMutations,
@@ -663,6 +663,11 @@ describe("GraphQL pack generation", () => {
         sdk: { package: "@linear/sdk", language: "node" },
         mcp: { server: "https://mcp.linear.app/mcp", transport: "http" },
       },
+      surfaceTaskPolicies: {
+        mcp: {
+          lifecycleResources: ["issue", "comment", "document"],
+        },
+      },
     });
 
     const supportedLifecycles = pack.tasks.filter((task) =>
@@ -679,7 +684,7 @@ describe("GraphQL pack generation", () => {
       expect(task.allowed_surfaces).toContain("mcp");
     }
     for (const task of unsupportedLifecycles) {
-      expect(task.allowed_surfaces).toEqual(["docs", "api", "sdk"]);
+      expect(task.allowed_surfaces).toEqual(["api", "docs", "sdk"]);
     }
   });
 });

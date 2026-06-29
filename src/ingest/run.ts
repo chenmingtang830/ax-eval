@@ -35,6 +35,9 @@ export async function fetchSpecText(
   url: string,
   opts: IngestOptions = {},
 ): Promise<{ text: string; source: string }> {
+  if (existsSync(url)) {
+    return { text: readFileSync(url, "utf8"), source: url };
+  }
   if (!opts.offline) {
     try {
       const controller = new AbortController();

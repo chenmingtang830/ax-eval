@@ -7,7 +7,7 @@
  * task set. Passing requires real API state, not the executor's self-report.
  */
 import { readFileSync } from "node:fs";
-import { BearerClient, resolveDotted, type ApiStyle } from "../http/client.js";
+import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
 import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
@@ -113,6 +113,176 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
   return value;
 }
 
+function extractTemplateParams(template: string, path: string): Record<string, string> | null {
+  const tpl = template.split("/").filter(Boolean);
+  const segs = path.split("?")[0]!.split("/").filter(Boolean);
+  if (tpl.length !== segs.length) return null;
+  const out: Record<string, string> = {};
+  for (let i = 0; i < tpl.length; i += 1) {
+    const t = tpl[i]!;
+    const s = segs[i]!;
+    const match = t.match(/^\{([^}]+)\}$/);
+    if (match) {
+      out[match[1]!] = decodeURIComponent(s);
+      continue;
+    }
+    if (t !== s) return null;
+  }
+  return out;
+}
+
+function inferValueFromNote(note: string | undefined, name: string): string | undefined {
+  if (!note) return undefined;
+  const direct = note.match(new RegExp(`\\b${name}=([^\\s,;]+)`));
+  if (direct?.[1]) return direct[1];
+  const aliases: Record<string, RegExp[]> = {
+    gid: [
+      /\b(?:id|pageId|rowId|packId|folderId|requestId)=([^\s,;]+)/,
+      /\b(?:doc|page|row|pack|folder)\s+([A-Za-z0-9_-]+)\b/,
+    ],
+    docId: [/\b(?:docId|doc)=([^\s,;]+)/, /\bdoc\s+([A-Za-z0-9_-]+)\b/],
+    tableIdOrName: [/\b(?:tableIdOrName|tableId|table)=([^\s,;]+)/, /\btable\s+([A-Za-z0-9_-]+)\b/],
+  };
+  for (const pattern of aliases[name] ?? []) {
+    const match = note.match(pattern);
+    if (match?.[1]) return match[1];
+  }
+  if (name === "gid") {
+    const generic = note.match(/\b([A-Za-z]+-[A-Za-z0-9_-]+|canvas-[A-Za-z0-9_-]+|grid-[A-Za-z0-9_-]+|i-[A-Za-z0-9_-]+|\d{4,})\b/);
+    if (generic?.[1]) return generic[1];
+  }
+  return undefined;
+}
+
+function inferTemplateValue(
+  task: Task,
+  name: string,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  trace: TraceStep[],
+  readPathTemplate: string,
+): string | undefined {
+  const direct = reported?.[name];
+  if (typeof direct === "string" && direct) return direct;
+  const readMatches = trace
+    .filter((step) => step.taskId === task.id && typeof step.path === "string")
+    .map((step) => extractTemplateParams(readPathTemplate, step.path!))
+    .find((value): value is Record<string, string> => !!value?.[name]);
+  if (readMatches?.[name]) return readMatches[name];
+  const createMatches = task.create_path
+    ? trace
+        .filter((step) => step.taskId === task.id && typeof step.path === "string")
+        .map((step) => extractTemplateParams(task.create_path!, step.path!))
+        .find((value): value is Record<string, string> => !!value?.[name])
+    : undefined;
+  if (createMatches?.[name]) return createMatches[name];
+  return [...trace]
+    .filter((step) => step.taskId === task.id)
+    .reverse()
+    .map((step) => inferValueFromNote(step.note, name))
+    .find((value): value is string => typeof value === "string" && value.length > 0);
+}
+
+function resolvePathTemplate(
+  task: Task,
+  readPathTemplate: string,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  trace: TraceStep[],
+): { path?: string; missing?: string } {
+  const placeholders = [...readPathTemplate.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
+  const replacements: Record<string, string> = {};
+  for (const name of placeholders) {
+    const value = inferTemplateValue(task, name, reported, trace, readPathTemplate);
+    if (!value) return { missing: name };
+    replacements[name] = value;
+  }
+  const path = readPathTemplate.replace(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(replacements[name]!));
+  return { path };
+}
+
+function listItems(body: Record<string, unknown>): Record<string, unknown>[] {
+  if (Array.isArray(body.items)) return body.items.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  if (Array.isArray(body.results)) return body.results.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
+  return [];
+}
+
+function hrefPath(value: unknown): string | undefined {
+  if (typeof value !== "string" || !value) return undefined;
+  try {
+    return new URL(value).pathname;
+  } catch {
+    return undefined;
+  }
+}
+
+async function readRoundtripFallback(
+  client: BearerClient,
+  path: string,
+  oracle: OracleSpec,
+  expectedValues: unknown[],
+  gid: string,
+): Promise<Record<string, unknown> | null> {
+  const collectionPath = path.replace(/\/[^/]+$/, "");
+  if (!collectionPath || collectionPath === path) return null;
+  const listing = await client.get<Record<string, unknown>>(collectionPath);
+  const items = listItems(listing);
+  if (items.length === 0) return null;
+
+  const byExpected = items.find((item) =>
+    oracle.assertField
+      ? valuesMatch(resolveDotted(item, oracle.assertField), expectedValues, oracle.matchMode)
+      : false,
+  );
+  if (byExpected) return byExpected;
+
+  const byId = items.find((item) => item.id === gid);
+  if (byId) return byId;
+
+  for (const item of items) {
+    const itemPath = hrefPath(item.href);
+    if (!itemPath || itemPath === path) continue;
+    try {
+      const fetched = await client.get<Record<string, unknown>>(itemPath);
+      if (!oracle.assertField || valuesMatch(resolveDotted(fetched, oracle.assertField), expectedValues, oracle.matchMode)) {
+        return fetched;
+      }
+    } catch {
+      // Best-effort fallback only.
+    }
+  }
+  return null;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function readRoundtripBody(
+  client: BearerClient,
+  path: string,
+  oracle: OracleSpec,
+  gid: string,
+  fieldSelectParam: string | undefined,
+): Promise<Record<string, unknown>> {
+  const method = oracle.readMethod ?? "GET";
+  let lastErr: unknown;
+  const retryDelays = [0, 500, 1500, 3500, 7000];
+  for (const delay of retryDelays) {
+    if (delay > 0) await sleep(delay);
+    try {
+      return method === "POST"
+        ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid))
+        : await client.get<Record<string, unknown>>(
+            path,
+            fieldSelectParam ? { [fieldSelectParam]: oracle.assertField! } : undefined,
+          );
+    } catch (err) {
+      lastErr = err;
+      if (!(err instanceof HttpApiError) || ![404, 409, 423].includes(err.status)) throw err;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
 async function verifyRoundtrip(
   task: Task,
   reported: { gid?: string } | undefined,
@@ -120,11 +290,12 @@ async function verifyRoundtrip(
   ns: string | undefined,
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
+  trace: TraceStep[],
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
-    const gid = reported?.gid;
+    const gid = inferTemplateValue(task, "gid", reported, trace, oracle.readPathTemplate ?? task.create_path ?? "{gid}");
     if (!gid) {
       out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
       continue;
@@ -163,17 +334,14 @@ async function verifyRoundtrip(
       out.push({ type: "roundtrip", passed: false, detail: "oracle missing readPath/assertField" });
       continue;
     }
-    const path = oracle.readPathTemplate.replace("{gid}", encodeURIComponent(gid));
+    const { path, missing } = resolvePathTemplate(task, oracle.readPathTemplate, reported, trace);
+    if (!path) {
+      out.push({ type: "roundtrip", passed: false, detail: `oracle missing reported value for {${missing}}` });
+      continue;
+    }
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
-      const method = oracle.readMethod ?? "GET";
-      const body =
-        method === "POST"
-          ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid))
-          : await client.get<Record<string, unknown>>(
-              path,
-              fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
-            );
+      const body = await readRoundtripBody(client, path, oracle, gid, fieldSelectParam);
       const actual = resolveDotted(body, oracle.assertField);
       const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
       out.push({
@@ -182,6 +350,23 @@ async function verifyRoundtrip(
         detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
       });
     } catch (err) {
+      if (oracle.readMethod !== "POST" && err instanceof HttpApiError) {
+        try {
+          const fallback = await readRoundtripFallback(client, path, oracle, expectedValues, gid);
+          if (fallback) {
+            const actual = resolveDotted(fallback, oracle.assertField);
+            const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+            out.push({
+              type: "roundtrip",
+              passed,
+              detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)} (collection fallback)`,
+            });
+            continue;
+          }
+        } catch {
+          // Keep the original error below.
+        }
+      }
       out.push({
         type: "roundtrip",
         passed: false,
@@ -197,6 +382,7 @@ export async function verifyGeneratedPack(
   executor: ExecutorResults,
   client: BearerClient,
   surface?: SurfaceId,
+  trace: TraceStep[] = [],
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
@@ -212,6 +398,7 @@ export async function verifyGeneratedPack(
         executor.ns,
         pack.field_select_param,
         pack.api_style,
+        trace,
       );
     } catch (err) {
       oracleResults = [];

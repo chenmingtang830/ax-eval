@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
@@ -97,6 +98,12 @@ const DEFAULT_SPAWN: Spawn = (command, args, options) =>
     encoding: "buffer",
     maxBuffer: 50 * 1024 * 1024,
   });
+
+function defaultHarnessHome(harness: string, hint: string): string {
+  const base = resolve(tmpdir(), "ax-eval-homes");
+  mkdirSync(base, { recursive: true });
+  return mkdtempSync(resolve(base, `${harness}-${hint}-`));
+}
 
 /** The outcome of a finished child process — the subset runInvokeHarness needs.
  *  (Same shape whether produced by sync spawnSync or the async runner.) */
@@ -221,7 +228,10 @@ function text(buf: Buffer | string | null | undefined): string {
 }
 
 function detectWith(command: string, spawn: Spawn): InvokeDetection {
-  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+  const env = command === "claude"
+    ? { ...process.env, HOME: defaultHarnessHome("claude", "detect") }
+    : undefined;
+  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], env });
   if (res.error) {
     const code = (res.error as NodeJS.ErrnoException).code;
     return {
@@ -246,6 +256,20 @@ export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_
   return detectWith(commandFor(id), spawn);
 }
 
+function taskResultKeys(task: TargetPack["tasks"][number]): string[] {
+  const keys = new Set<string>(["gid"]);
+  const scan = (template: string | undefined) => {
+    if (!template) return;
+    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
+      const key = match[1];
+      if (key && key !== "gid") keys.add(key);
+    }
+  };
+  scan(task.create_path);
+  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
+  return [...keys];
+}
+
 function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
   // OpenAI strict structured-output (codex `--output-schema`) requires EVERY
   // object to set `additionalProperties: false` and list ALL its properties in
@@ -256,10 +280,10 @@ function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId
   const taskProps = Object.fromEntries(tasks.map((t) => [t.id, {
     type: "object",
     additionalProperties: false,
-    properties: {
-      gid: { anyOf: [{ type: "string" }, { type: "null" }] },
-    },
-    required: ["gid"],
+    properties: Object.fromEntries(
+      taskResultKeys(t).map((key) => [key, { anyOf: [{ type: "string" }, { type: "null" }] }]),
+    ),
+    required: taskResultKeys(t),
   }]));
   const strArray = { type: "array", items: { type: "string" } };
   return {
@@ -600,11 +624,15 @@ export async function runInvokeHarness(
   let ok = false;
   let stdout = "";
   let stderr = "";
+  const childEnv = { ...(opts.env ?? {}) };
+  if (opts.harness === "claude-code" && !childEnv.HOME) {
+    childEnv.HOME = defaultHarnessHome("claude", opts.profile);
+  }
   while (attempt < maxAttempts) {
     attempt += 1;
     res = await spawnAsync(command, args, opts.cwd, {
       timeoutMs: opts.timeoutMs,
-      env: opts.env,
+      env: childEnv,
       successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
     });
     stdout = text(res.stdout);
