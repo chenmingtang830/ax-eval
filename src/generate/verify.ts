@@ -133,7 +133,8 @@ function extractTemplateParams(template: string, path: string): Record<string, s
 
 function inferValueFromNote(note: string | undefined, name: string): string | undefined {
   if (!note) return undefined;
-  const direct = note.match(new RegExp(`\\b${name}=([^\\s,;]+)`));
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const direct = note.match(new RegExp(`\\b${escapedName}=([^\\s,;]+)`));
   if (direct?.[1]) return direct[1];
   const aliases: Record<string, RegExp[]> = {
     gid: [

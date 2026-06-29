@@ -254,6 +254,31 @@ console.log(JSON.stringify({ model: "fake-codex", ok: true }));
     expect(readFileSync(resolve(dir, "share-summary.md"), "utf8")).toContain("Widget Agent Usability Report");
   });
 
+  it("honors --effort medium in the full-run profile set", () => {
+    const dir = freshDir();
+    const openapi = writeOpenapiFixture(dir);
+    const discovery = writeDiscoveryFixture(dir, openapi);
+    const pack = writeGeneratedPackFixture(dir);
+    const binDir = writeFakeCodex(dir);
+    const { code, out } = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--harness", "codex",
+      "--effort", "medium",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(code).toBe(0);
+    expect(out).toContain("profiles=low,medium");
+  });
+
   it("stops after smoke when smoke verification fails", () => {
     const dir = freshDir();
     const openapi = writeOpenapiFixture(dir);

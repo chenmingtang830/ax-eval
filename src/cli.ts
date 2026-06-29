@@ -90,6 +90,7 @@ import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfac
 import { resetPack } from "./target/reset.js";
 import {
   buildEnvChecklist,
+  automationGeneratedAt,
   defaultAutomationRunDir,
   discoverAutomationTarget,
   hasMissingRequiredConfig,
@@ -1673,7 +1674,9 @@ async function verifyAutomationResults(args: Parsed, dir: string, packPath: stri
 }
 
 function fullProfiles(effort: string): string[] {
-  return effort === "low" ? ["low"] : ["low", "high"];
+  if (effort === "low") return ["low"];
+  if (effort === "medium") return ["low", "medium"];
+  return ["low", "high"];
 }
 
 async function cmdAutomateReport(args: Parsed): Promise<number> {
@@ -1716,7 +1719,7 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
     company,
     slug,
     run_dir: runDir,
-    generated_at: new Date().toISOString(),
+    generated_at: automationGeneratedAt(),
     discovery,
     artifacts,
     next_steps: nextSteps,
@@ -1803,7 +1806,7 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   if (!approval.ok) {
     nextSteps.push(`Review the generated pack: ax-eval review --pack ${packPath}`);
     nextSteps.push(`Approve it after review: ax-eval review --pack ${packPath} --approve --by <name>`);
-    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --openapi ${discovery.openapi_url ?? ""} --graphql ${discovery.graphql_url ?? ""} --run-dir ${runDir} --approve-by <name>`);
+    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url} --run-dir ${runDir} --approve-by <name>`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
     console.error(`Stopping before live execution: ${approval.reason}.`);

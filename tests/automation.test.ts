@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
-import { selectSmokeTasks } from "../src/automation.js";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { afterEach, describe, expect, it } from "vitest";
+import { automationGeneratedAt, discoverAutomationTarget, selectSmokeTasks } from "../src/automation.js";
 import type { TargetPack } from "../src/schemas.js";
 
 const pack: TargetPack = {
@@ -96,5 +99,62 @@ describe("selectSmokeTasks", () => {
         { taskId: "gen-l4-export", reason: "async/export-style flow is poor smoke-gate material" },
       ]),
     );
+  });
+});
+
+describe("discoverAutomationTarget", () => {
+  const dirs: string[] = [];
+  const originalPath = process.env.PATH;
+
+  function freshDir(): string {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-auto-discovery-"));
+    dirs.push(dir);
+    return dir;
+  }
+
+  afterEach(() => {
+    process.env.PATH = originalPath;
+    delete process.env.AX_EVAL_AUTOMATION_NOW;
+    for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("unwraps claude-style result envelopes during discovery", async () => {
+    const dir = freshDir();
+    const binDir = resolve(dir, "bin");
+    const docsPath = resolve(dir, "docs.html");
+    const specPath = resolve(dir, "openapi.json");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(docsPath, "<html>widget docs</html>");
+    writeFileSync(specPath, JSON.stringify({ openapi: "3.0.0", paths: {} }));
+    writeFileSync(resolve(binDir, "claude"), `#!/usr/bin/env node
+console.log(JSON.stringify({
+  type: "result",
+  session_id: "session-1",
+  result: JSON.stringify({
+    site_url: ${JSON.stringify(docsPath)},
+    docs_urls: [${JSON.stringify(docsPath)}],
+    openapi_url: ${JSON.stringify(specPath)},
+    auth_notes: ["Bring an API key"],
+    surface_notes: ["API only"]
+  })
+}));
+`);
+    chmodSync(resolve(binDir, "claude"), 0o755);
+    process.env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
+
+    const discovery = await discoverAutomationTarget(
+      { company: "Widget", harness: "claude-code" },
+      { mode: "fixture" },
+    );
+
+    expect(discovery.site_url).toBe(docsPath);
+    expect(discovery.docs_urls).toEqual([docsPath]);
+    expect(discovery.openapi_url).toBe(specPath);
+    expect(discovery.confidence).toBe("high");
+  });
+
+  it("can freeze the manifest timestamp for deterministic tests", () => {
+    process.env.AX_EVAL_AUTOMATION_NOW = "2026-06-29T00:00:00.000Z";
+    expect(automationGeneratedAt()).toBe("2026-06-29T00:00:00.000Z");
   });
 });

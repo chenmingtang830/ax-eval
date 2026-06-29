@@ -1,6 +1,8 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
+import { extractJsonObject, normalizeHarnessText } from "./generate/authoring.js";
 import { Fetcher, type FetcherOptions } from "./static/fetcher.js";
 import type { TargetPack, Task } from "./schemas.js";
 import { describeRequiredEnv, surfaceAuthStatus, type EnvRequirement, type SurfaceAuthStatus } from "./target/config.js";
@@ -69,17 +71,6 @@ function isHttpUrl(value: string | undefined): value is string {
   }
 }
 
-function extractJsonObject(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return extractJsonObject(fenced[1]);
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  throw new Error("automation discovery did not return a JSON object");
-}
-
 function normalizeRawCandidate(raw: unknown): RawDiscoveryCandidate {
   const obj = raw as Record<string, unknown>;
   return {
@@ -119,19 +110,25 @@ function buildDiscoveryPrompt(company: string): string {
 function runHarnessDiscovery(company: string, harness: string): RawDiscoveryCandidate | null {
   const prompt = buildDiscoveryPrompt(company);
   if (harness === "codex") {
-    const res = spawnSync("codex", [
-      "exec",
-      "--sandbox", "workspace-write",
-      "-c", "sandbox_workspace_write.network_access=true",
-      "--json",
-      prompt,
-    ], { cwd: process.cwd(), encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
-    if (res.error || (res.status ?? 1) !== 0) return null;
+    const tempDir = mkdtempSync(resolve(tmpdir(), "ax-automation-discovery-"));
     try {
-      const parsed = JSON.parse(extractJsonObject(res.stdout));
+      const outPath = resolve(tempDir, "last-message.json");
+      const res = spawnSync("codex", [
+        "exec",
+        "--sandbox", "workspace-write",
+        "-c", "sandbox_workspace_write.network_access=true",
+        "--json",
+        "--output-last-message", outPath,
+        prompt,
+      ], { cwd: process.cwd(), encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+      if (res.error || (res.status ?? 1) !== 0) return null;
+      const raw = existsSync(outPath) ? readFileSync(outPath, "utf8") : normalizeHarnessText(res.stdout);
+      const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
       return normalizeRawCandidate(parsed);
     } catch {
       return null;
+    } finally {
+      try { rmSync(tempDir, { recursive: true, force: true }); } catch { /* best effort */ }
     }
   }
   if (harness === "claude-code") {
@@ -142,7 +139,7 @@ function runHarnessDiscovery(company: string, harness: string): RawDiscoveryCand
     });
     if (res.error || (res.status ?? 1) !== 0) return null;
     try {
-      const parsed = JSON.parse(extractJsonObject(res.stdout));
+      const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(res.stdout)));
       return normalizeRawCandidate(parsed);
     } catch {
       return null;
@@ -268,6 +265,12 @@ export async function discoverAutomationTarget(
     surface_notes: candidate.surface_notes ?? [],
     warnings,
   };
+}
+
+export function automationGeneratedAt(now = new Date()): string {
+  const fixed = process.env.AX_EVAL_AUTOMATION_NOW?.trim();
+  if (fixed) return fixed;
+  return now.toISOString();
 }
 
 export function buildEnvChecklist(pack: TargetPack, surfaceArg: string | undefined): string {
