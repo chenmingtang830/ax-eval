@@ -1092,12 +1092,16 @@ function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullab
   if (fixture) return readFileSync(fixture, "utf8");
 
   const harness = provenance.harness;
+  // Env overrides let callers bypass a PATH-shadowing wrapper (e.g. a corp
+  // shim that injects PYTHONPATH) by pointing at the real binary directly.
+  // The defaults preserve the original "first match on PATH" behavior.
   if (harness === "codex") {
+    const codexBin = process.env.AX_EVAL_CODEX_BIN || "codex";
     const dir = mkdtempSync(resolve(tmpdir(), "ax-generator-"));
     const outPath = resolve(dir, "pack.json");
     const modelArgs = args.generatorModel ? ["-m", args.generatorModel] : [];
     const effortArgs = provenance.effort ? ["-c", `model_reasoning_effort=${provenance.effort}`] : [];
-    const res = spawnSync("codex", [
+    const res = spawnSync(codexBin, [
       "exec",
       "--sandbox", "workspace-write",
       "-c", "sandbox_workspace_write.network_access=true",
@@ -1112,20 +1116,21 @@ function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullab
       maxBuffer: 50 * 1024 * 1024,
     });
     if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness codex failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
+      throw new Error(`generator harness codex (${codexBin}) failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
     }
     return existsSync(outPath) ? readFileSync(outPath, "utf8") : res.stdout;
   }
 
   if (harness === "claude-code") {
+    const claudeBin = process.env.AX_EVAL_CLAUDE_BIN || "claude";
     const modelArgs = args.generatorModel ? ["--model", args.generatorModel] : [];
-    const res = spawnSync("claude", ["-p", prompt, "--output-format", "json", ...modelArgs], {
+    const res = spawnSync(claudeBin, ["-p", prompt, "--output-format", "json", ...modelArgs], {
       cwd: process.cwd(),
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024,
     });
     if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness claude-code failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
+      throw new Error(`generator harness claude-code (${claudeBin}) failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
     }
     return normalizeHarnessText(res.stdout);
   }
