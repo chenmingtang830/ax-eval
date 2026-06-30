@@ -1,7 +1,7 @@
 vendor: PlanetScale
 category: database
 slug: planetscale
-discovered_at: 2026-06-30T11:36:20.211Z
+discovered_at: 2026-06-30T11:39:14.714Z
 resolver:
   method: llm-search
   harness: claude-code

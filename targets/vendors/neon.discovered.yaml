@@ -1,12 +1,12 @@
 vendor: Neon
 category: database
 slug: neon
-discovered_at: 2026-06-30T11:36:20.211Z
+discovered_at: 2026-06-30T11:39:14.714Z
 resolver:
   method: llm-search
   harness: claude-code
   model: host-default
   prompt_version: vendor-resolve-v3
-site_url: https://neon.tech
-docs_url: https://neon.tech/docs
+site_url: https://neon.com
+docs_url: https://neon.com/docs
 http_status: null

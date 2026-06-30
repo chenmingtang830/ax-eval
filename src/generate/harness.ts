@@ -64,7 +64,7 @@ export function invokeHarness(prompt: string, opts: InvokeHarnessOptions): strin
   if (opts.harness === "claude-code") {
     const claudeBin = process.env.AX_EVAL_CLAUDE_BIN || "claude";
     const modelArgs = opts.model ? ["--model", opts.model] : [];
-    const res = spawnSync(claudeBin, ["-p", prompt, "--output-format", "json", ...modelArgs], {
+    const res = spawnSync(claudeBin, ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...modelArgs], {
       cwd: process.cwd(),
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024,

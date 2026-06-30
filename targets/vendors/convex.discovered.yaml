@@ -1,12 +1,12 @@
 vendor: Convex
 category: database
 slug: convex
-discovered_at: 2026-06-30T11:36:20.211Z
+discovered_at: 2026-06-30T11:39:14.714Z
 resolver:
   method: llm-search
   harness: claude-code
   model: host-default
   prompt_version: vendor-resolve-v3
 site_url: https://www.convex.dev
-docs_url: https://docs.convex.dev
+docs_url: https://docs.convex.dev/home
 http_status: null

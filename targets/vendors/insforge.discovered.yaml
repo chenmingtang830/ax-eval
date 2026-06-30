@@ -1,12 +1,12 @@
 vendor: Insforge
 category: database
 slug: insforge
-discovered_at: 2026-06-30T11:36:20.211Z
+discovered_at: 2026-06-30T11:39:14.714Z
 resolver:
   method: llm-search
   harness: claude-code
   model: host-default
   prompt_version: vendor-resolve-v3
-site_url: https://insforge.com
-docs_url: https://docs.insforge.com
+site_url: https://insforge.dev
+docs_url: https://docs.insforge.dev
 http_status: null
