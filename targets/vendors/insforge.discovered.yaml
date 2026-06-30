@@ -1,0 +1,20 @@
+vendor: Insforge
+category: database
+slug: insforge
+discovered_at: 2026-06-30T11:14:33.578Z
+resolver:
+  method: pattern-probe
+  pattern_tried:
+    - https://insforge.com/docs
+    - https://docs.insforge.com
+    - https://insforge.dev/docs
+    - https://docs.insforge.dev
+    - https://insforge.io/docs
+    - https://docs.insforge.io
+    - https://insforge.tech/docs
+    - https://docs.insforge.tech
+    - https://developers.insforge.com
+    - https://insforge.com/documentation
+site_url: https://docs.insforge.dev
+docs_url: https://docs.insforge.dev/introduction
+http_status: 200

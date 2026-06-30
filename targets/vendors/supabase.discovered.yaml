@@ -1,0 +1,20 @@
+vendor: Supabase
+category: database
+slug: supabase
+discovered_at: 2026-06-30T11:14:38.822Z
+resolver:
+  method: pattern-probe
+  pattern_tried:
+    - https://supabase.com/docs
+    - https://docs.supabase.com
+    - https://supabase.dev/docs
+    - https://docs.supabase.dev
+    - https://supabase.io/docs
+    - https://docs.supabase.io
+    - https://supabase.tech/docs
+    - https://docs.supabase.tech
+    - https://developers.supabase.com
+    - https://supabase.com/documentation
+site_url: https://supabase.com
+docs_url: https://supabase.com/docs
+http_status: 200

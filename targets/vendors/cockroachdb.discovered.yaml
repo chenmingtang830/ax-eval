@@ -1,0 +1,9 @@
+vendor: CockroachDB
+category: database
+slug: cockroachdb
+discovered_at: 2026-06-30T04:15:00.000Z
+resolver:
+  method: pattern-probe
+site_url: https://www.cockroachlabs.com
+docs_url: https://www.cockroachlabs.com/docs/
+http_status: 200
