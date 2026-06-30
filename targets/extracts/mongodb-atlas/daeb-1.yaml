@@ -2,274 +2,90 @@ vendor: MongoDB Atlas
 category: database
 slug: mongodb-atlas
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:04:22.692Z
+extracted_at: 2026-06-30T22:40:02.371Z
+vendor_config:
+  base_url: https://data.mongodb-api.com/app/{app-id}
+  auth_type: api-key
+  auth_header: apiKey
+  auth_env: MONGODB_ATLAS_DATA_API_KEY
 tasks:
   - task_id: db-T01-create-table
     na: false
-    approach: Create a collection named `axarena_customers_{ns}` using the MongoDB
-      driver or mongosh. MongoDB is schemaless so there are no DDL columns; the
-      unique email constraint is enforced via a unique index, and the `_id`
-      field (ObjectId or client-generated UUID) is the primary key. `created_at`
-      has no server-side column default — the agent sets it at insert time.
-      Optionally add an Atlas Schema Validation rule ($jsonSchema) to enforce
-      the shape.
-    mechanism: mongosh shell / MongoDB Node.js driver + unique index
-    snippet: >-
-      // mongosh
-
-      use mydb;
-
-      db.createCollection("axarena_customers_test");
-
-      db.axarena_customers_test.createIndex({ email: 1 }, { unique: true });
-
-      // Optional schema validation
-
-      db.runCommand({
-        collMod: "axarena_customers_test",
-        validator: { $jsonSchema: { bsonType: "object", required: ["email", "created_at"], properties: { email: { bsonType: "string" }, created_at: { bsonType: "date" } } } }
-      });
-    oracle_approach: "Run `db.getCollectionNames()` in the target database and
-      assert `axarena_customers_{ns}` appears. Run
-      `db.axarena_customers_{ns}.getIndexes()` and assert an index with `{
-      email: 1 }` and `unique: true` is present."
+    read_method: POST
+    read_path_template: /data/v1/action/findOne
+    assert_field: "Body:
+      {dataSource,database,collection:'axarena_customers_{ns}',filter:{}}.
+      Assert: response.document != null (collection exists and has documents);
+      all three named field keys present in response.document"
   - task_id: db-T02-insert-rows
     na: false
-    approach: Use `insertMany()` with an array of 100 documents. Each document has a
-      client-generated UUID as `_id`, an email of the form
-      `probe-<n>@axarena-{ns}.test`, and a deterministic `created_at` set to a
-      base date plus `n` seconds so ordering is stable.
-    mechanism: MongoDB Node.js driver `insertMany`
-    snippet: |-
-      const { MongoClient, UUID } = require('mongodb');
-      const BASE = new Date('2024-01-01T00:00:00Z');
-      const docs = Array.from({ length: 100 }, (_, i) => ({
-        _id: new UUID(),
-        email: `probe-${i + 1}@axarena-test.test`,
-        created_at: new Date(BASE.getTime() + i * 1000)
-      }));
-      await db.collection('axarena_customers_test').insertMany(docs);
-    oracle_approach: "Run `db.axarena_customers_{ns}.countDocuments({})` and assert
-      100. Run `db.axarena_customers_{ns}.findOne({ email:
-      'probe-1@axarena-{ns}.test' })` and assert the document contains `_id`,
-      `email`, and `created_at` with the expected values."
+    read_method: POST
+    read_path_template: /data/v1/action/aggregate
+    assert_field: "Body:
+      {dataSource,database,collection:'axarena_customers_{ns}',pipeline:[{'$cou\
+      nt':'total'}]}. Assert: response.documents[0].total == 100. Second call:
+      /action/findOne with filter:{email:'{probe_email}'} — assert
+      response.document contains expected name/email/id shape"
   - task_id: db-T03-query-pattern
     na: false
-    approach: "Use a `$regex` filter anchored at `^probe-1` to match probe-1 and
-      probe-10..probe-19 (11 documents). Sort ascending by `created_at`.
-      Paginate with `skip`/`limit`: page 1 is skip(0).limit(5), page 2 is
-      skip(5).limit(5)."
-    mechanism: MongoDB Node.js driver `find` with `$regex`, `sort`, `skip`, `limit`
-    snippet: >-
-      const filter = { email: { $regex: /^probe-1/ } };
-
-      const sort  = { created_at: 1 };
-
-      const page1 = await
-      col.find(filter).sort(sort).skip(0).limit(5).toArray();
-
-      const page2 = await
-      col.find(filter).sort(sort).skip(5).limit(5).toArray();
-
-      console.log('page1:', page1.map(d => d.email));
-
-      console.log('page2:', page2.map(d => d.email));
-    oracle_approach: "Run `db.axarena_customers_{ns}.countDocuments({ email: {
-      $regex: /^probe-1/ } })` and assert 11. Re-run the page-1 query and assert
-      it contains exactly the 5 documents with the lowest `created_at` values
-      among those 11 (probe-1 through probe-5 by insertion order, or verify the
-      5 smallest timestamps)."
+    read_method: POST
+    read_path_template: /data/v1/action/find
+    assert_field: "Body:
+      {filter:{email:{'$regex':'^probe-(1$|1[0-9])'}},sort:{email:1}}. Assert:
+      response.documents.length == 11. Second call with limit:5 — assert
+      response.documents[0..4] are the five lexicographically lowest probe
+      emails"
   - task_id: db-T04-rls-policy
-    na: false
-    approach: "Use Atlas App Services (formerly MongoDB Realm) Collection Rules.
-      Each document stores an `owner` field set to the App Services user ID at
-      insert time. A collection role with `apply_when: { owner: '%%user.id' }`
-      and `read: true` ensures each authenticated user's queries are
-      automatically restricted to their own documents. Documents lacking a
-      matching `owner` are invisible to the caller."
-    mechanism: Atlas App Services Collection Rules (per-document read permissions
-      via `%%user.id`)
-    snippet: |-
-      // Collection rule payload — set via Atlas App Services UI or Admin API
-      {
-        "collection": "axarena_customers_test",
-        "database": "mydb",
-        "roles": [
-          {
-            "name": "owner-only",
-            "apply_when": { "owner": "%%user.id" },
-            "read": true,
-            "write": false,
-            "insert": false,
-            "delete": false
-          }
-        ]
-      }
-    oracle_approach: Authenticate as user A via the Atlas App Services SDK and call
-      `collection.find({})` — assert only documents where `owner == userA.id`
-      are returned. Authenticate as user B and repeat — assert only user B's
-      documents appear, with zero overlap. Verify per-user counts match the
-      number of documents inserted for each user.
+    na: true
+    na_reason: MongoDB Atlas has no native row-level security; database access
+      control is collection/database-scoped via roles, not per-document read
+      predicates enforced by the engine. Per-row filtering requires Atlas App
+      Services rules (a separate application-layer product), not a core database
+      policy mechanism.
   - task_id: db-T05-unique-constraint
     na: false
-    approach: Confirm the unique index on `email` exists (created in T01) via
-      `getIndexes()`. Attempt to insert a document with an email that already
-      exists in the collection. MongoDB rejects it with error code 11000 (E11000
-      duplicate key error).
-    mechanism: MongoDB unique index + driver duplicate-key exception (E11000)
-    snippet: >-
-      // Verify index
-
-      const indexes = await col.indexes();
-
-      console.assert(indexes.some(i => i.key.email === 1 && i.unique === true));
-
-
-      // Attempt duplicate insert
-
-      try {
-        await col.insertOne({ email: 'probe-1@axarena-test.test', created_at: new Date() });
-      } catch (err) {
-        console.log(err.code);    // 11000
-        console.log(err.message); // E11000 duplicate key error ...
-      }
-    oracle_approach: "Run `db.axarena_customers_{ns}.countDocuments({ email:
-      'probe-1@axarena-{ns}.test' })` and assert exactly 1. Inspect the caught
-      error object and assert `err.code === 11000` or that the message contains
-      the string `duplicate key`."
+    read_method: POST
+    read_path_template: /data/v1/action/aggregate
+    assert_field: "Body:
+      {filter:{email:'{duplicate_email}'},pipeline:[{'$count':'total'}]}.
+      Assert: response.documents[0].total == 1. Agent's reported insertOne error
+      message must contain 'E11000' (duplicate key error) or 'duplicate key'
+      string"
   - task_id: db-T06-foreign-key
-    na: false
-    approach: MongoDB has no native foreign-key constraints. The Atlas-idiomatic
-      approach is to create `axarena_orders_{ns}` with a `customer_id` field
-      that stores a reference to a customer `_id`, then enforce referential
-      integrity via an Atlas App Services Database Trigger (pre-insert) that
-      rejects orders whose `customer_id` does not resolve to an existing
-      customer document. Insert one valid order referencing a known customer
-      `_id`.
-    mechanism: Atlas App Services Database Trigger (pre-insert validation) + manual
-      document reference
-    snippet: >-
-      // Trigger function (Atlas App Services — fires on INSERT into
-      axarena_orders)
-
-      exports = async function(changeEvent) {
-        const doc = changeEvent.fullDocument;
-        const custColl = context.services.get('mongodb-atlas')
-          .db('mydb').collection('axarena_customers_test');
-        const exists = await custColl.findOne({ _id: doc.customer_id });
-        if (!exists) {
-          throw new Error(`FK violation: customer_id ${doc.customer_id} not found`);
-        }
-      };
-
-
-      // Insert valid order
-
-      await db.collection('axarena_orders_test').insertOne({
-        _id: new UUID(), customer_id: knownCustomerId, amount: 99.99
-      });
-    oracle_approach: "Attempt to insert an order with a randomly generated
-      `customer_id` that does not exist; assert the trigger throws an FK
-      violation error. Query `db.axarena_orders_{ns}.findOne({ customer_id:
-      knownCustomerId })` and assert `amount` is correct."
+    na: true
+    na_reason: MongoDB Atlas is a document database with no native foreign key
+      constraints; cross-collection referential integrity is not enforced at the
+      engine level, so a distinct FK-violation error code cannot be produced by
+      a standard insert.
   - task_id: db-T07-export
     na: false
-    approach: Use the `mongoexport` CLI (part of MongoDB Database Tools, compatible
-      with Atlas connection strings) to export the entire collection as a JSON
-      array to a local file. The `--jsonArray` flag produces a single valid JSON
-      array rather than newline-delimited BSON-extended JSON.
-    mechanism: mongoexport CLI (MongoDB Database Tools)
-    snippet: |-
-      mongoexport \
-        --uri="mongodb+srv://<user>:<pass>@<cluster>.mongodb.net/mydb" \
-        --collection=axarena_customers_test \
-        --out=axarena_customers_test.json \
-        --jsonArray
-      # Reports: exported N documents
-    oracle_approach: Parse `axarena_customers_test.json` as a JSON array; assert its
-      length is 100. Spot-check that each element contains the keys `_id`,
-      `email`, and `created_at` with non-null values.
+    read_method: POST
+    read_path_template: /data/v1/action/aggregate
+    assert_field: "Body: {pipeline:[{'$count':'total'}]}. Assert:
+      response.documents[0].total == 100. Second call /action/findOne — assert
+      response.document contains each expected field key from the export schema"
   - task_id: db-T08-schema-migration
     na: false
-    approach: "Because MongoDB is schemaless, a forward migration is a bulk write:
-      call `updateMany` with `{ status: { $exists: false } }` and `$set: {
-      status: 'active' }` to backfill all existing documents. Then optionally
-      update the Atlas Schema Validation rule (via `collMod`) to require the
-      `status` field in future documents."
-    mechanism: MongoDB `updateMany` + Atlas Schema Validation (`collMod` with
-      `$jsonSchema`)
-    snippet: |-
-      // Backfill existing documents
-      await col.updateMany(
-        { status: { $exists: false } },
-        { $set: { status: 'active' } }
-      );
-
-      // Enforce field going forward
-      await db.command({
-        collMod: 'axarena_customers_test',
-        validator: {
-          $jsonSchema: {
-            bsonType: 'object',
-            required: ['email', 'created_at', 'status'],
-            properties: { status: { bsonType: 'string' } }
-          }
-        },
-        validationAction: 'error'
-      });
-    oracle_approach: "Run `db.axarena_customers_{ns}.countDocuments({ status: {
-      $exists: true } })` and assert 100. Run
-      `db.axarena_customers_{ns}.countDocuments({ status: 'active' })` and
-      assert 100. Call `db.getCollectionInfos({ name: 'axarena_customers_{ns}'
-      })` and assert the `options.validator` JSON schema includes `status` as a
-      required `string` field."
+    read_method: POST
+    read_path_template: /data/v1/action/aggregate
+    assert_field: "Body:
+      {pipeline:[{'$match':{'status':'active'}},{'$count':'total'}]}. Assert:
+      response.documents[0].total == 100 (all existing rows have
+      status='active'). Second call with pipeline
+      [{$match:{status:{$exists:false}}},{$count:'total'}] — assert
+      response.documents[0].total == 0 (no rows missing the field)"
   - task_id: db-T09-runtime-integration
     na: false
-    approach: Create an Atlas App Services HTTPS Endpoint backed by an App Services
-      Function. The function uses `context.services` to obtain a MongoDB client,
-      calls `countDocuments({})` on `axarena_customers_{ns}`, and returns the
-      result as JSON. Deploy the endpoint and invoke it with an HTTP GET
-      request.
-    mechanism: Atlas App Services HTTPS Endpoint + App Services Function
-    snippet: >-
-      // Atlas App Services Function source
-
-      exports = async function(request, response) {
-        const db = context.services.get('mongodb-atlas').db('mydb');
-        const count = await db.collection('axarena_customers_test').countDocuments({});
-        response.setHeader('Content-Type', 'application/json');
-        response.setBody(JSON.stringify({ count }));
-      };
-
-
-      // Invoke (replace <app-id> and <endpoint-route>)
-
-      // GET
-      https://us-east-1.aws.data.mongodb-api.com/app/<app-id>/endpoint/count
-    oracle_approach: Send an HTTP GET to the deployed endpoint URL; assert the HTTP
-      status is 200, the body parses as valid JSON, and the `count` field equals
-      100 (matching `db.axarena_customers_{ns}.countDocuments({})`).
+    read_method: GET
+    read_path_template: /endpoint/{function-endpoint-name}
+    assert_field: "Assert: HTTP 200; response body is valid JSON; response.count ==
+      expected_count reported by agent"
   - task_id: db-T10-backup-restore
     na: false
-    approach: Use the Atlas Administration API to trigger an on-demand cloud backup
-      snapshot. POST to the snapshots endpoint for the target cluster using
-      Digest authentication with the Atlas public/private API key pair. Record
-      the `id` and `createdAt` fields from the response.
-    mechanism: Atlas Administration API v1.0 — cloud backup on-demand snapshot
-      (`POST /backup/snapshots`)
-    snippet: >-
-      curl --user "<publicKey>:<privateKey>" --digest \
-        --header 'Content-Type: application/json' \
-        --request POST \
-        'https://cloud.mongodb.com/api/atlas/v1.0/groups/{groupId}/clusters/{clusterName}/backup/snapshots' \
-        --data '{
-          "description": "axarena-benchmark-snapshot",
-          "retentionInDays": 1
-        }'
-      # Response includes: { "id": "<snapshotId>", "createdAt": "<ISO8601>",
-      "status": "queued", ... }
-    oracle_approach: GET
-      `https://cloud.mongodb.com/api/atlas/v1.0/groups/{groupId}/clusters/{clusterName}/backup/snapshots`;
-      parse the `results` array; find the entry whose `id` matches the returned
-      snapshot ID; assert `createdAt` is within 60 seconds of the POST request
-      time and `status` is `queued`, `inProgress`, or `completed`.
+    read_method: GET
+    read_path_template: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
+    assert_field: "Uses Admin API HTTP Digest auth (MONGODB_ATLAS_PUBLIC_KEY /
+      MONGODB_ATLAS_PRIVATE_KEY). Assert: response.results[] contains entry
+      where id == agent_reported_snapshot_id; entry.createdAt parses to a
+      timestamp within 60s of now; entry.status in
+      ['completed','queued','inProgress']"

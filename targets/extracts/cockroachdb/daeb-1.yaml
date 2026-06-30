@@ -2,220 +2,61 @@ vendor: CockroachDB
 category: database
 slug: cockroachdb
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:05:55.763Z
+extracted_at: 2026-06-30T22:38:32.343Z
+vendor_config:
+  base_url: https://cockroachlabs.cloud/api/v1
+  auth_type: bearer
+  auth_env: COCKROACHDB_API_KEY
 tasks:
   - task_id: db-T01-create-table
     na: false
-    approach: Execute standard SQL DDL via cockroach sql CLI or any
-      PostgreSQL-compatible client. CockroachDB's idiomatic primary key is UUID
-      with gen_random_uuid(); timestamps use TIMESTAMPTZ DEFAULT now().
-    mechanism: CockroachDB SQL DDL via cockroach sql CLI or psql
-    snippet: |-
-      CREATE TABLE axarena_customers_{ns} (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        email STRING UNIQUE NOT NULL,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-    oracle_approach: "Run SHOW TABLES; assert axarena_customers_{ns} is listed. Run
-      SHOW COLUMNS FROM axarena_customers_{ns}; assert three columns: id (UUID),
-      email (STRING), created_at (TIMESTAMPTZ)."
+    read_method: GET
+    read_path_template: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
+    assert_field: $.columns[*].name includes each of the three named columns (e.g.
+      id, email, created_at); $.create_table_statement contains the table name
   - task_id: db-T02-insert-rows
-    na: false
-    approach: Use a single INSERT INTO ... SELECT with generate_series(1,100) to
-      produce all 100 rows atomically. Each row gets a deterministic email and a
-      created_at offset by n minutes from a fixed base timestamp.
-    mechanism: CockroachDB SQL — INSERT INTO ... SELECT with generate_series
-    snippet: |-
-      INSERT INTO axarena_customers_{ns} (email, created_at)
-      SELECT
-        'probe-' || g || '@axarena-{ns}.test',
-        '2024-01-01 00:00:00+00'::TIMESTAMPTZ + (g * INTERVAL '1 minute')
-      FROM generate_series(1, 100) AS g;
-    oracle_approach: SELECT count(*) FROM axarena_customers_{ns}; assert 100. SELECT
-      email, created_at FROM axarena_customers_{ns} WHERE email =
-      'probe-42@axarena-{ns}.test'; assert one row with created_at = '2024-01-01
-      00:42:00+00'.
+    na: true
+    na_reason: CockroachDB exposes no REST endpoint for SQL DML or row counting; all
+      query execution requires the PostgreSQL wire protocol.
   - task_id: db-T03-query-pattern
-    na: false
-    approach: "Use LIKE pattern matching with ORDER BY created_at and LIMIT 5 OFFSET
-      n for offset-based pagination. Issue two queries: OFFSET 0 for page 1,
-      OFFSET 5 for page 2."
-    mechanism: CockroachDB SQL — LIKE + ORDER BY + LIMIT/OFFSET pagination
-    snippet: |-
-      -- Page 1
-      SELECT id, email, created_at
-      FROM axarena_customers_{ns}
-      WHERE email LIKE 'probe-1%@axarena-{ns}.test'
-      ORDER BY created_at
-      LIMIT 5 OFFSET 0;
-
-      -- Page 2
-      SELECT id, email, created_at
-      FROM axarena_customers_{ns}
-      WHERE email LIKE 'probe-1%@axarena-{ns}.test'
-      ORDER BY created_at
-      LIMIT 5 OFFSET 5;
-    oracle_approach: SELECT count(*) FROM axarena_customers_{ns} WHERE email LIKE
-      'probe-1%@axarena-{ns}.test'; assert 11 rows total. Verify page 1 returns
-      exactly probe-1, probe-10, probe-11, probe-12, probe-13 (the five lowest
-      created_at values among the 11 matches).
+    na: true
+    na_reason: CockroachDB has no REST endpoint for arbitrary SQL query execution or
+      paginated result sets; requires PostgreSQL wire protocol.
   - task_id: db-T04-rls-policy
-    na: false
-    approach: Add an owner column, then use CockroachDB's Row-Level Security
-      (available since v22.2) to enable RLS on the table and create a USING
-      policy restricting SELECT to rows where owner = current_user. FORCE RLS
-      ensures even table owners are subject to the policy. Grant SELECT to each
-      application user role.
-    mechanism: CockroachDB Row-Level Security — ALTER TABLE ENABLE ROW LEVEL
-      SECURITY + CREATE POLICY
-    snippet: |-
-      ALTER TABLE axarena_customers_{ns} ADD COLUMN IF NOT EXISTS owner STRING;
-
-      ALTER TABLE axarena_customers_{ns} ENABLE ROW LEVEL SECURITY;
-      ALTER TABLE axarena_customers_{ns} FORCE ROW LEVEL SECURITY;
-
-      CREATE POLICY owner_isolation ON axarena_customers_{ns}
-        FOR SELECT
-        USING (owner = current_user);
-
-      CREATE USER IF NOT EXISTS user_a;
-      CREATE USER IF NOT EXISTS user_b;
-      GRANT SELECT ON axarena_customers_{ns} TO user_a, user_b;
-
-      -- Seed ownership
-      UPDATE axarena_customers_{ns}
-        SET owner = CASE WHEN (SELECT count(*) FROM axarena_customers_{ns} c2
-                               WHERE c2.id <= axarena_customers_{ns}.id) <= 50
-                     THEN 'user_a' ELSE 'user_b' END;
-    oracle_approach: "Connect as user_a: SELECT count(*) FROM
-      axarena_customers_{ns}; assert 50. Connect as user_b: assert 50. As each
-      user, SELECT count(*) FROM axarena_customers_{ns} WHERE owner !=
-      current_user; assert 0."
+    na: true
+    na_reason: CockroachDB does not implement PostgreSQL Row Level Security (RLS)
+      policies; the mechanism is structurally absent in the engine.
   - task_id: db-T05-unique-constraint
-    na: false
-    approach: Verify the UNIQUE constraint exists via SHOW CREATE TABLE (it was
-      defined at creation). Attempt to INSERT a duplicate email; CockroachDB
-      rejects it with SQLSTATE 23505.
-    mechanism: CockroachDB SQL — UNIQUE constraint enforcement (SQLSTATE 23505)
-    snippet: |-
-      -- Verify constraint exists
-      SHOW CREATE TABLE axarena_customers_{ns};
-      -- Expect: UNIQUE INDEX axarena_customers_{ns}_email_key (email ASC)
-
-      -- Attempt duplicate insert (must fail)
-      INSERT INTO axarena_customers_{ns} (email, created_at)
-      VALUES ('probe-1@axarena-{ns}.test', now());
-    oracle_approach: After the failed insert, SELECT count(*) FROM
-      axarena_customers_{ns} WHERE email = 'probe-1@axarena-{ns}.test'; assert
-      exactly 1. Confirm the error message contains 'duplicate key value
-      violates unique constraint' and SQLSTATE 23505.
+    na: true
+    na_reason: No REST endpoint for SQL row inspection or error-code introspection;
+      verifying duplicate-row count and constraint violation detail requires
+      PostgreSQL wire protocol.
   - task_id: db-T06-foreign-key
-    na: false
-    approach: Create axarena_orders_{ns} with a REFERENCES clause on customer_id.
-      Insert one valid order, then attempt an insert with a nonexistent
-      customer_id UUID to verify foreign-key enforcement.
-    mechanism: CockroachDB SQL — FOREIGN KEY REFERENCES constraint (SQLSTATE 23503)
-    snippet: >-
-      CREATE TABLE axarena_orders_{ns} (
-        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        customer_id UUID NOT NULL REFERENCES axarena_customers_{ns}(id) ON DELETE CASCADE,
-        amount DECIMAL(12, 2) NOT NULL
-      );
-
-
-      -- Valid insert
-
-      INSERT INTO axarena_orders_{ns} (customer_id, amount)
-
-      SELECT id, 99.99
-
-      FROM axarena_customers_{ns}
-
-      WHERE email = 'probe-1@axarena-{ns}.test';
-
-
-      -- FK violation (must fail)
-
-      INSERT INTO axarena_orders_{ns} (customer_id, amount)
-
-      VALUES ('00000000-0000-0000-0000-000000000000', 1.00);
-    oracle_approach: SELECT count(*) FROM axarena_orders_{ns}; assert 1. Confirm FK
-      violation error contains SQLSTATE 23503. SELECT o.amount, c.email FROM
-      axarena_orders_{ns} o JOIN axarena_customers_{ns} c ON o.customer_id =
-      c.id; assert one row with email='probe-1@axarena-{ns}.test'.
+    na: true
+    na_reason: No REST endpoint for SQL DML or constraint-violation error
+      inspection; foreign-key enforcement can only be observed via PostgreSQL
+      wire protocol.
   - task_id: db-T07-export
-    na: false
-    approach: Use CockroachDB's EXPORT INTO CSV statement targeting a nodelocal or
-      cloud storage URI. The statement writes CSV files to the specified path
-      and returns a result set with filename, rows, and bytes per file.
-    mechanism: CockroachDB EXPORT INTO CSV statement
-    snippet: |-
-      EXPORT INTO CSV
-        'nodelocal://1/axarena_customers_export'
-      FROM TABLE axarena_customers_{ns};
-    oracle_approach: "Inspect the EXPORT result set: sum the rows column across all
-      returned file entries and assert total = 100. Optionally read the CSV from
-      the node's extern/axarena_customers_export/ directory and assert each
-      record has id, email, and created_at fields."
+    na: true
+    na_reason: CockroachDB EXPORT TO is a SQL statement executed via wire protocol;
+      no REST endpoint exists for initiating or streaming an exported data file.
   - task_id: db-T08-schema-migration
     na: false
-    approach: Use ALTER TABLE ADD COLUMN with a DEFAULT clause. CockroachDB performs
-      online schema changes without blocking reads or writes, and backfills the
-      default value to all existing rows automatically.
-    mechanism: CockroachDB online schema change — ALTER TABLE ADD COLUMN with DEFAULT
-    snippet: |-
-      ALTER TABLE axarena_customers_{ns}
-        ADD COLUMN status STRING NOT NULL DEFAULT 'active';
-    oracle_approach: SHOW COLUMNS FROM axarena_customers_{ns}; assert status column
-      exists with type STRING and default expression 'active'. SELECT count(*)
-      FROM axarena_customers_{ns} WHERE status <> 'active'; assert 0. SELECT
-      count(*) FROM axarena_customers_{ns} WHERE status = 'active'; assert 100.
+    read_method: GET
+    read_path_template: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
+    assert_field: "$.columns[?(@.name=='status')].type equals 'STRING' or 'VARCHAR';
+      $.columns[?(@.name=='status')].defaultExpr equals '''active''' (note:
+      asserting all existing rows have status='active' requires wire protocol,
+      not REST)"
   - task_id: db-T09-runtime-integration
-    na: false
-    approach: CockroachDB has no native serverless function hosting. Deploy a
-      function to an external serverless platform (e.g. AWS Lambda, Vercel,
-      Cloudflare Workers) using the node-postgres driver pointed at
-      CockroachDB's PostgreSQL-compatible endpoint. The function queries the row
-      count and returns JSON.
-    mechanism: External serverless runtime (AWS Lambda / Vercel) + node-postgres
-      (pg) driver over CockroachDB PostgreSQL wire protocol
-    snippet: >-
-      // Node.js — AWS Lambda handler
-
-      const { Client } = require('pg');
-
-      exports.handler = async () => {
-        const client = new Client({ connectionString: process.env.COCKROACHDB_URL });
-        await client.connect();
-        const { rows } = await client.query(
-          'SELECT count(*)::INT8 AS count FROM axarena_customers_{ns}'
-        );
-        await client.end();
-        return {
-          statusCode: 200,
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ count: Number(rows[0].count) })
-        };
-      };
-    oracle_approach: 'Invoke the function URL via HTTP GET; assert HTTP 200 and JSON
-      body { "count": 100 } (matching current row count). Independently query
-      SELECT count(*) FROM axarena_customers_{ns} directly and compare.'
+    na: true
+    na_reason: CockroachDB has no built-in serverless function or compute runtime
+      deployment feature; there is no vendor API endpoint for invoking a
+      deployed function.
   - task_id: db-T10-backup-restore
     na: false
-    approach: Use CockroachDB's BACKUP INTO statement to back up the table to a
-      nodelocal or cloud storage collection URI. The backup subdirectory path
-      encodes the timestamp and serves as the snapshot identifier. Use SHOW
-      BACKUPS IN to enumerate the collection.
-    mechanism: CockroachDB BACKUP INTO statement + SHOW BACKUPS IN
-    snippet: |-
-      -- Initiate backup
-      BACKUP TABLE axarena_customers_{ns}
-        INTO 'nodelocal://1/axarena_backup'
-        AS OF SYSTEM TIME now();
-
-      -- List backups in collection
-      SHOW BACKUPS IN 'nodelocal://1/axarena_backup';
-    oracle_approach: SHOW BACKUPS IN 'nodelocal://1/axarena_backup'; assert at least
-      one entry is returned. Inspect the start_time column of the most recent
-      row; assert it falls within the last 60 seconds. The backup path (e.g.
-      /2024-01-01/123456.78/) is the snapshot identifier.
+    read_method: GET
+    read_path_template: /clusters/{CRDB_CLUSTER_ID}/backups
+    assert_field: $.backups[*] contains an entry where id matches the agent's
+      reported backup identifier and created_at is within 60 seconds of the
+      current timestamp

@@ -2,228 +2,114 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:04:10.145Z
+extracted_at: 2026-06-30T22:42:12.185Z
+vendor_config:
+  base_url: https://{databaseName}-{organizationSlug}.turso.io
+  auth_type: bearer
+  auth_env: TURSO_AUTH_TOKEN
 tasks:
   - task_id: db-T01-create-table
     na: false
-    approach: Execute CREATE TABLE SQL via the Turso CLI shell or libSQL client.
-      SQLite's idiomatic PK is INTEGER PRIMARY KEY AUTOINCREMENT; timestamps use
-      DEFAULT (datetime('now')).
-    mechanism: libSQL SQL DDL via @libsql/client or Turso CLI (`turso db shell`)
-    snippet: >-
-      import { createClient } from '@libsql/client';
-
-      const client = createClient({ url: process.env.TURSO_DATABASE_URL,
-      authToken: process.env.TURSO_AUTH_TOKEN });
-
-      await client.execute(`
-        CREATE TABLE IF NOT EXISTS axarena_customers_ns (
-          id         INTEGER PRIMARY KEY AUTOINCREMENT,
-          email      TEXT    NOT NULL UNIQUE,
-          created_at TEXT    NOT NULL DEFAULT (datetime('now'))
-        )
-      `);
-    oracle_approach: Run `PRAGMA table_info(axarena_customers_ns)` via libSQL;
-      assert three rows returned for id, email, and created_at with expected
-      types, not-null flags, and the unique index confirmed by `PRAGMA
-      index_list(axarena_customers_ns)`.
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: "POST body:
+      {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+      table_info('axarena_customers_{ns}')\"}}]}; assert
+      results[0].response.rows contains exactly 3 entries; assert entries
+      include name='id', name='email', and the third named column in their
+      respective [cid,name,type,notnull,dflt_value,pk] positions"
   - task_id: db-T02-insert-rows
     na: false
-    approach: Use the libSQL client's batch() method to send all 100 parameterized
-      INSERT statements in a single round-trip, each with a deterministic
-      created_at ISO-8601 timestamp derived from the row index.
-    mechanism: libSQL batch API (@libsql/client)
-    snippet: >-
-      const stmts = Array.from({ length: 100 }, (_, i) => ({
-        sql: 'INSERT INTO axarena_customers_ns (email, created_at) VALUES (?, ?)',
-        args: [
-          `probe-${i + 1}@axarena-ns.test`,
-          `2024-01-01T00:00:${String(i).padStart(2, '0')}Z`
-        ]
-      }));
-
-      await client.batch(stmts, 'write');
-    oracle_approach: Execute `SELECT COUNT(*) AS cnt FROM axarena_customers_ns`;
-      assert cnt = 100. Then `SELECT * FROM axarena_customers_ns WHERE email =
-      'probe-1@axarena-ns.test'` and assert the row has the expected email and
-      created_at fields.
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: 'POST body: {"requests":[{"type":"execute","stmt":{"sql":"SELECT
+      COUNT(*) FROM
+      axarena_customers_{ns}"}},{"type":"execute","stmt":{"sql":"SELECT * FROM
+      axarena_customers_{ns} WHERE
+      email=?","args":[{"type":"text","value":"{expected_email}"}]}}]}; assert
+      results[0].response.rows[0][0].value=100; assert
+      results[1].response.rows[0] is non-empty with cols matching [id, email,
+      <third_col>]'
   - task_id: db-T03-query-pattern
     na: false
-    approach: Issue two SQL queries with a LIKE pattern, ORDER BY created_at ASC,
-      and LIMIT 5 with OFFSET 0 and OFFSET 5 to retrieve pages 1 and 2
-      respectively.
-    mechanism: libSQL SQL query with LIKE + LIMIT/OFFSET (@libsql/client)
-    snippet: >-
-      const PAGE_SIZE = 5;
-
-      const pattern = 'probe-1%@axarena-ns.test';
-
-      const page1 = await client.execute({
-        sql: 'SELECT * FROM axarena_customers_ns WHERE email LIKE ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-        args: [pattern, PAGE_SIZE, 0]
-      });
-
-      const page2 = await client.execute({
-        sql: 'SELECT * FROM axarena_customers_ns WHERE email LIKE ? ORDER BY created_at ASC LIMIT ? OFFSET ?',
-        args: [pattern, PAGE_SIZE, PAGE_SIZE]
-      });
-    oracle_approach: Execute the same LIKE query without LIMIT; assert total row
-      count = 11 (probe-1, probe-10..probe-19). Confirm page1.rows[0].email is
-      the row with the lowest created_at among matches.
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: "POST body:
+      {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT COUNT(*)
+      FROM axarena_customers_{ns} WHERE email LIKE
+      'probe-%'\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT email FROM
+      axarena_customers_{ns} WHERE email LIKE 'probe-%' ORDER BY email LIMIT 5
+      OFFSET 0\"}}]}; assert results[0].response.rows[0][0].value=11; assert
+      results[1].response.rows has 5 entries equal to the 5 lexicographically
+      lowest values from {probe-1, probe-10, probe-11, probe-12, probe-13,
+      probe-14, probe-15, probe-16, probe-17, probe-18, probe-19}"
   - task_id: db-T04-rls-policy
-    na: false
-    approach: "Turso has no native SQL RLS. The idiomatic approaches are: (a)
-      database-per-tenant — provision each user a separate Turso database via
-      the Platform API and issue scoped per-database auth tokens; or (b)
-      application-level guard — add an owner_id column and enforce WHERE
-      owner_id = ? in every read query inside a shared accessor function."
-    mechanism: Turso Platform API (database-per-tenant with scoped tokens) or
-      application-level query guard with libSQL
-    snippet: >-
-      // Option A – separate DB per user via Platform API
-
-      const res = await fetch(
-        'https://api.turso.tech/v1/organizations/{org}/databases',
-        { method: 'POST',
-          headers: { Authorization: `Bearer ${TURSO_API_TOKEN}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name: 'axarena-customers-user1', group: 'default' }) }
-      );
-
-
-      // Option B – owner_id column guard
-
-      function getCustomers(client, userId) {
-        return client.execute({ sql: 'SELECT * FROM axarena_customers_ns WHERE owner_id = ?', args: [userId] });
-      }
-    oracle_approach: Authenticate as user A (scoped token or owner_id filter) and
-      user B; assert each SELECT returns only that user's rows (count matches
-      expected per-user rows) and zero rows with the other user's owner_id.
+    na: true
+    na_reason: SQLite/libSQL has no native row-level security mechanism; Turso
+      exposes no RLS API — tenant isolation must be enforced at the application
+      layer or via separate databases per tenant
+    read_method: GET
   - task_id: db-T05-unique-constraint
     na: false
-    approach: The UNIQUE constraint on email is already declared in the CREATE TABLE
-      DDL. Attempt to insert a duplicate email; libSQL surfaces SQLite error
-      code SQLITE_CONSTRAINT_UNIQUE (extended code 2067) with a descriptive
-      message.
-    mechanism: SQLite UNIQUE constraint enforcement via libSQL (@libsql/client)
-    snippet: |-
-      try {
-        await client.execute({
-          sql: 'INSERT INTO axarena_customers_ns (email) VALUES (?)',
-          args: ['probe-1@axarena-ns.test']
-        });
-      } catch (err) {
-        // err.message: 'UNIQUE constraint failed: axarena_customers_ns.email'
-        console.error('Unique violation caught:', err.message);
-      }
-    oracle_approach: After the failed insert, `SELECT COUNT(*) FROM
-      axarena_customers_ns WHERE email = 'probe-1@axarena-ns.test'`; assert
-      count = 1. Assert the caught error message contains 'UNIQUE constraint
-      failed'.
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: "POST body:
+      {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT COUNT(*)
+      FROM axarena_customers_{ns} WHERE
+      email=?\",\"args\":[{\"type\":\"text\",\"value\":\"{duplicate_email}\"}]}\
+      },{\"type\":\"execute\",\"stmt\":{\"sql\":\"INSERT INTO
+      axarena_customers_{ns} (email) VALUES
+      (?)\",\"args\":[{\"type\":\"text\",\"value\":\"{duplicate_email}\"}]}}]};
+      assert results[0].response.rows[0][0].value=1; assert
+      results[1].type='error' and results[1].error.message contains 'UNIQUE
+      constraint failed'"
   - task_id: db-T06-foreign-key
     na: false
-    approach: Create axarena_orders_ns with a REFERENCES clause pointing to
-      axarena_customers_ns(id). Because SQLite disables FK enforcement by
-      default, execute PRAGMA foreign_keys = ON within the same batch as
-      subsequent DML statements to enable enforcement for the connection.
-    mechanism: SQLite PRAGMA foreign_keys + DDL REFERENCES clause via libSQL
-      (@libsql/client)
-    snippet: >-
-      await client.batch([
-        { sql: 'PRAGMA foreign_keys = ON', args: [] },
-        { sql: `CREATE TABLE IF NOT EXISTS axarena_orders_ns (
-          id          INTEGER PRIMARY KEY AUTOINCREMENT,
-          customer_id INTEGER NOT NULL REFERENCES axarena_customers_ns(id),
-          amount      REAL    NOT NULL
-        )`, args: [] },
-        { sql: 'INSERT INTO axarena_orders_ns (customer_id, amount) VALUES (1, 99.99)', args: [] }
-      ], 'write');
-    oracle_approach: With PRAGMA foreign_keys = ON, attempt `INSERT INTO
-      axarena_orders_ns (customer_id, amount) VALUES (999999, 1.0)`; assert
-      error message contains 'FOREIGN KEY constraint failed'. SELECT the valid
-      order and confirm customer_id = 1 resolves to an existing customer.
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: "POST body:
+      {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+      foreign_keys=ON\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"INSERT INTO
+      axarena_orders_{ns} (customer_id) VALUES
+      (2147483647)\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT o.id,
+      o.customer_id, c.email FROM axarena_orders_{ns} o JOIN
+      axarena_customers_{ns} c ON o.customer_id=c.id WHERE
+      o.id=?\",\"args\":[{\"type\":\"integer\",\"value\":\"{valid_order_id}\"}]\
+      }}]}; assert results[1].type='error' and results[1].error.message contains
+      'FOREIGN KEY constraint failed'; assert results[2].response.rows[0] is
+      non-empty with o.customer_id matching an existing c.id"
   - task_id: db-T07-export
     na: false
-    approach: Fetch all rows via SELECT * using the libSQL client and serialize to
-      JSON (or CSV) in the calling script, writing to a local file.
-      Alternatively, use `turso db shell <db> '.dump'` for an SQLite SQL dump
-      via the Turso CLI.
-    mechanism: libSQL client query + Node.js fs serialization, or Turso CLI shell `.dump`
-    snippet: >-
-      import { writeFileSync } from 'fs';
-
-      const result = await client.execute('SELECT id, email, created_at FROM
-      axarena_customers_ns');
-
-      const rows = result.rows.map(r => ({ id: r.id, email: r.email, created_at:
-      r.created_at }));
-
-      writeFileSync('axarena_customers_ns.json', JSON.stringify(rows, null, 2));
-
-      console.log('Exported to axarena_customers_ns.json');
-    oracle_approach: Parse the written JSON file; assert array length = 100 and each
-      object contains `id`, `email`, and `created_at` keys with non-null values
-      matching the expected email pattern.
+    read_method: GET
+    read_path_template: /dump
+    assert_field: Response body is a plain-text SQL dump; count occurrences of
+      'INSERT INTO axarena_customers_{ns}' = 100; each INSERT statement lists
+      the expected column names (id, email, <third_col>) in the column list
   - task_id: db-T08-schema-migration
     na: false
-    approach: SQLite supports ALTER TABLE ... ADD COLUMN with a DEFAULT expression.
-      Execute the DDL via the libSQL client or Turso CLI shell; the DEFAULT
-      'active' is stored in the schema and returned for all existing rows on
-      read.
-    mechanism: SQL DDL ALTER TABLE via libSQL (@libsql/client) or Turso CLI shell
-    snippet: >-
-      await client.execute(
-        `ALTER TABLE axarena_customers_ns ADD COLUMN status TEXT NOT NULL DEFAULT 'active'`
-      );
-    oracle_approach: "`PRAGMA table_info(axarena_customers_ns)` — assert a row for
-      `status` with type TEXT and dflt_value = 'active'. Then `SELECT DISTINCT
-      status FROM axarena_customers_ns` — assert the only value returned is
-      'active'."
+    read_method: POST
+    read_path_template: /v2/pipeline
+    assert_field: "POST body:
+      {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+      table_info('axarena_customers_{ns}')\"}},{\"type\":\"execute\",\"stmt\":{\
+      \"sql\":\"SELECT COUNT(*) FROM axarena_customers_{ns} WHERE status IS NULL
+      OR status != 'active'\"}}]}; assert results[0].response.rows contains an
+      entry with name='status' and type in ['TEXT','VARCHAR']; assert
+      results[1].response.rows[0][0].value=0"
   - task_id: db-T09-runtime-integration
-    na: false
-    approach: Deploy a Cloudflare Worker that imports @libsql/client/http (the
-      fetch-based variant for edge runtimes) and returns the row count as JSON.
-      Turso is designed for this use case via its HTTP-based libSQL protocol
-      compatible with edge environments.
-    mechanism: libSQL HTTP client (@libsql/client/http) inside Cloudflare Workers
-      edge runtime
-    snippet: >-
-      // worker.ts (deploy with `wrangler deploy`)
-
-      import { createClient } from '@libsql/client/http';
-
-      export default {
-        async fetch(_req: Request, env: { TURSO_URL: string; TURSO_TOKEN: string }) {
-          const db = createClient({ url: env.TURSO_URL, authToken: env.TURSO_TOKEN });
-          const { rows } = await db.execute(
-            'SELECT COUNT(*) AS cnt FROM axarena_customers_ns'
-          );
-          return Response.json({ count: Number(rows[0].cnt) });
-        }
-      };
-    oracle_approach: HTTP GET the deployed Worker URL; assert response Content-Type
-      is application/json and the parsed body has a `count` field equal to the
-      known row count (e.g., 100 after T02).
+    na: true
+    na_reason: Turso does not provide serverless or edge function deployment; there
+      is no vendor-hosted function runtime or invocation API — compute must be
+      deployed separately on a platform that connects to Turso as a database
+    read_method: GET
   - task_id: db-T10-backup-restore
     na: false
-    approach: Use the Turso Platform API or CLI to create a database branch, which
-      is Turso's idiomatic point-in-time snapshot mechanism. A branch captures
-      the database state at creation time and returns a branch name and
-      timestamp.
-    mechanism: Turso Platform API database branching (`turso db branch create` / REST API)
-    snippet: >-
-      # CLI
-
-      turso db branch create <db-name> axarena-snapshot-1
-
-
-      # Or Platform REST API
-
-      curl -X POST
-      'https://api.turso.tech/v1/organizations/{org}/databases/{db}/branches' \
-        -H 'Authorization: Bearer {TURSO_API_TOKEN}' \
-        -H 'Content-Type: application/json' \
-        -d '{"name": "axarena-snapshot-1"}'
-    oracle_approach: List branches via `turso db branch list <db-name>` or `GET
-      /v1/organizations/{org}/databases/{db}/branches`; assert
-      `axarena-snapshot-1` is present in the response with a `created_at`
-      timestamp within the last 60 seconds.
+    read_method: GET
+    read_path_template: https://api.turso.tech/v1/organizations/{organizationSlug}/databases/{agentReportedDatabaseName}
+    assert_field: "Use Authorization: Bearer {TURSO_API_TOKEN} (platform token, not
+      DB token); assert HTTP 200; assert
+      response.database.name={agent_reported_identifier}; assert
+      response.database.created_at parses as an ISO-8601 timestamp within 60
+      seconds of the restore operation time; note: Turso PITR materializes as a
+      new named database — 'backups' are enumerated via the databases list
+      endpoint"

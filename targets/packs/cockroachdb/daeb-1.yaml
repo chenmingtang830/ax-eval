@@ -1,0 +1,220 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-l84xyn
+name: cockroachdb
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-l84xyn
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://www.cockroachlabs.com/docs/
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: COCKROACHDB_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+base_url: https://cockroachlabs.cloud/api/v1
+headers: {}
+site_url: https://www.cockroachlabs.com
+openapi_url: ""
+docs_urls:
+  - https://www.cockroachlabs.com/docs/
+static:
+  site_url: https://www.cockroachlabs.com
+  docs_urls:
+    - https://www.cockroachlabs.com/docs/
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: GET
+        readPathTemplate: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
+        assertField: $.columns[*].name includes each of the three named columns (e.g.
+          id, email, created_at); $.create_table_statement contains the table
+          name
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: na
+        description: CockroachDB exposes no REST endpoint for SQL DML or row counting;
+          all query execution requires the PostgreSQL wire protocol.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: na
+        description: CockroachDB has no REST endpoint for arbitrary SQL query execution
+          or paginated result sets; requires PostgreSQL wire protocol.
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: na
+        description: CockroachDB does not implement PostgreSQL Row Level Security (RLS)
+          policies; the mechanism is structurally absent in the engine.
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: na
+        description: No REST endpoint for SQL row inspection or error-code
+          introspection; verifying duplicate-row count and constraint violation
+          detail requires PostgreSQL wire protocol.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: na
+        description: No REST endpoint for SQL DML or constraint-violation error
+          inspection; foreign-key enforcement can only be observed via
+          PostgreSQL wire protocol.
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: na
+        description: CockroachDB EXPORT TO is a SQL statement executed via wire
+          protocol; no REST endpoint exists for initiating or streaming an
+          exported data file.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: GET
+        readPathTemplate: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
+        assertField: "$.columns[?(@.name=='status')].type equals 'STRING' or 'VARCHAR';
+          $.columns[?(@.name=='status')].defaultExpr equals '''active''' (note:
+          asserting all existing rows have status='active' requires wire
+          protocol, not REST)"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: na
+        description: CockroachDB has no built-in serverless function or compute runtime
+          deployment feature; there is no vendor API endpoint for invoking a
+          deployed function.
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: roundtrip
+        description: |-
+          List the vendor's backups/snapshots/branches; assert the agent's
+          reported identifier is present with a creation timestamp within the
+          last 60 seconds.
+        readMethod: GET
+        readPathTemplate: /clusters/{CRDB_CLUSTER_ID}/backups
+        assertField: $.backups[*] contains an entry where id matches the agent's
+          reported backup identifier and created_at is within 60 seconds of the
+          current timestamp
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []

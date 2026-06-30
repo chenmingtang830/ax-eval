@@ -71,7 +71,8 @@ import { checkApproval, reviewSummary, writeApproval } from "./generate/review.j
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
-import { extractTasks, extractTasksAll, writeTaskExtract } from "./generate/task-extract.js";
+import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
+import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
@@ -118,6 +119,7 @@ const COMMANDS = [
   "reset",
   "resolve-vendor",
   "extract-tasks",
+  "compose-pack",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -173,8 +175,15 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval extract-tasks --suite <path> --category <category>",
         "                             [--vendor <slug>] [--vendors <a,b,c>]",
         "                             [--harness claude-code|codex] [--effort low|medium|high]",
-        "  LLM-extracts per-task implementation details for each vendor and writes",
-        "  YAML to targets/extracts/<slug>/daeb-1.yaml.",
+        "  LLM-extracts ONLY the oracle read-back path + vendor auth config for each",
+        "  suite task (no prompt rewriting). Writes YAML to targets/extracts/<slug>/.",
+      ].join("\n");
+    case "compose-pack":
+      return [
+        "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
+        "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
+        "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
+        "  No LLM call. Writes targets/packs/<slug>/<suite>.yaml.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -1191,6 +1200,22 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
   return 0;
 }
 
+function resolveVendorSelection(args: Parsed, root: string) {
+  const vendorSlugs = args.vendors
+    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
+    : args.vendor
+      ? [args.vendor]
+      : null;
+  if (vendorSlugs) {
+    return vendorSlugs.map((slug) => {
+      const card = loadVendorCard(root, slug);
+      if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
+      return card;
+    });
+  }
+  return null;
+}
+
 async function cmdExtractTasks(args: Parsed): Promise<number> {
   if (!args.suite) throw new Error("--suite <path> is required");
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
@@ -1198,55 +1223,73 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
 
   const { loadSuite } = await import("./generate/suite.js");
   const suite = loadSuite(args.suite);
-
-  // Determine which vendors to process.
-  const vendorSlugs = args.vendors
-    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
-    : args.vendor
-      ? [args.vendor]
-      : null;
-
-  // Load vendor cards — if no --vendor/--vendors, load all cards for category.
   const root = process.cwd();
-  let vendors;
-  if (vendorSlugs) {
-    vendors = vendorSlugs.map((slug) => {
-      const card = loadVendorCard(root, slug);
-      if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
-      return card;
-    });
-  } else {
-    // Load all *.discovered.yaml files under targets/vendors/
+
+  let vendors = resolveVendorSelection(args, root);
+  if (!vendors) {
     const { readdirSync } = await import("node:fs");
     const vendorDir = resolve(root, "targets", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files.map((f) => {
-      const slug = f.replace(".discovered.yaml", "");
-      const card = loadVendorCard(root, slug);
-      if (!card) throw new Error(`Could not load vendor card for ${slug}`);
-      return card;
-    }).filter((v) => v.category === args.category);
+    vendors = files
+      .map((f) => {
+        const slug = f.replace(".discovered.yaml", "");
+        const card = loadVendorCard(root, slug);
+        if (!card) throw new Error(`Could not load vendor card for ${slug}`);
+        return card;
+      })
+      .filter((v) => v.category === args.category);
   }
 
   if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
-  console.log(`Extracting tasks for ${vendors.length} vendor(s) via ${harness}…`);
+  console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
 
-  const results = await extractTasksAll(vendors, suite, {
+  const results = await extractOraclesAll(vendors, suite, {
     harness,
     model: args.generatorModel || undefined,
     effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
   });
 
   for (const result of results) {
-    const path = writeTaskExtract(root, result);
+    const path = writeOracleExtract(root, result);
     const naCount = result.tasks.filter((t) => t.na).length;
     console.log(`\n  ${result.vendor} → ${path}`);
+    console.log(`    base_url: ${result.vendor_config.base_url}`);
     console.log(`    tasks: ${result.tasks.length} total, ${naCount} N/A`);
     for (const task of result.tasks) {
-      const status = task.na ? `N/A (${task.na_reason ?? "no reason"})` : task.mechanism ?? "?";
+      const status = task.na ? `N/A (${task.na_reason ?? "no reason"})` : `${task.read_method} ${task.read_path_template}`;
       console.log(`    ${task.task_id}: ${status}`);
     }
+  }
+  return 0;
+}
+
+async function cmdComposePack(args: Parsed): Promise<number> {
+  if (!args.suite) throw new Error("--suite <path> is required");
+  const root = process.cwd();
+  const { loadSuite } = await import("./generate/suite.js");
+  const suite = loadSuite(args.suite);
+
+  let vendors = resolveVendorSelection(args, root);
+  if (!vendors) {
+    const { readdirSync } = await import("node:fs");
+    const vendorDir = resolve(root, "targets", "vendors");
+    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
+    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
+    vendors = files
+      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+  }
+
+  for (const vendor of vendors) {
+    const extract = loadOracleExtract(root, vendor.slug, suite.name);
+    if (!extract) {
+      console.error(`Skipping ${vendor.vendor}: no oracle extract found. Run extract-tasks first.`);
+      continue;
+    }
+    const pack = composePack(suite, vendor, extract);
+    const path = writeComposedPack(root, vendor.slug, suite.name, pack);
+    console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)`);
   }
   return 0;
 }
@@ -1368,7 +1411,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     spec,
     args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
   );
-  const pack = args.deterministic ? seed : await authorPackWithLlm(product, spec, seed, args, provenanceDocs);
+  const pack = args.deterministic ? seed : await authorPackWithLlm(product, spec, seed, args, provenanceDocs, suite);
   const yaml = packToYaml(pack);
   // Default output: committed example packs live under targets/examples/, but
   // locally generated packs still default to targets/<product>/ so a user can
@@ -2201,6 +2244,8 @@ async function main(): Promise<number> {
       return cmdResolveVendor(args);
     case "extract-tasks":
       return cmdExtractTasks(args);
+    case "compose-pack":
+      return cmdComposePack(args);
     default:
       console.error(USAGE);
       return 2;

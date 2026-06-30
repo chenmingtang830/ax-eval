@@ -1,0 +1,286 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-5sd5yf
+name: neon
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-5sd5yf
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://neon.com/docs
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: NEON_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+base_url: https://console.neon.tech/api/v2
+headers: {}
+site_url: https://neon.com
+openapi_url: ""
+docs_urls:
+  - https://neon.com/docs
+static:
+  site_url: https://neon.com
+  docs_urls:
+    - https://neon.com/docs
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select={col1},{col2},{col3}&limit=1
+        assertField: HTTP 200 confirms table exists; absence of HTTP 400 confirms all
+          three named columns are present (PostgREST rejects unknown column
+          names in the select clause with 400)
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
+          row by email and assert the expected shape.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=count()
+        assertField: response[0].count == 100; additionally GET
+          ...?email=eq.{sample_email}&select=* and assert response[0] contains
+          expected field keys and values matching the seeded row shape
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Re-execute the query through the vendor's standard API; assert exactly
+          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
+          reported page 1 contains the lowest-ordered 5 emails.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?email=like.probe-1*&select=email&order=email.asc
+        assertField: response array length == 11 (probe-1, probe-10..probe-19);
+          appending &limit=5 returns the 5 lexicographically lowest probe-1*
+          emails, which must match the agent's reported page-1 contents
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Authenticate as two distinct users; assert each sees only their own
+          rows, neither sees the other's, and the count is correct per user.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=count()
+        assertField: "invoke twice with distinct user JWTs (Authorization: Bearer
+          {user1_jwt}, then {user2_jwt}); user1 count == expected_user1_rows;
+          user2 count == expected_user2_rows; counts are mutually exclusive and
+          sum to total; a full select with each JWT must not surface the other
+          user's email"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: roundtrip
+        description: |-
+          After the attempted duplicate insert, count rows with the duplicate
+          email; assert exactly 1. Inspect the agent's reported error and assert
+          a recognizable unique-violation error code or message.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?email=eq.{duplicate_email}&select=count()
+        assertField: response[0].count == 1; agent-reported insert error body contains
+          PostgreSQL error code '23505' or substring 'duplicate key value
+          violates unique constraint'
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Attempt to insert an order with a customer_id that doesn't exist;
+          assert that the insert fails with a recognizable foreign-key
+          violation. Read back the valid order; assert the relationship holds.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_orders_{ns}?customer_id=eq.{valid_customer_id}&select=id,customer_id
+        assertField: HTTP 200 with exactly one row whose customer_id ==
+          {valid_customer_id} confirms the valid order persisted; agent-reported
+          failed-insert error body contains PostgreSQL error code '23503' or
+          substring 'foreign key constraint'
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Parse the export; assert exactly 100 records and that each record has
+          the expected fields. If file path: read the file. If stream: capture
+          bytes from the agent's reported handle.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=*&limit=200
+        assertField: response array length == 100; every element contains all expected
+          field keys; if export was to a local file (pg_dump/COPY), read the
+          file and assert 100 data rows with all expected columns instead
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: GET
+        readPathTemplate: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=status&limit=1
+        assertField: HTTP 200 without 400 confirms 'status' column exists; column type
+          asserted via GET /rest/v1/ OpenAPI spec at
+          definitions.axarena_customers_{ns}.properties.status.type;
+          additionally GET ...?status=neq.active&select=count() must return
+          [{'count':0}] confirming all existing rows have status='active'
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: na
+        description: Neon does not host serverless or application functions; any
+          deployed function that connects to Neon runs on an external platform
+          (e.g. Vercel, Netlify, AWS Lambda) and is invoked via that platform's
+          URL, which is not a Neon REST endpoint
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: roundtrip
+        description: |-
+          List the vendor's backups/snapshots/branches; assert the agent's
+          reported identifier is present with a creation timestamp within the
+          last 60 seconds.
+        readMethod: GET
+        readPathTemplate: /projects/{project_id}/branches
+        assertField: response.branches array contains an element with id ==
+          agent-reported branch identifier; that element's created_at parses to
+          an ISO-8601 timestamp within 60 seconds before the verification call
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []

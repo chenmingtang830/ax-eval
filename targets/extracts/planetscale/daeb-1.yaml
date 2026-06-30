@@ -2,203 +2,60 @@ vendor: PlanetScale
 category: database
 slug: planetscale
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:04:13.802Z
+extracted_at: 2026-06-30T22:39:45.109Z
+vendor_config:
+  base_url: https://api.planetscale.com/v1
+  auth_type: api-key
+  auth_header: Authorization
+  auth_env: PLANETSCALE_SERVICE_TOKEN
 tasks:
   - task_id: db-T01-create-table
     na: false
-    approach: Connect to a PlanetScale development branch via `pscale shell` (or a
-      MySQL client proxied through `pscale connect`) and run standard MySQL DDL.
-      Production schema changes require a deploy request, but on a dev branch
-      DDL executes directly.
-    mechanism: MySQL DDL via pscale shell / pscale connect proxy
-    snippet: |-
-      # Open a shell on a dev branch
-      pscale shell <database> dev
-
-      -- Inside the MySQL shell:
-      CREATE TABLE axarena_customers_{ns} (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        email VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE KEY uq_email (email)
-      );
-    oracle_approach: Run `SHOW TABLES LIKE 'axarena_customers_%';` then `DESCRIBE
-      axarena_customers_{ns};` on the same branch; assert the table exists with
-      columns id, email, and created_at.
+    read_method: GET
+    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/schema
+    assert_field: data[?name=='axarena_customers_{ns}'].raw — assert entry exists
+      and raw DDL contains all three named column definitions
   - task_id: db-T02-insert-rows
-    na: false
-    approach: Build a single multi-row INSERT statement (MySQL supports thousands of
-      value tuples per statement) and execute it through `pscale shell` or a
-      MySQL client proxied via `pscale connect`. A script generates the 100
-      value tuples with deterministic timestamps.
-    mechanism: MySQL multi-row INSERT via pscale shell
-    snippet: |-
-      -- Script-generated VALUES list (abbreviated):
-      INSERT INTO axarena_customers_{ns} (email, created_at) VALUES
-        ('probe-1@axarena-{ns}.test',  '2024-01-01 00:00:01'),
-        ('probe-2@axarena-{ns}.test',  '2024-01-01 00:00:02'),
-        -- ... n=3..99
-        ('probe-100@axarena-{ns}.test','2024-01-01 00:01:40');
-    oracle_approach: Run `SELECT COUNT(*) FROM axarena_customers_{ns};` and assert
-      100. Run `SELECT * FROM axarena_customers_{ns} WHERE
-      email='probe-1@axarena-{ns}.test';` and assert one row with the expected
-      email and created_at.
+    na: true
+    na_reason: PlanetScale REST API explicitly provides no direct data access; row
+      counting and row sampling require a live MySQL connection, not an HTTP
+      endpoint.
   - task_id: db-T03-query-pattern
-    na: false
-    approach: "Execute a MySQL LIKE query with ORDER BY created_at and LIMIT/OFFSET
-      pagination through `pscale shell` or the `@planetscale/database` HTTP
-      driver. Issue two queries: OFFSET 0 for page 1 and OFFSET 5 for page 2."
-    mechanism: MySQL LIKE + LIMIT/OFFSET via pscale shell or @planetscale/database driver
-    snippet: |-
-      -- Page 1 (rows 1-5)
-      SELECT id, email, created_at
-      FROM axarena_customers_{ns}
-      WHERE email LIKE 'probe-1%@axarena-{ns}.test'
-      ORDER BY created_at
-      LIMIT 5 OFFSET 0;
-
-      -- Page 2 (rows 6-10)
-      SELECT id, email, created_at
-      FROM axarena_customers_{ns}
-      WHERE email LIKE 'probe-1%@axarena-{ns}.test'
-      ORDER BY created_at
-      LIMIT 5 OFFSET 5;
-    oracle_approach: Re-run without LIMIT and count; assert 11 rows (probe-1,
-      probe-10 through probe-19). Verify page 1 contains the 5 rows with the
-      lowest created_at values among the 11 matches.
+    na: true
+    na_reason: PlanetScale REST API has no SQL query execution endpoint; filtered
+      row reads and paginated result sets require a direct MySQL connection.
   - task_id: db-T04-rls-policy
     na: true
-    na_reason: PlanetScale uses MySQL/Vitess which has no native row-level security
-      primitive, and PlanetScale itself provides no platform-level
-      attribute-based policy engine or query-rewrite middleware to enforce
-      per-authenticated-user row visibility.
-    approach: null
-    mechanism: null
-    snippet: null
-    oracle_approach: null
+    na_reason: PlanetScale runs MySQL, which has no native Row-Level Security; RLS
+      is a PostgreSQL-only mechanism and is structurally absent in MySQL.
   - task_id: db-T05-unique-constraint
-    na: false
-    approach: The UNIQUE KEY on email was declared at table creation (T01). Attempt
-      a duplicate INSERT via `pscale shell`; MySQL raises error 1062
-      (ER_DUP_ENTRY / SQLSTATE 23000). Capture and report the error.
-    mechanism: MySQL UNIQUE constraint — error 1062 ER_DUP_ENTRY
-    snippet: |-
-      -- Attempt duplicate insert (expected to fail):
-      INSERT INTO axarena_customers_{ns} (email, created_at)
-      VALUES ('probe-1@axarena-{ns}.test', NOW());
-      -- Expected: ERROR 1062 (23000): Duplicate entry
-      --   'probe-1@axarena-{ns}.test' for key 'uq_email'
-    oracle_approach: Run `SELECT COUNT(*) FROM axarena_customers_{ns} WHERE
-      email='probe-1@axarena-{ns}.test';` and assert count=1. Inspect the error
-      message for '1062' or 'Duplicate entry'.
+    na: true
+    na_reason: Row counting and DML error inspection require a direct MySQL
+      connection; PlanetScale REST API provides no data read or error replay
+      endpoint.
   - task_id: db-T06-foreign-key
-    na: false
-    approach: PlanetScale added opt-in foreign key constraint support (GA 2023).
-      Enable it on the database (dashboard setting or API flag), then create the
-      orders table with a FOREIGN KEY referencing axarena_customers_{ns}.id via
-      standard MySQL DDL on a dev branch and deploy via deploy request.
-    mechanism: MySQL FOREIGN KEY constraint with PlanetScale FK support enabled
-    snippet: >-
-      -- Requires FK support enabled on the database (PlanetScale dashboard or
-      API)
-
-      -- Run in pscale shell on dev branch:
-
-      CREATE TABLE axarena_orders_{ns} (
-        id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
-        customer_id INT UNSIGNED NOT NULL,
-        amount DECIMAL(10,2) NOT NULL,
-        CONSTRAINT fk_order_customer
-          FOREIGN KEY (customer_id)
-          REFERENCES axarena_customers_{ns}(id)
-          ON DELETE RESTRICT ON UPDATE CASCADE
-      );
-
-
-      -- Valid insert (customer id=1 must exist):
-
-      INSERT INTO axarena_orders_{ns} (customer_id, amount) VALUES (1, 99.99);
-
-
-      -- Invalid insert (triggers FK violation):
-
-      INSERT INTO axarena_orders_{ns} (customer_id, amount) VALUES (999999,
-      9.99);
-
-      -- Expected: ERROR 1452 (23000): Cannot add or update a child row
-    oracle_approach: Assert the invalid insert fails with MySQL error 1452
-      (ER_NO_REFERENCED_ROW_2). Run `SELECT * FROM axarena_orders_{ns} WHERE
-      customer_id=1;` and assert the valid order row is present.
+    na: true
+    na_reason: INSERT execution and FK violation error inspection require a direct
+      MySQL connection; PlanetScale REST API has no DML or query endpoint.
   - task_id: db-T07-export
-    na: false
-    approach: Use `pscale database dump` to export the branch as SQL files, or
-      tunnel via `pscale connect` and use the mysql CLI with `--batch` flag to
-      emit tab-separated output redirected to a CSV file. For JSON, pipe through
-      a formatter or use the `@planetscale/database` driver to SELECT all rows
-      and serialize.
-    mechanism: pscale database dump CLI or mysql --batch CSV via pscale connect proxy
-    snippet: |-
-      # Option A: SQL dump
-      pscale database dump <database> dev --output ./dump/
-
-      # Option B: CSV via mysql client through pscale tunnel
-      pscale connect <database> dev --port 3309 &
-      mysql -h 127.0.0.1 -P 3309 -u root \
-        -e "SELECT id, email, created_at FROM axarena_customers_{ns}" \
-        --batch --silent > axarena_customers_{ns}.csv
-    oracle_approach: Parse the exported CSV or SQL dump; count records and assert
-      exactly 100. Verify each record contains id, email, and created_at fields.
+    na: true
+    na_reason: PlanetScale REST API offers no bulk data export endpoint; exports are
+      performed via mysqldump or a direct database connection.
   - task_id: db-T08-schema-migration
     na: false
-    approach: "Use PlanetScale's branch-based deploy request workflow: (1) run ALTER
-      TABLE on a dev branch, (2) open a deploy request targeting the main
-      branch, (3) deploy it. PlanetScale executes the DDL as a non-blocking
-      online schema change. The DEFAULT 'active' ensures all existing rows
-      receive the value."
-    mechanism: PlanetScale deploy request (branch-based non-blocking schema migration)
-    snippet: |-
-      # 1. Apply ALTER on dev branch
-      pscale shell <database> dev
-
-      ALTER TABLE axarena_customers_{ns}
-        ADD COLUMN status VARCHAR(255) NOT NULL DEFAULT 'active';
-
-      # 2. Create and deploy the deploy request
-      pscale deploy-request create <database> dev
-      pscale deploy-request deploy <database> <deploy-request-number>
-    oracle_approach: After deployment, run `DESCRIBE axarena_customers_{ns};` on the
-      main branch and assert the status column exists with type varchar(255) and
-      default 'active'. Run `SELECT COUNT(*) FROM axarena_customers_{ns} WHERE
-      status != 'active';` and assert 0.
+    read_method: GET
+    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/schema
+    assert_field: data[?name=='axarena_customers_{ns}'].raw — assert entry exists
+      and raw DDL contains 'status' column with the correct type and DEFAULT
+      'active'
   - task_id: db-T09-runtime-integration
     na: true
-    na_reason: PlanetScale is a database-only service and does not provide its own
-      serverless function or edge runtime hosting; there is no
-      PlanetScale-native mechanism to deploy and invoke a compute function.
-    approach: null
-    mechanism: null
-    snippet: null
-    oracle_approach: null
+    na_reason: PlanetScale is a database-only service with no serverless or edge
+      function deployment platform; there is no function execution or invocation
+      endpoint.
   - task_id: db-T10-backup-restore
     na: false
-    approach: PlanetScale supports on-demand backups per branch via the CLI (`pscale
-      backup create`) or the REST API. Create a named backup, then retrieve the
-      response to capture the backup ID and created_at timestamp.
-    mechanism: PlanetScale backup API / pscale backup create CLI
-    snippet: >-
-      # Create on-demand backup via CLI
-
-      pscale backup create <database> main --name axarena-snap-{ns}
-
-
-      # Or via REST API:
-
-      curl -s -X POST \
-        'https://api.planetscale.com/v1/organizations/{org}/databases/{database}/branches/main/backups' \
-        -H 'Authorization: <service-token>' \
-        -H 'Content-Type: application/json' \
-        -d '{"name": "axarena-snap-{ns}"}'
-    oracle_approach: Run `pscale backup list <database> main` or GET
-      /v1/organizations/{org}/databases/{database}/branches/main/backups; assert
-      the reported backup name/ID is present and its created_at timestamp is
-      within 60 seconds of the request time.
+    read_method: GET
+    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/backups
+    assert_field: data[?id=='{reported_backup_id}'] — assert entry exists with
+      state='success' and created_at within the last 60 seconds

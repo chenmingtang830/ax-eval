@@ -1,151 +1,154 @@
 /**
- * Task extract: given a vendor card + canonical suite, produce a
- * per-vendor task-extract JSON that maps each suite task to the
- * vendor's concrete implementation details.
+ * Oracle extract: given a vendor card + canonical suite, produce ONLY the
+ * vendor-specific read-back path for each suite task (plus a vendor-level
+ * base_url/auth guess). This is the one part of pack authoring that
+ * genuinely requires vendor knowledge — every other field (prompt, id,
+ * title, difficulty) is rendered from the suite by pure code in
+ * compose-pack.ts.
  *
- * One LLM call per vendor (not per task) — prompt includes all 10
- * tasks and the vendor's docs URL. Returns a JSON array of TaskExtract
- * objects, one per task.
+ * One LLM call per vendor covering all suite tasks. Deliberately narrow:
+ * no prompt rewriting, no code snippets, no "approach" prose — those are
+ * either unnecessary (the agent discovers them itself) or noise.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite } from "./suite.js";
 
-const TaskExtractItemSchema = z.object({
+const OracleExtractItemSchema = z.object({
   task_id: z.string(),
   na: z.boolean(),
   na_reason: z.string().nullish().transform((v) => v ?? undefined),
-  // How an agent should accomplish this task for this vendor.
-  approach: z.string().nullable(),
-  // The vendor's idiomatic mechanism name (e.g. "PostgREST REST API", "supabase-js SDK").
-  mechanism: z.string().nullable(),
-  // Minimal representative code snippet or CLI command.
-  snippet: z.string().nullable(),
-  // How to verify success (the oracle read-back path).
-  oracle_approach: z.string().nullable(),
+  // REST read-back path to verify the task's expected state. Use {ns} for
+  // the namespace placeholder. null when na=true.
+  read_method: z.enum(["GET", "POST"]).nullish().transform((v) => v ?? undefined),
+  read_path_template: z.string().nullish().transform((v) => v ?? undefined),
+  // Dotted path into the response to assert against the suite's known
+  // expected value (e.g. "length" for a row-count check, or a field name).
+  assert_field: z.string().nullish().transform((v) => v ?? undefined),
 });
-export type TaskExtractItem = z.infer<typeof TaskExtractItemSchema>;
+export type OracleExtractItem = z.infer<typeof OracleExtractItemSchema>;
 
-const TaskExtractResultSchema = z.object({
+const VendorConfigSchema = z.object({
+  base_url: z.string(),
+  auth_type: z.enum(["bearer", "api-key", "oauth", "none"]),
+  auth_header: z.string().nullish().transform((v) => v ?? undefined),
+  auth_env: z.string(),
+});
+
+const OracleExtractResultSchema = z.object({
   vendor: z.string(),
   category: z.string(),
   slug: z.string(),
   suite_name: z.string(),
   extracted_at: z.string(),
-  tasks: z.array(TaskExtractItemSchema),
+  vendor_config: VendorConfigSchema,
+  tasks: z.array(OracleExtractItemSchema),
 });
-export type TaskExtractResult = z.infer<typeof TaskExtractResultSchema>;
+export type OracleExtractResult = z.infer<typeof OracleExtractResultSchema>;
 
 function buildExtractPrompt(vendor: ResolveResult, suite: Suite): string {
   const taskList = suite.tasks
     .map(
       (t, i) =>
-        `  ${i + 1}. id="${t.id}" | "${t.title}" (${t.difficulty})\n     intent: ${t.intent.trim().replace(/\n\s*/g, " ")}\n     oracle_hint: ${t.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
+        `  ${i + 1}. id="${t.id}" — ${t.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
     )
-    .join("\n\n");
+    .join("\n");
 
   return [
-    `You are an AX (Agent Experience) benchmark researcher building the Database AX Benchmark V1 (DAEB-1).`,
+    `${vendor.vendor} (${vendor.category}). Docs: ${vendor.docs_url}.`,
     ``,
-    `Vendor: ${vendor.vendor}`,
-    `Category: ${vendor.category}`,
-    `Docs URL: ${vendor.docs_url}`,
+    `For each task below, give ONLY the REST read-back call that verifies the described state.`,
+    `Use {ns} as a literal placeholder for a namespace token embedded in resource names.`,
+    `If ${vendor.vendor} cannot support a task at all (no REST API, or the mechanism is structurally absent), set na=true.`,
     ``,
-    `For each of the following ${suite.tasks.length} canonical benchmark tasks, describe how an AI agent would accomplish it using ${vendor.vendor}.`,
-    `Use your knowledge of ${vendor.vendor}'s documentation at ${vendor.docs_url}.`,
-    ``,
-    `Tasks:`,
     taskList,
     ``,
-    `For each task, return:`,
-    `- task_id: the exact id string above`,
-    `- na: true if ${vendor.vendor} structurally cannot support this task (e.g. no SQL DDL, no foreign keys, no backup API)`,
-    `- na_reason: if na=true, one sentence explaining why`,
-    `- approach: brief description of how an agent would accomplish this task (null if na)`,
-    `- mechanism: the vendor's idiomatic mechanism name, e.g. "PostgREST REST API", "supabase-js SDK", "Neon serverless driver" (null if na)`,
-    `- snippet: a minimal representative code or CLI snippet (null if na)`,
-    `- oracle_approach: how to verify success by reading state back from ${vendor.vendor} (null if na)`,
+    `Also give the vendor's REST API base_url and auth scheme (auth_type: bearer|api-key|oauth|none, auth_header if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name).`,
     ``,
-    `Return ONLY a JSON array of ${suite.tasks.length} objects, one per task, in the same order as the tasks above.`,
-    `No commentary, no markdown prose outside the JSON.`,
+    `Return ONLY this JSON object, no commentary:`,
+    `{`,
+    `  "vendor_config": {"base_url": "...", "auth_type": "...", "auth_header": "..." or null, "auth_env": "..."},`,
+    `  "tasks": [{"task_id": "...", "na": false, "na_reason": null, "read_method": "GET", "read_path_template": "...", "assert_field": "..."}, ...]`,
+    `}`,
+    `Include all ${suite.tasks.length} task ids.`,
   ].join("\n");
 }
 
-export interface ExtractTasksOptions {
+export interface ExtractOraclesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
 }
 
-/** Extract task implementation details for a single vendor. */
-export async function extractTasks(
+/** Extract oracle read-back paths + vendor config for a single vendor. */
+export async function extractOracles(
   vendor: ResolveResult,
   suite: Suite,
-  opts: ExtractTasksOptions = {},
-): Promise<TaskExtractResult> {
+  opts: ExtractOraclesOptions = {},
+): Promise<OracleExtractResult> {
   const harness = opts.harness ?? "claude-code";
   const prompt = buildExtractPrompt(vendor, suite);
   const raw = await invokeHarness(prompt, { harness, model: opts.model, effort: opts.effort });
   const json = extractJsonObject(raw);
-  const items = z.array(TaskExtractItemSchema).safeParse(JSON.parse(json));
-  if (!items.success) {
+  const parsed = z
+    .object({ vendor_config: VendorConfigSchema, tasks: z.array(OracleExtractItemSchema) })
+    .safeParse(JSON.parse(json));
+  if (!parsed.success) {
     throw new Error(
-      `task-extract for "${vendor.vendor}" returned non-conforming JSON: ${items.error.issues.map((i) => i.message).join("; ")}`,
+      `oracle-extract for "${vendor.vendor}" returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
     );
   }
-  // Verify all suite task IDs are present.
   const suiteIds = new Set(suite.tasks.map((t) => t.id));
-  const returnedIds = new Set(items.data.map((t) => t.task_id));
+  const returnedIds = new Set(parsed.data.tasks.map((t) => t.task_id));
   const missing = [...suiteIds].filter((id) => !returnedIds.has(id));
   if (missing.length > 0) {
-    throw new Error(`task-extract for "${vendor.vendor}" missing task IDs: ${missing.join(", ")}`);
+    throw new Error(`oracle-extract for "${vendor.vendor}" missing task IDs: ${missing.join(", ")}`);
   }
-  return TaskExtractResultSchema.parse({
+  return OracleExtractResultSchema.parse({
     vendor: vendor.vendor,
     category: vendor.category,
     slug: vendor.slug,
     suite_name: suite.name,
     extracted_at: new Date().toISOString(),
-    tasks: items.data,
+    vendor_config: parsed.data.vendor_config,
+    tasks: parsed.data.tasks,
   });
 }
 
-/** Extract tasks for multiple vendors in parallel. */
-export async function extractTasksAll(
+/** Extract oracles for multiple vendors in parallel. */
+export async function extractOraclesAll(
   vendors: ResolveResult[],
   suite: Suite,
-  opts: ExtractTasksOptions = {},
-): Promise<TaskExtractResult[]> {
-  return Promise.all(vendors.map((v) => extractTasks(v, suite, opts)));
+  opts: ExtractOraclesOptions = {},
+): Promise<OracleExtractResult[]> {
+  return Promise.all(vendors.map((v) => extractOracles(v, suite, opts)));
 }
 
-/** Path where a task-extract result is persisted. */
-export function taskExtractPath(root: string, slug: string, suiteName: string): string {
+/** Path where an oracle-extract result is persisted. */
+export function oracleExtractPath(root: string, slug: string, suiteName: string): string {
   return resolve(root, "targets", "extracts", slug, `${suiteName.toLowerCase()}.yaml`);
 }
 
-/** Write a task-extract to disk as YAML. */
-export function writeTaskExtract(root: string, result: TaskExtractResult): string {
-  const path = taskExtractPath(root, result.slug, result.suite_name);
+/** Write an oracle-extract to disk as YAML. */
+export function writeOracleExtract(root: string, result: OracleExtractResult): string {
+  const path = oracleExtractPath(root, result.slug, result.suite_name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, yamlStringify(result));
   return path;
 }
 
-import { parse as yamlParse } from "yaml";
-
-/** Load a previously-written task-extract. */
-export function loadTaskExtract(root: string, slug: string, suiteName: string): TaskExtractResult | null {
-  const path = taskExtractPath(root, slug, suiteName);
+/** Load a previously-written oracle-extract. */
+export function loadOracleExtract(root: string, slug: string, suiteName: string): OracleExtractResult | null {
+  const path = oracleExtractPath(root, slug, suiteName);
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
-  const result = TaskExtractResultSchema.safeParse(yamlParse(raw));
+  const result = OracleExtractResultSchema.safeParse(yamlParse(raw));
   if (!result.success) {
-    throw new Error(`task-extract at ${path} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
+    throw new Error(`oracle-extract at ${path} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
   }
   return result.data;
 }

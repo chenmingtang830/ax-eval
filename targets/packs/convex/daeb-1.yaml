@@ -1,0 +1,242 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-86bh5h
+name: convex
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-86bh5h
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://docs.convex.dev/home
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: CONVEX_DEPLOY_KEY
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+base_url: https://{CONVEX_DEPLOYMENT_NAME}.convex.cloud
+headers: {}
+site_url: https://www.convex.dev
+openapi_url: ""
+docs_urls:
+  - https://docs.convex.dev/home
+static:
+  site_url: https://www.convex.dev
+  docs_urls:
+    - https://docs.convex.dev/home
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: na
+        description: Convex has no REST endpoint for schema or table introspection; the
+          schema is defined in TypeScript (convex/schema.ts) and deployed via
+          CLI—there is no HTTP API path that lists tables or their columns
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
+          row by email and assert the expected shape.
+        readMethod: POST
+        readPathTemplate: /api/run/axarena_customers:countAndSample
+        assertField: 'value.count === 100; value.sample contains email, name, createdAt
+          fields (POST body: {"args":{"ns":"{ns}"}})'
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Re-execute the query through the vendor's standard API; assert exactly
+          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
+          reported page 1 contains the lowest-ordered 5 emails.
+        readMethod: POST
+        readPathTemplate: /api/run/axarena_customers:queryProbe
+        assertField: 'value.total === 11; value.page1.length === 5; value.page1 emails
+          in ascending order (POST body:
+          {"args":{"ns":"{ns}","page":1,"pageSize":5}})'
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Authenticate as two distinct users; assert each sees only their own
+          rows, neither sees the other's, and the count is correct per user.
+        readMethod: POST
+        readPathTemplate: /api/run/axarena_customers:listOwned
+        assertField: 'Call twice with distinct Bearer JWTs; each value.rows contains
+          only documents owned by the authenticated identity; row sets are
+          disjoint and per-user count matches expectation (POST body:
+          {"args":{"ns":"{ns}"}})'
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: na
+        description: Convex does not enforce unique constraints at the storage layer;
+          duplicate inserts succeed without error, so neither a count-of-1
+          assertion nor a unique-violation error code or message can be produced
+          via the HTTP API
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: na
+        description: Convex has no foreign-key constraint enforcement; mutations that
+          reference non-existent document IDs via v.id() succeed without
+          error—referential integrity is not checked at the database level and
+          no FK-violation response exists
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: na
+        description: Convex exposes no REST endpoint to trigger or stream a data export;
+          export is available only via CLI (npx convex export) or the dashboard
+          download—there is no HTTP API path to assert against
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: POST
+        readPathTemplate: /api/run/axarena_customers:getOne
+        assertField: "value.doc.status === 'active' and typeof value.doc.status ===
+          'string' (POST body: {\"args\":{\"ns\":\"{ns}\"}})"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Independently invoke the deployed function via the vendor's API or
+          public URL; assert the response is JSON with the correct count.
+        readMethod: POST
+        readPathTemplate: /api/run/axarena:runtimeCheck
+        assertField: 'HTTP 200; response Content-Type: application/json; value.count is
+          a number matching expected row count (POST body:
+          {"args":{"ns":"{ns}"}})'
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: na
+        description: Convex has no REST API for listing or managing backups or
+          snapshots; backups are accessible only through the dashboard UI or CLI
+          (npx convex export/import)—no HTTP endpoint exists to assert a backup
+          identifier or creation timestamp
+    difficulty: L4
+    allowed_surfaces: []
+    depends_on: []
+    trace: []

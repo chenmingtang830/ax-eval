@@ -1,0 +1,217 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-ovssd1
+name: planetscale
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-ovssd1
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://planetscale.com/docs
+auth_method: pat
+api_style: rest
+auth:
+  type: api-key
+  env: PLANETSCALE_SERVICE_TOKEN
+  env_aliases: []
+  verify_env_aliases: []
+  header: Authorization
+sandbox_scope: []
+base_url: https://api.planetscale.com/v1
+headers: {}
+site_url: https://planetscale.com
+openapi_url: ""
+docs_urls:
+  - https://planetscale.com/docs
+static:
+  site_url: https://planetscale.com
+  docs_urls:
+    - https://planetscale.com/docs
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: GET
+        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/schema
+        assertField: data[?name=='axarena_customers_{ns}'].raw — assert entry exists and
+          raw DDL contains all three named column definitions
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: na
+        description: PlanetScale REST API explicitly provides no direct data access; row
+          counting and row sampling require a live MySQL connection, not an HTTP
+          endpoint.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: na
+        description: PlanetScale REST API has no SQL query execution endpoint; filtered
+          row reads and paginated result sets require a direct MySQL connection.
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: na
+        description: PlanetScale runs MySQL, which has no native Row-Level Security; RLS
+          is a PostgreSQL-only mechanism and is structurally absent in MySQL.
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: na
+        description: Row counting and DML error inspection require a direct MySQL
+          connection; PlanetScale REST API provides no data read or error replay
+          endpoint.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: na
+        description: INSERT execution and FK violation error inspection require a direct
+          MySQL connection; PlanetScale REST API has no DML or query endpoint.
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: na
+        description: PlanetScale REST API offers no bulk data export endpoint; exports
+          are performed via mysqldump or a direct database connection.
+    difficulty: L1
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: GET
+        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/schema
+        assertField: data[?name=='axarena_customers_{ns}'].raw — assert entry exists and
+          raw DDL contains 'status' column with the correct type and DEFAULT
+          'active'
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: na
+        description: PlanetScale is a database-only service with no serverless or edge
+          function deployment platform; there is no function execution or
+          invocation endpoint.
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: roundtrip
+        description: |-
+          List the vendor's backups/snapshots/branches; assert the agent's
+          reported identifier is present with a creation timestamp within the
+          last 60 seconds.
+        readMethod: GET
+        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/backups
+        assertField: data[?id=='{reported_backup_id}'] — assert entry exists with
+          state='success' and created_at within the last 60 seconds
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []

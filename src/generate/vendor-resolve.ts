@@ -71,7 +71,7 @@ export async function resolveVendors(
 ): Promise<ResolveResult[]> {
   const harness = opts.harness ?? "claude-code";
   const prompt = buildBatchPrompt(vendors, category);
-  const raw = invokeHarness(prompt, { harness, model: opts.model, effort: opts.effort });
+  const raw = await invokeHarness(prompt, { harness, model: opts.model, effort: opts.effort });
   const json = extractJsonObject(raw);
   const parsed = LlmBatchResultSchema.safeParse(JSON.parse(json));
   if (!parsed.success) {

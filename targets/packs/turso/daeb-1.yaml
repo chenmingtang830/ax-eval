@@ -1,0 +1,313 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-oz7f1b
+name: turso
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-oz7f1b
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://docs.turso.tech
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: TURSO_AUTH_TOKEN
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+base_url: https://{databaseName}-{organizationSlug}.turso.io
+headers: {}
+site_url: https://turso.tech
+openapi_url: ""
+docs_urls:
+  - https://docs.turso.tech
+static:
+  site_url: https://turso.tech
+  docs_urls:
+    - https://docs.turso.tech
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: "POST body:
+          {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+          table_info('axarena_customers_{ns}')\"}}]}; assert
+          results[0].response.rows contains exactly 3 entries; assert entries
+          include name='id', name='email', and the third named column in their
+          respective [cid,name,type,notnull,dflt_value,pk] positions"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
+          row by email and assert the expected shape.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: 'POST body: {"requests":[{"type":"execute","stmt":{"sql":"SELECT
+          COUNT(*) FROM
+          axarena_customers_{ns}"}},{"type":"execute","stmt":{"sql":"SELECT *
+          FROM axarena_customers_{ns} WHERE
+          email=?","args":[{"type":"text","value":"{expected_email}"}]}}]};
+          assert results[0].response.rows[0][0].value=100; assert
+          results[1].response.rows[0] is non-empty with cols matching [id,
+          email, <third_col>]'
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Re-execute the query through the vendor's standard API; assert exactly
+          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
+          reported page 1 contains the lowest-ordered 5 emails.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: "POST body:
+          {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT
+          COUNT(*) FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-%'\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT email
+          FROM axarena_customers_{ns} WHERE email LIKE 'probe-%' ORDER BY email
+          LIMIT 5 OFFSET 0\"}}]}; assert
+          results[0].response.rows[0][0].value=11; assert
+          results[1].response.rows has 5 entries equal to the 5
+          lexicographically lowest values from {probe-1, probe-10, probe-11,
+          probe-12, probe-13, probe-14, probe-15, probe-16, probe-17, probe-18,
+          probe-19}"
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: na
+        description: SQLite/libSQL has no native row-level security mechanism; Turso
+          exposes no RLS API — tenant isolation must be enforced at the
+          application layer or via separate databases per tenant
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: roundtrip
+        description: |-
+          After the attempted duplicate insert, count rows with the duplicate
+          email; assert exactly 1. Inspect the agent's reported error and assert
+          a recognizable unique-violation error code or message.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: "POST body:
+          {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT
+          COUNT(*) FROM axarena_customers_{ns} WHERE
+          email=?\",\"args\":[{\"type\":\"text\",\"value\":\"{duplicate_email}\
+          \"}]}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"INSERT INTO
+          axarena_customers_{ns} (email) VALUES
+          (?)\",\"args\":[{\"type\":\"text\",\"value\":\"{duplicate_email}\"}]}\
+          }]}; assert results[0].response.rows[0][0].value=1; assert
+          results[1].type='error' and results[1].error.message contains 'UNIQUE
+          constraint failed'"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Attempt to insert an order with a customer_id that doesn't exist;
+          assert that the insert fails with a recognizable foreign-key
+          violation. Read back the valid order; assert the relationship holds.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: "POST body:
+          {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+          foreign_keys=ON\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"INSERT
+          INTO axarena_orders_{ns} (customer_id) VALUES
+          (2147483647)\"}},{\"type\":\"execute\",\"stmt\":{\"sql\":\"SELECT
+          o.id, o.customer_id, c.email FROM axarena_orders_{ns} o JOIN
+          axarena_customers_{ns} c ON o.customer_id=c.id WHERE
+          o.id=?\",\"args\":[{\"type\":\"integer\",\"value\":\"{valid_order_id}\
+          \"}]}}]}; assert results[1].type='error' and results[1].error.message
+          contains 'FOREIGN KEY constraint failed'; assert
+          results[2].response.rows[0] is non-empty with o.customer_id matching
+          an existing c.id"
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Parse the export; assert exactly 100 records and that each record has
+          the expected fields. If file path: read the file. If stream: capture
+          bytes from the agent's reported handle.
+        readMethod: GET
+        readPathTemplate: /dump
+        assertField: Response body is a plain-text SQL dump; count occurrences of
+          'INSERT INTO axarena_customers_{ns}' = 100; each INSERT statement
+          lists the expected column names (id, email, <third_col>) in the column
+          list
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        assertField: "POST body:
+          {\"requests\":[{\"type\":\"execute\",\"stmt\":{\"sql\":\"PRAGMA
+          table_info('axarena_customers_{ns}')\"}},{\"type\":\"execute\",\"stmt\
+          \":{\"sql\":\"SELECT COUNT(*) FROM axarena_customers_{ns} WHERE status
+          IS NULL OR status != 'active'\"}}]}; assert results[0].response.rows
+          contains an entry with name='status' and type in ['TEXT','VARCHAR'];
+          assert results[1].response.rows[0][0].value=0"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: na
+        description: Turso does not provide serverless or edge function deployment;
+          there is no vendor-hosted function runtime or invocation API — compute
+          must be deployed separately on a platform that connects to Turso as a
+          database
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: roundtrip
+        description: |-
+          List the vendor's backups/snapshots/branches; assert the agent's
+          reported identifier is present with a creation timestamp within the
+          last 60 seconds.
+        readMethod: GET
+        readPathTemplate: https://api.turso.tech/v1/organizations/{organizationSlug}/databases/{agentReportedDatabaseName}
+        assertField: "Use Authorization: Bearer {TURSO_API_TOKEN} (platform token, not
+          DB token); assert HTTP 200; assert
+          response.database.name={agent_reported_identifier}; assert
+          response.database.created_at parses as an ISO-8601 timestamp within 60
+          seconds of the restore operation time; note: Turso PITR materializes
+          as a new named database — 'backups' are enumerated via the databases
+          list endpoint"
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []

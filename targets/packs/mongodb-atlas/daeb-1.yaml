@@ -1,0 +1,286 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-6y6hdx
+name: mongodb-atlas
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-6y6hdx
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://www.mongodb.com/docs/atlas/
+auth_method: pat
+api_style: rest
+auth:
+  type: api-key
+  env: MONGODB_ATLAS_DATA_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  header: apiKey
+sandbox_scope: []
+base_url: https://data.mongodb-api.com/app/{app-id}
+headers: {}
+site_url: https://www.mongodb.com
+openapi_url: ""
+docs_urls:
+  - https://www.mongodb.com/docs/atlas/
+static:
+  site_url: https://www.mongodb.com
+  docs_urls:
+    - https://www.mongodb.com/docs/atlas/
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/findOne
+        assertField: "Body:
+          {dataSource,database,collection:'axarena_customers_{ns}',filter:{}}.
+          Assert: response.document != null (collection exists and has
+          documents); all three named field keys present in response.document"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
+          row by email and assert the expected shape.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/aggregate
+        assertField: "Body:
+          {dataSource,database,collection:'axarena_customers_{ns}',pipeline:[{'\
+          $count':'total'}]}. Assert: response.documents[0].total == 100. Second
+          call: /action/findOne with filter:{email:'{probe_email}'} — assert
+          response.document contains expected name/email/id shape"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Re-execute the query through the vendor's standard API; assert exactly
+          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
+          reported page 1 contains the lowest-ordered 5 emails.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/find
+        assertField: "Body:
+          {filter:{email:{'$regex':'^probe-(1$|1[0-9])'}},sort:{email:1}}.
+          Assert: response.documents.length == 11. Second call with limit:5 —
+          assert response.documents[0..4] are the five lexicographically lowest
+          probe emails"
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: na
+        description: MongoDB Atlas has no native row-level security; database access
+          control is collection/database-scoped via roles, not per-document read
+          predicates enforced by the engine. Per-row filtering requires Atlas
+          App Services rules (a separate application-layer product), not a core
+          database policy mechanism.
+    difficulty: L3
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: roundtrip
+        description: |-
+          After the attempted duplicate insert, count rows with the duplicate
+          email; assert exactly 1. Inspect the agent's reported error and assert
+          a recognizable unique-violation error code or message.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/aggregate
+        assertField: "Body:
+          {filter:{email:'{duplicate_email}'},pipeline:[{'$count':'total'}]}.
+          Assert: response.documents[0].total == 1. Agent's reported insertOne
+          error message must contain 'E11000' (duplicate key error) or
+          'duplicate key' string"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: na
+        description: MongoDB Atlas is a document database with no native foreign key
+          constraints; cross-collection referential integrity is not enforced at
+          the engine level, so a distinct FK-violation error code cannot be
+          produced by a standard insert.
+    difficulty: L2
+    allowed_surfaces: []
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Parse the export; assert exactly 100 records and that each record has
+          the expected fields. If file path: read the file. If stream: capture
+          bytes from the agent's reported handle.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/aggregate
+        assertField: "Body: {pipeline:[{'$count':'total'}]}. Assert:
+          response.documents[0].total == 100. Second call /action/findOne —
+          assert response.document contains each expected field key from the
+          export schema"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: POST
+        readPathTemplate: /data/v1/action/aggregate
+        assertField: "Body:
+          {pipeline:[{'$match':{'status':'active'}},{'$count':'total'}]}.
+          Assert: response.documents[0].total == 100 (all existing rows have
+          status='active'). Second call with pipeline
+          [{$match:{status:{$exists:false}}},{$count:'total'}] — assert
+          response.documents[0].total == 0 (no rows missing the field)"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Independently invoke the deployed function via the vendor's API or
+          public URL; assert the response is JSON with the correct count.
+        readMethod: GET
+        readPathTemplate: /endpoint/{function-endpoint-name}
+        assertField: "Assert: HTTP 200; response body is valid JSON; response.count ==
+          expected_count reported by agent"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: roundtrip
+        description: |-
+          List the vendor's backups/snapshots/branches; assert the agent's
+          reported identifier is present with a creation timestamp within the
+          last 60 seconds.
+        readMethod: GET
+        readPathTemplate: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
+        assertField: "Uses Admin API HTTP Digest auth (MONGODB_ATLAS_PUBLIC_KEY /
+          MONGODB_ATLAS_PRIVATE_KEY). Assert: response.results[] contains entry
+          where id == agent_reported_snapshot_id; entry.createdAt parses to a
+          timestamp within 60s of now; entry.status in
+          ['completed','queued','inProgress']"
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []

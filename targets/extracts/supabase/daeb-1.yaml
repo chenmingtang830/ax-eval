@@ -2,285 +2,87 @@ vendor: Supabase
 category: database
 slug: supabase
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:04:56.167Z
+extracted_at: 2026-06-30T22:34:46.903Z
+vendor_config:
+  base_url: https://{project_ref}.supabase.co/rest/v1
+  auth_type: api-key
+  auth_header: apikey
+  auth_env: SUPABASE_SERVICE_ROLE_KEY
 tasks:
   - task_id: db-T01-create-table
     na: false
-    approach: Connect to the project's PostgreSQL instance via the direct database
-      URL (or Supabase Management API /v1/projects/{ref}/database/query) and
-      execute SQL DDL to create the table with uuid primary key, unique email,
-      and timestamptz created_at defaulting to now().
-    mechanism: PostgreSQL DDL via direct pg client or Supabase Management API
-    snippet: >-
-      import { Client } from 'pg';
-
-      const client = new Client({ connectionString: process.env.SUPABASE_DB_URL
-      });
-
-      await client.connect();
-
-      await client.query(`
-        CREATE TABLE axarena_customers_ns (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          email TEXT UNIQUE NOT NULL,
-          created_at TIMESTAMPTZ DEFAULT now()
-        )
-      `);
-
-      await client.end();
-    oracle_approach: Query SELECT column_name, data_type FROM
-      information_schema.columns WHERE table_name = 'axarena_customers_ns' ORDER
-      BY ordinal_position; assert exactly three rows with names id (uuid), email
-      (text), created_at (timestamp with time zone).
+    read_method: GET
+    read_path_template: /
+    assert_field: response body is OpenAPI 2.0 JSON;
+      definitions["axarena_customers_{ns}"].properties contains exactly the
+      three named column keys, each with the correct 'type' and optional
+      'format' values
   - task_id: db-T02-insert-rows
     na: false
-    approach: Use the supabase-js SDK to bulk-insert 100 rows in a single .insert()
-      call, passing an array of objects with unique emails probe-1@... through
-      probe-100@... and deterministic created_at timestamps (e.g., epoch + n
-      seconds).
-    mechanism: supabase-js SDK .insert() via PostgREST
-    snippet: >-
-      import { createClient } from '@supabase/supabase-js';
-
-      const supabase = createClient(process.env.SUPABASE_URL,
-      process.env.SUPABASE_SERVICE_ROLE_KEY);
-
-      const rows = Array.from({ length: 100 }, (_, i) => ({
-        email: `probe-${i + 1}@axarena-ns.test`,
-        created_at: new Date(Date.UTC(2024, 0, 1, 0, 0, i)).toISOString()
-      }));
-
-      const { error } = await
-      supabase.from('axarena_customers_ns').insert(rows);
-
-      if (error) throw error;
-    oracle_approach: "Call supabase.from('axarena_customers_ns').select('*', {
-      count: 'exact', head: true }) and assert count === 100. Fetch the row with
-      email = 'probe-1@axarena-ns.test' and assert it has id, email, and
-      created_at fields."
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?select=*&limit=0
+    assert_field: "send Prefer: count=exact header; assert Content-Range response
+      header value is */100; then GET
+      /axarena_customers_{ns}?email=eq.{sampled_email}&limit=1 and assert
+      response[0] contains all expected field keys with correct value types"
   - task_id: db-T03-query-pattern
     na: false
-    approach: Use supabase-js .like() for LIKE pattern matching and .range(from, to)
-      for offset-based pagination, ordering by created_at ascending. Fetch page
-      1 with .range(0, 4) and page 2 with .range(5, 9).
-    mechanism: supabase-js SDK PostgREST LIKE filter + range pagination
-    snippet: |-
-      const pattern = 'probe-1%@axarena-ns.test';
-      const { data: page1 } = await supabase
-        .from('axarena_customers_ns')
-        .select('*')
-        .like('email', pattern)
-        .order('created_at', { ascending: true })
-        .range(0, 4);
-      const { data: page2 } = await supabase
-        .from('axarena_customers_ns')
-        .select('*')
-        .like('email', pattern)
-        .order('created_at', { ascending: true })
-        .range(5, 9);
-    oracle_approach: "Fetch all matching rows via .like('email',
-      'probe-1%@axarena-ns.test').select('*', { count: 'exact' }) and assert
-      count === 11 (probe-1, probe-10 through probe-19). Verify page1[0].email
-      is the email with the smallest created_at among the 11 matches."
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5
+    assert_field: "send Prefer: count=exact header; assert Content-Range total ==
+      11; assert response array length == 5; assert the 5 returned email values
+      are the 5 lexicographically lowest among all 11 pattern matches"
   - task_id: db-T04-rls-policy
     na: false
-    approach: Add an owner UUID column to the table, enable PostgreSQL Row Level
-      Security via ALTER TABLE, and create a SELECT policy using auth.uid() so
-      each authenticated user can only read rows where owner matches their JWT
-      subject. Insert test rows with distinct owner UUIDs matching two test
-      users.
-    mechanism: PostgreSQL Row Level Security (RLS) via SQL DDL + Supabase Auth JWT
-    snippet: |-
-      -- Execute via pg client or Management API
-      ALTER TABLE axarena_customers_ns ADD COLUMN IF NOT EXISTS owner UUID;
-      ALTER TABLE axarena_customers_ns ENABLE ROW LEVEL SECURITY;
-      CREATE POLICY "users_read_own_rows"
-        ON axarena_customers_ns
-        FOR SELECT
-        USING (owner = auth.uid());
-
-      -- Assign owners to existing rows for testing
-      UPDATE axarena_customers_ns
-        SET owner = '<user_a_uid>'
-        WHERE email LIKE 'probe-1%@axarena-ns.test';
-      UPDATE axarena_customers_ns
-        SET owner = '<user_b_uid>'
-        WHERE email NOT LIKE 'probe-1%@axarena-ns.test';
-    oracle_approach: Obtain JWT tokens for user A and user B via
-      supabase.auth.signInWithPassword(). Query axarena_customers_ns as each
-      user using the anon key + user session. Assert user A sees only their
-      rows, user B sees only their rows, and neither sees the other's rows.
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?select=*
+    assert_field: "call with Authorization: Bearer {user1_jwt} plus apikey header;
+      assert every row's owner_id == user1_id and Prefer: count=exact
+      Content-Range matches user1 expected count; repeat identically with
+      {user2_jwt}; assert no row in user2 response has owner_id == user1_id and
+      counts are disjoint"
   - task_id: db-T05-unique-constraint
     na: false
-    approach: The email column was defined UNIQUE in T01. Attempt to insert a row
-      with a pre-existing email via supabase-js and inspect the returned error.
-      Assert the PostgreSQL error code is '23505' (unique_violation).
-    mechanism: PostgreSQL UNIQUE constraint enforced via PostgREST, error surfaced
-      by supabase-js SDK
-    snippet: |-
-      const { error } = await supabase
-        .from('axarena_customers_ns')
-        .insert({ email: 'probe-1@axarena-ns.test' });
-      // error.code === '23505'
-      // error.message contains 'duplicate key value violates unique constraint'
-      console.log(error.code, error.message);
-    oracle_approach: After the failed insert, query SELECT count(*) FROM
-      axarena_customers_ns WHERE email = 'probe-1@axarena-ns.test' and assert
-      count === 1. Confirm error.code === '23505'.
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?email=eq.{duplicate_email}
+    assert_field: response array length == 1; agent's reported INSERT error response
+      body contains PostgreSQL error code '23505' or message substring 'unique'
+      or 'duplicate key'
   - task_id: db-T06-foreign-key
     na: false
-    approach: Execute SQL DDL to create axarena_orders_ns with a customer_id UUID
-      column that REFERENCES axarena_customers_ns(id). Insert one valid order
-      using an existing customer's id. Then attempt an insert with a
-      non-existent customer_id (all-zeros UUID) and capture the FK violation
-      error.
-    mechanism: PostgreSQL FOREIGN KEY constraint via SQL DDL; CRUD via supabase-js SDK
-    snippet: >-
-      // DDL via pg client
-
-      await client.query(`
-        CREATE TABLE axarena_orders_ns (
-          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-          customer_id UUID REFERENCES axarena_customers_ns(id),
-          amount NUMERIC
-        )
-      `);
-
-
-      // Valid insert
-
-      const { data: cust } = await
-      supabase.from('axarena_customers_ns').select('id').limit(1).single();
-
-      await supabase.from('axarena_orders_ns').insert({ customer_id: cust.id,
-      amount: 99.99 });
-
-
-      // FK violation
-
-      const { error } = await supabase.from('axarena_orders_ns')
-        .insert({ customer_id: '00000000-0000-0000-0000-000000000000', amount: 1 });
-      console.log(error.code); // '23503'
-    oracle_approach: Count rows in axarena_orders_ns and assert exactly 1. Assert
-      error.code === '23503'. Fetch the valid order and assert its customer_id
-      matches the existing customer's id.
+    read_method: GET
+    read_path_template: /axarena_orders_{ns}?select=*,axarena_customers_{ns}(*)&id=eq.{valid_order_id}
+    assert_field: agent's reported invalid-insert POST error body contains code
+      '23503' or message substring 'foreign key'; valid-order GET
+      response[0].axarena_customers_{ns} is a non-null object containing the
+      expected customer fields
   - task_id: db-T07-export
     na: false
-    approach: Fetch all rows from axarena_customers_ns via supabase-js .select('*')
-      (using service role key to bypass RLS) and write the result array to a
-      JSON file on disk. Alternatively, use the PostgreSQL COPY command via psql
-      to export as CSV.
-    mechanism: supabase-js SDK .select('*') + Node.js fs.writeFileSync
-    snippet: >-
-      import fs from 'fs';
-
-      const { data, error } = await supabase
-        .from('axarena_customers_ns')
-        .select('*');
-      if (error) throw error;
-
-      fs.writeFileSync('axarena_customers_export.json', JSON.stringify(data,
-      null, 2));
-
-      console.log(`Exported ${data.length} rows to
-      axarena_customers_export.json`);
-    oracle_approach: Read and JSON.parse the exported file; assert the array length
-      === 100 and that every object contains keys id, email, and created_at.
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?select=*
+    assert_field: response array length == 100; each element contains all expected
+      field keys; if agent reported a file path instead, read that file and
+      assert 100 records each with the expected fields present
   - task_id: db-T08-schema-migration
     na: false
-    approach: Use the Supabase CLI to create a timestamped migration file containing
-      ALTER TABLE ... ADD COLUMN status TEXT DEFAULT 'active', then apply with
-      'supabase db push'. Alternatively, execute the ALTER TABLE directly via
-      the pg client or Supabase Management API for projects without local CLI
-      setup.
-    mechanism: Supabase CLI migrations (supabase migration new + supabase db push)
-      or direct ALTER TABLE via pg client
-    snippet: >-
-      # CLI approach
-
-      supabase migration new add_status_column
-
-      # Contents written to
-      supabase/migrations/<timestamp>_add_status_column.sql:
-
-      # ALTER TABLE axarena_customers_ns ADD COLUMN status TEXT DEFAULT
-      'active';
-
-      supabase db push
-
-
-      # Or directly via pg client:
-
-      await client.query("ALTER TABLE axarena_customers_ns ADD COLUMN IF NOT
-      EXISTS status TEXT DEFAULT 'active'");
-    oracle_approach: Query SELECT column_name, column_default FROM
-      information_schema.columns WHERE table_name = 'axarena_customers_ns' AND
-      column_name = 'status'; assert one row with column_default containing
-      'active'. Then SELECT count(*) FROM axarena_customers_ns WHERE status =
-      'active'; assert count === 100.
+    read_method: GET
+    read_path_template: /axarena_customers_{ns}?status=neq.active&select=id
+    assert_field: "send Prefer: count=exact; assert HTTP 200 (confirms column
+      exists, else PostgREST returns 400); assert Content-Range total == 0
+      meaning all rows have status='active'; corroborate column type by checking
+      definitions[\"axarena_customers_{ns}\"].properties.status in GET /
+      response"
   - task_id: db-T09-runtime-integration
     na: false
-    approach: Create a Supabase Edge Function (Deno/TypeScript) at
-      supabase/functions/count-customers/index.ts that uses the supabase-js
-      client with the service role key to count rows in axarena_customers_ns and
-      returns JSON. Deploy with 'supabase functions deploy count-customers',
-      then invoke via the project's functions URL.
-    mechanism: Supabase Edge Functions (Deno runtime) + supabase-js SDK
-    snippet: >-
-      // supabase/functions/count-customers/index.ts
-
-      import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-
-      Deno.serve(async (_req) => {
-        const supabase = createClient(
-          Deno.env.get('SUPABASE_URL'),
-          Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
-        );
-        const { count, error } = await supabase
-          .from('axarena_customers_ns')
-          .select('*', { count: 'exact', head: true });
-        if (error) return new Response(JSON.stringify({ error: error.message }), { status: 500 });
-        return new Response(JSON.stringify({ count }), {
-          headers: { 'Content-Type': 'application/json' }
-        });
-      });
-
-
-      // Deploy:
-
-      // supabase functions deploy count-customers
-
-      // Invoke:
-
-      // curl https://<ref>.supabase.co/functions/v1/count-customers \
-
-      //   -H 'Authorization: Bearer <anon_key>'
-    oracle_approach: HTTP GET the deployed function URL with the anon key
-      Authorization header; parse the JSON response body and assert
-      response.count === 100 (or the current row count verified independently).
+    read_method: GET
+    read_path_template: https://{project_ref}.supabase.co/functions/v1/{function_name}
+    assert_field: response Content-Type contains application/json; response body is
+      valid JSON; the count field (or equivalent top-level key) equals the
+      expected integer row count
   - task_id: db-T10-backup-restore
-    na: false
-    approach: "Use the Supabase Management API to list database backups for the
-      project via GET /v1/projects/{ref}/database/backups, authenticating with a
-      personal access token. Report the most recent backup's ID and inserted_at
-      timestamp. On Pro/Team plans, PITR is continuous; on Free plans, one daily
-      backup is retained. Note: triggering on-demand backups programmatically is
-      only available on Pro/Team plans via the dashboard or support; the agent
-      lists existing automated backups."
-    mechanism: Supabase Management API GET /v1/projects/{ref}/database/backups
-    snippet: |-
-      const res = await fetch(
-        `https://api.supabase.com/v1/projects/${projectRef}/database/backups`,
-        { headers: { Authorization: `Bearer ${accessToken}` } }
-      );
-      const body = await res.json();
-      const backups = body.backups ?? body;
-      const latest = [...backups].sort((a, b) =>
-        new Date(b.inserted_at) - new Date(a.inserted_at)
-      )[0];
-      console.log('Backup ID:', latest.id);
-      console.log('Created at:', latest.inserted_at);
-    oracle_approach: Re-call GET /v1/projects/{ref}/database/backups and assert the
-      agent-reported backup ID appears in the list with an inserted_at value.
-      For PITR-enabled projects, verify the status field indicates a completed
-      backup.
+    na: true
+    na_reason: Supabase provides no REST endpoint to trigger an on-demand backup;
+      backups are automated on a fixed schedule (daily on Pro, weekly on Free)
+      with no sub-minute granularity. There is no REST call that can assert a
+      backup identifier created within the last 60 seconds.
+    read_method: GET

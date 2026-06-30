@@ -1,0 +1,288 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-06-30-d5n6kg
+name: supabase
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-06-30-d5n6kg
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://supabase.com/docs
+auth_method: pat
+api_style: rest
+auth:
+  type: api-key
+  env: SUPABASE_SERVICE_ROLE_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  header: apikey
+sandbox_scope: []
+base_url: https://{project_ref}.supabase.co/rest/v1
+headers: {}
+site_url: https://supabase.com
+openapi_url: ""
+docs_urls:
+  - https://supabase.com/docs
+static:
+  site_url: https://supabase.com
+  docs_urls:
+    - https://supabase.com/docs
+  checks: []
+tasks:
+  - id: db-T01-create-table
+    title: "T01: create a table"
+    prompt: |-
+      Create a new table named `axarena_customers_{ns}` with the columns:
+      id (primary key, uuid or autoincrement int — vendor's idiomatic choice),
+      email (text/varchar, unique), and created_at (timestamp with default
+      now()). The vendor's idiomatic schema definition mechanism is acceptable
+      (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
+      collection identifier.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table list / schema introspection; assert
+          `axarena_customers_{ns}` exists with the three named columns.
+        readMethod: GET
+        readPathTemplate: /
+        assertField: response body is OpenAPI 2.0 JSON;
+          definitions["axarena_customers_{ns}"].properties contains exactly the
+          three named column keys, each with the correct 'type' and optional
+          'format' values
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T02-insert-rows
+    title: "T02: bulk-insert rows"
+    prompt: |-
+      Insert exactly 100 rows into `axarena_customers_{ns}`, each with a
+      unique email of the form `probe-<n>@axarena-{ns}.test` for n in 1..100
+      and a deterministic created_at. The vendor's idiomatic bulk-insert
+      mechanism is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
+          row by email and assert the expected shape.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?select=*&limit=0
+        assertField: "send Prefer: count=exact header; assert Content-Range response
+          header value is */100; then GET
+          /axarena_customers_{ns}?email=eq.{sampled_email}&limit=1 and assert
+          response[0] contains all expected field keys with correct value types"
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T03-query-pattern
+    title: "T03: pattern query with pagination"
+    prompt: |-
+      From `axarena_customers_{ns}`, return all rows where email matches the
+      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      ordered by created_at, paginated at 5 rows per page. Return the first
+      two pages.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Re-execute the query through the vendor's standard API; assert exactly
+          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
+          reported page 1 contains the lowest-ordered 5 emails.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5
+        assertField: "send Prefer: count=exact header; assert Content-Range total == 11;
+          assert response array length == 5; assert the 5 returned email values
+          are the 5 lexicographically lowest among all 11 pattern matches"
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T04-rls-policy
+    title: "T04: row-level access control"
+    prompt: |-
+      Configure row-level access control so that each user can only read rows
+      from `axarena_customers_{ns}` where the row's owner matches the
+      authenticated user. The vendor's idiomatic mechanism — Postgres RLS,
+      attribute-based policy, query-rewrite middleware, function-level guard
+      — is acceptable.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Authenticate as two distinct users; assert each sees only their own
+          rows, neither sees the other's, and the count is correct per user.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?select=*
+        assertField: "call with Authorization: Bearer {user1_jwt} plus apikey header;
+          assert every row's owner_id == user1_id and Prefer: count=exact
+          Content-Range matches user1 expected count; repeat identically with
+          {user2_jwt}; assert no row in user2 response has owner_id == user1_id
+          and counts are disjoint"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T05-unique-constraint
+    title: "T05: unique constraint enforcement"
+    prompt: |-
+      Verify (or add, if missing) a unique constraint on `email` in
+      `axarena_customers_{ns}`. Attempt to insert a row with an email that
+      already exists. The insert must fail.
+    oracles:
+      - type: roundtrip
+        description: |-
+          After the attempted duplicate insert, count rows with the duplicate
+          email; assert exactly 1. Inspect the agent's reported error and assert
+          a recognizable unique-violation error code or message.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?email=eq.{duplicate_email}
+        assertField: response array length == 1; agent's reported INSERT error response
+          body contains PostgreSQL error code '23505' or message substring
+          'unique' or 'duplicate key'
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T06-foreign-key
+    title: "T06: relational integrity (foreign key)"
+    prompt: |-
+      Create a second table `axarena_orders_{ns}` with columns id (pk),
+      customer_id (referencing `axarena_customers_{ns}.id`), and amount
+      (numeric). Establish the foreign-key relationship using the vendor's
+      idiomatic mechanism. Insert one order referring to an existing customer.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Attempt to insert an order with a customer_id that doesn't exist;
+          assert that the insert fails with a recognizable foreign-key
+          violation. Read back the valid order; assert the relationship holds.
+        readMethod: GET
+        readPathTemplate: /axarena_orders_{ns}?select=*,axarena_customers_{ns}(*)&id=eq.{valid_order_id}
+        assertField: agent's reported invalid-insert POST error body contains code
+          '23503' or message substring 'foreign key'; valid-order GET
+          response[0].axarena_customers_{ns} is a non-null object containing the
+          expected customer fields
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T07-export
+    title: "T07: export table contents"
+    prompt: |-
+      Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
+      the output path (file) or stream.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Parse the export; assert exactly 100 records and that each record has
+          the expected fields. If file path: read the file. If stream: capture
+          bytes from the agent's reported handle.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?select=*
+        assertField: response array length == 100; each element contains all expected
+          field keys; if agent reported a file path instead, read that file and
+          assert 100 records each with the expected fields present
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T08-schema-migration
+    title: "T08: schema migration"
+    prompt: |-
+      Apply a forward migration to `axarena_customers_{ns}`: add a new column
+      `status` (text/varchar) with default value `active`. Use the vendor's
+      idiomatic migration mechanism (migrations directory, dashboard, API).
+    oracles:
+      - type: roundtrip
+        description: |-
+          Read back the table schema; assert `status` column exists, is the
+          correct type, and that all existing rows have `status='active'`.
+        readMethod: GET
+        readPathTemplate: /axarena_customers_{ns}?status=neq.active&select=id
+        assertField: "send Prefer: count=exact; assert HTTP 200 (confirms column exists,
+          else PostgREST returns 400); assert Content-Range total == 0 meaning
+          all rows have status='active'; corroborate column type by checking
+          definitions[\"axarena_customers_{ns}\"].properties.status in GET /
+          response"
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T09-runtime-integration
+    title: "T09: runtime integration (function / edge)"
+    prompt: |-
+      Deploy or configure a serverless function / edge handler / hosted
+      runtime mechanism (vendor's idiom) that, when invoked, connects to the
+      database and returns the count of rows in `axarena_customers_{ns}` as
+      JSON. Invoke it and report the response.
+    oracles:
+      - type: roundtrip
+        description: |-
+          Independently invoke the deployed function via the vendor's API or
+          public URL; assert the response is JSON with the correct count.
+        readMethod: GET
+        readPathTemplate: https://{project_ref}.supabase.co/functions/v1/{function_name}
+        assertField: response Content-Type contains application/json; response body is
+          valid JSON; the count field (or equivalent top-level key) equals the
+          expected integer row count
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
+    depends_on: []
+    trace: []
+  - id: db-T10-backup-restore
+    title: "T10: backup or point-in-time recovery"
+    prompt: |-
+      Initiate a backup, snapshot, or branch (whichever maps to point-in-time
+      recovery in the vendor's idiom). Report the snapshot/backup/branch
+      identifier and its creation timestamp.
+    oracles:
+      - type: na
+        description: Supabase provides no REST endpoint to trigger an on-demand backup;
+          backups are automated on a fixed schedule (daily on Pro, weekly on
+          Free) with no sub-minute granularity. There is no REST call that can
+          assert a backup identifier created within the last 60 seconds.
+    difficulty: L4
+    allowed_surfaces: []
+    depends_on: []
+    trace: []

@@ -2,344 +2,70 @@ vendor: Convex
 category: database
 slug: convex
 suite_name: DAEB-1
-extracted_at: 2026-06-30T12:05:39.188Z
+extracted_at: 2026-06-30T22:40:17.037Z
+vendor_config:
+  base_url: https://{CONVEX_DEPLOYMENT_NAME}.convex.cloud
+  auth_type: bearer
+  auth_env: CONVEX_DEPLOY_KEY
 tasks:
   - task_id: db-T01-create-table
-    na: false
-    approach: Define the table in convex/schema.ts using defineSchema and
-      defineTable with email (v.string()) and created_at (v.number()) fields.
-      Convex auto-generates the _id primary key (a string-encoded 64-bit ID —
-      vendor's idiomatic PK). Add a by_email index for uniqueness enforcement
-      later. Deploy with `npx convex deploy`. The table identifier is the string
-      key passed to defineTable.
-    mechanism: Convex schema-as-code (defineSchema / defineTable in convex/schema.ts)
-    snippet: >-
-      // convex/schema.ts
-
-      import { defineSchema, defineTable } from "convex/server";
-
-      import { v } from "convex/values";
-
-
-      export default defineSchema({
-        axarena_customers_ns: defineTable({
-          email: v.string(),
-          created_at: v.number(), // Unix ms timestamp; default set in insert mutation
-        }).index("by_email", ["email"])
-          .index("by_created_at", ["created_at"]),
-      });
-
-      // Deploy: npx convex deploy
-    oracle_approach: 'Run a Convex query:
-      `ctx.db.query("axarena_customers_ns").first()` — if the table name is
-      unknown it throws at runtime. Verify via `npx convex data` in the
-      dashboard or the Convex table browser that axarena_customers_ns exists
-      with _id, email, and created_at fields on documents.'
+    na: true
+    na_reason: Convex has no REST endpoint for schema or table introspection; the
+      schema is defined in TypeScript (convex/schema.ts) and deployed via
+      CLI—there is no HTTP API path that lists tables or their columns
   - task_id: db-T02-insert-rows
     na: false
-    approach: Write a Convex mutation that loops n=1..100 calling ctx.db.insert()
-      with deterministic email and created_at values. Invoke via `npx convex
-      run`. Convex mutations are transactional; all 100 inserts run in a single
-      transaction.
-    mechanism: Convex mutation (ctx.db.insert via convex/server)
-    snippet: |-
-      // convex/seed.ts
-      import { mutation } from "./_generated/server";
-      import { v } from "convex/values";
-
-      export const seedCustomers = mutation({
-        args: { ns: v.string() },
-        handler: async (ctx, { ns }) => {
-          for (let n = 1; n <= 100; n++) {
-            await ctx.db.insert("axarena_customers_ns", {
-              email: `probe-${n}@axarena-${ns}.test`,
-              created_at: 1700000000000 + n * 1000,
-            });
-          }
-        },
-      });
-      // npx convex run seed:seedCustomers '{"ns":"test"}'
-    oracle_approach: 'Run a Convex query:
-      `ctx.db.query("axarena_customers_ns").collect()` and assert array length
-      === 100. Fetch a specific row: `.withIndex("by_email", q => q.eq("email",
-      "probe-5@axarena-test.test")).first()` and assert email and created_at
-      match expected values.'
+    read_method: POST
+    read_path_template: /api/run/axarena_customers:countAndSample
+    assert_field: 'value.count === 100; value.sample contains email, name, createdAt
+      fields (POST body: {"args":{"ns":"{ns}"}})'
   - task_id: db-T03-query-pattern
     na: false
-    approach: "Use a Convex query with .withIndex(\"by_email\") and an index range
-      (gte/lt) to match the 'probe-1' prefix — all emails >= 'probe-1@' and <
-      'probe-2' — then .order(\"asc\") and .paginate(). Call twice: first with
-      cursor=null to get page 1, then pass page1.continueCursor to get page 2.
-      Convex's paginationOptsValidator is the idiomatic arg type."
-    mechanism: Convex query with .withIndex(), range bounds, and
-      .paginate(paginationOptsValidator)
-    snippet: >-
-      // convex/customers.ts
-
-      import { query } from "./_generated/server";
-
-      import { paginationOptsValidator } from "convex/server";
-
-      import { v } from "convex/values";
-
-
-      export const queryByEmailPrefix = query({
-        args: { ns: v.string(), paginationOpts: paginationOptsValidator },
-        handler: async (ctx, { ns, paginationOpts }) => {
-          return await ctx.db
-            .query("axarena_customers_ns")
-            .withIndex("by_email", q =>
-              q.gte("email", `probe-1@axarena-${ns}.test`)
-               .lt("email", `probe-2@axarena-${ns}.test`)
-            )
-            .order("asc")
-            .paginate(paginationOpts);
-        },
-      });
-
-      // Page 1: npx convex run customers:queryByEmailPrefix
-      '{"ns":"test","paginationOpts":{"numItems":5,"cursor":null}}'
-
-      // Page 2: replace cursor with page1.continueCursor
-    oracle_approach: Collect all pages by exhausting continueCursor until
-      isDone===true. Assert total unique emails across all pages === 11
-      (probe-1@..., probe-10@... through probe-19@...). Assert page 1 contains
-      the 5 alphabetically lowest matching emails. Assert no email outside the
-      prefix appears.
+    read_method: POST
+    read_path_template: /api/run/axarena_customers:queryProbe
+    assert_field: 'value.total === 11; value.page1.length === 5; value.page1 emails
+      in ascending order (POST body:
+      {"args":{"ns":"{ns}","page":1,"pageSize":5}})'
   - task_id: db-T04-rls-policy
     na: false
-    approach: "Convex has no SQL-style RLS. The idiomatic mechanism is
-      function-level auth: add an owner field (v.string()) to the table schema,
-      populate it with identity.subject on insert, and in every read query call
-      ctx.auth.getUserIdentity() then filter by .withIndex('by_owner', q =>
-      q.eq('owner', identity.subject)). Only the query function itself enforces
-      the policy — there is no DB-layer enforcement outside of
-      mutations/queries."
-    mechanism: Convex function-level auth guard (ctx.auth.getUserIdentity +
-      per-query .withIndex filter)
-    snippet: |-
-      // schema.ts — add owner field and index
-      axarena_customers_ns: defineTable({
-        email: v.string(),
-        created_at: v.number(),
-        owner: v.string(),  // identity.subject of the owning user
-      }).index("by_email", ["email"])
-        .index("by_owner", ["owner"]),
-
-      // convex/customers.ts
-      export const getMyCustomers = query({
-        args: {},
-        handler: async (ctx) => {
-          const identity = await ctx.auth.getUserIdentity();
-          if (!identity) throw new Error("Unauthenticated");
-          return await ctx.db
-            .query("axarena_customers_ns")
-            .withIndex("by_owner", q => q.eq("owner", identity.subject))
-            .collect();
-        },
-      });
-    oracle_approach: Authenticate as user A (JWT with subject='userA') and call
-      getMyCustomers; assert all returned rows have owner==='userA' and no rows
-      with owner==='userB' appear. Repeat authenticated as user B. Assert row
-      counts per user are correct and the union of both result sets covers only
-      their respective owned rows.
+    read_method: POST
+    read_path_template: /api/run/axarena_customers:listOwned
+    assert_field: 'Call twice with distinct Bearer JWTs; each value.rows contains
+      only documents owned by the authenticated identity; row sets are disjoint
+      and per-user count matches expectation (POST body:
+      {"args":{"ns":"{ns}"}})'
   - task_id: db-T05-unique-constraint
-    na: false
-    approach: "Convex has no structural unique constraint at the storage layer.
-      Uniqueness is enforced application-level inside the insert mutation: query
-      the by_email index before inserting; if a document is found, throw a
-      descriptive error. The by_email index defined in schema.ts makes this
-      check an efficient O(log n) lookup rather than a full scan."
-    mechanism: Application-level uniqueness guard in Convex mutation using
-      .withIndex().first()
-    snippet: >-
-      export const insertCustomer = mutation({
-        args: { email: v.string(), created_at: v.number() },
-        handler: async (ctx, args) => {
-          const existing = await ctx.db
-            .query("axarena_customers_ns")
-            .withIndex("by_email", q => q.eq("email", args.email))
-            .first();
-          if (existing !== null) {
-            throw new Error(
-              `ConvexError: unique constraint violation on field 'email': '${args.email}' already exists`
-            );
-          }
-          return await ctx.db.insert("axarena_customers_ns", args);
-        },
-      });
-    oracle_approach: After the failed duplicate insert, run `.withIndex("by_email",
-      q => q.eq("email", duplicateEmail)).collect()` and assert length === 1.
-      Assert the thrown error message contains 'unique constraint violation' (or
-      equivalent). Confirm the total row count is still 100.
+    na: true
+    na_reason: Convex does not enforce unique constraints at the storage layer;
+      duplicate inserts succeed without error, so neither a count-of-1 assertion
+      nor a unique-violation error code or message can be produced via the HTTP
+      API
   - task_id: db-T06-foreign-key
-    na: false
-    approach: Add axarena_orders_ns to schema.ts with customer_id typed as
-      v.id("axarena_customers_ns") — Convex's idiomatic typed reference that
-      validates ID format at the type level. Enforce referential integrity in
-      the insert mutation by calling ctx.db.get(customer_id); if null, throw a
-      FK violation error. Convex has no structural DB-layer FK enforcement; the
-      mutation is the enforcement point.
-    mechanism: Convex v.id() typed reference + application-level FK check in
-      mutation (ctx.db.get)
-    snippet: >-
-      // schema.ts addition
-
-      axarena_orders_ns: defineTable({
-        customer_id: v.id("axarena_customers_ns"),
-        amount: v.number(),
-      }),
-
-
-      // convex/orders.ts
-
-      export const insertOrder = mutation({
-        args: {
-          customer_id: v.id("axarena_customers_ns"),
-          amount: v.number(),
-        },
-        handler: async (ctx, args) => {
-          const customer = await ctx.db.get(args.customer_id);
-          if (customer === null) {
-            throw new Error(
-              `ConvexError: foreign key violation — no customer with id '${args.customer_id}'`
-            );
-          }
-          return await ctx.db.insert("axarena_orders_ns", args);
-        },
-      });
-    oracle_approach: Attempt insertOrder with a syntactically valid but non-existent
-      customer_id (e.g., reconstruct a plausible ID string); assert the mutation
-      throws with 'foreign key violation'. Then insert with a real customer _id;
-      call ctx.db.get(orderId) and assert the returned document's customer_id
-      matches the real customer's _id.
+    na: true
+    na_reason: Convex has no foreign-key constraint enforcement; mutations that
+      reference non-existent document IDs via v.id() succeed without
+      error—referential integrity is not checked at the database level and no
+      FK-violation response exists
   - task_id: db-T07-export
-    na: false
-    approach: Run `npx convex export --path ./export.zip` from the project root.
-      Convex exports all table data as newline-delimited JSON (JSONL) files
-      inside a zip archive, one file per table. The file for
-      axarena_customers_ns will be at `axarena_customers_ns/documents.jsonl`
-      inside the zip. Unzip to inspect.
-    mechanism: Convex CLI export (npx convex export)
-    snippet: |-
-      # Export all table data to a zip archive
-      npx convex export --path ./convex-export.zip
-
-      # Unzip and count records in the customers table
-      unzip -p ./convex-export.zip axarena_customers_ns/documents.jsonl \
-        | wc -l  # should be 100
-
-      # Inspect first record
-      unzip -p ./convex-export.zip axarena_customers_ns/documents.jsonl \
-        | head -1 | jq .
-    oracle_approach: "Unzip the archive; read axarena_customers_ns/documents.jsonl
-      and parse each newline as JSON. Assert exactly 100 records. For each
-      record assert presence of _id, email, and created_at fields. Sample:
-      assert the record with email 'probe-1@...' has the expected created_at
-      value."
+    na: true
+    na_reason: Convex exposes no REST endpoint to trigger or stream a data export;
+      export is available only via CLI (npx convex export) or the dashboard
+      download—there is no HTTP API path to assert against
   - task_id: db-T08-schema-migration
     na: false
-    approach: "Add `status: v.optional(v.string())` to the table definition in
-      schema.ts (optional first so existing documents remain valid), run `npx
-      convex deploy`. Then write and run a backfill mutation that iterates all
-      documents via ctx.db.query().collect() and calls ctx.db.patch(doc._id, {
-      status: 'active' }) on each. Optionally tighten to v.string() and redeploy
-      after backfill."
-    mechanism: Convex schema update (schema.ts v.optional field) + backfill mutation
-      (ctx.db.patch)
-    snippet: |-
-      // 1. schema.ts — add optional status field
-      axarena_customers_ns: defineTable({
-        email: v.string(),
-        created_at: v.number(),
-        status: v.optional(v.string()), // add this
-      }).index("by_email", ["email"]),
-
-      // 2. npx convex deploy
-
-      // 3. convex/migrations.ts — backfill mutation
-      export const backfillStatus = mutation({
-        args: {},
-        handler: async (ctx) => {
-          const rows = await ctx.db.query("axarena_customers_ns").collect();
-          for (const row of rows) {
-            if (row.status === undefined) {
-              await ctx.db.patch(row._id, { status: "active" });
-            }
-          }
-          return { patched: rows.length };
-        },
-      });
-      // npx convex run migrations:backfillStatus
-    oracle_approach: After deploy and backfill, run
-      ctx.db.query("axarena_customers_ns").collect() and assert every document
-      has status==="active" (no undefined). Assert total count is still 100.
-      Assert no document has status other than 'active'.
+    read_method: POST
+    read_path_template: /api/run/axarena_customers:getOne
+    assert_field: "value.doc.status === 'active' and typeof value.doc.status ===
+      'string' (POST body: {\"args\":{\"ns\":\"{ns}\"}})"
   - task_id: db-T09-runtime-integration
     na: false
-    approach: Define a Convex HTTP action in convex/http.ts that calls an internal
-      query to count all rows in axarena_customers_ns and returns the count as
-      JSON. Deploy with `npx convex deploy`. The HTTP action is publicly
-      reachable at `https://<deployment-slug>.convex.site/<path>`. No separate
-      cloud function infrastructure is needed — Convex hosting serves the HTTP
-      action.
-    mechanism: Convex HTTP action (httpAction in convex/http.ts, served at *.convex.site)
-    snippet: |-
-      // convex/customers.ts — internal count query
-      export const countAll = internalQuery({
-        args: {},
-        handler: async (ctx) => {
-          const rows = await ctx.db.query("axarena_customers_ns").collect();
-          return rows.length;
-        },
-      });
-
-      // convex/http.ts
-      import { httpRouter } from "convex/server";
-      import { httpAction } from "./_generated/server";
-      import { internal } from "./_generated/api";
-
-      const http = httpRouter();
-      http.route({
-        path: "/customer-count",
-        method: "GET",
-        handler: httpAction(async (ctx) => {
-          const count = await ctx.runQuery(internal.customers.countAll);
-          return new Response(JSON.stringify({ count }), {
-            status: 200,
-            headers: { "Content-Type": "application/json" },
-          });
-        }),
-      });
-      export default http;
-      // Deploy: npx convex deploy
-      // Invoke: curl https://<deployment>.convex.site/customer-count
-    oracle_approach: "Issue `curl -s
-      https://<deployment>.convex.site/customer-count` independently. Assert
-      HTTP 200, Content-Type: application/json, and parsed body has a `count`
-      field equal to the current row count (100 after T02, or adjusted after
-      T08). Re-invoke after inserting a row to assert count increments."
+    read_method: POST
+    read_path_template: /api/run/axarena:runtimeCheck
+    assert_field: 'HTTP 200; response Content-Type: application/json; value.count is
+      a number matching expected row count (POST body: {"args":{"ns":"{ns}"}})'
   - task_id: db-T10-backup-restore
-    na: false
-    approach: Run `npx convex export --path ./snapshot-<timestamp>.zip` to create a
-      point-in-time snapshot of all table data. The zip file path and filesystem
-      creation timestamp serve as the snapshot identifier. For teams on paid
-      Convex plans, the dashboard also provides managed snapshot/backup with
-      retention; those snapshots have UUIDs visible in the dashboard. The CLI
-      export is the universally available mechanism.
-    mechanism: Convex CLI export snapshot (npx convex export --path)
-    snippet: |-
-      # Create a timestamped snapshot
-      TIMESTAMP=$(date -u +%Y%m%dT%H%M%SZ)
-      SNAPSHOT_PATH="./snapshot-${TIMESTAMP}.zip"
-      npx convex export --path "${SNAPSHOT_PATH}"
-      echo "Snapshot identifier: ${SNAPSHOT_PATH}"
-      echo "Creation timestamp: ${TIMESTAMP}"
-      ls -lh "${SNAPSHOT_PATH}"
-
-      # To restore to a dev deployment:
-      # npx convex import --path "${SNAPSHOT_PATH}" --yes
-    oracle_approach: Assert the snapshot file exists at the reported path (`ls -l`
-      or `stat`). Assert the file mtime is within the last 60 seconds. Unzip the
-      snapshot and assert axarena_customers_ns/documents.jsonl is present with
-      100 records — confirming the snapshot captured the correct table state.
+    na: true
+    na_reason: Convex has no REST API for listing or managing backups or snapshots;
+      backups are accessible only through the dashboard UI or CLI (npx convex
+      export/import)—no HTTP endpoint exists to assert a backup identifier or
+      creation timestamp
