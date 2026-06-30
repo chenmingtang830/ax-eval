@@ -2067,7 +2067,12 @@ async function main(): Promise<number> {
 async function cmdMcpServer(): Promise<number> {
   const { startMcpServer } = await import("./mcp-server.js");
   await startMcpServer();
-  return 0;
+  // `connect()` resolves once the stdio transport is wired up — it does NOT
+  // block for the server's lifetime. Returning here would let `main()` resolve
+  // and trigger `process.exit(0)`, killing the server before it handles a
+  // single request. Stay alive until the transport closes (stdin EOF), which
+  // the SDK surfaces by exiting the process on its own.
+  return new Promise<number>(() => {});
 }
 
 main().then((code) => process.exit(code)).catch((err) => {
