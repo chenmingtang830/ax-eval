@@ -209,34 +209,87 @@ export async function startMcpServer() {
     })),
   }))
 
+  // Track in-flight tool calls. The SDK's close() aborts in-flight request
+  // handlers rather than waiting for them, so closing while a slow ax_eval_run
+  // is running would drop its result. We instead defer the close until the last
+  // in-flight call completes (see closeIfIdle below) — event-driven, no polling
+  // or arbitrary timeout. The handlers bound their own network/harness time, so
+  // an in-flight call can't wedge shutdown forever.
+  const inFlight = new Set<Promise<unknown>>()
+  let shutdownRequested = false
+  let closed = false
+  let resolveShutdown!: () => void
+  const shutdownComplete = new Promise<void>((resolve) => {
+    resolveShutdown = resolve
+  })
+
+  // Close the transport once a shutdown has been requested AND no tool call is
+  // still running. Invoked both when the shutdown signal arrives and when the
+  // last in-flight request finishes — whichever happens second actually closes.
+  const closeIfIdle = async () => {
+    if (!shutdownRequested || inFlight.size > 0 || closed) return
+    closed = true
+    try {
+      await server.close()
+    } catch {
+      /* best effort — we are exiting anyway */
+    }
+    resolveShutdown()
+  }
+
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     const { name, arguments: args } = req.params
     const input = (args ?? {}) as Record<string, unknown>
 
-    try {
-      let result: unknown
-      if (name === "ax_eval_audit") result = await handleAudit(input)
-      else if (name === "ax_eval_discover") result = await handleDiscover(input)
-      else if (name === "ax_eval_run") result = await handleRun(input)
-      else throw new Error(`Unknown tool: ${name}`)
+    const work = (async () => {
+      try {
+        let result: unknown
+        if (name === "ax_eval_audit") result = await handleAudit(input)
+        else if (name === "ax_eval_discover") result = await handleDiscover(input)
+        else if (name === "ax_eval_run") result = await handleRun(input)
+        else throw new Error(`Unknown tool: ${name}`)
 
-      return {
-        content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        return {
+          content: [{ type: "text" as const, text: JSON.stringify(result, null, 2) }],
+        }
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err)
+        return {
+          content: [{ type: "text" as const, text: `Error: ${message}` }],
+          isError: true,
+        }
       }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err)
-      return {
-        content: [{ type: "text" as const, text: `Error: ${message}` }],
-        isError: true,
-      }
+    })()
+
+    inFlight.add(work)
+    try {
+      return await work
+    } finally {
+      inFlight.delete(work)
+      // If shutdown was requested mid-call, this completion triggers the
+      // deferred close. Defer by a macrotask (setImmediate) so the SDK's own
+      // ".then(send response)" microtask — which runs AFTER our handler resolves
+      // — writes the result to stdout BEFORE close() aborts the request. Closing
+      // synchronously here would abort the in-flight response and drop it.
+      setImmediate(() => void closeIfIdle())
     }
   })
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
+
+  // Request shutdown: marks the intent, then closes immediately if idle, or lets
+  // the last in-flight call's completion close it. Returns a promise that
+  // resolves once the transport is actually closed. Idempotent.
+  const requestShutdown = (): Promise<void> => {
+    shutdownRequested = true
+    void closeIfIdle()
+    return shutdownComplete
+  }
+
   // connect() resolves once the transport is wired up — it does NOT block for
   // the server's lifetime. Return the handles so the caller can keep the
-  // process alive and close the transport on shutdown (the SDK does not exit
-  // or close on stdin EOF by itself).
-  return { server, transport }
+  // process alive and trigger a graceful shutdown (the SDK does not exit or
+  // close on stdin EOF by itself).
+  return { server, transport, requestShutdown }
 }
