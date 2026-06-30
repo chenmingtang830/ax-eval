@@ -29,8 +29,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -70,6 +69,7 @@ import { TargetPackSchema, type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
+import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
 import {
@@ -1064,80 +1064,15 @@ function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack, 
   return sections.join("\n");
 }
 
-function extractJsonObject(raw: string): string {
-  const trimmed = raw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
-  const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
-  if (fenced?.[1]) return extractJsonObject(fenced[1]);
-  const first = trimmed.indexOf("{");
-  const last = trimmed.lastIndexOf("}");
-  if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  throw new Error("generator harness did not return a JSON object");
-}
-
-function normalizeHarnessText(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return trimmed;
-  try {
-    const parsed = JSON.parse(trimmed) as Record<string, unknown>;
-    if (typeof parsed.result === "string") return parsed.result;
-    if (typeof parsed.message === "string") return parsed.message;
-    if (typeof parsed.output === "string") return parsed.output;
-  } catch {
-    // Plain JSON pack or plain text; extractJsonObject handles both.
-  }
-  return trimmed;
-}
-
 function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): string {
-  const fixture = process.env.AX_EVAL_GENERATOR_FIXTURE;
-  if (fixture) return readFileSync(fixture, "utf8");
-
-  const harness = provenance.harness;
-  // Env overrides let callers bypass a PATH-shadowing wrapper (e.g. a corp
-  // shim that injects PYTHONPATH) by pointing at the real binary directly.
-  // The defaults preserve the original "first match on PATH" behavior.
-  if (harness === "codex") {
-    const codexBin = process.env.AX_EVAL_CODEX_BIN || "codex";
-    const dir = mkdtempSync(resolve(tmpdir(), "ax-generator-"));
-    const outPath = resolve(dir, "pack.json");
-    const modelArgs = args.generatorModel ? ["-m", args.generatorModel] : [];
-    const effortArgs = provenance.effort ? ["-c", `model_reasoning_effort=${provenance.effort}`] : [];
-    const res = spawnSync(codexBin, [
-      "exec",
-      "--sandbox", "workspace-write",
-      "-c", "sandbox_workspace_write.network_access=true",
-      "--json",
-      ...modelArgs,
-      ...effortArgs,
-      "--output-last-message", outPath,
-      prompt,
-    ], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness codex (${codexBin}) failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
-    }
-    return existsSync(outPath) ? readFileSync(outPath, "utf8") : res.stdout;
+  if (provenance.harness !== "claude-code" && provenance.harness !== "codex") {
+    throw new Error(`generator harness ${provenance.harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
   }
-
-  if (harness === "claude-code") {
-    const claudeBin = process.env.AX_EVAL_CLAUDE_BIN || "claude";
-    const modelArgs = args.generatorModel ? ["--model", args.generatorModel] : [];
-    const res = spawnSync(claudeBin, ["-p", prompt, "--output-format", "json", ...modelArgs], {
-      cwd: process.cwd(),
-      encoding: "utf8",
-      maxBuffer: 50 * 1024 * 1024,
-    });
-    if (res.error || (res.status ?? 1) !== 0) {
-      throw new Error(`generator harness claude-code (${claudeBin}) failed: ${res.error?.message || res.stderr || `exit ${res.status}`}`);
-    }
-    return normalizeHarnessText(res.stdout);
-  }
-
-  throw new Error(`generator harness ${harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
+  return invokeHarness(prompt, {
+    harness: provenance.harness,
+    model: args.generatorModel || undefined,
+    effort: provenance.effort,
+  });
 }
 
 function authorPackWithLlm(
