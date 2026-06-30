@@ -1,0 +1,260 @@
+vendor: Insforge
+category: database
+slug: insforge
+suite_name: DAEB-1
+extracted_at: 2026-06-30T12:08:00.174Z
+tasks:
+  - task_id: db-T01-create-table
+    na: false
+    approach: Execute a SQL DDL CREATE TABLE statement via the Insforge CLI `db
+      query` command or the dashboard SQL editor. Use uuid with
+      gen_random_uuid() as the idiomatic PK, text UNIQUE for email, and
+      timestamptz DEFAULT now() for created_at.
+    mechanism: SQL DDL via `@insforge/cli db query`
+    snippet: |-
+      npx @insforge/cli db query "
+      CREATE TABLE axarena_customers_ns (
+        id          uuid        DEFAULT gen_random_uuid() PRIMARY KEY,
+        email       text        UNIQUE NOT NULL,
+        created_at  timestamptz DEFAULT now()
+      );
+      "
+    oracle_approach: Run `npx @insforge/cli db tables` to confirm
+      `axarena_customers_ns` appears in the table list, then run `npx
+      @insforge/cli db query "SELECT column_name, data_type FROM
+      information_schema.columns WHERE table_name = 'axarena_customers_ns';"`
+      and assert all three columns are present with correct types.
+  - task_id: db-T02-insert-rows
+    na: false
+    approach: Build an array of 100 row objects with deterministic emails
+      (`probe-<n>@axarena-ns.test`) and a sequential created_at, then pass the
+      array to the SDK's bulk `.insert()` method in a single call.
+    mechanism: "@insforge/sdk bulk insert"
+    snippet: >-
+      import { createClient } from '@insforge/sdk';
+
+      const insforge = createClient({ baseUrl: process.env.INSFORGE_URL,
+      anonKey: process.env.INSFORGE_ANON_KEY });
+
+      const rows = Array.from({ length: 100 }, (_, i) => ({
+        email: `probe-${i + 1}@axarena-ns.test`,
+        created_at: new Date(Date.UTC(2024, 0, 1, 0, i, 0)).toISOString()
+      }));
+
+      const { data, error } = await insforge.database
+        .from('axarena_customers_ns')
+        .insert(rows)
+        .select();
+    oracle_approach: Run `npx @insforge/cli db query "SELECT COUNT(*) FROM
+      axarena_customers_ns;"` and assert count = 100. Then query `SELECT * FROM
+      axarena_customers_ns WHERE email = 'probe-42@axarena-ns.test'` and assert
+      the row exists with the expected created_at.
+  - task_id: db-T03-query-pattern
+    na: false
+    approach: Use the SDK query builder with `.like()` for the `probe-1%` email
+      pattern, `.order('created_at')` for ordering, and `.range(offset,
+      offset+4)` for 5-row pages. Fetch page 1 with range(0,4) and page 2 with
+      range(5,9).
+    mechanism: "@insforge/sdk query builder (.like, .order, .range)"
+    snippet: |-
+      // Page 1
+      const { data: page1 } = await insforge.database
+        .from('axarena_customers_ns')
+        .select('*')
+        .like('email', 'probe-1%@axarena-ns.test')
+        .order('created_at', { ascending: true })
+        .range(0, 4);
+
+      // Page 2
+      const { data: page2 } = await insforge.database
+        .from('axarena_customers_ns')
+        .select('*')
+        .like('email', 'probe-1%@axarena-ns.test')
+        .order('created_at', { ascending: true })
+        .range(5, 9);
+    oracle_approach: Re-run the same SDK query with no range to get the full
+      matching set; assert total count = 11 (probe-1, probe-10 through
+      probe-19). Assert page1[0].email is the alphabetically/chronologically
+      lowest of the 11 and that pages are non-overlapping and collectively cover
+      all 11 rows.
+  - task_id: db-T04-rls-policy
+    na: false
+    approach: Add an `owner` column to the table, enable PostgreSQL RLS on it via
+      SQL DDL, then create a SELECT policy that restricts rows to those where
+      `owner` matches the authenticated user's ID (via `auth.uid()`). Execute
+      these DDL statements through the CLI `db query` command. RLS integrates
+      natively with Insforge's JWT-based auth system.
+    mechanism: PostgreSQL RLS via SQL DDL (`@insforge/cli db query`)
+    snippet: |-
+      npx @insforge/cli db query "
+      ALTER TABLE axarena_customers_ns ADD COLUMN IF NOT EXISTS owner uuid;
+      ALTER TABLE axarena_customers_ns ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY users_see_own_rows
+        ON axarena_customers_ns
+        FOR SELECT
+        USING (owner = auth.uid());
+      "
+    oracle_approach: Authenticate as two distinct users via the Insforge auth SDK,
+      update a subset of rows with each user's ID as `owner`, then query
+      `axarena_customers_ns` with each user's session token and assert each
+      returns only their own rows and the counts match expectations.
+  - task_id: db-T05-unique-constraint
+    na: false
+    approach: The UNIQUE constraint on `email` was declared in T01. Attempt a
+      duplicate insert via the SDK and inspect the returned error object.
+      PostgreSQL surfaces a unique-violation as error code `23505`.
+    mechanism: "@insforge/sdk insert + PostgreSQL error code 23505"
+    snippet: >-
+      const { data, error } = await insforge.database
+        .from('axarena_customers_ns')
+        .insert({ email: 'probe-1@axarena-ns.test' });
+
+      console.log(error.code);    // '23505'
+
+      console.log(error.message); // 'duplicate key value violates unique
+      constraint ...'
+    oracle_approach: After the failed insert, run `SELECT COUNT(*) FROM
+      axarena_customers_ns WHERE email = 'probe-1@axarena-ns.test'` and assert
+      count = 1. Inspect `error.code` from the SDK response and assert it equals
+      `'23505'`.
+  - task_id: db-T06-foreign-key
+    na: false
+    approach: Create `axarena_orders_ns` via SQL DDL with a `REFERENCES` clause on
+      `customer_id` pointing to `axarena_customers_ns(id)`. Insert a valid order
+      via the SDK, then attempt an insert with a nonexistent `customer_id` and
+      observe the FK violation error (code `23503`).
+    mechanism: SQL DDL REFERENCES constraint via `@insforge/cli db query` + @insforge/sdk
+    snippet: >-
+      // DDL
+
+      npx @insforge/cli db query "
+
+      CREATE TABLE axarena_orders_ns (
+        id          uuid    DEFAULT gen_random_uuid() PRIMARY KEY,
+        customer_id uuid    NOT NULL REFERENCES axarena_customers_ns(id),
+        amount      numeric NOT NULL
+      );
+
+      "
+
+
+      // Valid insert (SDK)
+
+      const { data: validOrder } = await insforge.database
+        .from('axarena_orders_ns')
+        .insert({ customer_id: existingCustomerId, amount: 99.99 })
+        .select();
+
+      // Invalid insert – nonexistent FK
+
+      const { error } = await insforge.database
+        .from('axarena_orders_ns')
+        .insert({ customer_id: '00000000-0000-0000-0000-000000000000', amount: 1 });
+      // error.code === '23503'
+    oracle_approach: Assert `error.code === '23503'` for the bad insert. Query
+      `axarena_orders_ns` joined to `axarena_customers_ns` for the valid order
+      and assert the relationship holds (`customer_id` matches the inserted
+      customer's `id`).
+  - task_id: db-T07-export
+    na: false
+    approach: Use the SDK to SELECT all rows from `axarena_customers_ns` and
+      serialize the resulting array to a local JSON file. Alternatively use `npx
+      @insforge/cli db query` with output redirection. The SDK returns plain JS
+      objects that can be JSON.stringify'd.
+    mechanism: "@insforge/sdk SELECT all + Node.js fs.writeFileSync"
+    snippet: >-
+      import fs from 'fs';
+
+
+      const { data, error } = await insforge.database
+        .from('axarena_customers_ns')
+        .select('*');
+
+      fs.writeFileSync('./axarena_customers_export.json', JSON.stringify(data,
+      null, 2));
+
+      console.log('Exported to ./axarena_customers_export.json');
+    oracle_approach: Read `./axarena_customers_export.json`, parse the JSON array,
+      assert `array.length === 100`, and spot-check that each element has the
+      keys `id`, `email`, and `created_at` with non-null values.
+  - task_id: db-T08-schema-migration
+    na: false
+    approach: "Use the Insforge CLI migration workflow: `migrations new` to scaffold
+      a new migration file, write the `ALTER TABLE ... ADD COLUMN` SQL into the
+      generated file, then `migrations up` to apply it. The migration system
+      tracks applied migrations and supports dry-run preview before applying."
+    mechanism: "@insforge/cli db migrations (new + up)"
+    snippet: >-
+      # 1. Scaffold a new migration
+
+      npx @insforge/cli db migrations new add_status_to_customers
+
+
+      # 2. The generated file (e.g.
+      migrations/20240101_add_status_to_customers.sql) contains:
+
+      # ALTER TABLE axarena_customers_ns
+
+      #   ADD COLUMN IF NOT EXISTS status text DEFAULT 'active';
+
+
+      # 3. Preview (optional)
+
+      npx @insforge/cli db migrations up --dry-run
+
+
+      # 4. Apply
+
+      npx @insforge/cli db migrations up
+    oracle_approach: Run `SELECT column_name, data_type, column_default FROM
+      information_schema.columns WHERE table_name = 'axarena_customers_ns' AND
+      column_name = 'status'` and assert the column exists with `data_type =
+      'text'` and `column_default = '''active'''`. Then `SELECT COUNT(*) FROM
+      axarena_customers_ns WHERE status = 'active'` and assert count = 100.
+  - task_id: db-T09-runtime-integration
+    na: false
+    approach: "Write a Deno edge function that imports the Insforge SDK, queries the
+      row count of `axarena_customers_ns` using `{ count: 'exact', head: true
+      }`, and returns the count as JSON. Deploy via `npx @insforge/cli functions
+      deploy` and invoke via `npx @insforge/cli functions invoke` or the public
+      HTTPS URL."
+    mechanism: Insforge Edge Functions (Deno runtime) via `@insforge/cli functions
+      deploy/invoke`
+    snippet: |-
+      // functions/row-count/index.ts
+      import { createClient } from 'npm:@insforge/sdk';
+
+      Deno.serve(async (_req: Request) => {
+        const insforge = createClient({
+          baseUrl: Deno.env.get('INSFORGE_URL')!,
+          anonKey: Deno.env.get('INSFORGE_ANON_KEY')!
+        });
+        const { count, error } = await insforge.database
+          .from('axarena_customers_ns')
+          .select('*', { count: 'exact', head: true });
+        return Response.json({ count });
+      });
+
+      // Deploy & invoke
+      // npx @insforge/cli functions deploy row-count
+      // npx @insforge/cli functions invoke row-count
+    oracle_approach: Independently invoke the deployed function URL (returned by the
+      deploy command or via `functions invoke`) and assert the response body is
+      valid JSON with a `count` field equal to the current row count of
+      `axarena_customers_ns` (expected 100 after T02).
+  - task_id: db-T10-backup-restore
+    na: false
+    approach: Create a database branch, which is Insforge's idiomatic mechanism for
+      point-in-time snapshots. The branch captures a snapshot of the current
+      database state. Record the branch name and creation timestamp returned by
+      the CLI. List branches to confirm presence.
+    mechanism: Insforge database branching (`@insforge/cli db branch`)
+    snippet: |-
+      # Create a snapshot branch
+      npx @insforge/cli db branch create axarena-snapshot-1
+
+      # List branches to retrieve identifier and creation timestamp
+      npx @insforge/cli db branch list
+    oracle_approach: Run `npx @insforge/cli db branch list` and assert the agent's
+      reported branch name (`axarena-snapshot-1`) appears in the output with a
+      `createdAt` timestamp within the last 60 seconds of the current time.

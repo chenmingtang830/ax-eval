@@ -1,0 +1,263 @@
+vendor: Neon
+category: database
+slug: neon
+suite_name: DAEB-1
+extracted_at: 2026-06-30T12:06:30.625Z
+tasks:
+  - task_id: db-T01-create-table
+    na: false
+    approach: Connect to the Neon Postgres database using the
+      @neondatabase/serverless driver over HTTP and execute a CREATE TABLE DDL
+      statement. Use gen_random_uuid() (built-in since Postgres 13, no extension
+      required) for the UUID primary key, a UNIQUE constraint inline on email,
+      and now() as the created_at default. The table name incorporates the
+      namespace string.
+    mechanism: PostgreSQL DDL via @neondatabase/serverless HTTP driver
+    snippet: |-
+      import { neon } from '@neondatabase/serverless';
+      const sql = neon(process.env.DATABASE_URL);
+      const ns = 'myns';
+      await sql.unsafe(`
+        CREATE TABLE axarena_customers_${ns} (
+          id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+          email      TEXT        NOT NULL UNIQUE,
+          created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        )
+      `);
+    oracle_approach: SELECT column_name, data_type FROM information_schema.columns
+      WHERE table_name = 'axarena_customers_{ns}' ORDER BY ordinal_position;
+      assert 3 rows with column_names id, email, created_at.
+  - task_id: db-T02-insert-rows
+    na: false
+    approach: Use PostgreSQL's generate_series() set-returning function inside a
+      single INSERT ... SELECT to produce all 100 rows atomically. Emails are
+      formed via string concatenation; created_at is deterministic by adding n
+      seconds to a fixed epoch timestamp. This is the idiomatic Postgres
+      bulk-insert pattern and works directly through the Neon serverless driver.
+    mechanism: PostgreSQL INSERT ... SELECT generate_series via
+      @neondatabase/serverless driver
+    snippet: |-
+      const ns = 'myns';
+      await sql.unsafe(`
+        INSERT INTO axarena_customers_${ns} (email, created_at)
+        SELECT
+          'probe-' || n || '@axarena-${ns}.test',
+          TIMESTAMPTZ '2024-01-01T00:00:00Z' + (n * INTERVAL '1 second')
+        FROM generate_series(1, 100) AS n
+      `);
+    oracle_approach: SELECT COUNT(*) FROM axarena_customers_{ns}; assert 100. SELECT
+      * FROM axarena_customers_{ns} WHERE email = 'probe-50@axarena-{ns}.test';
+      assert 1 row with id, email, created_at fields present.
+  - task_id: db-T03-query-pattern
+    na: false
+    approach: Issue parameterized SELECTs with a LIKE predicate
+      ('probe-1%@axarena-{ns}.test') to match the 11 qualifying rows (probe-1,
+      probe-10 through probe-19), ORDER BY created_at for stable ordering, then
+      paginate with LIMIT 5 OFFSET 0 for page 1 and LIMIT 5 OFFSET 5 for page 2.
+    mechanism: SQL SELECT with LIKE and LIMIT/OFFSET via @neondatabase/serverless driver
+    snippet: |-
+      const ns = 'myns';
+      const pattern = `probe-1%@axarena-${ns}.test`;
+      const page1 = await sql`
+        SELECT * FROM axarena_customers_${sql.unsafe(ns)}
+        WHERE email LIKE ${pattern}
+        ORDER BY created_at
+        LIMIT 5 OFFSET 0
+      `;
+      const page2 = await sql`
+        SELECT * FROM axarena_customers_${sql.unsafe(ns)}
+        WHERE email LIKE ${pattern}
+        ORDER BY created_at
+        LIMIT 5 OFFSET 5
+      `;
+    oracle_approach: SELECT COUNT(*) FROM axarena_customers_{ns} WHERE email LIKE
+      'probe-1%@axarena-{ns}.test'; assert 11. Assert page1[0].email =
+      'probe-1@axarena-{ns}.test' (smallest created_at).
+  - task_id: db-T04-rls-policy
+    na: false
+    approach: Add an owner column to the table, ENABLE ROW LEVEL SECURITY, and
+      CREATE POLICY with USING (owner = current_user). Create two Postgres roles
+      (user_a, user_b), GRANT SELECT, then UPDATE rows to assign ownership. To
+      verify isolation, open two connections — one SET ROLE user_a, one SET ROLE
+      user_b — and assert each sees only its own rows. Neon also supports
+      JWT-based RLS via Neon Auth using auth.user_id() for application-level
+      identity.
+    mechanism: PostgreSQL Row Level Security (ENABLE ROW LEVEL SECURITY + CREATE
+      POLICY using current_user)
+    snippet: |-
+      -- Run as superuser/owner role
+      ALTER TABLE axarena_customers_ns ADD COLUMN IF NOT EXISTS owner TEXT;
+      ALTER TABLE axarena_customers_ns ENABLE ROW LEVEL SECURITY;
+      CREATE POLICY owner_isolation ON axarena_customers_ns
+        FOR ALL USING (owner = current_user);
+      CREATE ROLE user_a LOGIN PASSWORD 'pw_a';
+      CREATE ROLE user_b LOGIN PASSWORD 'pw_b';
+      GRANT SELECT ON axarena_customers_ns TO user_a, user_b;
+      UPDATE axarena_customers_ns
+        SET owner = 'user_a' WHERE email <= 'probe-50@axarena-ns.test';
+      UPDATE axarena_customers_ns
+        SET owner = 'user_b' WHERE email >  'probe-50@axarena-ns.test';
+    oracle_approach: SET ROLE user_a; SELECT COUNT(*) FROM axarena_customers_{ns};
+      assert 50. SET ROLE user_b; SELECT COUNT(*) FROM axarena_customers_{ns};
+      assert 50. Each role must see 0 rows owned by the other.
+  - task_id: db-T05-unique-constraint
+    na: false
+    approach: The UNIQUE constraint on email was declared in T01. Attempt to INSERT
+      a row with an email already present in the table (e.g.,
+      'probe-1@axarena-{ns}.test'). PostgreSQL raises error code 23505
+      (unique_violation). Catch the error and report the code and message.
+    mechanism: PostgreSQL UNIQUE constraint enforcement, error code 23505
+    snippet: |-
+      try {
+        await sql`
+          INSERT INTO axarena_customers_ns (email)
+          VALUES ('probe-1@axarena-ns.test')
+        `;
+      } catch (err) {
+        // err.code === '23505'
+        // err.message contains 'unique_violation' or 'unique constraint'
+        console.log('error code:', err.code, 'message:', err.message);
+      }
+    oracle_approach: SELECT COUNT(*) FROM axarena_customers_{ns} WHERE email =
+      'probe-1@axarena-{ns}.test'; assert exactly 1. Assert caught error code
+      === '23505' or message matches /unique/i.
+  - task_id: db-T06-foreign-key
+    na: false
+    approach: CREATE TABLE axarena_orders_{ns} with a customer_id UUID column
+      declared with REFERENCES axarena_customers_{ns}(id). Insert one valid
+      order by selecting an existing customer id. Then attempt an insert with
+      gen_random_uuid() as customer_id — since it does not exist in the parent
+      table, Postgres raises error code 23503 (foreign_key_violation).
+    mechanism: PostgreSQL FOREIGN KEY constraint, error code 23503
+    snippet: >-
+      const ns = 'myns';
+
+      await sql.unsafe(`
+        CREATE TABLE axarena_orders_${ns} (
+          id          UUID    PRIMARY KEY DEFAULT gen_random_uuid(),
+          customer_id UUID    NOT NULL REFERENCES axarena_customers_${ns}(id),
+          amount      NUMERIC NOT NULL
+        )
+      `);
+
+      const [cust] = await sql.unsafe(`SELECT id FROM axarena_customers_${ns}
+      LIMIT 1`);
+
+      await sql.unsafe(`INSERT INTO axarena_orders_${ns} (customer_id, amount)
+      VALUES ('${cust.id}', 99.99)`);
+
+      try {
+        await sql.unsafe(`INSERT INTO axarena_orders_${ns} (customer_id, amount) VALUES (gen_random_uuid(), 1.00)`);
+      } catch (err) {
+        // err.code === '23503'
+      }
+    oracle_approach: SELECT COUNT(*) FROM axarena_orders_{ns}; assert 1. Assert FK
+      violation error code === '23503'. SELECT customer_id FROM
+      axarena_orders_{ns}; assert it matches the valid customer id.
+  - task_id: db-T07-export
+    na: false
+    approach: Use psql's client-side \copy command to stream rows to a local CSV
+      file. Alternatively, query all rows via the @neondatabase/serverless
+      driver and serialize to JSON with fs.writeFileSync. The psql \copy path is
+      the most idiomatic for file export; the driver path works well in
+      serverless/CI environments.
+    mechanism: psql \copy (client-side COPY TO) or @neondatabase/serverless + Node.js fs
+    snippet: >-
+      # Option A — CSV via psql
+
+      psql "$DATABASE_URL" \
+        -c "\copy axarena_customers_ns TO '/tmp/axarena_customers_ns.csv' CSV HEADER"
+
+      # Option B — JSON via serverless driver
+
+      import { neon } from '@neondatabase/serverless';
+
+      import fs from 'fs';
+
+      const sql = neon(process.env.DATABASE_URL);
+
+      const rows = await sql`SELECT * FROM axarena_customers_ns`;
+
+      fs.writeFileSync('/tmp/axarena_customers_ns.json', JSON.stringify(rows,
+      null, 2));
+
+      console.log('output path:', '/tmp/axarena_customers_ns.json');
+    oracle_approach: Parse the output file; assert record count === 100; assert each
+      record contains fields id, email, created_at (and optionally status/owner
+      if added by later tasks).
+  - task_id: db-T08-schema-migration
+    na: false
+    approach: Run ALTER TABLE ... ADD COLUMN with a NOT NULL DEFAULT clause.
+      Postgres applies the default to all existing rows atomically within the
+      same statement (fast-path ADD COLUMN since Postgres 11). The
+      Neon-idiomatic tracked-migration approach uses Drizzle Kit, Flyway, or
+      Liquibase pointed at the Neon connection string, but raw ALTER TABLE via
+      the serverless driver or psql is fully supported.
+    mechanism: PostgreSQL DDL ALTER TABLE via @neondatabase/serverless driver
+    snippet: |-
+      const ns = 'myns';
+      await sql.unsafe(`
+        ALTER TABLE axarena_customers_${ns}
+        ADD COLUMN IF NOT EXISTS status TEXT NOT NULL DEFAULT 'active'
+      `);
+    oracle_approach: SELECT column_name, data_type, column_default FROM
+      information_schema.columns WHERE table_name = 'axarena_customers_{ns}' AND
+      column_name = 'status'; assert data_type='text' and column_default
+      contains 'active'. SELECT COUNT(*) FROM axarena_customers_{ns} WHERE
+      status <> 'active'; assert 0.
+  - task_id: db-T09-runtime-integration
+    na: false
+    approach: Deploy a handler using Neon Functions — Neon's built-in serverless
+      compute that co-locates with the database branch. The function uses the
+      @neondatabase/serverless HTTP driver to query the row count and returns a
+      JSON response. Deploy with 'neonctl functions deploy'; the CLI returns an
+      HTTPS invocation URL. Alternatively, deploy identically shaped code as a
+      Vercel Edge Function or Cloudflare Worker using the same driver.
+    mechanism: Neon Functions (neonctl functions deploy) with
+      @neondatabase/serverless HTTP driver
+    snippet: >-
+      // handler.ts
+
+      import { neon } from '@neondatabase/serverless';
+
+      export default async function handler(req: Request): Promise<Response> {
+        const sql = neon(process.env.DATABASE_URL!);
+        const [row] = await sql`SELECT COUNT(*)::int AS count FROM axarena_customers_ns`;
+        return Response.json({ count: row.count });
+      }
+
+
+      # Deploy
+
+      neonctl functions deploy --name axarena-count --file handler.ts --output
+      json
+    oracle_approach: HTTP GET the function's HTTPS URL returned by the deploy
+      command; assert response status 200, Content-Type application/json, and
+      body.count === 100.
+  - task_id: db-T10-backup-restore
+    na: false
+    approach: Create a Neon branch from the default (main) branch at the current
+      LSN. Neon branches are copy-on-write clones and are the native
+      point-in-time recovery mechanism — no separate backup tool is required.
+      Use 'neonctl branches create' or POST
+      /api/v2/projects/{project_id}/branches. The response object includes a
+      branch id (br-* prefix) and a created_at timestamp.
+    mechanism: Neon branching via neonctl CLI or Neon REST API (copy-on-write PITR)
+    snippet: >-
+      # Neon CLI
+
+      neonctl branches create \
+        --name "pitr-snapshot-$(date -u +%s)" \
+        --output json
+
+      # Or via REST API
+
+      curl -s -X POST
+      https://console.neon.tech/api/v2/projects/{project_id}/branches \
+        -H "Authorization: Bearer $NEON_API_KEY" \
+        -H "Content-Type: application/json" \
+        -d '{"branch": {"name": "pitr-snapshot"}}' | jq '.branch | {id, name, created_at}'
+    oracle_approach: neonctl branches list --output json (or GET
+      /api/v2/projects/{project_id}/branches); find the entry where name matches
+      the reported name; assert id starts with 'br-' and created_at is within 60
+      seconds of the snapshot creation call.

@@ -70,7 +70,8 @@ import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { resolveVendor, resolveVendors, writeVendorCard } from "./generate/vendor-resolve.js";
+import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
+import { extractTasks, extractTasksAll, writeTaskExtract } from "./generate/task-extract.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
@@ -116,6 +117,7 @@ const COMMANDS = [
   "trace-diff",
   "reset",
   "resolve-vendor",
+  "extract-tasks",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -165,6 +167,14 @@ function commandUsage(command: string | undefined): string {
         "                              [--harness claude-code|codex] [--effort low|medium|high]",
         "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
         "  under targets/vendors/<slug>.discovered.yaml.",
+      ].join("\n");
+    case "extract-tasks":
+      return [
+        "usage: ax-eval extract-tasks --suite <path> --category <category>",
+        "                             [--vendor <slug>] [--vendors <a,b,c>]",
+        "                             [--harness claude-code|codex] [--effort low|medium|high]",
+        "  LLM-extracts per-task implementation details for each vendor and writes",
+        "  YAML to targets/extracts/<slug>/daeb-1.yaml.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -1086,7 +1096,7 @@ function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack, 
   return sections.join("\n");
 }
 
-function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): string {
+async function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): Promise<string> {
   if (provenance.harness !== "claude-code" && provenance.harness !== "codex") {
     throw new Error(`generator harness ${provenance.harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
   }
@@ -1097,14 +1107,14 @@ function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullab
   });
 }
 
-function authorPackWithLlm(
+async function authorPackWithLlm(
   product: string,
   spec: unknown,
   seed: TargetPack,
   args: Parsed,
   docsUrls: string[] | undefined,
   suite?: Suite,
-): TargetPack {
+): Promise<TargetPack> {
   const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
   const prompt = buildGeneratorPrompt(
     product,
@@ -1112,7 +1122,7 @@ function authorPackWithLlm(
     { ...seed, generated_by: "llm-assisted", generator: provenance },
     suite,
   );
-  const raw = runGeneratorHarness(prompt, args, provenance);
+  const raw = await runGeneratorHarness(prompt, args, provenance);
   const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
   const pack = TargetPackSchema.parse({
     ...parsed,
@@ -1181,6 +1191,66 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
   return 0;
 }
 
+async function cmdExtractTasks(args: Parsed): Promise<number> {
+  if (!args.suite) throw new Error("--suite <path> is required");
+  if (!args.category) throw new Error("--category is required (e.g. --category database)");
+  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+
+  const { loadSuite } = await import("./generate/suite.js");
+  const suite = loadSuite(args.suite);
+
+  // Determine which vendors to process.
+  const vendorSlugs = args.vendors
+    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
+    : args.vendor
+      ? [args.vendor]
+      : null;
+
+  // Load vendor cards — if no --vendor/--vendors, load all cards for category.
+  const root = process.cwd();
+  let vendors;
+  if (vendorSlugs) {
+    vendors = vendorSlugs.map((slug) => {
+      const card = loadVendorCard(root, slug);
+      if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
+      return card;
+    });
+  } else {
+    // Load all *.discovered.yaml files under targets/vendors/
+    const { readdirSync } = await import("node:fs");
+    const vendorDir = resolve(root, "targets", "vendors");
+    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
+    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
+    vendors = files.map((f) => {
+      const slug = f.replace(".discovered.yaml", "");
+      const card = loadVendorCard(root, slug);
+      if (!card) throw new Error(`Could not load vendor card for ${slug}`);
+      return card;
+    }).filter((v) => v.category === args.category);
+  }
+
+  if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
+  console.log(`Extracting tasks for ${vendors.length} vendor(s) via ${harness}…`);
+
+  const results = await extractTasksAll(vendors, suite, {
+    harness,
+    model: args.generatorModel || undefined,
+    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+  });
+
+  for (const result of results) {
+    const path = writeTaskExtract(root, result);
+    const naCount = result.tasks.filter((t) => t.na).length;
+    console.log(`\n  ${result.vendor} → ${path}`);
+    console.log(`    tasks: ${result.tasks.length} total, ${naCount} N/A`);
+    for (const task of result.tasks) {
+      const status = task.na ? `N/A (${task.na_reason ?? "no reason"})` : task.mechanism ?? "?";
+      console.log(`    ${task.task_id}: ${status}`);
+    }
+  }
+  return 0;
+}
+
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
   const suite: Suite | undefined = args.suite ? loadSuite(args.suite) : undefined;
@@ -1237,7 +1307,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     });
     const pack: TargetPack = args.deterministic
       ? generated
-      : authorPackWithLlm(product, spec, generated, args, docsUrls, suite);
+      : await authorPackWithLlm(product, spec, generated, args, docsUrls, suite);
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
@@ -1298,7 +1368,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     spec,
     args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
   );
-  const pack = args.deterministic ? seed : authorPackWithLlm(product, spec, seed, args, provenanceDocs);
+  const pack = args.deterministic ? seed : await authorPackWithLlm(product, spec, seed, args, provenanceDocs);
   const yaml = packToYaml(pack);
   // Default output: committed example packs live under targets/examples/, but
   // locally generated packs still default to targets/<product>/ so a user can
@@ -2129,6 +2199,8 @@ async function main(): Promise<number> {
       return cmdReset(args);
     case "resolve-vendor":
       return cmdResolveVendor(args);
+    case "extract-tasks":
+      return cmdExtractTasks(args);
     default:
       console.error(USAGE);
       return 2;
