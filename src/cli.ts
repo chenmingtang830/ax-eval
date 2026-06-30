@@ -2066,13 +2066,32 @@ async function main(): Promise<number> {
 
 async function cmdMcpServer(): Promise<number> {
   const { startMcpServer } = await import("./mcp-server.js");
-  await startMcpServer();
+  const { server } = await startMcpServer();
   // `connect()` resolves once the stdio transport is wired up — it does NOT
-  // block for the server's lifetime. Returning here would let `main()` resolve
-  // and trigger `process.exit(0)`, killing the server before it handles a
-  // single request. Stay alive until the transport closes (stdin EOF), which
-  // the SDK surfaces by exiting the process on its own.
-  return new Promise<number>(() => {});
+  // block for the server's lifetime, and the SDK does not close or exit on
+  // stdin EOF on its own. Returning here would let `main()` resolve and trigger
+  // `process.exit(0)`, killing the server before it handles a single request.
+  // So we wait on an explicit shutdown: the client closing the pipe (stdin
+  // `end`/`close`) or a termination signal. On shutdown we close the server
+  // (which flushes the transport) before resolving so the process exits cleanly
+  // instead of lingering as a zombie.
+  return new Promise<number>((resolve) => {
+    let shuttingDown = false;
+    const shutdown = async () => {
+      if (shuttingDown) return;
+      shuttingDown = true;
+      try {
+        await server.close();
+      } catch {
+        /* best effort — we are exiting anyway */
+      }
+      resolve(0);
+    };
+    process.stdin.on("end", shutdown);
+    process.stdin.on("close", shutdown);
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
 }
 
 main().then((code) => process.exit(code)).catch((err) => {

@@ -41,7 +41,7 @@ import { discoverSurfaces } from "./static/discover.js"
 // Tool definitions
 // ---------------------------------------------------------------------------
 
-const TOOLS = [
+export const TOOLS = [
   {
     name: "ax_eval_audit",
     description:
@@ -119,11 +119,8 @@ const TOOLS = [
           items: { type: "string" },
           description:
             "Harness names to run against. Defaults to ['mock', 'mock-weak', 'hermes']. " +
-            "Use 'mock' for keyless offline testing.",
-        },
-        offline: {
-          type: "boolean",
-          description: "Informational flag — mock harnesses run regardless. Default false.",
+            "Use 'mock' for keyless offline testing — the harness list (not a flag) " +
+            "controls whether the run is keyless.",
         },
       },
     },
@@ -134,7 +131,7 @@ const TOOLS = [
 // Tool handlers
 // ---------------------------------------------------------------------------
 
-async function handleAudit(input: Record<string, unknown>) {
+export async function handleAudit(input: Record<string, unknown>) {
   loadDotenv()
   let site = typeof input.site === "string" ? input.site : undefined
   if (!site && typeof input.pack === "string") {
@@ -145,7 +142,7 @@ async function handleAudit(input: Record<string, unknown>) {
   return auditSite(site, { mode: offline ? "fixture" : "live" })
 }
 
-async function handleDiscover(input: Record<string, unknown>) {
+export async function handleDiscover(input: Record<string, unknown>) {
   loadDotenv()
   let site = typeof input.site === "string" ? input.site : undefined
   if (!site && typeof input.pack === "string") {
@@ -158,9 +155,15 @@ async function handleDiscover(input: Record<string, unknown>) {
   return discoverSurfaces(site, { mode: offline ? "fixture" : "live", maxPages, maxDepth })
 }
 
-async function handleRun(input: Record<string, unknown>) {
+export async function handleRun(input: Record<string, unknown>) {
   if (typeof input.pack !== "string") {
     throw new Error("'pack' is required: path to a target pack YAML file.")
+  }
+  if (input.harnesses !== undefined && !Array.isArray(input.harnesses)) {
+    throw new Error("'harnesses' must be an array of strings.")
+  }
+  if (Array.isArray(input.harnesses) && !input.harnesses.every((h) => typeof h === "string")) {
+    throw new Error("'harnesses' must be an array of strings.")
   }
   loadDotenv()
   const pack = loadPack(input.pack)
@@ -231,4 +234,9 @@ export async function startMcpServer() {
 
   const transport = new StdioServerTransport()
   await server.connect(transport)
+  // connect() resolves once the transport is wired up — it does NOT block for
+  // the server's lifetime. Return the handles so the caller can keep the
+  // process alive and close the transport on shutdown (the SDK does not exit
+  // or close on stdin EOF by itself).
+  return { server, transport }
 }
