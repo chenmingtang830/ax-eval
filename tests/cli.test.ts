@@ -41,9 +41,27 @@ describe("cli arg handling", () => {
   it("subcommand help prints command usage with exit 0", () => {
     const { code, out } = runCli(["generate", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval generate --from <ingest.json>");
+    expect(out).toContain("usage: ax-eval generate");
+    expect(out).toContain("--from <ingest.json>");
     expect(out).toContain("--deterministic");
+    expect(out).toContain("--suite");
+    expect(out).toContain("docs-only mode");
     expect(out).not.toContain("unknown flag");
+  });
+
+  it("generate without --from or --suite errors with a helpful usage hint", () => {
+    const { code, out } = runCli(["generate"]);
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/--from is required/);
+  });
+
+  it("generate without --from but with --suite + no --product errors", () => {
+    const { code, out } = runCli([
+      "generate",
+      "--suite", "targets/suites/daeb-1.yaml",
+    ]);
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/--product is required/);
   });
 
   it("an unknown command prints usage with exit 2 (not a flag error)", () => {

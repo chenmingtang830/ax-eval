@@ -39,6 +39,9 @@ describe("canonical task suite", () => {
       expect(fragment).toContain(task.difficulty);
     }
     expect(fragment).toMatch(/HARD OVERRIDE/);
+    // Docs-only generate relies on this instruction so the LLM goes hunting
+    // when the seed lacks resources.
+    expect(fragment).toMatch(/WEB SEARCH AND WEB FETCH/);
   });
 
   it("validation passes when pack matches the suite exactly", () => {

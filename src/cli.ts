@@ -131,12 +131,14 @@ function commandUsage(command: string | undefined): string {
       return "usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file>) [--out json] [--offline]";
     case "generate":
       return [
-        "usage: ax-eval generate --from <ingest.json> [--product P] [--site url]",
+        "usage: ax-eval generate [--from <ingest.json>] [--product P] [--site url]",
         "                       [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N] [--l4-limit N]",
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
         "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB-1, ...)",
+        "  docs-only mode: omit --from, pass --suite + --product + --docs.",
+        "                  the LLM web-searches the product's docs in lieu of ingest.",
       ].join("\n");
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
@@ -1174,13 +1176,50 @@ function authorPackWithLlm(
   return pack;
 }
 
+/** Build a minimal IngestedSpec stub for the docs-only generate path: when
+ *  no --from is provided but --suite is, we author by giving the LLM the
+ *  product name + docs URLs and letting it web-search/fetch the rest.
+ *  The LLM, not us, discovers the resource model. */
+function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | undefined): unknown {
+  return {
+    source: `docs-only:${slugify(product)}`,
+    title: product,
+    baseUrl: args.baseUrl || "",
+    requestEnvelope: null,
+    responseEnvelope: null,
+    resources: [],
+    auth: { type: "bearer", header: null },
+    constantHeaders: {},
+    docsUrls: docsUrls ?? [],
+    siteUrl: args.site || "",
+  };
+}
+
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
-  const from = args.from || "results/ingest.json";
-  const spec = JSON.parse(readFileSync(from, "utf8"));
   const suite: Suite | undefined = args.suite ? loadSuite(args.suite) : undefined;
   if (suite) {
     console.log(`Using canonical suite ${suite.name} v${suite.version} (${suite.category}) — ${suite.tasks.length} tasks.`);
+  }
+  // --from is required UNLESS --suite is set; with --suite the LLM authors
+  // from product name + docs URLs (web-search/fetch instead of ingest).
+  if (!args.from && !suite) {
+    throw new Error("--from is required (or pass --suite + --product + --docs to author from docs without an OpenAPI/GraphQL ingest)");
+  }
+  if (!args.from && !args.product) {
+    throw new Error("--product is required when --from is omitted (docs-only generate)");
+  }
+  const docsUrlsArg = args.docs
+    ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+  const spec = args.from
+    ? JSON.parse(readFileSync(args.from, "utf8"))
+    : buildDocsOnlyStub(args.product, args, docsUrlsArg);
+  if (!args.from) {
+    if (args.deterministic) {
+      throw new Error("--deterministic is incompatible with docs-only generate; provide --from <ingest.json> or omit --deterministic.");
+    }
+    console.log(`Docs-only generate: LLM will discover ${args.product} from ${docsUrlsArg?.length ?? 0} docs URL(s) via web search/fetch.`);
   }
 
   // Product: explicit flag wins, else derive from the spec title (strip a
