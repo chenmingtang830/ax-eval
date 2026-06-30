@@ -69,6 +69,7 @@ import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { TargetPackSchema, type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
+import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
 import {
@@ -135,6 +136,7 @@ function commandUsage(command: string | undefined): string {
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
+        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB-1, ...)",
       ].join("\n");
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
@@ -231,6 +233,11 @@ interface Parsed {
   attempts: number;
   minPassRate: number | undefined;
   trace: string;
+  /** Path to a canonical-task-suite YAML (DAEB-1, VAB-1, ...). When set,
+   *  `generate` constrains the LLM to produce a pack whose task ids/titles/
+   *  difficulties match the suite exactly — the mechanism that makes
+   *  cross-vendor scores comparable. */
+  suite: string;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
@@ -285,6 +292,7 @@ function parseArgs(argv: string[]): Parsed {
     attempts: 1,
     minPassRate: undefined,
     trace: "",
+    suite: "",
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -353,6 +361,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
     else if (a === "--snapshot") p.snapshot = value(++i, "--snapshot");
     else if (a === "--from") p.from = value(++i, "--from");
+    else if (a === "--suite") p.suite = value(++i, "--suite");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
@@ -1010,7 +1019,7 @@ function taskSummary(pack: TargetPack): unknown {
   }));
 }
 
-function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack): string {
+function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack, suite?: Suite): string {
   const specSummary = JSON.stringify({
     source: (spec as { source?: unknown }).source,
     title: (spec as { title?: unknown }).title,
@@ -1023,15 +1032,19 @@ function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack):
     ...seed,
     tasks: taskSummary(seed),
   }, null, 2);
-  return [
+  const sections = [
     `You are the ax-eval pack generator for ${product}.`,
     "",
     "Create one product-quality TargetPack JSON object. Return ONLY valid JSON: no markdown, no commentary.",
     "",
     "Hard requirements:",
     "- Preserve the target product, auth env names, base URL, surfaces, docs URLs, and discovery shape unless the seed is clearly wrong.",
-    "- Produce exactly 12 tasks unless the seed has fewer than 12 viable operation tasks.",
-    "- Include L1, L2, L3, and L4 tasks, with at least one L4 task.",
+    suite
+      ? "- The canonical task suite below OVERRIDES the seed's task count and difficulty mix. Emit exactly the canonical task set."
+      : "- Produce exactly 12 tasks unless the seed has fewer than 12 viable operation tasks.",
+    suite
+      ? "- Difficulty for each task is dictated by the canonical suite — do not change it."
+      : "- Include L1, L2, L3, and L4 tasks, with at least one L4 task.",
     "- Prompts must be goal-level: do not hand the agent a curl command or exact endpoint implementation steps.",
     "- Every task must have at least one programmatic oracle.",
     "- For stateless search/read APIs, use roundtrip POST read-back oracles where appropriate, with readMethod/readPathTemplate/readBodyTemplate.",
@@ -1044,7 +1057,9 @@ function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack):
     "",
     "Seed pack JSON to improve or preserve:",
     seedJson,
-  ].join("\n");
+  ];
+  if (suite) sections.push(suitePromptFragment(suite));
+  return sections.join("\n");
 }
 
 function extractJsonObject(raw: string): string {
@@ -1118,9 +1133,21 @@ function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullab
   throw new Error(`generator harness ${harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
 }
 
-function authorPackWithLlm(product: string, spec: unknown, seed: TargetPack, args: Parsed, docsUrls: string[] | undefined): TargetPack {
+function authorPackWithLlm(
+  product: string,
+  spec: unknown,
+  seed: TargetPack,
+  args: Parsed,
+  docsUrls: string[] | undefined,
+  suite?: Suite,
+): TargetPack {
   const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
-  const prompt = buildGeneratorPrompt(product, spec, { ...seed, generated_by: "llm-assisted", generator: provenance });
+  const prompt = buildGeneratorPrompt(
+    product,
+    spec,
+    { ...seed, generated_by: "llm-assisted", generator: provenance },
+    suite,
+  );
   const raw = runGeneratorHarness(prompt, args, provenance);
   const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
   const pack = TargetPackSchema.parse({
@@ -1128,6 +1155,17 @@ function authorPackWithLlm(product: string, spec: unknown, seed: TargetPack, arg
     generated_by: "llm-assisted",
     generator: provenance,
   });
+  if (suite) {
+    const errors = validatePackAgainstSuite(
+      pack.tasks.map((t) => ({ id: t.id, title: t.title, difficulty: t.difficulty })),
+      suite,
+    );
+    if (errors.length) {
+      throw new Error(
+        `Generated pack violates canonical suite ${suite.name} v${suite.version}:\n  - ${errors.join("\n  - ")}`,
+      );
+    }
+  }
   return pack;
 }
 
@@ -1135,6 +1173,10 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
   const from = args.from || "results/ingest.json";
   const spec = JSON.parse(readFileSync(from, "utf8"));
+  const suite: Suite | undefined = args.suite ? loadSuite(args.suite) : undefined;
+  if (suite) {
+    console.log(`Using canonical suite ${suite.name} v${suite.version} (${suite.category}) — ${suite.tasks.length} tasks.`);
+  }
 
   // Product: explicit flag wins, else derive from the spec title (strip a
   // trailing " API"), else fall back to a neutral label.
@@ -1165,7 +1207,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     });
     const pack: TargetPack = args.deterministic
       ? generated
-      : authorPackWithLlm(product, spec, generated, args, docsUrls);
+      : authorPackWithLlm(product, spec, generated, args, docsUrls, suite);
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
