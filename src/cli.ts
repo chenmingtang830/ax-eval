@@ -70,7 +70,7 @@ import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { resolveVendor, writeVendorCard } from "./generate/vendor-resolve.js";
+import { resolveVendor, resolveVendors, writeVendorCard } from "./generate/vendor-resolve.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
@@ -161,11 +161,10 @@ function commandUsage(command: string | undefined): string {
     case "resolve-vendor":
       return [
         "usage: ax-eval resolve-vendor --vendor <name> --category <category>",
+        "                              --vendors <a,b,c> --category <category>",
         "                              [--harness claude-code|codex] [--effort low|medium|high]",
-        "                              [--skip-verify] [--out path]",
-        "  LLM-discovers a vendor's canonical URLs / packages and writes a",
-        "  card under targets/vendors/<slug>.discovered.yaml. Used as input",
-        "  to compose-pack.",
+        "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
+        "  under targets/vendors/<slug>.discovered.yaml.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -252,15 +251,11 @@ interface Parsed {
    *  difficulties match the suite exactly — the mechanism that makes
    *  cross-vendor scores comparable. */
   suite: string;
-  /** `resolve-vendor` inputs: human-friendly vendor name and the benchmark
-   *  category (`database`, `auth`, ...) used to disambiguate "Neon" or
-   *  similarly-named products in the LLM resolver prompt. */
+  /** `resolve-vendor` inputs: human-friendly vendor name(s) and the benchmark
+   *  category. --vendor for a single vendor; --vendors for comma-separated batch. */
   vendor: string;
+  vendors: string;
   category: string;
-  /** When true, `resolve-vendor` skips the URL HEAD checks. Useful when
-   *  offline or when the vendor card is being authored on a network-
-   *  restricted machine. */
-  skipVerify: boolean;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
@@ -317,8 +312,8 @@ function parseArgs(argv: string[]): Parsed {
     trace: "",
     suite: "",
     vendor: "",
+    vendors: "",
     category: "",
-    skipVerify: false,
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -390,7 +385,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--suite") p.suite = value(++i, "--suite");
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
-    else if (a === "--skip-verify") p.skipVerify = true;
+    else if (a === "--vendors") p.vendors = value(++i, "--vendors");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
@@ -1158,30 +1153,31 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
 }
 
 async function cmdResolveVendor(args: Parsed): Promise<number> {
-  if (!args.vendor) throw new Error("--vendor is required (e.g. --vendor Supabase)");
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
   const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
   if (harness !== "claude-code" && harness !== "codex") {
     throw new Error(`--harness must be one of claude-code|codex (got ${harness})`);
   }
-  console.log(`Resolving ${args.vendor} (${args.category})…`);
-  const result = await resolveVendor(args.vendor, args.category, {
+  const vendorList = args.vendors
+    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
+    : args.vendor
+      ? [args.vendor]
+      : [];
+  if (!vendorList.length) {
+    throw new Error("--vendor <name> or --vendors <a,b,c> is required");
+  }
+  console.log(`Resolving ${vendorList.length} vendor(s) via ${harness}…`);
+  const results = await resolveVendors(vendorList, args.category, {
     harness,
     model: args.generatorModel || undefined,
     effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
-    noLlmFallback: args.skipVerify,
   });
-  const path = args.out && args.out !== "results/last-run.json"
-    ? (() => {
-        mkdirSync(dirname(args.out), { recursive: true });
-        writeFileSync(args.out, yamlStringify(result));
-        return args.out;
-      })()
-    : writeVendorCard(process.cwd(), result);
-  console.log(`\nResolved via ${result.resolver.method} → ${path}`);
-  console.log(`  site_url:  ${result.site_url ?? "(none)"}`);
-  console.log(`  docs_url:  ${result.docs_url ?? "(none)"}`);
-  console.log(`  status:    ${result.http_status ?? "ERR"}`);
+  for (const result of results) {
+    const path = writeVendorCard(process.cwd(), result);
+    console.log(`\n  ${result.vendor} → ${path}`);
+    console.log(`    site_url: ${result.site_url ?? "(none)"}`);
+    console.log(`    docs_url: ${result.docs_url ?? "(none)"}`);
+  }
   return 0;
 }
 

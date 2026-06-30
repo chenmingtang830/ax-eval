@@ -1,20 +1,12 @@
 vendor: Neon
 category: database
 slug: neon
-discovered_at: 2026-06-30T11:14:33.824Z
+discovered_at: 2026-06-30T11:36:20.211Z
 resolver:
-  method: pattern-probe
-  pattern_tried:
-    - https://neon.com/docs
-    - https://docs.neon.com
-    - https://neon.dev/docs
-    - https://docs.neon.dev
-    - https://neon.io/docs
-    - https://docs.neon.io
-    - https://neon.tech/docs
-    - https://docs.neon.tech
-    - https://developers.neon.com
-    - https://neon.com/documentation
-site_url: https://neon.com
-docs_url: https://neon.com/docs/introduction
-http_status: 200
+  method: llm-search
+  harness: claude-code
+  model: host-default
+  prompt_version: vendor-resolve-v3
+site_url: https://neon.tech
+docs_url: https://neon.tech/docs
+http_status: null

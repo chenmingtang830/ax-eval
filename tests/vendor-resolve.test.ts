@@ -1,18 +1,19 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   PROMPT_VERSION,
-  candidatePatterns,
   loadVendorCard,
   resolveVendor,
+  resolveVendors,
   slugify,
   vendorCardPath,
   writeVendorCard,
 } from "../src/generate/vendor-resolve.js";
 
-describe("vendor-resolve (v2: lean docs-only)", () => {
+describe("vendor-resolve (v3: llm-search batch)", () => {
   let tmpRoot: string;
   let fixturePath: string;
   const prevFixture = process.env.AX_EVAL_GENERATOR_FIXTURE;
@@ -35,54 +36,50 @@ describe("vendor-resolve (v2: lean docs-only)", () => {
     expect(slugify("  ---weird-- name---")).toBe("weird-name");
   });
 
-  it("candidatePatterns generates the expected URL set", () => {
-    const patterns = candidatePatterns("Supabase");
-    // Should include the dominant pattern that wins for most vendors.
-    expect(patterns).toContain("https://supabase.com/docs");
-    expect(patterns).toContain("https://docs.supabase.com");
-    expect(patterns).toContain("https://supabase.dev/docs");
-    expect(patterns.length).toBeGreaterThan(5);
-  });
-
-  it("candidatePatterns strips hyphens when building domains", () => {
-    // "MongoDB Atlas" → slug "mongodb-atlas" → domain `mongodbatlas`
-    // Not perfect (that domain probably 404s, triggering LLM fallback),
-    // but we don't want bogus `mongodb-atlas.com` patterns either.
-    const patterns = candidatePatterns("MongoDB Atlas");
-    expect(patterns.every((u) => !u.includes("mongodb-atlas"))).toBe(true);
-  });
-
-  it("resolveVendor with noLlmFallback throws when no pattern matches", async () => {
-    await expect(
-      // A nonsense vendor that won't have a 200 response on common patterns.
-      resolveVendor("ZzzNonexistentVendor99", "database", { noLlmFallback: true }),
-    ).rejects.toThrow(/no URL pattern matched/);
-  });
-
-  it("resolveVendor uses LLM fallback when patterns fail and fallback enabled", async () => {
-    const fakeLlmOutput = {
-      site_url: "https://cockroachlabs.com",
-      docs_url: "https://cockroachlabs.com/docs",
-    };
-    writeFileSync(fixturePath, JSON.stringify(fakeLlmOutput));
+  it("resolveVendors returns results for all vendors via fixture", async () => {
+    const fakeBatch = [
+      { vendor: "Supabase", site_url: "https://supabase.com", docs_url: "https://supabase.com/docs" },
+      { vendor: "Neon", site_url: "https://neon.tech", docs_url: "https://neon.tech/docs" },
+    ];
+    writeFileSync(fixturePath, JSON.stringify(fakeBatch));
     process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
 
-    // Use a vendor that won't hit the URL patterns to force fallback.
-    const result = await resolveVendor("ZzzNonexistentVendor99", "database", {
-      harness: "claude-code",
-    });
-    expect(result.resolver.method).toBe("llm-fallback");
-    expect(result.site_url).toBe("https://cockroachlabs.com");
-    expect(result.docs_url).toBe("https://cockroachlabs.com/docs");
-    expect(result.resolver.prompt_version).toBe(PROMPT_VERSION);
+    const results = await resolveVendors(["Supabase", "Neon"], "database", { harness: "claude-code" });
+    expect(results).toHaveLength(2);
+    expect(results[0].vendor).toBe("Supabase");
+    expect(results[0].docs_url).toBe("https://supabase.com/docs");
+    expect(results[0].resolver.method).toBe("llm-search");
+    expect(results[0].resolver.prompt_version).toBe(PROMPT_VERSION);
+    expect(results[1].vendor).toBe("Neon");
+  });
+
+  it("resolveVendor (single) wraps resolveVendors", async () => {
+    const fakeBatch = [
+      { vendor: "Supabase", site_url: "https://supabase.com", docs_url: "https://supabase.com/docs" },
+    ];
+    writeFileSync(fixturePath, JSON.stringify(fakeBatch));
+    process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
+
+    const result = await resolveVendor("Supabase", "database", { harness: "claude-code" });
+    expect(result.slug).toBe("supabase");
+    expect(result.docs_url).toBe("https://supabase.com/docs");
+  });
+
+  it("resolveVendors throws when LLM returns non-conforming JSON", async () => {
+    writeFileSync(fixturePath, JSON.stringify({ not: "an array" }));
+    process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
+
+    await expect(
+      resolveVendors(["Supabase"], "database", { harness: "claude-code" }),
+    ).rejects.toThrow(/non-conforming JSON/);
   });
 
   it("writeVendorCard + loadVendorCard round-trip preserves the result", async () => {
-    const fakeLlmOutput = {
-      site_url: "https://example.com",
-      docs_url: "https://example.com/docs",
-    };
-    writeFileSync(fixturePath, JSON.stringify(fakeLlmOutput));
+    const fakeBatch = [
+      { vendor: "ZzzExample99", site_url: "https://example.com", docs_url: "https://example.com/docs" },
+    ];
+    // NOTE: fixture must be an array (batch schema)
+    writeFileSync(fixturePath, JSON.stringify(fakeBatch));
     process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
 
     const result = await resolveVendor("ZzzExample99", "database", { harness: "claude-code" });

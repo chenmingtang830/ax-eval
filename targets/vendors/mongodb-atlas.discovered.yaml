@@ -1,9 +1,12 @@
 vendor: MongoDB Atlas
 category: database
 slug: mongodb-atlas
-discovered_at: 2026-06-30T04:15:00.000Z
+discovered_at: 2026-06-30T11:36:20.211Z
 resolver:
-  method: pattern-probe
+  method: llm-search
+  harness: claude-code
+  model: host-default
+  prompt_version: vendor-resolve-v3
 site_url: https://www.mongodb.com
-docs_url: https://www.mongodb.com/docs/
-http_status: 200
+docs_url: https://www.mongodb.com/docs/atlas/
+http_status: null

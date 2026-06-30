@@ -100,11 +100,16 @@ export function normalizeHarnessText(raw: string): string {
  *  fenced code blocks and stray prose around the object. */
 export function extractJsonObject(raw: string): string {
   const trimmed = raw.trim();
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) return trimmed;
+  if ((trimmed.startsWith("{") && trimmed.endsWith("}")) ||
+      (trimmed.startsWith("[") && trimmed.endsWith("]"))) return trimmed;
   const fenced = trimmed.match(/```(?:json)?\s*([\s\S]*?)```/i);
   if (fenced?.[1]) return extractJsonObject(fenced[1]);
+  // Try array first, then object.
+  const firstArr = trimmed.indexOf("[");
+  const lastArr = trimmed.lastIndexOf("]");
+  if (firstArr >= 0 && lastArr > firstArr) return trimmed.slice(firstArr, lastArr + 1);
   const first = trimmed.indexOf("{");
   const last = trimmed.lastIndexOf("}");
   if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
-  throw new Error("harness did not return a JSON object");
+  throw new Error("harness did not return a JSON object or array");
 }

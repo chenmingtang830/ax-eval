@@ -1,20 +1,12 @@
 vendor: Convex
 category: database
 slug: convex
-discovered_at: 2026-06-30T11:14:34.642Z
+discovered_at: 2026-06-30T11:36:20.211Z
 resolver:
-  method: pattern-probe
-  pattern_tried:
-    - https://convex.com/docs
-    - https://docs.convex.com
-    - https://convex.dev/docs
-    - https://docs.convex.dev
-    - https://convex.io/docs
-    - https://docs.convex.io
-    - https://convex.tech/docs
-    - https://docs.convex.tech
-    - https://developers.convex.com
-    - https://convex.com/documentation
-site_url: https://docs.convex.dev
-docs_url: https://docs.convex.dev/
-http_status: 200
+  method: llm-search
+  harness: claude-code
+  model: host-default
+  prompt_version: vendor-resolve-v3
+site_url: https://www.convex.dev
+docs_url: https://docs.convex.dev
+http_status: null

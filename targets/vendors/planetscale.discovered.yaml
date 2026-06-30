@@ -1,20 +1,12 @@
 vendor: PlanetScale
 category: database
 slug: planetscale
-discovered_at: 2026-06-30T11:14:35.596Z
+discovered_at: 2026-06-30T11:36:20.211Z
 resolver:
-  method: pattern-probe
-  pattern_tried:
-    - https://planetscale.com/docs
-    - https://docs.planetscale.com
-    - https://planetscale.dev/docs
-    - https://docs.planetscale.dev
-    - https://planetscale.io/docs
-    - https://docs.planetscale.io
-    - https://planetscale.tech/docs
-    - https://docs.planetscale.tech
-    - https://developers.planetscale.com
-    - https://planetscale.com/documentation
+  method: llm-search
+  harness: claude-code
+  model: host-default
+  prompt_version: vendor-resolve-v3
 site_url: https://planetscale.com
 docs_url: https://planetscale.com/docs
-http_status: 200
+http_status: null

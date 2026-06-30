@@ -1,9 +1,12 @@
 vendor: CockroachDB
 category: database
 slug: cockroachdb
-discovered_at: 2026-06-30T04:15:00.000Z
+discovered_at: 2026-06-30T11:36:20.211Z
 resolver:
-  method: pattern-probe
+  method: llm-search
+  harness: claude-code
+  model: host-default
+  prompt_version: vendor-resolve-v3
 site_url: https://www.cockroachlabs.com
-docs_url: https://www.cockroachlabs.com/docs/
-http_status: 200
+docs_url: https://www.cockroachlabs.com/docs/stable/
+http_status: null
