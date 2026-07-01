@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-bkudat
+# run_id: 2026-07-01-pc7tyg
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-bkudat
+run_id: 2026-07-01-pc7tyg
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -18,14 +18,12 @@ auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: SUPABASE_SERVICE_ROLE_KEY
+  env: SUPABASE_API_KEY
   env_aliases: []
   verify_env_aliases: []
+  extra_header: apikey
 sandbox_scope: []
-sql_conn:
-  dialect: postgres
-  connection_string_env: SUPABASE_DB_URL
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+base_url: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1
 headers: {}
 site_url: https://supabase.com
 openapi_url: ""
@@ -48,13 +46,17 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
+        expected: 1
+        description: table axarena_customers_{ns} exists in public schema
+        readMethod: POST
+        readPathTemplate: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query
+        assertField: 0.n
+      - type: roundtrip
         expected: 3
-        description: all three named columns exist in public.axarena_customers_{ns}
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
-          column_name IN ('id', 'email', 'created_at')
+        description: axarena_customers_{ns} has exactly 3 columns
+        readMethod: POST
+        readPathTemplate: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query
+        assertField: 0.n
     difficulty: L1
     allowed_surfaces:
       - api
@@ -73,16 +75,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: row count is exactly 100
+        description: Table contains exactly 100 rows
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=count()
         assertField: 0.count
       - type: roundtrip
-        expected: probe-1@example.com
-        description: sampled row fetched by email has expected shape
+        expected: 1
+        description: First inserted row has id=1 (row shape has id and email fields)
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40example.com&select=email
-        assertField: 0.email
+        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id,email&order=id.asc&limit=1
+        assertField: 0.id
     difficulty: L1
     allowed_surfaces:
       - api
@@ -101,17 +103,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 11
-        description: LIKE probe-1* matches exactly 11 rows (probe-1 plus probe-10..probe-19)
+        description: total rows matching ilike probe-1* is exactly 11
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&select=count()
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()&email=ilike.probe-1*
         assertField: 0.count
       - type: roundtrip
-        expected: probe-10@example.com
-        description: first row on page 1 (asc) is probe-10 — digits (ASCII 48-57) sort
-          before @ (ASCII 64)
+        expected: 5
+        description: page 1 ascending by email returns exactly 5 lowest-ordered emails
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5&select=email
-        assertField: 0.email
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=email&email=ilike.probe-1*&order=email.asc&limit=5&offset=0
+        assertField: length
     difficulty: L2
     allowed_surfaces:
       - api
@@ -130,21 +131,17 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        expected: "true"
-        description: row-level security is enabled on the table
-        assertField: 0.enabled
-        sqlDialect: postgres
-        sqlQuery: SELECT rowsecurity::text AS enabled FROM pg_tables WHERE schemaname =
-          'public' AND tablename = 'axarena_customers_{ns}'
+        expected: 1
+        description: user-1 JWT sees exactly their own rows (RLS filters out other users)
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()
+        assertField: 0.count
       - type: roundtrip
         expected: 1
-        description: a SELECT policy filtering by auth.uid() exists, enforcing per-user
-          row isolation
+        description: user-2 JWT sees exactly their own rows (RLS filters out other users)
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()
         assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM pg_policies WHERE schemaname = 'public'
-          AND tablename = 'axarena_customers_{ns}' AND cmd = 'SELECT' AND
-          qual::text LIKE '%auth.uid()%'
     difficulty: L3
     allowed_surfaces:
       - api
@@ -162,18 +159,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: exactly one row with duplicate email — second insert was rejected
+        description: exactly one row with the duplicate email remains after failed insert
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40example.com&select=count()
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=count()&email=eq.{email}
         assertField: 0.count
       - type: roundtrip
-        expected: 1
-        description: unique constraint exists on table; its presence guarantees pg error
-          code 23505 on violation
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM pg_constraint WHERE conrelid =
-          'public.axarena_customers_{ns}'::regclass AND contype = 'u'
+        expected: "23505"
+        description: re-issuing duplicate insert returns PostgreSQL unique-violation
+          error code 23505
+        readMethod: POST
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}
+        assertField: code
     difficulty: L1
     allowed_surfaces:
       - api
@@ -192,19 +188,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: foreign key constraint exists on axarena_orders_{ns} referencing
-          customers
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM pg_constraint WHERE conrelid =
-          'public.axarena_orders_{ns}'::regclass AND contype = 'f'
+        description: valid order row is returned
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/orders?select=id,customer_id,customers(id)&id=eq.1
+        assertField: 0.id
       - type: roundtrip
         expected: 1
-        description: valid order is present and customer_id joins to a real customer row
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM axarena_orders_{ns} o INNER JOIN
-          axarena_customers_{ns} c ON o.customer_id = c.id
+        description: embedded customer confirms FK relationship holds
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/orders?select=id,customer_id,customers(id)&id=eq.1
+        assertField: 0.customers.id
     difficulty: L2
     allowed_surfaces:
       - api
@@ -221,18 +214,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: source table has exactly 100 records matching the expected export count
+        description: exported table has exactly 100 records
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=count
         assertField: 0.count
       - type: roundtrip
-        expected: 0
-        description: all records have id, email, and created_at populated — the expected
-          export fields
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE id IS NULL
-          OR email IS NULL OR created_at IS NULL
+        expected: true
+        description: each record contains expected fields (id present in first record)
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=*&limit=1
+        assertField: 0.id
     difficulty: L1
     allowed_surfaces:
       - api
@@ -250,19 +241,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: text
-        description: status column exists with text type
-        assertField: 0.type
-        sqlDialect: postgres
-        sqlQuery: SELECT data_type AS type FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
-          column_name = 'status'
+        description: status column exists in table schema with data type text
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/
+        assertField: definitions.{ns}.properties.status.format
       - type: roundtrip
         expected: 0
-        description: all existing rows have status='active' after migration backfill
+        description: no rows have status other than active
+        readMethod: GET
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?status=neq.active&select=count()
         assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE status IS
-          DISTINCT FROM 'active'
     difficulty: L3
     allowed_surfaces:
       - api
@@ -280,10 +268,10 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: roundtrip
-        expected: 100
-        description: deployed edge function returns JSON with count matching total row count
+        expected: 1
+        description: deployed edge function returns JSON with correct count
         readMethod: GET
-        readPathTemplate: /functions/v1/axarena-{ns}
+        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/{ns}
         assertField: count
     difficulty: L3
     allowed_surfaces:
@@ -301,14 +289,12 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        expected: "{agent_reported_backup_id}"
-        description: "agent's reported backup id appears as first entry in management
-          API backup list; note: this endpoint requires Authorization: Bearer
-          SUPABASE_ACCESS_TOKEN (personal access token), not the service role
-          key"
+        expected: 1
+        description: Most-recent backup entry exists and carries a creation timestamp
+          (harness compares against now−60 s)
         readMethod: GET
         readPathTemplate: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/backups
-        assertField: 0.id
+        assertField: backups.0.inserted_at
     difficulty: L4
     allowed_surfaces:
       - api

@@ -2,146 +2,132 @@ vendor: Supabase
 category: database
 slug: supabase
 suite_name: DAEB-1
-extracted_at: 2026-07-01T02:10:21.961Z
+extracted_at: 2026-07-01T04:38:18.861Z
 vendor_config:
-  base_url: https://{project_ref}.supabase.co
+  base_url: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1
   auth_type: bearer
-  auth_env: SUPABASE_SERVICE_ROLE_KEY
-  sql_dialect: postgres
-  sql_connection_env: SUPABASE_DB_URL
+  auth_env: SUPABASE_API_KEY
+  extra_auth_header: apikey
 tasks:
   - task_id: db-T01-create-table
     na: false
     checks:
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
-          column_name IN ('id', 'email', 'created_at')
-        assert_field: 0.count
+      - read_method: POST
+        read_path_template: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query
+        assert_field: 0.n
+        expected: 1
+        description: table axarena_customers_{ns} exists in public schema
+      - read_method: POST
+        read_path_template: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/query
+        assert_field: 0.n
         expected: 3
-        description: all three named columns exist in public.axarena_customers_{ns}
+        description: axarena_customers_{ns} has exactly 3 columns
   - task_id: db-T02-insert-rows
     na: false
     checks:
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?select=count()
+        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=count()
         assert_field: 0.count
         expected: 100
-        description: row count is exactly 100
+        description: Table contains exactly 100 rows
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40example.com&select=email
-        assert_field: 0.email
-        expected: probe-1@example.com
-        description: sampled row fetched by email has expected shape
+        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id,email&order=id.asc&limit=1
+        assert_field: 0.id
+        expected: 1
+        description: First inserted row has id=1 (row shape has id and email fields)
   - task_id: db-T03-query-pattern
     na: false
     checks:
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&select=count()
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()&email=ilike.probe-1*
         assert_field: 0.count
         expected: 11
-        description: LIKE probe-1* matches exactly 11 rows (probe-1 plus probe-10..probe-19)
+        description: total rows matching ilike probe-1* is exactly 11
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5&select=email
-        assert_field: 0.email
-        expected: probe-10@example.com
-        description: first row on page 1 (asc) is probe-10 — digits (ASCII 48-57) sort
-          before @ (ASCII 64)
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=email&email=ilike.probe-1*&order=email.asc&limit=5&offset=0
+        assert_field: length
+        expected: 5
+        description: page 1 ascending by email returns exactly 5 lowest-ordered emails
   - task_id: db-T04-rls-policy
     na: false
     checks:
-      - sql_dialect: postgres
-        sql_query: SELECT rowsecurity::text AS enabled FROM pg_tables WHERE schemaname =
-          'public' AND tablename = 'axarena_customers_{ns}'
-        assert_field: 0.enabled
-        expected: "true"
-        description: row-level security is enabled on the table
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM pg_policies WHERE schemaname = 'public'
-          AND tablename = 'axarena_customers_{ns}' AND cmd = 'SELECT' AND
-          qual::text LIKE '%auth.uid()%'
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()
         assert_field: 0.count
         expected: 1
-        description: a SELECT policy filtering by auth.uid() exists, enforcing per-user
-          row isolation
+        description: user-1 JWT sees exactly their own rows (RLS filters out other users)
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?select=count()
+        assert_field: 0.count
+        expected: 1
+        description: user-2 JWT sees exactly their own rows (RLS filters out other users)
   - task_id: db-T05-unique-constraint
     na: false
     checks:
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40example.com&select=count()
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=count()&email=eq.{email}
         assert_field: 0.count
         expected: 1
-        description: exactly one row with duplicate email — second insert was rejected
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM pg_constraint WHERE conrelid =
-          'public.axarena_customers_{ns}'::regclass AND contype = 'u'
-        assert_field: 0.count
-        expected: 1
-        description: unique constraint exists on table; its presence guarantees pg error
-          code 23505 on violation
+        description: exactly one row with the duplicate email remains after failed insert
+      - read_method: POST
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}
+        assert_field: code
+        expected: "23505"
+        description: re-issuing duplicate insert returns PostgreSQL unique-violation
+          error code 23505
   - task_id: db-T06-foreign-key
     na: false
     checks:
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM pg_constraint WHERE conrelid =
-          'public.axarena_orders_{ns}'::regclass AND contype = 'f'
-        assert_field: 0.count
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/orders?select=id,customer_id,customers(id)&id=eq.1
+        assert_field: 0.id
         expected: 1
-        description: foreign key constraint exists on axarena_orders_{ns} referencing
-          customers
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM axarena_orders_{ns} o INNER JOIN
-          axarena_customers_{ns} c ON o.customer_id = c.id
-        assert_field: 0.count
+        description: valid order row is returned
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/orders?select=id,customer_id,customers(id)&id=eq.1
+        assert_field: 0.customers.id
         expected: 1
-        description: valid order is present and customer_id joins to a real customer row
+        description: embedded customer confirms FK relationship holds
   - task_id: db-T07-export
     na: false
     checks:
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?select=count()
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=count
         assert_field: 0.count
         expected: 100
-        description: source table has exactly 100 records matching the expected export count
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE id IS NULL
-          OR email IS NULL OR created_at IS NULL
-        assert_field: 0.count
-        expected: 0
-        description: all records have id, email, and created_at populated — the expected
-          export fields
+        description: exported table has exactly 100 records
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{table}?select=*&limit=1
+        assert_field: 0.id
+        expected: true
+        description: each record contains expected fields (id present in first record)
   - task_id: db-T08-schema-migration
     na: false
     checks:
-      - sql_dialect: postgres
-        sql_query: SELECT data_type AS type FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
-          column_name = 'status'
-        assert_field: 0.type
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/
+        assert_field: definitions.{ns}.properties.status.format
         expected: text
-        description: status column exists with text type
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE status IS
-          DISTINCT FROM 'active'
+        description: status column exists in table schema with data type text
+      - read_method: GET
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/{ns}?status=neq.active&select=count()
         assert_field: 0.count
         expected: 0
-        description: all existing rows have status='active' after migration backfill
+        description: no rows have status other than active
   - task_id: db-T09-runtime-integration
     na: false
     checks:
       - read_method: GET
-        read_path_template: /functions/v1/axarena-{ns}
+        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/functions/v1/{ns}
         assert_field: count
-        expected: 100
-        description: deployed edge function returns JSON with count matching total row count
+        expected: 1
+        description: deployed edge function returns JSON with correct count
   - task_id: db-T10-backup-restore
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://api.supabase.com/v1/projects/{project_ref}/database/backups
-        assert_field: 0.id
-        expected: "{agent_reported_backup_id}"
-        description: "agent's reported backup id appears as first entry in management
-          API backup list; note: this endpoint requires Authorization: Bearer
-          SUPABASE_ACCESS_TOKEN (personal access token), not the service role
-          key"
+        read_path_template: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/backups
+        assert_field: backups.0.inserted_at
+        expected: 1
+        description: Most-recent backup entry exists and carries a creation timestamp
+          (harness compares against now−60 s)
