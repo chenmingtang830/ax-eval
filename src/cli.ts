@@ -73,6 +73,8 @@ import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./genera
 import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
+import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteFiles } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
@@ -122,6 +124,8 @@ const COMMANDS = [
   "extract-tasks",
   "compose-pack",
   "extract-surfaces",
+  "extract-capabilities",
+  "synthesize-suite",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -196,6 +200,23 @@ function commandUsage(command: string | undefined): string {
         "  The round-trip oracle never changes per surface — this only affects how the",
         "  agent is told to act on non-API surfaces. Writes targets/extracts/<slug>/surfaces.yaml.",
       ].join("\n");
+    case "extract-capabilities":
+      return [
+        "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
+        "                                    [--harness claude-code|codex] [--effort low|medium|high]",
+        "  Layer 0a of suite authoring: grounded per-vendor discovery of the product's",
+        "  most important documented capabilities, cited (doc_url + quote). Writes",
+        "  targets/extracts/<slug>/capabilities.yaml — the audit trail synthesize-suite reads.",
+      ].join("\n");
+    case "synthesize-suite":
+      return [
+        "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
+        "                                [--task-count N] [--harness claude-code|codex]",
+        "  Layer 0b: reads ALL vendors' capabilities.yaml (from extract-capabilities),",
+        "  clusters cross-vendor capabilities by coverage, derives the canonical task",
+        "  suite bottom-up. NOT grounded (reasons over already-cited input, no WebFetch).",
+        "  Writes <suite.yaml> + a sibling <suite>.synthesis.md audit trail.",
+      ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
     case "audit":
@@ -261,6 +282,8 @@ interface Parsed {
   l2Limit: number | undefined;
   l3Limit: number | undefined;
   l4Limit: number | undefined;
+  /** synthesize-suite: target number of canonical tasks (default 10). */
+  taskCount: number | undefined;
   results: string[];
   runId: string;
   runDir: string;
@@ -325,6 +348,7 @@ function parseArgs(argv: string[]): Parsed {
     l2Limit: undefined,
     l3Limit: undefined,
     l4Limit: undefined,
+    taskCount: undefined,
     results: [],
     runId: "",
     runDir: "results",
@@ -421,6 +445,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
     else if (a === "--l3-limit") p.l3Limit = Number(value(++i, "--l3-limit"));
     else if (a === "--l4-limit") p.l4Limit = Number(value(++i, "--l4-limit"));
+    else if (a === "--task-count") p.taskCount = Number(value(++i, "--task-count"));
     else if (a === "--results") p.results.push(value(++i, "--results"));
     else if (a === "--run-id") p.runId = value(++i, "--run-id");
     else if (a === "--run-dir") p.runDir = value(++i, "--run-dir");
@@ -1360,6 +1385,89 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   });
   if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
   return failures ? 1 : 0;
+}
+
+async function cmdExtractCapabilities(args: Parsed): Promise<number> {
+  const root = process.cwd();
+  let vendors = resolveVendorSelection(args, root);
+  if (!vendors) {
+    const { readdirSync } = await import("node:fs");
+    const vendorDir = resolve(root, "targets", "vendors");
+    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
+    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
+    vendors = files
+      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+  }
+  if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
+
+  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  console.log(`Extracting capabilities for ${vendors.length} vendor(s) via ${harness}…`);
+  const outcomes = await extractCapabilitiesAll(vendors, {
+    harness,
+    model: args.generatorModel || undefined,
+    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+  });
+  let failures = 0;
+  for (const outcome of outcomes) {
+    if (!outcome.ok) {
+      failures++;
+      console.error(`\n  ${outcome.vendor} → FAILED: ${outcome.error}`);
+      continue;
+    }
+    const path = writeCapabilityExtract(root, outcome.result);
+    console.log(`\n  ${outcome.vendor} → ${path} (${outcome.result.capabilities.length} capabilities)`);
+  }
+  if (failures) console.error(`\n${failures}/${outcomes.length} vendor(s) failed.`);
+  return failures ? 1 : 0;
+}
+
+async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
+  if (!args.category) throw new Error("--category is required (e.g. --category database)");
+  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
+  const root = process.cwd();
+
+  let vendors = resolveVendorSelection(args, root);
+  if (!vendors) {
+    const { readdirSync } = await import("node:fs");
+    const vendorDir = resolve(root, "targets", "vendors");
+    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
+    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
+    vendors = files
+      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .filter((v): v is NonNullable<typeof v> => v !== null)
+      .filter((v) => v.category === args.category);
+  }
+  if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
+
+  const extracts = vendors
+    .map((v) => loadCapabilityExtract(root, v.slug))
+    .filter((e): e is NonNullable<typeof e> => {
+      if (!e) console.error(`Skipping a vendor: no capabilities.yaml found. Run extract-capabilities first.`);
+      return e !== null;
+    });
+  if (extracts.length < 2) throw new Error("Need at least 2 vendors' capabilities.yaml to synthesize a suite.");
+
+  console.log(`Synthesizing suite from ${extracts.length} vendor(s)' capability extracts…`);
+  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const result = await synthesizeSuite(args.category, extracts, {
+    harness,
+    model: args.generatorModel || undefined,
+    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    targetTaskCount: args.taskCount,
+  });
+
+  const suiteName = args.out.split("/").pop()!.replace(/\.yaml$/, "").toUpperCase();
+  const suiteYaml = renderSuiteYaml(suiteName, 1, args.category, result);
+  const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
+  const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
+
+  console.log(`\n${result.tasks.length} tasks selected, ${result.rejected_clusters.length} clusters rejected.`);
+  for (const t of result.tasks) console.log(`  [${t.difficulty}] ${t.id} — ${t.coverage.length} vendor(s)`);
+  console.log(`\nSuite → ${suitePath}`);
+  console.log(`Synthesis audit trail → ${synthesisPath}`);
+  console.log(`\nReview both before freezing — this is a draft, not yet approved.`);
+  return 0;
 }
 
 async function cmdGenerate(args: Parsed): Promise<number> {
@@ -2329,6 +2437,10 @@ async function main(): Promise<number> {
       return cmdComposePack(args);
     case "extract-surfaces":
       return cmdExtractSurfaces(args);
+    case "extract-capabilities":
+      return cmdExtractCapabilities(args);
+    case "synthesize-suite":
+      return cmdSynthesizeSuite(args);
     default:
       console.error(USAGE);
       return 2;
