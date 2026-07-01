@@ -113,7 +113,12 @@ export interface SynthesizeSuiteOptions {
   targetTaskCount?: number;
 }
 
-const TIMEOUT_MS = 10 * 60 * 1000;
+// A large corpus (8 vendors x ~18 cited capabilities) plus a verbose,
+// detailed output (10 tasks with full intent/oracle_hint text + coverage +
+// rejected clusters) is genuinely slow for one call — measured exceeding
+// 10min once already. This runs once (not per-vendor), so latency is cheap
+// to tolerate.
+const TIMEOUT_MS = 25 * 60 * 1000;
 
 /** Synthesize the canonical suite from all vendors' capability extracts. */
 export async function synthesizeSuite(
