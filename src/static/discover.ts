@@ -16,12 +16,16 @@
 import { Fetcher, type FetcherOptions } from "./fetcher.js";
 import type { Weight } from "./types.js";
 
+/** Default crawl bounds — single source of truth, also surfaced in the MCP tool schema. */
+export const DEFAULT_MAX_PAGES = 25;
+export const DEFAULT_MAX_DEPTH = 2;
+
 export interface DiscoverOptions extends FetcherOptions {
   /** Where the crawl starts. Defaults to [site]. */
   entryPoints?: string[];
-  /** Max pages to fetch (politeness + bounded latency). Default 25. */
+  /** Max pages to fetch (politeness + bounded latency). Default {@link DEFAULT_MAX_PAGES}. */
   maxPages?: number;
-  /** Max link hops from an entry point before stopping expansion. Default 2. */
+  /** Max link hops from an entry point before stopping expansion. Default {@link DEFAULT_MAX_DEPTH}. */
   maxDepth?: number;
   /** Injectable fetcher (tests); defaults to a real `Fetcher` from `opts`. */
   fetcher?: Pick<Fetcher, "get">;
@@ -183,8 +187,8 @@ function hostOf(url: string): string {
 
 export async function discoverSurfaces(site: string, opts: DiscoverOptions = {}): Promise<DiscoveryAudit> {
   const fetcher = opts.fetcher ?? new Fetcher(opts);
-  const maxPages = opts.maxPages ?? 25;
-  const maxDepth = opts.maxDepth ?? 2;
+  const maxPages = opts.maxPages ?? DEFAULT_MAX_PAGES;
+  const maxDepth = opts.maxDepth ?? DEFAULT_MAX_DEPTH;
   const entryPoints = opts.entryPoints?.length ? opts.entryPoints : [site];
   const rootHost = hostOf(entryPoints[0] ?? site);
 

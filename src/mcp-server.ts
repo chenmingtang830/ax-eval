@@ -9,6 +9,11 @@
  *   ax_eval_discover — agent-style crawl discovery of surfaces
  *   ax_eval_run      — behavioral task matrix (pass/fail per task × harness)
  *
+ * Pack/.env paths: absolute paths are used verbatim. Relative pack paths
+ * resolve against cwd first, then the installed package root (so the shipped
+ * example packs work regardless of where the MCP client launches the server);
+ * `.env` is loaded from cwd and, as a fallback, from the resolved pack's dir.
+ *
  * Usage (stdio transport):
  *   npx ax-eval mcp-server
  *
@@ -26,6 +31,9 @@
  *     }
  *   }
  */
+import { existsSync } from "node:fs"
+import { dirname, isAbsolute, resolve } from "node:path"
+import { fileURLToPath } from "node:url"
 import { Server } from "@modelcontextprotocol/sdk/server/index.js"
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import {
@@ -35,7 +43,44 @@ import {
 import { loadDotenv, loadPack } from "./config.js"
 import { run, matrix } from "./runner.js"
 import { auditSite } from "./static/audit.js"
-import { discoverSurfaces } from "./static/discover.js"
+import { DEFAULT_MAX_DEPTH, DEFAULT_MAX_PAGES, discoverSurfaces } from "./static/discover.js"
+
+// The installed package root (one level up from dist/ or src/), where the
+// shipped example packs live. Used to resolve relative pack paths that would
+// otherwise break when an MCP client launches the server from an unrelated cwd.
+const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+
+/**
+ * Resolve a pack path robustly. MCP clients (Claude Desktop/Code, Cursor)
+ * commonly launch `npx ax-eval mcp-server` from an arbitrary cwd, so a bare
+ * relative path like `targets/examples/exa/pack.yaml` cannot be assumed to
+ * resolve against cwd. Absolute paths are used verbatim; a relative path is
+ * tried against cwd first (dev/repo workflow) and then against the installed
+ * package root (so the advertised example packs always resolve). If neither
+ * exists we return the cwd-relative candidate so the error names a sensible path.
+ */
+function resolvePackPath(p: string): string {
+  if (isAbsolute(p)) return p
+  const fromCwd = resolve(process.cwd(), p)
+  if (existsSync(fromCwd)) return fromCwd
+  const fromPackage = resolve(PACKAGE_ROOT, p)
+  if (existsSync(fromPackage)) return fromPackage
+  return fromCwd
+}
+
+/**
+ * Load `.env` for a run. cwd/.env is loaded first (the repo/dev workflow and
+ * where explicit user keys live — it wins on conflicts), then a `.env` sitting
+ * next to the resolved pack is loaded as a fallback, so keyed runs still find
+ * credentials when the server was launched from an unrelated cwd.
+ */
+function loadEnvFor(packPath?: string): void {
+  loadDotenv()
+  if (packPath) {
+    const packEnv = resolve(dirname(packPath), ".env")
+    if (existsSync(packEnv)) loadDotenv(packEnv)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Tool definitions
@@ -91,11 +136,11 @@ export const TOOLS = [
         },
         maxPages: {
           type: "number",
-          description: "Maximum pages to crawl. Default 20.",
+          description: `Maximum pages to crawl. Default ${DEFAULT_MAX_PAGES}.`,
         },
         maxDepth: {
           type: "number",
-          description: "Maximum crawl depth from the entry point. Default 3.",
+          description: `Maximum crawl depth from the entry point. Default ${DEFAULT_MAX_DEPTH}.`,
         },
       },
     },
@@ -132,10 +177,11 @@ export const TOOLS = [
 // ---------------------------------------------------------------------------
 
 export async function handleAudit(input: Record<string, unknown>) {
-  loadDotenv()
+  const packPath = typeof input.pack === "string" ? resolvePackPath(input.pack) : undefined
+  loadEnvFor(packPath)
   let site = typeof input.site === "string" ? input.site : undefined
-  if (!site && typeof input.pack === "string") {
-    site = loadPack(input.pack).site_url
+  if (!site && packPath) {
+    site = loadPack(packPath).site_url
   }
   if (!site) throw new Error("Provide either a 'pack' path or a 'site' URL.")
   const offline = input.offline === true
@@ -143,10 +189,11 @@ export async function handleAudit(input: Record<string, unknown>) {
 }
 
 export async function handleDiscover(input: Record<string, unknown>) {
-  loadDotenv()
+  const packPath = typeof input.pack === "string" ? resolvePackPath(input.pack) : undefined
+  loadEnvFor(packPath)
   let site = typeof input.site === "string" ? input.site : undefined
-  if (!site && typeof input.pack === "string") {
-    site = loadPack(input.pack).site_url
+  if (!site && packPath) {
+    site = loadPack(packPath).site_url
   }
   if (!site) throw new Error("Provide either a 'pack' path or a 'site' URL.")
   const offline = input.offline === true
@@ -165,8 +212,9 @@ export async function handleRun(input: Record<string, unknown>) {
   if (Array.isArray(input.harnesses) && !input.harnesses.every((h) => typeof h === "string")) {
     throw new Error("'harnesses' must be an array of strings.")
   }
-  loadDotenv()
-  const pack = loadPack(input.pack)
+  const packPath = resolvePackPath(input.pack)
+  loadEnvFor(packPath)
+  const pack = loadPack(packPath)
   const harnesses =
     Array.isArray(input.harnesses) && input.harnesses.length
       ? (input.harnesses as string[])
