@@ -190,10 +190,12 @@ async function extractTaskCheck(
     heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/${task.id}` },
     timeoutMs: PER_CALL_TIMEOUT_MS,
   });
-  const parsed = OracleExtractItemSchema.safeParse(JSON.parse(extractJsonObject(raw)));
+  const json = extractJsonObject(raw);
+  const parsed = OracleExtractItemSchema.safeParse(JSON.parse(json));
   if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     throw new Error(
-      `oracle-extract for "${vendor.vendor}"/${task.id} returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+      `oracle-extract for "${vendor.vendor}"/${task.id} returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`,
     );
   }
   if (parsed.data.task_id !== task.id) {
@@ -214,10 +216,12 @@ async function extractVendorConfig(
     heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/vendor_config` },
     timeoutMs: PER_CALL_TIMEOUT_MS,
   });
-  const parsed = VendorConfigSchema.safeParse(JSON.parse(extractJsonObject(raw)));
+  const json = extractJsonObject(raw);
+  const parsed = VendorConfigSchema.safeParse(JSON.parse(json));
   if (!parsed.success) {
+    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     throw new Error(
-      `oracle-extract vendor_config for "${vendor.vendor}" returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+      `oracle-extract vendor_config for "${vendor.vendor}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`,
     );
   }
   return parsed.data;
