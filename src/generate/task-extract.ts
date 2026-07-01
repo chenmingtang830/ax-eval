@@ -178,9 +178,12 @@ export async function extractOracles(
     effort: opts.effort,
     requireWebFetch: true,
     heartbeat: { everyMs: 30_000, label: vendor.vendor },
-    // This prompt asks for grounded research + a fairly large structured
-    // JSON return across all 10 suite tasks — slower than a typical call.
-    timeoutMs: 10 * 60 * 1000,
+    // This prompt asks for grounded research (real WebFetch round-trips,
+    // not a single lookup) across all 10 suite tasks. Measured up to ~26min
+    // for a thorough run — NOT a hang, the model does many small WebFetch
+    // confirmations per task under strict grounding. Vendors run in
+    // parallel (Promise.all), so this bounds per-vendor time, not total.
+    timeoutMs: 30 * 60 * 1000,
   });
   const json = extractJsonObject(raw);
   const parsed = z
