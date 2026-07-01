@@ -134,6 +134,19 @@ async function verifyRoundtrip(
   // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
   const applyNsTemplate = (template: string): string =>
     resolveEnvTemplate(ns ? template.split(NS_PLACEHOLDER).join(ns) : template);
+  // Named placeholders beyond {ns}/{gid}: a check can reference a value only
+  // the executor knows once it performs the task (e.g. {test_row_id} for an
+  // RLS visibility check, or {duplicate_email} for a unique-constraint
+  // check) — the executor reports it as an extra key alongside `gid`, the
+  // same mechanism used for authField tokens. Left untouched if unreported
+  // (so a genuinely missing value surfaces as a 404/not-found rather than a
+  // silently broken literal "{name}" in the URL).
+  const applyReportedFields = (template: string): string =>
+    template.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+      if (name === "ns" || name === "gid") return match;
+      const value = reported?.[name];
+      return typeof value === "string" ? value : match;
+    });
 
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
@@ -150,7 +163,7 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
         continue;
       }
-      const query = applyNsTemplate(oracle.sqlQuery);
+      const query = applyReportedFields(applyNsTemplate(oracle.sqlQuery));
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const row = await runSqlCheck(sqlConn, query);
@@ -184,7 +197,7 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
         continue;
       }
-      const query = applyNsTemplate(oracle.readQueryTemplate).split("{gid}").join(gid ?? "");
+      const query = applyReportedFields(applyNsTemplate(oracle.readQueryTemplate)).split("{gid}").join(gid ?? "");
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const data = await client.graphql<Record<string, unknown>>(query);
@@ -226,7 +239,7 @@ async function verifyRoundtrip(
       }
       requestClient = client.withToken(token);
     }
-    const path = applyNsTemplate(oracle.readPathTemplate).replace("{gid}", gid ? encodeURIComponent(gid) : "");
+    const path = applyReportedFields(applyNsTemplate(oracle.readPathTemplate)).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
       const method = oracle.readMethod ?? "GET";
