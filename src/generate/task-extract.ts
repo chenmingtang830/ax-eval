@@ -177,54 +177,77 @@ export interface ExtractOraclesOptions {
 // one-call-covers-everything design) — still generous given network variance.
 const PER_CALL_TIMEOUT_MS = 8 * 60 * 1000;
 
+// A model sometimes answers an "easy" task from general knowledge instead of
+// grounding it (requireWebFetch correctly rejects this) — often nondeterministic,
+// so one retry recovers most of these without discarding 10 already-successful
+// sibling calls over a single flaky one.
+const MAX_ATTEMPTS = 2;
+
+async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      if (attempt < MAX_ATTEMPTS) {
+        process.stderr.write(`  [${label}] attempt ${attempt} failed, retrying: ${err instanceof Error ? err.message.split("\n")[0] : err}\n`);
+      }
+    }
+  }
+  throw lastErr;
+}
+
 async function extractTaskCheck(
   vendor: ResolveResult,
   task: SuiteTask,
   opts: ExtractOraclesOptions,
 ): Promise<OracleExtractItem> {
-  const raw = await invokeHarness(buildTaskPrompt(vendor, task), {
-    harness: opts.harness ?? "claude-code",
-    model: opts.model,
-    effort: opts.effort,
-    requireWebFetch: true,
-    heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/${task.id}` },
-    timeoutMs: PER_CALL_TIMEOUT_MS,
+  const label = `${vendor.vendor}/${task.id}`;
+  return withRetry(label, async () => {
+    const raw = await invokeHarness(buildTaskPrompt(vendor, task), {
+      harness: opts.harness ?? "claude-code",
+      model: opts.model,
+      effort: opts.effort,
+      requireWebFetch: true,
+      heartbeat: { everyMs: 30_000, label },
+      timeoutMs: PER_CALL_TIMEOUT_MS,
+    });
+    const json = extractJsonObject(raw);
+    const parsed = OracleExtractItemSchema.safeParse(JSON.parse(json));
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
+      throw new Error(`oracle-extract for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);
+    }
+    if (parsed.data.task_id !== task.id) {
+      throw new Error(`oracle-extract for "${vendor.vendor}" returned task_id "${parsed.data.task_id}", expected "${task.id}"`);
+    }
+    return parsed.data;
   });
-  const json = extractJsonObject(raw);
-  const parsed = OracleExtractItemSchema.safeParse(JSON.parse(json));
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
-    throw new Error(
-      `oracle-extract for "${vendor.vendor}"/${task.id} returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`,
-    );
-  }
-  if (parsed.data.task_id !== task.id) {
-    throw new Error(`oracle-extract for "${vendor.vendor}" returned task_id "${parsed.data.task_id}", expected "${task.id}"`);
-  }
-  return parsed.data;
 }
 
 async function extractVendorConfig(
   vendor: ResolveResult,
   opts: ExtractOraclesOptions,
 ): Promise<z.infer<typeof VendorConfigSchema>> {
-  const raw = await invokeHarness(buildVendorConfigPrompt(vendor), {
-    harness: opts.harness ?? "claude-code",
-    model: opts.model,
-    effort: opts.effort,
-    requireWebFetch: true,
-    heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/vendor_config` },
-    timeoutMs: PER_CALL_TIMEOUT_MS,
+  const label = `${vendor.vendor}/vendor_config`;
+  return withRetry(label, async () => {
+    const raw = await invokeHarness(buildVendorConfigPrompt(vendor), {
+      harness: opts.harness ?? "claude-code",
+      model: opts.model,
+      effort: opts.effort,
+      requireWebFetch: true,
+      heartbeat: { everyMs: 30_000, label },
+      timeoutMs: PER_CALL_TIMEOUT_MS,
+    });
+    const json = extractJsonObject(raw);
+    const parsed = VendorConfigSchema.safeParse(JSON.parse(json));
+    if (!parsed.success) {
+      const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
+      throw new Error(`oracle-extract vendor_config for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);
+    }
+    return parsed.data;
   });
-  const json = extractJsonObject(raw);
-  const parsed = VendorConfigSchema.safeParse(JSON.parse(json));
-  if (!parsed.success) {
-    const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
-    throw new Error(
-      `oracle-extract vendor_config for "${vendor.vendor}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`,
-    );
-  }
-  return parsed.data;
 }
 
 /** Extract oracle read-back checks + vendor config for a single vendor.
