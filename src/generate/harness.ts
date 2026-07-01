@@ -139,7 +139,8 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
       "--output-last-message", outPath,
       prompt,
     ], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout }).catch((e) => {
-      throw new Error(`harness codex (${codexBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || stderr}`);
+      const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
+      throw new Error(`harness codex${label} (${codexBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || stderr}`);
     });
     return existsSync(outPath) ? readFileSync(outPath, "utf8") : stdout;
   }
@@ -157,17 +158,19 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
       ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
       { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout },
     ).catch((e) => {
-      throw new Error(`harness claude-code (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
+      const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
+      throw new Error(`harness claude-code${label} (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
     });
     if (opts.requireWebFetch) {
+      const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
       const counts = countWebToolUse(stdout);
       if (!counts || (counts.webSearch === 0 && counts.webFetch === 0)) {
         throw new Error(
-          "harness claude-code answered without calling WebSearch or WebFetch — refusing an ungrounded (training-data-only) answer for a grounded-research prompt",
+          `harness claude-code${label} answered without calling WebSearch or WebFetch — refusing an ungrounded (training-data-only) answer for a grounded-research prompt`,
         );
       }
       const text = extractVerboseResultText(stdout);
-      if (text === null) throw new Error("harness claude-code --verbose reply had no final result message");
+      if (text === null) throw new Error(`harness claude-code${label} --verbose reply had no final result message`);
       return text;
     }
     return normalizeHarnessText(stdout);
