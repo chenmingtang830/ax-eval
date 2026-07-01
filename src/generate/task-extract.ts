@@ -178,6 +178,9 @@ export async function extractOracles(
     effort: opts.effort,
     requireWebFetch: true,
     heartbeat: { everyMs: 30_000, label: vendor.vendor },
+    // This prompt asks for grounded research + a fairly large structured
+    // JSON return across all 10 suite tasks — slower than a typical call.
+    timeoutMs: 10 * 60 * 1000,
   });
   const json = extractJsonObject(raw);
   const parsed = z
