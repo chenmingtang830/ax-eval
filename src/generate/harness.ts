@@ -14,12 +14,67 @@
  * run concurrently (unlike spawnSync which blocks the event loop serially).
  */
 import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 
-const execFileAsync = promisify(execFile);
+interface RunResult {
+  stdout: string;
+  stderr: string;
+}
+
+class ProcessTimeoutError extends Error {
+  killed = true;
+}
+
+/** Like execFile, but spawns detached (POSIX: child becomes its own process
+ *  group leader) and kills the WHOLE group on timeout, not just the direct
+ *  child. This matters because AX_EVAL_CLAUDE_BIN often points at a pnpm
+ *  dlx shim that FORKS the real claude.exe as a child rather than exec-ing
+ *  into it — plain execFile's `timeout` only signals the immediate child,
+ *  leaving the real work orphaned and still running (and still consuming
+ *  API concurrency / rate-limit slots) after we've already reported the
+ *  call as failed. Confirmed by hand: a killed shim left `claude.exe`
+ *  alive and burning CPU minutes after our process "gave up". */
+type LooseExecFile = (
+  bin: string,
+  args: string[],
+  options: { cwd: string; maxBuffer: number; encoding: string; detached: boolean },
+  callback: (error: (Error & { stderr?: string; killed?: boolean }) | null, stdout: string, stderr: string) => void,
+) => { pid?: number; kill: (signal: string) => void };
+
+function runDetached(bin: string, args: string[], opts: { cwd: string; maxBuffer: number; timeoutMs: number }): Promise<RunResult> {
+  return new Promise((resolvePromise, reject) => {
+    // `detached` isn't in @types/node's ExecFileOptions but IS honored by
+    // the underlying spawn() — it's what lets us kill the whole process
+    // group (see runDetached's docstring) rather than just the direct child.
+    const child = (execFile as unknown as LooseExecFile)(
+      bin,
+      args,
+      { cwd: opts.cwd, maxBuffer: opts.maxBuffer, encoding: "utf8", detached: true },
+      (error, stdout, stderr) => {
+        clearTimeout(timer);
+        if (error) {
+          if (timedOut) reject(Object.assign(new ProcessTimeoutError(error.message), { stderr }));
+          else reject(Object.assign(error, { stderr }));
+        } else {
+          resolvePromise({ stdout, stderr });
+        }
+      },
+    );
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid) {
+        try {
+          process.kill(-child.pid, "SIGKILL");
+        } catch {
+          child.kill("SIGKILL");
+        }
+      }
+    }, opts.timeoutMs);
+  });
+}
 
 export type HarnessId = "claude-code" | "codex";
 export type Effort = "low" | "medium" | "high";
@@ -129,7 +184,7 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
     const outPath = resolve(dir, "out.json");
     const modelArgs = opts.model ? ["-m", opts.model] : [];
     const effortArgs = opts.effort ? ["-c", `model_reasoning_effort=${opts.effort}`] : [];
-    const { stdout, stderr } = await execFileAsync(codexBin, [
+    const { stdout, stderr } = await runDetached(codexBin, [
       "exec",
       "--sandbox", "workspace-write",
       "-c", "sandbox_workspace_write.network_access=true",
@@ -138,7 +193,7 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
       ...effortArgs,
       "--output-last-message", outPath,
       prompt,
-    ], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout }).catch((e) => {
+    ], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeoutMs: timeout }).catch((e) => {
       const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
       throw new Error(`harness codex${label} (${codexBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || stderr}`);
     });
@@ -153,10 +208,10 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
     // blocks (see countWebToolUse). Only requested when grounding is being
     // enforced, to leave the existing non-DAEB generate path unchanged.
     const verboseArgs = opts.requireWebFetch ? ["--verbose"] : [];
-    const { stdout } = await execFileAsync(
+    const { stdout } = await runDetached(
       claudeBin,
       ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
-      { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout },
+      { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeoutMs: timeout },
     ).catch((e) => {
       const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
       throw new Error(`harness claude-code${label} (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
