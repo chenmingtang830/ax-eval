@@ -41,6 +41,11 @@ export interface RoundtripOutcome {
   success: boolean;
   oracleResults: OracleResult[];
   error: string | null;
+  /** True when the pack marks this task N/A for the vendor (its only
+   *  oracle is type "na") — per DAEB-1 methodology, N/A tasks are excluded
+   *  from both the numerator and denominator of the pass rate, not
+   *  counted as failures. */
+  na: boolean;
 }
 
 export function loadResults(path: string): ExecutorResults {
@@ -277,6 +282,7 @@ export async function verifyGeneratedPack(
       oracleResults = [];
       error = err instanceof Error ? err.message : String(err);
     }
+    const na = task.oracles.length > 0 && task.oracles.every((o) => o.type === "na");
     const success = oracleResults.length > 0 && oracleResults.every((r) => r.passed);
     outcomes.push({
       taskId: task.id,
@@ -285,6 +291,7 @@ export async function verifyGeneratedPack(
       success,
       oracleResults,
       error,
+      na,
     });
   }
   return outcomes;

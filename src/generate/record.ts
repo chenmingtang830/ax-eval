@@ -71,10 +71,12 @@ function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
   return out;
 }
 
-/** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k). */
+/** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k).
+ *  N/A tasks (per DAEB-1 methodology) are excluded from both solved and tasks. */
 function passAtK(outcomes: RoundtripOutcome[]): { solved: number; tasks: number; k: number } {
   const byTask = new Map<string, RoundtripOutcome[]>();
   for (const o of outcomes) {
+    if (o.na) continue;
     const list = byTask.get(o.taskId) ?? [];
     list.push(o);
     byTask.set(o.taskId, list);
@@ -98,7 +100,8 @@ export function discoveryScore(report: DiscoveryReport | undefined): number | nu
 }
 
 function passRateOf(outcomes: RoundtripOutcome[]): number {
-  return outcomes.length ? outcomes.filter((o) => o.success).length / outcomes.length : 0;
+  const scored = outcomes.filter((o) => !o.na);
+  return scored.length ? scored.filter((o) => o.success).length / scored.length : 0;
 }
 
 /** The strongest profile run (highest first-attempt pass rate), or null. */

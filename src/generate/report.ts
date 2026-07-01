@@ -130,12 +130,20 @@ const BLOCKING_SIGNALS = ["canonical"] as const;
 // Pure analysis helpers (shared by the recommendations engine + the renderer).
 // ---------------------------------------------------------------------------
 
+/** N/A tasks (per DAEB-1 methodology) are excluded from both the numerator
+ *  and denominator of any pass-rate figure — they're disclosed separately,
+ *  never silently counted as failures. */
+function scoredOutcomes(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
+  return outcomes.filter((o) => !o.na);
+}
+
 function passCount(outcomes: RoundtripOutcome[]): number {
-  return outcomes.filter((o) => o.success).length;
+  return scoredOutcomes(outcomes).filter((o) => o.success).length;
 }
 
 function pct(outcomes: RoundtripOutcome[]): number {
-  return outcomes.length ? Math.round((passCount(outcomes) / outcomes.length) * 100) : 0;
+  const scored = scoredOutcomes(outcomes);
+  return scored.length ? Math.round((passCount(outcomes) / scored.length) * 100) : 0;
 }
 
 /** First attempt per task id, in order. A merged multi-attempt run holds one
@@ -153,9 +161,9 @@ function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
   return out;
 }
 
-/** "2/3 (67%)" label for a set of outcomes. */
+/** "2/3 (67%)" label for a set of outcomes (N/A tasks excluded from the total). */
 function rateLabel(outcomes: RoundtripOutcome[]): string {
-  return `${passCount(outcomes)}/${outcomes.length} (${pct(outcomes)}%)`;
+  return `${passCount(outcomes)}/${scoredOutcomes(outcomes).length} (${pct(outcomes)}%)`;
 }
 
 function runLabel(run: ProfileRun): string {

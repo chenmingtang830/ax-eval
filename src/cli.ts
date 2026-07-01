@@ -1824,7 +1824,10 @@ function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
 }
 
 function passRate(runs: ProfileRun[]): number {
-  const outcomes = runs.flatMap((r) => r.outcomes);
+  // N/A tasks (per DAEB-1 methodology) are excluded from both the numerator
+  // and denominator — a vendor lacking a mechanism entirely shouldn't drag
+  // its score down for something it structurally can't do.
+  const outcomes = runs.flatMap((r) => r.outcomes).filter((o) => !o.na);
   if (!outcomes.length) return 0;
   return outcomes.filter((o) => o.success).length / outcomes.length;
 }
