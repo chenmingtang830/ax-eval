@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-hhe2f8
+# run_id: 2026-07-01-t8873q
 name: convex
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-hhe2f8
+run_id: 2026-07-01-t8873q
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -21,8 +21,9 @@ auth:
   env: CONVEX_DEPLOY_KEY
   env_aliases: []
   verify_env_aliases: []
+  header: Authorization
 sandbox_scope: []
-base_url: https://{deployment}.convex.cloud
+base_url: https://{deployment_name}.convex.cloud
 headers: {}
 site_url: https://www.convex.dev
 openapi_url: ""
@@ -44,13 +45,19 @@ tasks:
       (SQL DDL, schema-as-code, dashboard-equivalent API). Report the table or
       collection identifier.
     oracles:
-      - type: na
-        description: Convex exposes no public REST endpoint for table listing or schema
-          column introspection. Schema is defined in schema.ts (code), and there
-          is no /api/tables, /api/schema, or equivalent route in the documented
-          HTTP API.
+      - type: roundtrip
+        expected: success
+        description: query against axarena_customers_{ns} returns success (table exists
+          and is queryable; invalid table names cause status=error in Convex)
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: status
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T02-insert-rows
@@ -63,16 +70,14 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: body {path:'customers:countAll',args:{ns:'{ns}'}}; function returns
-          total document count in axarena_customers_{ns}
+        description: count function on axarena_customers_{ns} returns exactly 100
         readMethod: POST
         readPathTemplate: /api/query
         assertField: value
       - type: roundtrip
-        expected: probe-1@{ns}.example.com
-        description: body
-          {path:'customers:getByEmail',args:{ns:'{ns}',email:'probe-1@{ns}.example.com'}};
-          sampled row has expected email field
+        expected: probe-1@example.com
+        description: document fetched by known email returns the correct email field
+          (expected shape confirmed)
         readMethod: POST
         readPathTemplate: /api/query
         assertField: value.email
@@ -94,20 +99,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 11
-        description: body
-          {path:'customers:countByEmailPrefix',args:{ns:'{ns}',prefix:'probe-'}};
-          function returns integer count of probe-1 + probe-10..probe-19
+        description: count of documents whose email matches probe-1 / probe-10..probe-19
+          pattern is exactly 11
         readMethod: POST
         readPathTemplate: /api/query
         assertField: value
       - type: roundtrip
-        expected: probe-1@{ns}.example.com
-        description: body
-          {path:'customers:pageByEmailPrefix',args:{ns:'{ns}',prefix:'probe-',limit:5,order:'asc'}};
-          first item of first page is lowest-ordered email
+        expected: probe-1@example.com
+        description: first document in page 1 of the paginated result is the
+          lexicographically lowest email (probe-1)
         readMethod: POST
         readPathTemplate: /api/query
-        assertField: value.0.email
+        assertField: value.page.0.email
     difficulty: L2
     allowed_surfaces:
       - api
@@ -125,28 +128,14 @@ tasks:
       attribute-based policy, query-rewrite middleware, function-level guard
       — is acceptable.
     oracles:
-      - type: roundtrip
-        expected: 50
-        description: "Authorization: Bearer {USER_A_JWT}; body
-          {path:'customers:myRows',args:{ns:'{ns}'}}; userA sees exactly their
-          own 50 rows"
-        readMethod: POST
-        readPathTemplate: /api/query
-        assertField: value
-      - type: roundtrip
-        expected: 50
-        description: "Authorization: Bearer {USER_B_JWT}; body
-          {path:'customers:myRows',args:{ns:'{ns}'}}; userB sees exactly their
-          own 50 rows (distinct from userA's)"
-        readMethod: POST
-        readPathTemplate: /api/query
-        assertField: value
+      - type: na
+        description: Convex has no built-in row-level security mechanism; the official
+          docs state 'Convex doesn't need an opinionated authorization framework
+          like RLS' — per-user data isolation exists only in application
+          function code, not in the database layer, so no database-enforced
+          per-user visibility can be asserted
     difficulty: L3
-    allowed_surfaces:
-      - api
-      - sdk
-      - cli
-      - mcp
+    allowed_surfaces: []
     depends_on: []
     trace: []
   - id: db-T05-unique-constraint
@@ -158,18 +147,15 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: body
-          {path:'customers:countByEmail',args:{ns:'{ns}',email:'<duplicate_email>'}};
-          exactly one document exists with that email after attempted re-insert
+        description: count of documents with the duplicate email is exactly 1 (second
+          insert was rejected)
         readMethod: POST
         readPathTemplate: /api/query
         assertField: value
       - type: roundtrip
         expected: error
-        description: Re-attempt duplicate insert via body
-          {path:'customers:insert',args:{ns:'{ns}',email:'<duplicate_email>',...}};
-          response status is 'error' (application-enforced uniqueness; no
-          DB-native error code)
+        description: re-attempting the duplicate insert mutation returns Convex error
+          status (application-layer uniqueness rejection)
         readMethod: POST
         readPathTemplate: /api/mutation
         assertField: status
@@ -190,10 +176,11 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: Convex is a document database with no native foreign-key constraint
-          enforcement. Document Id references (v.id()) express relationships but
-          referential integrity is not checked by the engine; no FK-violation
-          error code exists.
+        description: Convex has no database-level foreign key enforcement;
+          defineTable/defineSchema provide TypeScript type validation only — a
+          mutation inserting a non-existent customer_id succeeds silently unless
+          application code manually rejects it, so there is no native FK
+          violation error to assert
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -204,13 +191,26 @@ tasks:
       Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
       the output path (file) or stream.
     oracles:
-      - type: na
-        description: Convex has no public REST endpoint for bulk data export. Export is
-          available only via the Convex CLI (npx convex export) or dashboard
-          download; there is no streaming or file-download route in the /api/*
-          HTTP surface.
+      - type: roundtrip
+        expected: 100
+        description: query function collecting all documents from axarena_customers_{ns}
+          returns count of exactly 100
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: probe-1@example.com
+        description: first document in the exported result set has an email field
+          (expected record shape present)
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value.0.email
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T08-schema-migration
@@ -221,17 +221,16 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        expected: 100
-        description: body
-          {path:'customers:countByStatus',args:{ns:'{ns}',status:'active'}}; all
-          100 existing rows have status='active' after migration
+        expected: active
+        description: sample document from axarena_customers_{ns} has status field equal
+          to 'active' (column exists and is correct type)
         readMethod: POST
         readPathTemplate: /api/query
-        assertField: value
+        assertField: value.status
       - type: roundtrip
-        expected: 0
-        description: body {path:'customers:countMissingStatus',args:{ns:'{ns}'}}; zero
-          rows lack the status field (backfill complete)
+        expected: 100
+        description: count of documents where status='active' equals 100 (all existing
+          rows backfilled)
         readMethod: POST
         readPathTemplate: /api/query
         assertField: value
@@ -253,10 +252,10 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: HTTP action at .convex.site public URL; response JSON has top-level
-          count equal to total row count
+        description: HTTP action on convex.site (Convex's HTTP-action domain, separate
+          from the data API domain) returns JSON with count=100
         readMethod: GET
-        readPathTemplate: https://{deployment}.convex.site/runtime/stats?ns={ns}
+        readPathTemplate: https://{deployment_name}.convex.site/customers/count
         assertField: count
     difficulty: L3
     allowed_surfaces:
@@ -274,10 +273,10 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: na
-        description: Convex has no public REST API for listing, inspecting, or
-          timestamping backups or snapshots. Backup state is managed internally
-          by the Convex platform and is only accessible via the dashboard UI; no
-          /api/backups or equivalent route exists.
+        description: Convex provides no documented public REST API to list or verify
+          backups; backup management is exclusively through the dashboard UI or
+          the CLI (npx convex export), with no programmatic endpoint to assert a
+          snapshot identifier or creation timestamp
     difficulty: L4
     allowed_surfaces: []
     depends_on: []

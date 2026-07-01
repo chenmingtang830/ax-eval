@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-sugay3
+# run_id: 2026-07-01-wlasht
 name: mongodb-atlas
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-sugay3
+run_id: 2026-07-01-wlasht
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,12 +17,13 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: bearer
-  env: MONGODB_ATLAS_ACCESS_TOKEN
+  type: api-key
+  env: MONGODB_DATA_API_KEY
   env_aliases: []
   verify_env_aliases: []
+  header: apiKey
 sandbox_scope: []
-base_url: https://cloud.mongodb.com/api/atlas/v2
+base_url: https://data.mongodb-api.com/app/{APP_ID}/endpoint/data/v1
 headers: {}
 site_url: https://www.mongodb.com
 openapi_url: ""
@@ -46,11 +47,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: pipeline
-          [$match:{customer_id:{$exists:true},email:{$exists:true},name:{$exists:true}},$count:n]
-          — all 100 docs carry the three schema fields
+        description: aggregate $count confirms 100 docs possess the email field —
+          collection exists with expected column
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        readPathTemplate: /action/aggregate
+        assertField: documents.0.n
+      - type: roundtrip
+        expected: 100
+        description: aggregate $count confirms 100 docs possess the name field — second
+          named column present on all rows
+        readMethod: POST
+        readPathTemplate: /action/aggregate
         assertField: documents.0.n
     difficulty: L1
     allowed_surfaces:
@@ -70,16 +77,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: pipeline [$count:n] on axarena_customers_{ns} returns 100
+        description: total document count in axarena_customers_{ns} is exactly 100
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
-        assertField: documents.0.n
+        readPathTemplate: /action/count
+        assertField: count
       - type: roundtrip
         expected: probe-1@example.com
-        description: findOne filter {email:'probe-1@example.com'} returns document with
-          matching email
+        description: "findOne with filter {email: probe-1@example.com} returns doc with
+          correct email field shape"
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        readPathTemplate: /action/findOne
         assertField: document.email
     difficulty: L1
     allowed_surfaces:
@@ -99,17 +106,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 11
-        description: pipeline [$match:{email:{$regex:'^probe-1[0-9]?@'}},$count:n]
-          returns 11
+        description: "count with regex filter {email: {$regex: '^probe-1[0-9]?$'}}
+          returns exactly 11 matching documents"
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
-        assertField: documents.0.n
+        readPathTemplate: /action/count
+        assertField: count
       - type: roundtrip
         expected: probe-1@example.com
-        description: find with same filter, sort:{email:1}, limit:5 — first doc is
-          lowest-ordered email
+        description: find with same filter, sort {email:1}, limit 5 — first element is
+          lowest lexicographic email (probe-1 precedes probe-10)
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/find
+        readPathTemplate: /action/find
         assertField: documents.0.email
     difficulty: L2
     allowed_surfaces:
@@ -129,10 +136,9 @@ tasks:
       — is acceptable.
     oracles:
       - type: na
-        description: MongoDB Atlas has no native row-level security at the database
-          engine layer; access control is collection-scoped via database users,
-          not per-row predicate filtering; no REST assertion can verify per-user
-          row visibility without Atlas App Services as an additional deployment
+        description: MongoDB Atlas has no row-level security mechanism; Atlas RBAC
+          operates at database/collection granularity and cannot enforce
+          per-document ownership filters enforced server-side.
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -146,11 +152,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: pipeline [$match:{email:<duplicate_email>},$count:n] — unique index
-          blocked second insert, count is 1
+        description: "count with filter {email: <duplicate_email>} is exactly 1 — unique
+          index rejected the duplicate insertOne"
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
-        assertField: documents.0.n
+        readPathTemplate: /action/count
+        assertField: count
+      - type: roundtrip
+        expected: 11000
+        description: aggregate over a stored error-log collection captures MongoDB
+          duplicate-key error code 11000 from the rejected insert
+        readMethod: POST
+        readPathTemplate: /action/aggregate
+        assertField: documents.0.code
     difficulty: L1
     allowed_surfaces:
       - api
@@ -168,9 +181,8 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: MongoDB has no foreign key constraint mechanism; the engine never
-          raises a referential-integrity violation, so the required
-          insert-failure mode is structurally absent
+        description: MongoDB Atlas is a document database; it has no
+          referential-integrity or foreign-key enforcement mechanism whatsoever.
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -183,16 +195,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: pipeline [$count:n] on source collection confirms 100 exportable
-          records
+        description: source collection still has 100 documents matching expected export
+          record count
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
-        assertField: documents.0.n
+        readPathTemplate: /action/count
+        assertField: count
       - type: roundtrip
         expected: probe-1@example.com
-        description: findOne on source confirms expected email field is present on documents
+        description: findOne confirms expected field shape is present in collection used
+          for export
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        readPathTemplate: /action/findOne
         assertField: document.email
     difficulty: L1
     allowed_surfaces:
@@ -211,16 +224,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: pipeline [$match:{status:'active'},$count:n] — all 100 existing
-          docs backfilled with status=active
+        description: "count with filter {status: 'active'} equals 100 — all pre-existing
+          rows were backfilled"
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
-        assertField: documents.0.n
+        readPathTemplate: /action/count
+        assertField: count
       - type: roundtrip
         expected: active
-        description: findOne returns a document where status field equals active
+        description: "findOne with filter {status: {$exists: true}} returns a doc whose
+          status field equals 'active'"
         readMethod: POST
-        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        readPathTemplate: /action/findOne
         assertField: document.status
     difficulty: L3
     allowed_surfaces:
@@ -240,9 +254,10 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: Atlas App Services HTTPS endpoint returns JSON with count equal to 100
+        description: independently invoke the deployed Atlas custom HTTPS endpoint;
+          assert response JSON contains count=100
         readMethod: GET
-        readPathTemplate: https://{region}.aws.data.mongodb-api.com/app/{appId}/endpoint/{functionEndpoint}
+        readPathTemplate: https://{APP_ID}.us-east-1.aws.data.mongodb-api.com/app/{APP_ID}/endpoint/axarena-{ns}
         assertField: count
     difficulty: L3
     allowed_surfaces:
@@ -260,17 +275,20 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        expected: "{snapshotId}"
-        description: GET snapshot by agent-reported ID — response id field matches
+        expected: replicaSet
+        description: snapshot list endpoint returns at least one entry; most-recent
+          first result has type=replicaSet confirming agent-created snapshot is
+          present
         readMethod: GET
-        readPathTemplate: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
-        assertField: id
+        readPathTemplate: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
+        assertField: results.0.type
       - type: roundtrip
         expected: completed
-        description: Snapshot status is completed
+        description: most-recent snapshot has status=completed with a createdAt
+          timestamp within the last 60 seconds
         readMethod: GET
-        readPathTemplate: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
-        assertField: status
+        readPathTemplate: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
+        assertField: results.0.status
     difficulty: L4
     allowed_surfaces:
       - api

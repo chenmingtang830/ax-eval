@@ -1266,7 +1266,9 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
     for (const task of result.tasks) {
       const status = task.na
         ? `N/A (${task.na_reason ?? "no reason"})`
-        : task.checks.map((c) => `${c.read_method} ${c.read_path_template} → ${c.assert_field}=${JSON.stringify(c.expected)}`).join(" | ");
+        : task.checks
+            .map((c) => `${c.sql_query ? `SQL(${c.sql_dialect})` : `${c.read_method} ${c.read_path_template}`} → ${c.assert_field}=${JSON.stringify(c.expected)}`)
+            .join(" | ");
       console.log(`    ${task.task_id}: ${status}`);
     }
   }

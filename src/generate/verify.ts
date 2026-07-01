@@ -13,6 +13,7 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -120,15 +121,48 @@ async function verifyRoundtrip(
   ns: string | undefined,
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
+  sqlConn: SqlConn | null,
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
+  const applyNsTemplate = (template: string): string => (ns ? template.split(NS_PLACEHOLDER).join(ns) : template);
+
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
-    const gid = reported?.gid;
-    if (!gid) {
-      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+
+    // SQL wire-protocol targets (CockroachDB/PlanetScale): no {gid}
+    // substitution — these checks address state by {ns}, not a
+    // per-resource id, since a "row count" query has no single resource.
+    if (oracle.sqlQuery) {
+      if (!sqlConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has sqlQuery but pack declares no sql_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = applyNsTemplate(oracle.sqlQuery);
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const row = await runSqlCheck(sqlConn, query);
+        const actual = resolveDotted(row, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
       continue;
     }
+
+    const gid = reported?.gid;
+    // Only DAEB-1-style count/state checks that reference {gid} need one —
+    // a "does this table have 100 rows" query addresses state by {ns}, not
+    // a single resource. Templates that don't mention {gid} skip the check.
+    const needsGid = (t: string | undefined) => Boolean(t?.includes("{gid}"));
 
     // GraphQL targets (Linear/Monday): substitute {gid} into the hand-authored
     // read-back query, POST it, and assert the dotted field against `data`.
@@ -137,7 +171,11 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing readQuery/assertField" });
         continue;
       }
-      const query = oracle.readQueryTemplate.split("{gid}").join(gid);
+      if (needsGid(oracle.readQueryTemplate) && !gid) {
+        out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+        continue;
+      }
+      const query = applyNsTemplate(oracle.readQueryTemplate).split("{gid}").join(gid ?? "");
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const data = await client.graphql<Record<string, unknown>>(query);
@@ -158,18 +196,22 @@ async function verifyRoundtrip(
       continue;
     }
 
-    // REST targets (Asana/Notion/Exa): read back the path and assert the field.
+    // REST targets (Asana/Notion/Exa/DAEB-1 vendors): read back the path and assert the field.
     if (!oracle.readPathTemplate || !oracle.assertField) {
       out.push({ type: "roundtrip", passed: false, detail: "oracle missing readPath/assertField" });
       continue;
     }
-    const path = oracle.readPathTemplate.replace("{gid}", encodeURIComponent(gid));
+    if (needsGid(oracle.readPathTemplate) && !gid) {
+      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+      continue;
+    }
+    const path = applyNsTemplate(oracle.readPathTemplate).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
       const method = oracle.readMethod ?? "GET";
       const body =
         method === "POST"
-          ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid))
+          ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid ?? ""))
           : await client.get<Record<string, unknown>>(
               path,
               fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
@@ -200,6 +242,7 @@ export async function verifyGeneratedPack(
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
+  const sqlConn = resolveSqlConn(pack);
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -212,6 +255,7 @@ export async function verifyGeneratedPack(
         executor.ns,
         pack.field_select_param,
         pack.api_style,
+        sqlConn,
       );
     } catch (err) {
       oracleResults = [];

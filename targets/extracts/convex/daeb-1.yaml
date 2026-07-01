@@ -2,19 +2,22 @@ vendor: Convex
 category: database
 slug: convex
 suite_name: DAEB-1
-extracted_at: 2026-07-01T01:08:34.263Z
+extracted_at: 2026-07-01T02:01:36.094Z
 vendor_config:
-  base_url: https://{deployment}.convex.cloud
+  base_url: https://{deployment_name}.convex.cloud
   auth_type: bearer
+  auth_header: Authorization
   auth_env: CONVEX_DEPLOY_KEY
 tasks:
   - task_id: db-T01-create-table
-    na: true
-    na_reason: Convex exposes no public REST endpoint for table listing or schema
-      column introspection. Schema is defined in schema.ts (code), and there is
-      no /api/tables, /api/schema, or equivalent route in the documented HTTP
-      API.
-    checks: []
+    na: false
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        assert_field: status
+        expected: success
+        description: query against axarena_customers_{ns} returns success (table exists
+          and is queryable; invalid table names cause status=error in Convex)
   - task_id: db-T02-insert-rows
     na: false
     checks:
@@ -22,15 +25,13 @@ tasks:
         read_path_template: /api/query
         assert_field: value
         expected: 100
-        description: body {path:'customers:countAll',args:{ns:'{ns}'}}; function returns
-          total document count in axarena_customers_{ns}
+        description: count function on axarena_customers_{ns} returns exactly 100
       - read_method: POST
         read_path_template: /api/query
         assert_field: value.email
-        expected: probe-1@{ns}.example.com
-        description: body
-          {path:'customers:getByEmail',args:{ns:'{ns}',email:'probe-1@{ns}.example.com'}};
-          sampled row has expected email field
+        expected: probe-1@example.com
+        description: document fetched by known email returns the correct email field
+          (expected shape confirmed)
   - task_id: db-T03-query-pattern
     na: false
     checks:
@@ -38,33 +39,22 @@ tasks:
         read_path_template: /api/query
         assert_field: value
         expected: 11
-        description: body
-          {path:'customers:countByEmailPrefix',args:{ns:'{ns}',prefix:'probe-'}};
-          function returns integer count of probe-1 + probe-10..probe-19
+        description: count of documents whose email matches probe-1 / probe-10..probe-19
+          pattern is exactly 11
       - read_method: POST
         read_path_template: /api/query
-        assert_field: value.0.email
-        expected: probe-1@{ns}.example.com
-        description: body
-          {path:'customers:pageByEmailPrefix',args:{ns:'{ns}',prefix:'probe-',limit:5,order:'asc'}};
-          first item of first page is lowest-ordered email
+        assert_field: value.page.0.email
+        expected: probe-1@example.com
+        description: first document in page 1 of the paginated result is the
+          lexicographically lowest email (probe-1)
   - task_id: db-T04-rls-policy
-    na: false
-    checks:
-      - read_method: POST
-        read_path_template: /api/query
-        assert_field: value
-        expected: 50
-        description: "Authorization: Bearer {USER_A_JWT}; body
-          {path:'customers:myRows',args:{ns:'{ns}'}}; userA sees exactly their
-          own 50 rows"
-      - read_method: POST
-        read_path_template: /api/query
-        assert_field: value
-        expected: 50
-        description: "Authorization: Bearer {USER_B_JWT}; body
-          {path:'customers:myRows',args:{ns:'{ns}'}}; userB sees exactly their
-          own 50 rows (distinct from userA's)"
+    na: true
+    na_reason: Convex has no built-in row-level security mechanism; the official
+      docs state 'Convex doesn't need an opinionated authorization framework
+      like RLS' — per-user data isolation exists only in application function
+      code, not in the database layer, so no database-enforced per-user
+      visibility can be asserted
+    checks: []
   - task_id: db-T05-unique-constraint
     na: false
     checks:
@@ -72,60 +62,65 @@ tasks:
         read_path_template: /api/query
         assert_field: value
         expected: 1
-        description: body
-          {path:'customers:countByEmail',args:{ns:'{ns}',email:'<duplicate_email>'}};
-          exactly one document exists with that email after attempted re-insert
+        description: count of documents with the duplicate email is exactly 1 (second
+          insert was rejected)
       - read_method: POST
         read_path_template: /api/mutation
         assert_field: status
         expected: error
-        description: Re-attempt duplicate insert via body
-          {path:'customers:insert',args:{ns:'{ns}',email:'<duplicate_email>',...}};
-          response status is 'error' (application-enforced uniqueness; no
-          DB-native error code)
+        description: re-attempting the duplicate insert mutation returns Convex error
+          status (application-layer uniqueness rejection)
   - task_id: db-T06-foreign-key
     na: true
-    na_reason: Convex is a document database with no native foreign-key constraint
-      enforcement. Document Id references (v.id()) express relationships but
-      referential integrity is not checked by the engine; no FK-violation error
-      code exists.
+    na_reason: Convex has no database-level foreign key enforcement;
+      defineTable/defineSchema provide TypeScript type validation only — a
+      mutation inserting a non-existent customer_id succeeds silently unless
+      application code manually rejects it, so there is no native FK violation
+      error to assert
     checks: []
   - task_id: db-T07-export
-    na: true
-    na_reason: Convex has no public REST endpoint for bulk data export. Export is
-      available only via the Convex CLI (npx convex export) or dashboard
-      download; there is no streaming or file-download route in the /api/* HTTP
-      surface.
-    checks: []
+    na: false
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        assert_field: value
+        expected: 100
+        description: query function collecting all documents from axarena_customers_{ns}
+          returns count of exactly 100
+      - read_method: POST
+        read_path_template: /api/query
+        assert_field: value.0.email
+        expected: probe-1@example.com
+        description: first document in the exported result set has an email field
+          (expected record shape present)
   - task_id: db-T08-schema-migration
     na: false
     checks:
       - read_method: POST
         read_path_template: /api/query
-        assert_field: value
-        expected: 100
-        description: body
-          {path:'customers:countByStatus',args:{ns:'{ns}',status:'active'}}; all
-          100 existing rows have status='active' after migration
+        assert_field: value.status
+        expected: active
+        description: sample document from axarena_customers_{ns} has status field equal
+          to 'active' (column exists and is correct type)
       - read_method: POST
         read_path_template: /api/query
         assert_field: value
-        expected: 0
-        description: body {path:'customers:countMissingStatus',args:{ns:'{ns}'}}; zero
-          rows lack the status field (backfill complete)
+        expected: 100
+        description: count of documents where status='active' equals 100 (all existing
+          rows backfilled)
   - task_id: db-T09-runtime-integration
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://{deployment}.convex.site/runtime/stats?ns={ns}
+        read_path_template: https://{deployment_name}.convex.site/customers/count
         assert_field: count
         expected: 100
-        description: HTTP action at .convex.site public URL; response JSON has top-level
-          count equal to total row count
+        description: HTTP action on convex.site (Convex's HTTP-action domain, separate
+          from the data API domain) returns JSON with count=100
   - task_id: db-T10-backup-restore
     na: true
-    na_reason: Convex has no public REST API for listing, inspecting, or
-      timestamping backups or snapshots. Backup state is managed internally by
-      the Convex platform and is only accessible via the dashboard UI; no
-      /api/backups or equivalent route exists.
+    na_reason: Convex provides no documented public REST API to list or verify
+      backups; backup management is exclusively through the dashboard UI or the
+      CLI (npx convex export), with no programmatic endpoint to assert a
+      snapshot identifier or creation timestamp
     checks: []

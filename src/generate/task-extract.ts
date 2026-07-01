@@ -6,14 +6,21 @@
  * title, difficulty) is rendered from the suite by pure code in
  * compose-pack.ts.
  *
- * Each check becomes one `roundtrip` OracleSpec entry: the verifier (see
- * generate/verify.ts) GETs/POSTs `read_path_template`, resolves the dotted
- * `assert_field` against the response via resolveDotted(), and compares it
- * to the literal `expected` value. assert_field MUST be a real dotted key
- * path (e.g. "count", "0.email", "documents.0.total") — free-text
+ * Each check becomes one OracleSpec entry: either a REST roundtrip (the
+ * verifier GETs/POSTs `read_path_template`) or, for vendors whose data
+ * plane is only reachable over the Postgres/MySQL wire protocol (no REST
+ * query endpoint — e.g. CockroachDB, PlanetScale), a `sql_query` check the
+ * verifier runs over a real DB connection. Either way, `assert_field` MUST
+ * be a real dotted key path (e.g. "count", "0.email") resolved against the
+ * response/row and compared to a literal `expected` — free-text
  * explanations don't resolve to anything and silently fail as `undefined`.
  * Multi-step verification (e.g. "count is 1 AND the error code is X") is
  * modeled as two separate checks, not one compound sentence.
+ *
+ * Extraction is grounded: the prompt requires WebFetching the vendor's docs,
+ * and invokeHarness's requireWebFetch option throws if the reply shows zero
+ * WebSearch/WebFetch tool calls, so a training-data-only answer is rejected
+ * rather than silently accepted.
  *
  * One LLM call per vendor covering all suite tasks. Deliberately narrow:
  * no prompt rewriting, no code snippets, no "approach" prose — those are
@@ -27,16 +34,24 @@ import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from ".
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite } from "./suite.js";
 
-const OracleCheckSchema = z.object({
-  read_method: z.enum(["GET", "POST"]).default("GET"),
-  read_path_template: z.string().min(1),
-  // A single dotted key path into the JSON response, e.g. "count",
-  // "0.email", "documents.0.total". NOT a sentence.
-  assert_field: z.string().min(1),
-  // The literal value assert_field must equal. May contain "{ns}".
-  expected: z.union([z.string(), z.number(), z.boolean()]),
-  description: z.string().default(""),
-});
+const OracleCheckSchema = z
+  .object({
+    // REST form.
+    read_method: z.enum(["GET", "POST"]).nullish().transform((v) => v ?? undefined),
+    read_path_template: z.string().nullish().transform((v) => v ?? undefined),
+    // SQL wire-protocol form, for vendors with no REST query endpoint.
+    sql_dialect: z.enum(["postgres", "mysql"]).nullish().transform((v) => v ?? undefined),
+    sql_query: z.string().nullish().transform((v) => v ?? undefined),
+    // A single dotted key path into the JSON response / result row, e.g.
+    // "count", "0.email", "documents.0.total". NOT a sentence.
+    assert_field: z.string().min(1),
+    // The literal value assert_field must equal. May contain "{ns}".
+    expected: z.union([z.string(), z.number(), z.boolean()]),
+    description: z.string().default(""),
+  })
+  .refine((c) => Boolean(c.read_path_template) !== Boolean(c.sql_query), {
+    message: "check must set exactly one of read_path_template or sql_query",
+  });
 export type OracleCheck = z.infer<typeof OracleCheckSchema>;
 
 const OracleExtractItemSchema = z.object({
@@ -52,6 +67,10 @@ const VendorConfigSchema = z.object({
   auth_type: z.enum(["bearer", "api-key", "oauth", "none"]),
   auth_header: z.string().nullish().transform((v) => v ?? undefined),
   auth_env: z.string(),
+  // Set when the vendor's data plane requires a raw DB connection (no REST
+  // query endpoint) — e.g. CockroachDB, PlanetScale.
+  sql_dialect: z.enum(["postgres", "mysql"]).nullish().transform((v) => v ?? undefined),
+  sql_connection_env: z.string().nullish().transform((v) => v ?? undefined),
 });
 
 const OracleExtractResultSchema = z.object({
@@ -74,32 +93,49 @@ function buildExtractPrompt(vendor: ResolveResult, suite: Suite): string {
     .join("\n");
 
   return [
-    `${vendor.vendor} (${vendor.category}). Docs: ${vendor.docs_url}.`,
+    `${vendor.vendor} (${vendor.category}).`,
     ``,
-    `For each task below, give the REST read-back call(s) that verify the described state.`,
+    `Before answering, WebFetch ${vendor.docs_url} (and follow at least one linked API/REST reference page from`,
+    `it if the root page doesn't show endpoint details). You MUST ground every answer below in what you actually`,
+    `read on those pages — do not answer from memory/training knowledge alone. If you cannot find a definitive`,
+    `answer for a task after fetching the docs, say so via na=true rather than guessing.`,
+    ``,
+    `For each task below, give the read-back call(s) that verify the described state:`,
+    `- PREFER REST: if ${vendor.vendor} exposes ANY REST/HTTP endpoint that can run the query (including a`,
+    `  PostgREST-style data API, a management/admin API, or a Data API), use read_method + read_path_template.`,
+    `  A REST check needs no extra credential beyond the API token already in vendor_config — always prefer it`,
+    `  when available.`,
+    `- ONLY fall back to sql_dialect + sql_query when ${vendor.vendor}'s data plane is reachable EXCLUSIVELY over`,
+    `  the raw Postgres or MySQL wire protocol, with NO REST query/SQL-execution endpoint at all (true for some`,
+    `  wire-protocol-native databases). This still counts as verifiable — do NOT mark the task na=true just`,
+    `  because there's no REST path; only use na=true when NEITHER REST NOR SQL can express the check (e.g. the`,
+    `  vendor has no row-level access-control mechanism at all, or no foreign-key enforcement at all).`,
     `Use {ns} as a literal placeholder for a namespace token embedded in resource names.`,
-    `If ${vendor.vendor} cannot support a task at all (no REST API, or the mechanism is structurally absent), set na=true and checks=[].`,
     ``,
     taskList,
     ``,
     `Each check is ONE machine-checkable assertion:`,
-    `- read_method/read_path_template: the call to make`,
-    `- assert_field: a SHORT DOTTED KEY PATH into the JSON response — e.g. "count", "0.email",`,
-    `  "documents.0.total". NEVER a sentence or explanation.`,
-    `- expected: the literal value assert_field must equal (a number, string, or boolean —`,
-    `  taken directly from the task's stated expectation, e.g. 100, 11, 1, true)`,
+    `- assert_field: a SHORT DOTTED KEY PATH into the JSON response or SQL result row — e.g. "count",`,
+    `  "0.email", "documents.0.total". NEVER a sentence or explanation.`,
+    `- expected: the literal value assert_field must equal (a number, string, or boolean — taken directly`,
+    `  from the task's stated expectation, e.g. 100, 11, 1, true)`,
     `- description: one short phrase for a human reviewer (optional)`,
-    `If a task needs more than one assertion (e.g. "row count is 1" AND "error code is X"),`,
-    `emit two separate check objects, not one compound sentence.`,
+    `If a task needs more than one assertion (e.g. "row count is 1" AND "error code is X"), emit two separate`,
+    `check objects, not one compound sentence.`,
     ``,
-    `Also give the vendor's REST API base_url and auth scheme (auth_type: bearer|api-key|oauth|none, auth_header if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name).`,
+    `Also give the vendor's REST API base_url and auth scheme (auth_type: bearer|api-key|oauth|none, auth_header`,
+    `if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name). If any check above uses sql_query, also`,
+    `give sql_dialect (postgres|mysql) and sql_connection_env (a SCREAMING_SNAKE_CASE env var name for a full`,
+    `connection string) at the vendor_config level.`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{`,
-    `  "vendor_config": {"base_url": "...", "auth_type": "...", "auth_header": "..." or null, "auth_env": "..."},`,
+    `  "vendor_config": {"base_url": "...", "auth_type": "...", "auth_header": "..." or null, "auth_env": "...",`,
+    `    "sql_dialect": "postgres"|"mysql"|null, "sql_connection_env": "..." or null},`,
     `  "tasks": [`,
     `    {"task_id": "...", "na": false, "na_reason": null, "checks": [`,
-    `      {"read_method": "GET", "read_path_template": "...", "assert_field": "count", "expected": 100, "description": "..."}`,
+    `      {"read_method": "GET", "read_path_template": "...", "assert_field": "count", "expected": 100, "description": "..."},`,
+    `      {"sql_dialect": "postgres", "sql_query": "SELECT ...", "assert_field": "count", "expected": 100, "description": "..."}`,
     `    ]},`,
     `    ...`,
     `  ]`,
@@ -122,7 +158,12 @@ export async function extractOracles(
 ): Promise<OracleExtractResult> {
   const harness = opts.harness ?? "claude-code";
   const prompt = buildExtractPrompt(vendor, suite);
-  const raw = await invokeHarness(prompt, { harness, model: opts.model, effort: opts.effort });
+  const raw = await invokeHarness(prompt, {
+    harness,
+    model: opts.model,
+    effort: opts.effort,
+    requireWebFetch: true,
+  });
   const json = extractJsonObject(raw);
   const parsed = z
     .object({ vendor_config: VendorConfigSchema, tasks: z.array(OracleExtractItemSchema) })

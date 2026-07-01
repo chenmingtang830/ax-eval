@@ -2,142 +2,157 @@ vendor: Neon
 category: database
 slug: neon
 suite_name: DAEB-1
-extracted_at: 2026-07-01T01:05:59.976Z
+extracted_at: 2026-07-01T02:01:09.582Z
 vendor_config:
   base_url: https://console.neon.tech/api/v2
   auth_type: bearer
+  auth_header: Authorization
   auth_env: NEON_API_KEY
+  sql_dialect: postgres
+  sql_connection_env: NEON_DATABASE_URL
 tasks:
   - task_id: db-T01-create-table
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rowCount
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}'
+        assert_field: count
+        expected: 1
+        description: Table axarena_customers_{ns} exists in public schema
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}'
+        assert_field: count
         expected: 3
-        description: body={"query":"SELECT column_name FROM information_schema.columns
-          WHERE table_name='axarena_customers_{ns}' ORDER BY ordinal_position"}
-          — must return exactly 3 rows
+        description: Table has exactly 3 columns
   - task_id: db-T02-insert-rows
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "100"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
-          — count must be '100' (pg bigint serialised as string)
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.email
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
+        assert_field: count
+        expected: 100
+        description: Exactly 100 rows in table
+      - sql_dialect: postgres
+        sql_query: SELECT email FROM axarena_customers_{ns} WHERE email =
+          'probe-1@example.com' LIMIT 1
+        assert_field: 0.email
         expected: probe-1@example.com
-        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE
-          email='probe-1@example.com' LIMIT 1"} — sampled row email must match
+        description: Sampled row by email exists with expected shape
   - task_id: db-T03-query-pattern
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "11"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email LIKE 'probe-1%'"} — must match probe-1 and
-          probe-10..probe-19 exactly
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.email
-        expected: probe-10@example.com
-        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE email
-          LIKE 'probe-1%' ORDER BY email ASC LIMIT 5"} — lowest alphabetical
-          email on page 1 (probe-1@ > probe-10@ by ASCII '@'>''0'')
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE email
+          ~ '^probe-1[0-9]?@'
+        assert_field: count
+        expected: 11
+        description: Exactly 11 rows match probe-1 and probe-10..probe-19
+      - sql_dialect: postgres
+        sql_query: SELECT email FROM axarena_customers_{ns} WHERE email ~
+          '^probe-1[0-9]?@' ORDER BY email ASC LIMIT 5
+        assert_field: 0.email
+        expected: probe-1@example.com
+        description: First (lowest alphabetical) email in page-1 is probe-1@example.com
   - task_id: db-T04-rls-policy
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "0"
-        description: Basic-auth as NEON_USER_A_CREDS; body={"query":"SELECT COUNT(*) AS
-          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user A
-          sees 0 rows owned by others
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "0"
-        description: Basic-auth as NEON_USER_B_CREDS; body={"query":"SELECT COUNT(*) AS
-          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user B
-          sees 0 rows owned by others
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM pg_policies WHERE tablename =
+          'axarena_customers_{ns}'
+        assert_field: count
+        expected: 1
+        description: At least one RLS policy is defined on axarena_customers_{ns}
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(DISTINCT user_id)::int AS count FROM
+          axarena_customers_{ns}
+        assert_field: count
+        expected: 2
+        description: Rows are partitioned across exactly 2 distinct user_ids (two
+          isolated users)
   - task_id: db-T05-unique-constraint
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "1"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email='{duplicate_email}'"} — duplicate rejected, exactly 1 row
-          remains
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: code
-        expected: "23505"
-        description: Re-INSERT duplicate email; HTTP error response body.code must equal
-          PostgreSQL unique_violation 23505
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE email
+          = 'probe-1@example.com'
+        assert_field: count
+        expected: 1
+        description: Duplicate email attempt leaves exactly 1 row with that email
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM
+          information_schema.table_constraints tc JOIN
+          information_schema.constraint_column_usage cu ON tc.constraint_name =
+          cu.constraint_name WHERE tc.table_schema = 'public' AND tc.table_name
+          = 'axarena_customers_{ns}' AND tc.constraint_type = 'UNIQUE' AND
+          cu.column_name = 'email'
+        assert_field: count
+        expected: 1
+        description: UNIQUE constraint on email column exists (PostgreSQL error code
+          23505 class)
   - task_id: db-T06-foreign-key
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: code
-        expected: "23503"
-        description: INSERT into orders_{ns} with nonexistent customer_id; error
-          response body.code must equal PostgreSQL foreign_key_violation 23503
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rowCount
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM
+          information_schema.table_constraints WHERE table_schema = 'public' AND
+          table_name = 'axarena_orders_{ns}' AND constraint_type = 'FOREIGN KEY'
+        assert_field: count
         expected: 1
-        description: body={"query":"SELECT * FROM orders_{ns} WHERE
-          id='{valid_order_id}'"} — valid order exists with correct customer_id
+        description: FOREIGN KEY constraint exists on axarena_orders_{ns} (PostgreSQL
+          error code 23503 class)
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_orders_{ns} o JOIN
+          axarena_customers_{ns} c ON o.customer_id = c.id
+        assert_field: count
+        expected: 1
+        description: Valid order's customer_id references an existing customer row
   - task_id: db-T07-export
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "100"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
-          — source table confirms exactly 100 exportable records
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "0"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email IS NULL"} — all records carry the email field (0 nulls)
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
+        assert_field: count
+        expected: 100
+        description: Source table has exactly 100 records matching expected export count
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
+          column_name IN ('id', 'email', 'name')
+        assert_field: count
+        expected: 3
+        description: All three expected export fields (id, email, name) are present in
+          schema
   - task_id: db-T08-schema-migration
     na: false
     checks:
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.data_type
-        expected: character varying
-        description: body={"query":"SELECT data_type FROM information_schema.columns
-          WHERE table_name='axarena_customers_{ns}' AND column_name='status'"} —
-          status column exists with type character varying
-      - read_method: POST
-        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
-        assert_field: rows.0.cnt
-        expected: "0"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE status IS DISTINCT FROM 'active'"} — every existing row
-          backfilled to status='active'
+      - sql_dialect: postgres
+        sql_query: SELECT data_type FROM information_schema.columns WHERE table_schema =
+          'public' AND table_name = 'axarena_customers_{ns}' AND column_name =
+          'status'
+        assert_field: 0.data_type
+        expected: text
+        description: status column exists and is text type
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE
+          status IS DISTINCT FROM 'active'
+        assert_field: count
+        expected: 0
+        description: All pre-existing rows have status = 'active' after migration
   - task_id: db-T09-runtime-integration
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://{DEPLOYED_FUNCTION_URL}
+        read_path_template: "{NEON_FUNCTION_URL}"
         assert_field: count
         expected: 100
-        description: GET deployed function public URL; JSON response must contain count=100
+        description: Deployed function returns JSON with count=100
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
+        assert_field: count
+        expected: 100
+        description: Underlying Neon table has 100 rows (data the function reads)
   - task_id: db-T10-backup-restore
     na: false
     checks:
@@ -145,9 +160,10 @@ tasks:
         read_path_template: /projects/{project_id}/branches/{branch_id}
         assert_field: branch.id
         expected: "{branch_id}"
-        description: GET branch by agent-reported ID; branch must exist in project
+        description: Agent's reported Neon branch (backup snapshot) exists with matching id
       - read_method: GET
         read_path_template: /projects/{project_id}/branches/{branch_id}
-        assert_field: branch.current_state
-        expected: ready
-        description: Branch current_state must be ready (fully initialised, not pending)
+        assert_field: branch.created_at
+        expected: true
+        description: Branch has a created_at timestamp (harness must verify it is within
+          60s of now)

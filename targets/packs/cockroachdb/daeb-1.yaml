@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-40j851
+# run_id: 2026-07-01-s9q9u7
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-40j851
+run_id: 2026-07-01-s9q9u7
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -18,11 +18,14 @@ auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: COCKROACHDB_ADMIN_TOKEN
+  env: COCKROACHDB_API_KEY
   env_aliases: []
   verify_env_aliases: []
 sandbox_scope: []
-base_url: https://{host}:8080
+sql_conn:
+  dialect: postgres
+  connection_string_env: COCKROACHDB_CONNECTION_STRING
+base_url: https://cockroachlabs.cloud/api/v1
 headers: {}
 site_url: https://www.cockroachlabs.com
 openapi_url: ""
@@ -45,17 +48,20 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        expected: axarena_customers_{ns}
-        description: table exists in database
-        readMethod: GET
-        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assertField: table_name
+        expected: 3
+        description: table axarena_customers_{ns} exists with exactly 3 columns
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_name = 'axarena_customers_{ns}'
       - type: roundtrip
-        expected: id
-        description: first named column is id
-        readMethod: GET
-        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assertField: columns.0.name
+        expected: 3
+        description: all three named columns (id, email, name) are present
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_name = 'axarena_customers_{ns}' AND column_name IN ('id',
+          'email', 'name')
     difficulty: L1
     allowed_surfaces:
       - api
@@ -72,11 +78,25 @@ tasks:
       and a deterministic created_at. The vendor's idiomatic bulk-insert
       mechanism is acceptable.
     oracles:
-      - type: na
-        description: CockroachDB exposes no REST endpoint for SQL execution; COUNT(*)
-          requires the PostgreSQL wire protocol
+      - type: roundtrip
+        expected: 100
+        description: exactly 100 rows in axarena_customers_{ns}
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
+      - type: roundtrip
+        expected: 1
+        description: sampled row probe-1 exists with non-null id, email, and name fields
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1@%' AND id IS NOT NULL AND name IS NOT NULL
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T03-query-pattern
@@ -87,12 +107,28 @@ tasks:
       ordered by created_at, paginated at 5 rows per page. Return the first
       two pages.
     oracles:
-      - type: na
-        description: CockroachDB exposes no REST endpoint for arbitrary SQL; re-running
-          a filtered SELECT with pagination requires the PostgreSQL wire
-          protocol
+      - type: roundtrip
+        expected: 11
+        description: exactly 11 rows match probe-1, probe-10..probe-19 email pattern
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1%'
+      - type: roundtrip
+        expected: 5
+        description: page 1 with LIMIT 5 ORDER BY email ASC contains exactly 5
+          lowest-ordered matching rows
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM (SELECT email FROM
+          axarena_customers_{ns} WHERE email LIKE 'probe-1%' ORDER BY email ASC
+          LIMIT 5) sub
     difficulty: L2
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T04-rls-policy
@@ -104,12 +140,27 @@ tasks:
       attribute-based policy, query-rewrite middleware, function-level guard
       — is acceptable.
     oracles:
-      - type: na
-        description: CockroachDB exposes no REST endpoint for executing queries as
-          specific session users; RLS verification requires the PostgreSQL wire
-          protocol
+      - type: roundtrip
+        expected: 0
+        description: user1 sees no rows belonging to other users; RLS policy is enforced
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SET ROLE user1_{ns}; SELECT COUNT(*) AS count FROM
+          axarena_customers_{ns} WHERE user_id <> current_user
+      - type: roundtrip
+        expected: 0
+        description: user2 sees no rows belonging to other users; neither user sees the
+          other's rows
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SET ROLE user2_{ns}; SELECT COUNT(*) AS count FROM
+          axarena_customers_{ns} WHERE user_id <> current_user
     difficulty: L3
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T05-unique-constraint
@@ -119,12 +170,31 @@ tasks:
       `axarena_customers_{ns}`. Attempt to insert a row with an email that
       already exists. The insert must fail.
     oracles:
-      - type: na
-        description: CockroachDB exposes no REST endpoint for row counts or error
-          introspection; unique-violation row counting requires the PostgreSQL
-          wire protocol
+      - type: roundtrip
+        expected: 1
+        description: exactly 1 row with duplicate email; second insert was rejected by
+          the constraint
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email =
+          'probe-duplicate@example.com'
+      - type: roundtrip
+        expected: 1
+        description: unique constraint on email column is present; agent's reported
+          error code is 23505
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.table_constraints tc
+          JOIN information_schema.constraint_column_usage ccu ON
+          tc.constraint_name = ccu.constraint_name AND tc.table_name =
+          ccu.table_name WHERE tc.table_name = 'axarena_customers_{ns}' AND
+          tc.constraint_type = 'UNIQUE' AND ccu.column_name = 'email'
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T06-foreign-key
@@ -135,11 +205,27 @@ tasks:
       (numeric). Establish the foreign-key relationship using the vendor's
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
-      - type: na
-        description: CockroachDB exposes no REST endpoint for DML execution; FK
-          violation testing and row reads require the PostgreSQL wire protocol
+      - type: roundtrip
+        expected: 0
+        description: no orphaned orders exist; bad-customer_id insert was rejected (FK
+          error code 23503)
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_orders_{ns} WHERE customer_id
+          NOT IN (SELECT id FROM axarena_customers_{ns})
+      - type: roundtrip
+        expected: 1
+        description: valid order satisfies foreign-key relationship with its customer row
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_orders_{ns} o INNER JOIN
+          axarena_customers_{ns} c ON o.customer_id = c.id
     difficulty: L2
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T07-export
@@ -148,11 +234,25 @@ tasks:
       Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
       the output path (file) or stream.
     oracles:
-      - type: na
-        description: EXPORT is a SQL statement in CockroachDB; no REST endpoint streams
-          or materialises exported CSV/Parquet data
+      - type: roundtrip
+        expected: 100
+        description: source table has 100 rows; export record count matches
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
+      - type: roundtrip
+        expected: succeeded
+        description: most recent EXPORT job completed successfully with all fields exported
+        assertField: 0.status
+        sqlDialect: postgres
+        sqlQuery: SELECT status FROM [SHOW JOBS] WHERE job_type = 'EXPORT' ORDER BY
+          created DESC LIMIT 1
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T08-schema-migration
@@ -163,17 +263,20 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        expected: status
-        description: status column was added as fourth column
-        readMethod: GET
-        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assertField: columns.3.name
+        expected: character varying
+        description: status column exists with VARCHAR (character varying) type after
+          migration
+        assertField: 0.data_type
+        sqlDialect: postgres
+        sqlQuery: SELECT data_type FROM information_schema.columns WHERE table_name =
+          'axarena_customers_{ns}' AND column_name = 'status'
       - type: roundtrip
-        expected: STRING
-        description: status column is STRING type (CockroachDB internal for VARCHAR/TEXT)
-        readMethod: GET
-        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assertField: columns.3.type
+        expected: 0
+        description: all existing rows have status='active' after migration backfill
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE status IS
+          DISTINCT FROM 'active'
     difficulty: L3
     allowed_surfaces:
       - api
@@ -191,8 +294,12 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: na
-        description: CockroachDB is a database engine with no HTTP-invocable
-          user-defined function runtime
+        description: CockroachDB does not provide a serverless-function or
+          application-runtime hosting service; there is no CockroachDB-owned API
+          endpoint to invoke a user-deployed function. Any runtime integration
+          would reside on a separate platform (e.g. Cloud Run, Lambda) outside
+          CockroachDB's API surface, so the function cannot be independently
+          invoked or verified through CockroachDB itself.
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -206,16 +313,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: "{backup_id}"
-        description: agent-reported backup ID is present in the backup list
+        description: agent's reported backup identifier appears as the most-recent entry
+          in the managed backups list
         readMethod: GET
-        readPathTemplate: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        readPathTemplate: /clusters/{cluster_id}/backups
         assertField: backups.0.id
       - type: roundtrip
-        expected: succeeded
-        description: backup completed successfully
+        expected: "{as_of_time_within_60s}"
+        description: most-recent backup as_of_time is an ISO 8601 timestamp within 60
+          seconds of task execution time
         readMethod: GET
-        readPathTemplate: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
-        assertField: backups.0.status
+        readPathTemplate: /clusters/{cluster_id}/backups
+        assertField: backups.0.as_of_time
     difficulty: L4
     allowed_surfaces:
       - api

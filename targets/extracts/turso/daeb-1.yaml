@@ -2,9 +2,9 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-01T01:04:47.419Z
+extracted_at: 2026-07-01T02:02:14.514Z
 vendor_config:
-  base_url: https://{databaseName}-{organizationSlug}.turso.io
+  base_url: https://{database-name}-{organization-slug}.turso.io
   auth_type: bearer
   auth_env: TURSO_AUTH_TOKEN
 tasks:
@@ -14,15 +14,16 @@ tasks:
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
-        expected: "1"
-        description: SELECT count(*) FROM sqlite_master WHERE type='table' AND
-          name='axarena_customers_{ns}' = 1
+        expected: axarena_customers_{ns}
+        description: sql=SELECT name FROM sqlite_master WHERE type='table' AND
+          name='axarena_customers_{ns}' — table name present
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "3"
-        description: SELECT count(*) FROM pragma_table_info('axarena_customers_{ns}') =
-          3 columns
+        description: sql=SELECT COUNT(*) FROM
+          pragma_table_info('axarena_customers_{ns}') WHERE name IN
+          ('id','email','name') — all three named columns exist
   - task_id: db-T02-insert-rows
     na: false
     checks:
@@ -30,12 +31,13 @@ tasks:
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "100"
-        description: SELECT count(*) FROM axarena_customers_{ns} = 100
+        description: sql=SELECT COUNT(*) FROM axarena_customers_{ns} — row count equals 100
       - read_method: POST
         read_path_template: /v2/pipeline
-        assert_field: results.0.response.result.cols.1.name
+        assert_field: results.0.response.result.cols.0.name
         expected: email
-        description: SELECT * LIMIT 1 — second column name is email confirming row shape
+        description: sql=SELECT email, name FROM axarena_customers_{ns} LIMIT 1 — first
+          column in result set is 'email'
   - task_id: db-T03-query-pattern
     na: false
     checks:
@@ -43,20 +45,21 @@ tasks:
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "11"
-        description: SELECT count(*) FROM axarena_customers_{ns} WHERE email LIKE
-          'probe-1%' = 11
+        description: sql=SELECT COUNT(*) FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1%' — exactly 11 rows (probe-1, probe-10…probe-19)
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
-        expected: probe-1@example.com
-        description: SELECT email WHERE email LIKE 'probe-1%' ORDER BY email ASC LIMIT 5
-          — rows[0][0] is lowest-sorted email
+        expected: "5"
+        description: sql=SELECT COUNT(*) FROM (SELECT email FROM axarena_customers_{ns}
+          WHERE email LIKE 'probe-1%' ORDER BY email LIMIT 5) — page-1 window
+          (lowest-ordered 5) has exactly 5 rows
   - task_id: db-T04-rls-policy
     na: true
-    na_reason: Turso is built on SQLite which has no native row-level security
-      mechanism; per-user row isolation requires separate databases per tenant
-      or application-layer WHERE filtering — there is no token-scoped
-      row-visibility API in the libSQL HTTP protocol
+    na_reason: Turso is built on libSQL/SQLite, which has no native row-level
+      security mechanism. There is no CREATE POLICY, per-user row filter, or
+      equivalent server-enforced RLS feature anywhere in Turso's documented
+      platform API.
     checks: []
   - task_id: db-T05-unique-constraint
     na: false
@@ -65,40 +68,32 @@ tasks:
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: SELECT count(*) FROM axarena_customers_{ns} WHERE
-          email='{duplicateEmail}' = 1 (only original row present)
+        description: sql=SELECT COUNT(*) FROM axarena_customers_{ns} WHERE
+          email='{duplicate_email}' — duplicate email is stored exactly once
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.type
         expected: error
-        description: re-executing duplicate INSERT — pipeline result type is error
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        assert_field: results.0.error.code
-        expected: SQLITE_CONSTRAINT_UNIQUE
-        description: SQLite extended error code on duplicate insert is
+        description: Re-execute INSERT with same '{duplicate_email}' via pipeline —
+          Turso returns results[0].type='error' carrying
           SQLITE_CONSTRAINT_UNIQUE
   - task_id: db-T06-foreign-key
     na: false
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
-        assert_field: results.0.type
+        assert_field: results.1.type
         expected: error
-        description: INSERT into orders_{ns} with non-existent customer_id — pipeline
-          result type is error
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        assert_field: results.0.error.code
-        expected: SQLITE_CONSTRAINT_FOREIGNKEY
-        description: SQLite extended error code on bad FK insert is
-          SQLITE_CONSTRAINT_FOREIGNKEY
+        description: Pipeline requests [PRAGMA foreign_keys=ON, INSERT INTO
+          axarena_orders_{ns}(customer_id) VALUES(999999)] — INSERT result at
+          index 1 is error (SQLITE_CONSTRAINT_FOREIGNKEY)
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: SELECT count(*) FROM orders_{ns} WHERE customer_id = valid id = 1
-          (valid order persisted)
+        description: sql=SELECT COUNT(*) FROM axarena_orders_{ns} WHERE
+          customer_id={valid_customer_id} — valid order with correct customer FK
+          exists
   - task_id: db-T07-export
     na: false
     checks:
@@ -106,14 +101,17 @@ tasks:
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "100"
-        description: SELECT count(*) FROM axarena_customers_{ns} = 100 (source row count
-          equals exported record count; GET /dump returns SQL text not JSON)
+        description: sql=SELECT COUNT(*) FROM axarena_customers_{ns} — source table has
+          100 records confirming export record count (GET /dump returns SQL
+          text, not JSON-parseable directly)
       - read_method: POST
         read_path_template: /v2/pipeline
-        assert_field: results.0.response.result.cols.0.name
-        expected: id
-        description: SELECT * FROM axarena_customers_{ns} LIMIT 1 — cols[0].name is id
-          confirming expected field shape
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "3"
+        description: sql=SELECT COUNT(*) FROM
+          pragma_table_info('axarena_customers_{ns}') WHERE name IN
+          ('id','email','name') — all three expected fields present in exported
+          schema
   - task_id: db-T08-schema-migration
     na: false
     checks:
@@ -121,41 +119,36 @@ tasks:
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: SELECT count(*) FROM pragma_table_info('axarena_customers_{ns}')
-          WHERE name='status' = 1 (column exists)
+        description: sql=SELECT COUNT(*) FROM
+          pragma_table_info('axarena_customers_{ns}') WHERE name='status' —
+          status column exists after migration
       - read_method: POST
         read_path_template: /v2/pipeline
         assert_field: results.0.response.result.rows.0.0.value
-        expected: TEXT
-        description: SELECT type FROM pragma_table_info('axarena_customers_{ns}') WHERE
-          name='status' = TEXT
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "100"
-        description: SELECT count(*) FROM axarena_customers_{ns} WHERE status='active' =
-          100 (all pre-existing rows backfilled)
+        expected: "0"
+        description: sql=SELECT COUNT(*) FROM axarena_customers_{ns} WHERE status IS
+          NULL OR status != 'active' — zero rows deviate from status='active'
+          (all 100 backfilled)
   - task_id: db-T09-runtime-integration
     na: false
     checks:
       - read_method: GET
-        read_path_template: "{FUNCTION_URL}"
+        read_path_template: "{deployed_function_url}"
         assert_field: count
         expected: 100
-        description: "deployed edge/serverless function returns JSON {count: 100} via
-          its Turso-backed query"
+        description: GET deployed function public URL — JSON response body has count=100
   - task_id: db-T10-backup-restore
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://api.turso.tech/v1/organizations/{organizationSlug}/databases/{backupDatabaseName}
-        assert_field: database.Name
-        expected: "{backupDatabaseName}"
-        description: agent's reported PITR-restored database name is present in Turso
-          platform API
+        read_path_template: https://api.turso.tech/v1/organizations/{organization-slug}/databases?parent={parent_database_id}
+        assert_field: databases.0.Name
+        expected: "{ns}-backup"
+        description: Management API lists branch databases filtered by parent —
+          agent-reported branch name present in response
       - read_method: GET
-        read_path_template: https://api.turso.tech/v1/organizations/{organizationSlug}/databases/{backupDatabaseName}
-        assert_field: database.sleeping
-        expected: false
-        description: restored database is active (sleeping=false), confirming it was
-          just created within the last 60s
+        read_path_template: https://api.turso.tech/v1/organizations/{organization-slug}/databases?parent={parent_database_id}
+        assert_field: databases.0.parent.id
+        expected: "{parent_database_id}"
+        description: Branch record parent.id matches source database ID — confirms
+          branch relationship and that branched_at timestamp is populated

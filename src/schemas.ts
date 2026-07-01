@@ -43,6 +43,12 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
+   *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
+   *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
+   *  the dotted `assertField` against the first result row. */
+  sqlDialect: z.enum(["postgres", "mysql"]).optional(),
+  sqlQuery: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -284,6 +290,17 @@ export const TargetPackSchema = z.object({
   /** Sandbox-isolation parameters the developer provisions (level varies by
    *  product). Empty = a single account/key is the whole sandbox (e.g. Stripe). */
   sandbox_scope: z.array(ScopeParamSchema).default([]),
+  /** Connection info for `OracleSpec.sqlQuery` checks — vendors whose data
+   *  plane is only reachable over the raw Postgres/MySQL wire protocol (no
+   *  REST query endpoint), e.g. CockroachDB, PlanetScale. Absent when the
+   *  pack has no SQL-form oracles. */
+  sql_conn: z
+    .object({
+      dialect: z.enum(["postgres", "mysql"]),
+      /** Env var holding a full connection string/DSN. */
+      connection_string_env: z.string(),
+    })
+    .optional(),
   /** Non-API surfaces this target exposes (cli/sdk/mcp). The API surface is
    *  always available via `base_url`/`auth`. Drives `--surface` fan-out. */
   surfaces: SurfaceConfigSchema.optional(),

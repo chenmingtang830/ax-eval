@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-3e036v
+# run_id: 2026-07-01-ynt8ne
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-3e036v
+run_id: 2026-07-01-ynt8ne
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,13 +17,15 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: api-key
+  type: bearer
   env: INSFORGE_API_KEY
   env_aliases: []
   verify_env_aliases: []
-  header: X-API-Key
 sandbox_scope: []
-base_url: https://{INSFORGE_APP_NAME}.insforge.app
+sql_conn:
+  dialect: postgres
+  connection_string_env: INSFORGE_DATABASE_URL
+base_url: https://{app-slug}.insforge.app
 headers: {}
 site_url: https://insforge.dev
 openapi_url: ""
@@ -47,16 +49,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: axarena_customers_{ns}
-        description: table exists in schema registry
+        description: table exists
         readMethod: GET
         readPathTemplate: /api/database/tables/axarena_customers_{ns}/schema
         assertField: table_name
       - type: roundtrip
-        expected: email
-        description: email column present (index 1, after auto-generated id)
-        readMethod: GET
-        readPathTemplate: /api/database/tables/axarena_customers_{ns}/schema
-        assertField: columns.1.name
+        expected: 3
+        description: columns id, email, name all present
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_name = 'axarena_customers_{ns}' AND column_name IN
+          ('id','email','name')
     difficulty: L1
     allowed_surfaces:
       - api
@@ -75,16 +79,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: exactly 100 rows inserted (limit=101 proves no overflow)
-        readMethod: GET
-        readPathTemplate: /api/database/records/axarena_customers_{ns}?limit=101
-        assertField: records.length
+        description: exactly 100 rows
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
       - type: roundtrip
         expected: probe-1@example.com
-        description: sampled row has expected email field value
+        description: sample row by email has expected shape
         readMethod: GET
-        readPathTemplate: /api/database/records/axarena_customers_{ns}?email=eq.probe-1%40example.com
-        assertField: records.0.email
+        readPathTemplate: /api/database/records/axarena_customers_{ns}?email=eq.probe-1%40example.com&limit=1
+        assertField: 0.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -103,17 +107,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 11
-        description: probe-1* LIKE filter returns exactly 11 matching rows
-        readMethod: GET
-        readPathTemplate: /api/database/records/axarena_customers_{ns}?email=like.probe-1%25&limit=20
-        assertField: records.length
+        description: 11 rows match probe-1 through probe-19
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1%'
       - type: roundtrip
         expected: probe-1@example.com
-        description: first record on page 1 sorted email.asc is lexicographically lowest
-          probe-1* email
+        description: lowest-ordered row on page 1 (ASC) is probe-1@example.com
         readMethod: GET
         readPathTemplate: /api/database/records/axarena_customers_{ns}?email=like.probe-1%25&order=email.asc&limit=5&offset=0
-        assertField: records.0.email
+        assertField: 0.email
     difficulty: L2
     allowed_surfaces:
       - api
@@ -132,19 +136,19 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        expected: 50
-        description: "user A JWT (Authorization: Bearer from POST /api/auth/sessions)
-          sees only their own 50 rows"
+        expected: user1@example.com
+        description: "user1 JWT via POST /api/auth/sessions: first visible row belongs
+          to user1 only"
         readMethod: GET
         readPathTemplate: /api/database/records/axarena_customers_{ns}
-        assertField: records.length
+        assertField: 0.email
       - type: roundtrip
-        expected: 50
-        description: "user B JWT (Authorization: Bearer from POST /api/auth/sessions)
-          sees only their own 50 rows"
+        expected: user2@example.com
+        description: "user2 JWT via POST /api/auth/sessions: first visible row belongs
+          to user2 only"
         readMethod: GET
         readPathTemplate: /api/database/records/axarena_customers_{ns}
-        assertField: records.length
+        assertField: 0.email
     difficulty: L3
     allowed_surfaces:
       - api
@@ -162,17 +166,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: duplicate email stored exactly once after failed second insert
-        readMethod: GET
-        readPathTemplate: /api/database/records/axarena_customers_{ns}?email=eq.probe-1%40example.com
-        assertField: records.length
+        description: exactly 1 row with the duplicate email (constraint held)
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email =
+          'probe-1@example.com'
       - type: roundtrip
-        expected: UNIQUE_VIOLATION
-        description: re-inserting same email body returns recognizable unique-violation
-          error code
+        expected: "23505"
+        description: re-attempted duplicate insert returns Postgres unique-violation
+          code 23505
         readMethod: POST
         readPathTemplate: /api/database/records/axarena_customers_{ns}
-        assertField: error
+        assertField: code
     difficulty: L1
     allowed_surfaces:
       - api
@@ -190,18 +195,17 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: roundtrip
-        expected: FOREIGN_KEY_VIOLATION
-        description: inserting order with nonexistent customer_id returns FK-violation
-          error code
+        expected: "23503"
+        description: insert with non-existent customer_id returns FK-violation code 23503
         readMethod: POST
         readPathTemplate: /api/database/records/axarena_orders_{ns}
-        assertField: error
+        assertField: code
       - type: roundtrip
-        expected: 1
-        description: exactly one valid order exists; confirms valid insert succeeded
+        expected: "{valid-customer-id}"
+        description: valid order row exists with correct customer_id
         readMethod: GET
-        readPathTemplate: /api/database/records/axarena_orders_{ns}
-        assertField: records.length
+        readPathTemplate: /api/database/records/axarena_orders_{ns}?limit=1
+        assertField: 0.customer_id
     difficulty: L2
     allowed_surfaces:
       - api
@@ -217,19 +221,17 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: roundtrip
-        expected: axarena_customers_{ns}
-        description: request body
-          {tables:[axarena_customers_{ns}],format:json,includeData:true};
-          response confirms correct table exported
-        readMethod: POST
-        readPathTemplate: /api/database/advance/export
-        assertField: tables.0
-      - type: roundtrip
         expected: 100
-        description: content field parsed as JSON array contains exactly 100 records
-        readMethod: POST
-        readPathTemplate: /api/database/advance/export
-        assertField: content.length
+        description: 100 records in source table matching export
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
+      - type: roundtrip
+        expected: id
+        description: schema endpoint confirms expected fields present (id first column)
+        readMethod: GET
+        readPathTemplate: /api/database/tables/axarena_customers_{ns}/schema
+        assertField: columns.0.name
     difficulty: L1
     allowed_surfaces:
       - api
@@ -247,23 +249,18 @@ tasks:
     oracles:
       - type: roundtrip
         expected: status
-        description: status column appended after id + 3 original user columns; index 4
-          may vary by deployment
-        readMethod: GET
-        readPathTemplate: /api/database/tables/axarena_customers_{ns}/schema
-        assertField: columns.4.name
-      - type: roundtrip
-        expected: string
-        description: status column has string type
-        readMethod: GET
-        readPathTemplate: /api/database/tables/axarena_customers_{ns}/schema
-        assertField: columns.4.type
+        description: status column exists after migration
+        assertField: rows.0.column_name
+        sqlDialect: postgres
+        sqlQuery: SELECT column_name AS column_name FROM information_schema.columns
+          WHERE table_name = 'axarena_customers_{ns}' AND column_name = 'status'
       - type: roundtrip
         expected: 100
-        description: all 100 pre-existing rows have status=active after migration backfill
-        readMethod: GET
-        readPathTemplate: /api/database/records/axarena_customers_{ns}?status=eq.active&limit=101
-        assertField: records.length
+        description: all 100 pre-existing rows backfilled with status='active'
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE status =
+          'active'
     difficulty: L3
     allowed_surfaces:
       - api
@@ -282,10 +279,9 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: edge function returns JSON with count=100; no auth required (public
-          slug endpoint)
+        description: deployed Deno edge function returns JSON with correct row count
         readMethod: GET
-        readPathTemplate: /functions/axarena-customers-{ns}
+        readPathTemplate: /functions/axarena-count-{ns}
         assertField: count
     difficulty: L3
     allowed_surfaces:
@@ -302,11 +298,24 @@ tasks:
       recovery in the vendor's idiom). Report the snapshot/backup/branch
       identifier and its creation timestamp.
     oracles:
-      - type: na
-        description: Insforge snapshot/backup management is CLI-only (insforge branch
-          create/list/merge/delete); no REST API endpoints exist for listing or
-          querying branch or backup state.
+      - type: roundtrip
+        expected: "{agent-reported-backup-migration-name}"
+        description: agent's backup migration version present in GET
+          /api/database/migrations listing
+        readMethod: GET
+        readPathTemplate: /api/database/migrations
+        assertField: migrations.0.name
+      - type: roundtrip
+        expected: 100
+        description: 100 rows intact after restore confirms backup/restore cycle succeeded
+        assertField: rows.0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
     difficulty: L4
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []

@@ -63,8 +63,17 @@ export function composePack(
       oracles: o.checks.map((check) => ({
         type: "roundtrip",
         description: check.description || suiteTask.oracle_hint.trim(),
-        readMethod: check.read_method,
-        readPathTemplate: check.read_path_template.replace(/\{ns\}/g, NS_PLACEHOLDER),
+        ...(check.sql_query
+          ? {
+              // Cosmetic field only — the verifier resolves the real
+              // dialect from pack.sql_conn, set below from vendor_config.
+              sqlDialect: check.sql_dialect ?? extract.vendor_config.sql_dialect,
+              sqlQuery: check.sql_query.replace(/\{ns\}/g, NS_PLACEHOLDER),
+            }
+          : {
+              readMethod: check.read_method,
+              readPathTemplate: check.read_path_template?.replace(/\{ns\}/g, NS_PLACEHOLDER),
+            }),
         assertField: check.assert_field,
         expected:
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
@@ -95,6 +104,10 @@ export function composePack(
       header: extract.vendor_config.auth_header,
     },
     sandbox_scope: [],
+    sql_conn:
+      extract.vendor_config.sql_dialect && extract.vendor_config.sql_connection_env
+        ? { dialect: extract.vendor_config.sql_dialect, connection_string_env: extract.vendor_config.sql_connection_env }
+        : undefined,
     base_url: extract.vendor_config.base_url,
     headers: {},
     site_url: vendor.site_url ?? "",

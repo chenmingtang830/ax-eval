@@ -28,6 +28,64 @@ export interface InvokeHarnessOptions {
   harness: HarnessId;
   model?: string;
   effort?: Effort;
+  /** Throw unless the harness's reply shows at least one WebSearch/WebFetch
+   *  tool call. An instruction to "use WebFetch" in the prompt does not
+   *  force tool use — models may answer from training data even with the
+   *  tool permission granted. Use this for any research prompt where an
+   *  ungrounded (training-only) answer must not be silently accepted. */
+  requireWebFetch?: boolean;
+}
+
+interface VerboseMessage {
+  type: string;
+  message?: { content?: Array<{ type: string; name?: string }> };
+  result?: string;
+}
+
+/** Count real WebFetch/WebSearch tool calls out of claude-code's
+ *  `--output-format json --verbose` reply (a JSON array of turn messages).
+ *
+ *  NOTE: `usage.server_tool_use.web_fetch_requests` (present even without
+ *  --verbose) only counts Anthropic's server-hosted web tools. In this
+ *  environment WebFetch/WebSearch are CLIENT-SIDE tools (loaded via
+ *  ToolSearch), so that counter stays 0 even when the tool was genuinely
+ *  called — the only reliable signal is the `tool_use` blocks in the
+ *  verbose transcript. Returns null if `raw` isn't the verbose array shape
+ *  (fixtures, codex, non-verbose calls). */
+export function countWebToolUse(raw: string): { webSearch: number; webFetch: number } | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+  let webSearch = 0;
+  let webFetch = 0;
+  for (const msg of parsed as VerboseMessage[]) {
+    if (msg.type !== "assistant") continue;
+    for (const block of msg.message?.content ?? []) {
+      if (block.type !== "tool_use") continue;
+      if (block.name === "WebSearch") webSearch++;
+      if (block.name === "WebFetch") webFetch++;
+    }
+  }
+  return { webSearch, webFetch };
+}
+
+/** Pull the final assistant text out of a `--verbose` reply (array of turn
+ *  messages) — the last message with type "result". Returns null if `raw`
+ *  isn't the verbose array shape. */
+function extractVerboseResultText(raw: string): string | null {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw.trim());
+  } catch {
+    return null;
+  }
+  if (!Array.isArray(parsed)) return null;
+  const resultMsg = [...(parsed as VerboseMessage[])].reverse().find((m) => m.type === "result");
+  return typeof resultMsg?.result === "string" ? resultMsg.result : null;
 }
 
 /** Read a fixture file if AX_EVAL_GENERATOR_FIXTURE is set. Used by tests. */
@@ -66,13 +124,29 @@ export async function invokeHarness(prompt: string, opts: InvokeHarnessOptions):
   if (opts.harness === "claude-code") {
     const claudeBin = process.env.AX_EVAL_CLAUDE_BIN || "claude";
     const modelArgs = opts.model ? ["--model", opts.model] : [];
+    // --verbose switches --output-format json from a single result object to
+    // an array of turn messages, which is the only way to see real tool_use
+    // blocks (see countWebToolUse). Only requested when grounding is being
+    // enforced, to leave the existing non-DAEB generate path unchanged.
+    const verboseArgs = opts.requireWebFetch ? ["--verbose"] : [];
     const { stdout } = await execFileAsync(
       claudeBin,
-      ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...modelArgs],
+      ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
       { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024 },
     ).catch((e) => {
       throw new Error(`harness claude-code (${claudeBin}) failed: ${e.message || e.stderr}`);
     });
+    if (opts.requireWebFetch) {
+      const counts = countWebToolUse(stdout);
+      if (!counts || (counts.webSearch === 0 && counts.webFetch === 0)) {
+        throw new Error(
+          "harness claude-code answered without calling WebSearch or WebFetch — refusing an ungrounded (training-data-only) answer for a grounded-research prompt",
+        );
+      }
+      const text = extractVerboseResultText(stdout);
+      if (text === null) throw new Error("harness claude-code --verbose reply had no final result message");
+      return text;
+    }
     return normalizeHarnessText(stdout);
   }
 

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-7eswdi
+# run_id: 2026-07-01-r33p3e
 name: planetscale
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-7eswdi
+run_id: 2026-07-01-r33p3e
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,11 +17,15 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: bearer
+  type: api-key
   env: PLANETSCALE_SERVICE_TOKEN
   env_aliases: []
   verify_env_aliases: []
+  header: Authorization
 sandbox_scope: []
+sql_conn:
+  dialect: mysql
+  connection_string_env: PLANETSCALE_DATABASE_URL
 base_url: https://api.planetscale.com/v1
 headers: {}
 site_url: https://planetscale.com
@@ -45,11 +49,19 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        expected: axarena_customers_{ns}
-        description: table appears in branch schema listing
-        readMethod: GET
-        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/schema
-        assertField: data.0.name
+        expected: 1
+        description: table axarena_customers_{ns} exists
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.tables WHERE
+          table_schema = DATABASE() AND table_name = 'axarena_customers_{ns}'
+      - type: roundtrip
+        expected: 3
+        description: table has exactly 3 columns
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_schema = DATABASE() AND table_name = 'axarena_customers_{ns}'
     difficulty: L1
     allowed_surfaces:
       - api
@@ -66,11 +78,25 @@ tasks:
       and a deterministic created_at. The vendor's idiomatic bulk-insert
       mechanism is acceptable.
     oracles:
-      - type: na
-        description: PlanetScale Management REST API has no SQL execution endpoint; row
-          counts require a direct MySQL/Vitess connection
+      - type: roundtrip
+        expected: 100
+        description: exactly 100 rows present
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}`
+      - type: roundtrip
+        expected: 0
+        description: all rows have non-null id, name, email — expected shape holds
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}` WHERE id IS
+          NULL OR name IS NULL OR email IS NULL
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T03-query-pattern
@@ -81,12 +107,26 @@ tasks:
       ordered by created_at, paginated at 5 rows per page. Return the first
       two pages.
     oracles:
-      - type: na
-        description: PlanetScale Management REST API has no SQL execution endpoint;
-          re-running a SELECT with LIKE and pagination requires a direct MySQL
-          connection
+      - type: roundtrip
+        expected: 11
+        description: exactly 11 rows match probe-1 and probe-10..probe-19
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}` WHERE email
+          REGEXP '^probe-1[0-9]?@'
+      - type: roundtrip
+        expected: probe-1@example.com
+        description: lowest-ordered matching email is probe-1 (page-1 leading entry)
+        assertField: 0.email
+        sqlDialect: mysql
+        sqlQuery: SELECT email FROM `axarena_customers_{ns}` WHERE email REGEXP
+          '^probe-1[0-9]?@' ORDER BY email ASC LIMIT 1
     difficulty: L2
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T04-rls-policy
@@ -99,8 +139,11 @@ tasks:
       — is acceptable.
     oracles:
       - type: na
-        description: PlanetScale runs on MySQL/Vitess, which has no native Row Level
-          Security mechanism; the feature is structurally absent
+        description: PlanetScale runs on MySQL/Vitess which has no native row-level
+          security mechanism. Per-user row isolation is application-layer logic;
+          verifying it requires two separately authenticated DB connections,
+          which the single sql_connection_env format cannot express and which no
+          PlanetScale management API endpoint can substitute.
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -112,12 +155,27 @@ tasks:
       `axarena_customers_{ns}`. Attempt to insert a row with an email that
       already exists. The insert must fail.
     oracles:
-      - type: na
-        description: PlanetScale Management REST API has no SQL execution endpoint;
-          verifying duplicate-row count and error codes requires a direct MySQL
-          connection
+      - type: roundtrip
+        expected: 1
+        description: duplicate insert rejected; exactly 1 row with the duplicate email
+          (MySQL error 1062 / SQLSTATE 23000)
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}` WHERE email =
+          'probe-1@example.com'
+      - type: roundtrip
+        expected: 0
+        description: no email value appears more than once across the table
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM (SELECT email FROM
+          `axarena_customers_{ns}` GROUP BY email HAVING COUNT(*) > 1) t
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T06-foreign-key
@@ -128,12 +186,26 @@ tasks:
       (numeric). Establish the foreign-key relationship using the vendor's
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
-      - type: na
-        description: PlanetScale Management REST API has no SQL execution endpoint;
-          triggering and inspecting FK violations requires a direct MySQL
-          connection
+      - type: roundtrip
+        expected: 0
+        description: no orphaned orders; FK-violating insert was rejected (MySQL error 1452)
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_orders_{ns}` o LEFT JOIN
+          `axarena_customers_{ns}` c ON o.customer_id = c.id WHERE c.id IS NULL
+      - type: roundtrip
+        expected: 1
+        description: valid order exists with a matching customer row
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_orders_{ns}` o JOIN
+          `axarena_customers_{ns}` c ON o.customer_id = c.id
     difficulty: L2
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T07-export
@@ -142,12 +214,26 @@ tasks:
       Export the contents of `axarena_customers_{ns}` as JSON or CSV. Report
       the output path (file) or stream.
     oracles:
-      - type: na
-        description: PlanetScale REST API has no data-export endpoint; bulk export is
-          performed via mysqldump over a direct connection, not through the
-          Management API
+      - type: roundtrip
+        expected: 100
+        description: source table has exactly 100 rows matching expected export record count
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}`
+      - type: roundtrip
+        expected: 3
+        description: all three expected export fields (id, name, email) present in schema
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_schema = DATABASE() AND table_name = 'axarena_customers_{ns}'
+          AND column_name IN ('id', 'name', 'email')
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T08-schema-migration
@@ -158,17 +244,28 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        expected: axarena_customers_{ns}
-        description: table still present after migration
-        readMethod: GET
-        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/schema
-        assertField: data.0.name
+        expected: 1
+        description: status column exists after migration
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_schema = DATABASE() AND table_name = 'axarena_customers_{ns}'
+          AND column_name = 'status'
       - type: roundtrip
-        expected: complete
-        description: most-recent deploy request finished successfully
-        readMethod: GET
-        readPathTemplate: /organizations/{org}/databases/{db}/deploy-requests
-        assertField: data.0.state
+        expected: varchar
+        description: status column is varchar type
+        assertField: 0.data_type
+        sqlDialect: mysql
+        sqlQuery: SELECT DATA_TYPE AS data_type FROM information_schema.columns WHERE
+          table_schema = DATABASE() AND table_name = 'axarena_customers_{ns}'
+          AND column_name = 'status'
+      - type: roundtrip
+        expected: 0
+        description: all pre-existing rows have status='active' after migration backfill
+        assertField: count
+        sqlDialect: mysql
+        sqlQuery: SELECT COUNT(*) AS count FROM `axarena_customers_{ns}` WHERE status !=
+          'active' OR status IS NULL
     difficulty: L3
     allowed_surfaces:
       - api
@@ -186,8 +283,9 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: na
-        description: PlanetScale does not host or invoke serverless functions; function
-          deployment and invocation are outside the PlanetScale REST API surface
+        description: PlanetScale is a database-only managed service with no compute or
+          function-hosting capability; the deployed function runs on an external
+          platform not addressable through PlanetScale's management API.
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -200,17 +298,17 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        expected: ready
-        description: most-recent backup is in ready state
+        expected: "{agent_reported_backup_id}"
+        description: agent-reported backup ID is present as the most recent backup entry
+        readMethod: GET
+        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/backups
+        assertField: data.0.id
+      - type: roundtrip
+        expected: success
+        description: most recent backup completed with state=success
         readMethod: GET
         readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/backups
         assertField: data.0.state
-      - type: roundtrip
-        expected: "{backup_id}"
-        description: agent-reported backup name appears as first (latest) entry
-        readMethod: GET
-        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/backups
-        assertField: data.0.name
     difficulty: L4
     allowed_surfaces:
       - api

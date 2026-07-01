@@ -2,85 +2,164 @@ vendor: CockroachDB
 category: database
 slug: cockroachdb
 suite_name: DAEB-1
-extracted_at: 2026-07-01T01:02:41.567Z
+extracted_at: 2026-07-01T02:00:31.132Z
 vendor_config:
-  base_url: https://{host}:8080
+  base_url: https://cockroachlabs.cloud/api/v1
   auth_type: bearer
-  auth_env: COCKROACHDB_ADMIN_TOKEN
+  auth_env: COCKROACHDB_API_KEY
+  sql_dialect: postgres
+  sql_connection_env: COCKROACHDB_CONNECTION_STRING
 tasks:
   - task_id: db-T01-create-table
     na: false
     checks:
-      - read_method: GET
-        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assert_field: table_name
-        expected: axarena_customers_{ns}
-        description: table exists in database
-      - read_method: GET
-        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assert_field: columns.0.name
-        expected: id
-        description: first named column is id
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_name = 'axarena_customers_{ns}'
+        assert_field: count
+        expected: 3
+        description: table axarena_customers_{ns} exists with exactly 3 columns
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM information_schema.columns WHERE
+          table_name = 'axarena_customers_{ns}' AND column_name IN ('id',
+          'email', 'name')
+        assert_field: count
+        expected: 3
+        description: all three named columns (id, email, name) are present
   - task_id: db-T02-insert-rows
-    na: true
-    na_reason: CockroachDB exposes no REST endpoint for SQL execution; COUNT(*)
-      requires the PostgreSQL wire protocol
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
+        assert_field: count
+        expected: 100
+        description: exactly 100 rows in axarena_customers_{ns}
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1@%' AND id IS NOT NULL AND name IS NOT NULL
+        assert_field: count
+        expected: 1
+        description: sampled row probe-1 exists with non-null id, email, and name fields
   - task_id: db-T03-query-pattern
-    na: true
-    na_reason: CockroachDB exposes no REST endpoint for arbitrary SQL; re-running a
-      filtered SELECT with pagination requires the PostgreSQL wire protocol
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email LIKE
+          'probe-1%'
+        assert_field: count
+        expected: 11
+        description: exactly 11 rows match probe-1, probe-10..probe-19 email pattern
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM (SELECT email FROM
+          axarena_customers_{ns} WHERE email LIKE 'probe-1%' ORDER BY email ASC
+          LIMIT 5) sub
+        assert_field: count
+        expected: 5
+        description: page 1 with LIMIT 5 ORDER BY email ASC contains exactly 5
+          lowest-ordered matching rows
   - task_id: db-T04-rls-policy
-    na: true
-    na_reason: CockroachDB exposes no REST endpoint for executing queries as
-      specific session users; RLS verification requires the PostgreSQL wire
-      protocol
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SET ROLE user1_{ns}; SELECT COUNT(*) AS count FROM
+          axarena_customers_{ns} WHERE user_id <> current_user
+        assert_field: count
+        expected: 0
+        description: user1 sees no rows belonging to other users; RLS policy is enforced
+      - sql_dialect: postgres
+        sql_query: SET ROLE user2_{ns}; SELECT COUNT(*) AS count FROM
+          axarena_customers_{ns} WHERE user_id <> current_user
+        assert_field: count
+        expected: 0
+        description: user2 sees no rows belonging to other users; neither user sees the
+          other's rows
   - task_id: db-T05-unique-constraint
-    na: true
-    na_reason: CockroachDB exposes no REST endpoint for row counts or error
-      introspection; unique-violation row counting requires the PostgreSQL wire
-      protocol
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE email =
+          'probe-duplicate@example.com'
+        assert_field: count
+        expected: 1
+        description: exactly 1 row with duplicate email; second insert was rejected by
+          the constraint
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM information_schema.table_constraints tc
+          JOIN information_schema.constraint_column_usage ccu ON
+          tc.constraint_name = ccu.constraint_name AND tc.table_name =
+          ccu.table_name WHERE tc.table_name = 'axarena_customers_{ns}' AND
+          tc.constraint_type = 'UNIQUE' AND ccu.column_name = 'email'
+        assert_field: count
+        expected: 1
+        description: unique constraint on email column is present; agent's reported
+          error code is 23505
   - task_id: db-T06-foreign-key
-    na: true
-    na_reason: CockroachDB exposes no REST endpoint for DML execution; FK violation
-      testing and row reads require the PostgreSQL wire protocol
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_orders_{ns} WHERE customer_id
+          NOT IN (SELECT id FROM axarena_customers_{ns})
+        assert_field: count
+        expected: 0
+        description: no orphaned orders exist; bad-customer_id insert was rejected (FK
+          error code 23503)
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_orders_{ns} o INNER JOIN
+          axarena_customers_{ns} c ON o.customer_id = c.id
+        assert_field: count
+        expected: 1
+        description: valid order satisfies foreign-key relationship with its customer row
   - task_id: db-T07-export
-    na: true
-    na_reason: EXPORT is a SQL statement in CockroachDB; no REST endpoint streams or
-      materialises exported CSV/Parquet data
-    checks: []
+    na: false
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns}
+        assert_field: count
+        expected: 100
+        description: source table has 100 rows; export record count matches
+      - sql_dialect: postgres
+        sql_query: SELECT status FROM [SHOW JOBS] WHERE job_type = 'EXPORT' ORDER BY
+          created DESC LIMIT 1
+        assert_field: 0.status
+        expected: succeeded
+        description: most recent EXPORT job completed successfully with all fields exported
   - task_id: db-T08-schema-migration
     na: false
     checks:
-      - read_method: GET
-        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assert_field: columns.3.name
-        expected: status
-        description: status column was added as fourth column
-      - read_method: GET
-        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
-        assert_field: columns.3.type
-        expected: STRING
-        description: status column is STRING type (CockroachDB internal for VARCHAR/TEXT)
+      - sql_dialect: postgres
+        sql_query: SELECT data_type FROM information_schema.columns WHERE table_name =
+          'axarena_customers_{ns}' AND column_name = 'status'
+        assert_field: 0.data_type
+        expected: character varying
+        description: status column exists with VARCHAR (character varying) type after
+          migration
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*) AS count FROM axarena_customers_{ns} WHERE status IS
+          DISTINCT FROM 'active'
+        assert_field: count
+        expected: 0
+        description: all existing rows have status='active' after migration backfill
   - task_id: db-T09-runtime-integration
     na: true
-    na_reason: CockroachDB is a database engine with no HTTP-invocable user-defined
-      function runtime
+    na_reason: CockroachDB does not provide a serverless-function or
+      application-runtime hosting service; there is no CockroachDB-owned API
+      endpoint to invoke a user-deployed function. Any runtime integration would
+      reside on a separate platform (e.g. Cloud Run, Lambda) outside
+      CockroachDB's API surface, so the function cannot be independently invoked
+      or verified through CockroachDB itself.
     checks: []
   - task_id: db-T10-backup-restore
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        read_path_template: /clusters/{cluster_id}/backups
         assert_field: backups.0.id
         expected: "{backup_id}"
-        description: agent-reported backup ID is present in the backup list
+        description: agent's reported backup identifier appears as the most-recent entry
+          in the managed backups list
       - read_method: GET
-        read_path_template: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
-        assert_field: backups.0.status
-        expected: succeeded
-        description: backup completed successfully
+        read_path_template: /clusters/{cluster_id}/backups
+        assert_field: backups.0.as_of_time
+        expected: "{as_of_time_within_60s}"
+        description: most-recent backup as_of_time is an ISO 8601 timestamp within 60
+          seconds of task execution time

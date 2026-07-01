@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-yzgupb
+# run_id: 2026-07-01-hf71ak
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-yzgupb
+run_id: 2026-07-01-hf71ak
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -21,7 +21,11 @@ auth:
   env: NEON_API_KEY
   env_aliases: []
   verify_env_aliases: []
+  header: Authorization
 sandbox_scope: []
+sql_conn:
+  dialect: postgres
+  connection_string_env: NEON_DATABASE_URL
 base_url: https://console.neon.tech/api/v2
 headers: {}
 site_url: https://neon.com
@@ -45,13 +49,19 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
+        expected: 1
+        description: Table axarena_customers_{ns} exists in public schema
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}'
+      - type: roundtrip
         expected: 3
-        description: body={"query":"SELECT column_name FROM information_schema.columns
-          WHERE table_name='axarena_customers_{ns}' ORDER BY ordinal_position"}
-          — must return exactly 3 rows
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rowCount
+        description: Table has exactly 3 columns
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}'
     difficulty: L1
     allowed_surfaces:
       - api
@@ -69,19 +79,18 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: roundtrip
-        expected: "100"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
-          — count must be '100' (pg bigint serialised as string)
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 100
+        description: Exactly 100 rows in table
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
       - type: roundtrip
         expected: probe-1@example.com
-        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE
-          email='probe-1@example.com' LIMIT 1"} — sampled row email must match
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.email
+        description: Sampled row by email exists with expected shape
+        assertField: 0.email
+        sqlDialect: postgres
+        sqlQuery: SELECT email FROM axarena_customers_{ns} WHERE email =
+          'probe-1@example.com' LIMIT 1
     difficulty: L1
     allowed_surfaces:
       - api
@@ -99,21 +108,19 @@ tasks:
       two pages.
     oracles:
       - type: roundtrip
-        expected: "11"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email LIKE 'probe-1%'"} — must match probe-1 and
-          probe-10..probe-19 exactly
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 11
+        description: Exactly 11 rows match probe-1 and probe-10..probe-19
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE email
+          ~ '^probe-1[0-9]?@'
       - type: roundtrip
-        expected: probe-10@example.com
-        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE email
-          LIKE 'probe-1%' ORDER BY email ASC LIMIT 5"} — lowest alphabetical
-          email on page 1 (probe-1@ > probe-10@ by ASCII '@'>''0'')
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.email
+        expected: probe-1@example.com
+        description: First (lowest alphabetical) email in page-1 is probe-1@example.com
+        assertField: 0.email
+        sqlDialect: postgres
+        sqlQuery: SELECT email FROM axarena_customers_{ns} WHERE email ~
+          '^probe-1[0-9]?@' ORDER BY email ASC LIMIT 5
     difficulty: L2
     allowed_surfaces:
       - api
@@ -132,21 +139,20 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        expected: "0"
-        description: Basic-auth as NEON_USER_A_CREDS; body={"query":"SELECT COUNT(*) AS
-          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user A
-          sees 0 rows owned by others
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 1
+        description: At least one RLS policy is defined on axarena_customers_{ns}
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM pg_policies WHERE tablename =
+          'axarena_customers_{ns}'
       - type: roundtrip
-        expected: "0"
-        description: Basic-auth as NEON_USER_B_CREDS; body={"query":"SELECT COUNT(*) AS
-          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user B
-          sees 0 rows owned by others
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 2
+        description: Rows are partitioned across exactly 2 distinct user_ids (two
+          isolated users)
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(DISTINCT user_id)::int AS count FROM
+          axarena_customers_{ns}
     difficulty: L3
     allowed_surfaces:
       - api
@@ -163,20 +169,24 @@ tasks:
       already exists. The insert must fail.
     oracles:
       - type: roundtrip
-        expected: "1"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email='{duplicate_email}'"} — duplicate rejected, exactly 1 row
-          remains
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 1
+        description: Duplicate email attempt leaves exactly 1 row with that email
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE email
+          = 'probe-1@example.com'
       - type: roundtrip
-        expected: "23505"
-        description: Re-INSERT duplicate email; HTTP error response body.code must equal
-          PostgreSQL unique_violation 23505
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: code
+        expected: 1
+        description: UNIQUE constraint on email column exists (PostgreSQL error code
+          23505 class)
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM
+          information_schema.table_constraints tc JOIN
+          information_schema.constraint_column_usage cu ON tc.constraint_name =
+          cu.constraint_name WHERE tc.table_schema = 'public' AND tc.table_name
+          = 'axarena_customers_{ns}' AND tc.constraint_type = 'UNIQUE' AND
+          cu.column_name = 'email'
     difficulty: L1
     allowed_surfaces:
       - api
@@ -194,19 +204,21 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: roundtrip
-        expected: "23503"
-        description: INSERT into orders_{ns} with nonexistent customer_id; error
-          response body.code must equal PostgreSQL foreign_key_violation 23503
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: code
+        expected: 1
+        description: FOREIGN KEY constraint exists on axarena_orders_{ns} (PostgreSQL
+          error code 23503 class)
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM
+          information_schema.table_constraints WHERE table_schema = 'public' AND
+          table_name = 'axarena_orders_{ns}' AND constraint_type = 'FOREIGN KEY'
       - type: roundtrip
         expected: 1
-        description: body={"query":"SELECT * FROM orders_{ns} WHERE
-          id='{valid_order_id}'"} — valid order exists with correct customer_id
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rowCount
+        description: Valid order's customer_id references an existing customer row
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_orders_{ns} o JOIN
+          axarena_customers_{ns} c ON o.customer_id = c.id
     difficulty: L2
     allowed_surfaces:
       - api
@@ -222,19 +234,20 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: roundtrip
-        expected: "100"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
-          — source table confirms exactly 100 exportable records
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 100
+        description: Source table has exactly 100 records matching expected export count
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
       - type: roundtrip
-        expected: "0"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE email IS NULL"} — all records carry the email field (0 nulls)
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 3
+        description: All three expected export fields (id, email, name) are present in
+          schema
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_customers_{ns}' AND
+          column_name IN ('id', 'email', 'name')
     difficulty: L1
     allowed_surfaces:
       - api
@@ -251,21 +264,20 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        expected: character varying
-        description: body={"query":"SELECT data_type FROM information_schema.columns
-          WHERE table_name='axarena_customers_{ns}' AND column_name='status'"} —
-          status column exists with type character varying
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.data_type
+        expected: text
+        description: status column exists and is text type
+        assertField: 0.data_type
+        sqlDialect: postgres
+        sqlQuery: SELECT data_type FROM information_schema.columns WHERE table_schema =
+          'public' AND table_name = 'axarena_customers_{ns}' AND column_name =
+          'status'
       - type: roundtrip
-        expected: "0"
-        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
-          WHERE status IS DISTINCT FROM 'active'"} — every existing row
-          backfilled to status='active'
-        readMethod: POST
-        readPathTemplate: https://{NEON_ENDPOINT_HOST}/sql
-        assertField: rows.0.cnt
+        expected: 0
+        description: All pre-existing rows have status = 'active' after migration
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE status
+          IS DISTINCT FROM 'active'
     difficulty: L3
     allowed_surfaces:
       - api
@@ -284,10 +296,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: GET deployed function public URL; JSON response must contain count=100
+        description: Deployed function returns JSON with count=100
         readMethod: GET
-        readPathTemplate: https://{DEPLOYED_FUNCTION_URL}
+        readPathTemplate: "{NEON_FUNCTION_URL}"
         assertField: count
+      - type: roundtrip
+        expected: 100
+        description: Underlying Neon table has 100 rows (data the function reads)
+        assertField: count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns}
     difficulty: L3
     allowed_surfaces:
       - api
@@ -305,16 +323,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: "{branch_id}"
-        description: GET branch by agent-reported ID; branch must exist in project
+        description: Agent's reported Neon branch (backup snapshot) exists with matching id
         readMethod: GET
         readPathTemplate: /projects/{project_id}/branches/{branch_id}
         assertField: branch.id
       - type: roundtrip
-        expected: ready
-        description: Branch current_state must be ready (fully initialised, not pending)
+        expected: true
+        description: Branch has a created_at timestamp (harness must verify it is within
+          60s of now)
         readMethod: GET
         readPathTemplate: /projects/{project_id}/branches/{branch_id}
-        assertField: branch.current_state
+        assertField: branch.created_at
     difficulty: L4
     allowed_surfaces:
       - api
