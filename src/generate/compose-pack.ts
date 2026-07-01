@@ -50,21 +50,26 @@ export function composePack(
         prompt,
         difficulty: suiteTask.difficulty,
         allowed_surfaces: [],
-        // No surfaces means this task never executes; the reason is recorded
-        // here (TaskSchema has no dedicated na_reason field) for the
-        // methodology page's N/A disclosure table.
+        na: true,
         oracles: [{ type: "na", description: o.na_reason ?? "marked N/A by oracle extract" }],
       };
     }
     if (!o.checks.length) {
       throw new Error(`compose-pack: task "${suiteTask.id}" for "${vendor.vendor}" has na=false but no checks`);
     }
+    // Per-surface N/A: this task IS possible for the vendor, just not via
+    // every surface (e.g. a JS SDK with no schema-DDL methods). Narrowing
+    // allowed_surfaces here excludes it from that surface's execution AND
+    // scoring (tasksForSurface filters by this), same as whole-task na —
+    // just scoped to one surface.
+    const naSurfaces = new Set<string>(o.na_surfaces);
+    const allowedSurfaces = suiteTask.allowed_surfaces.filter((s) => !naSurfaces.has(s));
     return {
       id: suiteTask.id,
       title: suiteTask.title,
       prompt,
       difficulty: suiteTask.difficulty,
-      allowed_surfaces: suiteTask.allowed_surfaces,
+      allowed_surfaces: allowedSurfaces,
       oracles: o.checks.map((check) => ({
         type: "roundtrip",
         description: check.description || suiteTask.oracle_hint.trim(),

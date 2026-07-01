@@ -72,10 +72,22 @@ const OracleCheckSchema = z
   });
 export type OracleCheck = z.infer<typeof OracleCheckSchema>;
 
+const SurfaceIdSchema = z.enum(["api", "sdk", "cli", "mcp"]);
+
 const OracleExtractItemSchema = z.object({
   task_id: z.string(),
+  // True only when NO surface can do this at all for the vendor (rare —
+  // e.g. no backup mechanism exists anywhere). Prefer na_surfaces for the
+  // much more common case where SOME but not all surfaces support it.
   na: z.boolean(),
   na_reason: z.string().nullish().transform((v) => v ?? undefined),
+  // Surfaces where THIS task specifically can't be done, even though other
+  // surfaces can (e.g. Supabase's JS SDK has no DDL, so "sdk" is na here
+  // even though db-T01 works fine via REST/CLI/MCP). Excluded from that
+  // surface's execution and scoring — same "no capability, say so" logic
+  // as na/na_reason, just scoped to one surface instead of the whole task.
+  na_surfaces: z.array(SurfaceIdSchema).default([]),
+  na_surfaces_reason: z.string().nullish().transform((v) => v ?? undefined),
   checks: z.array(OracleCheckSchema).default([]),
 });
 export type OracleExtractItem = z.infer<typeof OracleExtractItemSchema>;
@@ -197,14 +209,27 @@ function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask): string {
     ``,
     CHECK_FORMAT_RULES,
     ``,
+    `Separately from how to VERIFY it, note which surfaces can PERFORM the underlying action at all — this is`,
+    `about capability, not verification method (verification always reads back via REST/SQL regardless of`,
+    `which surface the agent used to act). Check each of api/sdk/cli/mcp against what ${vendor.vendor}'s docs`,
+    `for that surface actually document. A surface commonly CANNOT do something another surface can — e.g. a`,
+    `data-plane JS/Python SDK often has no schema-DDL/migration methods at all (only a CLI or REST/management`,
+    `path does); an MCP server may expose only a subset of operations. If you don't have enough information`,
+    `to judge a given surface confidently, leave it out of na_surfaces (don't guess it's impossible).`,
+    `List any such surface in na_surfaces with one shared na_surfaces_reason. Leave na_surfaces empty if you`,
+    `have no specific evidence that any surface lacks this capability.`,
+    ``,
     `Return ONLY this JSON object, no commentary:`,
-    `{"task_id": "${task.id}", "na": false, "na_reason": null, "checks": [`,
+    `{"task_id": "${task.id}", "na": false, "na_reason": null, "na_surfaces": [], "na_surfaces_reason": null, "checks": [`,
     `  {"read_method": "GET", "read_path_template": "/rest/v1/...", "assert_field": "length", "expected": 100, "description": "..."}`,
     `]}`,
     `(identity-scoped example using a named field for the row under test, since this task's own gid is a`,
     `policy name, not a row: {"read_method": "GET", "read_path_template":`,
     `"/rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}", "auth_field": "user_a_token", "assert_field":`,
     `"length", "expected": 1, "description": "owner sees their row"})`,
+    `(surface-capability example: {"task_id": "${task.id}", "na": false, "na_reason": null,`,
+    `"na_surfaces": ["sdk"], "na_surfaces_reason": "the JS SDK has no DDL/migration methods per its reference`,
+    `docs", "checks": [...]})`,
   ].join("\n");
 }
 

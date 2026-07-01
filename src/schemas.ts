@@ -88,6 +88,12 @@ export const TaskSchema = z
     /** Surfaces the executor is allowed to use this task (e.g. ["docs"] hides
      *  the OpenAPI spec to force discovery). Empty = unrestricted. */
     allowed_surfaces: z.array(z.string()).default([]),
+    /** True when this task is structurally impossible for the vendor on ANY
+     *  surface (e.g. no backup API at all) — excluded from execution (the
+     *  executor is never asked to attempt it) and from scoring's denominator.
+     *  Distinct from allowed_surfaces=[] which means "unrestricted" for
+     *  ordinary tasks, not "never runs" — this flag is unambiguous. */
+    na: z.boolean().optional().transform((v) => v ?? false),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
