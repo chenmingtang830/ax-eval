@@ -51,21 +51,24 @@ export function composePack(
         oracles: [{ type: "na", description: o.na_reason ?? "marked N/A by oracle extract" }],
       };
     }
+    if (!o.checks.length) {
+      throw new Error(`compose-pack: task "${suiteTask.id}" for "${vendor.vendor}" has na=false but no checks`);
+    }
     return {
       id: suiteTask.id,
       title: suiteTask.title,
       prompt,
       difficulty: suiteTask.difficulty,
       allowed_surfaces: suiteTask.allowed_surfaces,
-      oracles: [
-        {
-          type: "roundtrip",
-          description: suiteTask.oracle_hint.trim(),
-          readMethod: o.read_method ?? "GET",
-          readPathTemplate: o.read_path_template?.replace(/\{ns\}/g, NS_PLACEHOLDER),
-          assertField: o.assert_field,
-        },
-      ],
+      oracles: o.checks.map((check) => ({
+        type: "roundtrip",
+        description: check.description || suiteTask.oracle_hint.trim(),
+        readMethod: check.read_method,
+        readPathTemplate: check.read_path_template.replace(/\{ns\}/g, NS_PLACEHOLDER),
+        assertField: check.assert_field,
+        expected:
+          typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
+      })),
     };
   });
 

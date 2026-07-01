@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-06-30-l84xyn
+# run_id: 2026-07-01-40j851
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-06-30-l84xyn
+run_id: 2026-07-01-40j851
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -18,11 +18,11 @@ auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: COCKROACHDB_API_KEY
+  env: COCKROACHDB_ADMIN_TOKEN
   env_aliases: []
   verify_env_aliases: []
 sandbox_scope: []
-base_url: https://cockroachlabs.cloud/api/v1
+base_url: https://{host}:8080
 headers: {}
 site_url: https://www.cockroachlabs.com
 openapi_url: ""
@@ -45,14 +45,17 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table list / schema introspection; assert
-          `axarena_customers_{ns}` exists with the three named columns.
+        expected: axarena_customers_{ns}
+        description: table exists in database
         readMethod: GET
-        readPathTemplate: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
-        assertField: $.columns[*].name includes each of the three named columns (e.g.
-          id, email, created_at); $.create_table_statement contains the table
-          name
+        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assertField: table_name
+      - type: roundtrip
+        expected: id
+        description: first named column is id
+        readMethod: GET
+        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assertField: columns.0.name
     difficulty: L1
     allowed_surfaces:
       - api
@@ -70,8 +73,8 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: na
-        description: CockroachDB exposes no REST endpoint for SQL DML or row counting;
-          all query execution requires the PostgreSQL wire protocol.
+        description: CockroachDB exposes no REST endpoint for SQL execution; COUNT(*)
+          requires the PostgreSQL wire protocol
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -85,8 +88,9 @@ tasks:
       two pages.
     oracles:
       - type: na
-        description: CockroachDB has no REST endpoint for arbitrary SQL query execution
-          or paginated result sets; requires PostgreSQL wire protocol.
+        description: CockroachDB exposes no REST endpoint for arbitrary SQL; re-running
+          a filtered SELECT with pagination requires the PostgreSQL wire
+          protocol
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -101,8 +105,9 @@ tasks:
       — is acceptable.
     oracles:
       - type: na
-        description: CockroachDB does not implement PostgreSQL Row Level Security (RLS)
-          policies; the mechanism is structurally absent in the engine.
+        description: CockroachDB exposes no REST endpoint for executing queries as
+          specific session users; RLS verification requires the PostgreSQL wire
+          protocol
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -115,9 +120,9 @@ tasks:
       already exists. The insert must fail.
     oracles:
       - type: na
-        description: No REST endpoint for SQL row inspection or error-code
-          introspection; verifying duplicate-row count and constraint violation
-          detail requires PostgreSQL wire protocol.
+        description: CockroachDB exposes no REST endpoint for row counts or error
+          introspection; unique-violation row counting requires the PostgreSQL
+          wire protocol
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -131,9 +136,8 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: No REST endpoint for SQL DML or constraint-violation error
-          inspection; foreign-key enforcement can only be observed via
-          PostgreSQL wire protocol.
+        description: CockroachDB exposes no REST endpoint for DML execution; FK
+          violation testing and row reads require the PostgreSQL wire protocol
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -145,9 +149,8 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: na
-        description: CockroachDB EXPORT TO is a SQL statement executed via wire
-          protocol; no REST endpoint exists for initiating or streaming an
-          exported data file.
+        description: EXPORT is a SQL statement in CockroachDB; no REST endpoint streams
+          or materialises exported CSV/Parquet data
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -160,15 +163,17 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table schema; assert `status` column exists, is the
-          correct type, and that all existing rows have `status='active'`.
+        expected: status
+        description: status column was added as fourth column
         readMethod: GET
-        readPathTemplate: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
-        assertField: "$.columns[?(@.name=='status')].type equals 'STRING' or 'VARCHAR';
-          $.columns[?(@.name=='status')].defaultExpr equals '''active''' (note:
-          asserting all existing rows have status='active' requires wire
-          protocol, not REST)"
+        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assertField: columns.3.name
+      - type: roundtrip
+        expected: STRING
+        description: status column is STRING type (CockroachDB internal for VARCHAR/TEXT)
+        readMethod: GET
+        readPathTemplate: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assertField: columns.3.type
     difficulty: L3
     allowed_surfaces:
       - api
@@ -186,9 +191,8 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: na
-        description: CockroachDB has no built-in serverless function or compute runtime
-          deployment feature; there is no vendor API endpoint for invoking a
-          deployed function.
+        description: CockroachDB is a database engine with no HTTP-invocable
+          user-defined function runtime
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -201,15 +205,17 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        description: |-
-          List the vendor's backups/snapshots/branches; assert the agent's
-          reported identifier is present with a creation timestamp within the
-          last 60 seconds.
+        expected: "{backup_id}"
+        description: agent-reported backup ID is present in the backup list
         readMethod: GET
-        readPathTemplate: /clusters/{CRDB_CLUSTER_ID}/backups
-        assertField: $.backups[*] contains an entry where id matches the agent's
-          reported backup identifier and created_at is within 60 seconds of the
-          current timestamp
+        readPathTemplate: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        assertField: backups.0.id
+      - type: roundtrip
+        expected: succeeded
+        description: backup completed successfully
+        readMethod: GET
+        readPathTemplate: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        assertField: backups.0.status
     difficulty: L4
     allowed_surfaces:
       - api

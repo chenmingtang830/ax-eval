@@ -1244,24 +1244,36 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
   if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
   console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
 
-  const results = await extractOraclesAll(vendors, suite, {
+  const outcomes = await extractOraclesAll(vendors, suite, {
     harness,
     model: args.generatorModel || undefined,
     effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
   });
 
-  for (const result of results) {
+  let failures = 0;
+  for (const outcome of outcomes) {
+    if (!outcome.ok) {
+      failures++;
+      console.error(`\n  ${outcome.vendor} → FAILED: ${outcome.error}`);
+      continue;
+    }
+    const result = outcome.result;
     const path = writeOracleExtract(root, result);
     const naCount = result.tasks.filter((t) => t.na).length;
     console.log(`\n  ${result.vendor} → ${path}`);
     console.log(`    base_url: ${result.vendor_config.base_url}`);
     console.log(`    tasks: ${result.tasks.length} total, ${naCount} N/A`);
     for (const task of result.tasks) {
-      const status = task.na ? `N/A (${task.na_reason ?? "no reason"})` : `${task.read_method} ${task.read_path_template}`;
+      const status = task.na
+        ? `N/A (${task.na_reason ?? "no reason"})`
+        : task.checks.map((c) => `${c.read_method} ${c.read_path_template} → ${c.assert_field}=${JSON.stringify(c.expected)}`).join(" | ");
       console.log(`    ${task.task_id}: ${status}`);
     }
   }
-  return 0;
+  if (failures) {
+    console.error(`\n${failures}/${outcomes.length} vendor(s) failed. Re-run extract-tasks --vendor <slug> for each.`);
+  }
+  return failures ? 1 : 0;
 }
 
 async function cmdComposePack(args: Parsed): Promise<number> {

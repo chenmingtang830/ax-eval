@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-06-30-d5n6kg
+# run_id: 2026-07-01-bo4c2n
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-06-30-d5n6kg
+run_id: 2026-07-01-bo4c2n
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,13 +17,13 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: api-key
+  type: bearer
   env: SUPABASE_SERVICE_ROLE_KEY
   env_aliases: []
   verify_env_aliases: []
-  header: apikey
+  header: Authorization
 sandbox_scope: []
-base_url: https://{project_ref}.supabase.co/rest/v1
+base_url: https://{project_ref}.supabase.co
 headers: {}
 site_url: https://supabase.com
 openapi_url: ""
@@ -46,15 +46,23 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table list / schema introspection; assert
-          `axarena_customers_{ns}` exists with the three named columns.
+        expected: integer
+        description: id column present in PostgREST OpenAPI schema
         readMethod: GET
-        readPathTemplate: /
-        assertField: response body is OpenAPI 2.0 JSON;
-          definitions["axarena_customers_{ns}"].properties contains exactly the
-          three named column keys, each with the correct 'type' and optional
-          'format' values
+        readPathTemplate: /rest/v1/
+        assertField: definitions.axarena_customers_{ns}.properties.id.type
+      - type: roundtrip
+        expected: text
+        description: email column present with text format
+        readMethod: GET
+        readPathTemplate: /rest/v1/
+        assertField: definitions.axarena_customers_{ns}.properties.email.format
+      - type: roundtrip
+        expected: timestamp with time zone
+        description: created_at column present with timestamptz format
+        readMethod: GET
+        readPathTemplate: /rest/v1/
+        assertField: definitions.axarena_customers_{ns}.properties.created_at.format
     difficulty: L1
     allowed_surfaces:
       - api
@@ -72,15 +80,17 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: roundtrip
-        description: |-
-          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
-          row by email and assert the expected shape.
+        expected: 100
+        description: table contains exactly 100 rows
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?select=*&limit=0
-        assertField: "send Prefer: count=exact header; assert Content-Range response
-          header value is */100; then GET
-          /axarena_customers_{ns}?email=eq.{sampled_email}&limit=1 and assert
-          response[0] contains all expected field keys with correct value types"
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        assertField: 0.count
+      - type: roundtrip
+        expected: probe-1@test.com
+        description: sampled row has expected email and all three fields present
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40test.com&select=id,email,created_at
+        assertField: 0.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -98,15 +108,18 @@ tasks:
       two pages.
     oracles:
       - type: roundtrip
-        description: |-
-          Re-execute the query through the vendor's standard API; assert exactly
-          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
-          reported page 1 contains the lowest-ordered 5 emails.
+        expected: 11
+        description: exactly 11 rows match probe-1* email pattern
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5
-        assertField: "send Prefer: count=exact header; assert Content-Range total == 11;
-          assert response array length == 5; assert the 5 returned email values
-          are the 5 lexicographically lowest among all 11 pattern matches"
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&select=count()
+        assertField: 0.count
+      - type: roundtrip
+        expected: probe-10@test.com
+        description: first of page-1 ascending is probe-10 (digits sort before @ in
+          ASCII collation)
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=like.probe-1*&order=email.asc&limit=5&offset=0&select=email
+        assertField: 0.email
     difficulty: L2
     allowed_surfaces:
       - api
@@ -125,16 +138,17 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        description: |-
-          Authenticate as two distinct users; assert each sees only their own
-          rows, neither sees the other's, and the count is correct per user.
+        expected: 50
+        description: "user-1 (SUPABASE_USER1_JWT): sees exactly their own 50 rows"
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?select=*
-        assertField: "call with Authorization: Bearer {user1_jwt} plus apikey header;
-          assert every row's owner_id == user1_id and Prefer: count=exact
-          Content-Range matches user1 expected count; repeat identically with
-          {user2_jwt}; assert no row in user2 response has owner_id == user1_id
-          and counts are disjoint"
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        assertField: 0.count
+      - type: roundtrip
+        expected: 50
+        description: "user-2 (SUPABASE_USER2_JWT): sees exactly their own 50 rows"
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        assertField: 0.count
     difficulty: L3
     allowed_surfaces:
       - api
@@ -151,15 +165,18 @@ tasks:
       already exists. The insert must fail.
     oracles:
       - type: roundtrip
-        description: |-
-          After the attempted duplicate insert, count rows with the duplicate
-          email; assert exactly 1. Inspect the agent's reported error and assert
-          a recognizable unique-violation error code or message.
+        expected: 1
+        description: exactly 1 row with the duplicate email after rejected insert
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?email=eq.{duplicate_email}
-        assertField: response array length == 1; agent's reported INSERT error response
-          body contains PostgreSQL error code '23505' or message substring
-          'unique' or 'duplicate key'
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.{dup_email}&select=count()
+        assertField: 0.count
+      - type: roundtrip
+        expected: "23505"
+        description: repeated duplicate insert response carries Postgres
+          unique-violation error code
+        readMethod: POST
+        readPathTemplate: /rest/v1/axarena_customers_{ns}
+        assertField: code
     difficulty: L1
     allowed_surfaces:
       - api
@@ -177,16 +194,18 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: roundtrip
-        description: |-
-          Attempt to insert an order with a customer_id that doesn't exist;
-          assert that the insert fails with a recognizable foreign-key
-          violation. Read back the valid order; assert the relationship holds.
+        expected: "23503"
+        description: insert with nonexistent customer_id returns Postgres FK-violation
+          error code
+        readMethod: POST
+        readPathTemplate: /rest/v1/axarena_orders_{ns}
+        assertField: code
+      - type: roundtrip
+        expected: "{valid_customer_id}"
+        description: valid order's customer_id matches the referenced customer
         readMethod: GET
-        readPathTemplate: /axarena_orders_{ns}?select=*,axarena_customers_{ns}(*)&id=eq.{valid_order_id}
-        assertField: agent's reported invalid-insert POST error body contains code
-          '23503' or message substring 'foreign key'; valid-order GET
-          response[0].axarena_customers_{ns} is a non-null object containing the
-          expected customer fields
+        readPathTemplate: /rest/v1/axarena_orders_{ns}?id=eq.{valid_order_id}&select=customer_id
+        assertField: 0.customer_id
     difficulty: L2
     allowed_surfaces:
       - api
@@ -202,15 +221,17 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: roundtrip
-        description: |-
-          Parse the export; assert exactly 100 records and that each record has
-          the expected fields. If file path: read the file. If stream: capture
-          bytes from the agent's reported handle.
+        expected: 100
+        description: table contains exactly 100 exportable records
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?select=*
-        assertField: response array length == 100; each element contains all expected
-          field keys; if agent reported a file path instead, read that file and
-          assert 100 records each with the expected fields present
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=count()
+        assertField: 0.count
+      - type: roundtrip
+        expected: probe-50@test.com
+        description: mid-range record present with all expected fields
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.probe-50%40test.com&select=id,email,created_at
+        assertField: 0.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -227,16 +248,17 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table schema; assert `status` column exists, is the
-          correct type, and that all existing rows have `status='active'`.
+        expected: string
+        description: status column present in PostgREST OpenAPI schema
         readMethod: GET
-        readPathTemplate: /axarena_customers_{ns}?status=neq.active&select=id
-        assertField: "send Prefer: count=exact; assert HTTP 200 (confirms column exists,
-          else PostgREST returns 400); assert Content-Range total == 0 meaning
-          all rows have status='active'; corroborate column type by checking
-          definitions[\"axarena_customers_{ns}\"].properties.status in GET /
-          response"
+        readPathTemplate: /rest/v1/
+        assertField: definitions.axarena_customers_{ns}.properties.status.type
+      - type: roundtrip
+        expected: 0
+        description: zero existing rows have status other than active
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?status=neq.active&select=count()
+        assertField: 0.count
     difficulty: L3
     allowed_surfaces:
       - api
@@ -254,14 +276,11 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: roundtrip
-        description: |-
-          Independently invoke the deployed function via the vendor's API or
-          public URL; assert the response is JSON with the correct count.
+        expected: 100
+        description: deployed edge function returns JSON with correct customer count
         readMethod: GET
-        readPathTemplate: https://{project_ref}.supabase.co/functions/v1/{function_name}
-        assertField: response Content-Type contains application/json; response body is
-          valid JSON; the count field (or equivalent top-level key) equals the
-          expected integer row count
+        readPathTemplate: /functions/v1/axarena_{ns}
+        assertField: count
     difficulty: L3
     allowed_surfaces:
       - api
@@ -277,12 +296,24 @@ tasks:
       recovery in the vendor's idiom). Report the snapshot/backup/branch
       identifier and its creation timestamp.
     oracles:
-      - type: na
-        description: Supabase provides no REST endpoint to trigger an on-demand backup;
-          backups are automated on a fixed schedule (daily on Pro, weekly on
-          Free) with no sub-minute granularity. There is no REST call that can
-          assert a backup identifier created within the last 60 seconds.
+      - type: roundtrip
+        expected: "{backup_id}"
+        description: "agent's reported backup id present in management API list
+          (auth_env: SUPABASE_ACCESS_TOKEN)"
+        readMethod: GET
+        readPathTemplate: https://api.supabase.com/v1/projects/{project_ref}/database/backups
+        assertField: backups.0.id
+      - type: roundtrip
+        expected: COMPLETED
+        description: most recent backup entry has completed status
+        readMethod: GET
+        readPathTemplate: https://api.supabase.com/v1/projects/{project_ref}/database/backups
+        assertField: backups.0.status
     difficulty: L4
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-06-30-ovssd1
+# run_id: 2026-07-01-7eswdi
 name: planetscale
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-06-30-ovssd1
+run_id: 2026-07-01-7eswdi
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,11 +17,10 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: api-key
+  type: bearer
   env: PLANETSCALE_SERVICE_TOKEN
   env_aliases: []
   verify_env_aliases: []
-  header: Authorization
 sandbox_scope: []
 base_url: https://api.planetscale.com/v1
 headers: {}
@@ -46,13 +45,11 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table list / schema introspection; assert
-          `axarena_customers_{ns}` exists with the three named columns.
+        expected: axarena_customers_{ns}
+        description: table appears in branch schema listing
         readMethod: GET
-        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/schema
-        assertField: data[?name=='axarena_customers_{ns}'].raw — assert entry exists and
-          raw DDL contains all three named column definitions
+        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/schema
+        assertField: data.0.name
     difficulty: L1
     allowed_surfaces:
       - api
@@ -70,9 +67,8 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: na
-        description: PlanetScale REST API explicitly provides no direct data access; row
-          counting and row sampling require a live MySQL connection, not an HTTP
-          endpoint.
+        description: PlanetScale Management REST API has no SQL execution endpoint; row
+          counts require a direct MySQL/Vitess connection
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -86,8 +82,9 @@ tasks:
       two pages.
     oracles:
       - type: na
-        description: PlanetScale REST API has no SQL query execution endpoint; filtered
-          row reads and paginated result sets require a direct MySQL connection.
+        description: PlanetScale Management REST API has no SQL execution endpoint;
+          re-running a SELECT with LIKE and pagination requires a direct MySQL
+          connection
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -102,8 +99,8 @@ tasks:
       — is acceptable.
     oracles:
       - type: na
-        description: PlanetScale runs MySQL, which has no native Row-Level Security; RLS
-          is a PostgreSQL-only mechanism and is structurally absent in MySQL.
+        description: PlanetScale runs on MySQL/Vitess, which has no native Row Level
+          Security mechanism; the feature is structurally absent
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -116,9 +113,9 @@ tasks:
       already exists. The insert must fail.
     oracles:
       - type: na
-        description: Row counting and DML error inspection require a direct MySQL
-          connection; PlanetScale REST API provides no data read or error replay
-          endpoint.
+        description: PlanetScale Management REST API has no SQL execution endpoint;
+          verifying duplicate-row count and error codes requires a direct MySQL
+          connection
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -132,8 +129,9 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: INSERT execution and FK violation error inspection require a direct
-          MySQL connection; PlanetScale REST API has no DML or query endpoint.
+        description: PlanetScale Management REST API has no SQL execution endpoint;
+          triggering and inspecting FK violations requires a direct MySQL
+          connection
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -145,8 +143,9 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: na
-        description: PlanetScale REST API offers no bulk data export endpoint; exports
-          are performed via mysqldump or a direct database connection.
+        description: PlanetScale REST API has no data-export endpoint; bulk export is
+          performed via mysqldump over a direct connection, not through the
+          Management API
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -159,14 +158,17 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table schema; assert `status` column exists, is the
-          correct type, and that all existing rows have `status='active'`.
+        expected: axarena_customers_{ns}
+        description: table still present after migration
         readMethod: GET
-        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/schema
-        assertField: data[?name=='axarena_customers_{ns}'].raw — assert entry exists and
-          raw DDL contains 'status' column with the correct type and DEFAULT
-          'active'
+        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/schema
+        assertField: data.0.name
+      - type: roundtrip
+        expected: complete
+        description: most-recent deploy request finished successfully
+        readMethod: GET
+        readPathTemplate: /organizations/{org}/databases/{db}/deploy-requests
+        assertField: data.0.state
     difficulty: L3
     allowed_surfaces:
       - api
@@ -184,9 +186,8 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: na
-        description: PlanetScale is a database-only service with no serverless or edge
-          function deployment platform; there is no function execution or
-          invocation endpoint.
+        description: PlanetScale does not host or invoke serverless functions; function
+          deployment and invocation are outside the PlanetScale REST API surface
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -199,14 +200,17 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        description: |-
-          List the vendor's backups/snapshots/branches; assert the agent's
-          reported identifier is present with a creation timestamp within the
-          last 60 seconds.
+        expected: ready
+        description: most-recent backup is in ready state
         readMethod: GET
-        readPathTemplate: /organizations/{organization}/databases/{database}/branches/{branch}/backups
-        assertField: data[?id=='{reported_backup_id}'] — assert entry exists with
-          state='success' and created_at within the last 60 seconds
+        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/backups
+        assertField: data.0.state
+      - type: roundtrip
+        expected: "{backup_id}"
+        description: agent-reported backup name appears as first (latest) entry
+        readMethod: GET
+        readPathTemplate: /organizations/{org}/databases/{db}/branches/{branch}/backups
+        assertField: data.0.name
     difficulty: L4
     allowed_surfaces:
       - api

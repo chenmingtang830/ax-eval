@@ -2,78 +2,142 @@ vendor: Insforge
 category: database
 slug: insforge
 suite_name: DAEB-1
-extracted_at: 2026-06-30T22:38:45.720Z
+extracted_at: 2026-07-01T01:08:50.501Z
 vendor_config:
-  base_url: https://{project}.insforge.app
-  auth_type: bearer
+  base_url: https://{INSFORGE_APP_NAME}.insforge.app
+  auth_type: api-key
+  auth_header: X-API-Key
   auth_env: INSFORGE_API_KEY
 tasks:
   - task_id: db-T01-create-table
     na: false
-    read_method: GET
-    read_path_template: /api/database/tables/axarena_customers_{ns}/schema
-    assert_field: response.table_name == 'axarena_customers_{ns}';
-      response.columns[*].name contains all three expected column names
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/tables/axarena_customers_{ns}/schema
+        assert_field: table_name
+        expected: axarena_customers_{ns}
+        description: table exists in schema registry
+      - read_method: GET
+        read_path_template: /api/database/tables/axarena_customers_{ns}/schema
+        assert_field: columns.1.name
+        expected: email
+        description: email column present (index 1, after auto-generated id)
   - task_id: db-T02-insert-rows
     na: false
-    read_method: GET
-    read_path_template: /api/database/records/axarena_customers_{ns}?limit=1
-    assert_field: response header X-Total-Count == '100'; body[0] contains expected
-      keys (id, email, ...)
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?limit=101
+        assert_field: records.length
+        expected: 100
+        description: exactly 100 rows inserted (limit=101 proves no overflow)
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?email=eq.probe-1%40example.com
+        assert_field: records.0.email
+        expected: probe-1@example.com
+        description: sampled row has expected email field value
   - task_id: db-T03-query-pattern
     na: false
-    read_method: GET
-    read_path_template: /api/database/records/axarena_customers_{ns}?email=like.probe-%25&order=email.asc&limit=5&offset=0
-    assert_field: header X-Total-Count == '11'; body length == 5; body[*].email are
-      the 5 lexicographically lowest probe-N addresses (probe-1, probe-10,
-      probe-11, probe-12, probe-13)
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?email=like.probe-1%25&limit=20
+        assert_field: records.length
+        expected: 11
+        description: probe-1* LIKE filter returns exactly 11 matching rows
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?email=like.probe-1%25&order=email.asc&limit=5&offset=0
+        assert_field: records.0.email
+        expected: probe-1@example.com
+        description: first record on page 1 sorted email.asc is lexicographically lowest
+          probe-1* email
   - task_id: db-T04-rls-policy
     na: false
-    read_method: GET
-    read_path_template: /api/database/records/axarena_customers_{ns}
-    assert_field: "call once with user-A Bearer token: X-Total-Count == user-A
-      expected count, body contains no user-B rows; call again with user-B
-      Bearer token: X-Total-Count == user-B expected count, body contains no
-      user-A rows"
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}
+        assert_field: records.length
+        expected: 50
+        description: "user A JWT (Authorization: Bearer from POST /api/auth/sessions)
+          sees only their own 50 rows"
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}
+        assert_field: records.length
+        expected: 50
+        description: "user B JWT (Authorization: Bearer from POST /api/auth/sessions)
+          sees only their own 50 rows"
   - task_id: db-T05-unique-constraint
     na: false
-    read_method: GET
-    read_path_template: /api/database/records/axarena_customers_{ns}?email=eq.{duplicate_email}&limit=1
-    assert_field: header X-Total-Count == '1'; agent's reported duplicate-insert
-      error body.error or body.message contains 'unique', 'duplicate', or
-      Postgres code '23505'
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?email=eq.probe-1%40example.com
+        assert_field: records.length
+        expected: 1
+        description: duplicate email stored exactly once after failed second insert
+      - read_method: POST
+        read_path_template: /api/database/records/axarena_customers_{ns}
+        assert_field: error
+        expected: UNIQUE_VIOLATION
+        description: re-inserting same email body returns recognizable unique-violation
+          error code
   - task_id: db-T06-foreign-key
     na: false
-    read_method: GET
-    read_path_template: /api/database/records/axarena_orders_{ns}?customer_id=eq.{valid_customer_id}&limit=1
-    assert_field: header X-Total-Count == '1'; body[0].customer_id ==
-      valid_customer_id; agent's invalid-insert error body.error or body.message
-      contains 'foreign key' or Postgres code '23503'
+    checks:
+      - read_method: POST
+        read_path_template: /api/database/records/axarena_orders_{ns}
+        assert_field: error
+        expected: FOREIGN_KEY_VIOLATION
+        description: inserting order with nonexistent customer_id returns FK-violation
+          error code
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_orders_{ns}
+        assert_field: records.length
+        expected: 1
+        description: exactly one valid order exists; confirms valid insert succeeded
   - task_id: db-T07-export
     na: false
-    read_method: POST
-    read_path_template: /api/database/advance/export
-    assert_field: 'request body:
-      {"tables":["axarena_customers_{ns}"],"format":"json","includeData":true};
-      response body is a JSON array of length 100; each element contains all
-      expected field keys'
+    checks:
+      - read_method: POST
+        read_path_template: /api/database/advance/export
+        assert_field: tables.0
+        expected: axarena_customers_{ns}
+        description: request body
+          {tables:[axarena_customers_{ns}],format:json,includeData:true};
+          response confirms correct table exported
+      - read_method: POST
+        read_path_template: /api/database/advance/export
+        assert_field: content.length
+        expected: 100
+        description: content field parsed as JSON array contains exactly 100 records
   - task_id: db-T08-schema-migration
     na: false
-    read_method: GET
-    read_path_template: /api/database/tables/axarena_customers_{ns}/schema
-    assert_field: response.columns contains an entry with name == 'status' and type
-      matching expected (e.g. 'text' or 'varchar'); follow with GET
-      /api/database/records/axarena_customers_{ns}?status=eq.active and assert
-      header X-Total-Count == '100'
+    checks:
+      - read_method: GET
+        read_path_template: /api/database/tables/axarena_customers_{ns}/schema
+        assert_field: columns.4.name
+        expected: status
+        description: status column appended after id + 3 original user columns; index 4
+          may vary by deployment
+      - read_method: GET
+        read_path_template: /api/database/tables/axarena_customers_{ns}/schema
+        assert_field: columns.4.type
+        expected: string
+        description: status column has string type
+      - read_method: GET
+        read_path_template: /api/database/records/axarena_customers_{ns}?status=eq.active&limit=101
+        assert_field: records.length
+        expected: 100
+        description: all 100 pre-existing rows have status=active after migration backfill
   - task_id: db-T09-runtime-integration
     na: false
-    read_method: GET
-    read_path_template: /functions/{function_slug}
-    assert_field: response Content-Type is application/json; body.count == expected_count
+    checks:
+      - read_method: GET
+        read_path_template: /functions/axarena-customers-{ns}
+        assert_field: count
+        expected: 100
+        description: edge function returns JSON with count=100; no auth required (public
+          slug endpoint)
   - task_id: db-T10-backup-restore
     na: true
-    na_reason: Insforge exposes branch/snapshot management exclusively via the
-      @insforge/cli CLI tool (npx @insforge/cli branch list); no REST API
-      endpoint exists to list or inspect database branches, backups, or
-      snapshots.
-    read_method: GET
+    na_reason: Insforge snapshot/backup management is CLI-only (insforge branch
+      create/list/merge/delete); no REST API endpoints exist for listing or
+      querying branch or backup state.
+    checks: []

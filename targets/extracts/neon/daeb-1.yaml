@@ -2,7 +2,7 @@ vendor: Neon
 category: database
 slug: neon
 suite_name: DAEB-1
-extracted_at: 2026-06-30T22:45:24.446Z
+extracted_at: 2026-07-01T01:05:59.976Z
 vendor_config:
   base_url: https://console.neon.tech/api/v2
   auth_type: bearer
@@ -10,76 +10,144 @@ vendor_config:
 tasks:
   - task_id: db-T01-create-table
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select={col1},{col2},{col3}&limit=1
-    assert_field: HTTP 200 confirms table exists; absence of HTTP 400 confirms all
-      three named columns are present (PostgREST rejects unknown column names in
-      the select clause with 400)
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rowCount
+        expected: 3
+        description: body={"query":"SELECT column_name FROM information_schema.columns
+          WHERE table_name='axarena_customers_{ns}' ORDER BY ordinal_position"}
+          — must return exactly 3 rows
   - task_id: db-T02-insert-rows
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=count()
-    assert_field: response[0].count == 100; additionally GET
-      ...?email=eq.{sample_email}&select=* and assert response[0] contains
-      expected field keys and values matching the seeded row shape
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "100"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
+          — count must be '100' (pg bigint serialised as string)
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.email
+        expected: probe-1@example.com
+        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE
+          email='probe-1@example.com' LIMIT 1"} — sampled row email must match
   - task_id: db-T03-query-pattern
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?email=like.probe-1*&select=email&order=email.asc
-    assert_field: response array length == 11 (probe-1, probe-10..probe-19);
-      appending &limit=5 returns the 5 lexicographically lowest probe-1* emails,
-      which must match the agent's reported page-1 contents
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "11"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
+          WHERE email LIKE 'probe-1%'"} — must match probe-1 and
+          probe-10..probe-19 exactly
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.email
+        expected: probe-10@example.com
+        description: body={"query":"SELECT email FROM axarena_customers_{ns} WHERE email
+          LIKE 'probe-1%' ORDER BY email ASC LIMIT 5"} — lowest alphabetical
+          email on page 1 (probe-1@ > probe-10@ by ASCII '@'>''0'')
   - task_id: db-T04-rls-policy
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=count()
-    assert_field: "invoke twice with distinct user JWTs (Authorization: Bearer
-      {user1_jwt}, then {user2_jwt}); user1 count == expected_user1_rows; user2
-      count == expected_user2_rows; counts are mutually exclusive and sum to
-      total; a full select with each JWT must not surface the other user's
-      email"
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "0"
+        description: Basic-auth as NEON_USER_A_CREDS; body={"query":"SELECT COUNT(*) AS
+          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user A
+          sees 0 rows owned by others
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "0"
+        description: Basic-auth as NEON_USER_B_CREDS; body={"query":"SELECT COUNT(*) AS
+          cnt FROM axarena_customers_{ns} WHERE owner != current_user"} — user B
+          sees 0 rows owned by others
   - task_id: db-T05-unique-constraint
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?email=eq.{duplicate_email}&select=count()
-    assert_field: response[0].count == 1; agent-reported insert error body contains
-      PostgreSQL error code '23505' or substring 'duplicate key value violates
-      unique constraint'
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "1"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
+          WHERE email='{duplicate_email}'"} — duplicate rejected, exactly 1 row
+          remains
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: code
+        expected: "23505"
+        description: Re-INSERT duplicate email; HTTP error response body.code must equal
+          PostgreSQL unique_violation 23505
   - task_id: db-T06-foreign-key
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_orders_{ns}?customer_id=eq.{valid_customer_id}&select=id,customer_id
-    assert_field: HTTP 200 with exactly one row whose customer_id ==
-      {valid_customer_id} confirms the valid order persisted; agent-reported
-      failed-insert error body contains PostgreSQL error code '23503' or
-      substring 'foreign key constraint'
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: code
+        expected: "23503"
+        description: INSERT into orders_{ns} with nonexistent customer_id; error
+          response body.code must equal PostgreSQL foreign_key_violation 23503
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rowCount
+        expected: 1
+        description: body={"query":"SELECT * FROM orders_{ns} WHERE
+          id='{valid_order_id}'"} — valid order exists with correct customer_id
   - task_id: db-T07-export
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=*&limit=200
-    assert_field: response array length == 100; every element contains all expected
-      field keys; if export was to a local file (pg_dump/COPY), read the file
-      and assert 100 data rows with all expected columns instead
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "100"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}"}
+          — source table confirms exactly 100 exportable records
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "0"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
+          WHERE email IS NULL"} — all records carry the email field (0 nulls)
   - task_id: db-T08-schema-migration
     na: false
-    read_method: GET
-    read_path_template: https://{neon_data_api_base}/rest/v1/axarena_customers_{ns}?select=status&limit=1
-    assert_field: HTTP 200 without 400 confirms 'status' column exists; column type
-      asserted via GET /rest/v1/ OpenAPI spec at
-      definitions.axarena_customers_{ns}.properties.status.type; additionally
-      GET ...?status=neq.active&select=count() must return [{'count':0}]
-      confirming all existing rows have status='active'
+    checks:
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.data_type
+        expected: character varying
+        description: body={"query":"SELECT data_type FROM information_schema.columns
+          WHERE table_name='axarena_customers_{ns}' AND column_name='status'"} —
+          status column exists with type character varying
+      - read_method: POST
+        read_path_template: https://{NEON_ENDPOINT_HOST}/sql
+        assert_field: rows.0.cnt
+        expected: "0"
+        description: body={"query":"SELECT COUNT(*) AS cnt FROM axarena_customers_{ns}
+          WHERE status IS DISTINCT FROM 'active'"} — every existing row
+          backfilled to status='active'
   - task_id: db-T09-runtime-integration
-    na: true
-    na_reason: Neon does not host serverless or application functions; any deployed
-      function that connects to Neon runs on an external platform (e.g. Vercel,
-      Netlify, AWS Lambda) and is invoked via that platform's URL, which is not
-      a Neon REST endpoint
-    read_method: GET
+    na: false
+    checks:
+      - read_method: GET
+        read_path_template: https://{DEPLOYED_FUNCTION_URL}
+        assert_field: count
+        expected: 100
+        description: GET deployed function public URL; JSON response must contain count=100
   - task_id: db-T10-backup-restore
     na: false
-    read_method: GET
-    read_path_template: /projects/{project_id}/branches
-    assert_field: response.branches array contains an element with id ==
-      agent-reported branch identifier; that element's created_at parses to an
-      ISO-8601 timestamp within 60 seconds before the verification call
+    checks:
+      - read_method: GET
+        read_path_template: /projects/{project_id}/branches/{branch_id}
+        assert_field: branch.id
+        expected: "{branch_id}"
+        description: GET branch by agent-reported ID; branch must exist in project
+      - read_method: GET
+        read_path_template: /projects/{project_id}/branches/{branch_id}
+        assert_field: branch.current_state
+        expected: ready
+        description: Branch current_state must be ready (fully initialised, not pending)

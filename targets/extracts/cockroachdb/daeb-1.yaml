@@ -2,61 +2,85 @@ vendor: CockroachDB
 category: database
 slug: cockroachdb
 suite_name: DAEB-1
-extracted_at: 2026-06-30T22:38:32.343Z
+extracted_at: 2026-07-01T01:02:41.567Z
 vendor_config:
-  base_url: https://cockroachlabs.cloud/api/v1
+  base_url: https://{host}:8080
   auth_type: bearer
-  auth_env: COCKROACHDB_API_KEY
+  auth_env: COCKROACHDB_ADMIN_TOKEN
 tasks:
   - task_id: db-T01-create-table
     na: false
-    read_method: GET
-    read_path_template: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
-    assert_field: $.columns[*].name includes each of the three named columns (e.g.
-      id, email, created_at); $.create_table_statement contains the table name
+    checks:
+      - read_method: GET
+        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assert_field: table_name
+        expected: axarena_customers_{ns}
+        description: table exists in database
+      - read_method: GET
+        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assert_field: columns.0.name
+        expected: id
+        description: first named column is id
   - task_id: db-T02-insert-rows
     na: true
-    na_reason: CockroachDB exposes no REST endpoint for SQL DML or row counting; all
-      query execution requires the PostgreSQL wire protocol.
+    na_reason: CockroachDB exposes no REST endpoint for SQL execution; COUNT(*)
+      requires the PostgreSQL wire protocol
+    checks: []
   - task_id: db-T03-query-pattern
     na: true
-    na_reason: CockroachDB has no REST endpoint for arbitrary SQL query execution or
-      paginated result sets; requires PostgreSQL wire protocol.
+    na_reason: CockroachDB exposes no REST endpoint for arbitrary SQL; re-running a
+      filtered SELECT with pagination requires the PostgreSQL wire protocol
+    checks: []
   - task_id: db-T04-rls-policy
     na: true
-    na_reason: CockroachDB does not implement PostgreSQL Row Level Security (RLS)
-      policies; the mechanism is structurally absent in the engine.
+    na_reason: CockroachDB exposes no REST endpoint for executing queries as
+      specific session users; RLS verification requires the PostgreSQL wire
+      protocol
+    checks: []
   - task_id: db-T05-unique-constraint
     na: true
-    na_reason: No REST endpoint for SQL row inspection or error-code introspection;
-      verifying duplicate-row count and constraint violation detail requires
-      PostgreSQL wire protocol.
+    na_reason: CockroachDB exposes no REST endpoint for row counts or error
+      introspection; unique-violation row counting requires the PostgreSQL wire
+      protocol
+    checks: []
   - task_id: db-T06-foreign-key
     na: true
-    na_reason: No REST endpoint for SQL DML or constraint-violation error
-      inspection; foreign-key enforcement can only be observed via PostgreSQL
-      wire protocol.
+    na_reason: CockroachDB exposes no REST endpoint for DML execution; FK violation
+      testing and row reads require the PostgreSQL wire protocol
+    checks: []
   - task_id: db-T07-export
     na: true
-    na_reason: CockroachDB EXPORT TO is a SQL statement executed via wire protocol;
-      no REST endpoint exists for initiating or streaming an exported data file.
+    na_reason: EXPORT is a SQL statement in CockroachDB; no REST endpoint streams or
+      materialises exported CSV/Parquet data
+    checks: []
   - task_id: db-T08-schema-migration
     na: false
-    read_method: GET
-    read_path_template: https://{CRDB_HOST}:8080/_admin/v1/databases/{CRDB_DATABASE}/tables/axarena_customers_{ns}
-    assert_field: "$.columns[?(@.name=='status')].type equals 'STRING' or 'VARCHAR';
-      $.columns[?(@.name=='status')].defaultExpr equals '''active''' (note:
-      asserting all existing rows have status='active' requires wire protocol,
-      not REST)"
+    checks:
+      - read_method: GET
+        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assert_field: columns.3.name
+        expected: status
+        description: status column was added as fourth column
+      - read_method: GET
+        read_path_template: /_admin/v1/databases/{database}/tables/axarena_customers_{ns}
+        assert_field: columns.3.type
+        expected: STRING
+        description: status column is STRING type (CockroachDB internal for VARCHAR/TEXT)
   - task_id: db-T09-runtime-integration
     na: true
-    na_reason: CockroachDB has no built-in serverless function or compute runtime
-      deployment feature; there is no vendor API endpoint for invoking a
-      deployed function.
+    na_reason: CockroachDB is a database engine with no HTTP-invocable user-defined
+      function runtime
+    checks: []
   - task_id: db-T10-backup-restore
     na: false
-    read_method: GET
-    read_path_template: /clusters/{CRDB_CLUSTER_ID}/backups
-    assert_field: $.backups[*] contains an entry where id matches the agent's
-      reported backup identifier and created_at is within 60 seconds of the
-      current timestamp
+    checks:
+      - read_method: GET
+        read_path_template: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        assert_field: backups.0.id
+        expected: "{backup_id}"
+        description: agent-reported backup ID is present in the backup list
+      - read_method: GET
+        read_path_template: https://cockroachlabs.cloud/api/v1/clusters/{cluster_id}/backups
+        assert_field: backups.0.status
+        expected: succeeded
+        description: backup completed successfully

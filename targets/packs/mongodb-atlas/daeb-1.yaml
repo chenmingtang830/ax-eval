@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-06-30-6y6hdx
+# run_id: 2026-07-01-sugay3
 name: mongodb-atlas
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-06-30-6y6hdx
+run_id: 2026-07-01-sugay3
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -17,13 +17,12 @@ generator:
 auth_method: pat
 api_style: rest
 auth:
-  type: api-key
-  env: MONGODB_ATLAS_DATA_API_KEY
+  type: bearer
+  env: MONGODB_ATLAS_ACCESS_TOKEN
   env_aliases: []
   verify_env_aliases: []
-  header: apiKey
 sandbox_scope: []
-base_url: https://data.mongodb-api.com/app/{app-id}
+base_url: https://cloud.mongodb.com/api/atlas/v2
 headers: {}
 site_url: https://www.mongodb.com
 openapi_url: ""
@@ -46,15 +45,13 @@ tasks:
       collection identifier.
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table list / schema introspection; assert
-          `axarena_customers_{ns}` exists with the three named columns.
+        expected: 100
+        description: pipeline
+          [$match:{customer_id:{$exists:true},email:{$exists:true},name:{$exists:true}},$count:n]
+          — all 100 docs carry the three schema fields
         readMethod: POST
-        readPathTemplate: /data/v1/action/findOne
-        assertField: "Body:
-          {dataSource,database,collection:'axarena_customers_{ns}',filter:{}}.
-          Assert: response.document != null (collection exists and has
-          documents); all three named field keys present in response.document"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
     difficulty: L1
     allowed_surfaces:
       - api
@@ -72,16 +69,18 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: roundtrip
-        description: |-
-          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
-          row by email and assert the expected shape.
+        expected: 100
+        description: pipeline [$count:n] on axarena_customers_{ns} returns 100
         readMethod: POST
-        readPathTemplate: /data/v1/action/aggregate
-        assertField: "Body:
-          {dataSource,database,collection:'axarena_customers_{ns}',pipeline:[{'\
-          $count':'total'}]}. Assert: response.documents[0].total == 100. Second
-          call: /action/findOne with filter:{email:'{probe_email}'} — assert
-          response.document contains expected name/email/id shape"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
+      - type: roundtrip
+        expected: probe-1@example.com
+        description: findOne filter {email:'probe-1@example.com'} returns document with
+          matching email
+        readMethod: POST
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assertField: document.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -99,17 +98,19 @@ tasks:
       two pages.
     oracles:
       - type: roundtrip
-        description: |-
-          Re-execute the query through the vendor's standard API; assert exactly
-          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
-          reported page 1 contains the lowest-ordered 5 emails.
+        expected: 11
+        description: pipeline [$match:{email:{$regex:'^probe-1[0-9]?@'}},$count:n]
+          returns 11
         readMethod: POST
-        readPathTemplate: /data/v1/action/find
-        assertField: "Body:
-          {filter:{email:{'$regex':'^probe-(1$|1[0-9])'}},sort:{email:1}}.
-          Assert: response.documents.length == 11. Second call with limit:5 —
-          assert response.documents[0..4] are the five lexicographically lowest
-          probe emails"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
+      - type: roundtrip
+        expected: probe-1@example.com
+        description: find with same filter, sort:{email:1}, limit:5 — first doc is
+          lowest-ordered email
+        readMethod: POST
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/find
+        assertField: documents.0.email
     difficulty: L2
     allowed_surfaces:
       - api
@@ -128,11 +129,10 @@ tasks:
       — is acceptable.
     oracles:
       - type: na
-        description: MongoDB Atlas has no native row-level security; database access
-          control is collection/database-scoped via roles, not per-document read
-          predicates enforced by the engine. Per-row filtering requires Atlas
-          App Services rules (a separate application-layer product), not a core
-          database policy mechanism.
+        description: MongoDB Atlas has no native row-level security at the database
+          engine layer; access control is collection-scoped via database users,
+          not per-row predicate filtering; no REST assertion can verify per-user
+          row visibility without Atlas App Services as an additional deployment
     difficulty: L3
     allowed_surfaces: []
     depends_on: []
@@ -145,17 +145,12 @@ tasks:
       already exists. The insert must fail.
     oracles:
       - type: roundtrip
-        description: |-
-          After the attempted duplicate insert, count rows with the duplicate
-          email; assert exactly 1. Inspect the agent's reported error and assert
-          a recognizable unique-violation error code or message.
+        expected: 1
+        description: pipeline [$match:{email:<duplicate_email>},$count:n] — unique index
+          blocked second insert, count is 1
         readMethod: POST
-        readPathTemplate: /data/v1/action/aggregate
-        assertField: "Body:
-          {filter:{email:'{duplicate_email}'},pipeline:[{'$count':'total'}]}.
-          Assert: response.documents[0].total == 1. Agent's reported insertOne
-          error message must contain 'E11000' (duplicate key error) or
-          'duplicate key' string"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
     difficulty: L1
     allowed_surfaces:
       - api
@@ -173,10 +168,9 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: MongoDB Atlas is a document database with no native foreign key
-          constraints; cross-collection referential integrity is not enforced at
-          the engine level, so a distinct FK-violation error code cannot be
-          produced by a standard insert.
+        description: MongoDB has no foreign key constraint mechanism; the engine never
+          raises a referential-integrity violation, so the required
+          insert-failure mode is structurally absent
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -188,16 +182,18 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: roundtrip
-        description: |-
-          Parse the export; assert exactly 100 records and that each record has
-          the expected fields. If file path: read the file. If stream: capture
-          bytes from the agent's reported handle.
+        expected: 100
+        description: pipeline [$count:n] on source collection confirms 100 exportable
+          records
         readMethod: POST
-        readPathTemplate: /data/v1/action/aggregate
-        assertField: "Body: {pipeline:[{'$count':'total'}]}. Assert:
-          response.documents[0].total == 100. Second call /action/findOne —
-          assert response.document contains each expected field key from the
-          export schema"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
+      - type: roundtrip
+        expected: probe-1@example.com
+        description: findOne on source confirms expected email field is present on documents
+        readMethod: POST
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assertField: document.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -214,17 +210,18 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table schema; assert `status` column exists, is the
-          correct type, and that all existing rows have `status='active'`.
+        expected: 100
+        description: pipeline [$match:{status:'active'},$count:n] — all 100 existing
+          docs backfilled with status=active
         readMethod: POST
-        readPathTemplate: /data/v1/action/aggregate
-        assertField: "Body:
-          {pipeline:[{'$match':{'status':'active'}},{'$count':'total'}]}.
-          Assert: response.documents[0].total == 100 (all existing rows have
-          status='active'). Second call with pipeline
-          [{$match:{status:{$exists:false}}},{$count:'total'}] — assert
-          response.documents[0].total == 0 (no rows missing the field)"
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assertField: documents.0.n
+      - type: roundtrip
+        expected: active
+        description: findOne returns a document where status field equals active
+        readMethod: POST
+        readPathTemplate: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assertField: document.status
     difficulty: L3
     allowed_surfaces:
       - api
@@ -242,13 +239,11 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: roundtrip
-        description: |-
-          Independently invoke the deployed function via the vendor's API or
-          public URL; assert the response is JSON with the correct count.
+        expected: 100
+        description: Atlas App Services HTTPS endpoint returns JSON with count equal to 100
         readMethod: GET
-        readPathTemplate: /endpoint/{function-endpoint-name}
-        assertField: "Assert: HTTP 200; response body is valid JSON; response.count ==
-          expected_count reported by agent"
+        readPathTemplate: https://{region}.aws.data.mongodb-api.com/app/{appId}/endpoint/{functionEndpoint}
+        assertField: count
     difficulty: L3
     allowed_surfaces:
       - api
@@ -265,17 +260,17 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: roundtrip
-        description: |-
-          List the vendor's backups/snapshots/branches; assert the agent's
-          reported identifier is present with a creation timestamp within the
-          last 60 seconds.
+        expected: "{snapshotId}"
+        description: GET snapshot by agent-reported ID — response id field matches
         readMethod: GET
-        readPathTemplate: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
-        assertField: "Uses Admin API HTTP Digest auth (MONGODB_ATLAS_PUBLIC_KEY /
-          MONGODB_ATLAS_PRIVATE_KEY). Assert: response.results[] contains entry
-          where id == agent_reported_snapshot_id; entry.createdAt parses to a
-          timestamp within 60s of now; entry.status in
-          ['completed','queued','inProgress']"
+        readPathTemplate: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
+        assertField: id
+      - type: roundtrip
+        expected: completed
+        description: Snapshot status is completed
+        readMethod: GET
+        readPathTemplate: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
+        assertField: status
     difficulty: L4
     allowed_surfaces:
       - api

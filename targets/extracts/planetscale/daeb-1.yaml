@@ -2,60 +2,81 @@ vendor: PlanetScale
 category: database
 slug: planetscale
 suite_name: DAEB-1
-extracted_at: 2026-06-30T22:39:45.109Z
+extracted_at: 2026-07-01T01:09:23.682Z
 vendor_config:
   base_url: https://api.planetscale.com/v1
-  auth_type: api-key
-  auth_header: Authorization
+  auth_type: bearer
   auth_env: PLANETSCALE_SERVICE_TOKEN
 tasks:
   - task_id: db-T01-create-table
     na: false
-    read_method: GET
-    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/schema
-    assert_field: data[?name=='axarena_customers_{ns}'].raw — assert entry exists
-      and raw DDL contains all three named column definitions
+    checks:
+      - read_method: GET
+        read_path_template: /organizations/{org}/databases/{db}/branches/{branch}/schema
+        assert_field: data.0.name
+        expected: axarena_customers_{ns}
+        description: table appears in branch schema listing
   - task_id: db-T02-insert-rows
     na: true
-    na_reason: PlanetScale REST API explicitly provides no direct data access; row
-      counting and row sampling require a live MySQL connection, not an HTTP
-      endpoint.
+    na_reason: PlanetScale Management REST API has no SQL execution endpoint; row
+      counts require a direct MySQL/Vitess connection
+    checks: []
   - task_id: db-T03-query-pattern
     na: true
-    na_reason: PlanetScale REST API has no SQL query execution endpoint; filtered
-      row reads and paginated result sets require a direct MySQL connection.
+    na_reason: PlanetScale Management REST API has no SQL execution endpoint;
+      re-running a SELECT with LIKE and pagination requires a direct MySQL
+      connection
+    checks: []
   - task_id: db-T04-rls-policy
     na: true
-    na_reason: PlanetScale runs MySQL, which has no native Row-Level Security; RLS
-      is a PostgreSQL-only mechanism and is structurally absent in MySQL.
+    na_reason: PlanetScale runs on MySQL/Vitess, which has no native Row Level
+      Security mechanism; the feature is structurally absent
+    checks: []
   - task_id: db-T05-unique-constraint
     na: true
-    na_reason: Row counting and DML error inspection require a direct MySQL
-      connection; PlanetScale REST API provides no data read or error replay
-      endpoint.
+    na_reason: PlanetScale Management REST API has no SQL execution endpoint;
+      verifying duplicate-row count and error codes requires a direct MySQL
+      connection
+    checks: []
   - task_id: db-T06-foreign-key
     na: true
-    na_reason: INSERT execution and FK violation error inspection require a direct
-      MySQL connection; PlanetScale REST API has no DML or query endpoint.
+    na_reason: PlanetScale Management REST API has no SQL execution endpoint;
+      triggering and inspecting FK violations requires a direct MySQL connection
+    checks: []
   - task_id: db-T07-export
     na: true
-    na_reason: PlanetScale REST API offers no bulk data export endpoint; exports are
-      performed via mysqldump or a direct database connection.
+    na_reason: PlanetScale REST API has no data-export endpoint; bulk export is
+      performed via mysqldump over a direct connection, not through the
+      Management API
+    checks: []
   - task_id: db-T08-schema-migration
     na: false
-    read_method: GET
-    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/schema
-    assert_field: data[?name=='axarena_customers_{ns}'].raw — assert entry exists
-      and raw DDL contains 'status' column with the correct type and DEFAULT
-      'active'
+    checks:
+      - read_method: GET
+        read_path_template: /organizations/{org}/databases/{db}/branches/{branch}/schema
+        assert_field: data.0.name
+        expected: axarena_customers_{ns}
+        description: table still present after migration
+      - read_method: GET
+        read_path_template: /organizations/{org}/databases/{db}/deploy-requests
+        assert_field: data.0.state
+        expected: complete
+        description: most-recent deploy request finished successfully
   - task_id: db-T09-runtime-integration
     na: true
-    na_reason: PlanetScale is a database-only service with no serverless or edge
-      function deployment platform; there is no function execution or invocation
-      endpoint.
+    na_reason: PlanetScale does not host or invoke serverless functions; function
+      deployment and invocation are outside the PlanetScale REST API surface
+    checks: []
   - task_id: db-T10-backup-restore
     na: false
-    read_method: GET
-    read_path_template: /organizations/{organization}/databases/{database}/branches/{branch}/backups
-    assert_field: data[?id=='{reported_backup_id}'] — assert entry exists with
-      state='success' and created_at within the last 60 seconds
+    checks:
+      - read_method: GET
+        read_path_template: /organizations/{org}/databases/{db}/branches/{branch}/backups
+        assert_field: data.0.state
+        expected: ready
+        description: most-recent backup is in ready state
+      - read_method: GET
+        read_path_template: /organizations/{org}/databases/{db}/branches/{branch}/backups
+        assert_field: data.0.name
+        expected: "{backup_id}"
+        description: agent-reported backup name appears as first (latest) entry

@@ -2,90 +2,119 @@ vendor: MongoDB Atlas
 category: database
 slug: mongodb-atlas
 suite_name: DAEB-1
-extracted_at: 2026-06-30T22:40:02.371Z
+extracted_at: 2026-07-01T01:08:21.468Z
 vendor_config:
-  base_url: https://data.mongodb-api.com/app/{app-id}
-  auth_type: api-key
-  auth_header: apiKey
-  auth_env: MONGODB_ATLAS_DATA_API_KEY
+  base_url: https://cloud.mongodb.com/api/atlas/v2
+  auth_type: bearer
+  auth_env: MONGODB_ATLAS_ACCESS_TOKEN
 tasks:
   - task_id: db-T01-create-table
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/findOne
-    assert_field: "Body:
-      {dataSource,database,collection:'axarena_customers_{ns}',filter:{}}.
-      Assert: response.document != null (collection exists and has documents);
-      all three named field keys present in response.document"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 100
+        description: pipeline
+          [$match:{customer_id:{$exists:true},email:{$exists:true},name:{$exists:true}},$count:n]
+          — all 100 docs carry the three schema fields
   - task_id: db-T02-insert-rows
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/aggregate
-    assert_field: "Body:
-      {dataSource,database,collection:'axarena_customers_{ns}',pipeline:[{'$cou\
-      nt':'total'}]}. Assert: response.documents[0].total == 100. Second call:
-      /action/findOne with filter:{email:'{probe_email}'} — assert
-      response.document contains expected name/email/id shape"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 100
+        description: pipeline [$count:n] on axarena_customers_{ns} returns 100
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assert_field: document.email
+        expected: probe-1@example.com
+        description: findOne filter {email:'probe-1@example.com'} returns document with
+          matching email
   - task_id: db-T03-query-pattern
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/find
-    assert_field: "Body:
-      {filter:{email:{'$regex':'^probe-(1$|1[0-9])'}},sort:{email:1}}. Assert:
-      response.documents.length == 11. Second call with limit:5 — assert
-      response.documents[0..4] are the five lexicographically lowest probe
-      emails"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 11
+        description: pipeline [$match:{email:{$regex:'^probe-1[0-9]?@'}},$count:n]
+          returns 11
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/find
+        assert_field: documents.0.email
+        expected: probe-1@example.com
+        description: find with same filter, sort:{email:1}, limit:5 — first doc is
+          lowest-ordered email
   - task_id: db-T04-rls-policy
     na: true
-    na_reason: MongoDB Atlas has no native row-level security; database access
-      control is collection/database-scoped via roles, not per-document read
-      predicates enforced by the engine. Per-row filtering requires Atlas App
-      Services rules (a separate application-layer product), not a core database
-      policy mechanism.
+    na_reason: MongoDB Atlas has no native row-level security at the database engine
+      layer; access control is collection-scoped via database users, not per-row
+      predicate filtering; no REST assertion can verify per-user row visibility
+      without Atlas App Services as an additional deployment
+    checks: []
   - task_id: db-T05-unique-constraint
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/aggregate
-    assert_field: "Body:
-      {filter:{email:'{duplicate_email}'},pipeline:[{'$count':'total'}]}.
-      Assert: response.documents[0].total == 1. Agent's reported insertOne error
-      message must contain 'E11000' (duplicate key error) or 'duplicate key'
-      string"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 1
+        description: pipeline [$match:{email:<duplicate_email>},$count:n] — unique index
+          blocked second insert, count is 1
   - task_id: db-T06-foreign-key
     na: true
-    na_reason: MongoDB Atlas is a document database with no native foreign key
-      constraints; cross-collection referential integrity is not enforced at the
-      engine level, so a distinct FK-violation error code cannot be produced by
-      a standard insert.
+    na_reason: MongoDB has no foreign key constraint mechanism; the engine never
+      raises a referential-integrity violation, so the required insert-failure
+      mode is structurally absent
+    checks: []
   - task_id: db-T07-export
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/aggregate
-    assert_field: "Body: {pipeline:[{'$count':'total'}]}. Assert:
-      response.documents[0].total == 100. Second call /action/findOne — assert
-      response.document contains each expected field key from the export schema"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 100
+        description: pipeline [$count:n] on source collection confirms 100 exportable
+          records
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assert_field: document.email
+        expected: probe-1@example.com
+        description: findOne on source confirms expected email field is present on documents
   - task_id: db-T08-schema-migration
     na: false
-    read_method: POST
-    read_path_template: /data/v1/action/aggregate
-    assert_field: "Body:
-      {pipeline:[{'$match':{'status':'active'}},{'$count':'total'}]}. Assert:
-      response.documents[0].total == 100 (all existing rows have
-      status='active'). Second call with pipeline
-      [{$match:{status:{$exists:false}}},{$count:'total'}] — assert
-      response.documents[0].total == 0 (no rows missing the field)"
+    checks:
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/aggregate
+        assert_field: documents.0.n
+        expected: 100
+        description: pipeline [$match:{status:'active'},$count:n] — all 100 existing
+          docs backfilled with status=active
+      - read_method: POST
+        read_path_template: https://data.mongodb-api.com/app/{appId}/endpoint/data/v1/action/findOne
+        assert_field: document.status
+        expected: active
+        description: findOne returns a document where status field equals active
   - task_id: db-T09-runtime-integration
     na: false
-    read_method: GET
-    read_path_template: /endpoint/{function-endpoint-name}
-    assert_field: "Assert: HTTP 200; response body is valid JSON; response.count ==
-      expected_count reported by agent"
+    checks:
+      - read_method: GET
+        read_path_template: https://{region}.aws.data.mongodb-api.com/app/{appId}/endpoint/{functionEndpoint}
+        assert_field: count
+        expected: 100
+        description: Atlas App Services HTTPS endpoint returns JSON with count equal to 100
   - task_id: db-T10-backup-restore
     na: false
-    read_method: GET
-    read_path_template: https://cloud.mongodb.com/api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
-    assert_field: "Uses Admin API HTTP Digest auth (MONGODB_ATLAS_PUBLIC_KEY /
-      MONGODB_ATLAS_PRIVATE_KEY). Assert: response.results[] contains entry
-      where id == agent_reported_snapshot_id; entry.createdAt parses to a
-      timestamp within 60s of now; entry.status in
-      ['completed','queued','inProgress']"
+    checks:
+      - read_method: GET
+        read_path_template: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
+        assert_field: id
+        expected: "{snapshotId}"
+        description: GET snapshot by agent-reported ID — response id field matches
+      - read_method: GET
+        read_path_template: /groups/{groupId}/clusters/{clusterName}/backup/snapshots/{snapshotId}
+        assert_field: status
+        expected: completed
+        description: Snapshot status is completed

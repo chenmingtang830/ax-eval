@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-06-30-86bh5h
+# run_id: 2026-07-01-hhe2f8
 name: convex
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-06-30-86bh5h
+run_id: 2026-07-01-hhe2f8
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -22,7 +22,7 @@ auth:
   env_aliases: []
   verify_env_aliases: []
 sandbox_scope: []
-base_url: https://{CONVEX_DEPLOYMENT_NAME}.convex.cloud
+base_url: https://{deployment}.convex.cloud
 headers: {}
 site_url: https://www.convex.dev
 openapi_url: ""
@@ -45,9 +45,10 @@ tasks:
       collection identifier.
     oracles:
       - type: na
-        description: Convex has no REST endpoint for schema or table introspection; the
-          schema is defined in TypeScript (convex/schema.ts) and deployed via
-          CLI—there is no HTTP API path that lists tables or their columns
+        description: Convex exposes no public REST endpoint for table listing or schema
+          column introspection. Schema is defined in schema.ts (code), and there
+          is no /api/tables, /api/schema, or equivalent route in the documented
+          HTTP API.
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -61,13 +62,20 @@ tasks:
       mechanism is acceptable.
     oracles:
       - type: roundtrip
-        description: |-
-          Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
-          row by email and assert the expected shape.
+        expected: 100
+        description: body {path:'customers:countAll',args:{ns:'{ns}'}}; function returns
+          total document count in axarena_customers_{ns}
         readMethod: POST
-        readPathTemplate: /api/run/axarena_customers:countAndSample
-        assertField: 'value.count === 100; value.sample contains email, name, createdAt
-          fields (POST body: {"args":{"ns":"{ns}"}})'
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: probe-1@{ns}.example.com
+        description: body
+          {path:'customers:getByEmail',args:{ns:'{ns}',email:'probe-1@{ns}.example.com'}};
+          sampled row has expected email field
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value.email
     difficulty: L1
     allowed_surfaces:
       - api
@@ -85,15 +93,21 @@ tasks:
       two pages.
     oracles:
       - type: roundtrip
-        description: |-
-          Re-execute the query through the vendor's standard API; assert exactly
-          11 matching rows (probe-1, probe-10..probe-19), and that the agent's
-          reported page 1 contains the lowest-ordered 5 emails.
+        expected: 11
+        description: body
+          {path:'customers:countByEmailPrefix',args:{ns:'{ns}',prefix:'probe-'}};
+          function returns integer count of probe-1 + probe-10..probe-19
         readMethod: POST
-        readPathTemplate: /api/run/axarena_customers:queryProbe
-        assertField: 'value.total === 11; value.page1.length === 5; value.page1 emails
-          in ascending order (POST body:
-          {"args":{"ns":"{ns}","page":1,"pageSize":5}})'
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: probe-1@{ns}.example.com
+        description: body
+          {path:'customers:pageByEmailPrefix',args:{ns:'{ns}',prefix:'probe-',limit:5,order:'asc'}};
+          first item of first page is lowest-ordered email
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value.0.email
     difficulty: L2
     allowed_surfaces:
       - api
@@ -112,15 +126,21 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        description: |-
-          Authenticate as two distinct users; assert each sees only their own
-          rows, neither sees the other's, and the count is correct per user.
+        expected: 50
+        description: "Authorization: Bearer {USER_A_JWT}; body
+          {path:'customers:myRows',args:{ns:'{ns}'}}; userA sees exactly their
+          own 50 rows"
         readMethod: POST
-        readPathTemplate: /api/run/axarena_customers:listOwned
-        assertField: 'Call twice with distinct Bearer JWTs; each value.rows contains
-          only documents owned by the authenticated identity; row sets are
-          disjoint and per-user count matches expectation (POST body:
-          {"args":{"ns":"{ns}"}})'
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: 50
+        description: "Authorization: Bearer {USER_B_JWT}; body
+          {path:'customers:myRows',args:{ns:'{ns}'}}; userB sees exactly their
+          own 50 rows (distinct from userA's)"
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value
     difficulty: L3
     allowed_surfaces:
       - api
@@ -136,13 +156,29 @@ tasks:
       `axarena_customers_{ns}`. Attempt to insert a row with an email that
       already exists. The insert must fail.
     oracles:
-      - type: na
-        description: Convex does not enforce unique constraints at the storage layer;
-          duplicate inserts succeed without error, so neither a count-of-1
-          assertion nor a unique-violation error code or message can be produced
-          via the HTTP API
+      - type: roundtrip
+        expected: 1
+        description: body
+          {path:'customers:countByEmail',args:{ns:'{ns}',email:'<duplicate_email>'}};
+          exactly one document exists with that email after attempted re-insert
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: error
+        description: Re-attempt duplicate insert via body
+          {path:'customers:insert',args:{ns:'{ns}',email:'<duplicate_email>',...}};
+          response status is 'error' (application-enforced uniqueness; no
+          DB-native error code)
+        readMethod: POST
+        readPathTemplate: /api/mutation
+        assertField: status
     difficulty: L1
-    allowed_surfaces: []
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+      - mcp
     depends_on: []
     trace: []
   - id: db-T06-foreign-key
@@ -154,10 +190,10 @@ tasks:
       idiomatic mechanism. Insert one order referring to an existing customer.
     oracles:
       - type: na
-        description: Convex has no foreign-key constraint enforcement; mutations that
-          reference non-existent document IDs via v.id() succeed without
-          error—referential integrity is not checked at the database level and
-          no FK-violation response exists
+        description: Convex is a document database with no native foreign-key constraint
+          enforcement. Document Id references (v.id()) express relationships but
+          referential integrity is not checked by the engine; no FK-violation
+          error code exists.
     difficulty: L2
     allowed_surfaces: []
     depends_on: []
@@ -169,9 +205,10 @@ tasks:
       the output path (file) or stream.
     oracles:
       - type: na
-        description: Convex exposes no REST endpoint to trigger or stream a data export;
-          export is available only via CLI (npx convex export) or the dashboard
-          download—there is no HTTP API path to assert against
+        description: Convex has no public REST endpoint for bulk data export. Export is
+          available only via the Convex CLI (npx convex export) or dashboard
+          download; there is no streaming or file-download route in the /api/*
+          HTTP surface.
     difficulty: L1
     allowed_surfaces: []
     depends_on: []
@@ -184,13 +221,20 @@ tasks:
       idiomatic migration mechanism (migrations directory, dashboard, API).
     oracles:
       - type: roundtrip
-        description: |-
-          Read back the table schema; assert `status` column exists, is the
-          correct type, and that all existing rows have `status='active'`.
+        expected: 100
+        description: body
+          {path:'customers:countByStatus',args:{ns:'{ns}',status:'active'}}; all
+          100 existing rows have status='active' after migration
         readMethod: POST
-        readPathTemplate: /api/run/axarena_customers:getOne
-        assertField: "value.doc.status === 'active' and typeof value.doc.status ===
-          'string' (POST body: {\"args\":{\"ns\":\"{ns}\"}})"
+        readPathTemplate: /api/query
+        assertField: value
+      - type: roundtrip
+        expected: 0
+        description: body {path:'customers:countMissingStatus',args:{ns:'{ns}'}}; zero
+          rows lack the status field (backfill complete)
+        readMethod: POST
+        readPathTemplate: /api/query
+        assertField: value
     difficulty: L3
     allowed_surfaces:
       - api
@@ -208,14 +252,12 @@ tasks:
       JSON. Invoke it and report the response.
     oracles:
       - type: roundtrip
-        description: |-
-          Independently invoke the deployed function via the vendor's API or
-          public URL; assert the response is JSON with the correct count.
-        readMethod: POST
-        readPathTemplate: /api/run/axarena:runtimeCheck
-        assertField: 'HTTP 200; response Content-Type: application/json; value.count is
-          a number matching expected row count (POST body:
-          {"args":{"ns":"{ns}"}})'
+        expected: 100
+        description: HTTP action at .convex.site public URL; response JSON has top-level
+          count equal to total row count
+        readMethod: GET
+        readPathTemplate: https://{deployment}.convex.site/runtime/stats?ns={ns}
+        assertField: count
     difficulty: L3
     allowed_surfaces:
       - api
@@ -232,10 +274,10 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: na
-        description: Convex has no REST API for listing or managing backups or
-          snapshots; backups are accessible only through the dashboard UI or CLI
-          (npx convex export/import)—no HTTP endpoint exists to assert a backup
-          identifier or creation timestamp
+        description: Convex has no public REST API for listing, inspecting, or
+          timestamping backups or snapshots. Backup state is managed internally
+          by the Convex platform and is only accessible via the dashboard UI; no
+          /api/backups or equivalent route exists.
     difficulty: L4
     allowed_surfaces: []
     depends_on: []
