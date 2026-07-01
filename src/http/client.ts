@@ -78,6 +78,23 @@ export class BearerClient {
     this.apiStyle = opts.apiStyle ?? "rest";
   }
 
+  /** A client sharing this one's config but a different credential — e.g. a
+   *  per-user JWT the executor reported, to verify identity-scoped access
+   *  control (RLS) where the pack's own admin-level credential would bypass
+   *  the policy being tested and always see everything. */
+  withToken(token: string): BearerClient {
+    return new BearerClient({
+      baseUrl: this.baseUrl,
+      token,
+      responseEnvelope: this.envelope,
+      authScheme: this.authScheme,
+      authHeader: this.authHeader,
+      extraAuthHeader: this.extraAuthHeader,
+      extraHeaders: this.extraHeaders,
+      apiStyle: this.apiStyle,
+    });
+  }
+
   /** Pull a human-readable message out of an error body across the several
    *  shapes vendors use: Notion/GraphQL-style `{errors: [{message}]}`, a
    *  bare `{error: "..."}` string, or PostgREST/plain-REST's `{message}`. */

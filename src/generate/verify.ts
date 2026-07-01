@@ -117,7 +117,7 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
 
 async function verifyRoundtrip(
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
   ns: string | undefined,
   fieldSelectParam: string | undefined,
@@ -209,14 +209,26 @@ async function verifyRoundtrip(
       out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
       continue;
     }
+    // Identity-scoped (e.g. RLS) check: authenticate as the token the
+    // executor self-reported under this name, instead of the pack's
+    // admin-level default (which typically bypasses row-level security).
+    let requestClient = client;
+    if (oracle.authField) {
+      const token = reported?.[oracle.authField];
+      if (typeof token !== "string" || !token) {
+        out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.authField}" reported by executor` });
+        continue;
+      }
+      requestClient = client.withToken(token);
+    }
     const path = applyNsTemplate(oracle.readPathTemplate).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
       const method = oracle.readMethod ?? "GET";
       const body =
         method === "POST"
-          ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid ?? ""))
-          : await client.get<Record<string, unknown>>(
+          ? await requestClient.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid ?? ""))
+          : await requestClient.get<Record<string, unknown>>(
               path,
               fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
             );

@@ -77,6 +77,7 @@ export function composePack(
         assertField: check.assert_field,
         expected:
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
+        authField: check.auth_field,
       })),
     };
   });

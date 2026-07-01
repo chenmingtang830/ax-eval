@@ -52,6 +52,11 @@ const OracleCheckSchema = z
     assert_field: z.string().min(1),
     // The literal value assert_field must equal. May contain "{ns}".
     expected: z.union([z.string(), z.number(), z.boolean()]),
+    // For identity-scoped (e.g. RLS) checks: the name of a token the agent
+    // self-reports (alongside gid) that the verifier uses as THIS check's
+    // Bearer credential instead of the pack's default — needed because the
+    // pack's admin-level credential typically bypasses row-level security.
+    auth_field: z.string().nullish().transform((v) => v ?? undefined),
     description: z.string().default(""),
   })
   .refine((c) => Boolean(c.read_path_template) !== Boolean(c.sql_query), {
@@ -100,6 +105,8 @@ const CHECK_FORMAT_RULES = [
   `  "0.email", "documents.0.total". NEVER a sentence or explanation.`,
   `- expected: the literal value assert_field must equal (a number, string, or boolean — taken directly`,
   `  from the task's stated expectation, e.g. 100, 11, 1, true)`,
+  `- auth_field: omit for normal checks. Set ONLY for identity-scoped checks (see below) to the name of a`,
+  `  token the agent will self-report.`,
   `- description: one short phrase for a human reviewer (optional)`,
   `If the task needs more than one assertion (e.g. "row count is 1" AND "error code is X"), emit two`,
   `separate check objects, not one compound sentence.`,
@@ -136,6 +143,20 @@ function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask): string {
     `  string) or a response HEADER (e.g. Content-Range) — aggregates may be disabled on the target project`,
     `  and headers aren't inspected by the verifier. Instead fetch the actual rows (with a limit comfortably`,
     `  above the expected count) and assert on the returned JSON array's length: assert_field "length".`,
+    `- read_path_template is the FULL path from the bare per-project host (base_url has NO fixed prefix) — you`,
+    `  must include whatever root segment your specific endpoint family needs, e.g. "/rest/v1/..." for a`,
+    `  PostgREST-style data API or "/functions/v1/..." for edge functions on that SAME host. Never assume`,
+    `  base_url already contains a family prefix.`,
+    `- IDENTITY-SCOPED checks (e.g. row-level access control / "only the owner can see their own row"): the`,
+    `  pack's one credential is an admin/service-level key that typically BYPASSES row-level security by`,
+    `  design, so verifying isolation needs a DIFFERENT, per-identity credential the agent creates during the`,
+    `  task — not the pack's normal credential. For these, set "auth_field" on the check to a short name (e.g.`,
+    `  "user_a_token") the agent should report a signed-in token under (alongside gid, in its results JSON —`,
+    `  the verifier will use THAT reported value as the Bearer credential for this specific check instead of`,
+    `  the pack default). Use {gid} to reference the SAME created resource across both identities, and phrase`,
+    `  expected values as fixed booleans-of-visibility that don't depend on unknown data volume: e.g. "as`,
+    `  user_a_token, GET the resource {gid} → length=1 (owner sees it)" and "as user_b_token, GET the SAME`,
+    `  resource {gid} → length=0 (a different identity does not)" — two checks, each with its own auth_field.`,
     ``,
     `Placeholders — ONLY these two are substituted, nothing else:`,
     `- {ns}: a namespace token. Use it EXACTLY as it appears in the intent above — if the intent says the`,
@@ -155,8 +176,9 @@ function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask): string {
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"task_id": "${task.id}", "na": false, "na_reason": null, "checks": [`,
-    `  {"read_method": "GET", "read_path_template": "...", "assert_field": "length", "expected": 100, "description": "..."}`,
+    `  {"read_method": "GET", "read_path_template": "/rest/v1/...", "assert_field": "length", "expected": 100, "description": "..."}`,
     `]}`,
+    `(identity-scoped example: {"read_method": "GET", "read_path_template": "/rest/v1/axarena_customers_{ns}?id=eq.{gid}", "auth_field": "user_a_token", "assert_field": "length", "expected": 1, "description": "owner sees their row"})`,
   ].join("\n");
 }
 
@@ -169,12 +191,16 @@ function buildVendorConfigPrompt(vendor: ResolveResult): string {
     `actually read — do not answer from memory alone.`,
     ``,
     `Give:`,
-    `- base_url: the vendor's per-project DATA-PLANE REST API root (the one used to read/write actual`,
-    `  resources, e.g. a PostgREST-style data API) — NOT a separate control-plane/management/admin API`,
+    `- base_url: the BARE per-project host, with NO fixed path segment (no "/rest/v1", no "/v1", nothing) —`,
+    `  e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co", NOT "https://\${SUPABASE_PROJECT_REF}.supabase.co/rest/v1".`,
+    `  Individual checks (extracted separately, one per task) each write their OWN full path from this bare`,
+    `  host, including whatever root segment their specific endpoint family needs (a data-plane REST API might`,
+    `  live under one path prefix while a functions/edge-function API lives under a different one on the SAME`,
+    `  host) — so base_url must NOT already bake in a family-specific prefix, or paths get double-prefixed.`,
+    `  Use the vendor's per-project DATA-PLANE host — NOT a separate control-plane/management/admin host`,
     `  (those typically need a different credential type, like a personal access token instead of a project`,
-    `  API key, which this pack does not wire up). E.g. "https://api.example.com" or, for per-account hosts,`,
-    `  using \${ENV_VAR_NAME} syntax for the per-account part, e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co"`,
-    `  (pick a SCREAMING_SNAKE_CASE env var name prefixed with the vendor name)`,
+    `  API key, which this pack does not wire up). For per-account hosts, use \${ENV_VAR_NAME} syntax for the`,
+    `  per-account part (pick a SCREAMING_SNAKE_CASE env var name prefixed with the vendor name)`,
     `- auth_type: bearer|api-key|oauth|none, and auth_header if not the default`,
     `- auth_env: a SCREAMING_SNAKE_CASE env var name for the credential`,
     `- extra_auth_header: if the REST API requires the SAME credential sent under a SECOND header name too`,

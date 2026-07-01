@@ -49,6 +49,12 @@ export const OracleSpecSchema = z.object({
    *  the dotted `assertField` against the first result row. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
+  /** Identity-scoped (e.g. row-level security) round-trip: the key the
+   *  executor reports THIS check's Bearer credential under (alongside
+   *  `gid`), e.g. "user_a_token". The verifier authenticates as that
+   *  identity instead of the pack's default — needed because the pack's
+   *  admin-level credential typically bypasses row-level security. */
+  authField: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
