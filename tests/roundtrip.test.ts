@@ -325,6 +325,43 @@ describe("round-trip verification", () => {
     );
     expect(out[0]!.success).toBe(true);
   }, 20000);
+
+  it("does not guess a gid from an unrelated id-shaped note token", async () => {
+    const nestedPack: TargetPack = {
+      ...pack,
+      tasks: [
+        {
+          ...pack.tasks[0]!,
+          id: "gen-l2-docs-pages",
+          create_path: "/docs/{docId}/pages",
+          oracles: [
+            {
+              type: "roundtrip",
+              description: "",
+              readPathTemplate: "/docs/{docId}/pages/{gid}",
+              assertField: "name",
+              expected: "nested page",
+            },
+          ],
+        },
+      ],
+    };
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      results: { "gen-l2-docs-pages": { gid: null, docId: null } },
+    };
+    const out = await verifyGeneratedPack(
+      nestedPack,
+      exec,
+      fakeClient({}),
+      undefined,
+      [
+        { step: 1, taskId: "gen-l2-docs-pages", action: "create doc", method: "POST", path: "/docs", status: 201, note: "ok; request req-12345" },
+      ],
+    );
+    expect(out[0]!.success).toBe(false);
+    expect(out[0]!.oracleResults[0]!.detail).toMatch(/no gid/i);
+  });
 });
 
 describe("resolveDotted", () => {

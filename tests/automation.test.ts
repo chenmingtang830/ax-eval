@@ -153,6 +153,27 @@ console.log(JSON.stringify({
     expect(discovery.confidence).toBe("high");
   });
 
+  it("times out a hung discovery harness and falls back to guesses", async () => {
+    const dir = freshDir();
+    const binDir = resolve(dir, "bin");
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(resolve(binDir, "claude"), `#!/usr/bin/env node
+setTimeout(() => {
+  console.log("too late");
+}, 1000);
+`);
+    chmodSync(resolve(binDir, "claude"), 0o755);
+    process.env.PATH = `${binDir}:${process.env.PATH ?? ""}`;
+
+    const discovery = await discoverAutomationTarget(
+      { company: "Widget", harness: "claude-code" },
+      { mode: "fixture", timeoutMs: 50 },
+    );
+
+    expect(discovery.source).toBe("guesses");
+    expect(discovery.confidence).toBe("low");
+  });
+
   it("can freeze the manifest timestamp for deterministic tests", () => {
     process.env.AX_EVAL_AUTOMATION_NOW = "2026-06-29T00:00:00.000Z";
     expect(automationGeneratedAt()).toBe("2026-06-29T00:00:00.000Z");

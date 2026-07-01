@@ -48,16 +48,17 @@ surface coverage, schema validity, and a repair pass if the first draft drops
 required metadata or tasks. Use
 `--deterministic` when you need a keyless CI/offline fixture instead.
 
-For a one-shot report workflow, `automate-report` bootstraps discovery, pack
+For an end-to-end report workflow, `automate-report` bootstraps discovery, pack
 generation, review/auth handoff, smoke execution, verification, and final report
 packaging. It never uses Exa; pass explicit official URLs when you have them, or
 let the configured local harness find candidates with its native web/search
 capability and ax-eval will validate them by fetching official pages directly.
+Generated packs still stop at the review gate until a human explicitly approves
+them with `ax-eval review`.
 
 ```bash
 npm run ax-eval -- automate-report --company Acme \
   --openapi https://example.com/openapi.json \
-  --approve-by you \
   --surface all \
   --harness codex
 ```
@@ -183,7 +184,7 @@ npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fa
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
-npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>] # no Exa; smoke then full report
+npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>] # no Exa; stops at review/auth gates before smoke/full
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)

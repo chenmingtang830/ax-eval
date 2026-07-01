@@ -4,6 +4,8 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
+import { loadPack } from "../src/config.js";
+import { writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
@@ -141,6 +143,13 @@ describe("automate-report", () => {
     return path;
   }
 
+  function approveAutomationPacks(dir: string): void {
+    for (const file of ["widget.generated.full.pack.yaml", "widget.generated.smoke.pack.yaml"]) {
+      const packPath = resolve(dir, file);
+      writeApproval(packPath, loadPack(packPath), "tester");
+    }
+  }
+
   function writeFakeCodex(dir: string): string {
     const binDir = resolve(dir, "bin");
     mkdirSync(binDir, { recursive: true });
@@ -187,6 +196,20 @@ console.log(JSON.stringify({ model: "fake-codex", ok: true }));
     const openapi = writeOpenapiFixture(dir);
     const discovery = writeDiscoveryFixture(dir, openapi);
     const pack = writeGeneratedPackFixture(dir);
+    const first = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      WIDGET_API_KEY: "",
+    });
+    expect(first.code).toBe(1);
+    expect(first.out).toContain("no approval on file");
+    approveAutomationPacks(dir);
     const { code, out } = runCli([
       "automate-report",
       "--company", "Widget",
@@ -231,6 +254,24 @@ console.log(JSON.stringify({ model: "fake-codex", ok: true }));
     const discovery = writeDiscoveryFixture(dir, openapi);
     const pack = writeGeneratedPackFixture(dir);
     const binDir = writeFakeCodex(dir);
+    const first = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--surface", "api",
+      "--harness", "codex",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(first.code).toBe(1);
+    expect(first.out).toContain("Generated packs still require explicit review approval");
+    approveAutomationPacks(dir);
     const { code, out } = runCli([
       "automate-report",
       "--company", "Widget",
@@ -260,6 +301,23 @@ console.log(JSON.stringify({ model: "fake-codex", ok: true }));
     const discovery = writeDiscoveryFixture(dir, openapi);
     const pack = writeGeneratedPackFixture(dir);
     const binDir = writeFakeCodex(dir);
+    const first = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--harness", "codex",
+      "--effort", "medium",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(first.code).toBe(1);
+    approveAutomationPacks(dir);
     const { code, out } = runCli([
       "automate-report",
       "--company", "Widget",
@@ -285,6 +343,22 @@ console.log(JSON.stringify({ model: "fake-codex", ok: true }));
     const discovery = writeDiscoveryFixture(dir, openapi);
     const pack = writeGeneratedPackFixture(dir);
     const binDir = writeFakeCodex(dir);
+    const first = runCli([
+      "automate-report",
+      "--company", "Widget",
+      "--offline",
+      "--approve-by", "tester",
+      "--run-dir", dir,
+      "--harness", "codex",
+    ], {
+      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
+      AX_EVAL_GENERATOR_FIXTURE: pack,
+      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "fail",
+      WIDGET_API_KEY: "test-widget-key",
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+    });
+    expect(first.code).toBe(1);
+    approveAutomationPacks(dir);
     const { code, out } = runCli([
       "automate-report",
       "--company", "Widget",

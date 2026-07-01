@@ -83,12 +83,11 @@ Generation is surface-aware at task-selection time too: if a declared CLI/SDK/MC
 surface only covers part of the product, ax-eval narrows that surface to the
 tasks it can actually support instead of assuming it mirrors the full API.
 
-For a one-command report pass, use automation:
+For an automated report pass, use:
 
 ```bash
 npm run ax-eval -- automate-report --company <name> \
   --openapi <spec-url> \
-  --approve-by <name> \
   --surface all --harness codex
 ```
 
@@ -96,7 +95,8 @@ npm run ax-eval -- automate-report --company <name> \
 `--graphql`, `--site`, or `--docs` inputs; if only a company name is provided it
 asks the configured local harness to find official candidates, then validates
 them with direct fetch/crawl before ingesting anything. It always runs an API
-low-effort smoke gate before the fuller requested report.
+low-effort smoke gate before the fuller requested report, but generated packs
+still stop at the review gate until a human approves them with `ax-eval review`.
 
 This produces an **L1–L4 ladder** (L1 single create · L2 composed chain · L3
 ambiguous goal-level comprehension · L4 state mutation) with goal-level prompts

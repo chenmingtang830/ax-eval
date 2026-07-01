@@ -171,6 +171,7 @@ function commandUsage(command: string | undefined): string {
         "       [--site url] [--docs url,url] [--openapi url] [--graphql endpoint|file]",
         `       [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]`,
         "       [--effort low|medium|high] [--run-dir dir] [--smoke-only] [--approve-by name]",
+        "       --approve-by only fills the suggested manual review command; it does not auto-approve generated packs.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -1629,12 +1630,12 @@ async function cmdReset(args: Parsed): Promise<number> {
 function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
   return {
     ...args,
+    ...overrides,
     harness: [...(overrides.harness ?? args.harness)],
     profile: [...(overrides.profile ?? args.profile)],
     results: [...(overrides.results ?? args.results)],
     observe: { ...(overrides.observe ?? args.observe) },
     _: [...(overrides._ ?? args._)],
-    ...overrides,
   };
 }
 
@@ -1679,6 +1680,29 @@ function fullProfiles(effort: string): string[] {
   return ["low", "high"];
 }
 
+function approvalByLabel(name: string): string {
+  return name.trim() ? JSON.stringify(name) : "<name>";
+}
+
+function reviewCommand(packPath: string, approvedBy: string): string {
+  return `ax-eval review --pack ${packPath} --approve --by ${approvalByLabel(approvedBy)}`;
+}
+
+function inspectReviewCommand(packPath: string): string {
+  return `ax-eval review --pack ${packPath}`;
+}
+
+function resumeAutomationCommand(
+  company: string,
+  discovery: AutomationManifest["discovery"],
+  runDir: string,
+  approvedBy: string,
+): string {
+  const sourceFlag = `--${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url}`;
+  const reviewer = approvedBy.trim() ? ` --approve-by "${approvedBy}"` : "";
+  return `ax-eval automate-report --company "${company}" ${sourceFlag} --run-dir ${runDir}${reviewer}`;
+}
+
 async function cmdAutomateReport(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.company.trim()) {
@@ -1694,6 +1718,9 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
     }
   }
   mkdirSync(runDir, { recursive: true });
+  if (args.approveBy) {
+    console.log(`Note: --approve-by only seeds the suggested manual review command. Generated packs still require explicit review approval.`);
+  }
 
   const manifestPath = resolve(runDir, "automation-manifest.json");
   const sharePath = resolve(runDir, "share-summary.md");
@@ -1796,31 +1823,22 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
     `Smoke pack → ${smokePackPath} (${smokePack.tasks.length}/${pack.tasks.length} tasks selected: ${smokePack.tasks.map((t) => t.id).join(", ")})`,
   );
 
-  let approval = checkApproval(pack, packPath);
-  if (!approval.ok && args.approveBy) {
-    const written = writeApproval(packPath, pack, args.approveBy);
-    artifacts.approval = packPath.replace(/\.ya?ml$/i, ".approval.json");
-    console.log(`Approved generated pack by "${args.approveBy}" (hash ${written.content_hash}).`);
-    approval = checkApproval(pack, packPath);
-  }
+  const approval = checkApproval(pack, packPath);
   if (!approval.ok) {
-    nextSteps.push(`Review the generated pack: ax-eval review --pack ${packPath}`);
-    nextSteps.push(`Approve it after review: ax-eval review --pack ${packPath} --approve --by <name>`);
-    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url} --run-dir ${runDir} --approve-by <name>`);
+    nextSteps.push(`Review the generated pack: ${inspectReviewCommand(packPath)}`);
+    nextSteps.push(`Approve it after review: ${reviewCommand(packPath, args.approveBy)}`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
     console.error(`Stopping before live execution: ${approval.reason}.`);
     return 1;
   }
 
-  let smokeApproval = checkApproval(smokePack, smokePackPath);
-  if (!smokeApproval.ok && args.approveBy) {
-    writeApproval(smokePackPath, smokePack, args.approveBy);
-    smokeApproval = checkApproval(smokePack, smokePackPath);
-  }
+  const smokeApproval = checkApproval(smokePack, smokePackPath);
   if (!smokeApproval.ok) {
-    nextSteps.push(`Review the derived smoke pack: ax-eval review --pack ${smokePackPath}`);
-    nextSteps.push(`Approve it after review: ax-eval review --pack ${smokePackPath} --approve --by <name>`);
+    nextSteps.push(`Review the derived smoke pack: ${inspectReviewCommand(smokePackPath)}`);
+    nextSteps.push(`Approve it after review: ${reviewCommand(smokePackPath, args.approveBy)}`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
     console.error(`Stopping before smoke execution: ${smokeApproval.reason}.`);
@@ -1830,7 +1848,7 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   if (hasMissingRequiredConfig(pack, args.surface ?? "api")) {
     nextSteps.push(`Fill the missing values in ${checklistPath}.`);
     nextSteps.push(`Verify configuration: ax-eval check-env --pack ${packPath} --surface ${args.surface ?? "api"}`);
-    nextSteps.push(`Resume: ax-eval automate-report --company "${company}" --${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url} --run-dir ${runDir} --approve-by "${args.approveBy || "reviewer"}"`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
     console.error(`Stopping before live execution: missing required auth or sandbox configuration.\n${checklist}`);

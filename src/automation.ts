@@ -107,7 +107,7 @@ function buildDiscoveryPrompt(company: string): string {
   ].join("\n");
 }
 
-function runHarnessDiscovery(company: string, harness: string): RawDiscoveryCandidate | null {
+function runHarnessDiscovery(company: string, harness: string, timeoutMs = 30000): RawDiscoveryCandidate | null {
   const prompt = buildDiscoveryPrompt(company);
   if (harness === "codex") {
     const tempDir = mkdtempSync(resolve(tmpdir(), "ax-automation-discovery-"));
@@ -120,7 +120,7 @@ function runHarnessDiscovery(company: string, harness: string): RawDiscoveryCand
         "--json",
         "--output-last-message", outPath,
         prompt,
-      ], { cwd: process.cwd(), encoding: "utf8", maxBuffer: 20 * 1024 * 1024 });
+      ], { cwd: process.cwd(), encoding: "utf8", maxBuffer: 20 * 1024 * 1024, timeout: timeoutMs });
       if (res.error || (res.status ?? 1) !== 0) return null;
       const raw = existsSync(outPath) ? readFileSync(outPath, "utf8") : normalizeHarnessText(res.stdout);
       const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
@@ -136,6 +136,7 @@ function runHarnessDiscovery(company: string, harness: string): RawDiscoveryCand
       cwd: process.cwd(),
       encoding: "utf8",
       maxBuffer: 20 * 1024 * 1024,
+      timeout: timeoutMs,
     });
     if (res.error || (res.status ?? 1) !== 0) return null;
     try {
@@ -212,7 +213,7 @@ export async function discoverAutomationTarget(
       source = "fixture";
       candidate = mergeCandidates(explicit, fixture);
     } else if (!input.offline) {
-      const harnessCandidate = runHarnessDiscovery(input.company, input.harness);
+      const harnessCandidate = runHarnessDiscovery(input.company, input.harness, opts.timeoutMs);
       if (harnessCandidate) {
         source = "harness";
         candidate = mergeCandidates(explicit, harnessCandidate);

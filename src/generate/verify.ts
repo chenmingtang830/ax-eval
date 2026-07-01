@@ -148,10 +148,6 @@ function inferValueFromNote(note: string | undefined, name: string): string | un
     const match = note.match(pattern);
     if (match?.[1]) return match[1];
   }
-  if (name === "gid") {
-    const generic = note.match(/\b([A-Za-z]+-[A-Za-z0-9_-]+|canvas-[A-Za-z0-9_-]+|grid-[A-Za-z0-9_-]+|i-[A-Za-z0-9_-]+|\d{4,})\b/);
-    if (generic?.[1]) return generic[1];
-  }
   return undefined;
 }
 
