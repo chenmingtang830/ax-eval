@@ -72,6 +72,7 @@ import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } 
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
+import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
@@ -120,6 +121,7 @@ const COMMANDS = [
   "resolve-vendor",
   "extract-tasks",
   "compose-pack",
+  "extract-surfaces",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -183,7 +185,16 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
         "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
         "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
-        "  No LLM call. Writes targets/packs/<slug>/<suite>.yaml.",
+        "  Also folds in a surface extract (targets/extracts/<slug>/surfaces.yaml) if",
+        "  present, from extract-surfaces. No LLM call. Writes targets/packs/<slug>/<suite>.yaml.",
+      ].join("\n");
+    case "extract-surfaces":
+      return [
+        "usage: ax-eval extract-surfaces [--vendor <slug>] [--vendors <a,b,c>]",
+        "                                [--harness claude-code|codex] [--effort low|medium|high]",
+        "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
+        "  The round-trip oracle never changes per surface — this only affects how the",
+        "  agent is told to act on non-API surfaces. Writes targets/extracts/<slug>/surfaces.yaml.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -1301,11 +1312,54 @@ async function cmdComposePack(args: Parsed): Promise<number> {
       console.error(`Skipping ${vendor.vendor}: no oracle extract found. Run extract-tasks first.`);
       continue;
     }
-    const pack = composePack(suite, vendor, extract);
+    const surfaces = loadSurfaceExtract(root, vendor.slug) ?? undefined;
+    const pack = composePack(suite, vendor, extract, { surfaces });
     const path = writeComposedPack(root, vendor.slug, suite.name, pack);
-    console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)`);
+    const surfaceNote = surfaces ? ` [surfaces: ${["api", surfaces.cli && "cli", surfaces.sdk && "sdk", surfaces.mcp && "mcp"].filter(Boolean).join(", ")}]` : "";
+    console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)${surfaceNote}`);
   }
   return 0;
+}
+
+async function cmdExtractSurfaces(args: Parsed): Promise<number> {
+  const root = process.cwd();
+  let vendors = resolveVendorSelection(args, root);
+  if (!vendors) {
+    const { readdirSync } = await import("node:fs");
+    const vendorDir = resolve(root, "targets", "vendors");
+    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
+    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
+    vendors = files
+      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .filter((v): v is NonNullable<typeof v> => v !== null);
+  }
+  if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
+
+  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  console.log(`Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…`);
+  const settled = await Promise.allSettled(
+    vendors.map((v) =>
+      extractSurfaces(v, {
+        harness,
+        model: args.generatorModel || undefined,
+        effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+      }),
+    ),
+  );
+  let failures = 0;
+  settled.forEach((s, i) => {
+    const vendor = vendors![i]!;
+    if (s.status === "rejected") {
+      failures++;
+      console.error(`\n  ${vendor.vendor} → FAILED: ${s.reason instanceof Error ? s.reason.message : s.reason}`);
+      return;
+    }
+    const path = writeSurfaceExtract(root, s.value);
+    const found = [s.value.cli && "cli", s.value.sdk && "sdk", s.value.mcp && "mcp"].filter(Boolean).join(", ") || "none";
+    console.log(`\n  ${vendor.vendor} → ${path} (${found})`);
+  });
+  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
+  return failures ? 1 : 0;
 }
 
 async function cmdGenerate(args: Parsed): Promise<number> {
@@ -2272,6 +2326,8 @@ async function main(): Promise<number> {
       return cmdExtractTasks(args);
     case "compose-pack":
       return cmdComposePack(args);
+    case "extract-surfaces":
+      return cmdExtractSurfaces(args);
     default:
       console.error(USAGE);
       return 2;

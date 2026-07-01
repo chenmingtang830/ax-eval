@@ -16,11 +16,16 @@ import { newRunId, NS_PLACEHOLDER } from "./pack.js";
 import type { Suite } from "./suite.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { OracleExtractResult } from "./task-extract.js";
+import type { SurfaceExtractResult } from "./surface-extract.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
 
 export interface ComposePackOptions {
   /** Generation provenance label recorded on the pack. */
   generatedBy?: string;
+  /** CLI/SDK/MCP surface declarations — the round-trip oracle never changes
+   *  per surface (verification always reads state back via REST/SQL), so
+   *  this only affects how the agent is told to act on non-API surfaces. */
+  surfaces?: SurfaceExtractResult;
 }
 
 /** Compose one vendor's frozen TargetPack from suite + oracle extract + vendor card. */
@@ -106,6 +111,19 @@ export function composePack(
       extra_header: extract.vendor_config.extra_auth_header,
     },
     sandbox_scope: [],
+    surfaces: opts.surfaces
+      ? {
+          ...(opts.surfaces.cli
+            ? { cli: { bin: opts.surfaces.cli.bin, install: opts.surfaces.cli.install, help: opts.surfaces.cli.help, docs_url: opts.surfaces.cli.docs_url, auth: opts.surfaces.cli.auth } }
+            : {}),
+          ...(opts.surfaces.sdk
+            ? { sdk: { package: opts.surfaces.sdk.package, language: opts.surfaces.sdk.language, install: opts.surfaces.sdk.install, reference_url: opts.surfaces.sdk.reference_url, auth: opts.surfaces.sdk.auth } }
+            : {}),
+          ...(opts.surfaces.mcp
+            ? { mcp: { server: opts.surfaces.mcp.server, transport: opts.surfaces.mcp.transport, setup: opts.surfaces.mcp.setup, docs_url: opts.surfaces.mcp.docs_url, auth: opts.surfaces.mcp.auth } }
+            : {}),
+        }
+      : undefined,
     sql_conn:
       extract.vendor_config.sql_dialect && extract.vendor_config.sql_connection_env
         ? { dialect: extract.vendor_config.sql_dialect, connection_string_env: extract.vendor_config.sql_connection_env }
