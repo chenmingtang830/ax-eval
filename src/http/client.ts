@@ -64,24 +64,34 @@ export class BearerClient {
   private readonly authScheme: AuthScheme;
   private readonly authHeader: string;
   private readonly extraAuthHeader: string | undefined;
+  // The value sent under extraAuthHeader — separate from `token` because a
+  // PostgREST-style API's `apikey` header must ALWAYS carry the project's own
+  // key, even when `Authorization` is swapped to a per-user JWT (withToken)
+  // to test row-level security. Defaults to `token` for the normal case
+  // where both headers legitimately carry the same credential.
+  private readonly extraAuthToken: string;
   private readonly extraHeaders: Record<string, string>;
   readonly apiStyle: ApiStyle;
 
-  constructor(opts: BearerClientOptions) {
+  constructor(opts: BearerClientOptions & { extraAuthToken?: string }) {
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
     this.envelope = opts.responseEnvelope;
     this.authScheme = opts.authScheme ?? "bearer";
     this.authHeader = opts.authHeader ?? "Authorization";
     this.extraAuthHeader = opts.extraAuthHeader;
+    this.extraAuthToken = opts.extraAuthToken ?? opts.token;
     this.extraHeaders = opts.extraHeaders ?? {};
     this.apiStyle = opts.apiStyle ?? "rest";
   }
 
-  /** A client sharing this one's config but a different credential — e.g. a
-   *  per-user JWT the executor reported, to verify identity-scoped access
-   *  control (RLS) where the pack's own admin-level credential would bypass
-   *  the policy being tested and always see everything. */
+  /** A client sharing this one's config but a different PRIMARY credential
+   *  (the Authorization header) — e.g. a per-user JWT the executor reported,
+   *  to verify identity-scoped access control (RLS) where the pack's own
+   *  admin-level credential would bypass the policy being tested and always
+   *  see everything. The extraAuthHeader (e.g. PostgREST's `apikey`) keeps
+   *  the ORIGINAL project credential — swapping it too would send an invalid
+   *  API key, since that header identifies the PROJECT, not the end user. */
   withToken(token: string): BearerClient {
     return new BearerClient({
       baseUrl: this.baseUrl,
@@ -90,6 +100,7 @@ export class BearerClient {
       authScheme: this.authScheme,
       authHeader: this.authHeader,
       extraAuthHeader: this.extraAuthHeader,
+      extraAuthToken: this.extraAuthToken,
       extraHeaders: this.extraHeaders,
       apiStyle: this.apiStyle,
     });
@@ -122,7 +133,7 @@ export class BearerClient {
     } else if (this.authScheme === "api-key") {
       h[this.authHeader] = this.token; // raw token, no "Bearer " (Linear/Monday)
     }
-    if (this.extraAuthHeader) h[this.extraAuthHeader] = this.token; // e.g. Supabase's `apikey`
+    if (this.extraAuthHeader) h[this.extraAuthHeader] = this.extraAuthToken; // e.g. Supabase's `apikey`
     return h;
   }
 
