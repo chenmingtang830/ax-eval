@@ -1462,7 +1462,7 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
   const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
 
-  console.log(`\n${result.tasks.length} tasks selected, ${result.rejected_clusters.length} clusters rejected.`);
+  console.log(`\n${result.tasks.length} tasks selected.`);
   for (const t of result.tasks) console.log(`  [${t.difficulty}] ${t.id} — ${t.coverage.length} vendor(s)`);
   console.log(`\nSuite → ${suitePath}`);
   console.log(`Synthesis audit trail → ${synthesisPath}`);
