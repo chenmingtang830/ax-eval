@@ -29,7 +29,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -1613,6 +1613,13 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
             const ns = resolveNs(pack.run_id, attemptLabel);
             const stem = args.attempts === 1 ? `${harness}-${name}${sfx}` : `${harness}-${name}${sfx}-a${attempt}`;
             const paths = defaultInvokePaths(dir, stem, harness);
+            // A prior exec-plan run's output files at this same deterministic
+            // path would otherwise fool spawnAsync's early-success check
+            // (it treats resultsPath/tracePath existing as "already done" and
+            // kills the fresh child within seconds) — always start clean.
+            for (const p of [paths.resultsPath, paths.tracePath, paths.stdoutPath, paths.stderrPath, paths.transcriptPath, paths.metaPath]) {
+              if (existsSync(p)) rmSync(p);
+            }
             let provisioning: Awaited<ReturnType<typeof provisionHarnessForSurface>>;
             try {
               provisioning = await provisionHarnessForSurface({
