@@ -17,14 +17,19 @@
  * Multi-step verification (e.g. "count is 1 AND the error code is X") is
  * modeled as two separate checks, not one compound sentence.
  *
- * Extraction is grounded: the prompt requires WebFetching the vendor's docs,
- * and invokeHarness's requireWebFetch option throws if the reply shows zero
- * WebSearch/WebFetch tool calls, so a training-data-only answer is rejected
- * rather than silently accepted.
+ * Extraction is grounded: every prompt requires WebFetching the vendor's
+ * docs, and invokeHarness's requireWebFetch option throws if the reply
+ * shows zero WebSearch/WebFetch tool calls, so a training-data-only answer
+ * is rejected rather than silently accepted.
  *
- * One LLM call per vendor covering all suite tasks. Deliberately narrow:
- * no prompt rewriting, no code snippets, no "approach" prose — those are
- * either unnecessary (the agent discovers them itself) or noise.
+ * DECOMPOSED per (vendor, task) — NOT one call covering all 10 tasks.
+ * The 10 suite tasks touch unrelated doc pages (schema DDL, RLS/auth,
+ * constraints, migrations, edge functions, backups, ...), so a single
+ * linear conversation asking for all of them serialized 10+ WebFetch
+ * round-trips into one call — measured at up to ~26 minutes for one
+ * vendor. Splitting into one small call per task lets those WebFetches
+ * run concurrently instead of sequentially in one conversation; a vendor's
+ * wall-clock time drops to roughly the slowest SINGLE task, not the sum.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
@@ -32,7 +37,7 @@ import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
-import type { Suite } from "./suite.js";
+import type { Suite, SuiteTask } from "./suite.js";
 
 const OracleCheckSchema = z
   .object({
@@ -89,72 +94,75 @@ const OracleExtractResultSchema = z.object({
 });
 export type OracleExtractResult = z.infer<typeof OracleExtractResultSchema>;
 
-function buildExtractPrompt(vendor: ResolveResult, suite: Suite): string {
-  const taskList = suite.tasks
-    .map(
-      (t, i) =>
-        `  ${i + 1}. id="${t.id}" — ${t.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
-    )
-    .join("\n");
+const CHECK_FORMAT_RULES = [
+  `Each check is ONE machine-checkable assertion:`,
+  `- assert_field: a SHORT DOTTED KEY PATH into the JSON response or SQL result row — e.g. "count",`,
+  `  "0.email", "documents.0.total". NEVER a sentence or explanation.`,
+  `- expected: the literal value assert_field must equal (a number, string, or boolean — taken directly`,
+  `  from the task's stated expectation, e.g. 100, 11, 1, true)`,
+  `- description: one short phrase for a human reviewer (optional)`,
+  `If the task needs more than one assertion (e.g. "row count is 1" AND "error code is X"), emit two`,
+  `separate check objects, not one compound sentence.`,
+].join("\n");
 
+function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask): string {
   return [
     `${vendor.vendor} (${vendor.category}).`,
     ``,
-    `Before answering, WebFetch ${vendor.docs_url} (and follow at least one linked API/REST reference page from`,
-    `it if the root page doesn't show endpoint details). You MUST ground every answer below in what you actually`,
-    `read on those pages — do not answer from memory/training knowledge alone. If you cannot find a definitive`,
-    `answer for a task after fetching the docs, say so via na=true rather than guessing.`,
+    `Before answering, WebFetch ${vendor.docs_url} (or a more specific linked page if the root page doesn't`,
+    `show what you need — e.g. a dedicated guide for this feature). You MUST ground your answer in what you`,
+    `actually read on those pages — do not answer from memory/training knowledge alone. If you cannot find a`,
+    `definitive answer after fetching the docs, say so via na=true rather than guessing.`,
     ``,
-    `For each task below, give the read-back call(s) that verify the described state:`,
+    `Task: ${task.id} — ${task.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
+    ``,
+    `Give the read-back call(s) that verify the described state:`,
     `- PREFER REST: if ${vendor.vendor} exposes ANY REST/HTTP endpoint that can run the query (including a`,
     `  PostgREST-style data API, a management/admin API, or a Data API), use read_method + read_path_template.`,
-    `  A REST check needs no extra credential beyond the API token already in vendor_config — always prefer it`,
-    `  when available.`,
-    `- ONLY fall back to sql_dialect + sql_query when ${vendor.vendor}'s data plane is reachable EXCLUSIVELY over`,
-    `  the raw Postgres or MySQL wire protocol, with NO REST query/SQL-execution endpoint at all (true for some`,
-    `  wire-protocol-native databases). This still counts as verifiable — do NOT mark the task na=true just`,
-    `  because there's no REST path; only use na=true when NEITHER REST NOR SQL can express the check (e.g. the`,
-    `  vendor has no row-level access-control mechanism at all, or no foreign-key enforcement at all).`,
-    `Use {ns} as a literal placeholder for a namespace token embedded in resource names.`,
+    `  A REST check needs no extra credential beyond the vendor's normal API token — always prefer it when`,
+    `  available.`,
+    `- ONLY fall back to sql_dialect + sql_query when ${vendor.vendor}'s data plane is reachable EXCLUSIVELY`,
+    `  over the raw Postgres or MySQL wire protocol, with NO REST query/SQL-execution endpoint at all. This`,
+    `  still counts as verifiable — do NOT set na=true just because there's no REST path; only use na=true`,
+    `  when NEITHER REST NOR SQL can express the check (e.g. the vendor has no row-level access-control`,
+    `  mechanism at all, or no foreign-key enforcement at all).`,
+    `Use {ns} as a literal placeholder for a namespace token embedded in resource names. If the API host is`,
+    `per-account (e.g. https://<project-ref>.example.com), write the path using \${ENV_VAR_NAME} syntax for`,
+    `the per-account part instead of a bare {placeholder}.`,
     ``,
-    taskList,
-    ``,
-    `Each check is ONE machine-checkable assertion:`,
-    `- assert_field: a SHORT DOTTED KEY PATH into the JSON response or SQL result row — e.g. "count",`,
-    `  "0.email", "documents.0.total". NEVER a sentence or explanation.`,
-    `- expected: the literal value assert_field must equal (a number, string, or boolean — taken directly`,
-    `  from the task's stated expectation, e.g. 100, 11, 1, true)`,
-    `- description: one short phrase for a human reviewer (optional)`,
-    `If a task needs more than one assertion (e.g. "row count is 1" AND "error code is X"), emit two separate`,
-    `check objects, not one compound sentence.`,
-    ``,
-    `Also give the vendor's REST API base_url and auth scheme (auth_type: bearer|api-key|oauth|none, auth_header`,
-    `if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name). If the vendor's REST API requires the`,
-    `SAME credential sent under a SECOND header name too (e.g. Supabase's PostgREST needs both`,
-    `"Authorization: Bearer <key>" AND "apikey: <key>" — check the docs for this), set extra_auth_header to that`,
-    `second header name; otherwise null. If any check above uses sql_query, also give sql_dialect (postgres|mysql)`,
-    `and sql_connection_env (a SCREAMING_SNAKE_CASE env var name for a full connection string) at the`,
-    `vendor_config level.`,
-    ``,
-    `If the vendor's REST API host is per-account (e.g. Supabase's https://<project-ref>.supabase.co, Turso's`,
-    `per-database subdomain), write base_url and any read_path_template using \${ENV_VAR_NAME} syntax for the`,
-    `per-account part — e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co" — NOT a bare {placeholder}. Pick a`,
-    `SCREAMING_SNAKE_CASE env var name that plausibly matches this project's .env convention (prefixed with the`,
-    `vendor name, e.g. SUPABASE_PROJECT_REF, NEON_PROJECT_ID).`,
+    CHECK_FORMAT_RULES,
     ``,
     `Return ONLY this JSON object, no commentary:`,
-    `{`,
-    `  "vendor_config": {"base_url": "...", "auth_type": "...", "auth_header": "..." or null, "auth_env": "...",`,
-    `    "extra_auth_header": "..." or null, "sql_dialect": "postgres"|"mysql"|null, "sql_connection_env": "..." or null},`,
-    `  "tasks": [`,
-    `    {"task_id": "...", "na": false, "na_reason": null, "checks": [`,
-    `      {"read_method": "GET", "read_path_template": "...", "assert_field": "count", "expected": 100, "description": "..."},`,
-    `      {"sql_dialect": "postgres", "sql_query": "SELECT ...", "assert_field": "count", "expected": 100, "description": "..."}`,
-    `    ]},`,
-    `    ...`,
-    `  ]`,
-    `}`,
-    `Include all ${suite.tasks.length} task ids.`,
+    `{"task_id": "${task.id}", "na": false, "na_reason": null, "checks": [`,
+    `  {"read_method": "GET", "read_path_template": "...", "assert_field": "count", "expected": 100, "description": "..."}`,
+    `]}`,
+  ].join("\n");
+}
+
+function buildVendorConfigPrompt(vendor: ResolveResult): string {
+  return [
+    `${vendor.vendor} (${vendor.category}).`,
+    ``,
+    `Before answering, WebFetch ${vendor.docs_url} (and its API/auth reference page if the root page doesn't`,
+    `show this) to find the vendor's REST API base_url and auth scheme. Ground your answer in what you`,
+    `actually read — do not answer from memory alone.`,
+    ``,
+    `Give:`,
+    `- base_url: the REST API root, e.g. "https://api.example.com" or, for per-account hosts, using`,
+    `  \${ENV_VAR_NAME} syntax for the per-account part, e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co"`,
+    `  (pick a SCREAMING_SNAKE_CASE env var name prefixed with the vendor name)`,
+    `- auth_type: bearer|api-key|oauth|none, and auth_header if not the default`,
+    `- auth_env: a SCREAMING_SNAKE_CASE env var name for the credential`,
+    `- extra_auth_header: if the REST API requires the SAME credential sent under a SECOND header name too`,
+    `  (e.g. Supabase's PostgREST needs both "Authorization: Bearer <key>" AND "apikey: <key>"), the second`,
+    `  header name; otherwise null`,
+    `- sql_dialect + sql_connection_env: ONLY if ${vendor.vendor}'s data plane is reachable exclusively over`,
+    `  the raw Postgres or MySQL wire protocol (no REST query endpoint) — sql_connection_env is a`,
+    `  SCREAMING_SNAKE_CASE env var name for a full connection string; otherwise both null`,
+    ``,
+    `Return ONLY this JSON object, no commentary:`,
+    `{"base_url": "...", "auth_type": "...", "auth_header": null, "auth_env": "...", "extra_auth_header": null,`,
+    ` "sql_dialect": null, "sql_connection_env": null}`,
   ].join("\n");
 }
 
@@ -164,50 +172,78 @@ export interface ExtractOraclesOptions {
   effort?: Effort;
 }
 
-/** Extract oracle read-back checks + vendor config for a single vendor. */
+// Grounded single-topic research call. Measured at well under a minute for
+// a focused one-task/one-topic question (vs. up to ~26min for the old
+// one-call-covers-everything design) — still generous given network variance.
+const PER_CALL_TIMEOUT_MS = 8 * 60 * 1000;
+
+async function extractTaskCheck(
+  vendor: ResolveResult,
+  task: SuiteTask,
+  opts: ExtractOraclesOptions,
+): Promise<OracleExtractItem> {
+  const raw = await invokeHarness(buildTaskPrompt(vendor, task), {
+    harness: opts.harness ?? "claude-code",
+    model: opts.model,
+    effort: opts.effort,
+    requireWebFetch: true,
+    heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/${task.id}` },
+    timeoutMs: PER_CALL_TIMEOUT_MS,
+  });
+  const parsed = OracleExtractItemSchema.safeParse(JSON.parse(extractJsonObject(raw)));
+  if (!parsed.success) {
+    throw new Error(
+      `oracle-extract for "${vendor.vendor}"/${task.id} returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+    );
+  }
+  if (parsed.data.task_id !== task.id) {
+    throw new Error(`oracle-extract for "${vendor.vendor}" returned task_id "${parsed.data.task_id}", expected "${task.id}"`);
+  }
+  return parsed.data;
+}
+
+async function extractVendorConfig(
+  vendor: ResolveResult,
+  opts: ExtractOraclesOptions,
+): Promise<z.infer<typeof VendorConfigSchema>> {
+  const raw = await invokeHarness(buildVendorConfigPrompt(vendor), {
+    harness: opts.harness ?? "claude-code",
+    model: opts.model,
+    effort: opts.effort,
+    requireWebFetch: true,
+    heartbeat: { everyMs: 30_000, label: `${vendor.vendor}/vendor_config` },
+    timeoutMs: PER_CALL_TIMEOUT_MS,
+  });
+  const parsed = VendorConfigSchema.safeParse(JSON.parse(extractJsonObject(raw)));
+  if (!parsed.success) {
+    throw new Error(
+      `oracle-extract vendor_config for "${vendor.vendor}" returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
+    );
+  }
+  return parsed.data;
+}
+
+/** Extract oracle read-back checks + vendor config for a single vendor.
+ *  Runs one small grounded call per suite task PLUS one for vendor config,
+ *  all in parallel — see module docstring for why this replaced a single
+ *  monolithic per-vendor call. */
 export async function extractOracles(
   vendor: ResolveResult,
   suite: Suite,
   opts: ExtractOraclesOptions = {},
 ): Promise<OracleExtractResult> {
-  const harness = opts.harness ?? "claude-code";
-  const prompt = buildExtractPrompt(vendor, suite);
-  const raw = await invokeHarness(prompt, {
-    harness,
-    model: opts.model,
-    effort: opts.effort,
-    requireWebFetch: true,
-    heartbeat: { everyMs: 30_000, label: vendor.vendor },
-    // This prompt asks for grounded research (real WebFetch round-trips,
-    // not a single lookup) across all 10 suite tasks. Measured up to ~26min
-    // for a thorough run — NOT a hang, the model does many small WebFetch
-    // confirmations per task under strict grounding. Vendors run in
-    // parallel (Promise.all), so this bounds per-vendor time, not total.
-    timeoutMs: 30 * 60 * 1000,
-  });
-  const json = extractJsonObject(raw);
-  const parsed = z
-    .object({ vendor_config: VendorConfigSchema, tasks: z.array(OracleExtractItemSchema) })
-    .safeParse(JSON.parse(json));
-  if (!parsed.success) {
-    throw new Error(
-      `oracle-extract for "${vendor.vendor}" returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`,
-    );
-  }
-  const suiteIds = new Set(suite.tasks.map((t) => t.id));
-  const returnedIds = new Set(parsed.data.tasks.map((t) => t.task_id));
-  const missing = [...suiteIds].filter((id) => !returnedIds.has(id));
-  if (missing.length > 0) {
-    throw new Error(`oracle-extract for "${vendor.vendor}" missing task IDs: ${missing.join(", ")}`);
-  }
+  const [vendorConfig, ...tasks] = await Promise.all([
+    extractVendorConfig(vendor, opts),
+    ...suite.tasks.map((t) => extractTaskCheck(vendor, t, opts)),
+  ]);
   return OracleExtractResultSchema.parse({
     vendor: vendor.vendor,
     category: vendor.category,
     slug: vendor.slug,
     suite_name: suite.name,
     extracted_at: new Date().toISOString(),
-    vendor_config: parsed.data.vendor_config,
-    tasks: parsed.data.tasks,
+    vendor_config: vendorConfig,
+    tasks,
   });
 }
 
@@ -218,7 +254,7 @@ export type ExtractOutcome =
 
 /** Extract oracles for multiple vendors in parallel. One vendor's failure
  *  (e.g. malformed LLM JSON) does not lose the other vendors' results —
- *  each runs an independent, expensive LLM call. */
+ *  each runs independent, real LLM calls. */
 export async function extractOraclesAll(
   vendors: ResolveResult[],
   suite: Suite,
