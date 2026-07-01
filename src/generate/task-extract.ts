@@ -39,13 +39,21 @@ import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from ".
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite, SuiteTask } from "./suite.js";
 
+// Models reliably reach for "postgresql" (the more common spelling) despite
+// the prompt/schema calling for "postgres" — normalize instead of retrying
+// on a mistake that isn't going to stop happening.
+const SqlDialectSchema = z.preprocess(
+  (v) => (v === "postgresql" ? "postgres" : v),
+  z.enum(["postgres", "mysql"]),
+);
+
 const OracleCheckSchema = z
   .object({
     // REST form.
     read_method: z.enum(["GET", "POST"]).nullish().transform((v) => v ?? undefined),
     read_path_template: z.string().nullish().transform((v) => v ?? undefined),
     // SQL wire-protocol form, for vendors with no REST query endpoint.
-    sql_dialect: z.enum(["postgres", "mysql"]).nullish().transform((v) => v ?? undefined),
+    sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
     sql_query: z.string().nullish().transform((v) => v ?? undefined),
     // A single dotted key path into the JSON response / result row, e.g.
     // "count", "0.email", "documents.0.total". NOT a sentence.
@@ -84,7 +92,7 @@ const VendorConfigSchema = z.object({
   extra_auth_header: z.string().nullish().transform((v) => v ?? undefined),
   // Set when the vendor's data plane requires a raw DB connection (no REST
   // query endpoint) — e.g. CockroachDB, PlanetScale.
-  sql_dialect: z.enum(["postgres", "mysql"]).nullish().transform((v) => v ?? undefined),
+  sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
   sql_connection_env: z.string().nullish().transform((v) => v ?? undefined),
 });
 
