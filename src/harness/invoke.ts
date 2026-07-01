@@ -211,8 +211,12 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     });
   });
 
+// AX_EVAL_CLAUDE_BIN / AX_EVAL_CODEX_BIN let callers bypass a PATH-shadowing
+// wrapper (corp shims that inject env/behavior and break in isolated
+// processes) — same escape hatch as generate/harness.ts's invokeHarness.
 function commandFor(id: InvokeHarnessId): string {
-  return id === "claude-code" ? "claude" : "codex";
+  if (id === "claude-code") return process.env.AX_EVAL_CLAUDE_BIN || "claude";
+  return process.env.AX_EVAL_CODEX_BIN || "codex";
 }
 
 function text(buf: Buffer | string | null | undefined): string {
@@ -302,7 +306,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     // Print mode requires --verbose for stream-json. (Claude Code has no
     // reasoning-effort CLI knob, so effort is applied at the prompt level.)
     return {
-      command: "claude",
+      command: commandFor("claude-code"),
       args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs],
     };
   }
@@ -332,7 +336,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // shell write of the exact path. `--json` streams events to stdout so the
   // transcript carries real tool calls for --observe discovery scoring.
   return {
-    command: "codex",
+    command: commandFor("codex"),
     args: [
       ...approvalArgs,
       "exec",
