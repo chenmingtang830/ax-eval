@@ -65,13 +65,14 @@ tasks:
     skill: filtered-read
     intent: |
       From `axarena_customers_{ns}`, return all rows where email matches the
-      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      pattern `probe-9%@axarena-{ns}.test` (i.e., starts with `probe-9`),
       ordered by created_at, paginated at 5 rows per page. Return the first
       two pages.
     oracle_hint: |
       Re-execute the query through the vendor's standard API; assert exactly
-      11 matching rows (probe-1, probe-10..probe-19), and that the agent's
-      reported page 1 contains the lowest-ordered 5 emails.
+      11 matching rows (probe-9, probe-90..probe-99 — no other row in the
+      1..100 range starts with "probe-9"), and that the agent's reported
+      page 1 contains the lowest-ordered 5 emails.
     allowed_surfaces: [api, sdk, cli, mcp]
     na_examples: []
 
