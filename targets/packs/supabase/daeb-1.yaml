@@ -25,7 +25,7 @@ sandbox_scope: []
 sql_conn:
   dialect: postgres
   connection_string_env: SUPABASE_DB_URL
-base_url: https://{project_ref}.supabase.co
+base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
 headers: {}
 site_url: https://supabase.com
 openapi_url: ""
@@ -307,7 +307,7 @@ tasks:
           SUPABASE_ACCESS_TOKEN (personal access token), not the service role
           key"
         readMethod: GET
-        readPathTemplate: https://api.supabase.com/v1/projects/{project_ref}/database/backups
+        readPathTemplate: https://api.supabase.com/v1/projects/${SUPABASE_PROJECT_REF}/database/backups
         assertField: 0.id
     difficulty: L4
     allowed_surfaces:

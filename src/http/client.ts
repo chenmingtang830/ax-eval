@@ -34,6 +34,9 @@ export interface BearerClientOptions {
   authScheme?: AuthScheme;
   /** Header the credential goes in. Default "Authorization". */
   authHeader?: string;
+  /** Second header name to ALSO carry the raw token (e.g. Supabase's
+   *  PostgREST requires both `Authorization: Bearer <key>` and `apikey: <key>`). */
+  extraAuthHeader?: string;
   /** Constant headers every request must carry (e.g. Notion-Version). */
   extraHeaders?: Record<string, string>;
   /** Target API style. "rest" (default) uses `get`; "graphql" uses `graphql`
@@ -60,6 +63,7 @@ export class BearerClient {
   private readonly envelope?: string;
   private readonly authScheme: AuthScheme;
   private readonly authHeader: string;
+  private readonly extraAuthHeader: string | undefined;
   private readonly extraHeaders: Record<string, string>;
   readonly apiStyle: ApiStyle;
 
@@ -69,8 +73,28 @@ export class BearerClient {
     this.envelope = opts.responseEnvelope;
     this.authScheme = opts.authScheme ?? "bearer";
     this.authHeader = opts.authHeader ?? "Authorization";
+    this.extraAuthHeader = opts.extraAuthHeader;
     this.extraHeaders = opts.extraHeaders ?? {};
     this.apiStyle = opts.apiStyle ?? "rest";
+  }
+
+  /** Pull a human-readable message out of an error body across the several
+   *  shapes vendors use: Notion/GraphQL-style `{errors: [{message}]}`, a
+   *  bare `{error: "..."}` string, or PostgREST/plain-REST's `{message}`. */
+  private static extractErrorMessage(json: Record<string, unknown>, res: Response): string {
+    const errors = json.errors as Array<{ message?: string }> | undefined;
+    if (errors?.[0]?.message) return errors[0].message;
+    if (typeof json.error === "string") return json.error;
+    if (typeof json.message === "string") return json.message;
+    return res.statusText || `HTTP ${res.status}`;
+  }
+
+  /** Resolve a path against baseUrl — UNLESS it's already an absolute URL
+   *  (some oracle checks hit a different host entirely, e.g. Supabase's
+   *  management API at api.supabase.com vs the project's own subdomain). */
+  private resolveUrl(path: string): URL {
+    if (/^https?:\/\//i.test(path)) return new URL(path);
+    return new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
   }
 
   /** Auth + constant headers for every request, per the pack's declared scheme. */
@@ -81,19 +105,18 @@ export class BearerClient {
     } else if (this.authScheme === "api-key") {
       h[this.authHeader] = this.token; // raw token, no "Bearer " (Linear/Monday)
     }
+    if (this.extraAuthHeader) h[this.extraAuthHeader] = this.token; // e.g. Supabase's `apikey`
     return h;
   }
 
   /** GET a path (relative to baseUrl), unwrapping the response envelope. */
   async get<T = unknown>(path: string, query?: Record<string, string>): Promise<T> {
-    const url = new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
+    const url = this.resolveUrl(path);
     if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
     const res = await fetch(url, { headers: this.headers() });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
-      const errors = json.errors as Array<{ message?: string }> | undefined;
-      const msg = errors?.[0]?.message ?? res.statusText;
-      throw new HttpApiError(`GET ${path}: ${msg}`, res.status, json);
+      throw new HttpApiError(`GET ${path}: ${BearerClient.extractErrorMessage(json, res)}`, res.status, json);
     }
     if (this.envelope && this.envelope in json) return json[this.envelope] as T;
     return json as T;
@@ -101,7 +124,7 @@ export class BearerClient {
 
   /** POST JSON to a path (relative to baseUrl), unwrapping the response envelope. */
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
-    const url = new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
+    const url = this.resolveUrl(path);
     const res = await fetch(url, {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
@@ -109,9 +132,7 @@ export class BearerClient {
     });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
-      const errors = json.errors as Array<{ message?: string }> | undefined;
-      const msg = errors?.[0]?.message ?? (typeof json.error === "string" ? json.error : res.statusText);
-      throw new HttpApiError(`POST ${path}: ${msg}`, res.status, json);
+      throw new HttpApiError(`POST ${path}: ${BearerClient.extractErrorMessage(json, res)}`, res.status, json);
     }
     if (this.envelope && this.envelope in json) return json[this.envelope] as T;
     return json as T;
@@ -120,7 +141,7 @@ export class BearerClient {
   /** DELETE a path (relative to baseUrl). Throws HttpApiError on a non-2xx, so
    *  teardown (reset) can report per-resource failures. */
   async del(path: string): Promise<void> {
-    const url = new URL(this.baseUrl + (path.startsWith("/") ? path : `/${path}`));
+    const url = this.resolveUrl(path);
     const res = await fetch(url, { method: "DELETE", headers: this.headers() });
     if (!res.ok) {
       let body: unknown;

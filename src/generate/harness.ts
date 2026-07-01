@@ -34,6 +34,13 @@ export interface InvokeHarnessOptions {
    *  tool permission granted. Use this for any research prompt where an
    *  ungrounded (training-only) answer must not be silently accepted. */
   requireWebFetch?: boolean;
+  /** Kill the subprocess if it hasn't replied within this many ms (default
+   *  5 min). A hung call previously ran silently with no error and no
+   *  progress signal until manually killed. */
+  timeoutMs?: number;
+  /** Log a "still running" line to stderr every N ms while waiting, tagged
+   *  with `label` (e.g. the vendor name) so parallel calls are distinguishable. */
+  heartbeat?: { everyMs: number; label: string };
 }
 
 interface VerboseMessage {
@@ -94,12 +101,28 @@ export function readGeneratorFixture(): string | null {
   return fixture ? readFileSync(fixture, "utf8") : null;
 }
 
+const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
+
 /** Invoke a harness with a prompt; returns its raw text output.
  *  Async so multiple concurrent calls via Promise.all run in parallel. */
 export async function invokeHarness(prompt: string, opts: InvokeHarnessOptions): Promise<string> {
   const fixture = readGeneratorFixture();
   if (fixture) return fixture;
 
+  const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
+  const heartbeatTimer = opts.heartbeat
+    ? setInterval(() => {
+        process.stderr.write(`  [${opts.heartbeat!.label}] still waiting on harness…\n`);
+      }, opts.heartbeat.everyMs)
+    : undefined;
+  try {
+    return await invokeHarnessInner(prompt, opts, timeout);
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  }
+}
+
+async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, timeout: number): Promise<string> {
   if (opts.harness === "codex") {
     const codexBin = process.env.AX_EVAL_CODEX_BIN || "codex";
     const dir = mkdtempSync(resolve(tmpdir(), "ax-harness-"));
@@ -115,8 +138,8 @@ export async function invokeHarness(prompt: string, opts: InvokeHarnessOptions):
       ...effortArgs,
       "--output-last-message", outPath,
       prompt,
-    ], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024 }).catch((e) => {
-      throw new Error(`harness codex (${codexBin}) failed: ${e.message || stderr}`);
+    ], { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout }).catch((e) => {
+      throw new Error(`harness codex (${codexBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || stderr}`);
     });
     return existsSync(outPath) ? readFileSync(outPath, "utf8") : stdout;
   }
@@ -132,9 +155,9 @@ export async function invokeHarness(prompt: string, opts: InvokeHarnessOptions):
     const { stdout } = await execFileAsync(
       claudeBin,
       ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
-      { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024 },
+      { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeout },
     ).catch((e) => {
-      throw new Error(`harness claude-code (${claudeBin}) failed: ${e.message || e.stderr}`);
+      throw new Error(`harness claude-code (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
     });
     if (opts.requireWebFetch) {
       const counts = countWebToolUse(stdout);

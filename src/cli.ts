@@ -91,7 +91,7 @@ import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
-import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
+import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { resetPack } from "./target/reset.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1908,11 +1908,12 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const pack = loadPack(args.pack);
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
   const client = new BearerClient({
-    baseUrl: pack.base_url,
+    baseUrl: resolveEnvTemplate(pack.base_url),
     token: resolveToken(pack),
     responseEnvelope: pack.response_envelope,
     authScheme: pack.auth?.type ?? "bearer",
     authHeader: pack.auth?.header,
+    extraAuthHeader: pack.auth?.extra_header,
     extraHeaders: pack.headers,
     apiStyle: pack.api_style,
   });
@@ -2180,11 +2181,12 @@ async function cmdReset(args: Parsed): Promise<number> {
   if (!args.pack) throw new Error("usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]");
   const pack = loadPack(args.pack);
   const client = new BearerClient({
-    baseUrl: pack.base_url,
+    baseUrl: resolveEnvTemplate(pack.base_url),
     token: resolveToken(pack),
     responseEnvelope: pack.response_envelope,
     authScheme: pack.auth?.type ?? "bearer",
     authHeader: pack.auth?.header,
+    extraAuthHeader: pack.auth?.extra_header,
     extraHeaders: pack.headers,
     apiStyle: pack.api_style,
   });

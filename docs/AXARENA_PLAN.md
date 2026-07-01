@@ -508,68 +508,96 @@ Use the existing `generate` (LLM-assisted) workflow per vendor, but
    separately, consuming the snapshot JSON. Cleaner separation; lets us
    iterate the landing page without touching the report code path.
 
-### 7.6 Pipeline Build Status (as of 2026-06-30)
+### 7.6 The Full Pipeline (as of 2026-07-01) — reference
 
-The original verdict was correct. Here is the actual implementation state:
+This is the actual end-to-end chain, from "we decided to benchmark a new
+category" to "a cross-vendor leaderboard exists." Steps 1–7 are validated
+for Supabase; steps 8–10 have not been run for real yet (see §7.7).
 
-#### ✅ Layer 1: Canonical Task Suite
+| # | Step | Who/what | Tooling |
+|---|---|---|---|
+| 1 | **Pick a category** (e.g. `database`) | Human | — |
+| 2 | **Pick vendors** (e.g. the 8 DAEB-1 vendors) | Human | — |
+| 3 | **Author the canonical suite** — task `id`/`title`/`difficulty`/`intent` (goal-level, vendor-agnostic)/`oracle_hint` | Human (LLM-assisted drafting is possible but DAEB-1 was hand-written) | `targets/suites/<suite>.yaml`, validated by `src/generate/suite.ts` |
+| 4 | **Vendor-resolve** — find each vendor's `site_url`/`docs_url` | LLM, one batch call (real WebSearch, `--allowedTools`) | `ax-eval resolve-vendor --vendors "A,B,C" --category X` → `targets/vendors/<slug>.discovered.yaml` |
+| 5 | **Oracle-extract** — for each vendor, ONE narrow LLM call across all suite tasks returns ONLY: whether the task is N/A, and (if not) the read-back check(s) needed to verify it (REST `read_path_template`/`read_method`, or raw-SQL `sql_query`/`sql_dialect` for wire-protocol-only vendors) + `assert_field`/`expected`, plus vendor-level `base_url`/auth. **Grounding is enforced**: the call throws unless the transcript shows a real WebFetch/WebSearch tool call — an ungrounded (training-data-only) answer is rejected, not silently accepted. Task *prompt* text is NOT touched here — it's pure suite text, rendered later in step 6. | LLM, one call per vendor | `ax-eval extract-tasks --suite <suite.yaml> --category X [--vendor slug \| --vendors a,b,c]` → `targets/extracts/<slug>/<suite>.yaml` |
+| 6 | **Compose-pack** — assemble suite (prompt/id/title/difficulty) + oracle-extract (verification) + vendor card (docs/site) into one frozen `TargetPack`. Pure code, zero LLM. | Code | `ax-eval compose-pack --suite <suite.yaml> [--vendor slug]` → `targets/packs/<slug>/<suite>.yaml` |
+| 7 | **Review gate** — human reads the composed pack (prompts + oracle assertions + credential surface) and approves. Approval is content-hash-locked: any post-approval edit invalidates it. | Human | `ax-eval review --pack <pack.yaml> [--approve --by <name>]` |
+| 8 | **Exec** — an agent (claude-code/codex) is given ONLY the goal-level prompt (no endpoint/mechanism hints) and a real sandbox credential; it performs the task against the live vendor API and self-reports an identifier (`gid`) per task. | LLM/agent, real API calls | `ax-eval exec-plan --pack <pack.yaml> --harness <name> --surface <api\|cli\|sdk\|mcp\|all> --invoke` → `results/*.json` |
+| 9 | **Verify** — independently re-reads state via the oracle (REST GET/POST or a real `pg`/`mysql2` connection for wire-protocol vendors) and asserts it matches `expected`. Does NOT trust the agent's self-report beyond the `gid` used to address the resource. | Code | `ax-eval verify-generated --pack <pack.yaml> --results <run.json>... --html out.html --snapshot out.json` |
+| 10 | **Report** — normalized per-vendor records feed a cross-vendor leaderboard, grouped by canonical task `id` so scores are comparable. | Code | `ax-eval competitive --results <normalized.json>...` / `ax-eval render-generated --snapshot ...` |
 
-- `targets/suites/daeb-1.yaml` — 10-task DAEB-1 suite authored (T01–T10,
-  L1–L4 difficulty, `skill`, `intent`, `oracle_hint`, `allowed_surfaces`,
-  `na_examples` per task)
-- `src/generate/suite.ts` — `loadSuite()`, `suitePromptFragment()`,
-  `validatePackAgainstSuite()`; `PROMPT_VERSION = "vendor-resolve-v1"`
-- `--suite <path>` flag wired into `generate` command
-- `generate` validates pack task IDs against suite after LLM generation
-- `--from` made optional when `--suite` is set (docs-only mode)
-- `src/generate/harness.ts` extracted — centralises harness invocation,
-  `AX_EVAL_CLAUDE_BIN` / `AX_EVAL_CODEX_BIN` escape hatches for Asana
-  PATH-shadowing; `--allowedTools WebSearch,WebFetch` passed to claude -p
-- Silent Asana fixture fallback removed from `ingest/run.ts`
-- Supabase OpenAPI fixture removed (not needed)
-- Tests: `tests/suite.test.ts` (5), `tests/cli.test.ts` updated
+#### Status per step (Supabase, 2026-07-01)
 
-#### ✅ Layer 2: Vendor Cards (resolved)
+- ✅ **1–4**: done for all 8 vendors.
+- ✅ **5 (oracle-extract)**: done for all 8, re-run once already after
+  discovering the first pass was ungrounded (see §7.7 finding #1).
+- ✅ **6 (compose-pack)**: done for all 8; 0 vendors have `=undefined`
+  asserts (an earlier bug where `assertField` held prose instead of a
+  dotted path — fixed, see §7.7).
+- ✅ **7 (review/approve)**: done for Supabase only so far.
+- 🔲 **8 (exec)**: **not run yet for any vendor.** This is the actual
+  next step.
+- 🔲 **9 (verify)**: only smoke-tested against a synthetic fake result
+  (proved DB/REST connectivity works; did not exercise a real agent run).
+- 🔲 **10 (report)**: not started — needs ≥1 real exec+verify cycle first.
 
-All 8 DAEB-1 vendor cards created at `targets/vendors/<slug>.discovered.yaml`:
+### 7.7 Findings From the First Real Dry-Run (Supabase, 2026-07-01)
 
-| Vendor | docs_url |
-|---|---|
-| Supabase | `https://supabase.com/docs` |
-| Neon | `https://neon.com/docs` |
-| PlanetScale | `https://planetscale.com/docs` |
-| MongoDB Atlas | `https://www.mongodb.com/docs/atlas/` |
-| Turso | `https://docs.turso.tech` |
-| Convex | `https://docs.convex.dev/home` |
-| Insforge | `https://docs.insforge.dev` |
-| CockroachDB | `https://www.cockroachlabs.com/docs/` |
+Running steps 5–9 for real (not just unit tests) surfaced several bugs
+that static review had missed — this is exactly why "run it and see what
+breaks" matters more than reasoning about the pipeline in the abstract.
 
-`vendor-resolve.ts` redesigned to v3: single batch LLM call (one claude
-invocation, 8 WebSearches) → replaces pattern-probe. `resolve-vendor`
-CLI now accepts `--vendors "A,B,C"` for batch. `extractJsonObject` now
-handles JSON arrays.
-
-#### 🔲 Layer 3: Task Extract (CURRENT BLOCKER)
-
-For each vendor × task, a narrow LLM call produces the concrete
-implementation spec: `{endpoint, method, body_template, oracle_path,
-identity_field}`. 10 calls per vendor × 8 vendors = 80 parallel calls.
-These feed Layer 4.
-
-*Not started. This is the immediate next step.*
-
-#### 🔲 Layer 4: Compose Pack
-
-Code assembles suite + task-extracts + vendor card → frozen
-`targets/packs/<vendor>/daeb-1.yaml` ready for `exec-plan`.
-
-*Not started. Depends on Layer 3.*
-
-#### 🔲 Layer 5+: Exec, Verify, Report, Website
-
-`exec-plan --invoke`, `verify-generated`, `competitive` — all exist in
-the codebase, no new code needed. Website HTML at `docs/launch/web/`
-exists (gitignored sub-agent draft); needs real scores before publishing.
+1. **Oracle-extract was 100% ungrounded on the first pass.** The prompt
+   said "use WebFetch" but nothing enforced it — the model answered from
+   training knowledge for all 8 vendors despite having tool permission.
+   Fixed: `invokeHarness` gained `requireWebFetch`, which parses the
+   `--output-format json --verbose` transcript for real `tool_use` blocks
+   and throws if none are found. (Note: `usage.server_tool_use` — visible
+   even without `--verbose` — always reads 0 in this environment because
+   WebFetch/WebSearch are client-side tools here, not Anthropic-hosted
+   ones; that counter is not a valid signal.)
+2. **`{ns}` was never substituted in `readPathTemplate`/`readQueryTemplate`
+   at verify time** — only in `expected` and the agent's prompt. Every
+   REST/GraphQL oracle across all 8 packs would have silently 404'd.
+   Fixed in `verify.ts`.
+3. **CockroachDB/PlanetScale's high N/A count (7/10) was mostly a
+   verifier limitation, not a vendor limitation.** The oracle-extract
+   prompt only knew how to express REST checks; wire-protocol-only
+   vendors got marked N/A by default. Added a `sql_dialect`/`sql_query`
+   check form (`src/generate/sql-verify.ts`, real `pg`/`mysql2`
+   connections) — N/A dropped to 1/10 and 2/10 respectively, and the
+   remainder are genuine (no RLS in MySQL, no function-hosting API).
+4. **Per-account subdomains have no substitution mechanism.**
+   `base_url: https://{project_ref}.supabase.co` was a dead template —
+   nothing ever replaced `{project_ref}`. Added `${ENV_VAR}` substitution
+   (`resolveEnvTemplate` in `target/config.ts`), applied only at the
+   point a live HTTP/SQL call is made (NOT inside `loadPack`, so approval
+   hashes stay stable across different developers' `.env` values).
+5. **`BearerClient` couldn't call a different host mid-pack.** Some
+   oracle checks (e.g. Supabase's backup list) hit a completely different
+   API host (`api.supabase.com`) than the main data-plane subdomain.
+   `get`/`post`/`del` now detect an absolute URL in `path` and bypass
+   `baseUrl` concatenation.
+6. **PostgREST needs a second header.** Supabase (and any PostgREST-based
+   vendor) rejects `Authorization: Bearer <key>` alone — it also needs
+   `apikey: <key>`. Added `Auth.extra_header` (declared per-vendor by
+   oracle-extract, not hardcoded) and `BearerClient.extraAuthHeader`.
+7. **Error messages were blank for non-Notion/Asana error shapes.**
+   `BearerClient`'s error parsing only understood `{errors: [...]}}`;
+   PostgREST's `{message, code}` shape produced an empty message string,
+   making failures unreadable in reports. Added a shared
+   `extractErrorMessage` covering both shapes plus a bare `{error}` string.
+8. **Known, not yet fixed — T10-class tasks need a DIFFERENT credential
+   than the rest of the pack.** Supabase's backup-listing endpoint is on
+   the *management* API and needs `SUPABASE_ACCESS_TOKEN` (a personal
+   access token), not `SUPABASE_SERVICE_ROLE_KEY` (the project's data-plane
+   key) — the oracle-extract LLM correctly predicted this in its own
+   `description` field, but the schema only supports one credential per
+   whole pack. Affects ~1/10 tasks (the backup/PITR task, which is L4 —
+   hardest tier — for most vendors). Deferred: either add a per-oracle
+   credential override, or accept this one task fails until a human
+   manually re-checks with the right token.
 
 ---
 
@@ -952,33 +980,58 @@ Most decisions are now locked in §14. What's still open:
 
 ---
 
-## 15. Immediate Next Steps (ordered)
+## 15. Immediate Next Steps (ordered) — updated 2026-07-01
 
-1. **Layer 3: task-extract** — per-task narrow LLM calls. For each of the
-   10 DAEB-1 tasks × 8 vendors, one call returning structured JSON:
-   `{endpoint, method, body_template, oracle_path, identity_field}`. 80
-   parallel calls, schema-locked. Design: `src/generate/task-extract.ts` +
-   new CLI command `extract-tasks --suite daeb-1 --vendor supabase`.
+Pipeline reference is §7.6; findings from the first real dry-run are §7.7.
+Steps 1–7 of the pipeline are proven for Supabase; this list picks up from
+step 8 (exec), which has not been run for real yet.
 
-2. **Layer 4: compose-pack** — code assembles suite + task-extracts +
-   vendor card → `targets/packs/<vendor>/daeb-1.yaml`. New CLI command
-   `compose-pack --vendor supabase`. No LLM needed here — pure code.
+1. **First real exec-plan run — Supabase, one surface.**
+   `ax-eval exec-plan --pack targets/packs/supabase/daeb-1.yaml --harness
+   claude-code --surface api --invoke`. This is the actual next action —
+   everything before it (review/approve, SQL connectivity, REST auth
+   headers) is now validated; this is the first time an agent will
+   actually attempt the 10 tasks against the live Supabase sandbox.
 
-3. **Human review pass** — inspect first Supabase pack, fix any task
-   mapping errors, approve. Then replicate to 7 others.
+2. **Verify + read the real report.** `ax-eval verify-generated --pack
+   targets/packs/supabase/daeb-1.yaml --results <run.json> --html
+   out.html`. Expect new findings here too (this is a genuinely new code
+   path — the smoke test only proved connectivity, not a real agent
+   transcript). Do not be surprised by more bugs; that's the point of
+   running it.
 
-4. **Sandbox env setup** — user registers test accounts at all 8 vendors,
-   fills `.env` with real API keys. Supabase partially done.
+3. **Decide on T10's credential mismatch (§7.7 finding #8).** Either add
+   a per-oracle credential override to the schema, or accept T10
+   (backup/PITR) fails for Supabase-like vendors until manually re-run
+   with the management-API token. Low priority (1/10 tasks) but blocks a
+   clean 100% pass on any vendor with this pattern.
 
-5. **exec-plan runs** — `exec-plan --invoke --harness claude-code --surface
-   api --vendor supabase` as the first E2E proof-of-concept.
+4. **Replicate steps 6–9 (compose → review → exec → verify) to the other
+   7 vendors.** Each vendor may surface its OWN version of the findings
+   in §7.7 (e.g. Convex needs a different exec surface entirely — it has
+   no REST API to run against for T02+; MongoDB Atlas's Data API auth
+   differs from its Admin API). Re-run `extract-tasks` per vendor if the
+   oracle-extract prompt changes (it already changed once since the last
+   full 8-vendor run — see §7.7 #6).
 
-6. **Full matrix** — all 8 vendors × 4 surfaces × 2 harnesses.
+5. **Sandbox account setup for the other 7 vendors.** `.env` currently
+   has real, working credentials for Supabase only. Neon, PlanetScale,
+   MongoDB Atlas, Turso, Convex, Insforge, CockroachDB all need real
+   sandbox accounts + credentials before their packs can run past the
+   review gate.
 
-7. **axarena.ai** — DNS / hosting setup, deploy `docs/launch/web/` with
+6. **Full matrix** — once all 8 vendors pass steps 8–9 individually, run
+   the complete cross-surface × cross-harness matrix (api/cli/sdk/mcp ×
+   claude-code/codex) per the original launch plan (§10).
+
+7. **First cross-vendor report** — `ax-eval competitive` across all 8
+   normalized records. This is the first artifact that's actually a
+   "benchmark" rather than a per-vendor pack.
+
+8. **axarena.ai** — DNS/hosting setup, deploy `docs/launch/web/` with
    real scores substituted in.
 
-8. **Vendor preview emails** (T-2 from launch).
+9. **Vendor preview emails** (T-2 from launch).
 
 ---
 

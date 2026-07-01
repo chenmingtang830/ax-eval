@@ -14,6 +14,7 @@ import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
+import { resolveEnvTemplate } from "../target/config.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -124,7 +125,10 @@ async function verifyRoundtrip(
   sqlConn: SqlConn | null,
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
-  const applyNsTemplate = (template: string): string => (ns ? template.split(NS_PLACEHOLDER).join(ns) : template);
+  // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
+  // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
+  const applyNsTemplate = (template: string): string =>
+    resolveEnvTemplate(ns ? template.split(NS_PLACEHOLDER).join(ns) : template);
 
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;

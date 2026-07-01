@@ -102,6 +102,7 @@ export function composePack(
       env_aliases: [],
       verify_env_aliases: [],
       header: extract.vendor_config.auth_header,
+      extra_header: extract.vendor_config.extra_auth_header,
     },
     sandbox_scope: [],
     sql_conn:

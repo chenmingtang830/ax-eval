@@ -230,6 +230,11 @@ export const AuthSchema = z.object({
   verify_env_aliases: z.array(z.string()).default([]),
   /** Header name for the credential (default by type: bearer/api-key → Authorization). */
   header: z.string().optional(),
+  /** Some APIs require the SAME credential sent under a second header name in
+   *  addition to the primary auth header — e.g. Supabase's PostgREST rejects
+   *  `Authorization: Bearer <key>` alone with "No API key found in request"
+   *  unless `apikey: <key>` is also present. */
+  extra_header: z.string().optional(),
 });
 export type Auth = z.infer<typeof AuthSchema>;
 

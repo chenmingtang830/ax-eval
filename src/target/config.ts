@@ -83,6 +83,24 @@ export function authHeader(pack: TargetPack): string {
   return pack.auth?.header ?? "Authorization";
 }
 
+/** Substitute `${ENV_VAR}` references (e.g. in `base_url` for vendors whose
+ *  API host is per-account, like Supabase's `https://${SUPABASE_PROJECT_REF}.supabase.co`)
+ *  from process.env. Throws if a referenced var is unset — a silent empty
+ *  substitution would just 404 confusingly at request time.
+ *
+ *  Deliberately NOT applied inside loadPack(): approval hashes the pack's
+ *  template form, so the hash stays stable across different developers'
+ *  env values. Substitution only happens right before a live HTTP call. */
+export function resolveEnvTemplate(text: string): string {
+  return text.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) => {
+    const value = env(name);
+    if (!value) {
+      throw new TargetConfigError(`base_url/path references \${${name}}, but that env var is unset in .env`);
+    }
+    return value;
+  });
+}
+
 /** Apply a scope param's optional `url_pattern` to extract an id from a pasted
  *  URL; otherwise return the raw (trimmed) value. */
 function extractScopeValue(param: ScopeParam, raw: string): string {

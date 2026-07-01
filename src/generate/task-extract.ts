@@ -67,6 +67,11 @@ const VendorConfigSchema = z.object({
   auth_type: z.enum(["bearer", "api-key", "oauth", "none"]),
   auth_header: z.string().nullish().transform((v) => v ?? undefined),
   auth_env: z.string(),
+  // Set when the same credential must ALSO be sent under a second header
+  // name — e.g. Supabase's PostgREST rejects `Authorization: Bearer <key>`
+  // alone with "No API key found in request" unless `apikey: <key>` is
+  // also present.
+  extra_auth_header: z.string().nullish().transform((v) => v ?? undefined),
   // Set when the vendor's data plane requires a raw DB connection (no REST
   // query endpoint) — e.g. CockroachDB, PlanetScale.
   sql_dialect: z.enum(["postgres", "mysql"]).nullish().transform((v) => v ?? undefined),
@@ -124,14 +129,23 @@ function buildExtractPrompt(vendor: ResolveResult, suite: Suite): string {
     `check objects, not one compound sentence.`,
     ``,
     `Also give the vendor's REST API base_url and auth scheme (auth_type: bearer|api-key|oauth|none, auth_header`,
-    `if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name). If any check above uses sql_query, also`,
-    `give sql_dialect (postgres|mysql) and sql_connection_env (a SCREAMING_SNAKE_CASE env var name for a full`,
-    `connection string) at the vendor_config level.`,
+    `if not the default, auth_env: a SCREAMING_SNAKE_CASE env var name). If the vendor's REST API requires the`,
+    `SAME credential sent under a SECOND header name too (e.g. Supabase's PostgREST needs both`,
+    `"Authorization: Bearer <key>" AND "apikey: <key>" — check the docs for this), set extra_auth_header to that`,
+    `second header name; otherwise null. If any check above uses sql_query, also give sql_dialect (postgres|mysql)`,
+    `and sql_connection_env (a SCREAMING_SNAKE_CASE env var name for a full connection string) at the`,
+    `vendor_config level.`,
+    ``,
+    `If the vendor's REST API host is per-account (e.g. Supabase's https://<project-ref>.supabase.co, Turso's`,
+    `per-database subdomain), write base_url and any read_path_template using \${ENV_VAR_NAME} syntax for the`,
+    `per-account part — e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co" — NOT a bare {placeholder}. Pick a`,
+    `SCREAMING_SNAKE_CASE env var name that plausibly matches this project's .env convention (prefixed with the`,
+    `vendor name, e.g. SUPABASE_PROJECT_REF, NEON_PROJECT_ID).`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{`,
     `  "vendor_config": {"base_url": "...", "auth_type": "...", "auth_header": "..." or null, "auth_env": "...",`,
-    `    "sql_dialect": "postgres"|"mysql"|null, "sql_connection_env": "..." or null},`,
+    `    "extra_auth_header": "..." or null, "sql_dialect": "postgres"|"mysql"|null, "sql_connection_env": "..." or null},`,
     `  "tasks": [`,
     `    {"task_id": "...", "na": false, "na_reason": null, "checks": [`,
     `      {"read_method": "GET", "read_path_template": "...", "assert_field": "count", "expected": 100, "description": "..."},`,
@@ -163,6 +177,7 @@ export async function extractOracles(
     model: opts.model,
     effort: opts.effort,
     requireWebFetch: true,
+    heartbeat: { everyMs: 30_000, label: vendor.vendor },
   });
   const json = extractJsonObject(raw);
   const parsed = z
