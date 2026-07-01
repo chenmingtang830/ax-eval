@@ -2212,7 +2212,8 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       console.log(`  ${mark} [${p.profile}] ${o.taskId}${detail ? ` — ${detail}` : ""}`);
     }
   }
-  console.log(`Pass rate: ${Math.round(rate * 100)}% (${byProfile.flatMap((p) => p.outcomes).filter((o) => o.success).length}/${byProfile.flatMap((p) => p.outcomes).length})`);
+  const scored = byProfile.flatMap((p) => p.outcomes).filter((o) => !o.na);
+  console.log(`Pass rate: ${Math.round(rate * 100)}% (${scored.filter((o) => o.success).length}/${scored.length})`);
   if (args.minPassRate !== undefined && rate < args.minPassRate) {
     console.error(`CI gate failed: pass rate ${rate.toFixed(2)} < required ${args.minPassRate.toFixed(2)}`);
     return 1;
