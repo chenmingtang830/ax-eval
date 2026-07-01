@@ -1,5 +1,6 @@
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
@@ -93,6 +94,15 @@ function writeCodexMcpHome(opts: {
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-codex-mcp`);
   const codexDir = resolve(home, ".codex");
   mkdirSync(codexDir, { recursive: true });
+  // Reuse the operator's own `codex login` session instead of requiring a
+  // separate OPENAI_API_KEY: codex CLI stores it in a plain file (unlike
+  // claude-code, which is Keychain-based and doesn't transfer to a fresh
+  // isolated HOME). The isolated home still gets its OWN mcp config (below),
+  // so this only reuses the LOGIN, not the developer's other MCP approvals.
+  const realAuthPath = resolve(homedir(), ".codex", "auth.json");
+  if (!process.env.OPENAI_API_KEY && existsSync(realAuthPath)) {
+    copyFileSync(realAuthPath, resolve(codexDir, "auth.json"));
+  }
   const configPath = resolve(codexDir, "config.toml");
   const typeLine = mcp.transport === "http" ? `type = "http"\n` : "";
   const config =
