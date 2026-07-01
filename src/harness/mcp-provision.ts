@@ -111,6 +111,11 @@ function writeCodexMcpHome(opts: {
     `url = ${tomlString(mcp.server)}\n` +
     typeLine +
     `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n` +
+    // Server-level blanket approval — without it codex's default approval
+    // policy blocks MCP write calls waiting for interactive confirmation,
+    // which a headless eval run can never provide ("cancelled by host").
+    // Confirmed against a prior working config (results/runs/stripe-mcp-codex-ok).
+    `require_approval = "never"\n` +
     Object.entries(mcp.tool_approval_mode ?? {})
       .map(([toolName, mode]) => `\n[mcp_servers.${serverName}.tools.${toolName}]\napproval_mode = ${tomlString(mode)}\n`)
       .join("") +
