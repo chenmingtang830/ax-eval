@@ -55,8 +55,11 @@ shape.
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
-  rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
-  paths must produce schema-valid packs, and neither path replaces human review.
+  rule-derived seed. Product presets can add hints for the authoring pass, but
+  the validator still owns schema fidelity and minimum surface coverage; failed
+  drafts get one repair pass before surfacing an error. `generate --deterministic`
+  is the keyless fixture path. Both paths must produce schema-valid packs, and
+  neither path replaces human review.
 
 ## Adding a new target
 

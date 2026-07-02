@@ -12,7 +12,7 @@ The core data flow is:
 ```text
 spec/docs
   -> ingest
-  -> generate (rule seed + LLM-assisted authoring, or deterministic fallback)
+  -> generate (rule seed + preset hints + LLM authoring + validator/repair, or deterministic fallback)
   -> reviewed TargetPack
   -> exec-plan per harness x surface x effort
   -> results + trace + transcript
@@ -34,6 +34,8 @@ The system is organized into four layers:
      competitive reporting.
    - This layer decides which surfaces and harnesses to run, and where artifacts
      land on disk.
+   - Product-specific generation presets live outside the CLI so the runtime
+     stays generic and the frozen pack remains the only execution handoff.
 3. **Harness and surface runtime**
    - Surface adapters change how the agent discovers and acts.
    - Harness runners manage subprocess invocation, MCP provisioning, transcript
@@ -112,8 +114,8 @@ The surface abstraction lives in:
 - `sdk`
 - `mcp`
 
-The key idea is that a task bank is shared across surfaces, but each surface
-changes:
+The key idea is that a task bank is authored once, then each surface gets the
+subset it can actually support. Surface adapters still change:
 
 1. **how discovery works**
    - API: web/docs search
@@ -136,8 +138,11 @@ This became more explicit with the Stripe work.
 - `taskSupportsSurface`
 - `tasksForSurface`
 
-This means a pack can declare a superset task bank, while a selected surface
-only runs the tasks that actually apply to it.
+This means a pack can declare a superset task bank, while generation and
+execution together keep each selected surface on the tasks that actually apply
+to it. In practice, generation can now drop MCP from tasks whose create/update
+shape is not exposed by the MCP tool surface, instead of waiting for execution
+to discover the mismatch the hard way.
 
 That is especially important for MCP. A product's MCP server is often a partial
 operational surface, not a perfect mirror of the public API. Without

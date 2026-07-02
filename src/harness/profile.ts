@@ -80,6 +80,14 @@ export const PROFILES: Record<string, HarnessProfile> = {
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
   },
+  medium: {
+    name: "medium",
+    model: null,
+    effort: "medium",
+    autonomy: "auto",
+    surfaces: ["docs", "api"],
+    maxTurns: CONTROLLED_MAX_TURNS,
+  },
   high: {
     name: "high",
     model: null,

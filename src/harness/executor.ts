@@ -55,6 +55,27 @@ export function applyNs(text: string, ns: string): string {
   return text.split(NS_PLACEHOLDER).join(ns);
 }
 
+function taskResultKeys(task: Task): string[] {
+  const keys = new Set<string>(["gid"]);
+  const scan = (template: string | undefined) => {
+    if (!template) return;
+    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
+      const key = match[1];
+      if (key && key !== "gid") keys.add(key);
+    }
+  };
+  scan(task.create_path);
+  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
+  return [...keys];
+}
+
+function taskResultShape(task: Task): string {
+  const fields = taskResultKeys(task)
+    .map((key) => `"${key}": "<${key} or null>"`)
+    .join(", ");
+  return `      "${task.id}": {${fields}}`;
+}
+
 const EFFORT_BLOCK: Record<HarnessProfile["effort"], string> = {
   low:
     "You are a LOW-EFFORT agent. In discovery, do the bare minimum search and stop " +
@@ -118,7 +139,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const surface = opts.surface ?? apiSurface;
   const tasks = tasksForSurface(pack, surface.id);
   const ids = tasks.map((t) => t.id);
-  const resultsShape = ids.map((id) => `      "${id}": {"gid": "<gid or null>"}`).join(",\n");
+  const resultsShape = tasks.map((task) => taskResultShape(task)).join(",\n");
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
@@ -143,7 +164,11 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ...tasks.map((t) => taskLine(t, ns)),
     ``,
     `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
-    `id). If a task truly fails, record gid as null.`,
+    `id). If the results shape shows extra context ids (for example a parent doc or table id),`,
+    `report those too. If a task truly fails, record gid as null and leave any extra ids null.`,
+    `If a create/mutate call succeeds and returns an id but immediate read-back is temporarily unavailable`,
+    `(for example 202/404/409 during async processing), still record the created id and any context ids`,
+    `from the successful response or trace rather than dropping them to null.`,
     ``,
     `=== OBSERVABILITY (required) ===`,
     `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,

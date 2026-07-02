@@ -87,6 +87,18 @@ describe("detectInvokeHarness", () => {
     expect(detected.ok).toBe(true);
     expect(detected.version).toBe("codex 1.2.3");
   });
+
+  it("cleans up the temporary Claude HOME after detection", () => {
+    let seenHome = "";
+    const detected = detectInvokeHarness("claude-code", (_command, _args, options) => {
+      seenHome = String(options?.env?.HOME ?? "");
+      expect(existsSync(seenHome)).toBe(true);
+      return spawnResult({ stdout: Buffer.from("claude 1.0.0\n") });
+    });
+    expect(detected.ok).toBe(true);
+    expect(seenHome).not.toBe("");
+    expect(existsSync(seenHome)).toBe(false);
+  });
 });
 
 describe("runInvokeHarness", () => {
@@ -205,6 +217,48 @@ describe("runInvokeHarness", () => {
     expect(Object.keys(schema.properties.results.properties)).toEqual(["mcp-only"]);
   });
 
+  it("includes extra per-task context ids in the codex output schema when verification needs them", async () => {
+    const dir = freshDir();
+    const schemaPack = TargetPackSchema.parse({
+      ...pack(),
+      tasks: [
+        {
+          id: "page-task",
+          prompt: "Create a page.",
+          allowed_surfaces: ["mcp", "docs"],
+          create_path: "/docs/{docId}/pages",
+          oracles: [{ type: "roundtrip", readPathTemplate: "/docs/{docId}/pages/{gid}", assertField: "name", expected: "x" }],
+        },
+      ],
+    });
+    const paths = defaultInvokePaths(dir, "codex-mcp-extra", "codex");
+    writeFileSync(paths.promptPath, "Do the task and write files.");
+    const run: InvokeRunOptions = {
+      pack: schemaPack,
+      harness: "codex",
+      profile: "ceiling",
+      surface: "mcp",
+      ns: "demo-high-mcp",
+      paths,
+      cwd: dir,
+    };
+
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "mcp", discovery: {}, results: { "page-task": { gid: "g", docId: "d" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const schema = JSON.parse(readFileSync(paths.codexSchemaPath!, "utf8"));
+    expect(schema.properties.results.properties["page-task"].required).toEqual(["gid", "docId"]);
+    expect(schema.properties.results.properties["page-task"].properties.docId).toBeTruthy();
+  });
+
   it("retries a failed invocation once, then succeeds on the second attempt", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
@@ -244,6 +298,26 @@ describe("runInvokeHarness", () => {
     expect(result.attempts).toBe(1);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
+  });
+
+  it("cleans up the temporary Claude HOME after an invoked run", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    let seenHome = "";
+    const spawn: AsyncSpawn = async (_command, _args, _cwd, spawnOpts) => {
+      seenHome = String(spawnOpts?.env?.HOME ?? "");
+      expect(existsSync(seenHome)).toBe(true);
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    expect(seenHome).not.toBe("");
+    expect(existsSync(seenHome)).toBe(false);
   });
 
   it("terminates a lingering wrapper once the required artifacts exist", async () => {
