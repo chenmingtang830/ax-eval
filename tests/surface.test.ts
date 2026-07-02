@@ -41,7 +41,13 @@ const multi = TargetPackSchema.parse({
   ],
   surfaces: {
     cli: { bin: "demo", install: "npm i -g @demo/cli" },
-    sdk: { package: "@demo/sdk", language: "node" },
+    sdk: {
+      package: "@demo/sdk",
+      language: "node",
+      reference_url: "https://docs.demo.test/sdk/reference",
+      examples_url: "https://docs.demo.test/sdk/examples",
+      types_url: "https://docs.demo.test/sdk/types",
+    },
     mcp: { server: "npx -y @demo/mcp", transport: "stdio" },
   },
 });
@@ -106,6 +112,9 @@ describe("surface-parameterized executor prompt", () => {
     const p = promptFor("sdk");
     expect(p).toContain("SURFACE: SDK");
     expect(p).toContain("@demo/sdk");
+    expect(p).toContain("https://docs.demo.test/sdk/reference");
+    expect(p).toContain("https://docs.demo.test/sdk/examples");
+    expect(p).toContain("https://docs.demo.test/sdk/types");
     expect(p).toContain("Install and call the `@demo/sdk` SDK");
     expect(p).toContain('"surface": "sdk"');
   });

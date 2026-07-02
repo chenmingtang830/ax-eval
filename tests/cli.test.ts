@@ -35,14 +35,14 @@ function runCli(args: string[], env: Record<string, string> = {}): { code: numbe
 describe("cli arg handling", () => {
   it("top-level help prints usage with exit 0", () => {
     const { code, out } = runCli(["--help"]);
-    expect(code).toBe(0);
+    expect(code, out).toBe(0);
     expect(out).toContain("usage: ax-eval");
     expect(out).toContain("generate");
   });
 
   it("subcommand help prints command usage with exit 0", () => {
     const { code, out } = runCli(["generate", "--help"]);
-    expect(code).toBe(0);
+    expect(code, out).toBe(0);
     expect(out).toContain("usage: ax-eval generate --from <ingest.json>");
     expect(out).toContain("--deterministic");
     expect(out).not.toContain("unknown flag");
@@ -80,6 +80,79 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["automate-report"]);
     expect(code).toBe(1);
     expect(out).toContain("usage: ax-eval automate-report --company <name>");
+  });
+});
+
+describe("verify-generated SDK quality", () => {
+  const dirs: string[] = [];
+  function freshDir(prefix = "ax-sdk-quality-"): string {
+    const d = mkdtempSync(resolve(tmpdir(), prefix));
+    dirs.push(d);
+    return d;
+  }
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("renders SDK quality from the declared SDK surface", () => {
+    const dir = freshDir();
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, JSON.stringify({
+      name: "demo",
+      standard_set_version: "sdk-quality-v1",
+      run_id: "sdk-quality",
+      generated_by: "fixture",
+      base_url: "https://api.demo.test",
+      auth: { type: "bearer", env: "DEMO_TOKEN" },
+      surfaces: {
+        sdk: {
+          package: "@demo/sdk",
+          language: "typescript",
+          install: "npm install @demo/sdk",
+          reference_url: "https://docs.demo.test/sdk/reference",
+          examples_url: "https://docs.demo.test/sdk/examples",
+          types_url: "https://docs.demo.test/sdk/typedoc",
+        },
+      },
+      tasks: [
+        {
+          id: "sdk-task",
+          title: "Create an SDK task",
+          difficulty: "L1",
+          prompt: "Create a task through the SDK.",
+          allowed_surfaces: ["sdk", "docs"],
+          oracles: [{ type: "exists", path: "gid" }],
+        },
+      ],
+    }, null, 2));
+
+    const resultPath = resolve(dir, "run-high-sdk.json");
+    writeFileSync(resultPath, JSON.stringify({
+      profile: "high",
+      harness: "fixture",
+      surface: "sdk",
+      ns: "ns",
+      discovery: {},
+      results: { "sdk-task": { gid: "gid-1" } },
+    }, null, 2));
+
+    const htmlPath = resolve(dir, "report.html");
+    const { code, out } = runCli([
+      "verify-generated",
+      "--pack", packPath,
+      "--results", resultPath,
+      "--html", htmlPath,
+      "--min-pass-rate", "0",
+      "--snapshot", resolve(dir, "snapshot.json"),
+    ], { DEMO_TOKEN: "test-token" });
+
+    expect(code, out).toBe(0);
+    expect(out).toContain("Auditing SDK surface quality");
+    const html = readFileSync(htmlPath, "utf8");
+    expect(html).toContain("SDK quality");
+    expect(html).toContain("Score 100/100");
+    const normalized = JSON.parse(readFileSync(htmlPath.replace(/\.[^.]+$/, ".normalized.json"), "utf8")) as { sdk_quality?: number | null };
+    expect(normalized.sdk_quality).toBe(1);
   });
 });
 

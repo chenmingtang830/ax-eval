@@ -13,6 +13,7 @@ import type { RoundtripOutcome } from "../src/generate/verify.js";
 import type { DiscoveryReport, DiscoveryMetric } from "../src/generate/discovery.js";
 import type { TraceStep } from "../src/harness/executor.js";
 import { auditSpecQuality } from "../src/static/smells.js";
+import { auditSdkSurfaceQuality } from "../src/static/sdk-smells.js";
 
 /** A small OpenAPI doc that trips several smells, for content-quality tests. */
 function smellyAudit() {
@@ -262,6 +263,36 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain('class="ax-scorecard"'); // plain 3-col grid
     expect(html).not.toContain('class="ax-scorecard ax-scorecard--four"');
     expect(html).not.toContain("Content quality (spec smells)");
+  });
+
+  it("weaves the SDK quality axis into the pipeline report", () => {
+    const { pack, runs, stat } = comprehensiveScenario();
+    const sdkPack = TargetPackSchema.parse({
+      ...pack,
+      auth: { type: "bearer", env: "" },
+      surfaces: {
+        sdk: {
+          package: "demo-sdk",
+          language: "ruby",
+        },
+      },
+    });
+    const audit = auditSdkSurfaceQuality(sdkPack);
+    const statSdk: StaticReadiness = {
+      ...stat,
+      sdkScore: audit.score,
+      sdkQuality: audit,
+    };
+    const html = renderGeneratedReport(sdkPack, runs, statSdk);
+
+    expect(html).toContain("SDK quality");
+    expect(html).toContain("SDK surface");
+    expect(html).toContain("Improve the SDK surface quality");
+    expect(html).toContain("SDK quality is");
+    expect(html).toContain("demo-sdk");
+
+    const recs = buildRecommendations(sdkPack, runs, statSdk);
+    expect(recs.map((r) => r.title)).toContain("Improve the SDK surface quality");
   });
 
   it("escapes interpolated text (task prompts, oracle details)", () => {

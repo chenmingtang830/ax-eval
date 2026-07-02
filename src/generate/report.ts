@@ -25,6 +25,7 @@ import {
 import type { HarnessProbe } from "../harness/probe.js";
 import { REPORT_STYLE } from "../report-style.js";
 import { renderContentQualitySection, type SpecQualityAudit } from "../static/smells.js";
+import { renderSdkQualitySection, type SdkQualityAudit } from "../static/sdk-smells.js";
 import type { StaticCheckResult } from "../static/types.js";
 
 export interface ProfileRun {
@@ -79,6 +80,10 @@ export interface StaticReadiness {
   /** The full smell audit behind `contentScore`, rendered as its own report
    *  section. Absent when the audit didn't run. */
   contentQuality?: SpecQualityAudit;
+  /** SDK surface quality score, 0-100. Absent when no SDK surface is declared. */
+  sdkScore?: number;
+  /** Full SDK surface audit behind `sdkScore`. */
+  sdkQuality?: SdkQualityAudit;
 }
 
 /** One actionable, prioritized recommendation produced by the engine below. */
@@ -684,6 +689,20 @@ export function buildRecommendations(
     });
   }
 
+  const sdkScore = staticReadiness?.sdkScore;
+  if (sdkScore !== undefined && sdkScore < 80) {
+    const sdk = staticReadiness?.sdkQuality;
+    recs.push({
+      category: "discovery",
+      priority: sdkScore < 50 ? "high" : "med",
+      title: "Improve the SDK surface quality",
+      detail:
+        `The SDK surface scores ${sdkScore}/100` +
+        (sdk ? ` (${sdk.totalFindings} finding(s) for ${sdk.packageName})` : "") +
+        ". Agents need explicit SDK install, reference, auth, examples, and type/signature guidance before they can reliably use client methods instead of guessing or falling back to raw HTTP.",
+    });
+  }
+
   if (maxAttempts(runs) <= 1 && runs.some((r) => r.outcomes.length > 0)) {
     recs.push({
       category: "execution",
@@ -754,6 +773,7 @@ function renderTldr(
   if (!cells.length) return "";
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const sdk = stat?.sdkScore;
   const harnesses = [...new Set(cells.map((c) => c.harness))];
 
   // A pill links to its detail section when one exists; Static discovery has no
@@ -793,7 +813,7 @@ function renderTldr(
       `<strong>${esc(opLabel)}</strong>. ${esc(opTakeaway)} ${esc(processQualityTakeaway(runs))} ` +
       `<strong>${harnesses.length} harnesses × ${surfaces.length} surface${surfaces.length === 1 ? "" : "s"} × ${profiles.length} effort level${profiles.length === 1 ? "" : "s"} = ${runs.length} configs</strong>, ` +
       `summarized into ${cells.length} harness × surface cell${cells.length === 1 ? "" : "s"}. ` +
-      `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
+      `Task success ${spread} across configs. Static scores are product-level; ` +
       `task success and agent discovery break down by harness below.`;
     // Per-harness range across that harness's cells (min–max, or single value).
     const range = (nums: (number | undefined)[], unit: string): string => {
@@ -807,6 +827,7 @@ function renderTldr(
       pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
       pill("Agent discovery", discSpread === "—" ? "—" : `${esc(discSpread)}`, "#agent-discovery"),
       content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+      sdk !== undefined ? pill("SDK quality", num(sdk, "/100"), "#sdk-quality") : "",
     ].filter(Boolean);
     const byHarness = harnesses
       .map((h) => {
@@ -857,6 +878,7 @@ function renderTldr(
     pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
     pill("Agent discovery", num(agentDisc, "/100"), "#agent-discovery"),
     content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    sdk !== undefined ? pill("SDK quality", num(sdk, "/100"), "#sdk-quality") : "",
   ].filter(Boolean);
   const executionBody = `<div class="ax-tldr__pills">${pill("Task success", num(best.pct, "%"), "#scores")}</div><p class="ax-tldr__section-note">On the <strong>${esc(surface.toUpperCase())}</strong> surface with <strong>${esc(best.profile)}</strong> effort, ${failNote}.</p>`;
   return `<section class="ax-section ax-tldr" id="tldr">
@@ -988,13 +1010,16 @@ function countBadge(n: number): string {
   return `<span class="ax-heat ax-heat--count ax-heat--${countTier(n)}">${esc(n)}</span>`;
 }
 
-/** The four-pillar formula explainer (shared by single-cell + matrix views). */
-function howScoredBlock(contentMeasured: boolean): string {
+/** The score formula explainer (shared by single-cell + matrix views). */
+function howScoredBlock(contentMeasured: boolean, sdkMeasured = false): string {
   const items = [
     `<strong>Static discovery /100</strong> — the higher of two docs-site audits: v0 (conventional-path checklist — llms.txt, OpenAPI, sitemap, OAuth discovery, …) and v2 (a docs-graph crawl scoring link-reachable surfaces). <code class="ax-code">max(v0, v2)</code>.`,
     `<strong>Agent discovery /100</strong> — the share of a run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
     contentMeasured
       ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    sdkMeasured
+      ? `<strong>SDK quality /100</strong> — a weighted score over the declared SDK surface: package identity, install path, reference docs, auth, examples, and type/signature source.`
       : "",
     `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
   ].filter(Boolean);
@@ -1041,6 +1066,7 @@ function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => str
 function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const sdk = stat?.sdkScore;
   const agentDisc = agentDiscoveryScore(runs);
   const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
   const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
@@ -1106,6 +1132,13 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
         <span class="ax-card__sub">weighted OpenAPI smell score · product-level</span>
       </div>`
       : "",
+    sdk !== undefined
+      ? `<div class="ax-card ${scoreBand(sdk)}">
+        <span class="ax-card__value">${esc(sdk)}<span class="ax-card__scale">/100</span></span>
+        <span class="ax-card__label"><a href="#sdk-quality">SDK quality</a></span>
+        <span class="ax-card__sub">weighted SDK surface score · product-level</span>
+      </div>`
+      : "",
     `<div class="ax-card ${scoreBand(agentDisc)}">
         <span class="ax-card__value">${agentDisc !== undefined ? esc(agentDisc) : "—"}${agentDisc !== undefined ? '<span class="ax-card__scale">/100</span>' : ""}</span>
         <span class="ax-card__label"><a href="#agent-discovery">Agent discovery</a></span>
@@ -1147,7 +1180,7 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
       <tbody>${body}</tbody>
     </table>
     </div>
-    ${howScoredBlock(content !== undefined)}
+    ${howScoredBlock(content !== undefined, sdk !== undefined)}
   </section>`;
 }
 
@@ -1202,6 +1235,7 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       .join(" · ") || "not measured";
 
   const content = stat?.contentScore;
+  const sdk = stat?.sdkScore;
   const agentDisc = agentDiscoveryScore(runs);
   // Card color by the shared strict scale (only 100 green) so the four pillars
   // read consistently with the matrix view.
@@ -1243,6 +1277,15 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       </div>`,
     );
   }
+  if (sdk !== undefined) {
+    cards.push(
+      `<div class="ax-card ${band(sdk)}">
+        ${val(sdk, "/100")}
+        <span class="ax-card__label"><a href="#sdk-quality">SDK quality</a></span>
+        <span class="ax-card__sub">weighted SDK surface score</span>
+      </div>`,
+    );
+  }
   const executionCards = [
     `<div class="ax-card ${band(best?.pct)}">
         ${val(best?.pct, "%")}
@@ -1258,6 +1301,9 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
     `<strong>Agent discovery /100</strong> — the share of the strongest run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
     content !== undefined
       ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    sdk !== undefined
+      ? `<strong>SDK quality /100</strong> — a weighted score over the declared SDK surface: package identity, install path, reference docs, auth, examples, and type/signature source.`
       : "",
     `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed for the best profile: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
   ].filter(Boolean);
@@ -1352,6 +1398,19 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     );
   }
 
+  const sdk = stat?.sdkQuality;
+  if (sdk && stat?.sdkScore !== undefined && stat.sdkScore < 80) {
+    const top = (Object.keys(sdk.byCategory) as (keyof typeof sdk.byCategory)[])
+      .filter((c) => sdk.byCategory[c] > 0)
+      .sort((a, b) => sdk.byCategory[b] - sdk.byCategory[a])[0];
+    pushFinding(
+      "discovery",
+      `SDK quality is ${stat.sdkScore}/100 (${sdk.totalFindings} finding(s) for ${sdk.packageName})` +
+        (top ? `, most often ${top}` : "") +
+        " — agents may struggle to install, authenticate, or choose typed client methods without guessing.",
+    );
+  }
+
   const scored = runs.filter((r) => r.discovery);
   if (scored.length) {
     const missing = new Set<string>();
@@ -1407,9 +1466,9 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     }
   }
 
-  // Allow one extra slot when the content-quality axis contributed a finding,
+  // Allow one extra slot when a static quality axis contributed a finding,
   // so it doesn't crowd out the attribution finding.
-  return findings.slice(0, stat?.contentQuality ? 4 : 3);
+  return findings.slice(0, stat?.contentQuality || stat?.sdkQuality ? 4 : 3);
 }
 
 function renderFindings(title: string, findings: Finding[], id?: string): string {
@@ -2057,7 +2116,8 @@ export function renderGeneratedReport(
     staticReadiness &&
     (staticReadiness.v0Score !== undefined ||
       staticReadiness.v2Score !== undefined ||
-      staticReadiness.contentScore !== undefined);
+      staticReadiness.contentScore !== undefined ||
+      staticReadiness.sdkScore !== undefined);
   const stat = hasStatic ? staticReadiness : undefined;
   const recs = buildRecommendations(pack, runs, stat);
   const findings = buildFindings(pack, runs, stat);
@@ -2082,12 +2142,13 @@ export function renderGeneratedReport(
         renderRecommendations(
           "Discovery recommendations",
           discoveryRecs,
-          'Prioritized fixes for findability and usability before execution starts: docs entrypoints, auth discovery, canonical calls, and schema quality. The per-endpoint <a href="#content-quality">suggested fixes</a> remain machine-applicable.',
+          'Prioritized fixes for findability and usability before execution starts: docs entrypoints, auth discovery, canonical calls, schema quality, and SDK surface guidance.',
           "discovery-recommendations",
         ),
         renderStaticDiscovery(stat),
         renderDiscovery(pack, runs),
         stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
+        stat?.sdkQuality ? renderSdkQualitySection(stat.sdkQuality) : "",
       ],
     ),
     renderSectionGroup(
@@ -2198,6 +2259,7 @@ function renderCrossSurface(records: NormalizedResult[]): string {
           <td>${blockedPill(r.blocked)}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
           <td>—</td>
         </tr>`;
           }
@@ -2209,20 +2271,21 @@ function renderCrossSurface(records: NormalizedResult[]): string {
           <td>${heat(r.pass_at_k)}${r.attempts > 1 ? ` <span class="ax-task__diff">(k=${esc(r.attempts)})</span>` : ""}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
           <td>${esc(r.tasks_passed)}/${esc(r.tasks_total)}</td>
         </tr>`;
         })
         .join("");
       return `<h3 class="ax-subhead">${esc(product)}</h3>
       <table class="ax-table">
-        <thead><tr><th>surface</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th><th>tasks</th></tr></thead>
+        <thead><tr><th>surface</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th><th>sdk</th><th>tasks</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     })
     .join("\n      ");
   return `<section class="ax-section">
     <h2>Cross-surface (same product)</h2>
-    <p class="ax-note">The same task bank + read-back oracle run across each surface a product exposes. Pass@1/pass@k come from the strongest profile; discovery is the share of Phase-0 signals it passed for that surface; content is the OpenAPI content-quality (smell) score, which is product-level (constant across a product's surfaces). This is the surface axis of the competitive cube — which interface serves agents best for each product.</p>
+    <p class="ax-note">The same task bank + read-back oracle run across each surface a product exposes. Pass@1/pass@k come from the strongest profile; discovery is the share of Phase-0 signals it passed for that surface; content is the OpenAPI content-quality score; sdk is the declared SDK surface-quality score. These static quality scores are product-level. This is the surface axis of the competitive cube — which interface serves agents best for each product.</p>
     ${blocks || '<p class="ax-empty">No surface results to compare.</p>'}
   </section>`;
 }
@@ -2251,6 +2314,7 @@ function renderCrossProduct(records: NormalizedResult[]): string {
           <td>${heat(r.pass_at_k)}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
         </tr>`,
         )
         .concat(
@@ -2262,20 +2326,21 @@ function renderCrossProduct(records: NormalizedResult[]): string {
           <td>${blockedPill(r.blocked as string)}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
         </tr>`,
           ),
         )
         .join("");
       return `<h3 class="ax-subhead">${esc(surface)} leaderboard</h3>
       <table class="ax-table">
-        <thead><tr><th>#</th><th>product</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead>
+        <thead><tr><th>#</th><th>product</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th><th>sdk</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     })
     .join("\n      ");
   return `<section class="ax-section">
     <h2>Cross-product (same surface)</h2>
-    <p class="ax-note">A leaderboard per surface: which products are most agent-usable through that interface. <code class="ax-code">content</code> is the OpenAPI content-quality (smell) score — how usable each product's spec is once found. Useful for picking a vendor on a given surface, or for a vendor to see where it ranks.</p>
+    <p class="ax-note">A leaderboard per surface: which products are most agent-usable through that interface. <code class="ax-code">content</code> is the OpenAPI content-quality score and <code class="ax-code">sdk</code> is the declared SDK surface-quality score. Useful for picking a vendor on a given surface, or for a vendor to see where it ranks.</p>
     ${blocks || '<p class="ax-empty">No product results to compare.</p>'}
   </section>`;
 }
@@ -2307,6 +2372,7 @@ function renderCrossHarness(records: NormalizedResult[]): string {
           <td>${blockedPill(r.blocked)}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
         </tr>`;
           }
           return `<tr${win ? ' class="ax-row--best"' : ""}>
@@ -2315,12 +2381,13 @@ function renderCrossHarness(records: NormalizedResult[]): string {
           <td>${heat(r.pass_at_k)}</td>
           <td>${heat(r.discovery_score)}</td>
           <td>${heat(r.content_quality)}</td>
+          <td>${heat(r.sdk_quality)}</td>
         </tr>`;
         })
         .join("");
       return `<h3 class="ax-subhead">${esc(product)} / ${esc(surface)}</h3>
       <table class="ax-table">
-        <thead><tr><th>harness</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead>
+        <thead><tr><th>harness</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th><th>sdk</th></tr></thead>
         <tbody>${rows}</tbody>
       </table>`;
     })

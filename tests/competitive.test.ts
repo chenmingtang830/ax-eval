@@ -81,15 +81,17 @@ describe("buildNormalizedResult", () => {
     expect(rec.profiles).toEqual(["ceiling", "floor"]);
     // Content quality defaults to null (not measured) when not passed.
     expect(rec.content_quality).toBeNull();
+    expect(rec.sdk_quality).toBeNull();
   });
 
-  it("records the content-quality score (0–1) when provided", () => {
+  it("records static quality scores (0-1) when provided", () => {
     const pack = makePack("asana");
     const runs: ProfileRun[] = [
       { profile: "ceiling", surface: "api", outcomes: [outcome("t1", true)] },
     ];
-    const rec = buildNormalizedResult(pack, "api", "host", runs, 0.72);
+    const rec = buildNormalizedResult(pack, "api", "host", runs, 0.72, 0.91);
     expect(rec.content_quality).toBe(0.72);
+    expect(rec.sdk_quality).toBe(0.91);
   });
 
   it("computes pass@k across repeated attempts (best profile)", () => {
@@ -152,6 +154,7 @@ describe("buildNormalizedResult", () => {
         },
       ],
       0.7,
+      0.9,
     );
     expect(cells.map((c) => c.fileStem).sort()).toEqual(["claude-code.mcp", "codex.api"]);
     const mcp = cells.find((c) => c.fileStem === "claude-code.mcp")!.record;
@@ -161,6 +164,7 @@ describe("buildNormalizedResult", () => {
     expect(mcp.profiles).toEqual(["low", "high"]);
     expect(mcp.pass_at_1).toBe(1);
     expect(mcp.content_quality).toBe(0.7);
+    expect(mcp.sdk_quality).toBe(0.9);
   });
 });
 
@@ -228,26 +232,31 @@ describe("renderCompetitiveReport", () => {
     expect(html).toContain("—");
   });
 
-  it("renders a content-quality column in both planes", () => {
+  it("renders static quality columns in both planes", () => {
     const records: NormalizedResult[] = [
-      rec({ product: "asana", surface: "api", content_quality: 0.82 }),
-      rec({ product: "asana", surface: "mcp", content_quality: 0.82 }),
-      rec({ product: "notion", surface: "api", content_quality: 0.41 }),
+      rec({ product: "asana", surface: "api", content_quality: 0.82, sdk_quality: 0.91 }),
+      rec({ product: "asana", surface: "mcp", content_quality: 0.82, sdk_quality: 0.91 }),
+      rec({ product: "notion", surface: "api", content_quality: 0.41, sdk_quality: 0.54 }),
     ];
     const html = renderCompetitiveReport(records);
-    // Header cell present in both tables.
+    // Header cells present in both tables.
     expect(html).toContain("<th>content</th>");
+    expect(html).toContain("<th>sdk</th>");
     // The two products' content scores render as heat percentages.
     expect(html).toContain("82%");
     expect(html).toContain("41%");
+    expect(html).toContain("91%");
+    expect(html).toContain("54%");
   });
 
-  it("renders an em-dash for content quality on legacy records (field absent)", () => {
-    // Older normalized.json files predate content_quality — must not crash.
+  it("renders an em-dash for static quality on legacy records (field absent)", () => {
+    // Older normalized.json files predate static quality fields — must not crash.
     const legacy = { ...rec({}) } as Partial<NormalizedResult>;
     delete legacy.content_quality;
+    delete legacy.sdk_quality;
     const html = renderCompetitiveReport([legacy as NormalizedResult]);
     expect(html).toContain("<th>content</th>");
+    expect(html).toContain("<th>sdk</th>");
     expect(html).toContain("—");
   });
 

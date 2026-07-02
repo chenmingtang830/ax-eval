@@ -38,6 +38,7 @@ import { run } from "./runner.js";
 import { auditSite } from "./static/audit.js";
 import { discoverSurfaces, renderDiscovery } from "./static/discover.js";
 import { auditSpecQuality, renderSpecQuality, renderSpecQualityHtml } from "./static/smells.js";
+import { auditSdkSurfaceQuality } from "./static/sdk-smells.js";
 import { renderAudit, renderGap } from "./static/render.js";
 import { loadReport, saveReport } from "./storage.js";
 import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
@@ -1459,9 +1460,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   // hiccup fail the (already-completed) behavioral verification.
   let staticReadiness: StaticReadiness | undefined;
   const site = pack.site_url;
-  if (!site && !pack.openapi_url) {
+  if (!site && !pack.openapi_url && !pack.surfaces?.sdk) {
     warnings.push(
-      "Static readiness skipped: pack has neither site_url nor openapi_url, so the gap can't be reported.",
+      "Static readiness skipped: pack has no site_url, openapi_url, or SDK surface, so the gap can't be reported.",
     );
   } else {
     const mode = args.offline ? "fixture" : "live";
@@ -1483,7 +1484,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         warnings.push(`Static v2 discover failed: ${err instanceof Error ? err.message : String(err)}.`);
       }
     } else {
-      warnings.push("Static v0/v2 skipped: pack has no site_url (content-quality audit still ran via openapi_url).");
+      warnings.push("Static v0/v2 skipped: pack has no site_url.");
     }
     // v3 content-quality (OpenAPI smell) audit — the "once found, is it usable?"
     // axis. Best-effort, like v0/v2: never fail an already-completed run.
@@ -1499,6 +1500,16 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       }
     } else {
       warnings.push("Content-quality (v3) audit skipped: pack has no openapi_url.");
+    }
+    if (pack.surfaces?.sdk) {
+      console.log("  Auditing SDK surface quality…");
+      try {
+        const audit = auditSdkSurfaceQuality(pack);
+        staticReadiness.sdkScore = audit.score;
+        staticReadiness.sdkQuality = audit;
+      } catch (err) {
+        warnings.push(`SDK quality audit skipped: ${err instanceof Error ? err.message : String(err)}.`);
+      }
     }
   }
   console.log("  Rendering report…");
@@ -1551,13 +1562,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // Content quality is product-level (the spec audit), normalized to 0–1 for
     // the competitive heat cells. null when no openapi_url / audit didn't run.
     staticReadiness?.contentScore !== undefined ? staticReadiness.contentScore / 100 : null,
+    // SDK quality is also product-level for the declared SDK surface. null when
+    // no SDK surface / audit didn't run.
+    staticReadiness?.sdkScore !== undefined ? staticReadiness.sdkScore / 100 : null,
   );
   const recordPath = outPath.replace(/\.[^.]+$/, "") + ".normalized.json";
   writeFileSync(recordPath, JSON.stringify(record, null, 2));
   console.log(`Saved normalized record → ${recordPath}`);
   const contentQuality =
     staticReadiness?.contentScore !== undefined ? staticReadiness.contentScore / 100 : null;
-  const cells = buildNormalizedResultCells(pack, byProfile, contentQuality, probeHarness().host);
+  const sdkQuality =
+    staticReadiness?.sdkScore !== undefined ? staticReadiness.sdkScore / 100 : null;
+  const cells = buildNormalizedResultCells(pack, byProfile, contentQuality, sdkQuality, probeHarness().host);
   if (cells.length > 1) {
     const base = outPath.replace(/\.[^.]+$/, "");
     const cellPaths: string[] = [];
