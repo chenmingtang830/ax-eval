@@ -68,8 +68,8 @@ A new SaaS is **a pack, not code.** The runner is target-agnostic: a pack
 `sandbox_scope` (the isolation the developer must provision), and `check-env`,
 the executor prompt, and the verifier all read those declarations.
 
-To add one, start from `ingest → generate → review` when a public OpenAPI or
-GraphQL surface exists, or hand-write `targets/examples/<name>/pack.yaml` when the target
+To add one, start from `ingest → generate → review` when a public OpenAPI,
+GraphQL, or MCP `tools/list` surface exists, or hand-write `targets/examples/<name>/pack.yaml` when the target
 needs curation. Model REST packs on `targets/examples/notion/pack.yaml` or
 `targets/examples/stripe/pack.yaml`; model GraphQL packs on `targets/examples/linear/pack.yaml`.
 Declare `auth` / `sandbox_scope` / any required `headers`, then run

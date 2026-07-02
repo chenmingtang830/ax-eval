@@ -8,6 +8,7 @@
  * envelope are heuristics with safe fallbacks so the engine stays target-generic.
  */
 import { parse as parseYaml } from "yaml";
+import { deref, type Json } from "./openapi-refs.js";
 
 export interface CrudResource {
   /** Collection name, e.g. "tasks" (from the collection path segment). */
@@ -51,39 +52,7 @@ export interface IngestedSpec {
   constantHeaders: Record<string, string>;
 }
 
-type Json = Record<string, unknown>;
-
 const IDENTITY_PREFERENCE = ["name", "title", "label", "text", "summary"];
-const MAX_REF_DEPTH = 20;
-
-/** Resolve a local `#/a/b/c` ref against the root document. */
-function resolveRef(root: Json, ref: string, seen = new Set<string>()): unknown {
-  if (!ref.startsWith("#/") || seen.has(ref) || seen.size > MAX_REF_DEPTH) return undefined;
-  seen.add(ref);
-  let node: unknown = root;
-  for (const part of ref.slice(2).split("/")) {
-    const key = part.replace(/~1/g, "/").replace(/~0/g, "~");
-    if (node && typeof node === "object" && key in (node as object)) {
-      node = (node as Json)[key];
-    } else {
-      return undefined;
-    }
-  }
-  if (node && typeof node === "object" && typeof (node as Json).$ref === "string") {
-    return resolveRef(root, (node as Json).$ref as string, seen);
-  }
-  return node;
-}
-
-function deref(root: Json, node: unknown, seen = new Set<string>()): Json | undefined {
-  if (!node || typeof node !== "object") return undefined;
-  const obj = node as Json;
-  if (typeof obj.$ref === "string") {
-    const r = resolveRef(root, obj.$ref, seen);
-    return r && typeof r === "object" ? (r as Json) : undefined;
-  }
-  return obj;
-}
 
 /**
  * Find the create body's property names + an envelope key. Asana wraps the

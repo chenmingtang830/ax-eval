@@ -146,7 +146,7 @@ describe("authoring repair loop", () => {
       authoringHints: ["Keep MCP coverage intact."],
     });
 
-    expect(repaired.auth.env).toBe("EXAMPLE_API_KEY");
+    expect(repaired.auth?.env).toBe("EXAMPLE_API_KEY");
     expect(repaired.tasks.every((task) => task.allowed_surfaces.includes("mcp"))).toBe(true);
   });
 });

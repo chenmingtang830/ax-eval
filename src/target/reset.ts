@@ -9,7 +9,7 @@
  * a per-target resetter is registered. Asana is the concrete reference; targets
  * without a resetter fail GRACEFULLY (a clear message, never a throw).
  */
-import { PROBE_PREFIX } from "../generate/pack.js";
+import { PROBE_PREFIX } from "../harness/namespace.js";
 import type { TargetPack } from "../schemas.js";
 
 /** The slice of the HTTP client a resetter needs (so tests stub it offline). */

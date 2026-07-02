@@ -11,6 +11,8 @@ build/
 .npm/
 .npm-cache/
 .claude/
+.codex/
+.understand-anything/
 
 # Run artifacts (created on demand by the CLI) — local only, never published
 results/
@@ -18,6 +20,12 @@ reports/
 transcripts/
 runs/
 *.log
+
+# Local/generated target packs. Repository baselines live under targets/examples/.
+targets/*/generated*.pack.yaml
+targets/*/generated*.pack.approval.json
+!targets/examples/
+!targets/examples/**
 
 # Internal docs — kept on disk for the maintainer; not part of the public repo.
 # Public-facing content lives in README.md. Images the README embeds live in assets/.

@@ -289,6 +289,7 @@ describe("deterministic generation", () => {
           oracles: [
             {
               type: "roundtrip",
+              description: "",
               readPathTemplate: "/docs/{docId}/pages/{gid}",
               assertField: "name",
               expected: "AX probe custom {ns}",

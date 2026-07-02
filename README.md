@@ -101,6 +101,17 @@ npm run ax-eval -- generate --from results/acme-graphql-ingest.json \
   --product Acme --out results/acme.generated.pack.yaml
 ```
 
+MCP-native targets can start from the server's own tool surface. `ingest --mcp`
+connects to a server or reads a saved `tools/list` response, then `generate`
+creates MCP-only tasks when it can pair a write tool with a read-back tool:
+
+```bash
+npm run ax-eval -- ingest --mcp https://mcp.example.com/mcp \
+  --out results/acme-mcp-ingest.json
+npm run ax-eval -- generate --from results/acme-mcp-ingest.json \
+  --product Acme --out results/acme.mcp.generated.pack.yaml
+```
+
 For CI/offline fixtures, keep the rule-derived path explicit:
 
 ```bash
@@ -179,6 +190,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ```bash
 npm run ax-eval -- ingest --openapi <url>       # parse REST/OpenAPI into an ingest file
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
+npm run ax-eval -- ingest --mcp <url|command|file> # inspect MCP tools/list
 npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>] # LLM-assisted by default
 npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
