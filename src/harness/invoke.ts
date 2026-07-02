@@ -1,6 +1,7 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
@@ -97,6 +98,12 @@ const DEFAULT_SPAWN: Spawn = (command, args, options) =>
     encoding: "buffer",
     maxBuffer: 50 * 1024 * 1024,
   });
+
+function defaultHarnessHome(harness: string, hint: string): string {
+  const base = resolve(tmpdir(), "ax-eval-homes");
+  mkdirSync(base, { recursive: true });
+  return mkdtempSync(resolve(base, `${harness}-${hint}-`));
+}
 
 /** The outcome of a finished child process — the subset runInvokeHarness needs.
  *  (Same shape whether produced by sync spawnSync or the async runner.) */
@@ -221,29 +228,51 @@ function text(buf: Buffer | string | null | undefined): string {
 }
 
 function detectWith(command: string, spawn: Spawn): InvokeDetection {
-  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
-  if (res.error) {
-    const code = (res.error as NodeJS.ErrnoException).code;
-    return {
-      ok: false,
-      command,
-      reason: code === "ENOENT" ? "missing-harness" : "detect-failed",
-      detail: res.error.message,
-    };
+  const tempHome = command === "claude" ? defaultHarnessHome("claude", "detect") : undefined;
+  const env = tempHome ? { ...process.env, HOME: tempHome } : undefined;
+  try {
+    const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], env });
+    if (res.error) {
+      const code = (res.error as NodeJS.ErrnoException).code;
+      return {
+        ok: false,
+        command,
+        reason: code === "ENOENT" ? "missing-harness" : "detect-failed",
+        detail: res.error.message,
+      };
+    }
+    if ((res.status ?? 1) !== 0) {
+      return {
+        ok: false,
+        command,
+        reason: "detect-failed",
+        detail: text(res.stderr) || `exit ${res.status}`,
+      };
+    }
+    return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
+  } finally {
+    if (tempHome) {
+      try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* best effort */ }
+    }
   }
-  if ((res.status ?? 1) !== 0) {
-    return {
-      ok: false,
-      command,
-      reason: "detect-failed",
-      detail: text(res.stderr) || `exit ${res.status}`,
-    };
-  }
-  return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
 }
 
 export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_SPAWN): InvokeDetection {
   return detectWith(commandFor(id), spawn);
+}
+
+function taskResultKeys(task: TargetPack["tasks"][number]): string[] {
+  const keys = new Set<string>(["gid"]);
+  const scan = (template: string | undefined) => {
+    if (!template) return;
+    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
+      const key = match[1];
+      if (key && key !== "gid") keys.add(key);
+    }
+  };
+  scan(task.create_path);
+  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
+  return [...keys];
 }
 
 function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
@@ -256,10 +285,10 @@ function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId
   const taskProps = Object.fromEntries(tasks.map((t) => [t.id, {
     type: "object",
     additionalProperties: false,
-    properties: {
-      gid: { anyOf: [{ type: "string" }, { type: "null" }] },
-    },
-    required: ["gid"],
+    properties: Object.fromEntries(
+      taskResultKeys(t).map((key) => [key, { anyOf: [{ type: "string" }, { type: "null" }] }]),
+    ),
+    required: taskResultKeys(t),
   }]));
   const strArray = { type: "array", items: { type: "string" } };
   return {
@@ -600,26 +629,38 @@ export async function runInvokeHarness(
   let ok = false;
   let stdout = "";
   let stderr = "";
-  while (attempt < maxAttempts) {
-    attempt += 1;
-    res = await spawnAsync(command, args, opts.cwd, {
-      timeoutMs: opts.timeoutMs,
-      env: opts.env,
-      successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
-    });
-    stdout = text(res.stdout);
-    stderr = text(res.stderr);
-    recoverResultFile(opts, stdout);
-    recoverTraceFile(opts, stdout);
-    ok =
-      !res.error &&
-      existsSync(opts.paths.resultsPath) &&
-      (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
-    if (ok || attempt >= maxAttempts) break;
-    // Failed and a retry is left: drop any partial results file so the next
-    // attempt is scored on its own output, not stale leftovers.
-    if (existsSync(opts.paths.resultsPath)) {
-      try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
+  const childEnv = { ...(opts.env ?? {}) };
+  let tempHome: string | undefined;
+  if (opts.harness === "claude-code" && !childEnv.HOME) {
+    tempHome = defaultHarnessHome("claude", opts.profile);
+    childEnv.HOME = tempHome;
+  }
+  try {
+    while (attempt < maxAttempts) {
+      attempt += 1;
+      res = await spawnAsync(command, args, opts.cwd, {
+        timeoutMs: opts.timeoutMs,
+        env: childEnv,
+        successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
+      });
+      stdout = text(res.stdout);
+      stderr = text(res.stderr);
+      recoverResultFile(opts, stdout);
+      recoverTraceFile(opts, stdout);
+      ok =
+        !res.error &&
+        existsSync(opts.paths.resultsPath) &&
+        (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
+      if (ok || attempt >= maxAttempts) break;
+      // Failed and a retry is left: drop any partial results file so the next
+      // attempt is scored on its own output, not stale leftovers.
+      if (existsSync(opts.paths.resultsPath)) {
+        try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
+      }
+    }
+  } finally {
+    if (tempHome) {
+      try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* best effort */ }
     }
   }
   writeFileSync(opts.paths.stdoutPath, stdout);

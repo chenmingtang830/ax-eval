@@ -90,17 +90,12 @@ function deref(root: Json, node: unknown, seen = new Set<string>()): Json | unde
  * payload in `data`; if the request schema has a single object property whose
  * own schema carries the real fields, treat that key as the envelope.
  */
-function analyzeCreateBody(
+function analyzeSchemaIdentity(
   root: Json,
-  op: Json,
+  schema: Json | undefined,
 ): { fields: string[]; envelope: string | null; identity: string } {
   const empty = { fields: [] as string[], envelope: null as string | null, identity: "name" };
-  const rb = deref(root, op.requestBody);
-  const content = rb?.content as Json | undefined;
-  const appJson = content?.["application/json"] as Json | undefined;
-  let schema = deref(root, appJson?.schema);
   if (!schema) return empty;
-
   let envelope: string | null = null;
   let props = deref(root, schema.properties) as Json | undefined;
   // Unwrap a single-object envelope (e.g. { data: { <real fields> } }).
@@ -128,6 +123,30 @@ function analyzeCreateBody(
   return { fields, envelope, identity };
 }
 
+function analyzeCreateBody(
+  root: Json,
+  op: Json,
+): { fields: string[]; envelope: string | null; identity: string } {
+  const rb = deref(root, op.requestBody);
+  const content = rb?.content as Json | undefined;
+  const appJson = content?.["application/json"] as Json | undefined;
+  return analyzeSchemaIdentity(root, deref(root, appJson?.schema));
+}
+
+function analyzeReadBody(
+  root: Json,
+  op: Json,
+): { fields: string[]; envelope: string | null; identity: string } {
+  const responses = deref(root, op.responses) as Json | undefined;
+  const ok =
+    deref(root, responses?.["200"]) ??
+    deref(root, responses?.["201"]) ??
+    deref(root, responses?.default);
+  const content = deref(root, ok?.content) as Json | undefined;
+  const appJson = content?.["application/json"] as Json | undefined;
+  return analyzeSchemaIdentity(root, deref(root, appJson?.schema));
+}
+
 /** Last `{param}`-free segment of a path, e.g. "/tasks/{gid}" → "tasks". */
 function collectionName(path: string): string | null {
   const segs = path.split("/").filter(Boolean);
@@ -141,6 +160,10 @@ function pathParams(path: string): string[] {
   return [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
 }
 
+function isAsyncRequestPath(path: string, coll: string): boolean {
+  return coll.toLowerCase() === "export" || /\/exports?(?:\/|$)/i.test(path);
+}
+
 /**
  * Choose the item-read endpoint that best matches a create path. Large specs
  * (e.g. Stripe) expose several GET-by-id paths under the same leaf collection
@@ -151,8 +174,8 @@ function pathParams(path: string): string[] {
  */
 function pickRead(
   createPath: string,
-  candidates: Array<{ path: string; param: string }>,
-): { path: string; param: string } | undefined {
+  candidates: Array<{ path: string; param: string; op: Json }>,
+): { path: string; param: string; op: Json } | undefined {
   if (candidates.length <= 1) return candidates[0];
   const exact = candidates.find((r) => r.path === `${createPath}/{${r.param}}`);
   if (exact) return exact;
@@ -260,7 +283,7 @@ export function parseSpec(text: string, source = "spec"): IngestedSpec {
   const creates: Array<{ path: string; op: Json; coll: string }> = [];
   // coll → ALL item-read endpoints under that leaf name (a big spec can have
   // several); the create↔read pairing below picks the best match per create.
-  const reads = new Map<string, Array<{ path: string; param: string }>>();
+  const reads = new Map<string, Array<{ path: string; param: string; op: Json }>>();
   // path → set of HTTP methods defined on it (lower-case), so we can tell whether
   // a chosen item-read path also exposes update (patch/put) or delete.
   const methodsByPath = new Map<string, Set<string>>();
@@ -289,7 +312,7 @@ export function parseSpec(text: string, source = "spec"): IngestedSpec {
         const itemColl = seg[seg.length - 2];
         if (itemColl && !itemColl.startsWith("{")) {
           const list = reads.get(itemColl) ?? [];
-          list.push({ path, param: params[params.length - 1]! });
+          list.push({ path, param: params[params.length - 1]!, op: get });
           reads.set(itemColl, list);
         }
       }
@@ -299,9 +322,11 @@ export function parseSpec(text: string, source = "spec"): IngestedSpec {
   let envelope: string | null = null;
   const resources: CrudResource[] = [];
   for (const { path, op, coll } of creates) {
+    if (isAsyncRequestPath(path, coll)) continue;
     const read = pickRead(path, reads.get(coll) ?? []);
     if (!read) continue; // need a read-back endpoint for a programmatic oracle
     const { fields, envelope: env, identity } = analyzeCreateBody(root, op);
+    const readBody = analyzeReadBody(root, read.op);
     if (env && !envelope) envelope = env;
     const itemMethods = methodsByPath.get(read.path) ?? new Set<string>();
     // Dependencies: parent resources implied by `{x_gid}` params on the create path.
@@ -315,7 +340,7 @@ export function parseSpec(text: string, source = "spec"): IngestedSpec {
       createOp: typeof op.operationId === "string" ? op.operationId : `create_${coll}`,
       readPath: read.path,
       readParam: read.param,
-      identityField: identity,
+      identityField: readBody.fields.length > 0 ? readBody.identity : identity,
       createFields: fields,
       dependsOn,
       canUpdate: itemMethods.has("patch") || itemMethods.has("put"),
