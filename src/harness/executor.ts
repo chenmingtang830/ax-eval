@@ -29,8 +29,10 @@ import type { TargetPack, Task } from "../schemas.js";
 import { apiSurface } from "../surface/api.js";
 import type { Surface } from "../surface/index.js";
 import { tasksForSurface } from "../surface/index.js";
+import { applyNs, NS_PLACEHOLDER, resolveNs } from "./namespace.js";
+import { taskResultShape } from "./result-shape.js";
 
-export const NS_PLACEHOLDER = "{ns}";
+export { applyNs, NS_PLACEHOLDER, resolveNs } from "./namespace.js";
 
 /** A single recorded step in an executor run (written to *.trace.json). */
 export interface TraceStep {
@@ -41,39 +43,6 @@ export interface TraceStep {
   path?: string;
   status?: number;
   note?: string;
-}
-
-/** Resolve a per-execution namespace: <genVersion>-<profile>-<shortRand>. */
-export function resolveNs(runId: string, profile: string): string {
-  const rand = Math.random().toString(36).slice(2, 6);
-  const base = (runId || "gen").replace(/[^a-z0-9-]/gi, "");
-  return `${base}-${profile}-${rand}`;
-}
-
-/** Substitute {ns} everywhere in a string. */
-export function applyNs(text: string, ns: string): string {
-  return text.split(NS_PLACEHOLDER).join(ns);
-}
-
-function taskResultKeys(task: Task): string[] {
-  const keys = new Set<string>(["gid"]);
-  const scan = (template: string | undefined) => {
-    if (!template) return;
-    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
-      const key = match[1];
-      if (key && key !== "gid") keys.add(key);
-    }
-  };
-  scan(task.create_path);
-  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
-  return [...keys];
-}
-
-function taskResultShape(task: Task): string {
-  const fields = taskResultKeys(task)
-    .map((key) => `"${key}": "<${key} or null>"`)
-    .join(", ");
-  return `      "${task.id}": {${fields}}`;
 }
 
 const EFFORT_BLOCK: Record<HarnessProfile["effort"], string> = {

@@ -3,9 +3,9 @@ import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { automationGeneratedAt, discoverAutomationTarget, selectSmokeTasks } from "../src/automation.js";
-import type { TargetPack } from "../src/schemas.js";
+import { TargetPackSchema } from "../src/schemas.js";
 
-const pack: TargetPack = {
+const pack = TargetPackSchema.parse({
   name: "demo",
   version: "0",
   standard_set_version: "gen-test",
@@ -82,7 +82,7 @@ const pack: TargetPack = {
       oracles: [{ type: "roundtrip", readPathTemplate: "/docs/{docId}/pages/{pageId}/export/{gid}", assertField: "status", expected: "complete" }],
     },
   ],
-};
+});
 
 describe("selectSmokeTasks", () => {
   it("keeps a stable cross-difficulty smoke subset and skips brittle async tasks", () => {

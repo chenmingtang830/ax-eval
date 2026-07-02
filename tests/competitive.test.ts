@@ -179,8 +179,10 @@ describe("renderCompetitiveReport", () => {
       pass_at_k: 1,
       attempts: 1,
       discovery_score: 1,
+      content_quality: null,
       profiles: ["ceiling"],
       best_profile: "ceiling",
+      model: null,
       ...over,
     };
   }

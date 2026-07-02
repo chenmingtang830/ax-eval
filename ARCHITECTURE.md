@@ -11,7 +11,7 @@ The core data flow is:
 
 ```text
 spec/docs
-  -> ingest
+  -> ingest (OpenAPI / GraphQL / MCP tools/list)
   -> generate (rule seed + preset hints + LLM authoring + validator/repair, or deterministic fallback)
   -> reviewed TargetPack
   -> exec-plan per harness x surface x effort
@@ -204,6 +204,14 @@ It supports:
 
 This is how hosted OAuth-backed MCP surfaces can run headlessly while still
 keeping secret handling local to the invoking process.
+
+### MCP-native ingest
+
+[src/ingest/mcp.ts](./src/ingest/mcp.ts) can inspect an MCP server's `tools/list`
+surface directly. [src/generate/mcp-pack.ts](./src/generate/mcp-pack.ts) then
+generates MCP-only tasks when it can pair a write tool with a read-back tool.
+Those tasks use `mcp_roundtrip` oracles, so the verifier calls an MCP read tool
+and asserts returned fields instead of relying on executor narration.
 
 ### Transcript parsing
 

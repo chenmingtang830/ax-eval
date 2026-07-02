@@ -43,6 +43,10 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  // MCP-native roundtrip fields: verification calls `mcpTool` with
+  // `mcpArgsTemplate` after substituting reported ids, then asserts the result.
+  mcpTool: z.string().optional(),
+  mcpArgsTemplate: z.record(z.unknown()).optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -305,6 +309,8 @@ export const TargetPackSchema = z.object({
    *  generator from the ingested spec's source. */
   openapi_url: z.string().default(""),
   docs_urls: z.array(z.string()).default([]),
+  /** MCP-native tool quality audit captured from tools/list generation. */
+  mcp_tool_quality: z.unknown().optional(),
   static: StaticScopeSchema.optional(),
   /** Optional cold-start discovery probe (behavioral AEO). */
   discovery: DiscoverySpecSchema.optional(),

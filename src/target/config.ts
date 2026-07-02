@@ -58,6 +58,7 @@ function envHint(primary: string | undefined, aliases: string[] = []): string {
  *  → ASANA_PAT so packs without an `auth` block still work. */
 export function resolveToken(pack: TargetPack): string {
   const a = pack.auth;
+  if (a?.type === "none") return "";
   const candidates = a?.env
     ? [
         envCandidates(a.verify_env, a.verify_env_aliases),
@@ -129,6 +130,18 @@ export interface EnvRequirement {
  *  Drives a target-agnostic `check-env`. */
 export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
   const reqs: EnvRequirement[] = [];
+  if (pack.auth?.type === "none") {
+    for (const p of pack.sandbox_scope) {
+      reqs.push({
+        role: p.name,
+        env: p.env,
+        required: p.required,
+        set: Boolean(env(p.env)),
+        instructions: p.instructions || undefined,
+      });
+    }
+    return reqs;
+  }
   const authEnv = pack.auth?.env || "ASANA_PAT";
   const authAliases = pack.auth?.env_aliases ?? [];
   const verifyEnv = pack.auth?.verify_env;
@@ -228,6 +241,9 @@ export function surfaceAuthStatus(pack: TargetPack, surface: SurfaceId): Surface
 
   // token / inherit: a single credential. "token" uses the surface's own
   // token_env; "inherit" (and api) reuse the top-level API credential.
+  if (kind === "inherit" && pack.auth?.type === "none") {
+    return { surface, kind, requirements: [], blocked: null, missing: [], instructions };
+  }
   const envName = kind === "token" ? a?.token_env || apiAuthEnv(pack) : apiAuthEnv(pack);
   const aliases = kind === "token" ? (a?.token_env_aliases ?? []) : apiAuthAliases(pack);
   const role = kind === "token" ? `${surface} token` : "auth";

@@ -1,3 +1,4 @@
+import type { SpawnSyncReturns } from "node:child_process";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -10,6 +11,7 @@ import {
   runInvokeHarness,
   type AsyncSpawn,
   type InvokeRunOptions,
+  type ProcResult,
 } from "../src/harness/invoke.js";
 
 const dirs: string[] = [];
@@ -40,11 +42,13 @@ function pack(): TargetPack {
   });
 }
 
-function spawnResult(overrides: Partial<ReturnType<typeof makeSpawnResult>> = {}) {
+type SyncProcResult = SpawnSyncReturns<Buffer> & ProcResult;
+
+function spawnResult(overrides: Partial<SyncProcResult> = {}): SyncProcResult {
   return { ...makeSpawnResult(), ...overrides };
 }
 
-function makeSpawnResult() {
+function makeSpawnResult(): SyncProcResult {
   return {
     pid: 123,
     output: [],

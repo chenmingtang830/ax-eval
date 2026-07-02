@@ -14,6 +14,7 @@
  *       [--min-pass-rate 0.8] [--html path]
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
  *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
+ *   ax-eval ingest --mcp <url|command|file> [--out json]             inspect MCP tools/list → IngestedMcp
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
  *                    [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N]
  *                    [--l4-limit N] [--base-url url] [--out yaml] [--deterministic]
@@ -38,12 +39,15 @@ import { run } from "./runner.js";
 import { auditSite } from "./static/audit.js";
 import { discoverSurfaces, renderDiscovery } from "./static/discover.js";
 import { auditSpecQuality, renderSpecQuality, renderSpecQualityHtml } from "./static/smells.js";
+import type { McpToolQualityAudit } from "./static/mcp-smells.js";
 import { renderAudit, renderGap } from "./static/render.js";
 import { loadReport, saveReport } from "./storage.js";
 import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
 import { ingestGraphqlDetailed } from "./ingest/graphql.js";
+import { ingestMcp, looksLikeMcpIngest } from "./ingest/mcp.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
+import { generateMcpPack } from "./generate/mcp-pack.js";
 import { authorPackWithLlm } from "./generate/authoring.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
 import {
@@ -141,7 +145,7 @@ function commandUsage(command: string | undefined): string {
     case "report":
       return "usage: ax-eval report <results.json>";
     case "ingest":
-      return "usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file>) [--out json] [--offline]";
+      return "usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file> | --mcp <url|command|file>) [--out json] [--offline]";
     case "generate":
       return [
         "usage: ax-eval generate --from <ingest.json> [--product P] [--site url]",
@@ -231,6 +235,7 @@ interface Parsed {
   html: string;
   openapi: string;
   graphql: string;
+  mcp: string;
   snapshot: string;
   from: string;
   baseUrl: string;
@@ -288,6 +293,7 @@ function parseArgs(argv: string[]): Parsed {
     html: "",
     openapi: "",
     graphql: "",
+    mcp: "",
     snapshot: "",
     from: "",
     baseUrl: "",
@@ -379,6 +385,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--html") p.html = value(++i, "--html");
     else if (a === "--openapi") p.openapi = value(++i, "--openapi");
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
+    else if (a === "--mcp") p.mcp = value(++i, "--mcp");
     else if (a === "--snapshot") p.snapshot = value(++i, "--snapshot");
     else if (a === "--from") p.from = value(++i, "--from");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
@@ -661,6 +668,10 @@ async function cmdVerify(args: Parsed): Promise<number> {
 }
 
 async function cmdIngest(args: Parsed): Promise<number> {
+  const selected = [args.openapi, args.graphql, args.mcp].filter(Boolean);
+  if (selected.length > 1) {
+    throw new Error("usage: ax-eval ingest accepts exactly one of --openapi, --graphql, or --mcp");
+  }
   // GraphQL ingest: persist rich introspection so `generate --from` can synthesize
   // read-back oracles, while keeping the summary focused on types + mutations.
   if (args.graphql) {
@@ -678,7 +689,20 @@ async function cmdIngest(args: Parsed): Promise<number> {
     console.log(`\nSaved → ${out}`);
     return 0;
   }
-  if (!args.openapi) throw new Error("usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file>) [--out json]");
+  if (args.mcp) {
+    const m = await ingestMcp(args.mcp);
+    console.log(`Ingested MCP tools (${m.source})`);
+    console.log(`  server:    ${m.server}`);
+    console.log(`  transport: ${m.transport}`);
+    console.log(`  tools:     ${m.tools.length}`);
+    for (const tool of m.tools.slice(0, 12)) console.log(`    - ${tool.name}`);
+    const out = args.out && args.out !== "results/last-run.json" ? args.out : "results/ingest-mcp.json";
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, JSON.stringify(m, null, 2));
+    console.log(`\nSaved → ${out}`);
+    return 0;
+  }
+  if (!args.openapi) throw new Error("usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file> | --mcp <url|command|file>) [--out json]");
   const spec = await ingestFromUrl(args.openapi, { offline: args.offline });
   console.log(`Ingested ${spec.title} (${spec.source})`);
   console.log(`  base_url: ${spec.baseUrl || "(none)"}`);
@@ -798,6 +822,29 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     console.log(
       `\nNext: review derived GraphQL oracles before any run —\n  ax-eval review --pack ${out}\n` +
       `Fill any sandbox id(s) it lists, then approve with --approve --by <name>.`,
+    );
+    return 0;
+  }
+
+  if (looksLikeMcpIngest(spec)) {
+    const pack = generateMcpPack(spec, {
+      packName: `${slugify(product)}-mcp-generated`,
+      product,
+      runId: args.runId || undefined,
+      limit: args.limit,
+    });
+    const yaml = packToYaml(pack);
+    const out = args.out && args.out !== "results/last-run.json"
+      ? args.out
+      : `results/${slugify(product)}.mcp.generated.pack.yaml`;
+    mkdirSync(dirname(out), { recursive: true });
+    writeFileSync(out, yaml);
+    console.log(`Generated ${pack.tasks.length} MCP-native tasks for ${product} (generated_by: ${pack.generated_by}):`);
+    for (const t of pack.tasks) console.log(`  [${t.difficulty}] ${t.id} — surfaces:[${t.allowed_surfaces.join(",")}]`);
+    console.log(`\nFrozen pack → ${out}`);
+    console.log(
+      `\nNext: review MCP-derived tool/oracle pairs before any run —\n  ax-eval review --pack ${out}\n` +
+      `Then approve with --approve --by <name>.`,
     );
     return 0;
   }
@@ -1318,6 +1365,13 @@ function snapshotRuns(runs: ProfileRun[]): ProfileRun[] {
   }));
 }
 
+function isMcpToolQualityAudit(value: unknown): value is McpToolQualityAudit {
+  return !!value
+    && typeof value === "object"
+    && typeof (value as { score?: unknown }).score === "number"
+    && Array.isArray((value as { findings?: unknown }).findings);
+}
+
 async function cmdRenderGenerated(args: Parsed): Promise<number> {
   if (!args.snapshot) {
     throw new Error("usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]");
@@ -1339,7 +1393,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
   const client = new BearerClient({
     baseUrl: pack.base_url,
-    token: resolveToken(pack),
+    token: pack.auth?.type === "none" ? "" : resolveToken(pack),
     responseEnvelope: pack.response_envelope,
     authScheme: pack.auth?.type ?? "bearer",
     authHeader: pack.auth?.header,
@@ -1459,13 +1513,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   // hiccup fail the (already-completed) behavioral verification.
   let staticReadiness: StaticReadiness | undefined;
   const site = pack.site_url;
-  if (!site && !pack.openapi_url) {
+  const mcpToolQuality = isMcpToolQualityAudit(pack.mcp_tool_quality) ? pack.mcp_tool_quality : undefined;
+  if (!site && !pack.openapi_url && !mcpToolQuality) {
     warnings.push(
       "Static readiness skipped: pack has neither site_url nor openapi_url, so the gap can't be reported.",
     );
   } else {
     const mode = args.offline ? "fixture" : "live";
     staticReadiness = { site: site || "" };
+    if (mcpToolQuality) {
+      staticReadiness.mcpToolQuality = mcpToolQuality;
+      staticReadiness.mcpToolScore = mcpToolQuality.score;
+    }
     if (site) {
       console.log("  Auditing static site readiness (v0 + v2)…");
       try {

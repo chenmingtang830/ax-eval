@@ -12,7 +12,7 @@
 import type { DiscoverySpec, TargetPack } from "../schemas.js";
 import type { RoundtripOutcome } from "./verify.js";
 import type { DiscoveryReport } from "./discovery.js";
-import { tasksForSurface, type SurfaceId } from "../surface/types.js";
+import { SURFACE_IDS, tasksForSurface, type SurfaceId } from "../surface/types.js";
 import { NORMALIZED_RESULT_SCHEMA, type NormalizedResult } from "./record.js";
 import type { TraceStep } from "../harness/executor.js";
 import { diffTrace, type TraceDiff } from "../harness/trace-diff.js";
@@ -25,6 +25,7 @@ import {
 import type { HarnessProbe } from "../harness/probe.js";
 import { REPORT_STYLE } from "../report-style.js";
 import { renderContentQualitySection, type SpecQualityAudit } from "../static/smells.js";
+import { renderMcpToolQualitySection, type McpToolQualityAudit } from "../static/mcp-smells.js";
 import type { StaticCheckResult } from "../static/types.js";
 
 export interface ProfileRun {
@@ -79,6 +80,9 @@ export interface StaticReadiness {
   /** The full smell audit behind `contentScore`, rendered as its own report
    *  section. Absent when the audit didn't run. */
   contentQuality?: SpecQualityAudit;
+  /** MCP tool-list quality score, 0–100, for MCP-native generated packs. */
+  mcpToolScore?: number;
+  mcpToolQuality?: McpToolQualityAudit;
 }
 
 /** One actionable, prioritized recommendation produced by the engine below. */
@@ -653,7 +657,7 @@ export function buildRecommendations(
 
   // 7) Weak / missing oracles → recommend a stronger (round-trip) oracle.
   const weakTasks = pack.tasks.filter(
-    (t) => t.oracles.length === 0 || !t.oracles.some((o) => o.type === "roundtrip"),
+    (t) => t.oracles.length === 0 || !t.oracles.some((o) => o.type === "roundtrip" || o.type === "mcp_roundtrip"),
   );
   if (weakTasks.length) {
     recs.push({
@@ -681,6 +685,20 @@ export function buildRecommendations(
         `The spec scores ${contentScore}/100 on content quality` +
         (cq ? ` (${cq.totalSmells} smell(s) across ${cq.endpointsAnalyzed} endpoints)` : "") +
         ". Structural validity isn't agent-readiness. For stable public APIs, don't churn existing paths just to satisfy style smells; prioritize additive fixes in the Content quality section: clearer parameter docs, examples, request/response schemas, auth notes, and rich-text/body requirements.",
+    });
+  }
+
+  const mcpToolScore = staticReadiness?.mcpToolScore;
+  if (mcpToolScore !== undefined && mcpToolScore < 80) {
+    const mq = staticReadiness?.mcpToolQuality;
+    recs.push({
+      category: "discovery",
+      priority: mcpToolScore < 50 ? "high" : "med",
+      title: "Improve MCP tool-list quality",
+      detail:
+        `The MCP tool surface scores ${mcpToolScore}/100` +
+        (mq ? ` (${mq.totalFindings} finding(s) across ${mq.toolsAnalyzed} tool(s))` : "") +
+        ". Improve tool descriptions, typed required inputs, returned ids, and read-after-write coverage so agents can operate from tools/list alone.",
     });
   }
 
@@ -754,6 +772,7 @@ function renderTldr(
   if (!cells.length) return "";
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const mcpTool = stat?.mcpToolScore;
   const harnesses = [...new Set(cells.map((c) => c.harness))];
 
   // A pill links to its detail section when one exists; Static discovery has no
@@ -807,6 +826,7 @@ function renderTldr(
       pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
       pill("Agent discovery", discSpread === "—" ? "—" : `${esc(discSpread)}`, "#agent-discovery"),
       content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+      mcpTool !== undefined ? pill("MCP tool quality", num(mcpTool, "/100"), "#mcp-tool-quality") : "",
     ].filter(Boolean);
     const byHarness = harnesses
       .map((h) => {
@@ -857,6 +877,7 @@ function renderTldr(
     pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
     pill("Agent discovery", num(agentDisc, "/100"), "#agent-discovery"),
     content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    mcpTool !== undefined ? pill("MCP tool quality", num(mcpTool, "/100"), "#mcp-tool-quality") : "",
   ].filter(Boolean);
   const executionBody = `<div class="ax-tldr__pills">${pill("Task success", num(best.pct, "%"), "#scores")}</div><p class="ax-tldr__section-note">On the <strong>${esc(surface.toUpperCase())}</strong> surface with <strong>${esc(best.profile)}</strong> effort, ${failNote}.</p>`;
   return `<section class="ax-section ax-tldr" id="tldr">
@@ -1041,6 +1062,7 @@ function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => str
 function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const mcpTool = stat?.mcpToolScore;
   const agentDisc = agentDiscoveryScore(runs);
   const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
   const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
@@ -1243,6 +1265,15 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       </div>`,
     );
   }
+  if (mcpTool !== undefined) {
+    cards.push(
+      `<div class="ax-card ${band(mcpTool)}">
+        ${val(mcpTool, "/100")}
+        <span class="ax-card__label"><a href="#mcp-tool-quality">MCP tool quality</a></span>
+        <span class="ax-card__sub">tools/list schema and read-back quality</span>
+      </div>`,
+    );
+  }
   const executionCards = [
     `<div class="ax-card ${band(best?.pct)}">
         ${val(best?.pct, "%")}
@@ -1258,6 +1289,9 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
     `<strong>Agent discovery /100</strong> — the share of the strongest run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
     content !== undefined
       ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    mcpTool !== undefined
+      ? `<strong>MCP tool quality /100</strong> — a weighted score over tools/list descriptions, input schemas, required fields, returned ids, and read-after-write coverage.`
       : "",
     `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed for the best profile: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
   ].filter(Boolean);
@@ -1349,6 +1383,19 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
       `OpenAPI content quality is ${stat.contentScore}/100 (${cq.totalSmells} spec smell(s) across ${cq.endpointsAnalyzed} endpoints)` +
         (top ? `, most often ${top}` : "") +
         " — agents may struggle to construct calls even after finding the docs.",
+    );
+  }
+
+  const mq = stat?.mcpToolQuality;
+  if (mq && stat?.mcpToolScore !== undefined && stat.mcpToolScore < 80) {
+    const top = (Object.keys(mq.byCategory) as (keyof typeof mq.byCategory)[])
+      .filter((c) => mq.byCategory[c] > 0)
+      .sort((a, b) => mq.byCategory[b] - mq.byCategory[a])[0];
+    pushFinding(
+      "discovery",
+      `MCP tool quality is ${stat.mcpToolScore}/100 (${mq.totalFindings} finding(s) across ${mq.toolsAnalyzed} tool(s))` +
+        (top ? `, most often ${top}` : "") +
+        " — agents may struggle to infer and verify workflows from tools/list alone.",
     );
   }
 
@@ -2057,7 +2104,8 @@ export function renderGeneratedReport(
     staticReadiness &&
     (staticReadiness.v0Score !== undefined ||
       staticReadiness.v2Score !== undefined ||
-      staticReadiness.contentScore !== undefined);
+      staticReadiness.contentScore !== undefined ||
+      staticReadiness.mcpToolScore !== undefined);
   const stat = hasStatic ? staticReadiness : undefined;
   const recs = buildRecommendations(pack, runs, stat);
   const findings = buildFindings(pack, runs, stat);
@@ -2088,6 +2136,7 @@ export function renderGeneratedReport(
         renderStaticDiscovery(stat),
         renderDiscovery(pack, runs),
         stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
+        stat?.mcpToolQuality ? renderMcpToolQualitySection(stat.mcpToolQuality) : "",
       ],
     ),
     renderSectionGroup(
@@ -2134,7 +2183,7 @@ ${body}
 // Competitive report (surface × product plane of the cube).
 // ---------------------------------------------------------------------------
 
-const SURFACE_ORDER: SurfaceId[] = ["api", "cli", "sdk", "mcp"];
+const SURFACE_ORDER: SurfaceId[] = [...SURFACE_IDS];
 
 /** A color-coded heat cell for a 0–1 metric: hi ≥ 0.8, mid ≥ 0.5, else lo;
  *  null/undefined renders a neutral em-dash. Returns the inner <span> only. */

@@ -8,7 +8,9 @@
  */
 import { readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
-import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import type { TraceStep } from "../harness/executor.js";
+import { applyNs, NS_PLACEHOLDER } from "../harness/namespace.js";
+import { callMcpHttpTool, callMcpStdioTool } from "../harness/mcp-json-rpc.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
@@ -29,7 +31,7 @@ export interface ExecutorResults {
    *  invoke.ts), not the profile's hardcoded label. undefined for older runs. */
   model?: string;
   /** task id -> reported ids (at least { gid }). */
-  results: Record<string, { gid?: string } & Record<string, unknown>>;
+  results: Record<string, { gid?: string | null } & Record<string, unknown>>;
 }
 
 export interface RoundtripOutcome {
@@ -113,6 +115,46 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
   return value;
 }
 
+function parseMaybeJsonText(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try {
+    return JSON.parse(trimmed) as unknown;
+  } catch {
+    return value;
+  }
+}
+
+function normalizeMcpToolResult(response: unknown): unknown {
+  const root = response && typeof response === "object" && "result" in response
+    ? (response as Record<string, unknown>).result
+    : response;
+  if (!root || typeof root !== "object") return root;
+  const obj = root as Record<string, unknown>;
+  if (obj.structuredContent) return obj.structuredContent;
+  if (Array.isArray(obj.content) && obj.content.length > 0) {
+    const first = obj.content[0];
+    if (first && typeof first === "object" && "text" in first) {
+      return parseMaybeJsonText((first as Record<string, unknown>).text);
+    }
+  }
+  return obj;
+}
+
+async function callMcpTool(
+  pack: TargetPack,
+  tool: string,
+  args: unknown,
+): Promise<unknown> {
+  const mcp = pack.surfaces?.mcp;
+  if (!mcp?.server) throw new Error("pack does not declare an MCP server");
+  const response = mcp.transport === "http" && /^https?:\/\//i.test(mcp.server)
+    ? await callMcpHttpTool(mcp.server, tool, args)
+    : await callMcpStdioTool(mcp.server, tool, args, 20000);
+  return normalizeMcpToolResult(response);
+}
+
 function extractTemplateParams(template: string, path: string): Record<string, string> | null {
   const tpl = template.split("/").filter(Boolean);
   const segs = path.split("?")[0]!.split("/").filter(Boolean);
@@ -154,7 +196,7 @@ function inferValueFromNote(note: string | undefined, name: string): string | un
 function inferTemplateValue(
   task: Task,
   name: string,
-  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  reported: ({ gid?: string | null } & Record<string, unknown>) | undefined,
   trace: TraceStep[],
   readPathTemplate: string,
 ): string | undefined {
@@ -182,7 +224,7 @@ function inferTemplateValue(
 function resolvePathTemplate(
   task: Task,
   readPathTemplate: string,
-  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  reported: ({ gid?: string | null } & Record<string, unknown>) | undefined,
   trace: TraceStep[],
 ): { path?: string; missing?: string } {
   const placeholders = [...readPathTemplate.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
@@ -281,8 +323,9 @@ async function readRoundtripBody(
 }
 
 async function verifyRoundtrip(
+  pack: TargetPack,
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: { gid?: string | null } | undefined,
   client: BearerClient,
   ns: string | undefined,
   fieldSelectParam: string | undefined,
@@ -291,6 +334,35 @@ async function verifyRoundtrip(
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
   for (const oracle of task.oracles) {
+    if (oracle.type === "mcp_roundtrip") {
+      const gid = inferTemplateValue(task, "gid", reported, trace, "{gid}");
+      if (!gid) {
+        out.push({ type: "mcp_roundtrip", passed: false, detail: "no gid reported by executor" });
+        continue;
+      }
+      if (!oracle.mcpTool || !oracle.assertField) {
+        out.push({ type: "mcp_roundtrip", passed: false, detail: "oracle missing mcpTool/assertField" });
+        continue;
+      }
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const body = await callMcpTool(pack, oracle.mcpTool, applyGidTemplate(oracle.mcpArgsTemplate ?? {}, gid));
+        const actual = resolveDotted(body, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "mcp_roundtrip",
+          passed,
+          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+        });
+      } catch (err) {
+        out.push({
+          type: "mcp_roundtrip",
+          passed: false,
+          detail: err instanceof Error ? err.message : String(err),
+        });
+      }
+      continue;
+    }
     if (oracle.type !== "roundtrip") continue;
     const gid = inferTemplateValue(task, "gid", reported, trace, oracle.readPathTemplate ?? task.create_path ?? "{gid}");
     if (!gid) {
@@ -389,6 +461,7 @@ export async function verifyGeneratedPack(
     let error: string | null = null;
     try {
       oracleResults = await verifyRoundtrip(
+        pack,
         task,
         reported,
         client,
