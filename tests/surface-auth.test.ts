@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
-import { surfaceAuthStatus } from "../src/target/config.js";
+import { describeRequiredEnv, resolveToken, surfaceAuthStatus } from "../src/target/config.js";
 import { buildBlockedResult } from "../src/generate/record.js";
 import { renderCompetitiveReport } from "../src/generate/report.js";
 
@@ -96,6 +96,18 @@ describe("surfaceAuthStatus", () => {
     });
     expect(surfaceAuthStatus(pack, "sdk").kind).toBe("inherit");
     expect(surfaceAuthStatus(pack, "sdk").blocked).toBe("missing-credential");
+  });
+
+  it("auth:none packs do not require legacy API credentials for api or mcp surfaces", () => {
+    const pack = TargetPackSchema.parse({
+      name: "mcp-native",
+      auth: { type: "none", env: "" },
+      surfaces: { mcp: { server: "node fake-mcp.js", transport: "stdio" } },
+    });
+    expect(resolveToken(pack)).toBe("");
+    expect(describeRequiredEnv(pack)).toEqual([]);
+    expect(surfaceAuthStatus(pack, "api").blocked).toBeNull();
+    expect(surfaceAuthStatus(pack, "mcp").blocked).toBeNull();
   });
 });
 

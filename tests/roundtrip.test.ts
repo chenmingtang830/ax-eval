@@ -1,10 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
 import { HttpApiError, resolveDotted } from "../src/http/client.js";
-import type { TargetPack } from "../src/schemas.js";
+import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { profileSatisfies, getProfile } from "../src/harness/profile.js";
 
-const pack: TargetPack = {
+const pack = TargetPackSchema.parse({
   name: "t",
   version: "0",
   standard_set_version: "gen-test",
@@ -34,7 +37,7 @@ const pack: TargetPack = {
       ],
     },
   ],
-};
+});
 
 // Fake client: returns the (already-unwrapped) resource body by gid.
 function fakeClient(store: Record<string, Record<string, unknown>>) {
@@ -51,6 +54,10 @@ function fakeClient(store: Record<string, Record<string, unknown>>) {
 }
 
 describe("round-trip verification", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   it("passes when the API read-back matches expected", async () => {
     const exec: ExecutorResults = { profile: "ceiling", results: { "gen-l1-tasks": { gid: "1" } } };
     const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }));
@@ -181,6 +188,135 @@ describe("round-trip verification", () => {
     };
     const out = await verifyGeneratedPack(urlPack, exec, fakeClient({}));
     expect(out[0]!.success).toBe(true);
+  });
+
+  it("verifies MCP-native round-trip oracles through an HTTP MCP read tool", async () => {
+    const mcpPack: TargetPack = {
+      ...pack,
+      base_url: "",
+      surfaces: {
+        mcp: { server: "https://mcp.example.test/mcp", transport: "http" },
+      },
+      tasks: [
+        {
+          id: "mcp-l1-issue",
+          title: "MCP issue",
+          prompt: "Create an issue",
+          difficulty: "L1",
+          allowed_surfaces: ["mcp", "docs"],
+          depends_on: [],
+          trace: [],
+          oracles: [
+            {
+              type: "mcp_roundtrip",
+              description: "",
+              mcpTool: "get_issue",
+              mcpArgsTemplate: { issueId: "{gid}" },
+              assertField: "title",
+              expected: "AX probe issue ns-1",
+            },
+          ],
+        },
+      ],
+    };
+    const calls: unknown[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (_url: string, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body ?? "{}"));
+      calls.push(body);
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => "application/json" },
+        text: async () => JSON.stringify(
+          body.method === "tools/call"
+            ? { result: { structuredContent: { title: "AX probe issue ns-1" } } }
+            : { result: {} },
+        ),
+      } as unknown as Response;
+    }));
+
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      surface: "mcp",
+      results: { "mcp-l1-issue": { gid: "ISS-1" } },
+    };
+    const out = await verifyGeneratedPack(mcpPack, exec, fakeClient({}), "mcp");
+    expect(out[0]!.success).toBe(true);
+    expect(calls.map((call) => (call as { method?: string }).method)).toEqual([
+      "initialize",
+      "notifications/initialized",
+      "tools/call",
+    ]);
+    expect(calls).toContainEqual({
+      jsonrpc: "2.0",
+      id: 2,
+      method: "tools/call",
+      params: { name: "get_issue", arguments: { issueId: "ISS-1" } },
+    });
+  });
+
+  it("verifies MCP-native round-trip oracles through a stdio MCP read tool", async () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-mcp-stdio-"));
+    try {
+      const server = resolve(dir, "server.js");
+      writeFileSync(server, `#!/usr/bin/env node
+const readline = require("node:readline");
+const rl = readline.createInterface({ input: process.stdin });
+let initialized = false;
+rl.on("line", (line) => {
+  const msg = JSON.parse(line);
+  if (msg.method === "initialize") {
+    console.log(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { protocolVersion: "2025-03-26", capabilities: {} } }));
+  } else if (msg.method === "notifications/initialized") {
+    initialized = true;
+  } else if (msg.method === "tools/call") {
+    if (!initialized) {
+      console.log(JSON.stringify({ jsonrpc: "2.0", id: msg.id, error: { code: -32002, message: "not initialized" } }));
+    } else {
+      console.log(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { content: [{ type: "text", text: JSON.stringify({ title: "AX probe issue ns-stdio" }) }] } }));
+    }
+  }
+});
+`);
+      chmodSync(server, 0o755);
+      const mcpPack: TargetPack = {
+        ...pack,
+        base_url: "",
+        surfaces: {
+          mcp: { server: `node ${server}`, transport: "stdio" },
+        },
+        tasks: [
+          {
+            id: "mcp-l1-issue",
+            title: "MCP issue",
+            prompt: "Create an issue",
+            difficulty: "L1",
+            allowed_surfaces: ["mcp", "docs"],
+            depends_on: [],
+            trace: [],
+            oracles: [
+              {
+                type: "mcp_roundtrip",
+                description: "",
+                mcpTool: "get_issue",
+                mcpArgsTemplate: { issueId: "{gid}" },
+                assertField: "title",
+                expected: "AX probe issue ns-stdio",
+              },
+            ],
+          },
+        ],
+      };
+      const exec: ExecutorResults = {
+        profile: "ceiling",
+        surface: "mcp",
+        results: { "mcp-l1-issue": { gid: "ISS-1" } },
+      };
+      const out = await verifyGeneratedPack(mcpPack, exec, fakeClient({}), "mcp");
+      expect(out[0]!.success).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("fills parent path params from the task trace when the oracle needs more than gid", async () => {

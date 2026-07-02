@@ -72,6 +72,18 @@ npm run ax-eval -- generate --from results/<name>-ingest.json
 #    → writes results/<name>.generated.pack.yaml (auto-derives product, auth, sandbox scope)
 ```
 
+For an MCP-native target, start from the server's tool surface instead of an API
+spec:
+
+```bash
+npm run ax-eval -- ingest   --mcp <server-url-or-command>
+npm run ax-eval -- generate --from results/ingest-mcp.json --product <name>
+```
+
+This generates MCP-only tasks when the tool list exposes a write tool and a
+matching read-back tool. Review the generated MCP tool/oracle pair before any
+live run.
+
 Default generation is LLM-assisted: ax-eval builds a rule-derived seed from the
 spec, then asks a local generator harness (`codex` or `claude-code`) to improve
 it. Product presets can add authoring hints and surface-shaping rules, but code

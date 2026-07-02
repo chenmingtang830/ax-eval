@@ -22,6 +22,9 @@ export function oracleTier(o: OracleSpec): { tier: "T1" | "T2"; confidence: "hig
   if (o.type === "roundtrip") {
     return { tier: "T1", confidence: "high", why: "round-trips the created resource and asserts a field" };
   }
+  if (o.type === "mcp_roundtrip") {
+    return { tier: "T1", confidence: "high", why: "round-trips through an MCP read tool and asserts a field" };
+  }
   if (o.type === "exists") {
     return { tier: "T2", confidence: "low", why: "existence-only — does not assert the created content" };
   }

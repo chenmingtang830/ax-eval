@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSpec } from "../src/ingest/openapi.js";
+import { parseMcpToolsPayload } from "../src/ingest/mcp.js";
 
 const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -42,6 +43,43 @@ describe("openapi ingest", () => {
   it("reports no auth + no constant headers when the spec declares none", () => {
     expect(spec.auth).toEqual({ type: "none", header: null });
     expect(spec.constantHeaders).toEqual({});
+  });
+});
+
+describe("mcp ingest", () => {
+  it("normalizes tools/list responses into an MCP ingest artifact", () => {
+    const ingest = parseMcpToolsPayload(
+      {
+        result: {
+          tools: [
+            {
+              name: "create_issue",
+              description: "Create an issue",
+              inputSchema: {
+                type: "object",
+                properties: { title: { type: "string" } },
+                required: ["title"],
+              },
+            },
+            {
+              name: "get_issue",
+              description: "Read an issue by id",
+              inputSchema: {
+                type: "object",
+                properties: { issueId: { type: "string" } },
+                required: ["issueId"],
+              },
+            },
+          ],
+        },
+      },
+      "fixture",
+      "https://mcp.example.test/mcp",
+    );
+
+    expect(ingest.schema).toBe("ax.mcp-ingest/v1");
+    expect(ingest.transport).toBe("http");
+    expect(ingest.tools.map((tool) => tool.name)).toEqual(["create_issue", "get_issue"]);
   });
 });
 
