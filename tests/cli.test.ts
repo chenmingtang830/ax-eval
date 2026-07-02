@@ -81,6 +81,66 @@ describe("cli arg handling", () => {
     expect(code).toBe(1);
     expect(out).toContain("usage: ax-eval automate-report --company <name>");
   });
+
+  it("ingests MCP tools and generates an MCP-native pack", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-mcp-cli-"));
+    try {
+      const toolsPath = resolve(dir, "tools.json");
+      const ingestPath = resolve(dir, "ingest-mcp.json");
+      const packPath = resolve(dir, "pack.yaml");
+      writeFileSync(toolsPath, JSON.stringify({
+        title: "Widget MCP",
+        result: {
+          tools: [
+            {
+              name: "create_widget",
+              description: "Create a widget",
+              inputSchema: {
+                type: "object",
+                properties: { name: { type: "string" } },
+                required: ["name"],
+              },
+            },
+            {
+              name: "get_widget",
+              description: "Get a widget by widgetId",
+              inputSchema: {
+                type: "object",
+                properties: { widgetId: { type: "string" } },
+                required: ["widgetId"],
+              },
+            },
+          ],
+        },
+      }));
+      const ingested = runCli(["ingest", "--mcp", toolsPath, "--out", ingestPath]);
+      expect(ingested.code).toBe(0);
+      expect(ingested.out).toContain("Ingested MCP tools");
+      expect(readFileSync(ingestPath, "utf8")).toContain('"schema": "ax.mcp-ingest/v1"');
+
+      const generated = runCli(["generate", "--from", ingestPath, "--product", "Widget", "--out", packPath, "--deterministic"]);
+      expect(generated.code).toBe(0);
+      expect(generated.out).toContain("Generated 1 MCP-native tasks");
+      const pack = loadPack(packPath);
+      expect(pack.surfaces?.mcp?.server).toBe(toolsPath);
+      expect(pack.tasks[0]!.allowed_surfaces).toEqual(["mcp", "docs"]);
+      expect(pack.tasks[0]!.oracles[0]!.type).toBe("mcp_roundtrip");
+
+      const runDir = resolve(dir, "run");
+      const planned = runCli([
+        "exec-plan",
+        "--pack", packPath,
+        "--skip-review",
+        "--surface", "mcp",
+        "--run-dir", runDir,
+      ], { ASANA_PAT: "", ASANA_VERIFY_PAT: "" });
+      expect(planned.code).toBe(0);
+      expect(planned.out).toContain("surface=mcp");
+      expect(readdirSync(runDir)).toContain("prompt-high-mcp.txt");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe("automate-report", () => {
