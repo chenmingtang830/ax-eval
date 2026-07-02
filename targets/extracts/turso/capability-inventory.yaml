@@ -1,0 +1,534 @@
+vendor: Turso
+slug: turso
+category: database
+extracted_at: 2026-07-02T00:00:00.000Z
+capabilities:
+  - capability_name: create-table
+    title: Table Creation & Schema Definition
+    family: data-definition
+    description: Create tables with column definitions, declared types, STRICT
+      mode, and inline constraints including primary keys, uniqueness,
+      defaults, checks, and foreign-key references.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
+        quote: Create a new table in the database with column definitions, data
+          types, and constraints.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
+        quote: PRIMARY KEY [ASC | DESC] [AUTOINCREMENT] NOT NULL UNIQUE DEFAULT
+          expression CHECK (expression) REFERENCES foreign-table
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-insert
+    title: Row Insert
+    family: data-write
+    description: Insert one or more rows with literal values, query results, or
+      column defaults, including conflict handling and RETURNING support.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/insert
+        quote: Adds one or more rows to a table.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/insert
+        quote: Rows can be specified as literal values, copied from another
+          query, or generated from column defaults.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-update
+    title: Row Update
+    family: data-write
+    description: Update existing rows with SET expressions, optional FROM joins,
+      WHERE filters, RETURNING output, and ORDER BY/LIMIT controls.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/update
+        quote: The UPDATE statement modifies the values of columns in existing
+          rows of a table.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/update
+        quote: UPDATE changes column values in rows that match the WHERE
+          condition.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-delete
+    title: Row Delete
+    family: data-write
+    description: Delete rows with WHERE predicates plus RETURNING output and
+      ORDER BY/LIMIT/OFFSET controls for bounded removals.
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/delete
+        quote: The DELETE statement removes rows from a table.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/delete
+        quote: DELETE removes rows that match the WHERE condition.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: filtered-reads-and-counts
+    title: Filtered Reads, Aggregates, and Counts
+    family: data-read
+    description: Read data with SELECT using WHERE filters, joins, pattern
+      matching, GROUP BY, HAVING, subqueries, CTEs, and aggregate functions
+      including COUNT.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select
+        quote: SELECT is the primary way to read data in Turso and supports
+          filtering, joining, aggregation, sorting, subqueries, and set
+          operations.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select
+        quote: Groups rows that share the same values in the specified columns.
+          Typically used with aggregate functions.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: query-pagination
+    title: Query Pagination with LIMIT / OFFSET
+    family: data-read
+    description: Page through ordered result sets with LIMIT and OFFSET, with
+      docs explicitly warning to pair them with ORDER BY for stable paging.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select
+        quote: Restricts the number of rows returned and optionally skips a
+          number of rows.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select
+        quote: Always use ORDER BY with LIMIT and OFFSET.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: schema-introspection
+    title: Schema & Metadata Introspection
+    family: data-read
+    description: Inspect tables, columns, indexes, functions, supported PRAGMAs,
+      schema version, and other database metadata through PRAGMA commands.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: PRAGMA statements are special commands used to query or modify
+          database configuration, retrieve metadata, and control database
+          behavior.
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: table_info Returns one row for each column in the named table.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: alter-table-schema-evolution
+    title: ALTER TABLE Schema Evolution
+    family: migration
+    description: Evolve schemas without table recreation by renaming tables,
+      renaming columns, adding columns, and dropping columns.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
+        quote: Modify the structure of an existing table by renaming, adding, or
+          dropping columns.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
+        quote: Turso supports four forms of ALTER TABLE
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: transactions
+    title: Transactions & Atomic Multi-Statement Work
+    family: integrity
+    description: Group multiple SQL statements into explicit BEGIN/COMMIT/ROLLBACK
+      transactions, with autocommit for standalone statements.
+    resource_kind: transaction
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+        quote: Transactions group multiple SQL statements into a single atomic
+          unit of work.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+        quote: Either all statements in a transaction succeed and are committed,
+          or the entire transaction is rolled back and no changes are applied.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: concurrent-write-transactions
+    title: Concurrent Writes with BEGIN CONCURRENT
+    family: integrity
+    description: Enable MVCC mode and use BEGIN CONCURRENT for optimistic
+      concurrent write transactions with snapshot isolation and conflict
+      retries.
+    resource_kind: transaction
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+        quote: The BEGIN CONCURRENT statement starts an optimistic concurrent
+          write transaction that allows multiple connections to write
+          simultaneously.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+        quote: If a write-write conflict is detected, the COMMIT fails and the
+          transaction must be rolled back and retried.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: integrity-controls
+    title: Constraints, Foreign-Key Enforcement, and Integrity Checks
+    family: integrity
+    description: Define schema-level integrity rules and use PRAGMAs to enforce
+      foreign keys, run full or quick integrity checks, and guard a connection
+      in query-only mode.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
+        quote: PRIMARY KEY [ASC | DESC] [AUTOINCREMENT] NOT NULL UNIQUE DEFAULT
+          expression CHECK (expression) REFERENCES foreign-table
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: Performs a thorough integrity check of the entire database.
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: When enabled, prevents any changes to the database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: database-branching
+    title: Database Branching
+    family: migration
+    description: Create a new database from an existing database for isolated
+      schema changes, testing, and CI workflows, with manual merge/delete
+      handling afterward.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/features/branching
+        quote: You can create a new database from an existing database using the
+          CLI or API.
+      - doc_url: https://docs.turso.tech/features/branching
+        quote: Database branches are completely separate from the original
+          database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: point-in-time-recovery
+    title: Point-in-Time Recovery
+    family: backup-and-recovery
+    description: Restore a database by creating a new database from an existing
+      one at a specified timestamp, then repoint clients to the restored
+      database.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/features/point-in-time-recovery
+        quote: You create a new database from the existing database using the
+          CLI or API.
+      - doc_url: https://docs.turso.tech/features/point-in-time-recovery
+        quote: Restoring from a PITR creates a new database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: snapshot-export-and-sqlite-import
+    title: Snapshot Export and SQLite Import
+    family: backup-and-recovery
+    description: Export Turso database snapshots to SQLite files and import
+      existing SQLite databases into Turso Cloud, supporting backup handoff and
+      migration workflows.
+    resource_kind: backup
+    operation_kind: backup
+    surfaces_documented:
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/cli/db/export
+        quote: Export a database snapshot from Turso to a SQLite file.
+      - doc_url: https://docs.turso.tech/cli/db/import
+        quote: You can import an existing SQLite file to Turso Cloud
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: fine-grained-access-control
+    title: Fine-Grained Access Control and Read-Only Tokens
+    family: access-control
+    description: Issue database tokens with read-only access or table/action
+      scoped permissions covering reads, writes, and schema changes.
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
+        quote: Fine-grained permissions let you control access at the table and
+          action level.
+      - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
+        quote: data_read data_add data_update data_delete schema_add
+          schema_update schema_delete
+      - doc_url: https://docs.turso.tech/cli/db/tokens/create
+        quote: Restrict the token to read only access.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: network-access-allow-rules
+    title: Source-Based Network Access Control
+    family: access-control
+    description: Restrict connectivity by IP address, CIDR range, AWS VPC
+      endpoint, or both together with AND semantics.
+    resource_kind: database
+    operation_kind: operate
+    surfaces_documented:
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/allow-rules
+        quote: Restrict database access to specific IP addresses, CIDR ranges,
+          or AWS VPC endpoints.
+      - doc_url: https://docs.turso.tech/cloud/allow-rules
+        quote: When both lists are configured, a connection must satisfy both
+          rules
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: sql-over-http
+    title: SQL over HTTP API
+    family: core-operations
+    description: Execute SQL over HTTPS with authenticated pipeline requests,
+      including interactive connections plus health, version, dump, and job
+      inspection endpoints.
+    resource_kind: api
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/http/reference
+        quote: Turso Databases can be accessed via HTTP.
+      - doc_url: https://docs.turso.tech/sdk/http/reference
+        quote: execute execute a statement on the connection.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: server-side-triggers
+    title: Server-Side Triggers
+    family: core-operations
+    description: Define triggers that automatically execute SQL statements in
+      response to INSERT, UPDATE, or DELETE events on tables or views. The docs
+      mark this feature as experimental.
+    resource_kind: trigger
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger
+        quote: Create a trigger that automatically executes one or more SQL
+          statements when a row is inserted into, updated in, or deleted from a
+          table.
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger
+        quote: A trigger defines a set of SQL statements that run automatically
+          when a specified data modification event occurs
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: full-text-search
+    title: Tantivy Full-Text Search
+    family: search
+    description: Build FTS indexes with CREATE INDEX ... USING fts and query them
+      with fts_match, fts_score, and fts_highlight for ranked search and result
+      highlighting.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/fts
+        quote: Turso provides full-text search through custom FTS indexes and
+          three SQL functions
+      - doc_url: https://docs.turso.tech/sql-reference/functions/fts
+        quote: FTS indexes are created with the USING fts clause on CREATE
+          INDEX.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: vector-search
+    title: Native Vector Search
+    family: search
+    description: Store embeddings alongside relational data and perform
+      similarity search with built-in vector types and distance functions for
+      semantic search and recommendation workflows.
+    resource_kind: function
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/guides/vector-search
+        quote: Turso supports vector search as a native feature - no extensions
+          required.
+      - doc_url: https://docs.turso.tech/guides/vector-search
+        quote: Store vector embeddings alongside your relational data and query
+          them using built-in distance functions for similarity search.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: change-data-capture
+    title: Change Data Capture
+    family: change-data-capture
+    description: Enable per-connection CDC with PRAGMA to record row changes into
+      a queryable table, including transaction metadata and schema changes to
+      sqlite_schema.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/cdc
+        quote: Change Data Capture (CDC) tracks all data changes (inserts,
+          updates, deletes) made to your database tables.
+      - doc_url: https://docs.turso.tech/tursodb/cdc
+        quote: Changes are recorded in a local table that you can query like any
+          other table.
+      - doc_url: https://docs.turso.tech/tursodb/cdc
+        quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE
+          INDEX, etc.) as changes to the sqlite_schema table
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: change-listen-endpoint
+    title: Change Listen Endpoint
+    family: change-data-capture
+    description: Listen for committed insert, update, or delete events over the
+      HTTP API for a specific table. The docs mark this endpoint as technical
+      preview.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/http/reference
+        quote: You can listen to changes committed to your database using the
+          /beta/listen endpoint
+      - doc_url: https://docs.turso.tech/sdk/http/reference
+        quote: The name of the action to listen to - insert, update, or delete.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

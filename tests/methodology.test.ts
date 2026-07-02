@@ -1,0 +1,370 @@
+import { describe, expect, it } from "vitest";
+import { mkdtempSync, readdirSync, rmSync, mkdirSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import {
+  CapabilityInventorySchema,
+  SupportMatrixSchema,
+  coverageMatrixPath,
+  defaultSuiteMethodology,
+  loadSupportMatrix,
+  methodologyPath,
+  selectionLedgerPath,
+  supportMatrixPath,
+  traceReviewPath,
+  writeCapabilityInventory,
+  writeCoverageMatrix,
+  writeFailureTaxonomy,
+  writeGraderLedger,
+  writeMethodology,
+  writeSelectionLedger,
+  writeSupportMatrix,
+  writeTraceReview,
+} from "../src/generate/methodology.js";
+import { composePack } from "../src/generate/compose-pack.js";
+import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
+import type { Suite } from "../src/generate/suite.js";
+
+describe("suite methodology artifacts", () => {
+  it("defaults canonical suite scope to api/sdk/cli", () => {
+    const methodology = defaultSuiteMethodology("database");
+    expect(methodology.surface_scope).toEqual(["api", "sdk", "cli"]);
+    expect(methodology.static_ax.dimensions).toContain("discoverability");
+    expect(methodology.behavioral.source_of_truth).toMatch(/world state/i);
+  });
+
+  it("writes capability inventory and support matrix artifacts", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-"));
+    try {
+      const inventoryPath = writeCapabilityInventory(dir, CapabilityInventorySchema.parse({
+        vendor: "Acme",
+        slug: "acme",
+        category: "database",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        capabilities: [{
+          capability_name: "schema-migration",
+          title: "Schema migration",
+          family: "migration",
+          description: "Tracked schema changes.",
+          resource_kind: "table",
+          operation_kind: "migrate",
+          surfaces_documented: ["api", "cli"],
+          support_type: "native",
+          evidence: [{ doc_url: "https://docs.example/migrate", quote: "Run tracked migrations." }],
+          extraction_provenance: { source: "official-docs", extracted_at: "2026-01-01T00:00:00.000Z", extractor: "test" },
+        }],
+      }));
+      expect(inventoryPath).toContain("capability-inventory.yaml");
+      expect(readdirSync(resolve(dir, "targets", "extracts", "acme"))).toContain("capabilities.yaml");
+
+      writeSupportMatrix(dir, "targets/suites/demo.yaml", SupportMatrixSchema.parse({
+        schema: "ax.support-matrix/v1",
+        benchmark: "DEMO",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        entries: [{
+          vendor: "Acme",
+          task_id: "db-T01-schema-migration",
+          surface: "api",
+          status: "supported",
+          source_concept: "schema-migration",
+        }],
+      }));
+      expect(loadSupportMatrix(dir, "targets/suites/demo.yaml")?.entries).toHaveLength(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("loads legacy capabilities.yaml extracts and upgrades them to inventory shape", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-legacy-"));
+    try {
+      const extractDir = resolve(dir, "targets", "extracts", "acme");
+      mkdirSync(extractDir, { recursive: true });
+      writeFileSync(resolve(extractDir, "capabilities.yaml"), [
+        "vendor: Acme",
+        "slug: acme",
+        "category: database",
+        "extracted_at: 2026-01-01T00:00:00.000Z",
+        "capabilities:",
+        "  - name: row-level-security",
+        "    title: Row-level security",
+        "    description: Restrict row access by identity.",
+        "    doc_url: https://docs.example/rls",
+        "    doc_quote: Enable policies per row.",
+        "",
+      ].join("\n"));
+
+      const loaded = loadCapabilityExtract(dir, "acme");
+      expect(loaded?.capabilities).toHaveLength(1);
+      expect(loaded?.capabilities[0]?.capability_name).toBe("row-level-security");
+      expect(loaded?.capabilities[0]?.family).toBe("access-control");
+      expect(loaded?.capabilities[0]?.evidence[0]?.doc_url).toBe("https://docs.example/rls");
+      expect(readdirSync(extractDir)).toContain("capability-inventory.yaml");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("compose-pack respects support matrix and keeps MCP out of canonical packs", () => {
+    const suite: Suite = {
+      name: "DEMO",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T01-schema-migration",
+        title: "T01: schema migration",
+        difficulty: "L2",
+        skill: "schema-migration",
+        intent: "Do the migration.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api", "sdk", "cli"],
+        na_examples: [],
+      }],
+    };
+    const pack = composePack(
+      suite,
+      { vendor: "Acme", slug: "acme", category: "database", docs_url: "https://docs.example", site_url: "https://example.com" },
+      {
+        vendor: "Acme",
+        category: "database",
+        slug: "acme",
+        suite_name: "DEMO",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        vendor_config: { base_url: "https://api.example", auth_type: "bearer", auth_env: "ACME_TOKEN" },
+        tasks: [{
+          task_id: "db-T01-schema-migration",
+          na: false,
+          na_reason: undefined,
+          na_surfaces: [],
+          na_surfaces_reason: undefined,
+          support_reference: "acme:db-T01-schema-migration:schema-migration",
+          checks: [{
+            read_method: "POST",
+            read_path_template: "/migrations/read",
+            read_body_template: { id: "{gid}", ns: "{ns}" },
+            assert_field: "name",
+            expected: "ok",
+            description: "",
+          }],
+        }],
+      },
+      {
+        supportMatrix: {
+          schema: "ax.support-matrix/v1",
+          benchmark: "DEMO",
+          category: "database",
+          generated_at: "2026-01-01T00:00:00.000Z",
+          entries: [
+            { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "api", status: "supported", source_concept: "schema-migration" },
+            { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "sdk", status: "unsupported", source_concept: "schema-migration" },
+            { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "cli", status: "supported", source_concept: "schema-migration" },
+          ],
+        },
+      },
+    );
+    expect(pack.tasks[0]?.allowed_surfaces).toEqual(["api", "cli"]);
+    expect(pack.tasks[0]?.allowed_surfaces).not.toContain("mcp");
+    expect(pack.tasks[0]?.oracles[0]?.readBodyTemplate).toEqual({ id: "{gid}", ns: "{ns}" });
+  });
+
+  it("compose-pack includes Neon sandbox context so agents do not create fresh projects", () => {
+    const suite: Suite = {
+      name: "DEMO",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T01-schema-migration",
+        title: "T01: schema migration",
+        difficulty: "L2",
+        skill: "schema-migration",
+        intent: "Do the migration.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api"],
+        na_examples: [],
+      }],
+    };
+    const pack = composePack(
+      suite,
+      { vendor: "Neon", slug: "neon", category: "database", docs_url: "https://neon.com/docs", site_url: "https://neon.com" },
+      {
+        vendor: "Neon",
+        category: "database",
+        slug: "neon",
+        suite_name: "DEMO",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        vendor_config: {
+          base_url: "https://console.neon.tech/api/v2",
+          auth_type: "bearer",
+          auth_env: "NEON_API_KEY",
+          sql_dialect: "postgres",
+          sql_connection_env: "NEON_DATABASE_URL",
+        },
+        tasks: [{
+          task_id: "db-T01-schema-migration",
+          na: false,
+          checks: [{
+            sql_dialect: "postgres",
+            sql_query: "select 1 as ok",
+            assert_field: "0.ok",
+            expected: 1,
+            description: "",
+          }],
+        }],
+      },
+    );
+
+    expect(pack.sandbox_scope.map((scope) => scope.env)).toEqual(["NEON_PROJECT_ID", "NEON_BRANCH_ID"]);
+    expect(pack.sandbox_scope[0]?.instructions).toMatch(/instead of creating a new project/i);
+    expect(pack.sandbox_scope[1]?.required).toBe(false);
+  });
+
+  it("isolates Convex identifier compatibility guidance to the database vendor pack", () => {
+    const suite: Suite = {
+      name: "DEMO",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T04-define-data-container",
+        title: "T04: create container",
+        difficulty: "L1",
+        skill: "define-data-container",
+        intent: "Create `axarena_items_{ns}`.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api"],
+        na_examples: [],
+      }],
+    };
+    const extract = {
+      vendor: "Convex",
+      category: "database",
+      slug: "convex",
+      suite_name: "DEMO",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+      vendor_config: { base_url: "${CONVEX_URL}", auth_type: "bearer" as const, auth_env: "CONVEX_DEPLOY_KEY" },
+      tasks: [{
+        task_id: "db-T04-define-data-container",
+        na: false,
+        checks: [{
+          read_method: "POST" as const,
+          read_path_template: "/api/query",
+          read_body_template: { path: "{items_schema_query_path}", args: {} },
+          assert_field: "value.hasLabelField",
+          expected: true,
+          description: "",
+        }],
+      }],
+    };
+
+    const convexPack = composePack(
+      suite,
+      { vendor: "Convex", slug: "convex", category: "database", docs_url: "https://docs.convex.dev", site_url: "https://convex.dev" },
+      extract,
+    );
+    const acmePack = composePack(
+      suite,
+      { vendor: "Acme", slug: "acme", category: "database", docs_url: "https://docs.example", site_url: "https://example.com" },
+      { ...extract, vendor: "Acme", slug: "acme", vendor_config: { base_url: "https://api.example", auth_type: "bearer" as const, auth_env: "ACME_TOKEN" } },
+    );
+
+    expect(convexPack.tasks[0]?.prompt).toContain("Convex-specific database adapter note");
+    expect(convexPack.tasks[0]?.prompt).toContain("replacing non-alphanumeric characters with underscores");
+    expect(acmePack.tasks[0]?.prompt).not.toContain("Convex-specific database adapter note");
+  });
+
+  it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-pub-"));
+    try {
+      const suitePath = "targets/suites/demo.yaml";
+      const methodology = defaultSuiteMethodology("database");
+      writeMethodology(dir, suitePath, methodology);
+      writeCoverageMatrix(dir, suitePath, {
+        schema: "ax.coverage-matrix/v1",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        concepts: [{
+          concept_name: "schema-migration",
+          title: "Schema migration",
+          decisions: [{
+            concept_name: "schema-migration",
+            vendor: "Acme",
+            status: "supported",
+            source: "inventory",
+            capability_name: "schema-migration",
+            family: "migration",
+            evidence: [{ doc_url: "https://docs.example/migrate", quote: "Run tracked migrations." }],
+          }],
+        }],
+      });
+      writeSelectionLedger(dir, suitePath, {
+        schema: "ax.selection-ledger/v1",
+        benchmark: "DEMO",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        methodology,
+        entries: [{
+          concept_name: "schema-migration",
+          title: "Schema migration",
+          family: "migration",
+          proposed_difficulty: "L3",
+          coverage_pct: 1,
+          covered_vendors: ["Acme"],
+          verifiable: true,
+          selected_by_model: true,
+          selected: true,
+          rationale: "High coverage and deterministic read-back.",
+        }],
+      });
+      writeSupportMatrix(dir, suitePath, {
+        schema: "ax.support-matrix/v1",
+        benchmark: "DEMO",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        entries: [
+          { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "api", status: "supported", source_concept: "schema-migration" },
+          { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "cli", status: "supported", source_concept: "schema-migration" },
+          { vendor: "Acme", task_id: "db-T01-schema-migration", surface: "sdk", status: "unsupported", source_concept: "schema-migration" },
+        ],
+      });
+      writeGraderLedger(dir, suitePath, {
+        schema: "ax.grader-ledger/v1",
+        benchmark: "DEMO",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        tasks: [{
+          task_id: "db-T01-schema-migration",
+          outcome_graders: ["read-back-world-state"],
+          trajectory_graders: ["transcript-review"],
+          efficiency_metrics: ["turn_count"],
+          human_calibration: ["grader-fairness-review"],
+        }],
+      });
+      writeFailureTaxonomy(dir, suitePath, {
+        schema: "ax.failure-taxonomy/v1",
+        benchmark: "DEMO",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        categories: [{ id: "agent-failure", label: "Agent failure", description: "Agent could not complete a supported task." }],
+      });
+      writeTraceReview(dir, suitePath, {
+        schema: "ax.trace-review/v1",
+        benchmark: "DEMO",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        sample_size: 10,
+        summary: "Review a fixed trace sample for every methodology revision.",
+      });
+
+      expect(methodologyPath(dir, suitePath)).toContain(".methodology.yaml");
+      expect(coverageMatrixPath(dir, suitePath)).toContain(".coverage-matrix.yaml");
+      expect(selectionLedgerPath(dir, suitePath)).toContain(".selection-ledger.yaml");
+      expect(supportMatrixPath(dir, suitePath)).toContain(".support-matrix.yaml");
+      expect(traceReviewPath(dir, suitePath)).toContain(".trace-review.yaml");
+      expect(methodology.static_ax.notes[0]).toMatch(/never changes usability-suite pass rates/i);
+      expect(methodology.behavioral.label).toBe("Usability Canonical Suite");
+      expect(methodology.behavioral.notes[0]).toMatch(/usability-suite scoring/i);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

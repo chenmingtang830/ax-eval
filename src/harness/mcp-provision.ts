@@ -155,16 +155,25 @@ function writeClaudeMcpHome(opts: {
   writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(settingsPath, 0o600); } catch { /* best effort */ }
 
+  // stdio servers (an npm package run locally, e.g. Neon's MCP server) need a
+  // command/args entry, NOT a url — treating the package name as a URL (the
+  // previous bug here) leaves claude-code unable to ever connect. `${VAR}`
+  // in args is claude-code's own documented env-var interpolation, so the
+  // token never needs to be written to disk in plaintext.
+  const mcpServerEntry =
+    mcp.transport === "stdio"
+      ? { command: "npx", args: ["-y", mcp.server, "start", `\${${opts.bearerTokenEnvVar}}`] }
+      : {
+          type: mcp.transport === "http" ? "http" : "streamable-http",
+          url: mcp.server,
+          headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
+        };
   const configPath = resolve(home, ".claude.json");
   const config = {
     projects: {
       [opts.cwd]: {
         mcpServers: {
-          [serverName]: {
-            type: mcp.transport === "http" ? "http" : "streamable-http",
-            url: mcp.server,
-            headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
-          },
+          [serverName]: mcpServerEntry,
         },
       },
     },

@@ -119,7 +119,13 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
 export interface PackQaIssue {
   taskId: string;
   severity: "warn";
-  code: "free-choice-bound-oracle" | "prompt-oracle-resource-mismatch" | "surface-risk" | "ambiguous-reported-id";
+  code:
+    | "free-choice-bound-oracle"
+    | "prompt-oracle-resource-mismatch"
+    | "surface-risk"
+    | "ambiguous-reported-id"
+    | "final-state-fragile-oracle"
+    | "literal-constraint-mismatch";
   message: string;
 }
 
@@ -141,7 +147,9 @@ const RESOURCE_TERMS: Array<{ resource: string; labels: string[]; pattern: RegEx
 function oracleResource(o: OracleSpec): string | undefined {
   const path = o.readPathTemplate ?? "";
   const m = path.match(/^\/v\d+\/([^/{?]+)/);
-  return m?.[1];
+  const resource = m?.[1];
+  if (!resource) return undefined;
+  return RESOURCE_TERMS.some((term) => term.resource === resource) ? resource : undefined;
 }
 
 function promptResources(task: Task): Set<string> {
@@ -179,6 +187,34 @@ function hasAmbiguousReportId(task: Task, resources: Set<string>): boolean {
   }
   if (/\bnot the\b/.test(prompt) || /\bonly\b/.test(prompt)) return false;
   return resources.size > 1 && (/\bthen\b/.test(prompt) || /\band\b/.test(prompt));
+}
+
+function isCreateStructurePrompt(task: Task): boolean {
+  return /\bcreate (?:a |an |the )?(?:new )?(?:table|collection|database|schema)\b/i.test(task.prompt);
+}
+
+function hasZeroCountOracle(task: Task): boolean {
+  return task.oracles.some((oracle) =>
+    oracle.type === "roundtrip"
+    && !((oracle.readPathTemplate ?? "").includes("limit=0"))
+    && (oracle.assertField === "length" || /(?:^|[._])count$/i.test(oracle.assertField ?? ""))
+    && (oracle.expected === 0 || oracle.expected === "0"),
+  );
+}
+
+function hasLiteralConstraintMismatch(task: Task): boolean {
+  const prompt = task.prompt;
+  const promptDomain = prompt.match(/@([a-z0-9{}._-]+\.[a-z0-9{}._-]+)/i)?.[1];
+  const promptProbePrefix = prompt.match(/probe-(\d+)%?@/i)?.[1];
+  return task.oracles.some((oracle) => {
+    if (typeof oracle.expected !== "string") return false;
+    const expected = oracle.expected;
+    const expectedDomain = expected.match(/@([a-z0-9{}._-]+\.[a-z0-9{}._-]+)/i)?.[1];
+    const expectedProbePrefix = expected.match(/probe-(\d+)@/i)?.[1];
+    if (promptDomain && expectedDomain && promptDomain !== expectedDomain) return true;
+    if (promptProbePrefix && expectedProbePrefix && promptProbePrefix !== expectedProbePrefix) return true;
+    return false;
+  });
 }
 
 /** Heuristic QA for generated/hand-authored packs. These checks are advisory:
@@ -239,6 +275,28 @@ export function packQaIssues(pack: TargetPack): PackQaIssue[] {
           `Specify exactly which id to report (for example child page id vs database id vs view id).`,
       });
     }
+
+    if (isCreateStructurePrompt(task) && hasZeroCountOracle(task)) {
+      issues.push({
+        taskId: task.id,
+        severity: "warn",
+        code: "final-state-fragile-oracle",
+        message:
+          `Prompt creates a long-lived structure, but an oracle asserts zero rows/items. ` +
+          `That is often only true immediately after creation and can be invalidated by later tasks before final verification.`,
+      });
+    }
+
+    if (hasLiteralConstraintMismatch(task)) {
+      issues.push({
+        taskId: task.id,
+        severity: "warn",
+        code: "literal-constraint-mismatch",
+        message:
+          `Prompt includes literal value constraints (for example a specific email/domain/prefix), ` +
+          `but an oracle expected value appears to assert a different literal. Recheck the prompt↔verifier contract.`,
+      });
+    }
   }
   return issues;
 }
@@ -258,9 +316,19 @@ export function reviewSummary(pack: TargetPack): string {
 
   lines.push("## Credential + sandbox surface (what it will touch)", "");
   if (pack.auth) {
-    lines.push(`- auth: \`${pack.auth.type}\` via env \`${pack.auth.env}\`${pack.auth.verify_env ? ` (verify: \`${pack.auth.verify_env}\`)` : ""}`);
+    if (pack.auth.type === "none") {
+      lines.push(`- execution auth: \`none\``);
+    } else {
+      lines.push(`- execution auth: \`${pack.auth.type}\` via env \`${pack.auth.env}\`${pack.auth.verify_env ? ` (verify: \`${pack.auth.verify_env}\`)` : ""}`);
+    }
   } else {
-    lines.push(`- auth: (legacy Asana env fallback)`);
+    lines.push(`- execution auth: (legacy Asana env fallback)`);
+  }
+  if (pack.sql_conn) {
+    lines.push(`- verifier SQL connection: \`${pack.sql_conn.dialect}\` via env \`${pack.sql_conn.connection_string_env}\``);
+  }
+  if (pack.mongo_conn) {
+    lines.push(`- verifier MongoDB connection: env \`${pack.mongo_conn.connection_string_env}\`${pack.mongo_conn.database ? ` (default database: \`${pack.mongo_conn.database}\`)` : ""}`);
   }
   if (pack.sandbox_scope.length === 0) {
     lines.push(`- sandbox_scope: none declared (a single account/key is the whole sandbox)`);

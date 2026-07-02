@@ -23,6 +23,7 @@
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
  *       [--html path] without re-running live verification
+ *   ax-eval publication-bundle --suite <suite.yaml> --run-dir <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile high] run prompts locally
@@ -65,7 +66,7 @@ import {
   type NormalizedResult,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { TargetPackSchema, type TargetPack } from "./schemas.js";
+import { TargetPackSchema, type OracleSpec, type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
@@ -74,8 +75,10 @@ import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
-import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteFiles } from "./generate/synthesize-suite.js";
+import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
+import { buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
+import { loadSupportMatrix } from "./generate/methodology.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
@@ -126,6 +129,7 @@ const COMMANDS = [
   "extract-surfaces",
   "extract-capabilities",
   "synthesize-suite",
+  "publication-bundle",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -205,17 +209,24 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
         "                                    [--harness claude-code|codex] [--effort low|medium|high]",
         "  Layer 0a of suite authoring: grounded per-vendor discovery of the product's",
-        "  most important documented capabilities, cited (doc_url + quote). Writes",
-        "  targets/extracts/<slug>/capabilities.yaml — the audit trail synthesize-suite reads.",
+        "  benchmark-grade capability inventory with structured evidence. Writes",
+        "  targets/extracts/<slug>/capability-inventory.yaml (and a legacy capabilities.yaml).",
       ].join("\n");
     case "synthesize-suite":
       return [
         "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
         "                                [--task-count N] [--harness claude-code|codex]",
-        "  Layer 0b: reads ALL vendors' capabilities.yaml (from extract-capabilities),",
-        "  clusters cross-vendor capabilities by coverage, derives the canonical task",
-        "  suite bottom-up. NOT grounded (reasons over already-cited input, no WebFetch).",
-        "  Writes <suite.yaml> + a sibling <suite>.synthesis.md audit trail.",
+        "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
+        "  universe, closes coverage gaps, selects the canonical suite, and drafts",
+        "  suite tasks. NOT grounded (reasons over already-cited input, no WebFetch).",
+        "  Writes <suite.yaml> + sibling methodology/support artifacts + synthesis.md.",
+      ].join("\n");
+    case "publication-bundle":
+      return [
+        "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
+        "  Freeze a publication bundle manifest from the canonical suite, vendor",
+        "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
+        "  and normalized records. Missing live artifacts are recorded in manifest.json.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -1086,6 +1097,10 @@ function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specS
   };
 }
 
+function defaultGeneratorHarness(): "claude-code" | "codex" {
+  return probeHarness().host === "codex" ? "codex" : "claude-code";
+}
+
 function taskSummary(pack: TargetPack): unknown {
   return pack.tasks.map((t) => ({
     id: t.id,
@@ -1208,8 +1223,9 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
 }
 
 async function cmdResolveVendor(args: Parsed): Promise<number> {
+  loadDotenv();
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
   if (harness !== "claude-code" && harness !== "codex") {
     throw new Error(`--harness must be one of claude-code|codex (got ${harness})`);
   }
@@ -1253,12 +1269,14 @@ function resolveVendorSelection(args: Parsed, root: string) {
 }
 
 async function cmdExtractTasks(args: Parsed): Promise<number> {
+  loadDotenv();
   if (!args.suite) throw new Error("--suite <path> is required");
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
 
   const { loadSuite } = await import("./generate/suite.js");
   const suite = loadSuite(args.suite);
+  const category = args.category || suite.category;
+  if (!category) throw new Error("--category is required (e.g. --category database)");
   const root = process.cwd();
 
   let vendors = resolveVendorSelection(args, root);
@@ -1274,16 +1292,17 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
         if (!card) throw new Error(`Could not load vendor card for ${slug}`);
         return card;
       })
-      .filter((v) => v.category === args.category);
+      .filter((v) => v.category === category);
   }
 
-  if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
+  if (!vendors.length) throw new Error(`No vendor cards found for category "${category}".`);
   console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
 
   const outcomes = await extractOraclesAll(vendors, suite, {
     harness,
     model: args.generatorModel || undefined,
     effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    supportMatrix: loadSupportMatrix(process.cwd(), args.suite) ?? undefined,
   });
 
   let failures = 0;
@@ -1303,7 +1322,7 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
       const status = task.na
         ? `N/A (${task.na_reason ?? "no reason"})`
         : task.checks
-            .map((c) => `${c.sql_query ? `SQL(${c.sql_dialect})` : `${c.read_method} ${c.read_path_template}`} → ${c.assert_field}=${JSON.stringify(c.expected)}`)
+            .map((c) => summarizeExtractCheck(c))
             .join(" | ");
       console.log(`    ${task.task_id}: ${status}`);
     }
@@ -1312,6 +1331,23 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
     console.error(`\n${failures}/${outcomes.length} vendor(s) failed. Re-run extract-tasks --vendor <slug> for each.`);
   }
   return failures ? 1 : 0;
+}
+
+function summarizeExtractCheck(check: {
+  read_method?: string;
+  read_path_template?: string;
+  sql_dialect?: string;
+  sql_query?: string;
+  mongo_query?: OracleSpec["mongoQuery"];
+  assert_field: string;
+  expected: unknown;
+}): string {
+  const target = check.sql_query
+    ? `SQL(${check.sql_dialect ?? "unknown"})`
+    : check.mongo_query
+      ? `Mongo(${check.mongo_query.operation} ${check.mongo_query.collection})`
+      : `${check.read_method ?? "GET"} ${check.read_path_template ?? "(missing path)"}`;
+  return `${target} → ${check.assert_field}=${JSON.stringify(check.expected)}`;
 }
 
 async function cmdComposePack(args: Parsed): Promise<number> {
@@ -1338,15 +1374,22 @@ async function cmdComposePack(args: Parsed): Promise<number> {
       continue;
     }
     const surfaces = loadSurfaceExtract(root, vendor.slug) ?? undefined;
-    const pack = composePack(suite, vendor, extract, { surfaces });
+    const pack = composePack(suite, vendor, extract, {
+      surfaces,
+      supportMatrix: loadSupportMatrix(root, args.suite) ?? undefined,
+    });
     const path = writeComposedPack(root, vendor.slug, suite.name, pack);
-    const surfaceNote = surfaces ? ` [surfaces: ${["api", surfaces.cli && "cli", surfaces.sdk && "sdk", surfaces.mcp && "mcp"].filter(Boolean).join(", ")}]` : "";
+    const compiledSurfaces = ["api", "sdk", "cli", "mcp"].filter((surface) =>
+      pack.tasks.some((task) => task.allowed_surfaces.includes(surface)),
+    );
+    const surfaceNote = compiledSurfaces.length ? ` [compiled surfaces: ${compiledSurfaces.join(", ")}]` : "";
     console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)${surfaceNote}`);
   }
   return 0;
 }
 
 async function cmdExtractSurfaces(args: Parsed): Promise<number> {
+  loadDotenv();
   const root = process.cwd();
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
@@ -1360,7 +1403,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   }
   if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
 
-  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
   console.log(`Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…`);
   const settled = await Promise.allSettled(
     vendors.map((v) =>
@@ -1388,6 +1431,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
 }
 
 async function cmdExtractCapabilities(args: Parsed): Promise<number> {
+  loadDotenv();
   const root = process.cwd();
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
@@ -1401,7 +1445,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   }
   if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
 
-  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
   console.log(`Extracting capabilities for ${vendors.length} vendor(s) via ${harness}…`);
   const outcomes = await extractCapabilitiesAll(vendors, {
     harness,
@@ -1423,6 +1467,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
 }
 
 async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
+  loadDotenv();
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
   if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
   const root = process.cwd();
@@ -1443,13 +1488,13 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   const extracts = vendors
     .map((v) => loadCapabilityExtract(root, v.slug))
     .filter((e): e is NonNullable<typeof e> => {
-      if (!e) console.error(`Skipping a vendor: no capabilities.yaml found. Run extract-capabilities first.`);
+      if (!e) console.error(`Skipping a vendor: no capability-inventory.yaml found. Run extract-capabilities first.`);
       return e !== null;
     });
-  if (extracts.length < 2) throw new Error("Need at least 2 vendors' capabilities.yaml to synthesize a suite.");
+  if (extracts.length < 2) throw new Error("Need at least 2 vendors' capability inventories to synthesize a suite.");
 
   console.log(`Synthesizing suite from ${extracts.length} vendor(s)' capability extracts…`);
-  const harness = (args.generatorHarness || "claude-code") as "claude-code" | "codex";
+  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
   const result = await synthesizeSuite(args.category, extracts, {
     harness,
     model: args.generatorModel || undefined,
@@ -1457,16 +1502,56 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
     targetTaskCount: args.taskCount,
   });
 
-  const suiteName = args.out.split("/").pop()!.replace(/\.yaml$/, "").toUpperCase();
-  const suiteYaml = renderSuiteYaml(suiteName, 1, args.category, result);
+  const suiteStem = args.out.split("/").pop()!.replace(/\.yaml$/, "");
+  const suiteName = suiteStem.toUpperCase();
+  const suiteYaml = renderSuiteYaml(suiteName, inferSuiteVersionFromStem(suiteStem), args.category, result);
   const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
   const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
+  const artifactPaths = writeSuiteArtifacts(root, args.out, result);
 
   console.log(`\n${result.tasks.length} tasks selected.`);
-  for (const t of result.tasks) console.log(`  [${t.difficulty}] ${t.id} — ${t.coverage.length} vendor(s)`);
+  for (const t of result.tasks) {
+    const vendorCount = new Set(t.coverage.map((entry) => entry.vendor)).size;
+    console.log(`  [${t.difficulty}] ${t.id} — ${vendorCount} vendor(s)`);
+  }
   console.log(`\nSuite → ${suitePath}`);
   console.log(`Synthesis audit trail → ${synthesisPath}`);
+  console.log(`Methodology artifacts → ${artifactPaths.join(", ")}`);
   console.log(`\nReview both before freezing — this is a draft, not yet approved.`);
+  return 0;
+}
+
+function cmdPublicationBundle(args: Parsed): number {
+  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
+  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
+  const root = process.cwd();
+  const suite = loadSuite(args.suite);
+  const vendorSlugs = args.vendors
+    ? args.vendors.split(",").map((s) => s.trim()).filter(Boolean)
+    : discoverPublicationVendors(root, suite);
+  if (!vendorSlugs.length) {
+    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under targets/packs/<vendor>/.");
+  }
+  const manifest = buildPublicationBundle({
+    root,
+    suite,
+    suitePath: args.suite,
+    vendors: vendorSlugs,
+    runDir: args.runDir,
+    outDir: args.out,
+  });
+
+  const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);
+  const validationCount = manifest.vendors.reduce((sum, vendor) => sum + vendor.validation_errors.length, 0);
+  console.log(`Saved publication bundle → ${args.out}`);
+  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
+  console.log(`${manifest.vendors.length} vendor(s), ${missingCount} missing artifact reference(s), ${validationCount} validation issue(s).`);
+  if (validationCount) {
+    for (const vendor of manifest.vendors) {
+      for (const error of vendor.validation_errors) console.error(`  ${vendor.slug}: ${error}`);
+    }
+    return 1;
+  }
   return 0;
 }
 
@@ -1973,6 +2058,7 @@ function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
     current.outcomes.push(...run.outcomes);
     current.trace = [...(current.trace ?? []), ...(run.trace ?? [])];
     current.ns = [current.ns, run.ns].filter(Boolean).join(", ");
+    current.efficiency = mergeEfficiency(current.efficiency, run.efficiency);
     current.discovery ??= run.discovery;
     current.discoverySource ??= run.discoverySource;
     if (run.evidence) {
@@ -1983,6 +2069,102 @@ function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
     }
   }
   return [...grouped.values()];
+}
+
+function sumNullable(a: number | null | undefined, b: number | null | undefined): number | null {
+  const values = [a, b].filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return values.length ? values.reduce((sum, v) => sum + v, 0) : null;
+}
+
+function mergeTokenUsage(
+  a: Record<string, number> | null | undefined,
+  b: Record<string, number> | null | undefined,
+): Record<string, number> | null {
+  const out: Record<string, number> = {};
+  for (const source of [a, b]) {
+    if (!source) continue;
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === "number" && Number.isFinite(value)) out[key] = (out[key] ?? 0) + value;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"]): ProfileRun["efficiency"] | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    latency_ms: sumNullable(a.latency_ms, b.latency_ms),
+    tool_call_count: sumNullable(a.tool_call_count, b.tool_call_count),
+    token_usage: mergeTokenUsage(a.token_usage, b.token_usage),
+    token_cost: sumNullable(a.token_cost, b.token_cost),
+  };
+}
+
+function readJsonObject(path: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function addTokenField(acc: Record<string, number>, key: string, value: unknown): void {
+  if (typeof value === "number" && Number.isFinite(value)) acc[key] = (acc[key] ?? 0) + value;
+}
+
+function collectTokenUsage(value: unknown, acc: Record<string, number>): void {
+  if (!value || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  addTokenField(acc, "input_tokens", record.input_tokens ?? record.inputTokens);
+  addTokenField(acc, "output_tokens", record.output_tokens ?? record.outputTokens);
+  addTokenField(acc, "total_tokens", record.total_tokens ?? record.totalTokens);
+  if (record.usage && record.usage !== value) collectTokenUsage(record.usage, acc);
+  if (record.modelUsage && typeof record.modelUsage === "object") {
+    for (const entry of Object.values(record.modelUsage as Record<string, unknown>)) collectTokenUsage(entry, acc);
+  }
+}
+
+function transcriptMetrics(path: string | undefined): { tool_call_count: number | null; token_usage: Record<string, number> | null } {
+  if (!path || !existsSync(path)) return { tool_call_count: null, token_usage: null };
+  const tokenUsage: Record<string, number> = {};
+  let toolCalls = 0;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      collectTokenUsage(event, tokenUsage);
+      const item = event.item as { type?: unknown } | undefined;
+      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) toolCalls += 1;
+      const message = event.message as { content?: unknown } | undefined;
+      if (Array.isArray(message?.content)) {
+        toolCalls += message.content.filter((block) =>
+          block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
+        ).length;
+      }
+    } catch {
+      /* Non-JSON transcript lines are allowed; they just do not carry metrics. */
+    }
+  }
+  return {
+    tool_call_count: toolCalls,
+    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
+  };
+}
+
+function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
+  const meta = readJsonObject(resultPath.replace(/\.json$/, ".invoke.json"));
+  const metrics = transcriptMetrics(transcriptPath);
+  return {
+    latency_ms: typeof meta?.durationMs === "number" ? meta.durationMs : null,
+    tool_call_count: metrics.tool_call_count,
+    token_usage: metrics.token_usage,
+    // Cost requires a versioned pricing table. Keep it explicit and nullable
+    // rather than inventing a number from model names.
+    token_cost: null,
+  };
 }
 
 function passRate(runs: ProfileRun[]): number {
@@ -2189,6 +2371,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       trace,
       discovery,
       discoverySource,
+      efficiency: efficiencyForRun(rPath, obsPath),
       evidence: {
         results: [rel(rPath)],
         trace: traceExisted ? [rel(tracePath)] : [],
@@ -2441,6 +2624,8 @@ async function main(): Promise<number> {
       return cmdExtractCapabilities(args);
     case "synthesize-suite":
       return cmdSynthesizeSuite(args);
+    case "publication-bundle":
+      return cmdPublicationBundle(args);
     default:
       console.error(USAGE);
       return 2;

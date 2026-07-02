@@ -7,10 +7,15 @@ import {
   DEFAULT_ASYNC_SPAWN,
   defaultInvokePaths,
   detectInvokeHarness,
+  redactSensitiveText,
   runInvokeHarness,
+  codexOutputSchema,
   type AsyncSpawn,
   type InvokeRunOptions,
 } from "../src/harness/invoke.js";
+import { buildExecutorPrompt } from "../src/harness/executor.js";
+import { getProfile } from "../src/harness/profile.js";
+import { getSurface } from "../src/surface/index.js";
 
 const dirs: string[] = [];
 
@@ -89,6 +94,39 @@ describe("detectInvokeHarness", () => {
   });
 });
 
+describe("redactSensitiveText", () => {
+  it("redacts common credential shapes while preserving env-var names", () => {
+    const raw = [
+      "DATABASE_URL=postgresql://user:pass@example.test:5432/db",
+      "SUPABASE_ACCESS_TOKEN=sbp_abcdefghijklmnopqrstuvwxyz",
+      "ASANA_PAT=2/123/abc:def",
+      "CONVEX_DEPLOY_KEY=preview:team:project|eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc",
+      "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
+      "JWT=eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc",
+      "MONGODB_URI=mongodb+srv://user:pass@example.mongodb.net/db",
+      "sentry dsn https://3bbe57a973254129bcb93e47dc0cc46f@o343074.ingest.sentry.io/2052166",
+      "\"dsn\":\"https://publickey@example.com/project\"",
+      "package @supabase/postgrest-js should stay readable",
+    ].join("\n");
+
+    const redacted = redactSensitiveText(raw);
+    expect(redacted).toContain("DATABASE_URL=<redacted>");
+    expect(redacted).toContain("SUPABASE_ACCESS_TOKEN=<redacted>");
+    expect(redacted).toContain("ASANA_PAT=<redacted>");
+    expect(redacted).toContain("CONVEX_DEPLOY_KEY=<redacted>");
+    expect(redacted).toContain("Authorization: Bearer <redacted>");
+    expect(redacted).toContain("JWT=<redacted>");
+    expect(redacted).toContain("MONGODB_URI=<redacted>");
+    expect(redacted).toContain("https://<redacted>@o343074.ingest.sentry.io/2052166");
+    expect(redacted).toContain("\"dsn\":\"<redacted>\"");
+    expect(redacted).not.toContain("user:pass");
+    expect(redacted).not.toContain("sbp_abcdefghijklmnopqrstuvwxyz");
+    expect(redacted).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
+    expect(redacted).not.toContain("3bbe57a973254129bcb93e47dc0cc46f");
+    expect(redacted).toContain("@supabase/postgrest-js");
+  });
+});
+
 describe("runInvokeHarness", () => {
   it("runs a prompt, stores subprocess artifacts, and stamps the executor result with the harness id", async () => {
     const dir = freshDir();
@@ -139,6 +177,49 @@ describe("runInvokeHarness", () => {
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
   });
 
+  it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const secretDsn = "postgresql://user:pass@example.test:5432/db";
+    const secretToken = "sbp_abcdefghijklmnopqrstuvwxyz";
+    const secretJwt = "eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "ceiling",
+          ns: run.ns,
+          surface: "api",
+          discovery: { notes: `used DATABASE_URL=${secretDsn}` },
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, JSON.stringify([{ note: `token ${secretToken}` }]));
+      return spawnResult({
+        stdout: Buffer.from(`DATABASE_URL=${secretDsn}\nSUPABASE_ACCESS_TOKEN=${secretToken}\nJWT=${secretJwt}`),
+        stderr: Buffer.from(`Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\nmodel: gpt-test`),
+      });
+    };
+
+    const result = await runInvokeHarness({ ...run, provisioning: { connection: secretDsn } }, spawn);
+    expect(result.ok).toBe(true);
+    for (const path of [
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.metaPath,
+    ]) {
+      const content = readFileSync(path, "utf8");
+      expect(content).not.toContain(secretDsn);
+      expect(content).not.toContain(secretToken);
+      expect(content).not.toContain(secretJwt);
+      expect(content).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
+      expect(content).toContain("<redacted");
+    }
+  });
+
   it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
@@ -157,6 +238,36 @@ describe("runInvokeHarness", () => {
     expect(result.ok).toBe(true);
     expect(seenArgs).toContain("-c");
     expect(seenArgs).toContain('approval_policy="never"');
+  });
+
+  it("locks Codex structured output metadata to the current run and stamps empty partial metadata", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "",
+          ns: "",
+          surface: "",
+          discovery: { notes: "partial progress message" },
+          results: { t1: { gid: null } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}'), stderr: Buffer.from("model: gpt-test\n") });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const schema = JSON.parse(readFileSync(run.paths.codexSchemaPath!, "utf8"));
+    expect(schema.properties.profile.enum).toEqual(["ceiling"]);
+    expect(schema.properties.ns.enum).toEqual([run.ns]);
+    expect(schema.properties.surface.enum).toEqual(["api"]);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.profile).toBe("ceiling");
+    expect(executor.ns).toBe(run.ns);
+    expect(executor.surface).toBe("api");
   });
 
   it("restricts the codex output schema to tasks that apply to the selected surface", async () => {
@@ -203,6 +314,43 @@ describe("runInvokeHarness", () => {
     expect(result.ok).toBe(true);
     const schema = JSON.parse(readFileSync(paths.codexSchemaPath!, "utf8"));
     expect(Object.keys(schema.properties.results.properties)).toEqual(["mcp-only"]);
+  });
+
+  it("allows verifier-required self-report fields in Codex strict output schema and prompt shape", () => {
+    const verifierPack = TargetPackSchema.parse({
+      ...pack(),
+      tasks: [{
+        id: "needs-extra",
+        prompt: "Create a stream and report its capture table.",
+        allowed_surfaces: ["api"],
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "postgres",
+          sqlQuery: "select count(*)::int as count from {capture_table}",
+          assertField: "count",
+          expected: 1,
+        }],
+      }],
+    });
+
+    const schema = codexOutputSchema(verifierPack, "codex:low", "api", "ns-1") as {
+      properties: { results: { properties: Record<string, { properties: Record<string, unknown>; required: string[] }> } };
+    };
+    const taskSchema = schema.properties.results.properties["needs-extra"]!;
+    expect(taskSchema.properties).toHaveProperty("gid");
+    expect(taskSchema.properties).toHaveProperty("capture_table");
+    expect(taskSchema.required).toEqual(["gid", "capture_table"]);
+
+    const prompt = buildExecutorPrompt({
+      pack: verifierPack,
+      profile: getProfile("low"),
+      ns: "ns-1",
+      resultsPath: "results/run.json",
+      tracePath: "results/run.trace.json",
+      surface: getSurface("api"),
+    });
+    expect(prompt).toContain("(also self-report, alongside gid: `capture_table`)");
+    expect(prompt).toContain('"needs-extra": {"gid": "<gid or null>", "capture_table": "<value or null>"}');
   });
 
   it("retries a failed invocation once, then succeeds on the second attempt", async () => {

@@ -1,0 +1,535 @@
+vendor: Convex
+slug: convex
+category: database
+extracted_at: 2026-07-02T00:00:00.000Z
+capabilities:
+  - capability_name: document-data-model
+    title: Document Data Model with Implicit Table Creation
+    family: data-definition
+    description: Convex stores JSON-like documents in tables and does not require
+      explicit DDL. Tables are created implicitly on first insert, which lets
+      apps start schemaless and add structure later.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/overview
+        quote: The Convex database provides a relational data model, stores JSON-like
+          documents, and can be used with or without a schema.
+      - doc_url: https://docs.convex.dev/database/overview
+        quote: Each table springs into existence as soon as you add the first
+          document to it.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: typed-schema-definition
+    title: Typed Schema Definition with Runtime Validation
+    family: integrity
+    description: Schemas are defined in TypeScript with `defineSchema`,
+      `defineTable`, and `v` validators. By default Convex validates both new
+      and existing documents against the schema and exposes strict table-name
+      types in generated TypeScript.
+    resource_kind: schema
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: adding a `schema.ts` file will ensure that the documents in your
+          tables are the correct type.
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: By default, Convex will enforce that all new and existing documents
+          match your schema.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: online-data-migrations
+    title: Online Data Migrations Framework
+    family: migration
+    description: Convex documents an official migration component for long-running
+      online data migrations, intended to evolve live data safely with resumable
+      execution and dry-run validation.
+    resource_kind: function
+    operation_kind: migrate
+    surfaces_documented:
+      - sdk
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: The component is designed to run online migrations to safely evolve
+          your database schema over time.
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: It allows you to resume from failures, and validate changes with dry
+          runs.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-field-indexes
+    title: Multi-Field Secondary Indexes
+    family: data-definition
+    description: Convex schema definitions can declare ordered indexes over one or
+      more fields, including nested document paths. Indexes control both lookup
+      performance and result ordering.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data/indexes
+        quote: Each index consists of an ordered list of fields to index.
+      - doc_url: https://docs.convex.dev/database/reading-data/indexes
+        quote: Convex supports indexes containing up to 16 fields. You can define 32
+          indexes on each table.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-insert
+    title: Document Insert
+    family: data-write
+    description: Mutations create new documents with `db.insert`, returning a
+      globally unique document ID. Inserted values use the same typed value
+      system as query and mutation arguments.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: You can create new documents in the database with the `db.insert`
+          method.
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: The `insert` method returns a globally unique ID for the newly
+          inserted document.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-patch-update
+    title: Partial Document Update
+    family: data-write
+    description: "`db.patch` shallow-merges partial updates into an existing
+      document. It can add fields, overwrite fields, and remove fields by
+      assigning `undefined`."
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: The `db.patch` method will patch an existing document, shallow
+          merging it with the given partial document.
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: Fields set to `undefined` are removed.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-replace
+    title: Full Document Replace
+    family: data-write
+    description: "`db.replace` overwrites an existing document with a new payload,
+      enabling full-document rewrites when patch semantics are not desired."
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: The `db.replace` method will replace the existing document entirely.
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: potentially removing existing fields
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-delete
+    title: Document Delete
+    family: data-write
+    description: "`db.delete` removes an existing document by ID from a mutation,
+      supporting hard deletes inside the same transactional model as other
+      writes."
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: the document can be removed from the table with the `db.delete`
+          method.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transactional-bulk-writes
+    title: Transactional Bulk Writes in Mutations
+    family: integrity
+    description: "Convex does not require a separate bulk-write API for common
+      cases: multiple inserts and updates inside one mutation are queued and
+      committed together as a single transaction."
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: the entire `mutation` function is automatically a single transaction.
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: Convex queues up all database changes in the function and executes
+          them all in a single transaction when the function ends.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: single-document-read
+    title: Single Document Lookup by ID
+    family: data-read
+    description: Queries and mutations can fetch one document by ID with `db.get`,
+      which is the core point-read primitive for document retrieval.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data
+        quote: Given a single document's id you can read its data with the
+          `db.get` method.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: filtered-document-queries
+    title: Filtered Reads with Indexes and Scan Filters
+    family: data-read
+    description: Reads can start from `db.query`, use `withIndex()` for efficient
+      indexed equality/range filtering, and optionally apply `filter()` for
+      slower scan-style predicates when needed during prototyping or on small
+      tables.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data
+        quote: you must explicitly use the `withIndex()` syntax to ensure your
+          database uses the index.
+      - doc_url: https://docs.convex.dev/database/reading-data/filters
+        quote: The `filter` method allows you to restrict the documents that your
+          document query returns.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cursor-based-pagination
+    title: Cursor-Based Reactive Pagination
+    family: data-read
+    description: Convex paginates query results with opaque cursors. Paginated
+      queries remain reactive and can bound read volume with pagination options.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/pagination
+        quote: Convex uses cursor-based pagination.
+      - doc_url: https://docs.convex.dev/database/pagination
+        quote: Like other Convex queries, paginated queries are completely reactive.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: javascript-aggregation-and-count
+    title: JavaScript Aggregation and Counting
+    family: data-read
+    description: Convex does not expose a separate database aggregation language
+      for joins, group-by, or counts. Instead, query functions load documents
+      and compute counts, averages, and grouped results in JavaScript against a
+      consistent snapshot.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data
+        quote: there is no specific query language for complex logic like a join, an
+          aggregation, or a group by.
+      - doc_url: https://docs.convex.dev/database/reading-data
+        quote: Instead, you can write the complex logic in JavaScript!
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: snapshot-consistent-query-reads
+    title: Snapshot-Consistent Query Reads
+    family: integrity
+    description: Every query reads from one logical database snapshot, so
+      concurrent writes do not change results mid-query. This consistency model
+      underpins safe JavaScript-side joins and aggregations.
+    resource_kind: function
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: All database reads inside a single query call are performed at the
+          same logical timestamp.
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: Concurrent writes do not affect the query results.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: reactive-query-subscriptions
+    title: Reactive Query Subscriptions
+    family: change-data-capture
+    description: Clients can subscribe to query results and automatically receive
+      cache-coherent updates whenever underlying data changes, with subscribers
+      observing the same consistent snapshot.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/realtime
+        quote: Every client subscription gets updated simultaneously to the same
+          snapshot of the database.
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: "Reactivity: clients can subscribe to queries to receive new
+          results when the underlying data changes."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: system-table-introspection
+    title: System Table Introspection
+    family: data-read
+    description: Convex exposes system tables that can be queried with
+      `db.system.get` and `db.system.query`, allowing server-side inspection of
+      scheduled-function state and other system metadata using the same query
+      model as user tables.
+    resource_kind: table
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: You can read data from system tables using the `db.system.get` and
+          `db.system.query` methods.
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: Every scheduled function is reflected as a document in the
+          `"_scheduled_functions"` system table.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: oidc-jwt-authentication
+    title: OpenID Connect and JWT Authentication
+    family: access-control
+    description: Convex natively authenticates WebSocket and RPC traffic with JWTs
+      from OpenID Connect providers, and can be configured against supported or
+      custom providers.
+    resource_kind: connection
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/auth/overview
+        quote: Convex is compatible with most authentication providers because it
+          uses OpenID Connect.
+      - doc_url: https://docs.convex.dev/auth/advanced/custom-auth
+        quote: Convex can be integrated with any identity provider supporting the
+          OpenID Connect protocol.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: function-level-auth-checks
+    title: Function-Level Authentication and Authorization Checks
+    family: access-control
+    description: Queries, mutations, actions, and HTTP actions expose auth context
+      so backend code can require authentication and implement per-function
+      authorization logic using the current user's identity claims.
+    resource_kind: function
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://docs.convex.dev/auth/functions-auth
+        quote: Within a Convex function, you can access information about the
+          currently logged-in user by using the `auth` property.
+      - doc_url: https://docs.convex.dev/auth/functions-auth
+        quote: throw new Error("Unauthenticated call to mutation")
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: backups-and-restore
+    title: Consistent Backups and Restore
+    family: backup-and-recovery
+    description: Convex can create consistent backups of table data, schedule
+      daily or weekly backups, download snapshots, and restore a deployment from
+      a selected backup.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/backup-restore
+        quote: A backup is a consistent snapshot of your table data made at the
+          time of your request.
+      - doc_url: https://docs.convex.dev/database/backup-restore
+        quote: Restore from a backup by selecting "Restore" from the submenu of an
+          individual backup.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: import-export-and-atomic-reseed
+    title: Import, Export, and Atomic Reseed
+    family: migration
+    description: Convex supports CLI export to ZIP plus CLI import from table files
+      or backup ZIPs. Imports can append, replace, preserve IDs and creation
+      times from backups, and replace tables atomically.
+    resource_kind: backup
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/import-export/export
+        quote: You can export your data from Convex by taking a backup and
+          downloading it as a zip file.
+      - doc_url: https://docs.convex.dev/database/import-export/import
+        quote: Data import creates and replaces tables atomically (except when
+          using `--append`).
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search
+    title: Full-Text Search with Filter Fields and Pagination
+    family: search
+    description: Convex search indexes support keyword and phrase search over a
+      designated string field, optional equality-filter fields, reactive search
+      reads, pagination, and prefix-based typeahead behavior.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/search/text-search
+        quote: Search queries are automatically reactive, consistent,
+          transactional, and work seamlessly with pagination.
+      - doc_url: https://docs.convex.dev/search/text-search
+        quote: In your search queries, the final search term has prefix search
+          enabled.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-search
+    title: Vector Similarity Search
+    family: search
+    description: Convex supports vector indexes over embedding arrays, optional
+      filter fields for prefiltering, and approximate nearest-neighbor search
+      using cosine similarity. Vector queries are documented as action-only.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/search/vector-search
+        quote: Vector search is consistent and fully up-to-date.
+      - doc_url: https://docs.convex.dev/search/vector-search
+        quote: vector search is only available in Convex actions.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-actions
+    title: Server-Side Actions
+    family: compute
+    description: Actions run server-side in Convex's JavaScript runtime or Node.js,
+      can call third-party services, and interact with database state by
+      invoking queries and mutations.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/actions
+        quote: They can be run in Convex's JavaScript environment or in Node.js.
+      - doc_url: https://docs.convex.dev/functions/actions
+        quote: They can interact with the database indirectly by calling queries
+          and mutations.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scheduled-functions
+    title: Durable Scheduled Functions
+    family: compute
+    description: Mutations and actions can schedule functions with `runAfter` and
+      `runAt`. Scheduled jobs are stored durably in the database, mutation
+      scheduling is atomic, and status can be queried later from a system table.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: Scheduled functions are stored in the database.
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: Scheduling functions from mutations is atomic with the rest of the
+          mutation.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

@@ -55,26 +55,96 @@ export function applyNs(text: string, ns: string): string {
   return text.split(NS_PLACEHOLDER).join(ns);
 }
 
+// claude-code has no native reasoning-effort CLI knob — prompt-level
+// coaching is the ONLY way to differentiate its low/high profiles, so it
+// can't be dropped there without collapsing both profiles into identical
+// runs. codex DOES have a native knob (model_reasoning_effort, set
+// separately — see invoke.ts), so layering the same coaching on top of it
+// double-encodes effort for codex specifically. Since the prompt is shared
+// across harnesses at this point in the code, the fix is to make the
+// wording describe a genuine, moderate difference in care/thoroughness
+// (not an exaggerated "do the bare minimum, never verify" caricature) —
+// realistic enough to still matter for claude-code, mild enough that it
+// isn't doing most of the work for codex, where the native knob dominates.
 const EFFORT_BLOCK: Record<HarnessProfile["effort"], string> = {
   low:
-    "You are a LOW-EFFORT agent. In discovery, do the bare minimum search and stop " +
-    "at the first plausible answer. In execution, do the minimum literal steps each " +
-    "task names; do NOT investigate prerequisites, inspect responses beyond grabbing " +
-    "the id, or verify results. If a call errors, make at most ONE quick retry, then " +
-    "record that task as failed (gid null) and move on.",
+    "Work at a normal, unhurried pace: it's fine to go with the first reasonable approach " +
+    "you find rather than cross-checking alternatives, and a light sanity check on results " +
+    "is enough — you don't need to exhaustively verify every detail.",
   medium:
-    "You are a MEDIUM-EFFORT agent. Take reasonable steps to discover the API and to " +
-    "complete each task, with a light sanity check, but don't exhaustively investigate.",
+    "Take reasonable steps to discover the API and complete each task, with a light sanity " +
+    "check, but don't exhaustively investigate.",
   high:
-    "You are a HIGH-EFFORT agent. Discover thoroughly (confirm the base URL, the current " +
-    "endpoints, the auth scheme, and any prerequisites like a required workspace field). " +
-    "In execution, inspect responses, recover from errors by fixing and retrying, and " +
-    "verify each result reads back.",
+    "Take extra care: confirm the base URL, current endpoints, auth scheme, and any " +
+    "prerequisites before acting, inspect responses as you go, recover from errors by " +
+    "fixing and retrying, and verify each result reads back before moving on.",
 };
 
 /** Per-task instruction. Goal-level — the endpoint is whatever Phase 0 found. */
+/** Named fields an oracle check needs the agent to self-report, beyond `gid` —
+ *  e.g. Supabase's vector-search check needs `rpc_function_name` because
+ *  PostgREST can't order by vector distance itself, so the agent must wrap it
+ *  in a Postgres function; that requirement is invisible to the agent unless
+ *  surfaced explicitly, since it's vendor-specific verification plumbing the
+ *  shared, vendor-agnostic task prompt text has no reason to mention. */
+export function namedFieldsFor(task: Task): string[] {
+  const names = new Set<string>();
+  const placeholderRe = /\{([a-z][a-z0-9_]*)\}/g;
+  const collect = (value: unknown) => {
+    if (typeof value === "string") {
+      for (const m of value.matchAll(placeholderRe)) {
+        const name = m[1];
+        if (name && name !== "ns" && name !== "gid") names.add(name);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) collect(entry);
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      for (const entry of Object.values(value as Record<string, unknown>)) collect(entry);
+    }
+  };
+  for (const oracle of task.oracles) {
+    if (oracle.authField) names.add(oracle.authField);
+    if (oracle.sqlConnField) names.add(oracle.sqlConnField);
+    for (const text of [oracle.readPathTemplate, oracle.sqlQuery]) {
+      if (!text) continue;
+      for (const m of text.matchAll(placeholderRe)) {
+        const name = m[1];
+        if (name && name !== "ns" && name !== "gid") names.add(name);
+      }
+    }
+    collect(oracle.readBodyTemplate);
+    collect(oracle.mongoQuery);
+  }
+  return [...names];
+}
+
 function taskLine(task: Task, ns: string): string {
-  return `- ${task.id} [${task.difficulty}]: ${applyNs(task.prompt, ns).trim()}`;
+  const base = `- ${task.id} [${task.difficulty}]: ${applyNs(task.prompt, ns).trim()}`;
+  const extra = namedFieldsFor(task);
+  if (!extra.length) return base;
+  return `${base}\n  (also self-report, alongside gid: ${extra.map((n) => `\`${n}\``).join(", ")})`;
+}
+
+function envTemplateNames(text: string): string[] {
+  return [...new Set([...text.matchAll(/\$\{([A-Z0-9_]+)\}/g)].map((match) => match[1]).filter((name): name is string => Boolean(name)))];
+}
+
+function surfaceCredentialEnvNames(pack: TargetPack): string[] {
+  const names = new Set<string>();
+  for (const surface of Object.values(pack.surfaces ?? {})) {
+    const auth = surface?.auth;
+    if (!auth) continue;
+    if (auth.kind === "token" && auth.token_env) names.add(auth.token_env);
+    if (auth.kind === "oauth_app") {
+      if (auth.client_id_env) names.add(auth.client_id_env);
+      if (auth.refresh_token_env) names.add(auth.refresh_token_env);
+    }
+  }
+  return [...names].filter((name) => name !== pack.auth?.env);
 }
 
 /** Tell the agent which .env vars hold the credential + sandbox scope. Derived
@@ -84,19 +154,32 @@ function credentialBlock(pack: TargetPack): string[] {
   const lines: string[] = [];
   if (!pack.auth?.env && pack.sandbox_scope.length === 0) {
     lines.push(
-      `Read .env for ASANA_PAT, ASANA_SANDBOX_PROJECT_GID, and ASANA_SANDBOX_WORKSPACE_GID`,
-      `(use the leading numeric portion of each).`,
+      `Use process.env.ASANA_PAT, process.env.ASANA_SANDBOX_PROJECT_GID, and process.env.ASANA_SANDBOX_WORKSPACE_GID`,
+      `(use the leading numeric portion of each scope value).`,
     );
     return lines;
   }
   const authVar = pack.auth?.env || "the credential var";
-  lines.push(`Read .env for the credential ${authVar}.`);
+  lines.push(`Use process.env.${authVar} for the credential.`);
+  const templateVars = envTemplateNames(pack.base_url);
+  if (templateVars.length) {
+    lines.push(`Use process.env for non-secret endpoint/context variable(s): ${templateVars.join(", ")}; use these values literally when constructing hosts or URLs.`);
+  }
+  const surfaceCreds = surfaceCredentialEnvNames(pack);
+  if (surfaceCreds.length) {
+    lines.push(`Other declared sandbox credential env var(s), if the docs require them for this surface: ${surfaceCreds.join(", ")}.`);
+  }
+  if (pack.mongo_conn?.database) {
+    lines.push(`Use MongoDB database name "${pack.mongo_conn.database}" for MongoDB data-plane work.`);
+  }
   for (const p of pack.sandbox_scope) {
     const req = p.required ? "" : " (optional)";
     const note = p.instructions ? ` — ${p.instructions}` : "";
-    lines.push(`Read .env for ${p.env}${req} = the sandbox ${p.name}${note}`);
+    lines.push(`Use process.env.${p.env}${req} = the sandbox ${p.name}${note}`);
   }
-  lines.push(`Use the leading numeric/id portion of each scope value if it's pasted as a URL.`);
+  if (pack.sandbox_scope.length) {
+    lines.push(`For sandbox scope vars only, use the leading numeric/id portion if the value is pasted as a URL; do not split endpoint/context vars such as host, org, project-ref, or database names.`);
+  }
   return lines;
 }
 
@@ -117,19 +200,25 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const { pack, profile, ns, resultsPath, tracePath } = opts;
   const surface = opts.surface ?? apiSurface;
   const tasks = tasksForSurface(pack, surface.id);
-  const ids = tasks.map((t) => t.id);
-  const resultsShape = ids.map((id) => `      "${id}": {"gid": "<gid or null>"}`).join(",\n");
+  const resultsShape = tasks.map((task) => {
+    const fields = ["\"gid\": \"<gid or null>\"", ...namedFieldsFor(task).map((field) => `"${field}": "<value or null>"`)];
+    return `      "${task.id}": {${fields.join(", ")}}`;
+  }).join(",\n");
+  const effortLabel = `${profile.effort.toUpperCase()}-EFFORT`;
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
     `from a cold start. Work in the repo root.`,
     ``,
-    `=== PROFILE: "${profile.name}" (effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
+    `=== PROFILE: "${profile.name}" (${effortLabel}, effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
     EFFORT_BLOCK[profile.effort],
     `Budget: at most ~${profile.maxTurns} ${surface.actionUnit} total across discovery + ALL tasks.`,
     ``,
     `=== CREDENTIALS (the "where", not the "how") ===`,
+    `The harness has already loaded declared .env values into the child process environment.`,
     ...credentialBlock(pack),
+    `Secret hygiene is mandatory: never print, cat, grep, rg, echo, or include .env contents or secret values in stdout, trace, notes, or results.`,
+    `Do not use file-reading tools to open .env. In scripts, read only the specific process.env names you need, use them silently, and report only env-var NAMES or redacted placeholders such as <token>.`,
     `The token is provided, but you must still DISCOVER how to authenticate with it and`,
     `what the base URL / endpoints are (Phase 0).`,
     ``,
@@ -138,6 +227,8 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     `=== NAMESPACE ===`,
     `Every task name below already has the namespace "${ns}" substituted in. Create resources`,
     `with EXACTLY those names — do not change them.`,
+    `Do not delete, reset, overwrite, or mutate pre-existing resources that were not created in this run.`,
+    `If a quota or sandbox limit blocks a task, record that task as failed instead of cleaning up unrelated resources.`,
     ``,
     `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
     ...tasks.map((t) => taskLine(t, ns)),

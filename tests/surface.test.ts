@@ -92,6 +92,58 @@ describe("surface-parameterized executor prompt", () => {
     expect(p).toMatch(/~40 API actions/);
   });
 
+  it("credential block includes endpoint context and alternate surface credential names without verifier secrets", () => {
+    const p = promptFor("api", TargetPackSchema.parse({
+      ...base,
+      base_url: "https://${PROJECT_REF}.example.test",
+      auth: { type: "bearer", env: "API_TOKEN" },
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      surfaces: {
+        cli: { bin: "demo", auth: { kind: "token", token_env: "CLI_TOKEN" } },
+      },
+    }));
+    expect(p).toContain("The harness has already loaded declared .env values into the child process environment.");
+    expect(p).toContain("Use process.env.API_TOKEN for the credential.");
+    expect(p).toContain("non-secret endpoint/context variable(s): PROJECT_REF");
+    expect(p).toContain("use these values literally when constructing hosts or URLs");
+    expect(p).toContain("Other declared sandbox credential env var(s), if the docs require them for this surface: CLI_TOKEN.");
+    expect(p).not.toContain("Use the leading numeric/id portion");
+    expect(p).not.toContain("DATABASE_URL");
+    expect(p).not.toContain("Read .env");
+  });
+
+  it("limits URL id extraction guidance to sandbox scope vars, not endpoint context vars", () => {
+    const p = promptFor("api", TargetPackSchema.parse({
+      ...base,
+      base_url: "https://${DATABASE_NAME}-${ORG_SLUG}.example.test",
+      auth: { type: "bearer", env: "API_TOKEN" },
+      sandbox_scope: [{
+        name: "project",
+        env: "PROJECT_ID",
+        required: true,
+        instructions: "existing sandbox project",
+      }],
+    }));
+    expect(p).toContain("DATABASE_NAME, ORG_SLUG; use these values literally");
+    expect(p).toContain("For sandbox scope vars only, use the leading numeric/id portion");
+    expect(p).toContain("do not split endpoint/context vars such as host, org, project-ref, or database names");
+  });
+
+  it("includes non-secret MongoDB database scope when a pack declares one", () => {
+    const p = promptFor("api", TargetPackSchema.parse({
+      ...base,
+      auth: { type: "none", env: "ATLAS_CONNECTION_STRING" },
+      mongo_conn: { connection_string_env: "ATLAS_CONNECTION_STRING", database: "axarena_eval" },
+    }));
+    expect(p).toContain('Use MongoDB database name "axarena_eval" for MongoDB data-plane work.');
+  });
+
+  it("tells agents not to clean up unrelated sandbox resources", () => {
+    const p = promptFor("api", apiOnly);
+    expect(p).toContain("Do not delete, reset, overwrite, or mutate pre-existing resources that were not created in this run.");
+    expect(p).toContain("If a quota or sandbox limit blocks a task, record that task as failed instead of cleaning up unrelated resources.");
+  });
+
   it("cli surface drives the binary, inspects --help, and installs", () => {
     const p = promptFor("cli");
     expect(p).toContain("SURFACE: CLI");
@@ -108,6 +160,7 @@ describe("surface-parameterized executor prompt", () => {
     expect(p).toContain("@demo/sdk");
     expect(p).toContain("Install and call the `@demo/sdk` SDK");
     expect(p).toContain('"surface": "sdk"');
+    expect(p).not.toContain("credential in .env");
   });
 
   it("mcp surface lists tools and uses the server", () => {

@@ -1,11 +1,14 @@
 # Database AX Benchmark V1 (DAEB-1) — Canonical Task Suite
 #
-# This file is the source of truth for what every vendor pack in DAEB-1 is
-# evaluated on. It is consumed by `ax-eval generate --suite docs/daeb-1-suite.yaml`
-# to constrain the LLM-assisted generator to produce per-vendor packs with
-# IDENTICAL task ids and aligned intent. The vendor pack's per-task `prompt`,
-# `oracles[].readPathTemplate`, and surface specifics are vendor-authored;
-# task `id`, `title`, and `difficulty` MUST match this suite exactly.
+# This file is the source of truth for what every vendor in DAEB-1 is evaluated
+# on. `ax-eval compose-pack` combines this suite with each vendor's public card,
+# oracle extract, and surface extract to produce a compiled TargetPack under
+# `targets/packs/<vendor>/daeb-1.yaml`.
+#
+# Compiled vendor packs are execution artifacts, not independent benchmark
+# definitions. Task `id`, `title`, `difficulty`, and `intent` MUST come from
+# this suite exactly; only auth/base URLs, read-back oracles, N/A mapping, and
+# surface config vary by vendor.
 #
 # Methodology rules:
 #   - Score comparability across vendors is established by shared task `id`.
@@ -25,6 +28,57 @@ description: |
   Each task is goal-level: prompts never name endpoints, methods, or SDK
   calls — discovery is part of the test.
 homepage: https://axarena.ai/methodology/daeb-1
+methodology:
+  schema: ax.suite-methodology/v1
+  ontology:
+    task: A single benchmark problem with fixed intent and success criteria.
+    trial: One attempt at a task under a clean environment.
+    grader: Logic that scores either an outcome or transcript-derived property.
+    transcript: Behavior evidence from the agent run, including tool use and intermediate steps.
+    outcome: Final world state in the environment at the end of a trial.
+    support_decision: A recorded judgment about whether a vendor or surface can perform a task.
+    selection_decision: A recorded judgment about whether a concept is promoted into the canonical suite.
+    suite: The frozen canonical task bank for a category.
+    publication_bundle: The artifact bundle tying methodology, adapters, evidence, and results together.
+  static_ax:
+    label: Static AX Readiness
+    dimensions: [discoverability, content quality, capability exposure, protocol/access readiness]
+    notes:
+      - Static AX is published separately and never changes behavioral pass rates.
+  behavioral:
+    label: Behavioral Canonical Suite
+    source_of_truth: Verified read-back of world state from the live product.
+    notes:
+      - Behavioral ranking is governed only by verified task outcomes on api/cli/sdk.
+  capability_families:
+    - data-definition
+    - data-write
+    - data-read
+    - access-control
+    - integrity
+    - migration
+    - search
+    - compute
+    - change-data-capture
+    - backup-and-recovery
+  extraction_requirements:
+    - Use only official vendor documentation as evidence.
+    - Persist every extracted capability with structured evidence objects.
+    - Document supported api/sdk/cli surfaces when the docs provide evidence.
+  surface_scope: [api, sdk, cli]
+  min_vendor_coverage_pct: 0.75
+  target_task_count: 10
+  family_diversity_cap: 2
+  verifiability_requirement: Selected tasks must have deterministic read-back verification against world state.
+  difficulty_rubric:
+    L1: Single-step create/read/check operation with minimal setup.
+    L2: Composed workflow or constrained multi-step task with deterministic state.
+    L3: Ambiguous or multi-step workflow requiring discovery and orchestration.
+    L4: Operational, recovery, policy, or reliability-sensitive workflow with higher coordination cost.
+  human_review_checkpoints:
+    - suite methodology revision
+    - final suite freeze
+    - publication bundle release
 
 tasks:
   - id: db-T01-create-table
@@ -41,7 +95,7 @@ tasks:
     oracle_hint: |
       Read back the table list / schema introspection; assert
       `axarena_customers_{ns}` exists with the three named columns.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T02-insert-rows
@@ -56,7 +110,7 @@ tasks:
     oracle_hint: |
       Count rows in `axarena_customers_{ns}`; assert exactly 100. Sample a
       row by email and assert the expected shape.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T03-query-pattern
@@ -73,7 +127,7 @@ tasks:
       11 matching rows (probe-9, probe-90..probe-99 — no other row in the
       1..100 range starts with "probe-9"), and that the agent's reported
       page 1 contains the lowest-ordered 5 emails.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T04-rls-policy
@@ -89,7 +143,7 @@ tasks:
     oracle_hint: |
       Authenticate as two distinct users; assert each sees only their own
       rows, neither sees the other's, and the count is correct per user.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples:
       - "Vendor has no per-row access model; document and mark N/A."
 
@@ -105,7 +159,7 @@ tasks:
       After the attempted duplicate insert, count rows with the duplicate
       email; assert exactly 1. Inspect the agent's reported error and assert
       a recognizable unique-violation error code or message.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T06-foreign-key
@@ -121,7 +175,7 @@ tasks:
       Attempt to insert an order with a customer_id that doesn't exist;
       assert that the insert fails with a recognizable foreign-key
       violation. Read back the valid order; assert the relationship holds.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples:
       - "Vendor is schemaless / has no foreign-key model; document and mark N/A."
 
@@ -136,7 +190,7 @@ tasks:
       Parse the export; assert exactly 100 records and that each record has
       the expected fields. If file path: read the file. If stream: capture
       bytes from the agent's reported handle.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T08-schema-migration
@@ -150,7 +204,7 @@ tasks:
     oracle_hint: |
       Read back the table schema; assert `status` column exists, is the
       correct type, and that all existing rows have `status='active'`.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples: []
 
   - id: db-T09-runtime-integration
@@ -165,7 +219,7 @@ tasks:
     oracle_hint: |
       Independently invoke the deployed function via the vendor's API or
       public URL; assert the response is JSON with the correct count.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples:
       - "Vendor has no hosted function / edge runtime; document and mark N/A."
 
@@ -181,7 +235,7 @@ tasks:
       List the vendor's backups/snapshots/branches; assert the agent's
       reported identifier is present with a creation timestamp within the
       last 60 seconds.
-    allowed_surfaces: [api, sdk, cli, mcp]
+    allowed_surfaces: [api, sdk, cli]
     na_examples:
       - "Vendor exposes no programmatic backup/snapshot mechanism; document
          and mark N/A."
@@ -199,6 +253,6 @@ scoring:
       N/A count separately. Cross-vendor comparisons are valid only across
       tasks both vendors execute (not N/A).
   surface_breakout: |
-    Each task is scored independently on each of API, SDK, CLI, MCP where
+    Each task is scored independently on each of API, SDK, CLI where
     that surface is declared. The vendor's overall score is the average
     across non-N/A (task, surface) cells.

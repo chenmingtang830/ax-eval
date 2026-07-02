@@ -1,0 +1,351 @@
+vendor: Neon
+slug: neon
+category: database
+extracted_at: 2026-07-01T08:44:37.814Z
+capabilities:
+  - capability_name: copy-on-write-branching
+    title: Copy-on-Write Database Branching
+    family: migration
+    description: Creates instant, isolated clones of the entire database (schema +
+      data) from any point in time. Branches diverge independently — writes are
+      stored as deltas so parent sees zero performance impact.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/branching
+        quote: A database branch is a copy-on-write clone of your data... Writes to a
+          branch are saved as a delta.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: serverless-autoscaling
+    title: Autoscaling Compute
+    family: compute
+    description: Automatically adjusts vCPU/RAM (measured in Compute Units) up and
+      down in response to query load, within user-defined min/max bounds, with
+      no restarts.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/autoscaling
+        quote: dynamically adjusts the amount of compute resources allocated to a Neon
+          compute in response to the current load, eliminating the need for
+          manual intervention or restarts.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: scale-to-zero
+    title: Scale-to-Zero (Auto-Suspend)
+    family: compute
+    description: Automatically suspends idle compute after 5 minutes of inactivity
+      and reactivates it in milliseconds on the next query, so you pay only for
+      active compute time.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/scale-to-zero
+        quote: suspends inactive Neon Postgres computes after 5 minutes and reactivates
+          them in milliseconds on the next query, so you pay only for active
+          compute time.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: point-in-time-restore
+    title: Point-in-Time Restore
+    family: backup-and-recovery
+    description: Rolls a branch back to any timestamp within the configured history
+      window (6 hours on Free, up to 30 days on Scale). Can also create a new
+      branch from a historical state for forensic analysis without overwriting
+      production.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/point-in-time-restore
+        quote: "You can use instant restore to recover: roll the branch back to any
+          point in time that still falls within your project's history window."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: read-replicas
+    title: Read Replicas (Shared-Storage)
+    family: compute
+    description: Spins up additional read-only Postgres compute instances that serve
+      queries against the same underlying storage — no data duplication,
+      near-instant provisioning, and replicas can also scale to zero when idle.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/read-replicas
+        quote: read replicas are independent read-only compute instances that serve
+          requests from the same storage as the primary compute... No data is
+          duplicated or replicated.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: connection-pooling
+    title: Connection Pooling via PgBouncer
+    family: integrity
+    description: Runs PgBouncer in transaction mode in front of every endpoint,
+      multiplexing up to 10,000 concurrent client connections onto a smaller
+      pool of real Postgres connections per user/database pair.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/connect/connection-pooling
+        quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
+          concurrent connections.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: logical-replication
+    title: Logical Replication (Publisher/Subscriber)
+    family: change-data-capture
+    description: Supports native Postgres logical replication so Neon can act as
+      publisher or subscriber — enabling CDC to data warehouses, live inbound
+      migrations from RDS/Cloud SQL/Supabase, and cross-project replication.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/logical-replication
+        quote: stream data from your Neon database to external destinations, enabling
+          Change Data Capture (CDC) and real-time analytics.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-search
+    title: Vector Search & Embeddings (pgvector)
+    family: search
+    description: First-class support for the pgvector extension, letting you store
+      and query high-dimensional embedding vectors inside Postgres for semantic
+      search, RAG pipelines, and similarity matching alongside relational data.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/ai/ai-intro
+        quote: Neon provides the pgvector extension, enabling developers to store and
+          query vector embeddings within their Postgres database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: postgres-extensions
+    title: 100+ Postgres Extensions
+    family: data-read
+    description: Ships with over 100 supported extensions across PG14–PG18,
+      including PostGIS, TimescaleDB, pg_partman, pg_stat_statements,
+      pg_graphql, pgvector, and H3, covering geospatial, time-series, routing,
+      analytics, and more.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/extensions/pg-extensions
+        quote: Neon supports over 100 PostgreSQL extensions across versions PG14 through
+          PG18.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: role-based-access-control
+    title: Role-Based Access Control
+    family: access-control
+    description: Manages Postgres roles (with neon_superuser privileges including
+      CREATEDB, CREATEROLE, BYPASSRLS, REPLICATION) via Console, CLI, API, or
+      SQL. Roles are automatically duplicated into child branches, keeping
+      access control consistent across environments.
+    resource_kind: role
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/manage/roles
+        quote: When you create a child branch, roles in the parent branch are duplicated
+          in the child branch.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: encryption-at-rest-and-in-transit
+    title: Encryption at Rest and in Transit
+    family: core-operations
+    description: All data on NVMe storage is encrypted with AES-256; all connections
+      are encrypted with TLS 1.2/1.3 with verify-full SSL mode enforced.
+      Passwords require at least 60-bit entropy.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/security/security-overview
+        quote: The data on NVMe instance storage is encrypted using an AES-256 block
+          cipher... encryption is enforced using TLS 1.2/1.3 protocols.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: ip-allowlisting-and-private-networking
+    title: IP Allowlisting & Private Networking
+    family: access-control
+    description: Restricts database access to specific CIDR ranges via IP allowlists
+      (Scale plan), and enables fully private connectivity through AWS
+      PrivateLink, bypassing the public internet entirely.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/security/security-overview
+        quote: connections to your Neon databases via AWS PrivateLink, bypassing the
+          open internet entirely.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-import-and-migration
+    title: Data Import & Migration
+    family: backup-and-recovery
+    description: "Supports six migration paths: automated Import Assistant (<10 GB),
+      pg_dump/restore, parallel pgcopydb (large DBs), logical replication
+      (near-zero downtime), pgloader (MySQL/MSSQL/SQLite), and AWS DMS — plus
+      CSV import and provider-specific guides."
+    resource_kind: backup
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/import/import-intro
+        quote: Logical Replication — For production workloads needing Minimal downtime
+          with near-zero downtime tolerance.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: management-api-and-sdk
+    title: Management API & SDKs
+    family: compute
+    description: A REST management API (with official TypeScript and Python SDKs)
+      lets you programmatically create and configure projects, branches,
+      databases, roles, and compute endpoints — enabling full
+      Infrastructure-as-Code and CI/CD automation.
+    resource_kind: resource
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/reference/sdk
+        quote: Management SDKs (TypeScript and Python) let developers programmatically
+          manage Neon projects, branches, databases, and other platform
+          resources.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: stateless-compute-storage-separation
+    title: Compute–Storage Separation
+    family: migration
+    description: Postgres compute is a stateless process fully decoupled from
+      durable storage (NVMe Pageservers + Safekeepers WAL store). This
+      architecture is what enables instant branching, read replicas sharing
+      storage, and scale-to-zero without data loss.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/compute-lifecycle
+        quote: a compute in Neon is a stateless Postgres process... Safekeepers store
+          the data changes durably until they are processed by Pageservers.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: compliance-certifications
+    title: SOC 2 / ISO 27001 Compliance
+    family: core-operations
+    description: Holds SOC 2, ISO 27001, and ISO 27701 certifications validated by
+      two independent annual audits, and participates in GitHub Secret Scanning
+      to detect exposed credentials automatically.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://neon.com/docs/security/security-overview
+        quote: Neon maintains SOC2, ISO27001, and ISO27701 certifications... annual
+          audits for SOC2 and ISO by two independent firms.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:37.814Z
+      extractor: legacy-capabilities-normalizer-v1

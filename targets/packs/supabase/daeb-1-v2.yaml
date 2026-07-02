@@ -1,0 +1,407 @@
+name: supabase
+version: "1"
+standard_set_version: daeb-1-v2
+run_id: 2026-07-01-bawrku
+generated_by: suite-composed-v2
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://supabase.com/docs
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: SUPABASE_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  extra_header: apikey
+sandbox_scope: []
+surfaces:
+  cli:
+    bin: supabase
+    install: npm install supabase --save-dev
+    docs_url: https://supabase.com/docs/reference/cli/introduction
+    auth:
+      kind: token
+      token_env: SUPABASE_ACCESS_TOKEN
+      token_env_aliases: []
+  sdk:
+    package: "@supabase/supabase-js"
+    language: node
+    reference_url: https://supabase.com/docs/reference/javascript/introduction
+    auth:
+      kind: inherit
+      token_env_aliases: []
+base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+headers: {}
+site_url: https://supabase.com
+openapi_url: ""
+docs_urls:
+  - https://supabase.com/docs
+static:
+  site_url: https://supabase.com
+  docs_urls:
+    - https://supabase.com/docs
+  checks: []
+tasks:
+  - id: db-T01-vector-similarity-search
+    title: "T01: Store embeddings and run a nearest-neighbor similarity query"
+    prompt: "Create a table/collection named `axarena_docs_{ns}` with fields: id
+      (primary key, vendor's idiomatic choice), label (text), and embedding (a
+      vector/embedding field of fixed dimension 4). Insert exactly 5 rows with
+      the following literal 4-dimensional vectors and labels: label 'a' -> [1.0,
+      0.0, 0.0, 0.0], label 'b' -> [0.0, 1.0, 0.0, 0.0], label 'c' -> [0.0, 0.0,
+      1.0, 0.0], label 'd' -> [0.0, 0.0, 0.0, 1.0], label 'e' -> [0.9, 0.1, 0.0,
+      0.0]. The vendor's idiomatic mechanism for defining a vector-typed column
+      and inserting vector data is acceptable (native vector type, JSON array
+      cast to vector, or an array field indexed for similarity search). After
+      inserting all 5 rows, run a nearest-neighbor / similarity search query
+      against the query vector [1.0, 0.0, 0.0, 0.0], requesting the top 2
+      nearest results ordered by similarity/distance (closest first). Report the
+      labels of the top 2 results in order. If your mechanism for running this
+      query is a server-side function/RPC (e.g. because the surface's query
+      layer can't order by vector distance directly), define that function to
+      take NO parameters — hardcode the fixed query vector [1.0, 0.0, 0.0, 0.0]
+      inside the function body, since it's a fixed constant for this task, not a
+      runtime input — so the function can be invoked with an empty argument
+      list."
+    oracles:
+      - type: roundtrip
+        expected: 5
+        description: all 5 rows exist in axarena_docs_{ns}
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_docs_{ns}?select=label,embedding&limit=20
+        assertField: length
+      - type: roundtrip
+        expected: a
+        description: top-1 nearest neighbor to [1,0,0,0] is label 'a' (exact match), via
+          pgvector RPC since PostgREST cannot order by vector distance natively
+        readMethod: POST
+        readPathTemplate: /rest/v1/rpc/{rpc_function_name}
+        assertField: 0.label
+      - type: roundtrip
+        expected: e
+        description: top-2 nearest neighbor to [1,0,0,0] is label 'e' (0.9,0.1,0,0), via
+          same pgvector RPC
+        readMethod: POST
+        readPathTemplate: /rest/v1/rpc/{rpc_function_name}
+        assertField: 1.label
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T02-full-text-search
+    title: "T02: Build a full-text search index and run a keyword query"
+    prompt: Create a table or collection named `axarena_articles_{ns}` with an `id`
+      field and a `body` text field. Insert exactly 4 rows with distinct,
+      deterministic body text, such that exactly one row's body contains the
+      distinctive word `axarenaquokka` (a word that must not appear anywhere in
+      the other three rows' text). Build or enable the vendor's idiomatic
+      full-text/keyword search index on the `body` field. If your mechanism
+      requires a separate indexed/generated column (e.g. a tsvector column),
+      name that column exactly `body_fts` — this exact name will be used to
+      verify your work, regardless of which interface (API/SDK/CLI/MCP) you used
+      to build it. Then run a full-text or keyword search query for
+      `axarenaquokka` using the vendor's actual full-text search mechanism (not
+      a plain substring or LIKE/regex match). The search must return exactly the
+      one row whose body contains the word, and no others. Report the matching
+      row's `id`.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: Full-text search for axarenaquokka via PostgREST fts operator on
+          the fixed body_fts column name returns exactly one row
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_articles_{ns}?select=id,body&body_fts=fts.axarenaquokka
+        assertField: length
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - sdk
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T03-server-side-compute
+    title: "T03: Define and invoke a server-side function that aggregates data"
+    prompt: Create a table named `axarena_sales_{ns}` with columns `id` (integer
+      primary key) and `amount` (numeric). Insert exactly 5 rows with amount
+      values 100, 250, 75, 300, 125 (id values 1 through 5, in any order). Then
+      define a server-side function or stored procedure — using the vendor's
+      idiomatic server-side compute mechanism — that computes the sum of the
+      `amount` column across all rows in `axarena_sales_{ns}` and returns that
+      sum. The aggregation logic must execute server-side, co-located with the
+      data; do not compute the sum client-side and merely store or echo the
+      precomputed value. Invoke the function via the vendor's standard call/RPC
+      mechanism (not by issuing a raw SELECT SUM() query from the client) and
+      report the function's name or identifier as `function_name`, since it may
+      be arbitrary.
+    oracles:
+      - type: roundtrip
+        expected: 850
+        description: POST to the PostgREST RPC endpoint for the reported function_name
+          returns the bare scalar 850 as the raw JSON response body
+        readMethod: POST
+        readPathTemplate: /rest/v1/rpc/{function_name}
+        assertField: $
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - sdk
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T04-schema-migration-workflow
+    title: "T04: Add a new column to an existing table via a tracked schema migration"
+    prompt: Create a table `axarena_products_{ns}` with columns `id` (primary key)
+      and `name` (text). Insert exactly 2 rows into it. Then, using the vendor's
+      idiomatic VERSIONED or TRACKED schema-change mechanism (e.g. a migration
+      file applied through a migration/deploy workflow, a schema-diff-and-apply
+      tool, or an equivalent tracked-change process — not a one-off raw ALTER
+      TABLE issued with no tracking record), add a new nullable column `price`
+      (numeric type) to `axarena_products_{ns}`. Confirm both original rows
+      still exist and that `price` is null/absent on them. Additionally, report
+      a self-reported named field `migration_id` identifying the
+      migration/deploy-request/schema-version record that the tracking mechanism
+      itself generated for this change.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: exactly 2 rows exist, confirming both original rows survived the
+          migration
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_products_{ns}?select=id,name,price&limit=5
+        assertField: length
+      - type: roundtrip
+        expected: null
+        description: the price column now exists (query succeeds rather than erroring)
+          and is null on the pre-existing row
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_products_{ns}?select=price&limit=1
+        assertField: 0.price
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T05-change-data-capture
+    title: "T05: Enable change capture and verify a row-level change event is
+      recorded"
+    prompt: "Create a new table named `axarena_orders_{ns}` with an `id` column and
+      a `status` column. Enable the vendor's idiomatic change-data-capture /
+      change-stream / logical-replication mechanism scoped to this table (this
+      may involve creating a publication, a changefeed, a change-stream watch, a
+      replication slot, or a CDC pragma — whichever is idiomatic for the
+      vendor). Then perform exactly one deterministic write: insert a row with
+      id=1 and status='new'. Capture or read back the resulting change
+      event/record from wherever the change-capture mechanism delivers it (this
+      could be a CDC table, a changefeed sink, a change-stream cursor, a
+      subscription payload, etc). Report the location or identifier of that
+      captured data as `capture_location`, since it varies by vendor. The
+      captured event must show the inserted row's data (id=1, status='new') and
+      an operation type indicating an insert (e.g. 'insert', 'INSERT', 'c' for
+      create, or equivalent). Never name a specific vendor's API/SDK call in
+      your response."
+    oracles:
+      - type: na
+        description: Supabase's idiomatic CDC/logical-replication mechanism is Postgres
+          logical replication via the supabase_realtime publication, consumed
+          via Supabase Realtime's ephemeral WebSocket 'Postgres Changes' stream
+          or an external logical-replication subscriber. Supabase does not
+          persist delivered Postgres Changes payloads anywhere queryable via
+          REST or SQL after the fact, and no consumer/log table was set up.
+          Since verification happens once at the end of all 10 tasks (after the
+          live subscription window has closed), there is no way to read back a
+          captured change event via the single REST or SQL credential this pack
+          wires up.
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T06-point-in-time-restore
+    title: "T06: Restore a table to its exact state at a specific past timestamp"
+    prompt: "Create a table named `axarena_snapshot_{ns}` with columns `id` and
+      `label`, and insert 3 rows into it. Then record the current timestamp as a
+      named field `checkpoint_time`, using whatever mechanism the database
+      provides to make that exact moment restorable later (if the vendor imposes
+      a minimum delay before a moment becomes eligible for restore, wait for it
+      before proceeding). After recording `checkpoint_time`, insert 2 more rows
+      into the table so that 5 rows exist in total. Next, restore or recover the
+      database to the exact moment captured by `checkpoint_time`, using
+      whichever restore/recovery mechanism the vendor provides. This may create
+      a new branch, instance, or database rather than modifying the original in
+      place — if so, report its identifier as a named field `restored_target`.
+      Always report a named field `restored_connection_string`: a full,
+      directly-usable connection string/credential for the resulting target (the
+      same one you started with if the restore was applied in place, or the new
+      target's own if a new one was created). Finally, confirm that the
+      resulting target (the restored one if `restored_target` was produced,
+      otherwise the original) contains exactly the original 3 rows and none of
+      the 2 rows added after the checkpoint."
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: after PITR restore to checkpoint_time, exactly 3 rows remain (the
+          pre-checkpoint state)
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_snapshot_{ns}?select=*&order=id
+        assertField: length
+    difficulty: L4
+    allowed_surfaces:
+      - api
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T07-row-level-security
+    title: "T07: Restrict row-level read/write access to a specific identity"
+    prompt: "Create a table/collection named `axarena_customers_{ns}` with at least
+      one column identifying the owning identity (e.g. `owner_id`) plus a
+      `notes` text field. Insert two rows: one owned by identity A and one owned
+      by identity B (create two real, distinct identities via the platform's
+      actual authentication/user system — e.g. sign up two real users via its
+      auth API/SDK — and obtain each identity's genuine signed access
+      token/credential; do not fabricate a placeholder string as a stand-in for
+      a real token). Configure the platform's idiomatic per-row access-control
+      mechanism so that: (1) a request authenticated as identity A can read and
+      update/write only the row where `owner_id` = A, and cannot read or modify
+      the row owned by B; (2) a request authenticated as identity B can read and
+      update/write only its own row and cannot read or modify A's row; (3)
+      requests using an unrestricted/administrative credential (not scoped to
+      either identity) are unaffected by this task and are only used for
+      setup/verification, not as the thing being tested. Use whatever native
+      row-level access-control mechanism the platform provides. When done,
+      report the table/collection name, the two identity identifiers used, and
+      confirmation that each identity's scoped access was tested against both
+      its own row and the other identity's row."
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: identity A sees only its own row
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=*
+        assertField: length
+        authField: user_a_token
+      - type: roundtrip
+        expected: 1
+        description: identity B sees only its own row
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=*
+        assertField: length
+        authField: user_b_token
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T08-role-based-access-control
+    title: "T08: Create a restricted-privilege role that can only read one table"
+    prompt: "Create two tables: `axarena_orders_{ns}` with an integer `id` column
+      and a `total` numeric column, and `axarena_secrets_{ns}` with an integer
+      `id` column and a `value` text column. Insert exactly 3 rows into
+      `axarena_orders_{ns}` and exactly 3 rows into `axarena_secrets_{ns}`.
+      Using your vendor's idiomatic role or scoped-credential mechanism (e.g. a
+      SQL role with targeted GRANTs, a custom database role scoped to specific
+      actions/resources, or a scoped API key/credential), create a new
+      credential named or labeled `axarena_reader_{ns}` that: (1) can SELECT
+      from `axarena_orders_{ns}` and read all 3 rows; (2) has no access at all
+      to `axarena_secrets_{ns}` — no SELECT, INSERT, UPDATE, or DELETE. Do not
+      grant any privileges on `axarena_secrets_{ns}` to the new credential,
+      whether by default, inheritance, or wildcard grant. If your mechanism
+      produces a directly-connectable credential for the restricted role (e.g. a
+      login/password), report a full connection string/credential using it as a
+      named field `reader_connection_string`. Using the restricted credential
+      itself (not the admin/owner credential), execute a SELECT against
+      `axarena_orders_{ns}` and confirm it succeeds and returns all 3 rows, then
+      execute a SELECT against `axarena_secrets_{ns}` and confirm it is denied."
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: restricted role can SELECT from orders
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_orders_{ns}?select=*
+        assertField: length
+        authField: reader_token
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T09-backup-and-restore
+    title: "T09: Take an on-demand backup, modify data, then restore from that backup"
+    prompt: "In a database or project named `axarena_bkrestore_{ns}`, create a table
+      (or equivalent collection) named `axarena_ledger_{ns}` with columns `id`
+      INTEGER PRIMARY KEY and `label` TEXT. Insert exactly 4 rows: (1,'seed_1'),
+      (2,'seed_2'), (3,'seed_3'), (4,'seed_4'). Once these inserts are
+      committed, trigger the vendor's idiomatic on-demand or manual
+      backup/snapshot operation (not a scheduled/automatic one) covering this
+      database, and record an identifier for that specific backup. After the
+      backup completes, make one additional change to `axarena_ledger_{ns}`:
+      insert a fifth row (5,'post_backup'). Then restore from the backup
+      captured in the previous step — using whichever restore mechanism the
+      vendor provides, whether that restores the original database in place or
+      produces a new database/branch/instance containing the backup's contents.
+      If the restore target is not the original database (i.e., a new branch or
+      instance was created), report its identifier in a field named
+      `restored_target`; if the restore was applied in place, set
+      `restored_target` to the original identifier. On the resulting target,
+      confirm that `axarena_ledger_{ns}` contains exactly the 4 seed rows
+      (labels `seed_1` through `seed_4`) and that the `post_backup` row is
+      absent."
+    oracles:
+      - type: na
+        description: Per Supabase docs, on-demand/manual backup and restore is only
+          exposed via the Dashboard and the control-plane Management API (a
+          personal-access-token credential separate from this pack's data-plane
+          key). No data-plane REST API, client SDK, CLI, or MCP surface
+          documented by Supabase can trigger a backup or restore, so no surface
+          can perform this task's action at all.
+    difficulty: L3
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T10-database-triggers
+    title: "T10: Create a trigger that auto-populates a field on row insert"
+    prompt: Create a table (or equivalent collection) named `axarena_events_{ns}`
+      with at least the columns `id` (primary key), `event_type` (text/string),
+      and `status` (text/string, nullable). Using the vendor's idiomatic trigger
+      or event-driven mechanism — a native SQL `CREATE TRIGGER` fired `BEFORE
+      INSERT`/`AFTER INSERT`, a platform-level database-triggered function, or
+      an equivalent event-driven hook — configure the mechanism so that whenever
+      a row is inserted into `axarena_events_{ns}`, the `status` column is
+      automatically set to the literal value `'pending'` if it was not
+      explicitly provided by the insert statement. Insert exactly one row
+      specifying only `id` and `event_type` (deliberately omitting `status` from
+      the insert payload/statement) with `id=1` and `event_type='axarena-{ns}'`.
+      Do not set `status` anywhere in the insert call itself — the trigger/event
+      mechanism must be what populates it. Read back the row and confirm
+      `status` was auto-populated to `'pending'`.
+    oracles:
+      - type: roundtrip
+        expected: pending
+        description: status auto-populated to 'pending' by the trigger since the insert
+          omitted it
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_events_{ns}?id=eq.1&select=status
+        assertField: 0.status
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []

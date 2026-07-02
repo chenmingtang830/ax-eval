@@ -1,13 +1,13 @@
 ---
 name: ax-eval
-description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to generate a reviewed L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic round-trip oracles.
+description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to generate a reviewed L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic outcome verification.
 ---
 
 # ax-eval — host-agent skill
 
-You are the **harness**. The eval is a reviewed, frozen per-target `TargetPack`;
+You are the **agent harness**. The eval is a reviewed, frozen `TargetPack`;
 you run it against the **live** product surface and the CLI verifies success via
-**programmatic oracles** (API readback), not self-report.
+**programmatic outcome verification** (API readback), not self-report.
 
 Two things make this real:
 - **Discovery is Phase 0.** You are NOT told the endpoint, base URL, request
@@ -61,6 +61,38 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
 ## Workflow
 
+### AXArena / DAEB-1 canonical benchmark path
+
+DAEB-1 is different from ordinary per-target authoring. It starts from one
+frozen canonical suite, then compiles vendor adapters from public vendor cards
+and vendor-specific verification extracts:
+
+```text
+evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
+```
+
+Use `targets/suites/daeb-1-v3.yaml` as the source of truth. The files under
+`targets/packs/<vendor>/daeb-1-v3.yaml` are compiled execution artifacts, not
+separate benchmark definitions. They should keep the same task ids, titles,
+intents, difficulty labels, scoring contract, surfaces, and harness matrix;
+only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
+by vendor.
+
+Once all vendor runs have been verified, freeze the publication bundle:
+
+```bash
+npm run ax-eval -- publication-bundle \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
+  --run-dir results/runs/daeb-1-v3 \
+  --out results/publications/daeb-1-v3
+```
+
+The bundle manifest is the handoff to the AXArena static website and the launch
+report. Treat missing snapshot/normalized artifacts as blockers for a final
+publication, but acceptable in a draft bundle while the 8-vendor run is still
+in progress.
+
 ### 1. Generate the frozen task set (or use a committed example)
 
 Already have an example pack at `targets/examples/<name>/pack.yaml`? Skip to step 2. To
@@ -89,9 +121,9 @@ npm run ax-eval -- review --pack <pack.yaml>            # read the set
 npm run ax-eval -- review --pack <pack.yaml> --approve --by <name>
 ```
 
-Generated tasks/oracles are executable intent that will run write-ops against
+Generated tasks/outcome verifiers are executable intent that will run write-ops against
 a sandbox, so **nothing runs un-reviewed**. The summary lists every task +
-prompt + oracle (flagged by confidence tier: T1 round-trip = strong, T2
+prompt + outcome verifier (flagged by confidence tier: T1 round-trip = strong, T2
 existence/2xx = weak) and the credential/sandbox surface it will touch.
 Approval is **content-addressed** — it records a hash of the reviewable
 fields, so any later edit re-closes the gate and forces re-approval (no
@@ -138,11 +170,11 @@ npm run ax-eval -- verify-generated --pack <pack.yaml> \
   --html results/runs/<id>/generated-eval.html
 ```
 
-The CLI GETs every resource back, scores round-trip oracles + each profile's
+The CLI GETs every resource back, scores outcome verifiers + each profile's
 discovery funnel, gates on `--min-pass-rate`, and writes a self-contained HTML
 report. Then summarize for the user:
 - Static discovery score (docs-site crawl) and agent discovery score
-  (behavioral Phase 0) as separate signals.
+  (usability-suite Phase 0) as separate signals.
 - Pass rate by config/profile, difficulty (L1–L4), and pass@k across attempts.
 - If `--min-pass-rate` was used, call out both the overall gate and any
   per-surface subgate failures.
@@ -156,7 +188,7 @@ report. Then summarize for the user:
   interaction signal.
 - **Attribution:** separate genuine product/docs gaps from **plan-limited**
   (402, free tier) and **discovery-blocked** failures. The headline gap is
-  high static discovery with low behavioral success, and only applies directly
+  high static discovery with low usability-suite success, and only applies directly
   on surfaces where the docs site is the agent's discovery path.
 - Label a first live matrix as a **directional draft**, not a final benchmark,
   unless it has repeated attempts (`--attempts N`) and the product owner has
@@ -190,7 +222,7 @@ deep-dive without hunting through prior scratch runs.
 - Never run an un-reviewed pack: get human `review --approve` first (or
   `--skip-review` only for a committed/trusted pack). A changed pack must be
   re-approved.
-- Do not skip `verify` — success requires oracle PASS against live state.
+- Do not skip `verify` — success requires verifier PASS against live state.
 - Report `harness: host-agent` and the host model; label the low↔high spread as an
   **effort** spread (same model), not a cross-model score. The `sonnet`/`gpt5`
   cross-model profiles only produce real cross-model data in Cursor Composer

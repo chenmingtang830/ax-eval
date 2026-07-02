@@ -49,12 +49,32 @@ export const OracleSpecSchema = z.object({
    *  the dotted `assertField` against the first result row. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
+  /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
+   *  runs a small declarative read operation against a collection. */
+  mongoQuery: z.object({
+    database: z.string(),
+    collection: z.string(),
+    operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
+    filter: z.unknown().optional(),
+    projection: z.unknown().optional(),
+    sort: z.unknown().optional(),
+    pipeline: z.array(z.unknown()).optional(),
+  }).optional(),
   /** Identity-scoped (e.g. row-level security) round-trip: the key the
    *  executor reports THIS check's Bearer credential under (alongside
    *  `gid`), e.g. "user_a_token". The verifier authenticates as that
    *  identity instead of the pack's default — needed because the pack's
    *  admin-level credential typically bypasses row-level security. */
   authField: z.string().optional(),
+  /** Identity-scoped (SQL variant): the key the executor reports THIS
+   *  check's full alternate connection string under (alongside `gid`),
+   *  e.g. "restored_connection_string" or "reader_connection_string" —
+   *  needed when the resource to verify lives behind a DIFFERENT
+   *  credential than the pack's default sql_conn (e.g. a new branch
+   *  created during restore, or a scoped role created for RBAC testing).
+   *  The executor already has this connection string in hand (it's what
+   *  it just used to do the work); this only asks it to also report it. */
+  sqlConnField: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -316,6 +336,14 @@ export const TargetPackSchema = z.object({
       dialect: z.enum(["postgres", "mysql"]),
       /** Env var holding a full connection string/DSN. */
       connection_string_env: z.string(),
+    })
+    .optional(),
+  mongo_conn: z
+    .object({
+      /** Env var holding a full MongoDB connection string. */
+      connection_string_env: z.string(),
+      /** Default database used by MongoDB oracle checks. */
+      database: z.string().optional(),
     })
     .optional(),
   /** Non-API surfaces this target exposes (cli/sdk/mcp). The API surface is

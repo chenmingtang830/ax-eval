@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-os6ueu
+# run_id: 2026-07-02-8nkil2
 name: turso
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-os6ueu
+run_id: 2026-07-02-8nkil2
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -64,7 +64,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T02-insert-rows
@@ -93,14 +93,14 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T03-query-pattern
     title: "T03: pattern query with pagination"
     prompt: |-
       From `axarena_customers_{ns}`, return all rows where email matches the
-      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      pattern `probe-9%@axarena-{ns}.test` (i.e., starts with `probe-9`),
       ordered by created_at, paginated at 5 rows per page. Return the first
       two pages.
     oracles:
@@ -124,7 +124,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T04-rls-policy
@@ -143,6 +143,7 @@ tasks:
           platform API.
     difficulty: L3
     allowed_surfaces: []
+    na: true
     depends_on: []
     trace: []
   - id: db-T05-unique-constraint
@@ -172,7 +173,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T06-foreign-key
@@ -204,7 +205,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T07-export
@@ -235,7 +236,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T08-schema-migration
@@ -266,7 +267,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T09-runtime-integration
@@ -288,7 +289,7 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T10-backup-restore
@@ -317,6 +318,6 @@ tasks:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []

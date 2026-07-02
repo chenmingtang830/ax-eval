@@ -48,6 +48,14 @@ export interface ProfileRun {
   discoverySource?: "observed" | "self-report";
   /** Structured step log for observability (optional). */
   trace?: TraceStep[];
+  /** Efficiency diagnostics. These never affect correctness; deterministic
+   *  read-back outcomes remain the only pass/fail authority. */
+  efficiency?: {
+    latency_ms?: number | null;
+    tool_call_count?: number | null;
+    token_usage?: Record<string, number> | null;
+    token_cost?: number | null;
+  };
   /** Source files this run was assembled from. Surfaced verbatim in the report
    *  so a reader can drill from the rendered HTML back to the raw evidence
    *  (results JSON, trace JSON, harness transcript). Multi-attempt runs hold
@@ -314,6 +322,9 @@ interface ProcessStats {
   calls: number;
   failed: number;
   retryish: number;
+  taskScoped: number;
+  expectedTasks: number;
+  opaqueCalls: number;
 }
 
 function countRetryishCalls(trace: TraceStep[] | undefined): number {
@@ -330,11 +341,21 @@ function processStats(runs: ProfileRun[]): ProcessStats[] {
   return runs.map((run) => {
     const trace = run.trace ?? [];
     const calls = trace.filter((s) => s.method || s.path);
+    const expectedTasks = new Set(firstAttempts(run.outcomes).map((o) => o.taskId));
+    const taskScoped = new Set(
+      calls
+        .map((s) => s.taskId)
+        .filter((id): id is string => Boolean(id && expectedTasks.has(id))),
+    ).size;
+    const opaqueCalls = calls.filter((s) => !s.taskId || s.taskId === "all" || s.taskId === "observed").length;
     return {
       run,
       calls: calls.length,
       failed: calls.filter((s) => s.status !== undefined && s.status >= 400).length,
       retryish: countRetryishCalls(trace),
+      taskScoped,
+      expectedTasks: expectedTasks.size,
+      opaqueCalls,
     };
   });
 }
@@ -345,6 +366,14 @@ function worstProcessStats(runs: ProfileRun[]): ProcessStats | undefined {
     .sort((a, b) => b.failed - a.failed || b.retryish - a.retryish || b.calls - a.calls)[0];
 }
 
+function hasInsufficientTraceCoverage(s: ProcessStats): boolean {
+  if (s.expectedTasks === 0 || s.calls === 0) return false;
+  // Task outcome correctness remains oracle-gated; this only decides whether
+  // trace-derived process cleanliness is strong enough to claim as clean.
+  const minimumScopedTasks = Math.min(s.expectedTasks, Math.max(2, Math.ceil(s.expectedTasks / 2)));
+  return s.taskScoped < minimumScopedTasks || s.opaqueCalls / Math.max(1, s.calls) > 0.5;
+}
+
 function processStatsLabel(s: ProcessStats): string {
   return `${s.run.harness ?? "host-agent"}/${(s.run.surface ?? "api").toUpperCase()}/${s.run.profile}`;
 }
@@ -352,6 +381,9 @@ function processStatsLabel(s: ProcessStats): string {
 function processQualityTakeaway(runs: ProfileRun[]): string {
   const worst = worstProcessStats(runs);
   if (!worst) return "Process quality was not measured from trace data.";
+  if (hasInsufficientTraceCoverage(worst)) {
+    return `Process trace coverage was insufficient in the noisiest recorded config (${processStatsLabel(worst)}: ${worst.calls} calls, ${worst.taskScoped}/${worst.expectedTasks} task-scoped). Treat process cleanliness and product attribution as requiring trace review; correctness is still decided by read-back outcomes.`;
+  }
   if (worst.failed === 0 && worst.retryish === 0) {
     return `Process quality was clean in the noisiest recorded config (${processStatsLabel(worst)}: ${worst.calls} calls, no failed calls, no retry-ish repeats).`;
   }
@@ -1924,21 +1956,20 @@ function renderRobustness(runs: ProfileRun[]): string {
 function renderProcessQuality(runs: ProfileRun[]): string {
   if (!runs.length) return "";
   const body = groupedConfigRows(runs, (r) => {
-    const trace = r.trace ?? [];
-    const calls = trace.filter((s) => s.method || s.path);
-    const failed = calls.filter((s) => s.status !== undefined && s.status >= 400).length;
-    const retryish = countRetryishCalls(trace);
+    const stats = processStats([r])[0]!;
     const source = r.discoverySource ?? (r.discovery ? "self-report" : "not measured");
     const sourceCls = source === "observed" ? "ax-proc-source--ok" : source === "not measured" ? "ax-proc-source--bad" : "ax-proc-source--warn";
-    return `<td><span class="ax-count">${esc(calls.length)}</span></td><td>${countBadge(failed)}</td><td>${countBadge(retryish)}</td><td><span class="ax-proc-source ${sourceCls}">${esc(source)}</span></td>`;
+    const scopedCls = hasInsufficientTraceCoverage(stats) ? "ax-proc-source--warn" : "ax-proc-source--ok";
+    const scoped = stats.expectedTasks ? `${stats.taskScoped}/${stats.expectedTasks}` : "n/a";
+    return `<td><span class="ax-count">${esc(stats.calls)}</span></td><td>${countBadge(stats.failed)}</td><td>${countBadge(stats.retryish)}</td><td><span class="ax-proc-source ${scopedCls}">${esc(scoped)}</span></td><td><span class="ax-proc-source ${sourceCls}">${esc(source)}</span></td>`;
   });
   const takeaway = processQualityTakeaway(runs);
   return `<section class="ax-section">
     <h2>Process quality</h2>
     <p class="ax-verdict">${esc(takeaway)}</p>
-    <p class="ax-note">These are trace-derived process signals only. They explain how much work the agent needed after discovery: total recorded calls, calls that failed before recovery, and repeated same-task/same-path operations that look retry-ish. Final task success is still decided by deterministic read-back oracles.</p>
+    <p class="ax-note">These are trace-derived process signals only. They explain how much work the agent needed after discovery: total recorded calls, calls that failed before recovery, repeated same-task/same-path operations that look retry-ish, and whether calls were attributable to individual tasks rather than one coarse batch step. Final task success is still decided by deterministic read-back oracles.</p>
     <div class="ax-table-wrap"><table class="ax-table ax-matrix">
-      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>calls</th><th>failed calls</th><th>retry-ish repeats</th><th>discovery evidence</th></tr></thead>
+      <thead><tr><th>surface</th><th>harness</th><th>effort</th><th>calls</th><th>failed calls</th><th>retry-ish repeats</th><th>task-scoped trace</th><th>discovery evidence</th></tr></thead>
       <tbody>${body}</tbody>
     </table></div>
   </section>`;

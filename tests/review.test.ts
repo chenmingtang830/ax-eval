@@ -152,6 +152,85 @@ describe("review gate", () => {
     expect(packQaIssues(p).map((i) => i.code)).not.toContain("prompt-oracle-resource-mismatch");
   });
 
+  it("does not mistake transport endpoints for business resources", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "sql-pipeline-query",
+          prompt: "Query rows in pages of 5 and return the first two pages.",
+          oracles: [
+            {
+              type: "roundtrip",
+              readMethod: "POST",
+              readPathTemplate: "/v2/pipeline",
+              assertField: "results.0.response.result.rows.0.0.value",
+              expected: "5",
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).not.toContain("prompt-oracle-resource-mismatch");
+  });
+
+  it("flags zero-count oracles on create-structure tasks as final-state fragile", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "create-table-empty",
+          prompt: "Create a new table named axarena_customers_{ns}.",
+          oracles: [
+            {
+              type: "roundtrip",
+              assertField: "length",
+              expected: 0,
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).toContain("final-state-fragile-oracle");
+  });
+
+  it("does not flag limit=0 existence checks as fragile zero-count oracles", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "create-table-limit-zero",
+          prompt: "Create a new table named axarena_customers_{ns}.",
+          oracles: [
+            {
+              type: "roundtrip",
+              readPathTemplate: "/rest/v1/axarena_customers_{ns}?select=id&limit=0",
+              assertField: "length",
+              expected: 0,
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).not.toContain("final-state-fragile-oracle");
+  });
+
+  it("flags literal email/domain mismatches between prompt and oracle", () => {
+    const p = pack({
+      tasks: [
+        {
+          id: "literal-mismatch",
+          prompt: "Return rows where email matches probe-9%@axarena-{ns}.test.",
+          oracles: [
+            {
+              type: "roundtrip",
+              assertField: "0.email",
+              expected: "probe-1@example.com",
+            },
+          ],
+        },
+      ],
+    });
+    expect(packQaIssues(p).map((i) => i.code)).toContain("literal-constraint-mismatch");
+  });
+
   it("flags advanced data source/view tasks enabled on every surface", () => {
     const p = pack({
       tasks: [

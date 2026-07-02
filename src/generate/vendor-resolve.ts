@@ -11,7 +11,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
-import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from "./harness.js";
+import type { Effort, HarnessId } from "./harness.js";
+import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 
 const ResolveResultSchema = z.object({
   vendor: z.string(),
@@ -71,8 +72,17 @@ export async function resolveVendors(
 ): Promise<ResolveResult[]> {
   const harness = opts.harness ?? "claude-code";
   const prompt = buildBatchPrompt(vendors, category);
-  const raw = await invokeHarness(prompt, { harness, model: opts.model, effort: opts.effort });
-  const json = extractJsonObject(raw);
+  const raw = await invokeGenerator(prompt, {
+    fallbackHarness: harness,
+    model: opts.model,
+    effort: opts.effort as "low" | "medium" | "high" | undefined,
+  });
+  const json = await extractJsonObjectWithRepair(raw, {
+    fallbackHarness: harness,
+    model: opts.model,
+    effort: opts.effort,
+    label: "resolve-vendor",
+  });
   const parsed = LlmBatchResultSchema.safeParse(JSON.parse(json));
   if (!parsed.success) {
     throw new Error(

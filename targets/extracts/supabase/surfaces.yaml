@@ -1,0 +1,23 @@
+vendor: Supabase
+slug: supabase
+extracted_at: 2026-07-01T06:54:56.181Z
+cli:
+  bin: supabase
+  install: npm install supabase --save-dev
+  docs_url: https://supabase.com/docs/reference/cli/introduction
+  auth:
+    kind: token
+    token_env: SUPABASE_ACCESS_TOKEN
+sdk:
+  package: "@supabase/supabase-js"
+  language: node
+  reference_url: https://supabase.com/docs/reference/javascript/introduction
+  auth:
+    kind: inherit
+mcp:
+  server: https://mcp.supabase.com/mcp
+  transport: http
+  docs_url: https://supabase.com/docs/guides/getting-started/mcp
+  auth:
+    kind: token
+    token_env: SUPABASE_ACCESS_TOKEN

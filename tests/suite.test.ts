@@ -15,9 +15,11 @@ describe("canonical task suite", () => {
     expect(suite.version).toBe(1);
     expect(suite.category).toBe("database");
     expect(suite.tasks).toHaveLength(10);
+    expect(suite.methodology?.surface_scope).toEqual(["api", "sdk", "cli"]);
     for (const task of suite.tasks) {
       expect(task.id).toMatch(/^db-T\d{2}-/);
       expect(["L1", "L2", "L3", "L4"]).toContain(task.difficulty);
+      expect(task.allowed_surfaces).not.toContain("mcp");
       expect(task.intent.length).toBeGreaterThan(20);
       expect(task.oracle_hint.length).toBeGreaterThan(10);
     }

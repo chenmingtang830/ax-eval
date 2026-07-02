@@ -1,0 +1,419 @@
+vendor: CockroachDB
+slug: cockroachdb
+category: database
+extracted_at: 2026-07-02T00:00:00.000Z
+capabilities:
+  - capability_name: create-schema
+    title: Schema Creation
+    family: data-definition
+    description: Create user-defined schemas to organize database objects into
+      separate namespaces with ownership and usage semantics.
+    resource_kind: schema
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/create-schema
+        quote: "The `CREATE SCHEMA` statement creates a user-defined schema."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: create-table
+    title: Table Creation & Schema Definition
+    family: data-definition
+    description: Create relational tables with typed columns, defaults,
+      generated columns, indexes, table families, locality settings, and
+      inline constraints such as primary keys, uniqueness, checks, and foreign
+      keys.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/create-table
+        quote: "The `CREATE TABLE` statement creates a new table in a database."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/create-table
+        quote: "CHECK (...) PRIMARY KEY (...) FOREIGN KEY (...) REFERENCES table_name"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-insert
+    title: Row Insert
+    family: data-write
+    description: Insert one or more rows with optional default-value filling,
+      selection-query sources, RETURNING clauses, and conflict handling via ON
+      CONFLICT.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/insert
+        quote: "The `INSERT` statement inserts one or more rows into a table."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/insert
+        quote: "the `ON CONFLICT` clause can be used to update rather than insert rows."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-update
+    title: Row Update
+    family: data-write
+    description: Update rows with SET expressions, joins via FROM, WHERE
+      filters, ORDER BY and LIMIT controls, and RETURNING output.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/update
+        quote: "The `UPDATE` statement updates rows in a table."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/update
+        quote: "`WHERE a_expr` ... Update rows that return `TRUE`."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-delete
+    title: Row Delete
+    family: data-write
+    description: Delete rows with WHERE predicates, joined conditions via USING,
+      ORDER BY and LIMIT controls, and RETURNING output for deleted rows.
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/delete
+        quote: "The `DELETE` statement deletes rows from a table."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/delete
+        quote: "`WHERE a_expr` ... Delete rows that return `TRUE`."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: filtered-reads-and-aggregates
+    title: Filtered Reads, Counts, and Aggregates
+    family: data-read
+    description: Run SELECT queries with WHERE filters, IN lists, LIKE pattern
+      matching, DISTINCT, GROUP BY, HAVING, and aggregates such as COUNT, SUM,
+      MIN, and AVG.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
+        quote: "Filter rows with expressions that use columns and return Boolean values in the `WHERE` clause."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
+        quote: "SELECT count(*) AS unfiltered, count(*) FILTER (WHERE revenue > 50) AS filtered"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: query-pagination
+    title: Query Pagination with LIMIT / OFFSET
+    family: data-read
+    description: Page through query results with LIMIT and OFFSET, with docs also
+      calling out keyset pagination as the scalable alternative for large
+      tables.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
+        quote: "`OFFSET` instructs the operation to skip a specified number of rows."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
+        quote: "It is often used in conjunction with `LIMIT` to \"paginate\" through retrieved rows."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: schema-introspection
+    title: Schema & DDL Introspection
+    family: data-read
+    description: Inspect live table inventories and reconstruct DDL using SHOW
+      TABLES and SHOW CREATE, including table metadata and recreatable CREATE /
+      ALTER statements.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/show-tables
+        quote: "`SHOW TABLES`"
+      - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
+        quote: "The `SHOW CREATE` statement shows the `CREATE` statement for an existing database, function, table, trigger, view, or sequence."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
+        quote: "`SHOW CREATE ALL TABLES` also returns the `ALTER statements` that add, modify, and validate an object's constraints."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: online-schema-evolution
+    title: Online Schema Evolution
+    family: migration
+    description: Evolve schemas with ALTER TABLE subcommands for columns,
+      constraints, locality, schema moves, storage parameters, and primary-key
+      changes while the schema change runs as a background job.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
+        quote: "The `ALTER TABLE` statement changes the definition of a table."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
+        quote: "This schema change statement is registered as a job."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: integrity-constraints
+    title: Integrity Constraints
+    family: integrity
+    description: Enforce CHECK, DEFAULT, FOREIGN KEY, NOT NULL, PRIMARY KEY, and
+      UNIQUE constraints on writes, with support for viewing, adding, removing,
+      and changing supported constraint types.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
+        quote: "Constraints offer additional data integrity by enforcing conditions on the data within a column."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
+        quote: "Whenever values are manipulated (inserted, deleted, or updated), constraints are checked and modifications that violate constraints are rejected."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: distributed-acid-transactions
+    title: Distributed ACID Transactions
+    family: integrity
+    description: Bundle multiple SQL statements into distributed all-or-nothing
+      transactions with ACID guarantees across arbitrary tables and rows, using
+      SERIALIZABLE isolation by default and explicit retry guidance.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions
+        quote: "Each transaction guarantees ACID semantics spanning arbitrary tables and rows, even when data is distributed."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions
+        quote: "By default, CockroachDB guarantees that while a transaction is pending, it is isolated from other concurrent transactions with `SERIALIZABLE` isolation."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: role-based-access-control
+    title: Role-Based Access Control
+    family: access-control
+    description: Control object-level SQL privileges for users and roles across
+      databases, schemas, tables, and user-defined types, including role
+      membership grants and grant-option delegation.
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/grant
+        quote: "The `GRANT` statement controls each role or user's SQL privileges for interacting with specific databases, schemas, tables, or user-defined types."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/grant
+        quote: "You can use `GRANT` to directly grant privileges to a role or user, or you can grant membership to an existing role."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: backup-and-restore
+    title: Full / Incremental Backup and Restore
+    family: backup-and-recovery
+    description: Create timestamp-consistent full or incremental backups of
+      cluster schema and data, then restore cluster, database, or table
+      backups, including point-in-time recovery scenarios from revision-history
+      backups.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/backup
+        quote: "CockroachDB's `BACKUP` statement allows you to create full or incremental backups of your cluster's schema and data."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/restore
+        quote: "The `RESTORE` statement restores your cluster's schemas and data from a BACKUP."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/restore
+        quote: "Running a backup with `revision_history` captures every change made within the garbage collection period."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: stored-procedures-and-udfs
+    title: Stored Procedures & User-Defined Functions
+    family: compute
+    description: Execute server-side SQL or PL/pgSQL routines through CALL or
+      function invocation, enabling reusable in-database control flow,
+      branching, looping, and cursor-based logic.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
+        quote: "A stored procedure is a database object consisting of PL/pgSQL or SQL statements that can be issued with a single `CALL` statement."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
+        quote: "This allows complex logic to be executed repeatedly within the database."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: change-data-capture
+    title: Change Data Capture (Changefeeds)
+    family: change-data-capture
+    description: Stream row-level table changes to external sinks such as Kafka,
+      cloud storage, Pub/Sub, or directly to SQL clients via sinkless
+      changefeeds for development and testing.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
+        quote: "Changefeeds are customizable jobs that monitor row-level changes in a table and emit updates in real time."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
+        quote: "sinkless changefeeds allow you to stream change data directly to your SQL client."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: full-text-search
+    title: Full-Text Search
+    family: search
+    description: Use PostgreSQL-style TSVECTOR and TSQUERY search primitives,
+      logical operators, ranking functions, and GIN-backed execution for
+      in-database full-text search.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
+        quote: "TSQUERY formats search queries using logical operators."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: vector-search
+    title: Vector Search with ANN Indexes
+    family: search
+    description: Create vector indexes on VECTOR columns for approximate nearest
+      neighbor search, with configurable distance metrics and optional prefix
+      columns to pre-filter the search space.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
+        quote: "A vector index enables efficient approximate nearest neighbor (ANN) search on high-dimensional VECTOR columns."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
+        quote: "CockroachDB vector indexes organize vectors into a hierarchical structure of partitions using k-means clustering."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: multi-region-table-locality
+    title: Multi-Region Table Locality
+    family: core-operations
+    description: Configure databases and tables across multiple geographic
+      regions, with table-locality modes for global tables, regional-by-table,
+      and regional-by-row placement.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview
+        quote: "Change table localities (global, regional by table, regional by row)."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: postgresql-wire-compatibility
+    title: PostgreSQL Wire Protocol Compatibility
+    family: core-operations
+    description: Expose CockroachDB through the PostgreSQL wire protocol so
+      existing PostgreSQL drivers, ORMs, and tools can operate the database with
+      minimal or no application-code changes.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/postgresql-compatibility
+        quote: "CockroachDB supports the PostgreSQL wire protocol and the majority of PostgreSQL syntax."
+      - doc_url: https://www.cockroachlabs.com/docs/stable/postgresql-compatibility
+        quote: "existing applications built on PostgreSQL can often be migrated to CockroachDB without changing application code."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

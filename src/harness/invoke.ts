@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { namedFieldsFor } from "./executor.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -82,6 +83,8 @@ export interface InvokeRunResult {
   attempts?: number;
   /** True when the final attempt was killed by the timeout cap. */
   timedOut?: boolean;
+  /** Wall-clock duration for the full harness invocation, including retries. */
+  durationMs?: number;
 }
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -224,6 +227,36 @@ function text(buf: Buffer | string | null | undefined): string {
   return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
 }
 
+const SECRET_ENV_NAME =
+  /([A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DB_URL|DATABASE_URL|CONNECTION_STRING|URI|DSN|PRIVATE_KEY|JWT)[A-Z0-9_]*\s*=\s*)(["']?)[^\s"',}]+/gi;
+const SECRET_JSON_FIELD =
+  /(["']?(?:dsn|token|apiKey|api_key|secret|password|privateKey|private_key|accessToken|access_token)["']?\s*[:=]\s*)(["'])([^"']{12,})\2/gi;
+const URL_USERINFO =
+  /\b(https?:\/\/)[A-Za-z0-9._~%!$&'()*+,;=:-]{8,}@([A-Za-z0-9.-]+(?::\d+)?[^\s"'<>)]*)/gi;
+
+/** Redact common credential shapes before writing harness artifacts. Recovery
+ *  still uses raw in-memory stdout so structured result extraction remains
+ *  lossless, but persisted logs/traces/meta must never carry live secrets. */
+export function redactSensitiveText(value: string): string {
+  return value
+    .replace(/\b(?:(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/)[^\s"'<>]+/gi, "<redacted-dsn>")
+    .replace(URL_USERINFO, "$1<redacted>@$2")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, "Bearer <redacted>")
+    .replace(/\bsbp_[A-Za-z0-9_]{20,}/g, "<redacted-token>")
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<redacted-jwt>")
+    .replace(SECRET_ENV_NAME, "$1$2<redacted>")
+    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2");
+}
+
+function writeRedactedFile(path: string, value: string): void {
+  writeFileSync(path, redactSensitiveText(value));
+}
+
+function redactFileIfExists(path: string): void {
+  if (!existsSync(path)) return;
+  writeRedactedFile(path, readFileSync(path, "utf8"));
+}
+
 function detectWith(command: string, spawn: Spawn): InvokeDetection {
   const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
   if (res.error) {
@@ -250,29 +283,34 @@ export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_
   return detectWith(commandFor(id), spawn);
 }
 
-function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
+export function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
   // OpenAI strict structured-output (codex `--output-schema`) requires EVERY
   // object to set `additionalProperties: false` and list ALL its properties in
   // `required`. A permissive (`additionalProperties: true`) or partially-required
   // object 400s with `invalid_json_schema` before the agent does anything — so the
   // discovery sub-object is fully specified rather than left free-form.
   const tasks = tasksForSurface(pack, surface);
-  const taskProps = Object.fromEntries(tasks.map((t) => [t.id, {
-    type: "object",
-    additionalProperties: false,
-    properties: {
-      gid: { anyOf: [{ type: "string" }, { type: "null" }] },
-    },
-    required: ["gid"],
-  }]));
+  const scalar = { anyOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] };
+  const taskProps = Object.fromEntries(tasks.map((t) => {
+    const extra = namedFieldsFor(t);
+    return [t.id, {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        gid: { anyOf: [{ type: "string" }, { type: "null" }] },
+        ...Object.fromEntries(extra.map((field) => [field, scalar])),
+      },
+      required: ["gid", ...extra],
+    }];
+  }));
   const strArray = { type: "array", items: { type: "string" } };
   return {
     type: "object",
     additionalProperties: false,
     properties: {
-      profile: { type: "string" },
-      ns: { type: "string" },
-      surface: { type: "string" },
+      profile: { type: "string", enum: [profile] },
+      ns: { type: "string", enum: [ns] },
+      surface: { type: "string", enum: [surface] },
       discovery: {
         type: "object",
         additionalProperties: false,
@@ -315,7 +353,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   }
   writeFileSync(
     opts.paths.codexSchemaPath,
-    JSON.stringify(codexOutputSchema(opts.pack, `${id}:${opts.profile}`, opts.surface, opts.ns), null, 2),
+    JSON.stringify(codexOutputSchema(opts.pack, opts.profile, opts.surface, opts.ns), null, 2),
   );
   const modelArgs = opts.model ? ["-m", opts.model] : [];
   // Codex/GPT convention: reasoning effort is a model config knob, passed via -c.
@@ -416,9 +454,9 @@ function stampResultFile(opts: InvokeRunOptions): void {
   if (!existsSync(opts.paths.resultsPath)) return;
   const parsed = JSON.parse(readFileSync(opts.paths.resultsPath, "utf8")) as Record<string, unknown>;
   parsed.harness = opts.harness;
-  parsed.profile = String(parsed.profile ?? opts.profile);
-  parsed.surface = opts.surface;
-  parsed.ns = parsed.ns ?? opts.ns;
+  parsed.profile = typeof parsed.profile === "string" && parsed.profile.trim() ? parsed.profile : opts.profile;
+  parsed.surface = typeof parsed.surface === "string" && parsed.surface.trim() ? parsed.surface : opts.surface;
+  parsed.ns = typeof parsed.ns === "string" && parsed.ns.trim() ? parsed.ns : opts.ns;
   // Ground-truth model: what the harness reported running > what we requested.
   // Never the hardcoded profile default — that's the bug we're fixing. Codex
   // doesn't carry the model in its output, so fall back to its stderr banner.
@@ -591,6 +629,7 @@ export async function runInvokeHarness(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
+  const startedAt = Date.now();
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
   const { command, args } = buildInvocation(opts.harness, prompt, opts);
   const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
@@ -626,11 +665,11 @@ export async function runInvokeHarness(
       try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
     }
   }
-  writeFileSync(opts.paths.stdoutPath, stdout);
-  writeFileSync(opts.paths.stderrPath, stderr);
+  writeRedactedFile(opts.paths.stdoutPath, stdout);
+  writeRedactedFile(opts.paths.stderrPath, stderr);
   // Keep a single transcript file path for verify --observe / report evidence.
   // If a harness emits structured JSONL later, this path can hold it directly.
-  writeFileSync(opts.paths.transcriptPath, stdout || stderr);
+  writeRedactedFile(opts.paths.transcriptPath, stdout || stderr);
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
@@ -640,11 +679,14 @@ export async function runInvokeHarness(
   if (existsSync(opts.paths.resultsPath)) {
     stampResultFile(opts);
   } else {
-    const reason = error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`;
+    const reason = redactSensitiveText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
     writeFailureArtifacts(opts, reason);
   }
+  redactFileIfExists(opts.paths.resultsPath);
+  redactFileIfExists(opts.paths.tracePath);
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
+  const durationMs = Date.now() - startedAt;
   const meta: InvokeRunResult = {
     harness: opts.harness,
     ok,
@@ -652,15 +694,16 @@ export async function runInvokeHarness(
     signal,
     attempts: attempt,
     timedOut,
+    durationMs,
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok ? undefined : (error ?? stderr.trim()) || `exit ${exitLabel}`,
+    error: ok ? undefined : redactSensitiveText((error ?? stderr.trim()) || `exit ${exitLabel}`),
   };
-  writeFileSync(
+  writeRedactedFile(
     opts.paths.metaPath,
     JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2),
   );

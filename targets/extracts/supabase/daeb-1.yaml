@@ -2,9 +2,9 @@ vendor: Supabase
 category: database
 slug: supabase
 suite_name: DAEB-1
-extracted_at: 2026-07-01T05:00:10.504Z
+extracted_at: 2026-07-01T06:38:13.050Z
 vendor_config:
-  base_url: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1
+  base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
   auth_type: bearer
   auth_env: SUPABASE_API_KEY
   extra_auth_header: apikey
@@ -13,100 +13,108 @@ tasks:
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id,email,created_at&limit=0
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=id,email,created_at&limit=0
         assert_field: length
         expected: 0
-        description: table axarena_customers_{ns} exists with id, email, created_at columns
+        description: table axarena_customers_{ns} exists with columns id, email,
+          created_at; limit=0 keeps length invariant across later inserts
   - task_id: db-T02-insert-rows
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=*&limit=200
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=*&limit=200
         assert_field: length
         expected: 100
-        description: exactly 100 rows in axarena_customers_{ns}
+        description: table contains exactly 100 rows after bulk insert
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?email=eq.probe-1@axarena-{ns}.test&select=email
+        read_path_template: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40axarena-{ns}.test&select=email
         assert_field: 0.email
         expected: probe-1@axarena-{ns}.test
-        description: sample row probe-1 has correct email shape
+        description: "spot-check: row for n=1 has correct email shape"
   - task_id: db-T03-query-pattern
     na: false
     checks:
       - read_method: GET
-        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/axarena_customers_{ns}?email=like.probe-1*@axarena-{ns}.test&order=created_at.asc&limit=20
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=email,created_at&email=like.probe-9*%40axarena-{ns}.test&order=created_at&limit=15
         assert_field: length
         expected: 11
-        description: exactly 11 rows match probe-1* email pattern
+        description: exactly 11 rows match the probe-9 prefix (probe-9 plus
+          probe-90..probe-99)
       - read_method: GET
-        read_path_template: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/axarena_customers_{ns}?email=like.probe-1*@axarena-{ns}.test&order=created_at.asc&limit=5&offset=0
-        assert_field: length
-        expected: 5
-        description: page 1 returns exactly 5 rows (lowest 5 by created_at)
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=email,created_at&email=like.probe-9*%40axarena-{ns}.test&order=created_at&limit=5&offset=0
+        assert_field: 0.email
+        expected: probe-9@axarena-{ns}.test
+        description: page 1 first row is probe-9 (earliest created_at among matching rows)
   - task_id: db-T04-rls-policy
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id&limit=10
+        read_path_template: /rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}
+        assert_field: length
+        expected: 1
+        auth_field: user_a_token
+        description: row owner sees their own row
+      - read_method: GET
+        read_path_template: /rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}
         assert_field: length
         expected: 0
-        description: Anonymous anon-key caller sees zero rows — RLS is active and the
-          USING clause matches nothing (owner_id is NULL for all seed rows)
+        auth_field: user_b_token
+        description: different authenticated user cannot see another user's row
   - task_id: db-T05-unique-constraint
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?email=eq.{gid}&select=email&limit=10
+        read_path_template: /rest/v1/axarena_customers_{ns}?email=eq.{duplicate_email}&select=email
         assert_field: length
         expected: 1
-        description: exactly one row exists for the duplicate email — confirms the
-          unique constraint rejected the second insert
+        description: duplicate email insert rejected by unique constraint — exactly 1
+          row with that email exists
   - task_id: db-T06-foreign-key
     na: false
     checks:
       - read_method: GET
-        read_path_template: /rest/v1/axarena_orders_{ns}?select=id,customer_id,amount&limit=10
+        read_path_template: /rest/v1/axarena_orders_{ns}?id=eq.{gid}
         assert_field: length
         expected: 1
-        description: exactly one valid order row exists
+        description: valid order row exists in axarena_orders_{ns}
       - read_method: GET
-        read_path_template: /rest/v1/axarena_customers_{ns}?id=eq.{gid}&select=id&limit=10
+        read_path_template: /rest/v1/axarena_orders_{ns}?id=eq.{gid}&customer_id=eq.{valid_customer_id}
         assert_field: length
         expected: 1
-        description: the referenced customer exists in axarena_customers_{ns}
+        description: order's customer_id column references the existing customer (FK
+          relationship holds)
   - task_id: db-T07-export
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?limit=200
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=*&limit=200
         assert_field: length
         expected: 100
-        description: exported table contains exactly 100 records
+        description: table contains exactly 100 rows (the export source)
   - task_id: db-T08-schema-migration
     na: false
     checks:
       - read_method: GET
-        read_path_template: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=status&status=neq.active&limit=1000
+        read_path_template: /rest/v1/axarena_customers_{ns}?select=status&status=neq.active
         assert_field: length
         expected: 0
-        description: no existing rows have status other than 'active' — also implicitly
-          asserts the column exists (missing column returns a PostgREST error,
-          not an empty array)
+        description: no rows with status != 'active'; column exists and default was
+          backfilled to all rows
   - task_id: db-T09-runtime-integration
     na: false
     checks:
-      - read_method: POST
-        read_path_template: /functions/v1/count-customers-{ns}
+      - read_method: GET
+        read_path_template: /functions/v1/{function_slug}
         assert_field: count
         expected: 100
-        description: Edge function returns JSON with count of rows in axarena_customers_{ns}
+        description: edge function returns JSON with count=100 for rows in
+          axarena_customers_{ns}
   - task_id: db-T10-backup-restore
     na: true
-    na_reason: Supabase backup and PITR snapshot listing is only available via the
-      management/control-plane API
-      (https://api.supabase.com/v1/projects/{ref}/database/backups) which
-      requires a SUPABASE_ACCESS_TOKEN (personal access token) — a different
-      credential type from the per-project data-plane API key. There is no
-      PostgREST endpoint or SQL query accessible via the data-plane credential
-      that exposes backup identifiers or creation timestamps.
+    na_reason: Supabase backup/PITR metadata is only accessible via the Management
+      API (https://api.supabase.com/v1/projects/{ref}/database/backups), which
+      requires a personal access token — a different credential type from the
+      project service-role key used for the data-plane PostgREST API. Backup
+      state is not exposed through PostgREST (/rest/v1/) or queryable via raw
+      Postgres SQL.
     checks: []

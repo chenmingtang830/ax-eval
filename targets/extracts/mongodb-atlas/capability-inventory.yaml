@@ -1,0 +1,541 @@
+vendor: MongoDB Atlas
+slug: mongodb-atlas
+category: database
+extracted_at: 2026-07-02T00:00:00.000Z
+capabilities:
+  - capability_name: create-collection
+    title: Collection Creation
+    family: data-definition
+    description: Create collections explicitly, including collections that need
+      special options such as capped behavior, clustered storage, or attached
+      schema validation rules.
+    resource_kind: collection
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
+        quote: Creates a new collection.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
+        quote: Use `db.createCollection()` primarily to create collections that use
+          specific options, including new collection that uses schema validation.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: schema-validation
+    title: Collection Schema Validation
+    family: data-definition
+    description: Attach validation rules to collections with allowed field types,
+      value ranges, and other constraints so inserts and updates are checked
+      against the intended document shape.
+    resource_kind: collection
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
+        quote: Schema validation lets you create validation rules for your fields,
+          such as allowed data types and value ranges.
+      - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
+        quote: All document inserts must match the rules.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: document-insert
+    title: Document Insert
+    family: data-write
+    description: Insert new documents into collections. Atlas-backed MongoDB
+      exposes insert operations through drivers, mongosh, and other client
+      surfaces.
+    resource_kind: document
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.insertOne/
+        quote: Inserts a single document into a collection.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: document-update
+    title: Filtered Document Update
+    family: data-write
+    description: Update documents by filter criteria, including multi-document
+      updates and optional upsert behavior when no match exists.
+    resource_kind: document
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.updateMany/
+        quote: Updates all documents that match the specified filter for a
+          collection.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.updateMany/
+        quote: Creates a new document if no documents match the `filter`.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: document-delete
+    title: Filtered Document Delete
+    family: data-write
+    description: Delete matching documents by query filter, including
+      collection-wide cleanup when paired with an empty filter.
+    resource_kind: document
+    operation_kind: delete
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.deleteMany/
+        quote: Removes all documents that match the `filter` from a collection.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: filtered-read-query
+    title: Filtered Document Read
+    family: data-read
+    description: Query collections and views with filter criteria and projections,
+      returning cursors for iterative reads over matching documents.
+    resource_kind: document
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
+        quote: Selects documents in a collection or view and returns a cursor to the
+          selected documents.
+      - doc_url: https://www.mongodb.com/docs/manual/crud/
+        quote: You can specify query filters or criteria that identify the documents
+          to return.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: cursor-pagination
+    title: Cursor Pagination
+    family: data-read
+    description: Paginate result sets with cursor offsets and page sizing through
+      `skip()` and `limit()`. The docs show these methods used together for
+      page-by-page reads.
+    resource_kind: cursor
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/cursor.limit/
+        quote: Use the limit() method on a cursor to specify the maximum number of
+          documents the cursor will return.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/cursor.skip/
+        quote: The number of documents to skip in the results set.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/cursor.skip/
+        quote: The following JavaScript function uses skip() to paginate a
+          collection by its `_id` field.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: count-documents
+    title: Count Documents
+    family: data-read
+    description: Count documents matching a query, with optional skip and limit
+      controls for bounded counts.
+    resource_kind: collection
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.countDocuments/
+        quote: Returns an integer for the number of documents that match the query of
+          the collection or view.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.countDocuments/
+        quote: Optional. The number of documents to skip before counting.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: collection-introspection
+    title: Collection Introspection
+    family: data-read
+    description: Inspect database metadata and collection options, including
+      validators and other collection-level configuration, through collection
+      listing and info APIs.
+    resource_kind: collection
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
+        quote: The following returns information for all collections in the
+          `example` database.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
+        quote: The command returns the names and types for collection(s) where the
+          user has privileges.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: aggregation-pipeline
+    title: Aggregation Pipeline
+    family: data-read
+    description: Run server-side multi-stage data processing for filtering,
+      grouping, analytics, and computed result generation without moving data to
+      another platform.
+    resource_kind: pipeline
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/aggregation/
+        quote: Aggregation operations process multiple documents and return computed
+          results.
+      - doc_url: https://www.mongodb.com/docs/manual/aggregation/
+        quote: The aggregation operators in MongoDB let you run analytics on your
+          cluster without moving data to another platform.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: schema-evolution
+    title: Schema Evolution via collMod
+    family: migration
+    description: Evolve collection rules in place by modifying validators and
+      validation settings on existing collections, rather than recreating the
+      collection.
+    resource_kind: collection
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
+        quote: "`validator` allows users to specify validation rules or expressions
+          for a collection."
+      - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
+        quote: Validation occurs during updates and inserts. Existing documents do
+          not undergo validation checks until modification.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: unique-indexes
+    title: Unique Index Integrity Constraints
+    family: integrity
+    description: Enforce uniqueness across one field or compound key combinations,
+      including the default uniqueness guarantee on `_id`.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/index-unique/
+        quote: A unique index ensures that the indexed fields do not store duplicate
+          values.
+      - doc_url: https://www.mongodb.com/docs/manual/core/index-unique/
+        quote: By default, MongoDB creates a unique index on the `_id` field during
+          the creation of a collection.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: multi-document-transactions
+    title: Multi-Document Transactions
+    family: integrity
+    description: Execute atomic reads and writes across multiple documents,
+      collections, and sharded deployments when a workflow cannot fit in a
+      single-document write.
+    resource_kind: transaction
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+        quote: For situations that require atomicity of reads and writes to
+          multiple documents (in a single or multiple collections), MongoDB
+          supports distributed transactions.
+      - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+        quote: Transactions either apply all data changes or roll back the changes.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: role-based-access-control
+    title: Database User Roles and Privileges
+    family: access-control
+    description: Control database access with built-in or custom roles and
+      fine-grained privileges assigned to Atlas database users.
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: A database user's access is determined by the roles assigned to the
+          user.
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: If the built-in database user roles don't provide the desired set of
+          privileges, you can create custom roles.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: multiple-authentication-methods
+    title: Multiple Authentication Methods
+    family: access-control
+    description: Atlas database users can authenticate with SCRAM, X.509,
+      passwordless OIDC federation, or AWS IAM depending on the deployment and
+      workload.
+    resource_kind: user
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: OIDC authentication enables passwordless, secretless authentication
+          using external identity providers.
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: You can create a database user which uses an AWS IAM User or Role
+          ARN for authentication.
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: X.509 authentication is suitable for secure workload access when
+          workload identity federation (OIDC) or AWS IAM authentication is not
+          feasible.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: cloud-backup-and-snapshot-restore
+    title: Cloud Backup and Snapshot Restore
+    family: backup-and-recovery
+    description: Use Atlas-managed cloud backups and restore from scheduled or
+      on-demand snapshots, including cross-project and cross-organization
+      snapshot restores where supported.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/overview/
+        quote: Atlas Cloud Backups provide localized backup storage using the
+          native snapshot functionality of the cluster's cloud service provider.
+      - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/
+        quote: Atlas lets you restore data from a scheduled or on-demand Cloud
+          Backup, including snapshots from different projects or organizations.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: point-in-time-restore
+    title: Point-in-Time Restore
+    family: backup-and-recovery
+    description: Restore a dedicated Atlas cluster to a chosen timestamp or oplog
+      position from Continuous Cloud Backup.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-continuous/
+        quote: Atlas lets you restore data from a Continuous Cloud Backup by
+          specifying one of the following options.
+      - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-continuous/
+        quote: A specific date and time to which you want to restore.
+      - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-continuous/
+        quote: A specific oplog entry from which you want to restore.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: data-migration-and-import
+    title: Data Migration and Import
+    family: migration
+    description: Bring data into Atlas through guided live migration from existing
+      MongoDB clusters or self-guided imports from JSON, CSV, dump/restore, and
+      relational migration tooling.
+    resource_kind: migration
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/import/
+        quote: You can bring data from existing MongoDB deployments, `JSON`, or
+          `CSV` files into deployments in Atlas.
+      - doc_url: https://www.mongodb.com/docs/atlas/import/
+        quote: Live migration (pull).
+      - doc_url: https://www.mongodb.com/docs/atlas/import/
+        quote: To migrate from legacy relational databases to MongoDB, use the
+          Relational Migrator tool.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: server-side-javascript-function
+    title: Server-Side JavaScript via $function
+    family: server-side-execution
+    description: Embed custom JavaScript in aggregation expressions when native
+      MongoDB Query Language operators are insufficient, with the caveat that
+      server-side JavaScript is deprecated starting in MongoDB 8.0.
+    resource_kind: function
+    operation_kind: execute
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+        quote: Defines a custom aggregation function or expression in JavaScript.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+        quote: You can use the $function operator to define custom functions to
+          implement behavior not supported by the MongoDB Query Language.
+      - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+        quote: Starting in MongoDB 8.0, server-side JavaScript functions
+          (`$accumulator`, `$function`, `$where`) are deprecated.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: full-text-search
+    title: Full-Text Search
+    family: search
+    description: Use MongoDB Search for embedded relevance-based full-text search
+      without operating a separate search system.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-search/
+        quote: MongoDB Search is an embedded full-text search that gives you a
+          seamless, scalable experience for building relevance-based app
+          features.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: vector-search
+    title: Vector Search
+    family: search
+    description: Store embeddings in documents, index them with a vector search
+      index, and run semantic nearest-neighbor retrieval with the
+      `$vectorSearch` aggregation stage.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+        quote: You can store these embeddings in a MongoDB collection as a field in
+          a document.
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+        quote: To perform vector search on your data in MongoDB, you must create a
+          MongoDB Vector Search index.
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+        quote: MongoDB Vector Search determines semantic similarity by identifying
+          the vector embeddings that are closest in distance to your query
+          vector.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: change-streams
+    title: Change Streams
+    family: change-data-capture
+    description: Subscribe to live data change events for a collection, database,
+      or whole deployment and consume them through streaming cursors.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: You can open a change stream cursor for a single collection.
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: You can open a change stream cursor for a single database.
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: You can open a change stream cursor for a deployment.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

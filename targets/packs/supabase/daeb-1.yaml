@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-01-sj77k4
+# run_id: 2026-07-02-t98xh3
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-01-sj77k4
+run_id: 2026-07-02-t98xh3
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -23,7 +23,23 @@ auth:
   verify_env_aliases: []
   extra_header: apikey
 sandbox_scope: []
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1
+surfaces:
+  cli:
+    bin: supabase
+    install: npm install supabase --save-dev
+    docs_url: https://supabase.com/docs/reference/cli/introduction
+    auth:
+      kind: token
+      token_env: SUPABASE_ACCESS_TOKEN
+      token_env_aliases: []
+  sdk:
+    package: "@supabase/supabase-js"
+    language: node
+    reference_url: https://supabase.com/docs/reference/javascript/introduction
+    auth:
+      kind: inherit
+      token_env_aliases: []
+base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
 headers: {}
 site_url: https://supabase.com
 openapi_url: ""
@@ -47,16 +63,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 0
-        description: table axarena_customers_{ns} exists with id, email, created_at columns
+        description: table axarena_customers_{ns} exists with columns id, email,
+          created_at; limit=0 keeps length invariant across later inserts
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id,email,created_at&limit=0
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=id,email,created_at&limit=0
         assertField: length
     difficulty: L1
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T02-insert-rows
@@ -69,50 +86,51 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: exactly 100 rows in axarena_customers_{ns}
+        description: table contains exactly 100 rows after bulk insert
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=*&limit=200
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=*&limit=200
         assertField: length
       - type: roundtrip
         expected: probe-1@axarena-{ns}.test
-        description: sample row probe-1 has correct email shape
+        description: "spot-check: row for n=1 has correct email shape"
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?email=eq.probe-1@axarena-{ns}.test&select=email
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.probe-1%40axarena-{ns}.test&select=email
         assertField: 0.email
     difficulty: L1
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T03-query-pattern
     title: "T03: pattern query with pagination"
     prompt: |-
       From `axarena_customers_{ns}`, return all rows where email matches the
-      pattern `probe-1%@axarena-{ns}.test` (i.e., starts with `probe-1`),
+      pattern `probe-9%@axarena-{ns}.test` (i.e., starts with `probe-9`),
       ordered by created_at, paginated at 5 rows per page. Return the first
       two pages.
     oracles:
       - type: roundtrip
         expected: 11
-        description: exactly 11 rows match probe-1* email pattern
+        description: exactly 11 rows match the probe-9 prefix (probe-9 plus
+          probe-90..probe-99)
         readMethod: GET
-        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/axarena_customers_{ns}?email=like.probe-1*@axarena-{ns}.test&order=created_at.asc&limit=20
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=email,created_at&email=like.probe-9*%40axarena-{ns}.test&order=created_at&limit=15
         assertField: length
       - type: roundtrip
-        expected: 5
-        description: page 1 returns exactly 5 rows (lowest 5 by created_at)
+        expected: probe-9@axarena-{ns}.test
+        description: page 1 first row is probe-9 (earliest created_at among matching rows)
         readMethod: GET
-        readPathTemplate: https://${SUPABASE_PROJECT_REF}.supabase.co/rest/v1/axarena_customers_{ns}?email=like.probe-1*@axarena-{ns}.test&order=created_at.asc&limit=5&offset=0
-        assertField: length
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=email,created_at&email=like.probe-9*%40axarena-{ns}.test&order=created_at&limit=5&offset=0
+        assertField: 0.email
     difficulty: L2
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T04-rls-policy
@@ -125,18 +143,25 @@ tasks:
       — is acceptable.
     oracles:
       - type: roundtrip
-        expected: 0
-        description: Anonymous anon-key caller sees zero rows — RLS is active and the
-          USING clause matches nothing (owner_id is NULL for all seed rows)
+        expected: 1
+        description: row owner sees their own row
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=id&limit=10
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}
         assertField: length
+        authField: user_a_token
+      - type: roundtrip
+        expected: 0
+        description: different authenticated user cannot see another user's row
+        readMethod: GET
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}
+        assertField: length
+        authField: user_b_token
     difficulty: L3
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T05-unique-constraint
@@ -148,17 +173,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: exactly one row exists for the duplicate email — confirms the
-          unique constraint rejected the second insert
+        description: duplicate email insert rejected by unique constraint — exactly 1
+          row with that email exists
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?email=eq.{gid}&select=email&limit=10
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?email=eq.{duplicate_email}&select=email
         assertField: length
     difficulty: L1
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T06-foreign-key
@@ -171,22 +196,23 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: exactly one valid order row exists
+        description: valid order row exists in axarena_orders_{ns}
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_orders_{ns}?select=id,customer_id,amount&limit=10
+        readPathTemplate: /rest/v1/axarena_orders_{ns}?id=eq.{gid}
         assertField: length
       - type: roundtrip
         expected: 1
-        description: the referenced customer exists in axarena_customers_{ns}
+        description: order's customer_id column references the existing customer (FK
+          relationship holds)
         readMethod: GET
-        readPathTemplate: /rest/v1/axarena_customers_{ns}?id=eq.{gid}&select=id&limit=10
+        readPathTemplate: /rest/v1/axarena_orders_{ns}?id=eq.{gid}&customer_id=eq.{valid_customer_id}
         assertField: length
     difficulty: L2
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T07-export
@@ -197,16 +223,16 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: exported table contains exactly 100 records
+        description: table contains exactly 100 rows (the export source)
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?limit=200
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=*&limit=200
         assertField: length
     difficulty: L1
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T08-schema-migration
@@ -218,18 +244,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 0
-        description: no existing rows have status other than 'active' — also implicitly
-          asserts the column exists (missing column returns a PostgREST error,
-          not an empty array)
+        description: no rows with status != 'active'; column exists and default was
+          backfilled to all rows
         readMethod: GET
-        readPathTemplate: ${SUPABASE_URL}/rest/v1/axarena_customers_{ns}?select=status&status=neq.active&limit=1000
+        readPathTemplate: /rest/v1/axarena_customers_{ns}?select=status&status=neq.active
         assertField: length
     difficulty: L3
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T09-runtime-integration
@@ -242,16 +267,17 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 100
-        description: Edge function returns JSON with count of rows in axarena_customers_{ns}
-        readMethod: POST
-        readPathTemplate: /functions/v1/count-customers-{ns}
+        description: edge function returns JSON with count=100 for rows in
+          axarena_customers_{ns}
+        readMethod: GET
+        readPathTemplate: /functions/v1/{function_slug}
         assertField: count
     difficulty: L3
     allowed_surfaces:
       - api
       - sdk
       - cli
-      - mcp
+    na: false
     depends_on: []
     trace: []
   - id: db-T10-backup-restore
@@ -262,14 +288,14 @@ tasks:
       identifier and its creation timestamp.
     oracles:
       - type: na
-        description: Supabase backup and PITR snapshot listing is only available via the
-          management/control-plane API
-          (https://api.supabase.com/v1/projects/{ref}/database/backups) which
-          requires a SUPABASE_ACCESS_TOKEN (personal access token) — a different
-          credential type from the per-project data-plane API key. There is no
-          PostgREST endpoint or SQL query accessible via the data-plane
-          credential that exposes backup identifiers or creation timestamps.
+        description: Supabase backup/PITR metadata is only accessible via the Management
+          API (https://api.supabase.com/v1/projects/{ref}/database/backups),
+          which requires a personal access token — a different credential type
+          from the project service-role key used for the data-plane PostgREST
+          API. Backup state is not exposed through PostgREST (/rest/v1/) or
+          queryable via raw Postgres SQL.
     difficulty: L4
     allowed_surfaces: []
+    na: true
     depends_on: []
     trace: []

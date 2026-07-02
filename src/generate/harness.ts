@@ -17,6 +17,7 @@ import { execFile } from "node:child_process";
 import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { parse as yamlParse } from "yaml";
 
 interface RunResult {
   stdout: string;
@@ -98,6 +99,18 @@ export interface InvokeHarnessOptions {
   heartbeat?: { everyMs: number; label: string };
 }
 
+function withGroundingRequirement(prompt: string, retry: boolean): string {
+  return [
+    "GROUNDING REQUIREMENT: You MUST call WebSearch or WebFetch before answering.",
+    "Do not answer from memory or prior knowledge alone.",
+    retry
+      ? "Your previous attempt was rejected because it answered without any WebSearch/WebFetch call. Retry correctly now: search/fetch the docs first, then answer."
+      : "Any answer with zero WebSearch/WebFetch calls will be rejected.",
+    "",
+    prompt,
+  ].join("\n");
+}
+
 interface VerboseMessage {
   type: string;
   message?: { content?: Array<{ type: string; name?: string }> };
@@ -133,6 +146,28 @@ export function countWebToolUse(raw: string): { webSearch: number; webFetch: num
     }
   }
   return { webSearch, webFetch };
+}
+
+export function countCodexWebToolUse(raw: string): { webSearch: number; webFetch: number } | null {
+  const lines = raw
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  let sawEvent = false;
+  let webSearch = 0;
+  let webFetch = 0;
+  for (const line of lines) {
+    try {
+      const parsed = JSON.parse(line) as { type?: string; item?: { type?: string } };
+      if (parsed.type !== "item.completed") continue;
+      sawEvent = true;
+      if (parsed.item?.type === "web_search") webSearch++;
+      if (parsed.item?.type === "web_fetch") webFetch++;
+    } catch {
+      continue;
+    }
+  }
+  return sawEvent ? { webSearch, webFetch } : null;
 }
 
 /** Pull the final assistant text out of a `--verbose` reply (array of turn
@@ -197,6 +232,13 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
       const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
       throw new Error(`harness codex${label} (${codexBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || stderr}`);
     });
+    if (opts.requireWebFetch) {
+      const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
+      const counts = countCodexWebToolUse(stdout);
+      if (!counts || (counts.webSearch === 0 && counts.webFetch === 0)) {
+        throw new Error(`harness codex${label} answered without calling web_search — refusing an ungrounded reply`);
+      }
+    }
     return existsSync(outPath) ? readFileSync(outPath, "utf8") : stdout;
   }
 
@@ -208,17 +250,25 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
     // blocks (see countWebToolUse). Only requested when grounding is being
     // enforced, to leave the existing non-DAEB generate path unchanged.
     const verboseArgs = opts.requireWebFetch ? ["--verbose"] : [];
-    const { stdout } = await runDetached(
-      claudeBin,
-      ["-p", prompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
-      { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeoutMs: timeout },
-    ).catch((e) => {
-      const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
-      throw new Error(`harness claude-code${label} (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
-    });
+    const runClaude = async (groundedPrompt: string): Promise<string> => {
+      const { stdout } = await runDetached(
+        claudeBin,
+        ["-p", groundedPrompt, "--output-format", "json", "--allowedTools", "WebSearch,WebFetch", ...verboseArgs, ...modelArgs],
+        { cwd: process.cwd(), maxBuffer: 50 * 1024 * 1024, timeoutMs: timeout },
+      ).catch((e) => {
+        const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
+        throw new Error(`harness claude-code${label} (${claudeBin}) failed${e.killed ? ` (killed after ${timeout}ms timeout)` : ""}: ${e.message || e.stderr}`);
+      });
+      return stdout;
+    };
+    let stdout = await runClaude(opts.requireWebFetch ? withGroundingRequirement(prompt, false) : prompt);
     if (opts.requireWebFetch) {
       const label = opts.heartbeat?.label ? ` [${opts.heartbeat.label}]` : "";
-      const counts = countWebToolUse(stdout);
+      let counts = countWebToolUse(stdout);
+      if (!counts || (counts.webSearch === 0 && counts.webFetch === 0)) {
+        stdout = await runClaude(withGroundingRequirement(prompt, true));
+        counts = countWebToolUse(stdout);
+      }
       if (!counts || (counts.webSearch === 0 && counts.webFetch === 0)) {
         throw new Error(
           `harness claude-code${label} answered without calling WebSearch or WebFetch — refusing an ungrounded (training-data-only) answer for a grounded-research prompt`,
@@ -232,6 +282,131 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
   }
 
   throw new Error(`harness ${opts.harness} cannot be invoked headlessly`);
+}
+
+export interface InvokeGeneratorOptions {
+  /** Require the reply to show at least one server-side web search/fetch call. */
+  requireWebFetch?: boolean;
+  /** Fallback local harness to use when no direct API key is configured. */
+  fallbackHarness?: HarnessId;
+  model?: string;
+  effort?: Effort;
+  timeoutMs?: number;
+  heartbeat?: { everyMs: number; label: string };
+}
+
+export interface RepairJsonOptions {
+  fallbackHarness?: HarnessId;
+  model?: string;
+  effort?: Effort;
+  label?: string;
+}
+
+const GENERATOR_TIMEOUT_MS = 5 * 60 * 1000;
+
+/** Invoke an LLM for ax-eval's OWN generation tooling (vendor-resolve,
+ *  capability-extract, synthesize-suite, task-extract, compose-pack) — this
+ *  is NOT the benchmarked harness call (that stays in invokeHarness/exec-plan,
+ *  since claude-code/codex's real CLI behavior is literally the thing under
+ *  test). Generation tooling has no reason to shell out to a CLI binary at
+ *  all: it just needs an LLM with a web-search tool, so this calls whichever
+ *  provider's API key the user has configured directly, using that
+ *  provider's hosted (server-side) web search tool — no subprocess, no
+ *  binary-path resolution, no process-group/timeout footguns. Falls back to
+ *  invokeHarness's subprocess path (existing claude-code/codex CLI login)
+ *  only if neither API key is set, for users without a direct API key. */
+export async function invokeGenerator(prompt: string, opts: InvokeGeneratorOptions = {}): Promise<string> {
+  const fixture = readGeneratorFixture();
+  if (fixture) return fixture;
+
+  const timeout = opts.timeoutMs ?? GENERATOR_TIMEOUT_MS;
+  const heartbeatTimer = opts.heartbeat
+    ? setInterval(() => process.stderr.write(`  [${opts.heartbeat!.label}] still waiting on generator…\n`), opts.heartbeat.everyMs)
+    : undefined;
+  try {
+    if (process.env.ANTHROPIC_API_KEY) return await invokeAnthropicApi(prompt, opts, timeout);
+    if (process.env.OPENAI_API_KEY) return await invokeOpenAiApi(prompt, opts, timeout);
+    // Fallback: no direct API key configured, use whichever local harness CLI is logged in.
+    const fallbackHarness = opts.fallbackHarness ?? "claude-code";
+    return await invokeHarness(prompt, {
+      harness: fallbackHarness,
+      model: opts.model,
+      effort: opts.effort,
+      requireWebFetch: opts.requireWebFetch,
+      timeoutMs: timeout,
+    });
+  } finally {
+    if (heartbeatTimer) clearInterval(heartbeatTimer);
+  }
+}
+
+async function invokeAnthropicApi(prompt: string, opts: InvokeGeneratorOptions, timeoutMs: number): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        "x-api-key": process.env.ANTHROPIC_API_KEY!,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 8000,
+        tools: [{ type: "web_search_20250305", name: "web_search" }],
+        messages: [{ role: "user", content: prompt }],
+      }),
+    });
+    if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${await res.text()}`);
+    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+    const blocks = data.content ?? [];
+    if (opts.requireWebFetch && !blocks.some((b) => b.type === "server_tool_use")) {
+      throw new Error("generator answered without calling web_search — refusing an ungrounded reply");
+    }
+    const text = blocks.filter((b) => b.type === "text").map((b) => b.text ?? "").join("\n");
+    if (!text) throw new Error("Anthropic API reply had no text content");
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function invokeOpenAiApi(prompt: string, opts: InvokeGeneratorOptions, timeoutMs: number): Promise<string> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      signal: controller.signal,
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-5.5",
+        tools: [{ type: "web_search_preview" }],
+        input: prompt,
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI API ${res.status}: ${await res.text()}`);
+    const data = (await res.json()) as { output?: Array<{ type: string; content?: Array<{ type: string; text?: string }> }> };
+    const output = data.output ?? [];
+    if (opts.requireWebFetch && !output.some((o) => o.type === "web_search_call")) {
+      throw new Error("generator answered without calling web_search — refusing an ungrounded reply");
+    }
+    const text = output
+      .filter((o) => o.type === "message")
+      .flatMap((o) => o.content ?? [])
+      .filter((c) => c.type === "output_text")
+      .map((c) => c.text ?? "")
+      .join("\n");
+    if (!text) throw new Error("OpenAI API reply had no text content");
+    return text;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /** claude-code's --output-format json wraps the assistant text in a JSON
@@ -265,5 +440,41 @@ export function extractJsonObject(raw: string): string {
   const first = trimmed.indexOf("{");
   const last = trimmed.lastIndexOf("}");
   if (first >= 0 && last > first) return trimmed.slice(first, last + 1);
+  try {
+    const parsed = yamlParse(trimmed);
+    if (parsed && typeof parsed === "object") return JSON.stringify(parsed);
+  } catch {
+    // Fall through to the explicit error below.
+  }
   throw new Error("harness did not return a JSON object or array");
+}
+
+export async function extractJsonObjectWithRepair(raw: string, opts: RepairJsonOptions = {}): Promise<string> {
+  try {
+    return extractJsonObject(raw);
+  } catch (error) {
+    const repaired = await invokeGenerator(
+      [
+        "Reformat the following content into a valid JSON object or JSON array only.",
+        "Preserve the original fields and values as faithfully as possible.",
+        "Do not add commentary, markdown fences, or explanatory text.",
+        "",
+        "CONTENT:",
+        raw,
+      ].join("\n"),
+      {
+        fallbackHarness: opts.fallbackHarness,
+        model: opts.model,
+        effort: opts.effort,
+        timeoutMs: 2 * 60 * 1000,
+        heartbeat: opts.label ? { everyMs: 30_000, label: `${opts.label}/json-repair` } : undefined,
+      },
+    );
+    try {
+      return extractJsonObject(repaired);
+    } catch {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`${message} (repair pass also failed)`);
+    }
+  }
 }

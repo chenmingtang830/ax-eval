@@ -46,6 +46,10 @@ export interface BearerClientOptions {
 
 /** Resolve a dotted path against a nested object; undefined if absent. */
 export function resolveDotted(obj: unknown, path: string): unknown {
+  // "$" or "" addresses the whole node as-is — needed for endpoints that
+  // return a bare JSON scalar (e.g. a Postgres function returning a number
+  // directly via PostgREST's RPC endpoint), which has no key to dot into.
+  if (path === "$" || path === "") return obj;
   let node: unknown = obj;
   for (const part of path.split(".")) {
     if (node !== null && typeof node === "object" && part in (node as object)) {

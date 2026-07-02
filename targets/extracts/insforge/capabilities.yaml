@@ -1,0 +1,330 @@
+vendor: Insforge
+slug: insforge
+category: database
+extracted_at: 2026-07-01T08:45:02.614Z
+capabilities:
+  - capability_name: auto-rest-api
+    title: Auto-Generated REST API (Tables as APIs)
+    family: compute
+    description: Every table automatically gets PostgREST-style CRUD REST endpoints
+      (GET/POST/PATCH/DELETE) at `/api/database/records/{tableName}`, plus an
+      RPC endpoint for stored functions, with no extra configuration.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: InsForge provides PostgREST-style REST endpoints for database operations
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: typed-sdk-client
+    title: Typed SDK Client (TypeScript / Swift / Kotlin)
+    family: data-read
+    description: Fluent, type-safe query builders for TypeScript, Swift, and Kotlin
+      that wrap CRUD operations, support nested relationship selection syntax
+      (e.g. `select('*, comments(id, body)')`), and return standardized `{data,
+      error, count}` response objects.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/typescript/database
+        quote: Type-safe database operations using the InsForge TypeScript SDK.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: table-definition
+    title: Table & Column Definition
+    family: access-control
+    description: Create tables via admin API with eight column types (string,
+      integer, float, boolean, datetime, uuid, json, file), per-column
+      constraints (nullable, unique, default value), composite foreign keys with
+      configurable cascade rules (CASCADE, SET NULL, RESTRICT, etc.), and a
+      per-table RLS enable flag.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/create-table.md
+        quote: "Invalid field type: 'text'. Valid types are: string, integer, float,
+          boolean, datetime, uuid, json, file"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: schema-evolution
+    title: Schema Evolution (Alter Table)
+    family: migration
+    description: PATCH the schema of an existing table to add or drop columns,
+      rename columns, modify default values, add or remove foreign key
+      constraints, and rename the table itself — all without writing a migration
+      file.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/update-table-schema.md
+        quote: Add foreign key constraints (one entry per constraint; composite keys
+          list multiple column mappings)
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: schema-migration
+    title: File-Based Schema Migration
+    family: migration
+    description: Version-control schema changes as timestamped SQL files in a
+      `migrations/` directory and apply them sequentially via the CLI; each run
+      is recorded in `system.custom_migrations` and triggers automatic PostgREST
+      metadata reload.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/database/migrations.md
+        quote: Once you opt in, route all schema changes through files. Ad hoc dashboard
+          edits cause drift between git and `system.custom_migrations`.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: raw-sql-execution
+    title: Raw SQL Execution via Migration API
+    family: migration
+    description: POST arbitrary SQL to `/api/database/migrations` for immediate
+      execution; the system wraps it in a transaction automatically but blocks
+      manual `BEGIN`/`COMMIT`/`ROLLBACK` to preserve integrity, and records the
+      run permanently.
+    resource_kind: resource
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/create-and-execute-database-migration.md
+        quote: Custom migrations cannot manage their own transactions.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: row-level-security
+    title: Row-Level Security (RLS)
+    family: access-control
+    description: Postgres RLS policies restrict which rows each user can read or
+      write; the authentication JWT is injected into every SDK and REST call
+      automatically, so policies evaluate identity claims on a per-row basis
+      without application-layer filtering.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
+        quote: The auth JWT flows through every InsForge SDK call automatically.
+          Postgres RLS policies read claims from the token and decide, row by
+          row, what the user can read and write.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: record-crud-with-filters
+    title: Record CRUD with Rich Filtering
+    family: data-definition
+    description: Insert, query, update, and delete records with ten filter operators
+      (eq, neq, gt, gte, lt, lte, like, ilike, in, is), plus limit/offset
+      pagination, column selection, and multi-column ordering; responses include
+      `X-Total-Count` and `Content-Range` headers.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
+        quote: Maximum number of records to return (default 100, max 1000)
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: stored-functions-rpc
+    title: Stored Functions / RPC
+    family: compute
+    description: Call any PostgreSQL stored function by name via `POST
+      /api/database/rpc/{functionName}` (REST) or the SDK's `.rpc()` method,
+      passing parameters as JSON and receiving results as JSON; keeps
+      computation server-side.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Execute database functions via: POST /api/database/rpc/{functionName}"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-search
+    title: Vector Search (pgvector)
+    family: search
+    description: Built-in pgvector extension on every project lets you store
+      high-dimensional embeddings in Postgres columns and run similarity search
+      using cosine, dot-product, or Euclidean distance operators; HNSW and
+      IVFFlat indexes are supported for datasets above ~10 000 rows.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector.md
+        quote: "Queries use SQL operators to calculate similarity: '1 - (embedding <=>
+          query_embedding) as similarity'"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: realtime-change-feeds
+    title: Realtime Database Change Feeds
+    family: change-data-capture
+    description: Postgres triggers call `realtime.publish()` to broadcast row-level
+      INSERT/UPDATE/DELETE events to WebSocket-connected clients; RLS policies
+      govern which subscribers receive which changes.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: Database Change Streams — Postgres triggers invoke realtime.publish() to
+          broadcast table modifications as live events to subscribed clients.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: realtime-pubsub-presence
+    title: Realtime Pub/Sub & Presence
+    family: change-data-capture
+    description: Clients join named channels (exact or pattern-matched, e.g.
+      `order:%`) to exchange broadcasts and track online presence (join/leave
+      events with member snapshots); message history is persisted and webhooks
+      can be configured per channel.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: Clients subscribe to channels such as `order:123` or `chat:room-1`, then
+          receive database changes, broadcasts, and presence updates over
+          WebSockets.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: database-branching
+    title: Database Branching (Isolated Copies)
+    family: migration
+    description: Create a child project with its own isolated Postgres instance in
+      `full` (schema + data) or `schema-only` mode; preview and merge changes
+      back to the parent via three-way diff; supports `--dry-run` before
+      committing; branches run on separate EC2 instances.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/agent-native/branching
+        quote: A branch is a child project with its own Postgres, auth config, storage,
+          edge functions, email templates, realtime channels, and schedules.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: bulk-import-export
+    title: Bulk Import / Export
+    family: backup-and-recovery
+    description: Admin endpoints accept CSV or JSON files for bulk upsert with a
+      configurable conflict-resolution key (`upsertKey`), and can export the
+      database as SQL or JSON (optionally including schema and functions) or
+      import a SQL backup with optional table truncation.
+    resource_kind: table
+    operation_kind: backup
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: CSV/JSON bulk upsert — Import data files with conflict resolution via
+          `upsertKey`
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: schema-introspection
+    title: Schema & Metadata Introspection
+    family: data-definition
+    description: List all table names, retrieve a full per-table schema (column
+      names, types, nullability, uniqueness, defaults, FK constraints with
+      cascade rules), and query database-level statistics (total tables, total
+      records, storage size, last-updated timestamp) — all via admin API.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema.md
+        quote: table-level foreign key constraints (one entry per constraint)
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.614Z
+      extractor: legacy-capabilities-normalizer-v1

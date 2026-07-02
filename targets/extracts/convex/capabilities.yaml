@@ -1,0 +1,391 @@
+vendor: Convex
+slug: convex
+category: database
+extracted_at: 2026-07-01T08:44:26.560Z
+capabilities:
+  - capability_name: reactive-query-subscriptions
+    title: Reactive Query Subscriptions
+    family: data-read
+    description: Clients subscribe to query functions and automatically receive
+      updated results whenever underlying data changes, with all subscribers
+      updated to the same consistent database snapshot simultaneously.
+    resource_kind: backup
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/realtime
+        quote: every client subscription gets updated simultaneously to the same
+          snapshot of the database
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: acid-transactions
+    title: ACID Transactions (Mutations)
+    family: compute
+    description: "Every mutation function runs as a fully atomic, serializable
+      transaction: reads see a consistent snapshot and all writes either commit
+      together or not at all if an error is thrown."
+    resource_kind: function
+    operation_kind: backup
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/mutation-functions
+        quote: All database writes get committed together. If the mutation writes some
+          data to the database, but later throws an error, no data is actually
+          written to the database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: snapshot-isolation-reads
+    title: Snapshot-Isolated Query Reads
+    family: data-read
+    description: All database reads inside a single query execute at the same
+      logical timestamp, so concurrent writes never affect mid-query results,
+      giving queries repeatable-read semantics.
+    resource_kind: backup
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: All database reads inside a single query call are performed at the same
+          logical timestamp. Concurrent writes do not affect the query results.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: document-data-model
+    title: Document / JSON Data Model
+    family: data-definition
+    description: Data is stored as JavaScript-object-like documents with support for
+      nested arrays, objects, and typed field references; tables are created
+      automatically on first insert with no DDL required.
+    resource_kind: resource
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database
+        quote: It 'just works,' giving you predictable query performance in an
+          easy-to-use interface.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: typed-schema-definition
+    title: Typed Schema Definition with Runtime Validation
+    family: integrity
+    description: Schemas are defined in TypeScript using a validator builder (`v`)
+      that supports strings, numbers, booleans, objects, arrays, unions,
+      literals, optional fields, and record types; Convex validates documents at
+      insert/update time and propagates types end-to-end.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: Runtime validation ensures documents match schemas during inserts and
+          updates.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: compound-indexes
+    title: Compound Multi-Field Indexes
+    family: data-definition
+    description: Indexes are ordered lists of up to 16 fields (including nested
+      dot-path fields) defined in the schema; up to 32 indexes per table are
+      supported, and large-table indexes can be created asynchronously as staged
+      indexes to avoid blocking deploys.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database/indexes
+        quote: Staged indexes are a way to create an index on a large table
+          asynchronously without blocking deploy.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: cursor-based-pagination
+    title: Cursor-Based Reactive Pagination
+    family: data-read
+    description: Paginated queries return a cursor string for fetching subsequent
+      pages; pages are fully reactive so components automatically re-render when
+      paginated data changes, including additions and deletions mid-page.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database/pagination
+        quote: paginated queries are completely reactive
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: full-text-search
+    title: Full-Text Search
+    family: search
+    description: Keyword and phrase search across document fields with prefix
+      matching for typeahead; search indexes are reactive and continuously
+      updated just like regular Convex queries.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/search
+        quote: Full Text Search enables keyword and phrase search within your documents.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-search
+    title: Vector / Semantic Search
+    family: search
+    description: Floating-point embedding arrays are stored in documents and indexed
+      with a declared dimension count; cosine-similarity
+      approximate-nearest-neighbor search is available from actions, with
+      equality-filter support on additional indexed fields.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/search/vector-search
+        quote: Vector search allows you to find Convex documents similar to a provided
+          vector. Typically, vectors will be embeddings which are numerical
+          representations of text, images, or audio.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: server-side-function-compute
+    title: Server-Side Function Compute (Actions)
+    family: compute
+    description: Actions are server-side TypeScript functions that can call
+      third-party APIs via `fetch`, run in Convex's default runtime (no cold
+      starts) or Node.js, and read/write the database by invoking queries and
+      mutations.
+    resource_kind: function
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/actions
+        quote: actions may have side-effects and therefore can't be automatically
+          retried by Convex when errors occur
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: scheduled-functions
+    title: Scheduled / Delayed Function Execution
+    family: compute
+    description: Functions can be scheduled to run after a delay (`runAfter`) or at
+      a specific timestamp (`runAt`); scheduled jobs are stored in the database
+      and are atomically committed with the mutation that schedules them.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: Scheduled functions are stored in the database. This means you can
+          schedule functions minutes, days, and even months in the future.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: cron-jobs
+    title: Cron Jobs (Recurring Schedules)
+    family: compute
+    description: Recurring jobs are defined in a `crons.ts` file using standard
+      five-field cron syntax, named helpers (`crons.daily()`, `crons.hourly()`,
+      etc.), or interval expressions; at most one run of each job executes at
+      any moment.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/cron-jobs
+        quote: At most one run of each cron job can be executing at any moment.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: file-storage
+    title: File / Blob Storage
+    family: access-control
+    description: Files can be uploaded, stored, served via generated URLs, and
+      deleted; file IDs are stored in database documents for referencing, and
+      access control is enforced by controlling URL generation in backend
+      functions.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/file-storage
+        quote: File IDs, like Id<"_storage">, are safe to store in your tables
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: code-based-authorization
+    title: Code-Based Authorization (No RLS Framework)
+    family: access-control
+    description: Authorization is implemented directly in TypeScript backend
+      functions using checked auth context rather than a declarative RLS layer;
+      Convex supports JWT/OIDC identity tokens from Clerk, Auth0, WorkOS, or
+      custom providers.
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/auth
+        quote: Convex doesn't need an opinionated authorization framework like RLS,
+          which is required in client oriented databases like Firebase or
+          Supabase.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: automatic-query-caching
+    title: Automatic Query Result Caching
+    family: data-read
+    description: Query results are cached server-side and shared across all clients
+      calling the same query with the same arguments; the cache is invalidated
+      automatically when underlying data changes.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: Convex caches query results automatically. If many clients request the
+          same query, with the same arguments, they will receive a cached
+          response.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-import-export
+    title: Data Import / Export
+    family: data-write
+    description: Data can be imported from CSV/JSON via CLI, restored from backups
+      via dashboard or CLI, or streamed in continuously from any source via an
+      Airbyte destination connector; exports include dashboard ZIP backups and
+      continuous streaming via Fivetran.
+    resource_kind: resource
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database/import-export
+        quote: Streaming import from any existing database via Airbyte destination
+          connector
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: log-streaming-observability
+    title: Log Streaming & Observability
+    family: compute
+    description: Function executions, console logs, write conflicts, scheduler
+      events, and storage metrics can be streamed in real time to Axiom,
+      Datadog, PostHog, or custom HMAC-signed webhooks for historical storage,
+      querying, and alerting.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/production/integrations/log-streams
+        quote: Log streams enable streaming of events such as function executions and
+          console.logs from your Convex deployment to supported destinations.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: end-to-end-type-safety
+    title: End-to-End TypeScript Type Safety
+    family: integrity
+    description: Schema validators generate TypeScript types that flow automatically
+      from database schema through backend functions to client query/mutation
+      call sites, with Convex performing argument validation at runtime.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: end-to-end type safety throughout your app
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:26.560Z
+      extractor: legacy-capabilities-normalizer-v1

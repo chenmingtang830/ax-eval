@@ -52,6 +52,12 @@ export interface NormalizedResult {
    *  harness output). Lets `competitive` compare the same product/surface across
    *  models. null when no run stamped a model (older records). */
   model: string | null;
+  /** Efficiency diagnostics for the best profile. These are explanatory only:
+   *  correctness is still governed by deterministic outcome graders. */
+  latency_ms?: number | null;
+  tool_call_count?: number | null;
+  token_usage?: Record<string, number> | null;
+  token_cost?: number | null;
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
    *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
@@ -152,6 +158,10 @@ export function buildNormalizedResult(
     profiles: runs.map((r) => r.profile),
     best_profile: best?.profile ?? null,
     model: best?.model ?? null,
+    latency_ms: best?.efficiency?.latency_ms ?? null,
+    tool_call_count: best?.efficiency?.tool_call_count ?? null,
+    token_usage: best?.efficiency?.token_usage ?? null,
+    token_cost: best?.efficiency?.token_cost ?? null,
   };
 }
 
@@ -228,6 +238,10 @@ export function buildBlockedResult(
     profiles: [],
     best_profile: null,
     model: null,
+    latency_ms: null,
+    tool_call_count: null,
+    token_usage: null,
+    token_cost: null,
     blocked,
   };
 }

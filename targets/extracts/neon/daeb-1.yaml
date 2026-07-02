@@ -36,25 +36,25 @@ tasks:
         description: Exactly 100 rows in table
       - sql_dialect: postgres
         sql_query: SELECT email FROM axarena_customers_{ns} WHERE email =
-          'probe-1@example.com' LIMIT 1
+          'probe-1@axarena-{ns}.test' LIMIT 1
         assert_field: 0.email
-        expected: probe-1@example.com
-        description: Sampled row by email exists with expected shape
+        expected: probe-1@axarena-{ns}.test
+        description: Sampled row by email exists with expected namespace-aware shape
   - task_id: db-T03-query-pattern
     na: false
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM axarena_customers_{ns} WHERE email
-          ~ '^probe-1[0-9]?@'
+          ~ '^probe-9([0-9])?@axarena-{ns}\\.test$'
         assert_field: count
         expected: 11
-        description: Exactly 11 rows match probe-1 and probe-10..probe-19
+        description: Exactly 11 rows match probe-9 and probe-90..probe-99
       - sql_dialect: postgres
         sql_query: SELECT email FROM axarena_customers_{ns} WHERE email ~
-          '^probe-1[0-9]?@' ORDER BY email ASC LIMIT 5
+          '^probe-9([0-9])?@axarena-{ns}\\.test$' ORDER BY email ASC LIMIT 5
         assert_field: 0.email
-        expected: probe-1@example.com
-        description: First (lowest alphabetical) email in page-1 is probe-1@example.com
+        expected: probe-9@axarena-{ns}.test
+        description: First (lowest alphabetical) email in page-1 is probe-9@axarena-{ns}.test
   - task_id: db-T04-rls-policy
     na: false
     checks:

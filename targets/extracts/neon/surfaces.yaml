@@ -1,0 +1,23 @@
+vendor: Neon
+slug: neon
+extracted_at: 2026-07-01T05:00:00.000Z
+cli:
+  bin: neonctl
+  install: npm i -g neonctl
+  docs_url: https://neon.com/docs/reference/neon-cli
+  auth:
+    kind: token
+    token_env: NEON_API_KEY
+sdk:
+  package: "@neondatabase/serverless"
+  language: node
+  reference_url: https://neon.com/docs/serverless/serverless-driver
+  auth:
+    kind: inherit
+mcp:
+  server: "@neondatabase/mcp-server-neon"
+  transport: stdio
+  docs_url: https://neon.com/docs/ai/neon-mcp-server
+  auth:
+    kind: token
+    token_env: NEON_API_KEY

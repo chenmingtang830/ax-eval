@@ -7,7 +7,7 @@
 AI agents are becoming users of software. But most teams still test docs, APIs,
 SDKs, CLIs, and MCP servers as developer-facing artifacts, not as interfaces
 agents must discover and operate. `ax-eval` runs reviewed sandbox tasks through
-real agent harnesses, then verifies outcomes with read-back oracles.
+real agent harnesses, then verifies outcomes with independent outcome verification.
 
 **Agent-facing surfaces need integration tests, not just publication checks.**
 
@@ -56,7 +56,7 @@ npm run ax-eval -- review --pack results/acme.generated.pack.yaml --approve --by
 npm run ax-eval -- init --pack results/acme.generated.pack.yaml >> .env
 npm run ax-eval -- check-env --pack results/acme.generated.pack.yaml
 
-# 3. Emit prompts, run them, then verify with read-back oracles.
+# 3. Emit prompts, run them, then verify with independent outcome verification.
 npm run ax-eval -- exec-plan --pack results/acme.generated.pack.yaml \
   --run-dir results/runs/acme
 npm run ax-eval -- verify-generated --pack results/acme.generated.pack.yaml \
@@ -111,6 +111,37 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
+## DAEB-1 Publication Flow
+
+DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
+than ordinary local pack authoring:
+
+```text
+evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
+```
+
+The canonical benchmark contract is [`targets/suites/daeb-1-v3.yaml`](./targets/suites/daeb-1-v3.yaml).
+Each database vendor has a compiled pack under `targets/packs/<vendor>/daeb-1-v3.yaml`,
+but those packs are execution artifacts, not independently authored benchmark
+definitions. They are produced from the same suite plus vendor-specific public
+metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
+configuration.
+
+After running and verifying the vendor matrix, freeze a publication bundle:
+
+```bash
+npm run ax-eval -- publication-bundle \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
+  --run-dir results/runs/daeb-1-v3 \
+  --out results/publications/daeb-1-v3
+```
+
+The bundle writes `manifest.json` tying together the canonical suite, vendor
+cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
+records, and competitive report. Missing live artifacts are listed explicitly so
+draft bundles can be audited while the 7-vendor run is still in progress.
+
 ## Architecture
 
 `ax-eval` is pack-centered and surface-aware.
@@ -119,7 +150,7 @@ without digging through `results/runs/`.
   live in versioned schemas and act as the stable center of the system.
 - **Execution matrix:** the same reviewed pack runs across one or more harnesses
   and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
-  the agent discovers and acts rather than changing the oracle model.
+  the agent discovers and acts rather than changing the outcome-verification model.
 - **Truth layer:** executors report ids, but success is decided by independent
   read-back verification against live product state.
 - **Interpretation layer:** reports and normalized records turn results, traces,
@@ -132,7 +163,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ![ax-eval architecture](./assets/architecture.svg)
 
 1. **Ingest:** parse OpenAPI, GraphQL, docs, auth, and sandbox hints.
-2. **Generate:** draft an L1-L4 task pack with rule-derived oracles and
+2. **Generate:** draft an L1-L4 task pack with rule-derived outcome verifiers and
    LLM-assisted task authoring by default.
 3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
 4. **Execute:** run the same pack across selected surfaces and harnesses.
@@ -142,7 +173,7 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 
 - **Goal-level prompts, not endpoint hints.** The agent has to discover the
   surface instead of being handed a curl command.
-- **Programmatic oracles, not self-report.** Success means the verifier can read
+- **Programmatic outcome verification, not self-report.** Success means the verifier can read
   the expected state back from the product.
 - **Target-declared auth and sandbox scope.** Packs say exactly which env vars and
   sandbox ids are needed; secrets stay local in `.env`.
@@ -231,7 +262,7 @@ docs/               maintainer-local notes, intentionally not public docs
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md). The best first contribution is a new
 target pack generated from a public spec, reviewed with the gate, and backed by a
-focused test or oracle improvement.
+focused test or outcome-verifier improvement.
 
 ## Contact
 

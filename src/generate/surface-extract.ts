@@ -16,7 +16,8 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
-import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from "./harness.js";
+import type { Effort, HarnessId } from "./harness.js";
+import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
 const SurfaceAuthExtractSchema = z.object({
@@ -112,15 +113,20 @@ export async function extractSurfaces(
   opts: ExtractSurfacesOptions = {},
 ): Promise<SurfaceExtractResult> {
   const label = `${vendor.vendor}/surfaces`;
-  const raw = await invokeHarness(buildSurfacePrompt(vendor), {
-    harness: opts.harness ?? "claude-code",
+  const raw = await invokeGenerator(buildSurfacePrompt(vendor), {
+    requireWebFetch: true,
+    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
-    requireWebFetch: true,
     heartbeat: { everyMs: 30_000, label },
     timeoutMs: PER_CALL_TIMEOUT_MS,
   });
-  const json = extractJsonObject(raw);
+  const json = await extractJsonObjectWithRepair(raw, {
+    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    model: opts.model,
+    effort: opts.effort,
+    label,
+  });
   const parsed = z
     .object({ cli: CliExtractSchema.nullable(), sdk: SdkExtractSchema.nullable(), mcp: McpExtractSchema.nullable() })
     .safeParse(JSON.parse(json));

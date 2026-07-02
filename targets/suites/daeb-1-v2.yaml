@@ -1,0 +1,356 @@
+name: DAEB-1
+version: 2
+category: database
+description: Bottom-up-derived canonical task suite for the "database" category, synthesized from 8 vendors'
+  cited documentation (see daeb-1.synthesis.md for the full audit trail).
+methodology:
+  schema: ax.suite-methodology/v1
+  ontology:
+    task: A single benchmark problem with fixed intent and success criteria.
+    trial: One attempt at a task under a clean environment.
+    grader: Logic that scores either an outcome or transcript-derived property.
+    transcript: Behavior evidence from the agent run, including tool use and intermediate steps.
+    outcome: Final world state in the environment at the end of a trial.
+    support_decision: A recorded judgment about whether a vendor or surface can perform a task.
+    selection_decision: A recorded judgment about whether a concept is promoted into the canonical suite.
+    suite: The frozen canonical task bank for a category.
+    publication_bundle: The artifact bundle tying methodology, adapters, evidence, and results together.
+  static_ax:
+    label: Static AX Readiness
+    dimensions: [discoverability, content quality, capability exposure, protocol/access readiness]
+    notes:
+      - Static AX is published separately and never changes behavioral pass rates.
+  behavioral:
+    label: Behavioral Canonical Suite
+    source_of_truth: Verified read-back of world state from the live product.
+    notes:
+      - Behavioral ranking is governed only by verified task outcomes on api/cli/sdk.
+  capability_families:
+    - data-definition
+    - data-write
+    - data-read
+    - access-control
+    - integrity
+    - migration
+    - search
+    - compute
+    - change-data-capture
+    - backup-and-recovery
+  extraction_requirements:
+    - Use only official vendor documentation as evidence.
+    - Persist every extracted capability with structured evidence objects.
+    - Document supported api/sdk/cli surfaces when the docs provide evidence.
+  surface_scope: [api, sdk, cli]
+  min_vendor_coverage_pct: 0.75
+  target_task_count: 10
+  family_diversity_cap: 2
+  verifiability_requirement: Selected tasks must have deterministic read-back verification against world state.
+  difficulty_rubric:
+    L1: Single-step create/read/check operation with minimal setup.
+    L2: Composed workflow or constrained multi-step task with deterministic state.
+    L3: Ambiguous or multi-step workflow requiring discovery and orchestration.
+    L4: Operational, recovery, policy, or reliability-sensitive workflow with higher coordination cost.
+  human_review_checkpoints:
+    - suite methodology revision
+    - final suite freeze
+    - publication bundle release
+tasks:
+- id: db-T01-vector-similarity-search
+  title: 'T01: Store embeddings and run a nearest-neighbor similarity query'
+  difficulty: L2
+  skill: vector-similarity-search
+  intent: 'Create a table/collection named `axarena_docs_{ns}` with fields: id (primary key, vendor''s
+    idiomatic choice), label (text), and embedding (a vector/embedding field of fixed dimension 4). Insert
+    exactly 5 rows with the following literal 4-dimensional vectors and labels: label ''a'' -> [1.0, 0.0,
+    0.0, 0.0], label ''b'' -> [0.0, 1.0, 0.0, 0.0], label ''c'' -> [0.0, 0.0, 1.0, 0.0], label ''d'' ->
+    [0.0, 0.0, 0.0, 1.0], label ''e'' -> [0.9, 0.1, 0.0, 0.0]. The vendor''s idiomatic mechanism for defining
+    a vector-typed column and inserting vector data is acceptable (native vector type, JSON array cast
+    to vector, or an array field indexed for similarity search). After inserting all 5 rows, run a nearest-neighbor
+    / similarity search query against the query vector [1.0, 0.0, 0.0, 0.0], requesting the top 2 nearest
+    results ordered by similarity/distance (closest first). Report the labels of the top 2 results in
+    order. If your mechanism for running this query is a server-side function/RPC (e.g. because the surface''s
+    query layer can''t order by vector distance directly), define that function to take NO parameters
+    — hardcode the fixed query vector [1.0, 0.0, 0.0, 0.0] inside the function body, since it''s a fixed
+    constant for this task, not a runtime input — so the function can be invoked with an empty argument
+    list.'
+  oracle_hint: 'Read back the 5 rows from axarena_docs_{ns} (label + embedding) to confirm all 5 exist
+    with the exact literal vectors specified. Then independently recompute nearest-neighbor ranking against
+    query vector [1.0,0.0,0.0,0.0] over the stored embeddings (any of cosine similarity, L2 distance,
+    or dot product should all agree since ''a'' and ''e'' are clearly closest to the query and every other
+    vector is orthogonal): verify the top-1 result is label ''a'' (exact match, distance 0 / similarity
+    1) and the top-2 result is label ''e'' (next closest, since [0.9,0.1,0,0] is far closer to the query
+    than the orthogonal unit vectors b/c/d regardless of metric). Do not require an exact vendor-native
+    ordering beyond top-1=''a'', top-2=''e'' — reject only if the agent''s own reported ordering, or the
+    read-back data, contradicts this.'
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - This vendor has no vector/embedding column type or ANN/similarity-search query capability — only exact-match
+    and range queries over scalar columns are supported, so nearest-neighbor similarity search cannot
+    be performed natively.
+- id: db-T02-full-text-search
+  title: 'T02: Build a full-text search index and run a keyword query'
+  difficulty: L2
+  skill: full-text-search
+  intent: Create a table or collection named `axarena_articles_{ns}` with an `id` field and a `body` text
+    field. Insert exactly 4 rows with distinct, deterministic body text, such that exactly one row's body
+    contains the distinctive word `axarenaquokka` (a word that must not appear anywhere in the other three
+    rows' text). Build or enable the vendor's idiomatic full-text/keyword search index on the `body` field.
+    If your mechanism requires a separate indexed/generated column (e.g. a tsvector column), name that
+    column exactly `body_fts` — this exact name will be used to verify your work, regardless of which
+    interface (API/SDK/CLI/MCP) you used to build it. Then run a full-text or keyword search query for
+    `axarenaquokka` using the vendor's actual full-text search mechanism (not a plain substring or LIKE/regex
+    match). The search must return exactly the one row whose body contains the word, and no others. Report
+    the matching row's `id`.
+  oracle_hint: 'Read back the full-text search results for the query term against axarena_articles_{ns}:
+    confirm the result set length is exactly 1 and that the returned row''s id matches the single row
+    that was seeded with the distinctive word in its body; also confirm the index/config exists (e.g.
+    index metadata listing the FTS/search index on the body field) so a coincidental LIKE-based implementation
+    can be distinguished from true FTS usage where feasible.'
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - Insforge has no documented full-text/keyword search feature — it only exposes pgvector-based semantic
+    (embedding) search, with no tsvector/inverted-index/keyword-match capability, so a true full-text
+    search index cannot be built or queried.
+- id: db-T03-server-side-compute
+  title: 'T03: Define and invoke a server-side function that aggregates data'
+  difficulty: L3
+  skill: stored-proc-rpc
+  intent: Create a table named `axarena_sales_{ns}` with columns `id` (integer primary key) and `amount`
+    (numeric). Insert exactly 5 rows with amount values 100, 250, 75, 300, 125 (id values 1 through 5,
+    in any order). Then define a server-side function or stored procedure — using the vendor's idiomatic
+    server-side compute mechanism — that computes the sum of the `amount` column across all rows in `axarena_sales_{ns}`
+    and returns that sum. The aggregation logic must execute server-side, co-located with the data; do
+    not compute the sum client-side and merely store or echo the precomputed value. Invoke the function
+    via the vendor's standard call/RPC mechanism (not by issuing a raw SELECT SUM() query from the client)
+    and report the function's name or identifier as `function_name`, since it may be arbitrary.
+  oracle_hint: Call the function identified by the agent-reported `function_name` via the vendor's RPC/call
+    mechanism and confirm it returns 850 (100+250+75+300+125). Also confirm the function is registered
+    server-side (visible in schema introspection, function/procedure list, or equivalent) rather than
+    simulated client-side.
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - Turso is SQLite-compatible and has no stored-procedure or server-side compute model; all aggregation
+    must be performed by the client issuing SQL queries, so this task is N/A.
+- id: db-T04-schema-migration-workflow
+  title: 'T04: Add a new column to an existing table via a tracked schema migration'
+  difficulty: L2
+  skill: schema-migration
+  intent: Create a table `axarena_products_{ns}` with columns `id` (primary key) and `name` (text). Insert
+    exactly 2 rows into it. Then, using the vendor's idiomatic VERSIONED or TRACKED schema-change mechanism
+    (e.g. a migration file applied through a migration/deploy workflow, a schema-diff-and-apply tool,
+    or an equivalent tracked-change process — not a one-off raw ALTER TABLE issued with no tracking record),
+    add a new nullable column `price` (numeric type) to `axarena_products_{ns}`. Confirm both original
+    rows still exist and that `price` is null/absent on them. Additionally, report a self-reported named
+    field `migration_id` identifying the migration/deploy-request/schema-version record that the tracking
+    mechanism itself generated for this change.
+  oracle_hint: Read back axarena_products_{ns} rows to confirm exactly 2 rows exist, each with `price`
+    null/absent and original `id`/`name` values intact; separately confirm the column `price` now exists
+    in the table schema (e.g. selectable with limit=0). Treat the agent-reported `migration_id` as a self-reported
+    field only — the roundtrip check should validate table/row state, not the existence of the tracking
+    record itself, since that lives outside the data API.
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - 'MongoDB Atlas: there is no first-party versioned schema-migration or schema-diff tool — schema changes
+    to a collection (which is schemaless) would be an ad hoc application-level update, not a tracked migration
+    artifact, so this task is N/A.'
+  - 'Turso: libSQL/Turso has no built-in versioned migration or schema-diff tooling of its own (schema
+    changes are typically done via raw SQL or third-party ORM migration tools), so there is no vendor-idiomatic
+    tracked mechanism to exercise, making this task N/A.'
+- id: db-T05-change-data-capture
+  title: 'T05: Enable change capture and verify a row-level change event is recorded'
+  difficulty: L4
+  skill: change-data-capture
+  intent: 'Create a new table named `axarena_orders_{ns}` with an `id` column and a `status` column. Enable
+    the vendor''s idiomatic change-data-capture / change-stream / logical-replication mechanism scoped
+    to this table (this may involve creating a publication, a changefeed, a change-stream watch, a replication
+    slot, or a CDC pragma — whichever is idiomatic for the vendor). Then perform exactly one deterministic
+    write: insert a row with id=1 and status=''new''. Capture or read back the resulting change event/record
+    from wherever the change-capture mechanism delivers it (this could be a CDC table, a changefeed sink,
+    a change-stream cursor, a subscription payload, etc). Report the location or identifier of that captured
+    data as `capture_location`, since it varies by vendor. The captured event must show the inserted row''s
+    data (id=1, status=''new'') and an operation type indicating an insert (e.g. ''insert'', ''INSERT'',
+    ''c'' for create, or equivalent). Never name a specific vendor''s API/SDK call in your response.'
+  oracle_hint: Resolve the self-reported `capture_location` field to locate the delivered change record
+    (a table, a sink object, a stream cursor position, or similar addressable location). Read from that
+    location and confirm exactly one captured record exists for the write, with fields (or nested payload
+    fields) showing id=1 and status='new', and an operation-type field indicating an insert/create operation.
+    If the vendor delivers the change as a stream/cursor rather than a queryable table, `capture_location`
+    should resolve to a stable read handle (e.g. a cursor position, offset, or export snapshot id) that
+    a verifier can dereference to fetch the same record deterministically.
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - Insforge has no change-data-capture, change-stream, or logical-replication feature for tables — the
+    only reactive mechanism is INSERT/UPDATE/DELETE-triggered edge functions, which do not expose a readable
+    change-event log or stream that a client can capture and read back from; mark this task N/A for Insforge.
+- id: db-T06-point-in-time-restore
+  title: 'T06: Restore a table to its exact state at a specific past timestamp'
+  difficulty: L4
+  skill: point-in-time-restore
+  intent: 'Create a table named `axarena_snapshot_{ns}` with columns `id` and `label`, and insert 3 rows
+    into it. Then record the current timestamp as a named field `checkpoint_time`, using whatever mechanism
+    the database provides to make that exact moment restorable later (if the vendor imposes a minimum
+    delay before a moment becomes eligible for restore, wait for it before proceeding). After recording
+    `checkpoint_time`, insert 2 more rows into the table so that 5 rows exist in total. Next, restore
+    or recover the database to the exact moment captured by `checkpoint_time`, using whichever restore/recovery
+    mechanism the vendor provides. This may create a new branch, instance, or database rather than modifying
+    the original in place — if so, report its identifier as a named field `restored_target`. Always report
+    a named field `restored_connection_string`: a full, directly-usable connection string/credential for
+    the resulting target (the same one you started with if the restore was applied in place, or the new
+    target''s own if a new one was created). Finally, confirm that the resulting target (the restored
+    one if `restored_target` was produced, otherwise the original) contains exactly the original 3 rows
+    and none of the 2 rows added after the checkpoint.'
+  oracle_hint: Resolve `restored_target` if reported (else use the original database/instance); query
+    `axarena_snapshot_{ns}` there and confirm exactly 3 rows exist, matching the ids/labels inserted before
+    `checkpoint_time`, with no trace of the 2 post-checkpoint rows.
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - Convex only supports discrete, manually-triggered snapshot backups/exports with no mechanism to restore
+    to an arbitrary past timestamp between snapshots, so this task is N/A.
+  - Insforge only offers point-in-time discrete backup snapshots (not continuous, arbitrary-timestamp
+    restore), so recovering to a specific recorded `checkpoint_time` that doesn't align with a snapshot
+    boundary is not possible — N/A.
+- id: db-T07-row-level-security
+  title: 'T07: Restrict row-level read/write access to a specific identity'
+  difficulty: L2
+  skill: row-level-security
+  intent: 'Create a table/collection named `axarena_customers_{ns}` with at least one column identifying
+    the owning identity (e.g. `owner_id`) plus a `notes` text field. Insert two rows: one owned by identity
+    A and one owned by identity B (create two real, distinct identities via the platform''s actual authentication/user
+    system — e.g. sign up two real users via its auth API/SDK — and obtain each identity''s genuine signed
+    access token/credential; do not fabricate a placeholder string as a stand-in for a real token). Configure
+    the platform''s idiomatic per-row access-control mechanism so that: (1) a request authenticated as
+    identity A can read and update/write only the row where `owner_id` = A, and cannot read or modify
+    the row owned by B; (2) a request authenticated as identity B can read and update/write only its own
+    row and cannot read or modify A''s row; (3) requests using an unrestricted/administrative credential
+    (not scoped to either identity) are unaffected by this task and are only used for setup/verification,
+    not as the thing being tested. Use whatever native row-level access-control mechanism the platform
+    provides. When done, report the table/collection name, the two identity identifiers used, and confirmation
+    that each identity''s scoped access was tested against both its own row and the other identity''s
+    row.'
+  oracle_hint: 'Verifier must NOT use the admin/service-role/root credential to check enforcement (that
+    credential bypasses RLS-like restrictions by design). Instead, obtain or mint two identity-scoped
+    credentials/sessions (one for identity A, one for identity B) and, using each: (a) attempt to read
+    the full table/collection scoped as A — expect only A''s row returned, B''s row absent or an authorization
+    error; (b) attempt to read/select scoped as B — expect only B''s row, A''s row absent/denied; (c)
+    attempt to update or write to the other identity''s row from each scoped credential — expect denial
+    (zero rows affected, 403/permission error, or equivalent) while the same identity''s write to its
+    own row succeeds. Separately, confirm using the admin credential that both rows physically exist in
+    the table (proving the restriction is access-control, not data absence). Only pass if the scoped-credential
+    checks show correct isolation in both directions.'
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - N/A — this backend has no per-row identity scoping primitive (e.g. a flat key-value store or blob
+    store with no row/document ownership concept and no query-time identity filtering mechanism), so row-level
+    restriction cannot be expressed natively.
+- id: db-T08-role-based-access-control
+  title: 'T08: Create a restricted-privilege role that can only read one table'
+  difficulty: L2
+  skill: rbac-scoped-role
+  intent: 'Create two tables: `axarena_orders_{ns}` with an integer `id` column and a `total` numeric
+    column, and `axarena_secrets_{ns}` with an integer `id` column and a `value` text column. Insert exactly
+    3 rows into `axarena_orders_{ns}` and exactly 3 rows into `axarena_secrets_{ns}`. Using your vendor''s
+    idiomatic role or scoped-credential mechanism (e.g. a SQL role with targeted GRANTs, a custom database
+    role scoped to specific actions/resources, or a scoped API key/credential), create a new credential
+    named or labeled `axarena_reader_{ns}` that: (1) can SELECT from `axarena_orders_{ns}` and read all
+    3 rows; (2) has no access at all to `axarena_secrets_{ns}` — no SELECT, INSERT, UPDATE, or DELETE.
+    Do not grant any privileges on `axarena_secrets_{ns}` to the new credential, whether by default, inheritance,
+    or wildcard grant. If your mechanism produces a directly-connectable credential for the restricted
+    role (e.g. a login/password), report a full connection string/credential using it as a named field
+    `reader_connection_string`. Using the restricted credential itself (not the admin/owner credential),
+    execute a SELECT against `axarena_orders_{ns}` and confirm it succeeds and returns all 3 rows, then
+    execute a SELECT against `axarena_secrets_{ns}` and confirm it is denied.'
+  oracle_hint: 'Authenticate or connect as the `axarena_reader_{ns}` credential itself (not the admin
+    credential) and issue two read attempts: SELECT against `axarena_orders_{ns}` must succeed and return
+    exactly 3 rows matching the inserted data; SELECT against `axarena_secrets_{ns}` must fail with a
+    permission/authorization error (e.g. PostgreSQL 42501, MongoDB Atlas unauthorized error, HTTP 403,
+    or equivalent access-denied rejection) rather than an empty result set.'
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - This vendor provides no mechanism to create secondary roles or scoped credentials — every connection
+    uses a single credential with full access to all tables.
+  - Access restrictions can only be expressed at the row level via row-level security predicates, with
+    no supported way to deny access to an entire table for a given role or credential.
+- id: db-T09-backup-and-restore
+  title: 'T09: Take an on-demand backup, modify data, then restore from that backup'
+  difficulty: L3
+  skill: backup-and-restore
+  intent: 'In a database or project named `axarena_bkrestore_{ns}`, create a table (or equivalent collection)
+    named `axarena_ledger_{ns}` with columns `id` INTEGER PRIMARY KEY and `label` TEXT. Insert exactly
+    4 rows: (1,''seed_1''), (2,''seed_2''), (3,''seed_3''), (4,''seed_4''). Once these inserts are committed,
+    trigger the vendor''s idiomatic on-demand or manual backup/snapshot operation (not a scheduled/automatic
+    one) covering this database, and record an identifier for that specific backup. After the backup completes,
+    make one additional change to `axarena_ledger_{ns}`: insert a fifth row (5,''post_backup''). Then
+    restore from the backup captured in the previous step — using whichever restore mechanism the vendor
+    provides, whether that restores the original database in place or produces a new database/branch/instance
+    containing the backup''s contents. If the restore target is not the original database (i.e., a new
+    branch or instance was created), report its identifier in a field named `restored_target`; if the
+    restore was applied in place, set `restored_target` to the original identifier. On the resulting target,
+    confirm that `axarena_ledger_{ns}` contains exactly the 4 seed rows (labels `seed_1` through `seed_4`)
+    and that the `post_backup` row is absent.'
+  oracle_hint: 'Resolve the database/branch to check via the reported `restored_target` (falling back
+    to the original `axarena_bkrestore_{ns}` if in-place). Query `axarena_ledger_{ns}` on that target:
+    total row count must equal 4, all four `seed_1`..`seed_4` labels must be present, and zero rows must
+    match label `post_backup`.'
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - This vendor has no documented backup or restore mechanism of any kind — data is not snapshot-able
+    or recoverable via any supported surface.
+  - This vendor only supports continuous/automatic backup capture with no user-triggerable on-demand or
+    manual backup action exposed via API, SDK, or CLI.
+- id: db-T10-database-triggers
+  title: 'T10: Create a trigger that auto-populates a field on row insert'
+  difficulty: L2
+  skill: database-triggers
+  intent: Create a table (or equivalent collection) named `axarena_events_{ns}` with at least the columns
+    `id` (primary key), `event_type` (text/string), and `status` (text/string, nullable). Using the vendor's
+    idiomatic trigger or event-driven mechanism — a native SQL `CREATE TRIGGER` fired `BEFORE INSERT`/`AFTER
+    INSERT`, a platform-level database-triggered function, or an equivalent event-driven hook — configure
+    the mechanism so that whenever a row is inserted into `axarena_events_{ns}`, the `status` column is
+    automatically set to the literal value `'pending'` if it was not explicitly provided by the insert
+    statement. Insert exactly one row specifying only `id` and `event_type` (deliberately omitting `status`
+    from the insert payload/statement) with `id=1` and `event_type='axarena-{ns}'`. Do not set `status`
+    anywhere in the insert call itself — the trigger/event mechanism must be what populates it. Read back
+    the row and confirm `status` was auto-populated to `'pending'`.
+  oracle_hint: Read back the row where id=1 (or event_type='axarena-{ns}') from axarena_events_{ns}; assert
+    the `status` field equals 'pending' even though the insert never specified it.
+  allowed_surfaces:
+  - api
+  - sdk
+  - cli
+  na_examples:
+  - This vendor provides no server-side trigger, hook, or event-driven function mechanism tied to row-level
+    insert/update/delete operations; any auto-population logic would have to live entirely in client-side
+    application code.
+scoring:
+  per_task: pass | fail | na
+  overall:
+    formula: score = sum(passes) / sum(non_na_tasks)
+    notes: N/A tasks (and N/A surfaces within a task) are excluded from both numerator and denominator.
+      Cross-vendor comparisons are valid only across tasks/surfaces both vendors actually run.

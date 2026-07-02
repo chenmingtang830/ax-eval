@@ -12,6 +12,7 @@
 import { readFileSync } from "node:fs";
 import { parse as yamlParse } from "yaml";
 import { z } from "zod";
+import { SuiteMethodologySchema } from "./methodology.js";
 
 const SuiteTaskSchema = z.object({
   id: z.string().min(1),
@@ -20,7 +21,7 @@ const SuiteTaskSchema = z.object({
   skill: z.string().min(1),
   intent: z.string().min(1),
   oracle_hint: z.string().min(1),
-  allowed_surfaces: z.array(z.string()).default(["api", "sdk", "cli", "mcp"]),
+  allowed_surfaces: z.array(z.string()).default(["api", "sdk", "cli"]),
   na_examples: z.array(z.string()).default([]),
 });
 
@@ -30,6 +31,7 @@ const SuiteSchema = z.object({
   category: z.string().min(1),
   description: z.string().optional(),
   homepage: z.string().optional(),
+  methodology: SuiteMethodologySchema.optional(),
   tasks: z.array(SuiteTaskSchema).min(1),
   scoring: z.unknown().optional(),
 });

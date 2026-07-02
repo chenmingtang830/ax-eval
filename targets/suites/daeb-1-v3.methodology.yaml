@@ -1,0 +1,64 @@
+schema: ax.suite-methodology/v1
+ontology:
+  task: A single benchmark problem with fixed intent and success criteria.
+  trial: One attempt at a task under a clean environment.
+  grader: Logic that scores either an outcome or transcript-derived property.
+  transcript: Behavior evidence from the agent run, including tool use and
+    intermediate steps.
+  outcome: Final world state in the environment after a trial.
+  support_decision: A recorded judgment about whether a vendor/surface can perform a task.
+  selection_decision: A recorded judgment about whether a concept becomes part of
+    the canonical suite.
+  suite: The frozen canonical task bank for a category.
+  publication_bundle: The artifact bundle tying methodology, adapters, evidence,
+    and results together.
+static_ax:
+  label: Discoverability & Readiness
+  dimensions:
+    - discoverability
+    - content quality
+    - capability exposure
+    - protocol/access readiness
+  notes:
+    - Discoverability & Readiness is a publication/audit layer and never changes
+      usability-suite pass rates.
+behavioral:
+  label: Usability Canonical Suite
+  source_of_truth: Verified world state read back from the live product
+  notes:
+    - Usability-suite scoring is governed only by verified task outcomes on
+      api/cli/sdk surfaces.
+capability_families:
+  - data-definition
+  - data-write
+  - data-read
+  - access-control
+  - integrity
+  - migration
+  - search
+  - compute
+  - change-data-capture
+  - backup-and-recovery
+extraction_requirements:
+  - Use only official vendor documentation as evidence.
+  - Persist every extracted capability with structured evidence objects.
+  - Document supported api/sdk/cli surfaces where evidence exists.
+surface_scope:
+  - api
+  - sdk
+  - cli
+min_vendor_coverage_pct: 0.75
+target_task_count: 10
+family_diversity_cap: 2
+verifiability_requirement: Selected tasks must have deterministic read-back
+  verification against world state.
+difficulty_rubric:
+  L1: Single-step create/read/check operation with minimal setup.
+  L2: Composed workflow or constrained multi-step task with deterministic state.
+  L3: Ambiguous or multi-step workflow requiring discovery and orchestration.
+  L4: Operational, recovery, policy, or reliability-sensitive workflow with higher
+    coordination cost.
+human_review_checkpoints:
+  - suite methodology revision
+  - final suite freeze
+  - publication bundle release

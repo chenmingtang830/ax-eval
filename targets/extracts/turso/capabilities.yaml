@@ -1,0 +1,455 @@
+vendor: Turso
+slug: turso
+category: database
+extracted_at: 2026-07-01T08:45:02.612Z
+capabilities:
+  - capability_name: sqlite-compatibility
+    title: SQLite-Compatible SQL Engine (libSQL)
+    family: search
+    description: Turso is built on libSQL, a fork of SQLite that is fully
+      backward-compatible with SQLite SQL syntax, pragmas, and data types while
+      adding new capabilities like concurrent writes and vector search.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/compatibility
+        quote: Turso is built on libSQL, a fork of SQLite that is fully
+          backward-compatible with SQLite SQL syntax, pragmas, and data types
+          while adding new capabilities like concurrent writes and vector
+          search.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-similarity-search
+    title: Native Vector Similarity Search
+    family: search
+    description: Store float embeddings in typed vector columns (FLOAT32, FLOAT16,
+      FLOAT8, FLOAT1BIT, etc.), build approximate nearest-neighbor indexes using
+      the DiskANN algorithm, and query with vector_top_k(). Supports cosine and
+      L2 distance metrics natively without extensions.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/features/ai-and-embeddings
+        quote: Native similarity search for AI apps and RAG workflows, no extensions
+          required.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: full-text-search
+    title: Full-Text Search (Tantivy/BM25)
+    family: search
+    description: Create FTS indexes with CREATE INDEX ... USING fts, then query
+      using fts_match() for filtering, fts_score() for BM25 relevance ranking,
+      and fts_highlight() for hit highlighting. Supports boolean operators,
+      phrase search, prefix matching, and per-column boosting.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/fts
+        quote: fts_score ranks results by relevance using BM25 scoring, returning a real
+          number where lower scores indicate higher relevance.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: embedded-replica
+    title: Embedded Replicas (Local Read Cache)
+    family: data-write
+    description: Run a local copy of a Turso Cloud database on the same machine as
+      the application; reads are served in microseconds from the local file
+      while writes are forwarded to the cloud primary and synced back.
+      Guarantees read-your-writes semantics.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/features/embedded-replicas/introduction
+        quote: Reads are always served from the local replica… reads run locally from
+          the file in microseconds, and writes are sent to the cloud primary and
+          then reflected back to the replica.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: offline-sync
+    title: Offline-First Push/Pull Sync
+    family: core-operations
+    description: Applications write locally without connectivity and explicitly
+      push() / pull() changes to/from Turso Cloud. Conflict resolution uses
+      last-push-wins; partial sync lets you sync subsets of data. Suitable for
+      mobile and edge devices.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sync/usage
+        quote: Applications can accept writes without internet connectivity. Changes
+          remain safely stored locally until connectivity is restored and push()
+          is called.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: database-branching
+    title: Database Branching
+    family: migration
+    description: Create an independent database copy from any existing database via
+      CLI or Platform API, enabling isolated schema migrations, feature testing,
+      or CI pipelines without touching the source database.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/features/branching
+        quote: A branch is a separate database instance that is created from an existing
+          database… Database branches are completely separate from the original
+          database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: point-in-time-recovery
+    title: Point-in-Time Recovery
+    family: backup-and-recovery
+    description: Restore a database to any prior commit timestamp by creating a new
+      database from the original with a --timestamp flag. Recovery windows range
+      from 24 hours (free tier) to 90 days (Pro), with backups taken
+      automatically on every COMMIT.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/features/point-in-time-recovery
+        quote: PITR allows you to restore a database to a specific point in time. This
+          is useful for recovering from user errors, such as dropping a table by
+          mistake. Backups are created automatically at COMMIT.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: encryption-at-rest
+    title: Bring-Your-Own-Key (BYOK) Encryption
+    family: integrity
+    description: Encrypt each database file and WAL at the page level (4 KiB pages,
+      unique nonce per page) using a key you supply and control — AES-GCM,
+      ChaCha20-Poly1305, or AEGIS ciphers. Turso never stores the key.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/encryption
+        quote: You hold the keys. Each database can be encrypted with its own unique key
+          that only you control. Turso never sees or stores your encryption
+          keys.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: concurrent-writes-mvcc
+    title: Concurrent Writes via MVCC
+    family: core-operations
+    description: Enable Multi-Version Concurrency Control so multiple connections
+      can write simultaneously using BEGIN CONCURRENT. Transactions on
+      non-overlapping rows proceed without conflict; overlapping writes get a
+      conflict error and must retry.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/concurrent-writes
+        quote: If two transactions modify the same data, one will receive a conflict
+          error and must roll back and retry. Transactions that write to
+          non-overlapping data proceed without conflict.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: transactions
+    title: Explicit Transactions with Snapshot Isolation
+    family: core-operations
+    description: Standard BEGIN/COMMIT/ROLLBACK with DEFERRED, IMMEDIATE, and
+      EXCLUSIVE modes. BEGIN CONCURRENT provides optimistic snapshot-isolation
+      transactions for concurrent workloads; SAVEPOINT and nested transactions
+      are not supported.
+    resource_kind: backup
+    operation_kind: backup
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+        quote: BEGIN CONCURRENT… transactions operate on database snapshots taken at
+          start time. If a write-write conflict is detected, the COMMIT fails
+          and the transaction must be rolled back and retried.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: change-data-capture
+    title: Change Data Capture (CDC)
+    family: change-data-capture
+    description: Activate per-connection CDC via PRAGMA to record all INSERTs,
+      UPDATEs, DELETEs, and DDL operations into a turso_cdc table with
+      before/after binary blobs, transaction IDs, and timestamps. Queryable with
+      standard SQL or helper JSON decode functions.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/cdc
+        quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
+          deletes) made to your database tables… CDC also tracks DDL operations
+          (CREATE TABLE, DROP TABLE, CREATE INDEX, etc.).
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: scoped-access-tokens
+    title: Scoped Database Access Tokens
+    family: data-read
+    description: Generate per-database JWT tokens with read-only or full-access
+      permissions and configurable expiration (e.g. 7d3h2m1s or never). Used as
+      Bearer tokens by all libSQL SDKs and the HTTP API.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cli/db/tokens/create
+        quote: "Tokens are scoped to individual databases… The system supports two
+          permission levels: Full access (default) and Read-only access via the
+          --read-only flag."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: network-access-control
+    title: IP/CIDR and VPC Allow Rules
+    family: core-operations
+    description: Restrict database connections to specific IPv4/IPv6 addresses or
+      CIDR ranges, and/or specific AWS VPC endpoint IDs. Rules are per-database
+      and combine with AND semantics when both types are set.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/allow-rules
+        quote: Both IPv4 and IPv6 addresses are accepted. CIDR notation (e.g.
+          10.0.0.0/8) is supported for ranges… the client IP must be on the
+          allowed-IP list and the connection must arrive through one of the
+          allowed VPC endpoints.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: private-networking
+    title: Private Endpoints via AWS PrivateLink
+    family: core-operations
+    description: Route all database traffic through AWS PrivateLink VPC endpoints so
+      it never traverses the public internet, suitable for compliance-sensitive
+      workloads hosted on AWS.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/private-endpoints
+        quote: Securely access Turso databases through AWS PrivateLink, keeping all
+          traffic within AWS's private network.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: import-export
+    title: SQLite File Import
+    family: migration
+    description: Import an existing SQLite database file (WAL journal mode required)
+      directly into Turso Cloud with turso db import, enabling migration from
+      local SQLite to the cloud without schema conversion.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cli/db/import
+        quote: Import an existing SQLite database file (WAL journal mode required)
+          directly into Turso Cloud with turso db import, enabling migration
+          from local SQLite to the cloud without schema conversion.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: durability-guarantee
+    title: S3-Backed 11-Nines Durability
+    family: compute
+    description: Every committed write is acknowledged only after being stored to S3
+      or S3-Express One Zone; compute nodes are diskless and stateless. Offers
+      99.999999999% durability on all plans, with Pro/Enterprise supporting
+      customer-owned S3 buckets.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/durability
+        quote: Commits are only acknowledged once data is safely stored in either S3 or
+          S3-express… Pro and Enterprise customers can use their own S3 /
+          S3-express buckets, guaranteeing that data lives inside their
+          infrastructure.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: user-defined-types-domains
+    title: User-Defined Types and Domains (Experimental)
+    family: core-operations
+    description: Experimental CREATE TYPE and CREATE DOMAIN statements extend
+      libSQL's strict-mode type system beyond SQLite's built-in affinity rules,
+      enabled per-connection via feature flags.
+    resource_kind: resource
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/experimental-features
+        quote: CREATE TYPE, DROP TYPE, CREATE DATABASE, and DROP DOMAIN for STRICT
+          tables.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: sql-over-http
+    title: SQL over HTTP API
+    family: data-read
+    description: Execute SQL statements against any Turso database via a simple HTTP
+      POST API using JSON, enabling use from environments without a native
+      libSQL driver (e.g. serverless functions, edge runtimes, browser).
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/http/quickstart
+        quote: Execute SQL statements against any Turso database via a simple HTTP POST
+          API using JSON, enabling use from environments without a native libSQL
+          driver (e.g. serverless functions, edge runtimes, browser).
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: multi-language-sdks
+    title: Multi-Language SDKs and ORM Integrations
+    family: core-operations
+    description: Official libSQL client SDKs for TypeScript/JS, Python, Rust, Go,
+      Swift, Kotlin, Ruby, PHP, C, and Dart, plus ORM adapters for Drizzle,
+      Prisma, SQLAlchemy, ActiveRecord, Doctrine DBAL, and Drift (Flutter).
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/llms.txt
+        quote: Official libSQL client SDKs for TypeScript/JS, Python, Rust, Go, Swift,
+          Kotlin, Ruby, PHP, C, and Dart, plus ORM adapters for Drizzle, Prisma,
+          SQLAlchemy, ActiveRecord, Doctrine DBAL, and Drift (Flutter).
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: platform-management-api
+    title: Platform REST API for Database Lifecycle Management
+    family: core-operations
+    description: A REST API (with OpenAPI spec) to programmatically create,
+      configure, inspect, delete, and rotate tokens for databases and groups —
+      covering the full operational lifecycle needed for multi-tenant or
+      automated deployments.
+    resource_kind: resource
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://docs.turso.tech/api-reference/introduction
+        quote: A REST API (with OpenAPI spec) to programmatically create, configure,
+          inspect, delete, and rotate tokens for databases and groups — covering
+          the full operational lifecycle needed for multi-tenant or automated
+          deployments.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:45:02.612Z
+      extractor: legacy-capabilities-normalizer-v1

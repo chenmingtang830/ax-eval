@@ -1,0 +1,194 @@
+vendor: MongoDB Atlas
+category: database
+slug: mongodb-atlas
+suite_name: DAEB-1-V3
+extracted_at: 2026-07-02T21:40:40.519Z
+vendor_config:
+  base_url: https://cloud.mongodb.com
+  auth_type: none
+  auth_env: ATLAS_CONNECTION_STRING
+  mongo_connection_env: ATLAS_CONNECTION_STRING
+  mongo_database: axarena_eval
+tasks:
+  - task_id: db-T01-access-control
+    na: true
+    na_reason: MongoDB Atlas database and collection privileges do not provide the
+      owned-record access-control outcome required by this task wording.
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T01-access-control:access-control
+    checks: []
+  - task_id: db-T02-backup-and-restore
+    na: false
+    na_surfaces:
+      - sdk
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: mongodb-atlas:db-T02-backup-and-restore:backup-and-restore
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_backup_{ns}
+          operation: count
+          filter:
+            label: marker_{ns}
+        assert_field: count
+        expected: 1
+        description: restored/recovered MongoDB target contains the backup marker document
+  - task_id: db-T03-change-data-capture
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T03-change-data-capture:change-data-capture
+    checks:
+      - mongo_query:
+          database: ""
+          collection: "{capture_collection}"
+          operation: count
+          filter:
+            $or:
+              - row_label: cdc_probe_{ns}
+              - fullDocument.label: cdc_probe_{ns}
+        assert_field: count
+        expected: 1
+        description: agent-reported durable capture collection contains the inserted
+          change event
+  - task_id: db-T04-define-data-container
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T04-define-data-container:define-data-container
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_items_{ns}
+          operation: listCollections
+          filter:
+            name: axarena_items_{ns}
+        assert_field: 0.name
+        expected: axarena_items_{ns}
+        description: collection axarena_items_{ns} exists
+  - task_id: db-T05-evolve-schema
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T05-evolve-schema:evolve-schema
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_migrate_{ns}
+          operation: listCollections
+          filter:
+            name: axarena_migrate_{ns}
+        assert_field: 0.options.validator.$jsonSchema.properties.status.bsonType
+        expected: string
+        description: collection metadata exposes the evolved status field
+  - task_id: db-T06-inspect-schema
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T06-inspect-schema:inspect-schema
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_schema_probe_{ns}
+          operation: listCollections
+          filter:
+            name: axarena_schema_probe_{ns}
+        assert_field: 0.options.validator.$jsonSchema.properties.name.bsonType
+        expected: string
+        description: collection metadata exposes the name field
+      - mongo_query:
+          database: ""
+          collection: axarena_schema_probe_{ns}
+          operation: listCollections
+          filter:
+            name: axarena_schema_probe_{ns}
+        assert_field: 0.options.validator.$jsonSchema.properties.status.bsonType
+        expected: string
+        description: collection metadata exposes the status field
+  - task_id: db-T07-query-records
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T07-query-records:query-records
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_query_items_{ns}
+          operation: count
+          filter:
+            status: active
+        assert_field: count
+        expected: 2
+        description: filtered read returns exactly two active records
+      - mongo_query:
+          database: ""
+          collection: axarena_query_items_{ns}
+          operation: count
+          filter:
+            status: active
+            label:
+              $in:
+                - alpha_{ns}
+                - gamma_{ns}
+        assert_field: count
+        expected: 2
+        description: the active set is alpha and gamma
+  - task_id: db-T08-server-side-execution
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: mongodb-atlas:db-T08-server-side-execution:server-side-execution
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_server_results_{ns}
+          operation: findOne
+          filter:
+            routine: axarena_echo_{ns}
+        assert_field: result
+        expected: axarena_ok_{ns}
+        description: server-side routine writes the expected marker result
+  - task_id: db-T09-vector-search
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T09-vector-search:vector-search
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_vectors_{ns}
+          operation: aggregate
+          pipeline:
+            - $vectorSearch:
+                index: "{vector_index_name}"
+                path: embedding
+                queryVector:
+                  - 1
+                  - 0
+                  - 0
+                numCandidates: 10
+                limit: 1
+            - $project:
+                label: 1
+                _id: 0
+        assert_field: 0.label
+        expected: alpha_{ns}
+        description: Atlas vector search ranks alpha first
+  - task_id: db-T10-write-records
+    na: false
+    na_surfaces: []
+    support_reference: mongodb-atlas:db-T10-write-records:write-records
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_write_items_{ns}
+          operation: count
+          filter:
+            label: final_{ns}
+        assert_field: count
+        expected: 1
+        description: updated surviving record is final
+      - mongo_query:
+          database: ""
+          collection: axarena_write_items_{ns}
+          operation: count
+          filter:
+            label: delete_me_{ns}
+        assert_field: count
+        expected: 0
+        description: throwaway record was deleted

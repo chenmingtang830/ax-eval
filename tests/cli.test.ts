@@ -49,6 +49,13 @@ describe("cli arg handling", () => {
     expect(out).not.toContain("unknown flag");
   });
 
+  it("publication-bundle help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["publication-bundle", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval publication-bundle");
+    expect(out).toContain("--suite <suite.yaml>");
+  });
+
   it("generate without --from or --suite errors with a helpful usage hint", () => {
     const { code, out } = runCli(["generate"]);
     expect(code).not.toBe(0);
@@ -62,6 +69,17 @@ describe("cli arg handling", () => {
     ]);
     expect(code).not.toBe(0);
     expect(out).toMatch(/--product is required/);
+  });
+
+  it("extract-tasks infers category from the suite when --category is omitted", () => {
+    const { code, out } = runCli([
+      "extract-tasks",
+      "--suite", "targets/suites/daeb-1.yaml",
+      "--vendor", "definitely-not-a-real-vendor",
+    ]);
+    expect(code).not.toBe(0);
+    expect(out).not.toContain("--category is required");
+    expect(out).toContain('No vendor card found for slug "definitely-not-a-real-vendor"');
   });
 
   it("an unknown command prints usage with exit 2 (not a flag error)", () => {
@@ -82,6 +100,41 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["audit", "--offline"]);
     expect(code).toBe(0);
     expect(out).toContain("Agent-readiness score");
+  });
+
+  it("publication-bundle writes a manifest for a canonical-suite vendor adapter", () => {
+    const outDir = mkdtempSync(resolve(tmpdir(), "ax-pub-"));
+    try {
+      const { code, out } = runCli([
+        "publication-bundle",
+        "--suite", "targets/suites/daeb-1.yaml",
+        "--vendors", "supabase",
+        "--run-dir", "results/runs/does-not-exist",
+        "--out", outDir,
+      ]);
+      expect(code).toBe(0);
+      expect(out).toContain("Saved publication bundle");
+      const manifest = JSON.parse(readFileSync(resolve(outDir, "manifest.json"), "utf8"));
+      expect(manifest.schema).toBe("ax.publication-bundle/v2");
+      expect(manifest.benchmark).toBe("DAEB-1");
+      expect(manifest.publication_readiness).toBe("draft");
+      expect(manifest.expected_matrix.surfaces).toEqual(["api", "sdk", "cli"]);
+      expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
+      expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
+      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
+      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
+      expect(manifest.layers.static_ax).toBeTruthy();
+      expect(manifest.layers.behavioral).toBeTruthy();
+      expect(manifest.notes.some((note: string) => note.includes("Publication-grade bundles require both Discoverability & Readiness artifacts"))).toBe(true);
+      expect(manifest.vendors).toHaveLength(1);
+      expect(manifest.vendors[0].slug).toBe("supabase");
+      expect(manifest.vendors[0].artifacts.compiled_pack).toBe("vendors/supabase/compiled-pack.yaml");
+      expect(manifest.missing.some((m: string) => m.endsWith("competitive.html"))).toBe(true);
+      expect(manifest.missing.some((m: string) => m.endsWith(".methodology.yaml"))).toBe(true);
+      expect(manifest.vendors[0].missing.some((m: string) => m.includes("*.normalized.json"))).toBe(true);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
   });
 });
 

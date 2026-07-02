@@ -2,7 +2,7 @@
 
 > **Status:** Draft v1 · Branch: `axarena-branch` · Internal strategy doc
 >
-> **Build progress:** Pipeline Layers 1–2 complete. Layer 3 (task-extract) is the current blocker.
+> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, SDK low `0/8` because Supabase JS cannot create the required SQL objects without a pre-existing SQL RPC/baseline setup path, CLI low `6/7`; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is currently `0/10` because the agent discovered the official SDK but used the newer query API incorrectly; Neon CLI low is `10/10` but exposed a sandbox-scope guardrail gap around deleting pre-existing stale branches; MongoDB Atlas API low improved from `0/9` to `7/8` after adding a short pack-level MongoDB database scope, schema-metadata verifiers, and a support-matrix correction that marks MongoDB's inline `$function` capability unsupported for the named-routine T08 task; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution. The current work is execution hardening and matrix expansion, not publication finalization.
 >
 > This document captures the full strategic reasoning, competitive analysis,
 > positioning, methodology, vendor selection, code-feasibility assessment,
@@ -21,8 +21,10 @@ authoritative leaderboard, build editorial trust, monetize later via B2B.
 - **Positioning:** *"The independent AX benchmark. Vendor-neutral by design."*
 - **Methodology wedge:** Read-back oracle vs. LLM-as-judge (used by both
   AXIS and `app.promptingco.com/benchmark`).
-- **First launch:** *Database AX Benchmark V1 (DAEB-1)* — **7–8 vendors**,
-  4 surfaces (API / SDK / CLI / MCP), 2 harnesses (Claude Code + Codex).
+- **First launch:** *Database AX Benchmark V1 (DAEB-1)* — **7 vendors**,
+  canonical usability-suite scope = 3 surfaces (API / SDK / CLI), 2 harnesses
+  (Claude Code + Codex). MCP remains strategically important but is not part of
+  the publication-grade canonical suite scope.
 - **Launch hook:** A direct, respectful head-to-head with the Prompting
   Company benchmark — where all 14 of their vendors score 50/50 on
   "Usable," our oracle-based methodology produces real differentiation.
@@ -36,6 +38,47 @@ authoritative leaderboard, build editorial trust, monetize later via B2B.
 - **Launch date: T+7 days** (one week from decision-lock).
 - **Revenue posture:** 0-revenue brand-building, 12-month horizon. Manual
   paid audits via CTA are opportunistic, not goal-tracked.
+
+### 0.1 Vision
+
+AXArena is not trying to be another AX tool, a vendor self-scoring
+dashboard, or a generic "AI-ready" badge machine.
+
+AXArena exists to become the **external source of truth** for Agent
+Experience: the place developers, product teams, investors, and media turn
+to when they want to know whether a platform is actually usable by agents.
+
+The core belief is simple:
+
+> **We do not measure claims. We measure operations.**  
+> **We do not trust self-report. We read back real state.**  
+> **We do not reward "AI-ready" branding. We reward completed work.**
+
+In practical terms, that means AXArena is evaluating whether an agent can
+discover a product, understand its surfaces, use them correctly, complete a
+real task, and have the outcome independently verified. The benchmark is not
+about whether a vendor has an API, SDK, CLI, or MCP server on paper; it is
+about whether those surfaces are operational in the real world.
+
+This is the long-term ambition:
+
+- Make Agent Experience **legible** — so the market can clearly see which
+  products are genuinely agent-usable.
+- Make Agent Experience **comparable** — so scores mean the same thing across
+  vendors, categories, surfaces, and time.
+- Make Agent Experience **hard to fake** — so marketing cannot outrun
+  execution.
+
+The strategic consequence is that AXArena must optimize for **trust before
+coverage**. A complete-looking benchmark that quietly papers over auth
+complexity, flaky surfaces, or non-reproducible MCP flows is less valuable
+than a transparent benchmark that clearly marks what is runnable, what is
+blocked, and why. This is why MCP matters strategically, but should not be a
+launch blocker when it would compromise methodology quality.
+
+If LMArena became a reference point for "which model is better," AXArena's
+goal is to become the reference point for **"which product can an agent
+actually use?"**
 
 ---
 
@@ -358,7 +401,7 @@ weekly, must be re-verified within 48 hours of launch**):
 |---|---|---|---|---|---|---|
 | **Supabase** | PostgREST | `supabase-js` | `supabase` CLI | Need to re-verify; widely reported as having one | Generous | Surface-complete |
 | **Neon** | No formal spec | `@neon-tech/serverless` | `neon` CLI | Re-verify; Neon announced MCP earlier | Yes | Serverless Postgres |
-| **PlanetScale** | Documented REST | `@planetscale/database` | `pscale` | Re-verify | 1 DB free | MySQL leader |
+| **PlanetScale** | Documented REST | `@planetscale/database` | `pscale` | Re-verify | No usable free tier | Removed from active V3 lineup |
 | **MongoDB Atlas** | Yes (Admin API) | `mongodb` driver | `mongosh` | Re-verify | 512 MB free | Big brand |
 | **Turso** | Thin REST | `@libsql/client` | `turso-cli` | Likely no | Yes | Edge SQLite, AI-dev favorite |
 | **Convex** | None (functions-as-code) | `convex` SDK | `npx convex` | Has MCP | Yes | AI-native, narrow surface coverage |
@@ -366,30 +409,31 @@ weekly, must be re-verified within 48 hours of launch**):
 | **Firebase** | No OpenAPI | `firebase` | `firebase-tools` | No | Generous | Google-walled |
 
 > **Caveat:** The background-agent's "no MCP" assertions for Supabase,
-> Neon, PlanetScale, MongoDB are likely outdated — I'm fairly sure each
+> Neon and MongoDB are likely outdated — I'm fairly sure each
 > of these has shipped (or is about to ship) an official MCP server. A
 > 30-minute pre-launch sweep is needed to confirm exact MCP URLs and
 > tool inventories before locking the packs.
 
-### 6.2 Final launch lineup — 7 confirmed + 1 pending
+### 6.2 Final launch lineup — 7 active vendors
 
 After reviewing Prompting Company's database benchmark (Xata, Supabase,
-Turso, PlanetScale, Neon, CockroachDB, Nile), we expand to cover what
-they cover plus what they miss.
+Turso, PlanetScale, Neon, CockroachDB, Nile), we cover their strongest
+overlap where the sandbox is still practical and add omitted vendors with
+high agent relevance.
 
 | # | Vendor | Why | In promptingco? |
 |---|---|---|---|
 | 1 | **Supabase** | Largest AI-dev mindshare. Surface-complete. | ✅ |
 | 2 | **Neon** | Serverless Postgres darling; AI-tool default. | ✅ |
-| 3 | **PlanetScale** | MySQL camp representation; mature CLI/SDK. | ✅ |
+| 3 | **MongoDB Atlas** | Biggest brand; OpenAPI confirmed; non-Postgres diversity. | ❌ (their omission) |
 | 4 | **Turso** | Edge / SQLite axis; hot in agentic stacks. | ✅ |
-| 5 | **MongoDB Atlas** | Biggest brand; OpenAPI confirmed; non-Postgres diversity. | ❌ (their omission) |
-| 6 | **Convex** | AI-native dev choice. Surface narrowness disclosed via N/A. | ❌ (their omission) |
-| 7 | **Insforge** | Agent-native BaaS — narrative pivot vendor. | ❌ (their omission) |
-| 8? | **CockroachDB** | Distributed SQL, mature; in their list. | ✅ |
+| 5 | **Convex** | AI-native dev choice. Surface narrowness disclosed via N/A. | ❌ (their omission) |
+| 6 | **Insforge** | Agent-native BaaS — narrative pivot vendor. | ❌ (their omission) |
+| 7 | **CockroachDB** | Distributed SQL, mature; in their list. | ✅ |
 
 **Held out:**
 - **Xata** — product pivoting recently, instability risk.
+- **PlanetScale** — removed from active V3 because there is no longer a usable free tier for reproducible public benchmarking.
 - **Nile** — too small for HN-tier recognition.
 - **Firebase** — Google walled garden, OpenAPI absence costs too high.
 
@@ -431,52 +475,57 @@ ingest → generate → review (frozen pack) → exec-plan → verify → report
   `taskId` across products — confirmed by inspection of
   `src/generate/report.ts:193-197`.
 
-### 7.2 Why the canonical task suite needs zero schema changes
+### 7.2 Why the canonical task suite is the benchmark contract
 
-The "canonical task suite" can be implemented **purely as authoring
-convention**:
+DAEB-1 is **not** eight independently generated vendor benchmarks that happen
+to share similar task IDs. It is one frozen canonical suite plus eight vendor
+adapters:
 
-1. Define DAEB-1 task IDs once: `db-T01-create-table`, `db-T02-insert-rows`,
-   …, `db-T10-backup-restore`.
-2. Each per-vendor pack uses **the same IDs** for the corresponding tasks.
-3. Each vendor writes its own `prompt`, `oracles[].readPathTemplate`,
-   and surface specifics.
-4. `competitive` command already groups by `taskId` → cross-vendor
-   comparison "just works."
+```
+canonical suite -> vendor oracle extraction -> compiled vendor pack
+  -> execution -> verification -> normalized records -> leaderboard
+```
 
-This is mechanical reuse of existing capability. We don't need a new
-"suite" object; the methodology doc plus disciplined authoring is enough
-for V1.
+The suite defines task IDs, titles, difficulty, intent, oracle hints, allowed
+surfaces, scoring notes, and N/A policy. Vendor-specific work is limited to
+public vendor cards, read-back oracle extraction, auth/base URLs, N/A mapping,
+and surface configuration.
+
+Implementation detail: `ax-eval` still emits one `TargetPack` per vendor because
+`exec-plan` and `verify-generated` need concrete auth/oracle/surface data. But
+those files are **compiled execution artifacts**, not independent benchmark
+definitions.
 
 ### 7.3 Generation strategy
 
-Use the existing `generate` (LLM-assisted) workflow per vendor, but
-**guide it with the canonical task suite spec**. Practical flow:
+Use the newer layered DAEB pipeline rather than ordinary per-target generation:
 
-1. Write `docs/daeb-1-suite.md` — the canonical task suite spec (this is
-   also published as `axarena.ai/methodology`).
-2. For each of the 6 vendors:
-   - `ingest --openapi <url>` (or docs-only ingest for those without
-     OpenAPI; need to verify ingest can run docs-only — see §7.5).
-   - `generate --from <ingest.json>` with a prompt augmentation that
-     instructs the generator to author tasks matching DAEB-1 IDs.
-   - `review --approve` to freeze.
-3. `exec-plan --invoke` cross-matrix.
-4. `verify-generated` per vendor → individual report.
-5. `competitive --results <all 6 normalized records>` → cross-vendor
-   leaderboard report.
+1. Freeze `targets/suites/daeb-1-v3.yaml`.
+2. Resolve public vendor cards with `resolve-vendor`.
+3. Extract vendor-specific read-back oracle adapters with `extract-tasks`.
+4. Optionally extract CLI/SDK/MCP surface adapters with `extract-surfaces`.
+5. Compose compiled packs with `compose-pack` (pure code, zero LLM).
+6. Review/approve each compiled pack.
+7. Run `exec-plan --invoke` across the same harness/surface matrix.
+8. Run `verify-generated` per vendor.
+9. Run `competitive` across normalized records.
+10. Freeze a publication bundle with `publication-bundle`.
 
 ### 7.4 What we re-use vs. what we hand-author
 
 | Step | Mechanism |
 |---|---|
 | Spec ingestion | Existing `ingest --openapi` / `ingest --graphql` |
-| Task generation | Existing `generate` (LLM-assisted), augmented with DAEB-1 prompt |
+| Canonical suite | `targets/suites/daeb-1-v3.yaml` |
+| Vendor metadata | `resolve-vendor` → `targets/vendors/<slug>.discovered.yaml` |
+| Verifier adapter | `extract-tasks` → `targets/extracts/<slug>/daeb-1-v3.yaml` |
+| Compiled pack | `compose-pack` → `targets/packs/<slug>/daeb-1-v3.yaml` |
 | Oracle definition | Existing `OracleSpec.roundtrip` |
 | Approval gate | Existing `review --approve` |
 | Cross-matrix execution | Existing `exec-plan --invoke` |
 | Per-vendor report | Existing `verify-generated` |
 | **Cross-vendor leaderboard** | Existing `competitive` (just feed N normalized records) |
+| **Publication bundle** | New `publication-bundle` manifest + copied public artifacts |
 | **AXArena landing page** | NEW (static HTML/Astro, hand-authored) |
 | **Per-vendor detail pages** | Could be the existing `verify-generated` HTML, embedded |
 | **Embed badges** | NEW (SVG generator, trivial) |
@@ -488,7 +537,7 @@ Use the existing `generate` (LLM-assisted) workflow per vendor, but
    We add a `--suite <path>` flag to `generate` that injects a suite
    spec into the LLM prompt, guaranteeing every vendor pack uses the
    same canonical task IDs. Scope:
-   - new file `targets/suites/daeb-1.yaml` (the canonical suite spec)
+   - new file `targets/suites/daeb-1-v3.yaml` (the canonical suite spec)
    - `src/generate/pack.ts` — ~30–50 lines: load suite, inject into
      prompt, validate task IDs match suite after generation
    - `src/cli.ts` — wire `--suite` flag on the `generate` command
@@ -517,25 +566,29 @@ for Supabase; steps 8–10 have not been run for real yet (see §7.7).
 | # | Step | Who/what | Tooling |
 |---|---|---|---|
 | 1 | **Pick a category** (e.g. `database`) | Human | — |
-| 2 | **Pick vendors** (e.g. the 8 DAEB-1 vendors) | Human | — |
+| 2 | **Pick vendors** (the active 7 DAEB-1 V3 vendors) | Human | — |
 | 3 | **Author the canonical suite** — task `id`/`title`/`difficulty`/`intent` (goal-level, vendor-agnostic)/`oracle_hint` | Human (LLM-assisted drafting is possible but DAEB-1 was hand-written) | `targets/suites/<suite>.yaml`, validated by `src/generate/suite.ts` |
 | 4 | **Vendor-resolve** — find each vendor's `site_url`/`docs_url` | LLM, one batch call (real WebSearch, `--allowedTools`) | `ax-eval resolve-vendor --vendors "A,B,C" --category X` → `targets/vendors/<slug>.discovered.yaml` |
-| 5 | **Oracle-extract** — for each vendor, ONE narrow LLM call across all suite tasks returns ONLY: whether the task is N/A, and (if not) the read-back check(s) needed to verify it (REST `read_path_template`/`read_method`, or raw-SQL `sql_query`/`sql_dialect` for wire-protocol-only vendors) + `assert_field`/`expected`, plus vendor-level `base_url`/auth. **Grounding is enforced**: the call throws unless the transcript shows a real WebFetch/WebSearch tool call — an ungrounded (training-data-only) answer is rejected, not silently accepted. Task *prompt* text is NOT touched here — it's pure suite text, rendered later in step 6. | LLM, one call per vendor | `ax-eval extract-tasks --suite <suite.yaml> --category X [--vendor slug \| --vendors a,b,c]` → `targets/extracts/<slug>/<suite>.yaml` |
+| 5 | **Verification-extract** — for each vendor, produce only the read-back checks needed to verify the frozen suite tasks (REST `read_path_template`/`read_method`, optional `read_body_template`, or raw-SQL `sql_query`/`sql_dialect`) + `assert_field`/`expected`, plus vendor-level `base_url`/auth. Current DAEB-1 V3 uses rule-derived verifier seeds first, then falls back to grounded LLM authoring only for uncovered gaps. Task *prompt* text is NOT touched here — it's pure suite text, rendered later in step 6. | Code seed + LLM fallback | `ax-eval extract-tasks --suite <suite.yaml> --category X [--vendor slug \| --vendors a,b,c]` → `targets/extracts/<slug>/<suite>.yaml` |
 | 6 | **Compose-pack** — assemble suite (prompt/id/title/difficulty) + oracle-extract (verification) + vendor card (docs/site) into one frozen `TargetPack`. Pure code, zero LLM. | Code | `ax-eval compose-pack --suite <suite.yaml> [--vendor slug]` → `targets/packs/<slug>/<suite>.yaml` |
 | 7 | **Review gate** — human reads the composed pack (prompts + oracle assertions + credential surface) and approves. Approval is content-hash-locked: any post-approval edit invalidates it. | Human | `ax-eval review --pack <pack.yaml> [--approve --by <name>]` |
 | 8 | **Exec** — an agent (claude-code/codex) is given ONLY the goal-level prompt (no endpoint/mechanism hints) and a real sandbox credential; it performs the task against the live vendor API and self-reports an identifier (`gid`) per task. | LLM/agent, real API calls | `ax-eval exec-plan --pack <pack.yaml> --harness <name> --surface <api\|cli\|sdk\|mcp\|all> --invoke` → `results/*.json` |
-| 9 | **Verify** — independently re-reads state via the oracle (REST GET/POST or a real `pg`/`mysql2` connection for wire-protocol vendors) and asserts it matches `expected`. Does NOT trust the agent's self-report beyond the `gid` used to address the resource. | Code | `ax-eval verify-generated --pack <pack.yaml> --results <run.json>... --html out.html --snapshot out.json` |
+| 9 | **Verify** — independently re-reads state via the verifier (REST GET/POST, real `pg`/`mysql2` SQL connection, MongoDB wire-protocol check, or product-specific read endpoint) and asserts it matches `expected`. Does NOT trust the agent's self-report beyond reported identifiers/field values needed to address the resource. | Code | `ax-eval verify-generated --pack <pack.yaml> --results <run.json>... --html out.html --snapshot out.json` |
 | 10 | **Report** — normalized per-vendor records feed a cross-vendor leaderboard, grouped by canonical task `id` so scores are comparable. | Code | `ax-eval competitive --results <normalized.json>...` / `ax-eval render-generated --snapshot ...` |
 
-#### Status per step (Supabase, 2026-07-01)
+#### Status per step (DAEB-1 V3, 2026-07-02)
 
-- ✅ **1–4**: done for all 8 vendors.
-- ✅ **5 (oracle-extract)**: done for all 8, re-run once already after
-  discovering the first pass was ungrounded (see §7.7 finding #1).
-- ✅ **6 (compose-pack)**: done for all 8; 0 vendors have `=undefined`
-  asserts (an earlier bug where `assertField` held prose instead of a
-  dotted path — fixed, see §7.7).
-- ✅ **7 (review/approve)**: done for Supabase only so far.
+- ✅ **1–4**: done for the active 7-vendor set (`supabase`, `neon`,
+  `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`).
+- ✅ **5 (verification-extract)**: deterministic verifier seeds generated for
+  all 7 active vendors. Postgres-backed vendors use SQL read-back; Turso uses
+  `/v2/pipeline` body templates; MongoDB Atlas uses Mongo wire-protocol
+  verifier checks; Convex uses `/api/query` body templates with reported query
+  path fields.
+- ✅ **6 (compose-pack)**: done for all 7 active vendors on DAEB-1 V3.
+- ✅ **7 (review/approve)**: done for all 7 active vendors on DAEB-1 V3.
+- ✅ **Preflight env gate**: all 7 active packs pass `check-env`, including
+  auth envs, SQL/Mongo verifier envs, and `${ENV_VAR}` URL-template vars.
 - 🔲 **8 (exec)**: **not run yet for any vendor.** This is the actual
   next step.
 - 🔲 **9 (verify)**: only smoke-tested against a synthetic fake result
@@ -814,12 +867,12 @@ work is parallelized between user (sandbox / accounts / content) and
 assistant (code / packs / artifact pipeline).
 
 ### Day 1 — Foundation
-- [ ] **Assistant:** Write `targets/suites/daeb-1.yaml` (canonical task spec)
+- [x] **Assistant:** Write `targets/suites/daeb-1-v3.yaml` (canonical task spec)
 - [ ] **Assistant:** Implement `--suite` flag (option (a), per §7.5)
 - [ ] **User:** axarena.ai DNS / static hosting setup (Netlify, Vercel,
       or Cloudflare Pages all fine)
-- [ ] **User:** Pre-launch MCP sweep — confirm current MCP availability
-      for each of the 7–8 vendors (URLs change weekly)
+- [ ] **User:** Optional MCP sweep — confirm current MCP availability for
+      background context. MCP is not part of the V3 canonical usability suite.
 
 ### Day 2 — Account setup + code finalization
 - [ ] **Assistant:** Generator change tested, commit
@@ -888,31 +941,23 @@ assistant (code / packs / artifact pipeline).
 
 ---
 
-## 11. TODO Before We Lock the Launch Date
+## 11. Historical TODO Before We Lock the Launch Date
 
-Concrete next-step list, ordered by what blocks what.
+This section is preserved as decision history. It is superseded by §16 for
+current execution work.
 
 ### Immediate (do now, before scheduling launch)
 
-- [ ] **User decisions needed:**
-  - Confirm 6-vendor lineup (or swap Convex / add Xata / Firebase)
-  - Acquire `axarena.ai` (and decide on `ax-arena.com` / defensive)
-  - Approve methodology naming: "DAEB-1" or alternative
-- [ ] **My next steps (this branch):**
-  - Write `docs/daeb-1-suite.md` — canonical task suite spec
-  - Inspect `src/ingest/` to confirm whether docs-only ingest is
-    supported (relevant for Neon, Turso, Firebase if kept)
-  - Draft the AXArena landing page wireframe (HTML mockup)
-  - Draft launch blog post outline
-  - Draft Twitter thread + HN post outline
-  - Draft 6 vendor preview emails
+- [x] **User decisions needed:** V3 active 7-vendor lineup locked; `axarena.ai`
+  acquired; DAEB-1 naming adopted.
+- [x] **Branch work:** suite/methodology artifacts, docs-only canonical flow,
+  verification extracts, composed packs, approvals, and preflight env gates.
 
 ### Once user confirms
 
-- [ ] Sandbox account registration at 6 vendors (user does, or shared
-      pairing session)
-- [ ] Pack generation per vendor
-- [ ] Lock launch date based on actual progress
+- [x] Sandbox credentials for active V3 vendors
+- [x] Pack generation/review per vendor
+- [ ] Real execution/verification matrix
 
 ---
 
@@ -920,9 +965,7 @@ Concrete next-step list, ordered by what blocks what.
 
 Most decisions are now locked in §14. What's still open:
 
-1. **CockroachDB in lineup?** Recommended in for narrative completeness
-   ("we cover everyone they cover, plus 3 they missed"). 7 → 8 vendors;
-   ~10% more launch work. Acceptable to drop to V1.5 if Day 4 slips.
+1. **CockroachDB in lineup?** Resolved: included in the active 7-vendor V3 set.
 2. **Defensive domain registrations** — `ax-arena.com` and `ax.report`
    are cheap (≤$30/yr each). Acquire as defense? Optional.
 3. **Advisory board candidates** — start identifying 2–3 named people
@@ -953,9 +996,9 @@ Most decisions are now locked in §14. What's still open:
   flag with canonical suite mode (~100 LOC).
 - **2026-06-30** Revenue posture: **0-revenue brand-building for first
   12 months**. Manual paid audits opportunistic only.
-- **2026-06-30** Vendor lineup: **Supabase, Neon, PlanetScale,
-  MongoDB Atlas, Turso, Convex, Insforge** confirmed.
-  CockroachDB **pending user confirmation** (recommend in → total 8).
+- **2026-07-02** Vendor lineup updated to active 7: **Supabase, Neon,
+  MongoDB Atlas, Turso, Convex, Insforge, CockroachDB**. PlanetScale removed
+  because it no longer has a usable free tier for this benchmark.
 - **2026-06-30** Methodology naming: **DAEB-1** (Database AX Benchmark V1)
   confirmed.
 - **2026-06-30** Trust & Editorial section adopted; §7A is treated as
@@ -964,12 +1007,13 @@ Most decisions are now locked in §14. What's still open:
   `app.promptingco.com/benchmark` — "all their vendors 50/50 on Usable;
   here's the rigorous picture."
 
-- **2026-06-30** CockroachDB **confirmed in** lineup (8 vendors total).
+- **2026-06-30** CockroachDB **confirmed in** lineup. Later V3 vendor count
+  returned to 7 after PlanetScale was removed for free-tier reasons.
 - **2026-06-30** §7.5 TODO #1 (`--suite` flag): **DONE**.
 - **2026-06-30** §7.5 TODO #2 (docs-only ingest): **DONE** (docs-only stub
   mode; `--from` optional when `--suite` set).
 - **2026-06-30** Vendor-resolve redesigned v3: batch LLM WebSearch,
-  single invocation. All 8 vendor cards created.
+  single invocation. Initial cards created; active V3 now excludes PlanetScale.
 - **2026-06-30** `AX_EVAL_CLAUDE_BIN` escape hatch implemented (Asana PATH
   shim workaround). `--allowedTools WebSearch,WebFetch` added to headless
   claude invocations.
@@ -978,60 +1022,157 @@ Most decisions are now locked in §14. What's still open:
 - **Defensive domain registrations** (`ax-arena.com`, `ax.report`) —
   optional, low cost.
 
+- **2026-07-01** Suite authoring made reproducible/auditable: new
+  `extract-capabilities` (bottom-up, cited, per-vendor) + `synthesize-suite`
+  (cluster + draft) commands replace hand-authored task selection. Coverage
+  threshold enforced so canonical tasks measure AX
+  (can an agent use a capability that exists) not product completeness
+  (does the vendor have it at all) — see the coverage-gap-check pass below.
+- **2026-07-01** Coverage gaps found to be a **sampling artifact of
+  bottom-up extraction**, not real product gaps: a systematic pass
+  (`coverage-gap-check.ts` — union all vendors' cited capabilities, cross-
+  check every capability against every vendor NOT already citing it) moved
+  several capabilities from <6/8 to 6-8/8 (`database-triggers` 3→8/8,
+  `backup-and-restore` 3→7/8, `schema-migration` 5→7/8, etc.). Final
+  DAEB-1-v2 suite: **10 canonical tasks**, all meeting the then-current
+  coverage threshold, difficulty spread L1-L4. Superseded by DAEB-1-v3.
+- **2026-07-01** Model pinning: claude-code → `claude-sonnet-5`, codex →
+  `gpt-5.4` (**not** gpt-5.5 as originally specified in the 2026-06-30 log
+  — this was a scripting oversight, not a deliberate change; revisit).
+- **2026-07-01** ax-eval's own generation tooling (capability-extract,
+  synthesize-suite, task-extract) decoupled from the exec-plan harness
+  path: `invokeGenerator()` calls the configured provider's API directly
+  (Anthropic or OpenAI, whichever key is set) with that provider's hosted
+  web-search tool, falling back to the local CLI only if neither key is
+  set. `exec-plan` is unchanged (it must keep shelling out to the real
+  claude-code/codex binaries — that's the thing under test). Rationale:
+  today's generation-tooling debugging (broken PATH-shadowing shim, orphan
+  processes escaping their process group, a stdin hang, real multi-minute
+  API latency) was all avoidable complexity for calls that were never
+  actually testing a harness.
+- **2026-07-01** **MCP disabled as a scored surface for v1** (code path
+  kept, not deleted — see `compose-pack.ts`'s `DISABLED_SURFACES`).
+  Rationale: thin/near-zero signal so far on both vendors tested, requires
+  a paid API key for claude-code specifically (its Keychain-based
+  subscription auth doesn't reach the isolated home MCP testing needs,
+  unlike codex's file-based auth which transfers cleanly), and each
+  vendor's MCP server needs its own per-vendor provisioning work (a real
+  stdio-vs-http config bug was found and fixed for claude-code's provisioner
+  along the way — Neon's MCP server is an npm package run over stdio, not
+  an HTTP endpoint, and the provisioner only knew how to configure HTTP).
+  Revisit once MCP is more uniformly mature across the active vendor set.
+- **2026-07-01** Real exec-plan run completed for Supabase and Neon across
+  api/sdk/cli × claude-code/codex × low/high effort (16 cells each,
+  MCP excluded). Several real bugs found and fixed along the way:
+  SQL identifiers containing `{ns}` (which has dashes) must be
+  double-quoted or Postgres throws a syntax error; node-postgres returns
+  BIGINT/NUMERIC as strings, needing numeric-string coercion in
+  `valuesMatch()`; oracle checks that ask the agent to self-report a raw
+  REST path break on non-REST surfaces (agent reports SDK/SQL syntax
+  instead) — fixed by pinning fixed, predictable resource names in the
+  suite intent instead of trusting a self-reported path; a zero-parameter
+  RPC assumption for vector search broke because agents reasonably wrote
+  parameterized functions — fixed by requiring a parameter-less function in
+  the suite intent; added a general `sqlConnField` oracle mechanism so a
+  check can verify against an agent-reported alternate connection string
+  (needed for point-in-time-restore-to-a-new-branch and RBAC-role
+  testing, both of which live behind a different credential than the
+  pack's default). Remaining known rough edges: Supabase's sandbox plan
+  genuinely doesn't support PITR (T06 correctly fails there, not a bug);
+  RLS/RBAC identity tokens are sometimes malformed JWTs depending on how
+  the agent obtained them (intermittent, not yet root-caused); Neon's CLI
+  surface can land work on a different branch than the pack's fixed
+  connection string (neonctl manages multiple branches; the sqlConnField
+  mechanism could be generalized to every SQL check to close this).
+- **2026-07-01** **Methodology self-critique** (asked for explicitly before
+  calling any result "public-ready"). Strongest, unresolved issues:
+  (1) **n=1 per cell** — no repeated trials, and real run-to-run variance
+  was already observed empirically (Supabase claude-code/api/low: 88% one
+  run, 63% the next, same code) — a single flaky run can swing a cell.
+  (2) **effort double-encoding for codex** — codex has a native
+  `model_reasoning_effort` knob AND was getting prompt-level "act lazy/act
+  thorough" coaching layered on top, conflating "model capability at low
+  reasoning effort" with "obedience to an instruction to behave lazily".
+  Partially addressed today (see below) but not fully resolved, since
+  claude-code has no native knob and still needs the prompt-level lever.
+  (3) **unknown oracle-check bug rate** — several real false-negative bugs
+  were found and fixed reactively (by reading failure logs), not via
+  systematic audit; no guarantee the current set is bug-free.
+  (4) **task suite wasn't pre-registered** — selection criteria (AX vs.
+  completeness framing, coverage threshold, MCP inclusion) were refined
+  iteratively while looking at real results, which is defensible per-step
+  but isn't the same as a locked-before-data design.
+  (5) **self-reported fields untested adversarially** — nothing checks
+  whether an agent could report a plausible-but-hollow value (e.g. a
+  `reader_connection_string` that's secretly the admin connection) to
+  fake a pass.
+  (6) **sandbox-tier limits leak into AX signal** — e.g. codex's Supabase
+  run hit `SUPABASE_ACCESS_TOKEN` plan-tier limits on JWT templates; that's
+  a limitation of the specific sandbox account, not of Supabase's docs/AX,
+  but currently gets folded into "codex struggled" without being separated
+  out.
+  Fixed today: the effort-block wording was toned down from an exaggerated
+  "you are a LOW-EFFORT agent, do the bare minimum, never verify" /
+  "you are a HIGH-EFFORT agent, verify everything" caricature to a milder,
+  more realistic instruction — still necessary for claude-code (no native
+  effort knob exists there) but no longer doing most of the differentiating
+  work for codex, where the native `model_reasoning_effort` knob is now the
+  primary lever. Not fixed today (deferred, larger scope): repeated-trial
+  sampling, systematic oracle audit, pre-registration, adversarial
+  self-report testing, sandbox-limit attribution.
+
 ---
 
-## 15. Immediate Next Steps (ordered) — updated 2026-07-01
+## 15. Immediate Next Steps (ordered) — superseded, kept for history
 
-Pipeline reference is §7.6; findings from the first real dry-run are §7.7.
-Steps 1–7 of the pipeline are proven for Supabase; this list picks up from
-step 8 (exec), which has not been run for real yet.
+This section described the plan as of 2026-07-01 morning, before the suite
+redesign and the first real exec-plan runs. It is stale (references the
+old hand-authored `daeb-1.yaml`, and treats exec-plan as not-yet-run). See
+§16 for the current state and next steps.
 
-1. **First real exec-plan run — Supabase, one surface.**
-   `ax-eval exec-plan --pack targets/packs/supabase/daeb-1.yaml --harness
-   claude-code --surface api --invoke`. This is the actual next action —
-   everything before it (review/approve, SQL connectivity, REST auth
-   headers) is now validated; this is the first time an agent will
-   actually attempt the 10 tasks against the live Supabase sandbox.
+---
 
-2. **Verify + read the real report.** `ax-eval verify-generated --pack
-   targets/packs/supabase/daeb-1.yaml --results <run.json> --html
-   out.html`. Expect new findings here too (this is a genuinely new code
-   path — the smoke test only proved connectivity, not a real agent
-   transcript). Do not be surprised by more bugs; that's the point of
-   running it.
+## 16. Current State & Next Steps — updated 2026-07-02
 
-3. **Decide on T10's credential mismatch (§7.7 finding #8).** Either add
-   a per-oracle credential override to the schema, or accept T10
-   (backup/PITR) fails for Supabase-like vendors until manually re-run
-   with the management-API token. Low priority (1/10 tasks) but blocks a
-   clean 100% pass on any vendor with this pattern.
+**Suite**: DAEB-1-v3 (`targets/suites/daeb-1-v3.yaml`), 10 canonical tasks,
+bottom-up-derived via `extract-capabilities` + deterministic/family-aware
+`synthesize-suite` + required `coverage-gap-check`, all constrained to
+canonical usability surfaces (`api`, `sdk`, `cli`). Supersedes both the
+original hand-authored `daeb-1.yaml` and the transitional V2 suite.
 
-4. **Replicate steps 6–9 (compose → review → exec → verify) to the other
-   7 vendors.** Each vendor may surface its OWN version of the findings
-   in §7.7 (e.g. Convex needs a different exec surface entirely — it has
-   no REST API to run against for T02+; MongoDB Atlas's Data API auth
-   differs from its Admin API). Re-run `extract-tasks` per vendor if the
-   oracle-extract prompt changes (it already changed once since the last
-   full 8-vendor run — see §7.7 #6).
+**Pre-execution complete for 7 of 7 active vendors**: Supabase, Neon,
+MongoDB Atlas, Turso, Convex, Insforge, and CockroachDB all have V3
+verification extracts, composed packs, passing `check-env`, and matching
+approval sidecars. V3 execution has started with Codex smoke cells; the
+remaining work is matrix expansion and evidence-backed hardening.
 
-5. **Sandbox account setup for the other 7 vendors.** `.env` currently
-   has real, working credentials for Supabase only. Neon, PlanetScale,
-   MongoDB Atlas, Turso, Convex, Insforge, CockroachDB all need real
-   sandbox accounts + credentials before their packs can run past the
-   review gate.
+1. **Execution matrix** — run all 7 active vendors across `api/sdk/cli`,
+   Codex and Claude Code, low/high effort. MCP remains excluded from the
+   canonical usability-suite scope.
 
-6. **Full matrix** — once all 8 vendors pass steps 8–9 individually, run
-   the complete cross-surface × cross-harness matrix (api/cli/sdk/mcp ×
-   claude-code/codex) per the original launch plan (§10).
+2. **Verification matrix** — run `verify-generated` against every execution
+   result and produce snapshots/HTML reports without resetting sandboxes before
+   verification.
 
-7. **First cross-vendor report** — `ax-eval competitive` across all 8
+3. **Trace/reasoning audit** — review traces for product failure, agent
+   failure, environment failure, and evaluation failure before changing
+   grader logic.
+
+4. **Publication bundle** — freeze manifest + normalized records + reports +
+   static Discoverability & Readiness artifacts side by side with usability
+   results.
+
+5. **Metrics interpretation** — publish correctness separately from latency,
+   token cost, tool-call count, turn count, and trace diagnostics.
+
+6. **First cross-vendor report** — `ax-eval competitive` across all 7
    normalized records. This is the first artifact that's actually a
    "benchmark" rather than a per-vendor pack.
 
-8. **axarena.ai** — DNS/hosting setup, deploy `docs/launch/web/` with
+7. **axarena.ai** — DNS/hosting setup, deploy `docs/launch/web/` with
    real scores substituted in.
 
-9. **Vendor preview emails** (T-2 from launch).
+8. **Vendor preview emails** (T-2 from launch).
 
 ---
 

@@ -14,6 +14,7 @@ import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
+import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
 import { resolveEnvTemplate } from "../target/config.js";
 
 export interface ExecutorResults {
@@ -98,13 +99,32 @@ function valuesMatch(actual: unknown, expectedValues: unknown[], mode: OracleSpe
     const normalizedActual = normalizeUrl(actual);
     return expectedValues.some((expected) => normalizedActual !== null && normalizedActual === normalizeUrl(expected));
   }
-  return expectedValues.some((expected) => actual === expected);
+  return expectedValues.some((expected) => {
+    if (actual === expected) return true;
+    // node-postgres returns BIGINT/NUMERIC columns (e.g. COUNT(*)) as strings
+    // to avoid JS precision loss — a check comparing that column against a
+    // literal number (the natural, readable way to author `expected: 5`)
+    // would otherwise always fail on a strict type mismatch alone.
+    if (typeof actual === "string" && typeof expected === "number" && actual.trim() !== "" && Number(actual) === expected) return true;
+    if (typeof expected === "string" && typeof actual === "number" && expected.trim() !== "" && Number(expected) === actual) return true;
+    return false;
+  });
 }
 
 function expectedDetail(expectedValues: unknown[]): string {
   return expectedValues.length === 1
     ? JSON.stringify(expectedValues[0])
     : `[${expectedValues.map((v) => JSON.stringify(v)).join(" | ")}]`;
+}
+
+function errorMessageFromResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as { code?: unknown; message?: unknown; errno?: unknown; sqlState?: unknown };
+  if (typeof record.message !== "string" || !record.message.trim()) return undefined;
+  const prefix = [record.code, record.errno, record.sqlState]
+    .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
+    .join("/");
+  return prefix ? `${prefix}: ${record.message}` : record.message;
 }
 
 function applyGidTemplate(value: unknown, gid: string): unknown {
@@ -120,6 +140,40 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
   return value;
 }
 
+function applyStringTemplates(
+  value: string,
+  ns: string | undefined,
+  gid: string | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  encodeGid = true,
+): string {
+  const withNs = resolveEnvTemplate(ns ? value.split(NS_PLACEHOLDER).join(ns) : value);
+  return withNs.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+    if (name === "ns") return ns ?? match;
+    if (name === "gid") return gid ? (encodeGid ? encodeURIComponent(gid) : gid) : match;
+    const reportedValue = reported?.[name];
+    return typeof reportedValue === "string" ? reportedValue : match;
+  });
+}
+
+function applyOracleTemplate(
+  value: unknown,
+  ns: string | undefined,
+  gid: string | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+): unknown {
+  if (typeof value === "string") return applyStringTemplates(value, ns, gid, reported, false);
+  if (Array.isArray(value)) return value.map((entry) => applyOracleTemplate(entry, ns, gid, reported));
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = applyOracleTemplate(entry, ns, gid, reported);
+    }
+    return out;
+  }
+  return value;
+}
+
 async function verifyRoundtrip(
   task: Task,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
@@ -128,12 +182,13 @@ async function verifyRoundtrip(
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
   sqlConn: SqlConn | null,
+  mongoConn: MongoConn | null,
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
   // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
   // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
   const applyNsTemplate = (template: string): string =>
-    resolveEnvTemplate(ns ? template.split(NS_PLACEHOLDER).join(ns) : template);
+    applyStringTemplates(template, ns, undefined, undefined);
   // Named placeholders beyond {ns}/{gid}: a check can reference a value only
   // the executor knows once it performs the task (e.g. {test_row_id} for an
   // RLS visibility check, or {duplicate_email} for a unique-constraint
@@ -151,11 +206,54 @@ async function verifyRoundtrip(
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
 
+    if (oracle.mongoQuery) {
+      if (!mongoConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has mongoQuery but pack declares no mongo_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported) as MongoQuery;
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const result = await runMongoCheck(mongoConn, query);
+        const actual = resolveDotted(result, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: [
+            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+            actual === undefined ? errorMessageFromResult(result) : undefined,
+          ].filter(Boolean).join("; "),
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
+      continue;
+    }
+
     // SQL wire-protocol targets (CockroachDB/PlanetScale): no {gid}
     // substitution — these checks address state by {ns}, not a
     // per-resource id, since a "row count" query has no single resource.
     if (oracle.sqlQuery) {
-      if (!sqlConn) {
+      // sqlConnField: the resource under test lives behind a DIFFERENT
+      // credential than the pack's default (e.g. a new branch created
+      // during a restore, or a scoped role created for RBAC testing) —
+      // the executor already had this connection string in hand to do
+      // the work, so this just asks it to also report it.
+      let effectiveSqlConn = sqlConn;
+      if (oracle.sqlConnField) {
+        const reportedConn = reported?.[oracle.sqlConnField];
+        if (typeof reportedConn !== "string" || !reportedConn) {
+          out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.sqlConnField}" reported by executor` });
+          continue;
+        }
+        effectiveSqlConn = { dialect: oracle.sqlDialect ?? sqlConn?.dialect ?? "postgres", connectionString: reportedConn };
+      }
+      if (!effectiveSqlConn) {
         out.push({ type: "roundtrip", passed: false, detail: "oracle has sqlQuery but pack declares no sql_conn" });
         continue;
       }
@@ -166,13 +264,16 @@ async function verifyRoundtrip(
       const query = applyReportedFields(applyNsTemplate(oracle.sqlQuery));
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
-        const row = await runSqlCheck(sqlConn, query);
+        const row = await runSqlCheck(effectiveSqlConn, query);
         const actual = resolveDotted(row, oracle.assertField);
         const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
         out.push({
           type: "roundtrip",
           passed,
-          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+          detail: [
+            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+            actual === undefined ? errorMessageFromResult(row) : undefined,
+          ].filter(Boolean).join("; "),
         });
       } catch (err) {
         out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
@@ -245,7 +346,10 @@ async function verifyRoundtrip(
       const method = oracle.readMethod ?? "GET";
       const body =
         method === "POST"
-          ? await requestClient.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid ?? ""))
+          ? await requestClient.post<Record<string, unknown>>(
+              path,
+              applyGidTemplate(applyOracleTemplate(oracle.readBodyTemplate, ns, gid, reported), gid ?? ""),
+            )
           : await requestClient.get<Record<string, unknown>>(
               path,
               fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
@@ -277,6 +381,7 @@ export async function verifyGeneratedPack(
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const sqlConn = resolveSqlConn(pack);
+  const mongoConn = resolveMongoConn(pack);
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -290,6 +395,7 @@ export async function verifyGeneratedPack(
         pack.field_select_param,
         pack.api_style,
         sqlConn,
+        mongoConn,
       );
     } catch (err) {
       oracleResults = [];

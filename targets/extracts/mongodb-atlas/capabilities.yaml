@@ -1,0 +1,425 @@
+vendor: MongoDB Atlas
+slug: mongodb-atlas
+category: database
+extracted_at: 2026-07-01T08:47:06.904Z
+capabilities:
+  - capability_name: rich-indexing
+    title: Rich Index Types
+    family: integrity
+    description: MongoDB supports single-field, compound, multikey (array),
+      geospatial, unique, and hashed indexes; the right index lets Atlas skip
+      full-collection scans and serve queries efficiently.
+    resource_kind: index
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/indexes/
+        quote: Indexes support efficient execution of queries in MongoDB. Without
+          indexes, MongoDB must scan every document in a collection to return
+          query results.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: aggregation-pipeline
+    title: Aggregation Pipeline
+    family: search
+    description: MongoDB's composable multi-stage aggregation framework is the
+      primary way to filter, transform, group, join ($lookup), and compute over
+      documents; it is also the shared query language used by Atlas Search,
+      Vector Search, Stream Processing, and Data Federation.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: Applications can filter for specific changes or transform notifications
+          using the aggregation framework.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: full-text-search
+    title: Full-Text Search (Atlas Search)
+    family: search
+    description: Atlas Search is an embedded Lucene-backed full-text search engine
+      co-located with the database, supporting language analyzers, relevance
+      scoring, autocomplete, and faceted navigation without a separate search
+      cluster.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-search/
+        quote: MongoDB Search is an embedded full-text search that gives you a seamless,
+          scalable experience for building relevance-based app features and
+          eliminates the need to run a separate search system alongside your
+          database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-search
+    title: Vector / Semantic Search
+    family: search
+    description: Atlas Vector Search indexes high-dimensional embeddings and
+      executes approximate nearest-neighbor queries via the $vectorSearch
+      aggregation stage, enabling RAG pipelines, AI agents, and recommendation
+      features stored in the same database.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/tutorials/
+        quote: Atlas Vector Search indexes high-dimensional embeddings and executes
+          approximate nearest-neighbor queries via the $vectorSearch aggregation
+          stage, enabling RAG pipelines, AI agents, and recommendation features
+          stored in the same database.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: multi-document-transactions
+    title: Multi-Document ACID Transactions
+    family: integrity
+    description: MongoDB provides fully ACID-compliant transactions that can span
+      multiple operations, collections, databases, and shards on both replica
+      sets and sharded clusters.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+        quote: MongoDB supports transactions. You can use transactions across multiple
+          operations, collections, databases, documents, and shards.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: change-streams
+    title: Change Streams (Real-Time Event Subscriptions)
+    family: core-operations
+    description: Change streams let applications subscribe to insert, update,
+      delete, and replace events on a collection, database, or entire
+      deployment; they support aggregation-based filtering, pre/post-image
+      capture (MongoDB 6.0+), and resume-token recovery.
+    resource_kind: role
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: subscribe to all data changes on a single collection, a database, or an
+          entire deployment, and immediately react to them.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: schema-validation
+    title: Document Schema Validation
+    family: integrity
+    description: Per-collection validation rules written in JSON Schema or MongoDB
+      query operators enforce allowed field types, value ranges, and required
+      fields on every insert and update, with configurable error vs. warn
+      behavior.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
+        quote: Per-collection validation rules written in JSON Schema or MongoDB query
+          operators enforce allowed field types, value ranges, and required
+          fields on every insert and update, with configurable error vs. warn
+          behavior.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: cloud-backup-restore
+    title: Cloud Backup & Point-in-Time Restore
+    family: backup-and-recovery
+    description: Atlas automatically takes immutable snapshots for M10+ clusters
+      across AWS, Azure, and GCP; snapshots can be restored cross-cluster, and
+      an optional Backup Compliance Policy locks retention settings against any
+      user modification.
+    resource_kind: role
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/backup-restore-cluster/
+        quote: Atlas automatically takes immutable snapshots for M10+ clusters across
+          AWS, Azure, and GCP; snapshots can be restored cross-cluster, and an
+          optional Backup Compliance Policy locks retention settings against any
+          user modification.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: role-based-access-control
+    title: Role-Based Access Control
+    family: access-control
+    description: Database users are granted built-in or custom roles scoped to
+      specific collections, databases, or clusters; temporary users with
+      configurable expiry (up to 7 days) are also supported, and all changes are
+      logged in the project Activity Feed.
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: Database users are granted built-in or custom roles scoped to specific
+          collections, databases, or clusters; temporary users with configurable
+          expiry (up to 7 days) are also supported, and all changes are logged
+          in the project Activity Feed.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: multi-method-authentication
+    title: Multiple Authentication Methods
+    family: access-control
+    description: Atlas database users can authenticate via SCRAM
+      (password/SCRAM-SHA-256), X.509 mutual TLS certificates, OIDC workforce or
+      workload identity federation (Azure Service Principals, Google Service
+      Accounts, Okta, etc.), or AWS IAM roles.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+        quote: Atlas database users can authenticate via SCRAM (password/SCRAM-SHA-256),
+          X.509 mutual TLS certificates, OIDC workforce or workload identity
+          federation (Azure Service Principals, Google Service Accounts, Okta,
+          etc.), or AWS IAM roles.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: network-isolation
+    title: Network Isolation (Private Endpoints & Peering)
+    family: access-control
+    description: Atlas supports cloud-provider private endpoints (AWS PrivateLink,
+      Azure Private Link, GCP Private Service Connect) and VPC/VNet peering,
+      keeping all traffic off the public internet; an IP access list provides a
+      lighter-weight allowlist option.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-configure-private-endpoints/
+        quote: Private endpoints allow a private connection between your cloud provider
+          and Atlas that doesn't send information through a public network.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: federated-query
+    title: Federated Query Across Data Sources
+    family: data-read
+    description: Atlas Data Federation lets you query data across Atlas clusters,
+      Online Archives, AWS S3, Azure Blob containers, and HTTP stores using
+      standard MQL or SQL tools (JDBC/Tableau), without consolidating or copying
+      data.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/data-federation/
+        quote: Atlas Data Federation lets you query data across Atlas clusters, Online
+          Archives, AWS S3, Azure Blob containers, and HTTP stores using
+          standard MQL or SQL tools (JDBC/Tableau), without consolidating or
+          copying data.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-tiering
+    title: Automated Data Tiering (Online Archive)
+    family: core-operations
+    description: Online Archive automatically moves cold documents to cloud object
+      storage (S3/Azure Blob/GCS) based on date or custom filter rules, while
+      Atlas Data Federation keeps the same collection namespace queryable across
+      hot and archived data.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/online-archive/overview/
+        quote: Online Archive automatically moves cold documents to cloud object storage
+          (S3/Azure Blob/GCS) based on date or custom filter rules, while Atlas
+          Data Federation keeps the same collection namespace queryable across
+          hot and archived data.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: stream-processing
+    title: Stream Processing (Atlas Stream Processing)
+    family: core-operations
+    description: Atlas Stream Processing runs continuous aggregation pipelines over
+      Kafka topics and MongoDB change streams, supporting windowed aggregations,
+      document routing, dead-letter queues, and output to Atlas collections or
+      Kafka topics.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-stream-processing/overview/
+        quote: Atlas Stream Processing provides extended functionality beyond MongoDB
+          change streams, including managing multiple data event types and
+          processing streams of complex data from various sources like Kafka,
+          external APIs, and cloud storage.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: geographic-data-distribution
+    title: Global Clusters (Geographic Data Distribution)
+    family: core-operations
+    description: Global Clusters pin documents to geographic zones across up to 9
+      zones and 70 shards, directing writes to the nearest primary and serving
+      reads from local secondaries for low-latency, data-residency-compliant
+      deployments.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/global-clusters/
+        quote: Global Clusters pin documents to geographic zones across up to 9 zones
+          and 70 shards, directing writes to the nearest primary and serving
+          reads from local secondaries for low-latency, data-residency-compliant
+          deployments.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: high-availability-replication
+    title: High Availability & Multi-Cloud Replication
+    family: search
+    description: Atlas clusters run as replica sets distributed across multiple
+      regions and cloud providers simultaneously, with automatic election-based
+      failover, configurable priority regions, and dedicated analytics and
+      search nodes for workload isolation.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/cluster-config/multi-cloud-distribution/
+        quote: Atlas clusters run as replica sets distributed across multiple regions
+          and cloud providers simultaneously, with automatic election-based
+          failover, configurable priority regions, and dedicated analytics and
+          search nodes for workload isolation.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: performance-advisor
+    title: Performance Advisor & Query Insights
+    family: data-read
+    description: Atlas continuously monitors slow queries and surfaces index
+      creation/drop recommendations, schema anti-pattern warnings (unbounded
+      arrays, excessive $lookup, oversized documents), and per-shape /
+      per-namespace latency statistics.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/analyze-slow-queries/
+        quote: Atlas continuously monitors slow queries and surfaces index creation/drop
+          recommendations, schema anti-pattern warnings (unbounded arrays,
+          excessive $lookup, oversized documents), and per-shape / per-namespace
+          latency statistics.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-import-migration
+    title: Data Import & Migration
+    family: migration
+    description: Atlas supports live migration (push or pull) from external MongoDB
+      clusters, JSON/CSV import via Compass, mongodump/mongorestore, and a
+      Relational Migrator tool that uses generative AI to automate
+      RDBMS-to-MongoDB schema and code conversion.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/import/
+        quote: Relational Migrator utilizes intelligent algorithms and generative AI to
+          automate solutions to common data modeling, code conversion, and other
+          migration challenges.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:47:06.904Z
+      extractor: legacy-capabilities-normalizer-v1

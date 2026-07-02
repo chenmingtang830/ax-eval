@@ -1,0 +1,396 @@
+vendor: CockroachDB
+slug: cockroachdb
+category: database
+extracted_at: 2026-07-01T08:44:53.631Z
+capabilities:
+  - capability_name: distributed-sql
+    title: Distributed SQL with Horizontal Scaling
+    family: data-read
+    description: SQL queries execute across a distributed key-value store with
+      automatic data sharding, replication, and rebalancing — scaling out
+      horizontally without manual partitioning. Single-row reads land in ~2ms,
+      writes in ~4ms.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/frequently-asked-questions.html
+        quote: CockroachDB is a distributed SQL database built on a transactional and
+          strongly-consistent key-value store.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: acid-transactions
+    title: Distributed ACID Transactions
+    family: integrity
+    description: Full ACID semantics across arbitrary tables and rows, even when
+      data is distributed. Default isolation is SERIALIZABLE; READ COMMITTED is
+      also available for workloads that prefer fewer aborts.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
+        quote: "CockroachDB executes all transactions at the strongest ANSI transaction
+          isolation level: SERIALIZABLE, which permits no concurrency
+          anomalies."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: raft-replication
+    title: Raft-Based Replication & Automatic Rebalancing
+    family: core-operations
+    description: Data is replicated via the Raft consensus protocol across nodes,
+      with a configurable replication factor. The cluster automatically
+      rebalances replicas when nodes join or leave, and a leaseholder serves
+      reads without extra consensus rounds.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/architecture/replication-layer.html
+        quote: Raft ensures that your data is safely stored on multiple machines, and
+          that those machines agree on the current state even if some of them
+          are temporarily disconnected.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: multi-region-data
+    title: Multi-Region Tables & Data Domiciling
+    family: core-operations
+    description: Tables can be declared GLOBAL (fast reads everywhere), REGIONAL
+      (low-latency reads near the primary region), or REGIONAL BY ROW (each row
+      pinned to a specific region). Super regions restrict replica placement to
+      specific geographies for compliance.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview.html
+        quote: All replicas (both voting and non-voting) are placed within the super
+          region, making it suitable for compliance requirements.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: online-schema-changes
+    title: Online (Zero-Downtime) Schema Changes
+    family: migration
+    description: DDL operations (add/drop columns, create indexes, change primary
+      keys, etc.) run as background jobs without locking table data, allowing
+      concurrent reads and writes throughout the schema change.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/online-schema-changes.html
+        quote: Changes to your table schema [happen] while the database is running
+          without requiring application downtime or locks on table data.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: backup-restore
+    title: Full / Incremental Backup & Point-in-Time Restore
+    family: backup-and-recovery
+    description: Supports full and incremental backups to S3, GCS, or Azure Blob
+      Storage, with point-in-time restore to any moment within the backup's
+      revision history. Backups can be encrypted and locality-aware.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/backup-and-restore-overview.html
+        quote: Users can recover data from any arbitrary moment within a backup's
+          revision history, enabling precise recovery scenarios.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: change-data-capture
+    title: Change Data Capture (Changefeeds)
+    family: change-data-capture
+    description: Changefeed jobs monitor row-level changes and emit real-time
+      updates to Kafka, Google Cloud Pub/Sub, cloud storage, or webhooks. CDC
+      queries let you filter rows/columns before emission.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview.html
+        quote: Changefeeds are customizable jobs that monitor row-level changes in a
+          table and emit updates in real time.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: postgresql-compatibility
+    title: PostgreSQL Wire Protocol Compatibility
+    family: core-operations
+    description: Implements the PostgreSQL 3.0 wire protocol (pgwire), making it
+      compatible with virtually all PostgreSQL drivers, ORMs, and tools like
+      DBeaver. Existing PostgreSQL applications can often migrate without
+      changing application code.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/postgresql-compatibility.html
+        quote: Existing applications built on PostgreSQL can often be migrated to
+          CockroachDB without changing application code.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: role-based-access-control
+    title: Role-Based Access Control & Authentication
+    family: access-control
+    description: "Supports RBAC with fine-grained privilege grants, plus multiple
+      auth methods: password/SCRAM-SHA-256, TLS client certs, GSSAPI/Kerberos,
+      JWT, and OIDC SSO. SQL audit logging tracks user actions for
+      non-repudiation."
+    resource_kind: role
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
+        quote: Role-based access control (RBAC) with automatic role synchronization from
+          JWT and OIDC group claims.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: encryption
+    title: Encryption in Transit & at Rest
+    family: core-operations
+    description: All node-to-node and client-to-node traffic is encrypted with TLS
+      1.3 (including post-quantum key exchange). Encryption at rest using AES is
+      available on enterprise/advanced tiers, and backups can be encrypted via
+      KMS or passphrase.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
+        quote: Encryption in transit using TLS 1.3 across all tiers.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: secondary-indexes
+    title: Rich Secondary Index Types
+    family: search
+    description: Beyond standard B-tree secondary indexes, CockroachDB supports
+      partial indexes, expression indexes, covering indexes (STORING clause),
+      GIN/inverted indexes, hash-sharded indexes, spatial indexes, and vector
+      indexes.
+    resource_kind: index
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/indexes.html
+        quote: An index that stores all the columns needed by a query (using the STORING
+          clause) prevents index join operations, improving efficiency.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: jsonb-document-storage
+    title: JSONB Semi-Structured Data
+    family: data-read
+    description: Native JSONB type with the full PostgreSQL operator set (field
+      access, containment, key existence, path queries), GIN index support for
+      efficient querying, and expression indexes on specific JSONB fields.
+    resource_kind: index
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/jsonb.html
+        quote: CockroachDB treats JSON as an alias for JSONB, storing data as a binary
+          representation.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: full-text-search
+    title: Full-Text Search
+    family: search
+    description: PostgreSQL-compatible full-text search via TSVECTOR and TSQUERY
+      types, with relevance ranking (ts_rank), phrase queries, and GIN index
+      support. Comes with 14 built-in language dictionaries.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
+        quote: "TSQUERY formats search queries using logical operators: & (AND), | (OR),
+          <-> (FOLLOWED BY), and ! (NOT)."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: vector-search
+    title: Vector Search (ANN / pgvector-compatible)
+    family: search
+    description: A VECTOR type compatible with pgvector stores high-dimensional
+      embeddings. Vector indexes use k-means clustering for approximate nearest
+      neighbor (ANN) search with L2, cosine, and inner-product distance
+      operators.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes.html
+        quote: CockroachDB vector indexes organize vectors into a hierarchical structure
+          of partitions using k-means clustering.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: row-level-ttl
+    title: Row-Level TTL (Automatic Expiration)
+    family: access-control
+    description: Tables can declare a TTL expression so expired rows are
+      automatically deleted by background jobs, avoiding manual purge scripts.
+      Rate-limiting and admission control minimize impact on foreground
+      workloads.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/row-level-ttl.html
+        quote: Row-Level TTL is a mechanism whereby rows from a table are considered
+          'expired' and can be automatically deleted once those rows have been
+          stored longer than a specified expiration time.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: stored-procedures-udfs
+    title: Stored Procedures & User-Defined Functions
+    family: data-read
+    description: Supports SQL and PL/pgSQL routines. Functions return values usable
+      in SELECT/WHERE/DEFAULT; procedures are called with CALL. PL/pgSQL
+      supports variables, conditionals, loops, exception handling, and cursors.
+    resource_kind: resource
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures.html
+        quote: "Both routines support two languages: SQL and PL/pgSQL — PostgreSQL's
+          procedural language."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-export
+    title: Bulk Data Export (CSV / Parquet)
+    family: data-write
+    description: The EXPORT statement exports query results to CSV or Parquet files
+      on S3, GCS, Azure Blob, or local servers, with optional gzip/snappy
+      compression and configurable file chunking. Distributed execution
+      parallelizes the export across cluster nodes.
+    resource_kind: resource
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/export.html
+        quote: The statement supports the results of arbitrary SELECT statements,
+          allowing fine-grained control over exported data.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1
+  - capability_name: data-import-migration
+    title: Data Import & Live Migration
+    family: migration
+    description: IMPORT INTO and COPY FROM load bulk data from cloud or local
+      storage. The MOLT toolkit supports schema conversion and continuous
+      replication from PostgreSQL, MySQL, Oracle, and SQL Server for
+      minimal-downtime cutovers.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: unknown
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/stable/migration-overview.html
+        quote: The MOLT toolkit provides schema conversion, concurrent data export,
+          transformation rules, continuous replication, and data validation.
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-01T08:44:53.631Z
+      extractor: legacy-capabilities-normalizer-v1

@@ -1,0 +1,203 @@
+vendor: Turso
+category: database
+slug: turso
+suite_name: DAEB-1-V3
+extracted_at: 2026-07-02T22:02:22.932Z
+vendor_config:
+  base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
+  auth_type: bearer
+  auth_env: TURSO_DATABASE_AUTH_TOKEN
+tasks:
+  - task_id: db-T01-access-control
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T01-access-control:access-control
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT name FROM sqlite_master WHERE type='table' AND
+                  name='axarena_acl_{ns}'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: axarena_acl_{ns}
+        description: protected table axarena_acl_{ns} exists
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_acl_{ns}"
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: one allowed record exists under the protected table
+  - task_id: db-T02-backup-and-restore
+    na: false
+    na_surfaces:
+      - sdk
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: turso:db-T02-backup-and-restore:backup-and-restore
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_backup_{ns}" WHERE label = 'marker_{ns}'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: the active/restored Turso database contains the backup marker row
+  - task_id: db-T03-change-data-capture
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T03-change-data-capture:change-data-capture
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
+                  OR payload LIKE '%cdc_probe_{ns}%'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: agent-reported durable capture table contains the inserted CDC marker
+  - task_id: db-T04-define-data-container
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T04-define-data-container:define-data-container
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_items_{ns}') WHERE name IN
+                  ('id','label')
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: container exists with id and label fields
+  - task_id: db-T05-evolve-schema
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T05-evolve-schema:evolve-schema
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name =
+                  'status'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: status field exists after schema evolution
+  - task_id: db-T06-inspect-schema
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T06-inspect-schema:inspect-schema
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE
+                  name IN ('name','status')
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: schema inspection target exposes name and status fields
+  - task_id: db-T07-query-records
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T07-query-records:query-records
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: filtered read returns exactly two active records
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active' AND
+                  label IN ('alpha_{ns}', 'gamma_{ns}')
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: the active set is alpha and gamma
+  - task_id: db-T08-server-side-execution
+    na: false
+    na_surfaces:
+      - sdk
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: turso:db-T08-server-side-execution:server-side-execution
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "{result_table}" WHERE value = 'axarena_ok_{ns}'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: agent-reported trigger result table contains the expected marker in
+          value
+  - task_id: db-T09-vector-search
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T09-vector-search:vector-search
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT label FROM "axarena_vectors_{ns}" ORDER BY
+                  vector_distance_cos(embedding, '[1,0,0]') LIMIT 1
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+  - task_id: db-T10-write-records
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T10-write-records:write-records
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label = 'final_{ns}'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: updated surviving record is final
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label =
+                  'delete_me_{ns}'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "0"
+        description: throwaway record was deleted

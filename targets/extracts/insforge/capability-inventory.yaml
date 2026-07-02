@@ -1,0 +1,474 @@
+vendor: Insforge
+slug: insforge
+category: database
+extracted_at: 2026-07-02T00:00:00.000Z
+capabilities:
+  - capability_name: create-table
+    title: Table Creation & Column Definition
+    family: data-definition
+    description: Create database tables over the admin API with named columns,
+      nullability, uniqueness, default values, foreign key references, and an
+      explicit row-level-security enable flag.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/create-table
+        quote: "Enable Row Level Security on the table"
+      - doc_url: https://docs.insforge.dev/api-reference/admin/create-table
+        quote: "\"foreignKey\": { \"table\": \"<string>\", \"column\": \"<string>\" }"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: list-tables
+    title: Table Inventory Introspection
+    family: data-read
+    description: Enumerate the current database tables through the admin API for
+      discovery and verification workflows.
+    resource_kind: table
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/list-tables
+        quote: "List of table names"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: get-table-schema
+    title: Table Schema Introspection
+    family: data-read
+    description: Inspect a table's live schema, including column names, logical
+      types, nullability, uniqueness, defaults, primary-key status, and foreign
+      key metadata.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema
+        quote: "\"isPrimaryKey\": true"
+      - doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema
+        quote: "\"foreignKey\": { \"table\": \"users\", \"column\": \"id\""
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-insert
+    title: Row Insert
+    family: data-write
+    description: Insert one or more rows into any exposed table through the
+      PostgREST-style records endpoint, with optional representation return.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Create one or more records in a table."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Request body MUST be an array, even for single records."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-update
+    title: Row Update
+    family: data-write
+    description: Patch rows selected by query filters, with optional returning of
+      the updated representation.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Update records matching query filters."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Use filter operators to specify which records to update."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-delete
+    title: Row Delete
+    family: data-write
+    description: Delete rows selected by query filters, with optional returning of
+      deleted rows.
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Delete records matching query filters."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Use filter operators to specify which records to delete."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-upsert
+    title: Upsert (Insert-or-Update)
+    family: data-write
+    description: Insert records or merge them on unique-constraint conflict via
+      `Prefer` headers on the standard create-records endpoint.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Insert a record or update it if a conflict occurs on a unique constraint."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "resolution=merge-duplicates"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: filtered-reads
+    title: Filtered Reads & Projection
+    family: data-read
+    description: Query rows with server-side filters, sort order, and selected
+      columns using PostgREST-style parameters.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Retrieve records from a table with filtering, sorting, and pagination."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "select string Comma-separated columns to return"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: pagination-and-counts
+    title: Pagination & Total Counts
+    family: data-read
+    description: Page through result sets with `limit` and `offset`, while reading
+      total-match metadata from response headers.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "limit integer Maximum records to return (1-1000, default: 100)"
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "offset integer Records to skip for pagination (default: 0)"
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "X-Total-Count Total records matching the query"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: database-object-introspection
+    title: Database Object Introspection
+    family: data-read
+    description: Inspect database functions, indexes, RLS policies, triggers, and
+      migration history through admin endpoints.
+    resource_kind: resource
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Get all database functions in the public schema."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Get all database indexes. Requires admin authentication."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Get all Row Level Security policies."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Get all database triggers. Requires admin authentication."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: schema-evolution
+    title: Online Schema Evolution
+    family: migration
+    description: Change live table definitions through the admin API by adding,
+      dropping, renaming, and updating columns, adding or dropping foreign keys,
+      and renaming tables.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/update-table-schema
+        quote: "Add new columns to the table"
+      - doc_url: https://docs.insforge.dev/api-reference/admin/update-table-schema
+        quote: "Modify existing columns (rename or change default)"
+      - doc_url: https://docs.insforge.dev/api-reference/admin/update-table-schema
+        quote: "Rename the table"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: file-based-migrations
+    title: File-Based SQL Migrations
+    family: migration
+    description: Author timestamped SQL migration files, apply them in order with
+      the CLI, and persist successful history in `system.custom_migrations`.
+    resource_kind: migration
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/database/migrations
+        quote: "Migrations are versioned SQL files in `migrations/` applied with `@insforge/cli`."
+      - doc_url: https://docs.insforge.dev/core-concepts/database/migrations
+        quote: "The CLI applies pending files in order inside a transaction"
+      - doc_url: https://docs.insforge.dev/core-concepts/database/migrations
+        quote: "`BEGIN`/`COMMIT`/`ROLLBACK` inside a file are rejected."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: ad-hoc-migration-execution
+    title: Ad Hoc SQL Execution via Migration API
+    family: migration
+    description: Submit a custom migration over the admin API for immediate
+      execution, with success recorded only when all statements complete.
+    resource_kind: migration
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Create and immediately execute a custom migration against the database."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "The migration is recorded only if every statement succeeds."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Get the history of successful custom migrations."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: admin-raw-sql
+    title: Admin Raw SQL Query Execution
+    family: compute
+    description: Execute arbitrary SQL through admin-only strict or relaxed raw SQL
+      endpoints, including parameterized queries and unrestricted access when
+      needed for system tables.
+    resource_kind: query
+    operation_kind: operate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "SQL query to execute"
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "This endpoint has relaxed restrictions and can access system tables."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: integrity-constraints
+    title: Integrity Constraints
+    family: integrity
+    description: Enforce uniqueness, primary keys, default values, foreign keys,
+      and write-safe migration execution through transactional application.
+    resource_kind: table
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema
+        quote: "\"unique\": true"
+      - doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema
+        quote: "\"isPrimaryKey\": true"
+      - doc_url: https://docs.insforge.dev/core-concepts/database/migrations
+        quote: "The CLI applies pending files in order inside a transaction"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: row-level-security
+    title: Row-Level Security Access Control
+    family: access-control
+    description: Use JWT-backed Postgres RLS policies to decide per-row read and
+      write access across database and realtime operations.
+    resource_kind: policy
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
+        quote: "Postgres RLS policies read claims from the token and decide, row by row, what the user can read and write."
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: "Use `SELECT` policies on `realtime.channels` to control who can subscribe"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: database-export
+    title: Database Export / Backup
+    family: backup-and-recovery
+    description: Export schema and/or data in SQL or JSON, optionally scoped to
+      selected tables and including functions, sequences, or views.
+    resource_kind: backup
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Export database schema and/or data in SQL or JSON format."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "includeFunctions boolean No false Include database functions"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: database-import
+    title: Database Import / Restore
+    family: backup-and-recovery
+    description: Restore from a SQL backup file via admin API, with optional table
+      truncation before import.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Import database from SQL file."
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "truncate boolean No false Truncate existing tables before import"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: database-rpc
+    title: Database RPC / Stored Function Execution
+    family: compute
+    description: Execute PostgreSQL functions over the database RPC endpoint, or
+      wrap advanced logic such as vector similarity matching behind `rpc()`.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: "Execute a database function via PostgREST RPC."
+      - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector
+        quote: "Wrap search in a Postgres function and call it via `rpc()`"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: edge-functions
+    title: Edge Functions / Server-Side Code Execution
+    family: compute
+    description: Deploy Deno-based server-side functions and invoke them over HTTP,
+      including from database-triggered workflows when business logic should run
+      off the request path.
+    resource_kind: function
+    operation_kind: operate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/api-reference/admin/create-new-function
+        quote: "Create a new function with code that runs in Deno runtime"
+      - doc_url: https://docs.insforge.dev/api-reference/client/execute-function-post
+        quote: "Execute a function using POST method with JSON body. Proxied to Deno runtime."
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: "Put that business logic in an Edge Function and invoke it from a database trigger."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: vector-search
+    title: Vector Search with pgvector
+    family: search
+    description: Store embeddings inside Postgres with pgvector, build vector
+      columns and HNSW indexes, and rank results by cosine, L2, or inner-product
+      distance.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector
+        quote: "pgvector ships on every InsForge project."
+      - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector
+        quote: "Query by cosine distance (`<=>`). L2 (`<->`) and inner product (`<#>`) are also available."
+      - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector
+        quote: "Create a `documents` table with `content` and a 1536-dim `embedding` column, plus an HNSW cosine index."
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+
+  - capability_name: realtime-change-feeds
+    title: Realtime Change Feeds
+    family: change-data-capture
+    description: Turn database writes into live events by attaching triggers that
+      publish to realtime channels, then deliver them to subscribed clients or
+      webhook endpoints.
+    resource_kind: stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: "Use database changes when a table write should become a live app event."
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: "call the predefined `realtime.publish(channel, event, payload)` function"
+      - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+        quote: "Channels can also fan out the same messages to webhook URLs"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-02T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

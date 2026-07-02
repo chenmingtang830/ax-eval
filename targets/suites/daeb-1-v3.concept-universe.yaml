@@ -1,0 +1,507 @@
+schema: ax.concept-universe/v1
+category: database
+generated_at: 2026-07-02T10:10:04.083Z
+clusters:
+  - concept_name: access-control
+    title: Access Control
+    coverage:
+      - vendor: Supabase
+        capability_name: row-level-security
+      - vendor: Supabase
+        capability_name: column-level-security
+      - vendor: Supabase
+        capability_name: role-based-access-control
+      - vendor: Supabase
+        capability_name: jwt-auth-integration
+      - vendor: Neon
+        capability_name: role-based-access-control
+      - vendor: Neon
+        capability_name: ip-allowlisting-and-private-networking
+      - vendor: MongoDB Atlas
+        capability_name: role-based-access-control
+      - vendor: MongoDB Atlas
+        capability_name: multiple-authentication-methods
+      - vendor: Turso
+        capability_name: fine-grained-access-control
+      - vendor: Turso
+        capability_name: network-access-allow-rules
+      - vendor: Convex
+        capability_name: oidc-jwt-authentication
+      - vendor: Convex
+        capability_name: function-level-auth-checks
+      - vendor: Insforge
+        capability_name: row-level-security
+      - vendor: CockroachDB
+        capability_name: role-based-access-control
+  - concept_name: backup-and-restore
+    title: Backup And Restore
+    coverage:
+      - vendor: Supabase
+        capability_name: automated-daily-backup
+      - vendor: Supabase
+        capability_name: point-in-time-recovery
+      - vendor: Supabase
+        capability_name: logical-backup-export
+      - vendor: Supabase
+        capability_name: physical-backup
+      - vendor: Supabase
+        capability_name: backup-restore
+      - vendor: Neon
+        capability_name: point-in-time-restore
+      - vendor: Neon
+        capability_name: data-import-and-migration
+      - vendor: MongoDB Atlas
+        capability_name: cloud-backup-and-snapshot-restore
+      - vendor: MongoDB Atlas
+        capability_name: point-in-time-restore
+      - vendor: Turso
+        capability_name: point-in-time-recovery
+      - vendor: Turso
+        capability_name: snapshot-export-and-sqlite-import
+      - vendor: Convex
+        capability_name: backups-and-restore
+      - vendor: Insforge
+        capability_name: database-export
+      - vendor: Insforge
+        capability_name: database-import
+      - vendor: CockroachDB
+        capability_name: backup-and-restore
+  - concept_name: change-data-capture
+    title: Change Data Capture
+    coverage:
+      - vendor: Supabase
+        capability_name: realtime-postgres-changes
+      - vendor: Supabase
+        capability_name: logical-replication
+      - vendor: Supabase
+        capability_name: read-replica
+      - vendor: Supabase
+        capability_name: managed-cdc-pipeline
+      - vendor: Supabase
+        capability_name: realtime-broadcast
+      - vendor: Supabase
+        capability_name: realtime-presence
+      - vendor: Neon
+        capability_name: logical-replication
+      - vendor: MongoDB Atlas
+        capability_name: change-streams
+      - vendor: Turso
+        capability_name: change-data-capture
+      - vendor: Turso
+        capability_name: change-listen-endpoint
+      - vendor: Convex
+        capability_name: reactive-query-subscriptions
+      - vendor: Insforge
+        capability_name: realtime-change-feeds
+      - vendor: CockroachDB
+        capability_name: change-data-capture
+  - concept_name: server-side-execution
+    title: Server-Side Execution
+    coverage:
+      - vendor: Supabase
+        capability_name: stored-function
+      - vendor: Supabase
+        capability_name: edge-function
+      - vendor: Supabase
+        capability_name: database-webhook
+      - vendor: Supabase
+        capability_name: scheduled-job
+      - vendor: Neon
+        capability_name: management-api-and-sdk
+      - vendor: MongoDB Atlas
+        capability_name: server-side-javascript-function
+      - vendor: Turso
+        capability_name: sql-over-http
+      - vendor: Turso
+        capability_name: server-side-triggers
+      - vendor: Convex
+        capability_name: server-side-actions
+      - vendor: Convex
+        capability_name: scheduled-functions
+      - vendor: Insforge
+        capability_name: admin-raw-sql
+      - vendor: Insforge
+        capability_name: database-rpc
+      - vendor: Insforge
+        capability_name: edge-functions
+      - vendor: CockroachDB
+        capability_name: stored-procedures-and-udfs
+  - concept_name: vector-search
+    title: Vector Search
+    coverage:
+      - vendor: Supabase
+        capability_name: vector-similarity-search
+      - vendor: Supabase
+        capability_name: vector-metadata-filter
+      - vendor: Neon
+        capability_name: vector-search
+      - vendor: MongoDB Atlas
+        capability_name: vector-search
+      - vendor: Turso
+        capability_name: vector-search
+      - vendor: Convex
+        capability_name: vector-search
+      - vendor: Insforge
+        capability_name: vector-search
+      - vendor: CockroachDB
+        capability_name: vector-search
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
+    coverage:
+      - vendor: Supabase
+        capability_name: check-constraint
+      - vendor: Supabase
+        capability_name: unique-constraint
+      - vendor: Supabase
+        capability_name: not-null-constraint
+      - vendor: Supabase
+        capability_name: postgres-transactions
+      - vendor: Supabase
+        capability_name: database-trigger
+      - vendor: Neon
+        capability_name: connection-pooling
+      - vendor: MongoDB Atlas
+        capability_name: multi-document-transactions
+      - vendor: Turso
+        capability_name: transactions
+      - vendor: Turso
+        capability_name: concurrent-write-transactions
+      - vendor: Turso
+        capability_name: integrity-controls
+      - vendor: Convex
+        capability_name: typed-schema-definition
+      - vendor: Convex
+        capability_name: transactional-bulk-writes
+      - vendor: Convex
+        capability_name: snapshot-consistent-query-reads
+      - vendor: CockroachDB
+        capability_name: integrity-constraints
+      - vendor: CockroachDB
+        capability_name: distributed-acid-transactions
+  - concept_name: define-data-container
+    title: Define Data Container
+    coverage:
+      - vendor: Supabase
+        capability_name: create-table
+      - vendor: MongoDB Atlas
+        capability_name: create-collection
+      - vendor: Turso
+        capability_name: create-table
+      - vendor: Convex
+        capability_name: document-data-model
+      - vendor: Insforge
+        capability_name: create-table
+      - vendor: CockroachDB
+        capability_name: create-schema
+      - vendor: CockroachDB
+        capability_name: create-table
+  - concept_name: evolve-schema
+    title: Evolve Schema
+    coverage:
+      - vendor: Supabase
+        capability_name: tracked-migration-files
+      - vendor: Supabase
+        capability_name: schema-diff
+      - vendor: MongoDB Atlas
+        capability_name: schema-evolution
+      - vendor: Turso
+        capability_name: alter-table-schema-evolution
+      - vendor: Convex
+        capability_name: online-data-migrations
+      - vendor: Insforge
+        capability_name: schema-evolution
+      - vendor: Insforge
+        capability_name: file-based-migrations
+      - vendor: Insforge
+        capability_name: ad-hoc-migration-execution
+      - vendor: CockroachDB
+        capability_name: online-schema-evolution
+  - concept_name: inspect-schema
+    title: Inspect Schema
+    coverage:
+      - vendor: Supabase
+        capability_name: schema-introspection
+      - vendor: MongoDB Atlas
+        capability_name: collection-introspection
+      - vendor: Turso
+        capability_name: schema-introspection
+      - vendor: Convex
+        capability_name: system-table-introspection
+      - vendor: Insforge
+        capability_name: list-tables
+      - vendor: Insforge
+        capability_name: get-table-schema
+      - vendor: Insforge
+        capability_name: database-object-introspection
+      - vendor: CockroachDB
+        capability_name: schema-introspection
+  - concept_name: query-records
+    title: Query Records
+    coverage:
+      - vendor: Supabase
+        capability_name: filtered-query
+      - vendor: Supabase
+        capability_name: sorted-query
+      - vendor: Supabase
+        capability_name: count-query
+      - vendor: Supabase
+        capability_name: join-query
+      - vendor: Supabase
+        capability_name: jsonb-path-query
+      - vendor: Supabase
+        capability_name: rpc-function-call
+      - vendor: Supabase
+        capability_name: graphql-query
+      - vendor: Supabase
+        capability_name: rest-api-crud
+      - vendor: MongoDB Atlas
+        capability_name: filtered-read-query
+      - vendor: MongoDB Atlas
+        capability_name: count-documents
+      - vendor: MongoDB Atlas
+        capability_name: aggregation-pipeline
+      - vendor: Turso
+        capability_name: filtered-reads-and-counts
+      - vendor: Convex
+        capability_name: single-document-read
+      - vendor: Convex
+        capability_name: filtered-document-queries
+      - vendor: Convex
+        capability_name: javascript-aggregation-and-count
+      - vendor: Insforge
+        capability_name: filtered-reads
+      - vendor: CockroachDB
+        capability_name: filtered-reads-and-aggregates
+  - concept_name: write-records
+    title: Write Records
+    coverage:
+      - vendor: Supabase
+        capability_name: row-insert
+      - vendor: Supabase
+        capability_name: row-update
+      - vendor: Supabase
+        capability_name: row-delete
+      - vendor: Supabase
+        capability_name: upsert
+      - vendor: Supabase
+        capability_name: bulk-import-csv
+      - vendor: Supabase
+        capability_name: bulk-copy-command
+      - vendor: Supabase
+        capability_name: pgloader-import
+      - vendor: MongoDB Atlas
+        capability_name: document-insert
+      - vendor: MongoDB Atlas
+        capability_name: document-update
+      - vendor: MongoDB Atlas
+        capability_name: document-delete
+      - vendor: Turso
+        capability_name: row-insert
+      - vendor: Turso
+        capability_name: row-update
+      - vendor: Turso
+        capability_name: row-delete
+      - vendor: Convex
+        capability_name: document-insert
+      - vendor: Convex
+        capability_name: document-patch-update
+      - vendor: Convex
+        capability_name: document-replace
+      - vendor: Convex
+        capability_name: document-delete
+      - vendor: Insforge
+        capability_name: row-insert
+      - vendor: Insforge
+        capability_name: row-update
+      - vendor: Insforge
+        capability_name: row-delete
+      - vendor: Insforge
+        capability_name: row-upsert
+      - vendor: CockroachDB
+        capability_name: row-insert
+      - vendor: CockroachDB
+        capability_name: row-update
+      - vendor: CockroachDB
+        capability_name: row-delete
+  - concept_name: full-text-search
+    title: Full-Text Search (tsvector / tsquery)
+    coverage:
+      - vendor: Supabase
+        capability_name: full-text-search
+      - vendor: MongoDB Atlas
+        capability_name: full-text-search
+      - vendor: Turso
+        capability_name: full-text-search
+      - vendor: Convex
+        capability_name: full-text-search
+      - vendor: CockroachDB
+        capability_name: full-text-search
+  - concept_name: database-branching
+    title: Database Preview Branching
+    coverage:
+      - vendor: Supabase
+        capability_name: database-branching
+      - vendor: Turso
+        capability_name: database-branching
+  - concept_name: query-pagination
+    title: Query Pagination with LIMIT / OFFSET
+    coverage:
+      - vendor: Turso
+        capability_name: query-pagination
+      - vendor: CockroachDB
+        capability_name: query-pagination
+  - concept_name: column-type-definition
+    title: Column & Data Type Definition
+    coverage:
+      - vendor: Supabase
+        capability_name: column-type-definition
+  - concept_name: compliance-certifications
+    title: SOC 2 / ISO 27001 Compliance
+    coverage:
+      - vendor: Neon
+        capability_name: compliance-certifications
+  - concept_name: connection-pooling
+    title: Connection Pooling (Supavisor / PgBouncer)
+    coverage:
+      - vendor: Supabase
+        capability_name: connection-pooling
+  - concept_name: copy-on-write-branching
+    title: Copy-on-Write Database Branching
+    coverage:
+      - vendor: Neon
+        capability_name: copy-on-write-branching
+  - concept_name: cursor-based-pagination
+    title: Cursor-Based Reactive Pagination
+    coverage:
+      - vendor: Convex
+        capability_name: cursor-based-pagination
+  - concept_name: cursor-pagination
+    title: Cursor Pagination
+    coverage:
+      - vendor: MongoDB Atlas
+        capability_name: cursor-pagination
+  - concept_name: data-migration-and-import
+    title: Data Migration and Import
+    coverage:
+      - vendor: MongoDB Atlas
+        capability_name: data-migration-and-import
+  - concept_name: direct-postgres-connection
+    title: Direct Postgres Connection
+    coverage:
+      - vendor: Supabase
+        capability_name: direct-postgres-connection
+  - concept_name: encryption-at-rest-and-in-transit
+    title: Encryption at Rest and in Transit
+    coverage:
+      - vendor: Neon
+        capability_name: encryption-at-rest-and-in-transit
+  - concept_name: extension-management
+    title: Postgres Extension Management
+    coverage:
+      - vendor: Supabase
+        capability_name: extension-management
+  - concept_name: foreign-key-constraint
+    title: Foreign Key & Relationship Definition
+    coverage:
+      - vendor: Supabase
+        capability_name: foreign-key-constraint
+  - concept_name: import-export-and-atomic-reseed
+    title: Import, Export, and Atomic Reseed
+    coverage:
+      - vendor: Convex
+        capability_name: import-export-and-atomic-reseed
+  - concept_name: index-creation
+    title: Index Creation
+    coverage:
+      - vendor: Supabase
+        capability_name: index-creation
+  - concept_name: integrity-constraints
+    title: Integrity Constraints
+    coverage:
+      - vendor: Insforge
+        capability_name: integrity-constraints
+  - concept_name: multi-field-indexes
+    title: Multi-Field Secondary Indexes
+    coverage:
+      - vendor: Convex
+        capability_name: multi-field-indexes
+  - concept_name: multi-region-table-locality
+    title: Multi-Region Table Locality
+    coverage:
+      - vendor: CockroachDB
+        capability_name: multi-region-table-locality
+  - concept_name: paginated-query
+    title: Paginated Query (LIMIT / OFFSET / RANGE)
+    coverage:
+      - vendor: Supabase
+        capability_name: paginated-query
+  - concept_name: pagination-and-counts
+    title: Pagination & Total Counts
+    coverage:
+      - vendor: Insforge
+        capability_name: pagination-and-counts
+  - concept_name: postgres-extensions
+    title: 100+ Postgres Extensions
+    coverage:
+      - vendor: Neon
+        capability_name: postgres-extensions
+  - concept_name: postgres-version-upgrade
+    title: In-Place Postgres Version Upgrade
+    coverage:
+      - vendor: Supabase
+        capability_name: postgres-version-upgrade
+  - concept_name: postgresql-wire-compatibility
+    title: PostgreSQL Wire Protocol Compatibility
+    coverage:
+      - vendor: CockroachDB
+        capability_name: postgresql-wire-compatibility
+  - concept_name: primary-key-constraint
+    title: Primary Key Definition
+    coverage:
+      - vendor: Supabase
+        capability_name: primary-key-constraint
+  - concept_name: read-replicas
+    title: Read Replicas (Shared-Storage)
+    coverage:
+      - vendor: Neon
+        capability_name: read-replicas
+  - concept_name: scale-to-zero
+    title: Scale-to-Zero (Auto-Suspend)
+    coverage:
+      - vendor: Neon
+        capability_name: scale-to-zero
+  - concept_name: schema-namespace
+    title: Schema (Namespace) Management
+    coverage:
+      - vendor: Supabase
+        capability_name: schema-namespace
+  - concept_name: schema-validation
+    title: Collection Schema Validation
+    coverage:
+      - vendor: MongoDB Atlas
+        capability_name: schema-validation
+  - concept_name: seed-data
+    title: Seed Data Management
+    coverage:
+      - vendor: Supabase
+        capability_name: seed-data
+  - concept_name: serverless-autoscaling
+    title: Autoscaling Compute
+    coverage:
+      - vendor: Neon
+        capability_name: serverless-autoscaling
+  - concept_name: stateless-compute-storage-separation
+    title: Compute–Storage Separation
+    coverage:
+      - vendor: Neon
+        capability_name: stateless-compute-storage-separation
+  - concept_name: unique-indexes
+    title: Unique Index Integrity Constraints
+    coverage:
+      - vendor: MongoDB Atlas
+        capability_name: unique-indexes
+  - concept_name: view-creation
+    title: View & Materialized View Creation
+    coverage:
+      - vendor: Supabase
+        capability_name: view-creation

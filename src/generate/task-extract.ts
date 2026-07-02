@@ -35,7 +35,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
-import { invokeHarness, extractJsonObject, type HarnessId, type Effort } from "./harness.js";
+import type { Effort, HarnessId } from "./harness.js";
+import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
+import { mapSettledLimit } from "./concurrency.js";
+import type { SupportMatrix } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite, SuiteTask } from "./suite.js";
 
@@ -52,9 +55,19 @@ const OracleCheckSchema = z
     // REST form.
     read_method: z.enum(["GET", "POST"]).nullish().transform((v) => v ?? undefined),
     read_path_template: z.string().nullish().transform((v) => v ?? undefined),
+    read_body_template: z.unknown().optional(),
     // SQL wire-protocol form, for vendors with no REST query endpoint.
     sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
     sql_query: z.string().nullish().transform((v) => v ?? undefined),
+    mongo_query: z.object({
+      database: z.string(),
+      collection: z.string(),
+      operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
+      filter: z.unknown().optional(),
+      projection: z.unknown().optional(),
+      sort: z.unknown().optional(),
+      pipeline: z.array(z.unknown()).optional(),
+    }).optional(),
     // A single dotted key path into the JSON response / result row, e.g.
     // "count", "0.email", "documents.0.total". NOT a sentence.
     assert_field: z.string().min(1),
@@ -65,14 +78,21 @@ const OracleCheckSchema = z
     // Bearer credential instead of the pack's default — needed because the
     // pack's admin-level credential typically bypasses row-level security.
     auth_field: z.string().nullish().transform((v) => v ?? undefined),
+    // SQL variant of auth_field: the name of a full alternate connection
+    // string the agent self-reports (alongside gid) — needed when the
+    // resource to verify lives behind a DIFFERENT credential than the
+    // pack's default sql_conn (e.g. a new branch created during a restore,
+    // or a scoped role created for RBAC testing).
+    sql_conn_field: z.string().nullish().transform((v) => v ?? undefined),
     description: z.string().default(""),
   })
-  .refine((c) => Boolean(c.read_path_template) !== Boolean(c.sql_query), {
-    message: "check must set exactly one of read_path_template or sql_query",
+  .refine((c) => [c.read_path_template, c.sql_query, c.mongo_query].filter(Boolean).length === 1, {
+    message: "check must set exactly one of read_path_template, sql_query, or mongo_query",
   });
 export type OracleCheck = z.infer<typeof OracleCheckSchema>;
 
 const SurfaceIdSchema = z.enum(["api", "sdk", "cli", "mcp"]);
+type ExtractSurfaceId = z.infer<typeof SurfaceIdSchema>;
 
 const OracleExtractItemSchema = z.object({
   task_id: z.string(),
@@ -88,6 +108,7 @@ const OracleExtractItemSchema = z.object({
   // as na/na_reason, just scoped to one surface instead of the whole task.
   na_surfaces: z.array(SurfaceIdSchema).default([]),
   na_surfaces_reason: z.string().nullish().transform((v) => v ?? undefined),
+  support_reference: z.string().nullish().transform((v) => v ?? undefined),
   checks: z.array(OracleCheckSchema).default([]),
 });
 export type OracleExtractItem = z.infer<typeof OracleExtractItemSchema>;
@@ -106,7 +127,10 @@ const VendorConfigSchema = z.object({
   // query endpoint) — e.g. CockroachDB, PlanetScale.
   sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
   sql_connection_env: z.string().nullish().transform((v) => v ?? undefined),
+  mongo_connection_env: z.string().nullish().transform((v) => v ?? undefined),
+  mongo_database: z.string().nullish().transform((v) => v ?? undefined),
 });
+type VendorConfig = z.infer<typeof VendorConfigSchema>;
 
 const OracleExtractResultSchema = z.object({
   vendor: z.string(),
@@ -120,146 +144,68 @@ const OracleExtractResultSchema = z.object({
 export type OracleExtractResult = z.infer<typeof OracleExtractResultSchema>;
 
 const CHECK_FORMAT_RULES = [
-  `Each check is ONE machine-checkable assertion:`,
-  `- assert_field: a SHORT DOTTED KEY PATH into the JSON response or SQL result row — e.g. "count",`,
-  `  "0.email", "documents.0.total". NEVER a sentence or explanation.`,
-  `- expected: the literal value assert_field must equal (a number, string, or boolean — taken directly`,
-  `  from the task's stated expectation, e.g. 100, 11, 1, true)`,
-  `- auth_field: omit for normal checks. Set ONLY for identity-scoped checks (see below) to the name of a`,
-  `  token the agent will self-report.`,
-  `- description: one short phrase for a human reviewer (optional)`,
-  `If the task needs more than one assertion (e.g. "row count is 1" AND "error code is X"), emit two`,
-  `separate check objects, not one compound sentence.`,
+  `Each check is one machine-checkable assertion.`,
+  `- assert_field: short dotted key path into JSON or the SQL result row, e.g. "length", "0.email", "count".`,
+  `- expected: literal string, number, or boolean.`,
+  `- description: short reviewer label.`,
+  `- auth_field: only for identity-scoped checks where the agent must report a per-user token.`,
+  `Use multiple checks for multiple assertions.`,
 ].join("\n");
 
-function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask): string {
+function buildTaskPrompt(vendor: ResolveResult, task: SuiteTask, fixedSupport?: {
+  supportedSurfaces: string[];
+  unsupportedSurfaces: string[];
+  reference?: string;
+}): string {
   return [
-    `${vendor.vendor} (${vendor.category}).`,
+    `Author one outcome-verifier adapter for ${vendor.vendor} (${vendor.category}).`,
+    `Fetch official docs starting at ${vendor.docs_url}; use a more specific linked page when needed.`,
+    `Answer only from fetched docs. If docs do not prove a verifiable path, set na=true with a concise reason.`,
     ``,
-    `Before answering, WebFetch ${vendor.docs_url} (or a more specific linked page if the root page doesn't`,
-    `show what you need — e.g. a dedicated guide for this feature). You MUST ground your answer in what you`,
-    `actually read on those pages — do not answer from memory/training knowledge alone. If you cannot find a`,
-    `definitive answer after fetching the docs, say so via na=true rather than guessing.`,
+    `Task ${task.id}: ${task.title}`,
+    `Intent: ${task.intent.trim().replace(/\n\s*/g, " ")}`,
+    `Verifier target: ${task.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
     ``,
-    `Task: ${task.id}`,
-    `Intent (defines the EXACT resource names/patterns involved — use them verbatim, do not invent your own):`,
-    `  ${task.intent.trim().replace(/\n\s*/g, " ")}`,
-    `Oracle hint (what to verify):`,
-    `  ${task.oracle_hint.trim().replace(/\n\s*/g, " ")}`,
-    ``,
-    `IMPORTANT — this task is one of TEN run in sequence by an agent; verification happens ONCE, only after`,
-    `ALL TEN have finished. Your check must describe a property that is still true in that FINAL, cumulative`,
-    `state — never a property that's only true right when THIS task completes and would be invalidated by a`,
-    `LATER task (e.g. "the table is empty right after creation" breaks the moment a later task inserts rows`,
-    `into it — assert something that survives to the end, like "the table exists with the right columns").`,
-    ``,
-    `Give the read-back call(s) that verify the described state:`,
-    `- ONE credential only: use ${vendor.vendor}'s single data-plane API (the vendor's normal per-project REST`,
-    `  API / PostgREST-style data API, or the raw Postgres/MySQL wire protocol) — the same credential type for`,
-    `  every check. Do NOT reach for a separate control-plane / management / admin API that would need a`,
-    `  DIFFERENT credential (e.g. a personal access token instead of a project API key) — this pack only wires`,
-    `  up one credential. If the ONLY way to verify something is through a differently-credentialed`,
-    `  control-plane API, set na=true with na_reason explaining that a second credential type would be needed.`,
-    `- PREFER REST if the vendor's data-plane REST API can run the query: use read_method + read_path_template.`,
-    `- ONLY fall back to sql_dialect + sql_query when ${vendor.vendor}'s data plane is reachable EXCLUSIVELY`,
-    `  over the raw Postgres or MySQL wire protocol, with NO REST query endpoint at all. This still counts as`,
-    `  verifiable — do NOT set na=true just because there's no REST path; only use na=true when NEITHER REST`,
-    `  NOR SQL can express the check (e.g. no row-level access-control mechanism at all).`,
-    `- For a row-count assertion, do NOT rely on an aggregate query function (e.g. "count()" in the query`,
-    `  string) or a response HEADER (e.g. Content-Range) — aggregates may be disabled on the target project`,
-    `  and headers aren't inspected by the verifier. Instead fetch the actual rows (with a limit comfortably`,
-    `  above the expected count) and assert on the returned JSON array's length: assert_field "length".`,
-    `- read_path_template is the FULL path from the bare per-project host (base_url has NO fixed prefix) — you`,
-    `  must include whatever root segment your specific endpoint family needs, e.g. "/rest/v1/..." for a`,
-    `  PostgREST-style data API or "/functions/v1/..." for edge functions on that SAME host. Never assume`,
-    `  base_url already contains a family prefix.`,
-    `- IDENTITY-SCOPED checks (e.g. row-level access control / "only the owner can see their own row"): the`,
-    `  pack's one credential is an admin/service-level key that typically BYPASSES row-level security by`,
-    `  design, so verifying isolation needs a DIFFERENT, per-identity credential the agent creates during the`,
-    `  task — not the pack's normal credential. For these, set "auth_field" on the check to a short name (e.g.`,
-    `  "user_a_token") the agent should report a signed-in token under (alongside gid, in its results JSON —`,
-    `  the verifier will use THAT reported value as the Bearer credential for this specific check instead of`,
-    `  the pack default). Phrase expected values as fixed booleans-of-visibility that don't depend on unknown`,
-    `  data volume: e.g. "as user_a_token, GET a specific row → length=1 (owner sees it)" and "as`,
-    `  user_b_token, GET the SAME row → length=0 (a different identity does not)" — two checks, one per`,
-    `  identity. Which row to check: if THIS task's own action naturally creates/returns that specific row,`,
-    `  use {gid} for it. If the task's primary action is something else (e.g. it configures a policy, not a`,
-    `  row) and the row to test needs to be a SEPARATE thing the agent identifies, invent a named field for`,
-    `  it too (see below) instead of assuming {gid} is that row.`,
+    `Verification happens once after the full suite, so check durable final state, not transient intermediate state.`,
+    `Use one data-plane credential family only. Prefer REST read_method + read_path_template; use sql_dialect + sql_query when the data plane is only SQL wire protocol. If verification needs a separate control-plane credential, mark na=true.`,
+    `read_path_template is the full path from a bare base_url and must include any API prefix such as /rest/v1 or /functions/v1.`,
+    `For row counts, fetch rows and assert JSON array "length"; do not depend on response headers.`,
+    `For identity-scoped checks, set auth_field to a token name the agent must report, then assert visibility with fixed expected lengths.`,
     ``,
     `Placeholders:`,
-    `- {ns}: a namespace token. Use it EXACTLY as it appears in the intent above — if the intent says the`,
-    `  table is \`axarena_customers_{ns}\`, your read_path_template/sql_query must reference the FULL name`,
-    `  \`axarena_customers_{ns}\`, never a bare {ns} alone. Do not abbreviate or restructure the resource name.`,
-    `- {gid}: the identifier the AGENT self-reports as THIS task's primary created/configured thing (e.g. a`,
-    `  table name, policy name — whatever the task's own action most directly produces). Use {gid} only when`,
-    `  your check is about THAT thing AND {gid} is directly usable in your URL/query as-is.`,
-    `- CAUTION for deploy/invoke-type tasks (e.g. a function, a job): the agent may report an internal/opaque`,
-    `  id under gid (a deployment id, an invocation id) that is NOT the externally-addressable name/slug`,
-    `  needed to actually call the resource via URL. If your check needs to ADDRESS the resource (e.g. GET`,
-    `  /functions/v1/<name>), don't assume {gid} is that address — use a named field instead (e.g.`,
-    `  {function_slug}) and let the agent report the actual invokable name/slug under that key.`,
-    `- Any other descriptive {snake_case_name} (e.g. {test_row_id}, {duplicate_email}, {function_slug}): use`,
-    `  this whenever your check needs a SPECIFIC value that {gid} doesn't already cover, or that {gid} covers`,
-    `  ambiguously (see above), and no literal from the intent text provides it. The agent will be told to`,
-    `  report it as an extra key in its results JSON, the same way auth_field tokens are reported. Don't`,
-    `  invent one when {gid} unambiguously already works.`,
-    `If the API host is per-account (e.g. https://<project-ref>.example.com), write it using \${ENV_VAR_NAME}`,
-    `syntax for the per-account part instead of a bare {placeholder}.`,
+    `- {ns}: namespace token; preserve the full resource names from the intent, e.g. axarena_items_{ns}.`,
+    `- {gid}: the primary identifier the agent reports for this task; use only when directly addressable.`,
+    `- {snake_case_name}: use only when the verifier needs another specific value for the agent to report.`,
+    `Use \${ENV_VAR_NAME} syntax only for account/project parts of hosts, not task resources.`,
     ``,
     CHECK_FORMAT_RULES,
     ``,
-    `Separately from how to VERIFY it, note which surfaces can PERFORM the underlying action at all — this is`,
-    `about capability, not verification method (verification always reads back via REST/SQL regardless of`,
-    `which surface the agent used to act). Check each of api/sdk/cli/mcp against what ${vendor.vendor}'s docs`,
-    `for that surface actually document. A surface commonly CANNOT do something another surface can — e.g. a`,
-    `data-plane JS/Python SDK often has no schema-DDL/migration methods at all (only a CLI or REST/management`,
-    `path does); an MCP server may expose only a subset of operations. If you don't have enough information`,
-    `to judge a given surface confidently, leave it out of na_surfaces (don't guess it's impossible).`,
-    `List any such surface in na_surfaces with one shared na_surfaces_reason. Leave na_surfaces empty if you`,
-    `have no specific evidence that any surface lacks this capability.`,
+    `Surface support is precomputed; do not re-decide it.`,
+    fixedSupport
+      ? `Supported surfaces: [${fixedSupport.supportedSurfaces.join(", ")}]. Unsupported surfaces: [${fixedSupport.unsupportedSurfaces.join(", ")}].`
+      : `If no support matrix is provided, leave na_surfaces empty unless the docs make a surface exclusion explicit.`,
+    fixedSupport?.reference
+      ? `Set support_reference to "${fixedSupport.reference}" and do not invent a different support decision.`
+      : `support_reference may be null when no support matrix entry was supplied.`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
-    `{"task_id": "${task.id}", "na": false, "na_reason": null, "na_surfaces": [], "na_surfaces_reason": null, "checks": [`,
-    `  {"read_method": "GET", "read_path_template": "/rest/v1/...", "assert_field": "length", "expected": 100, "description": "..."}`,
-    `]}`,
-    `(identity-scoped example using a named field for the row under test, since this task's own gid is a`,
-    `policy name, not a row: {"read_method": "GET", "read_path_template":`,
-    `"/rest/v1/axarena_customers_{ns}?id=eq.{test_row_id}", "auth_field": "user_a_token", "assert_field":`,
-    `"length", "expected": 1, "description": "owner sees their row"})`,
-    `(surface-capability example: {"task_id": "${task.id}", "na": false, "na_reason": null,`,
-    `"na_surfaces": ["sdk"], "na_surfaces_reason": "the JS SDK has no DDL/migration methods per its reference`,
-    `docs", "checks": [...]})`,
+    `{"task_id":"${task.id}","na":false,"na_reason":null,"na_surfaces":[],"na_surfaces_reason":null,"support_reference":null,"checks":[{"read_method":"GET","read_path_template":"/rest/v1/...","assert_field":"length","expected":1,"description":"..."}]}`,
   ].join("\n");
 }
 
 function buildVendorConfigPrompt(vendor: ResolveResult): string {
   return [
-    `${vendor.vendor} (${vendor.category}).`,
+    `Author the vendor config for ${vendor.vendor} (${vendor.category}).`,
+    `Fetch official docs starting at ${vendor.docs_url}; use an API/auth reference page if needed.`,
+    `Answer only from fetched docs.`,
     ``,
-    `Before answering, WebFetch ${vendor.docs_url} (and its API/auth reference page if the root page doesn't`,
-    `show this) to find the vendor's REST API base_url and auth scheme. Ground your answer in what you`,
-    `actually read — do not answer from memory alone.`,
-    ``,
-    `Give:`,
-    `- base_url: the BARE per-project host, with NO fixed path segment (no "/rest/v1", no "/v1", nothing) —`,
-    `  e.g. "https://\${SUPABASE_PROJECT_REF}.supabase.co", NOT "https://\${SUPABASE_PROJECT_REF}.supabase.co/rest/v1".`,
-    `  Individual checks (extracted separately, one per task) each write their OWN full path from this bare`,
-    `  host, including whatever root segment their specific endpoint family needs (a data-plane REST API might`,
-    `  live under one path prefix while a functions/edge-function API lives under a different one on the SAME`,
-    `  host) — so base_url must NOT already bake in a family-specific prefix, or paths get double-prefixed.`,
-    `  Use the vendor's per-project DATA-PLANE host — NOT a separate control-plane/management/admin host`,
-    `  (those typically need a different credential type, like a personal access token instead of a project`,
-    `  API key, which this pack does not wire up). For per-account hosts, use \${ENV_VAR_NAME} syntax for the`,
-    `  per-account part (pick a SCREAMING_SNAKE_CASE env var name prefixed with the vendor name)`,
-    `- auth_type: bearer|api-key|oauth|none, and auth_header if not the default`,
-    `- auth_env: a SCREAMING_SNAKE_CASE env var name for the credential`,
-    `- extra_auth_header: if the REST API requires the SAME credential sent under a SECOND header name too`,
-    `  (e.g. Supabase's PostgREST needs both "Authorization: Bearer <key>" AND "apikey: <key>"), the second`,
-    `  header name; otherwise null`,
-    `- sql_dialect + sql_connection_env: ONLY if ${vendor.vendor}'s data plane is reachable exclusively over`,
-    `  the raw Postgres or MySQL wire protocol (no REST query endpoint) — sql_connection_env is a`,
-    `  SCREAMING_SNAKE_CASE env var name for a full connection string; otherwise both null`,
+    `Return the data-plane connection used by task verifier checks:`,
+    `- base_url: bare per-project host with no fixed path segment; checks add /rest/v1, /v1, etc.`,
+    `- use the product data-plane host, not a separately credentialed management host.`,
+    `- auth_type: bearer|api-key|oauth|none; set auth_header only when non-default.`,
+    `- auth_env: SCREAMING_SNAKE_CASE credential env var.`,
+    `- extra_auth_header: same credential under a second header name, or null.`,
+    `- sql_dialect/sql_connection_env: only when the data plane is exclusively Postgres/MySQL wire protocol.`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"base_url": "...", "auth_type": "...", "auth_header": null, "auth_env": "...", "extra_auth_header": null,`,
@@ -271,6 +217,7 @@ export interface ExtractOraclesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  supportMatrix?: SupportMatrix;
 }
 
 // Grounded single-topic research call. Measured at well under a minute for
@@ -283,6 +230,692 @@ const PER_CALL_TIMEOUT_MS = 8 * 60 * 1000;
 // so one retry recovers most of these without discarding 10 already-successful
 // sibling calls over a single flaky one.
 const MAX_ATTEMPTS = 2;
+const PER_VENDOR_TASK_CONCURRENCY = 3;
+const VENDOR_EXTRACTION_CONCURRENCY = 2;
+
+function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
+  switch (vendor.slug) {
+    case "supabase":
+      return VendorConfigSchema.parse({
+        base_url: "https://${SUPABASE_PROJECT_REF}.supabase.co",
+        auth_type: "bearer",
+        auth_env: "SUPABASE_API_KEY",
+        extra_auth_header: "apikey",
+        sql_dialect: "postgres",
+        sql_connection_env: "SUPABASE_DB_URL",
+      });
+    case "neon":
+      return VendorConfigSchema.parse({
+        base_url: "https://console.neon.tech/api/v2",
+        auth_type: "bearer",
+        auth_header: "Authorization",
+        auth_env: "NEON_API_KEY",
+        sql_dialect: "postgres",
+        sql_connection_env: "NEON_DATABASE_URL",
+      });
+    case "cockroachdb":
+      return VendorConfigSchema.parse({
+        base_url: "https://cockroachlabs.cloud/api/v1",
+        auth_type: "bearer",
+        auth_env: "COCKROACH_API_KEY",
+        sql_dialect: "postgres",
+        sql_connection_env: "COCKROACH_CONNECTION_STRING",
+      });
+    case "insforge":
+      return VendorConfigSchema.parse({
+        base_url: "${INSFORGE_PROJECT_URL}",
+        auth_type: "bearer",
+        auth_env: "INSFORGE_API_KEY",
+        sql_dialect: "postgres",
+        sql_connection_env: "INSFORGE_CONNECTION_STRING",
+      });
+    case "turso":
+      return VendorConfigSchema.parse({
+        base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
+        auth_type: "bearer",
+        auth_env: "TURSO_DATABASE_AUTH_TOKEN",
+      });
+    case "mongodb-atlas":
+      return VendorConfigSchema.parse({
+        base_url: "https://cloud.mongodb.com",
+        auth_type: "none",
+        auth_env: "ATLAS_CONNECTION_STRING",
+        mongo_connection_env: "ATLAS_CONNECTION_STRING",
+        mongo_database: "axarena_eval",
+      });
+    case "convex":
+      return VendorConfigSchema.parse({
+        base_url: "${CONVEX_URL}",
+        auth_type: "bearer",
+        auth_header: "Authorization",
+        auth_env: "CONVEX_DEPLOY_KEY",
+      });
+    default:
+      return null;
+  }
+}
+
+function pgCheck(sql_query: string, assert_field: string, expected: string | number | boolean, description: string): OracleCheck {
+  return OracleCheckSchema.parse({
+    sql_dialect: "postgres",
+    sql_query,
+    assert_field,
+    expected,
+    description,
+  });
+}
+
+function tursoSqlCheck(sql: string, assert_field: string, expected: string | number | boolean, description: string): OracleCheck {
+  return OracleCheckSchema.parse({
+    read_method: "POST",
+    read_path_template: "/v2/pipeline",
+    read_body_template: {
+      requests: [
+        {
+          type: "execute",
+          stmt: { sql },
+        },
+      ],
+    },
+    assert_field,
+    expected,
+    description,
+  });
+}
+
+function mongoCheck(
+  collection: string,
+  operation: "count" | "findOne" | "aggregate" | "listCollections",
+  query: Omit<NonNullable<OracleCheck["mongo_query"]>, "database" | "collection" | "operation">,
+  assert_field: string,
+  expected: string | number | boolean,
+  description: string,
+): OracleCheck {
+  return OracleCheckSchema.parse({
+    mongo_query: {
+      database: "",
+      collection,
+      operation,
+      ...query,
+    },
+    assert_field,
+    expected,
+    description,
+  });
+}
+
+function convexQueryCheck(pathField: string, assert_field: string, expected: string | number | boolean, description: string): OracleCheck {
+  return OracleCheckSchema.parse({
+    read_method: "POST",
+    read_path_template: "/api/query",
+    read_body_template: {
+      path: `{${pathField}}`,
+      args: {},
+    },
+    assert_field,
+    expected,
+    description,
+  });
+}
+
+function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
+  const item = (checks: OracleCheck[]): OracleExtractItem =>
+    OracleExtractItemSchema.parse({
+      task_id: task.id,
+      na: false,
+      checks,
+    });
+  switch (task.id) {
+    case "db-T01-access-control":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'axarena_acl_{ns}'",
+          "0.count",
+          1,
+          "protected container axarena_acl_{ns} exists",
+        ),
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_acl_{ns}\"",
+          "0.count",
+          1,
+          "one allowed record exists under the protected container",
+        ),
+      ]);
+    case "db-T02-backup-and-restore":
+      return item([pgCheck(
+        "SELECT COUNT(*)::int AS count FROM \"axarena_backup_{ns}\" WHERE label = 'marker_{ns}'",
+        "0.count",
+        1,
+        "active database contains the backup marker row after the backup/export task",
+      )]);
+    case "db-T03-change-data-capture":
+      return OracleExtractItemSchema.parse({
+        task_id: task.id,
+        na: false,
+        checks: [
+          {
+            sql_dialect: "postgres",
+            sql_query: "SELECT COUNT(*)::int AS count FROM \"{capture_table}\" WHERE row_label = 'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'",
+            assert_field: "0.count",
+            expected: 1,
+            description: "agent-reported durable capture table contains the inserted CDC marker",
+          },
+        ],
+      });
+    case "db-T04-define-data-container":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_items_{ns}' AND column_name IN ('id', 'label')",
+          "0.count",
+          2,
+          "container exists with id and label fields",
+        ),
+      ]);
+    case "db-T05-evolve-schema":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND column_name = 'status'",
+          "0.count",
+          1,
+          "status field exists after schema evolution",
+        ),
+      ]);
+    case "db-T06-inspect-schema":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}' AND column_name IN ('name', 'status')",
+          "0.count",
+          2,
+          "schema inspection target exposes name and status fields",
+        ),
+      ]);
+    case "db-T07-query-records":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_query_items_{ns}\" WHERE status = 'active'",
+          "0.count",
+          2,
+          "filtered read returns exactly two active records",
+        ),
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_query_items_{ns}\" WHERE status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')",
+          "0.count",
+          2,
+          "the active set is alpha and gamma",
+        ),
+      ]);
+    case "db-T08-server-side-execution":
+      return item([
+        pgCheck(
+          "SELECT \"axarena_echo_{ns}\"() AS result",
+          "0.result",
+          "axarena_ok_{ns}",
+          "server-side routine returns the expected marker",
+        ),
+      ]);
+    case "db-T09-vector-search":
+      return item([
+        pgCheck(
+          "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY embedding <-> '[1,0,0]' LIMIT 1",
+          "0.label",
+          "alpha_{ns}",
+          "nearest vector search ranks alpha first",
+        ),
+      ]);
+    case "db-T10-write-records":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
+          "0.count",
+          1,
+          "updated surviving record is final",
+        ),
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'delete_me_{ns}'",
+          "0.count",
+          0,
+          "throwaway record was deleted",
+        ),
+      ]);
+    default:
+      return null;
+  }
+}
+
+function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
+  const item = (checks: OracleCheck[]): OracleExtractItem =>
+    OracleExtractItemSchema.parse({
+      task_id: task.id,
+      na: false,
+      checks,
+    });
+  switch (task.id) {
+    case "db-T01-access-control":
+      return item([
+        tursoSqlCheck(
+          "SELECT name FROM sqlite_master WHERE type='table' AND name='axarena_acl_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "axarena_acl_{ns}",
+          "protected table axarena_acl_{ns} exists",
+        ),
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_acl_{ns}\"",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "one allowed record exists under the protected table",
+        ),
+      ]);
+    case "db-T02-backup-and-restore":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_backup_{ns}\" WHERE label = 'marker_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "the active/restored Turso database contains the backup marker row",
+        ),
+      ]);
+    case "db-T03-change-data-capture":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"{capture_table}\" WHERE row_label = 'cdc_probe_{ns}' OR payload LIKE '%cdc_probe_{ns}%'",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "agent-reported durable capture table contains the inserted CDC marker",
+        ),
+      ]);
+    case "db-T04-define-data-container":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM pragma_table_info('axarena_items_{ns}') WHERE name IN ('id','label')",
+          "results.0.response.result.rows.0.0.value",
+          "2",
+          "container exists with id and label fields",
+        ),
+      ]);
+    case "db-T05-evolve-schema":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name = 'status'",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "status field exists after schema evolution",
+        ),
+      ]);
+    case "db-T06-inspect-schema":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE name IN ('name','status')",
+          "results.0.response.result.rows.0.0.value",
+          "2",
+          "schema inspection target exposes name and status fields",
+        ),
+      ]);
+    case "db-T07-query-records":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_query_items_{ns}\" WHERE status = 'active'",
+          "results.0.response.result.rows.0.0.value",
+          "2",
+          "filtered read returns exactly two active records",
+        ),
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_query_items_{ns}\" WHERE status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')",
+          "results.0.response.result.rows.0.0.value",
+          "2",
+          "the active set is alpha and gamma",
+        ),
+      ]);
+    case "db-T08-server-side-execution":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"{result_table}\" WHERE value = 'axarena_ok_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "agent-reported trigger result table contains the expected marker in value",
+        ),
+      ]);
+    case "db-T09-vector-search":
+      return item([
+        tursoSqlCheck(
+          "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY vector_distance_cos(embedding, '[1,0,0]') LIMIT 1",
+          "results.0.response.result.rows.0.0.value",
+          "alpha_{ns}",
+          "nearest vector search ranks alpha first",
+        ),
+      ]);
+    case "db-T10-write-records":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "1",
+          "updated surviving record is final",
+        ),
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'delete_me_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "0",
+          "throwaway record was deleted",
+        ),
+      ]);
+    default:
+      return null;
+  }
+}
+
+function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
+  const item = (checks: OracleCheck[]): OracleExtractItem =>
+    OracleExtractItemSchema.parse({
+      task_id: task.id,
+      na: false,
+      checks,
+    });
+  switch (task.id) {
+    case "db-T01-access-control":
+      return OracleExtractItemSchema.parse({
+        task_id: task.id,
+        na: true,
+        na_reason: "MongoDB Atlas database and collection privileges do not provide the owned-record access-control outcome required by this task wording.",
+        checks: [],
+      });
+    case "db-T02-backup-and-restore":
+      return item([
+        mongoCheck(
+          "axarena_backup_{ns}",
+          "count",
+          { filter: { label: "marker_{ns}" } },
+          "count",
+          1,
+          "restored/recovered MongoDB target contains the backup marker document",
+        ),
+      ]);
+    case "db-T03-change-data-capture":
+      return item([
+        mongoCheck(
+          "{capture_collection}",
+          "count",
+          { filter: { $or: [{ row_label: "cdc_probe_{ns}" }, { "fullDocument.label": "cdc_probe_{ns}" }] } },
+          "count",
+          1,
+          "agent-reported durable capture collection contains the inserted change event",
+        ),
+      ]);
+    case "db-T04-define-data-container":
+      return item([
+        mongoCheck(
+          "axarena_items_{ns}",
+          "listCollections",
+          { filter: { name: "axarena_items_{ns}" } },
+          "0.name",
+          "axarena_items_{ns}",
+          "collection axarena_items_{ns} exists",
+        ),
+      ]);
+    case "db-T05-evolve-schema":
+      return item([
+        mongoCheck(
+          "axarena_migrate_{ns}",
+          "listCollections",
+          { filter: { name: "axarena_migrate_{ns}" } },
+          "0.options.validator.$jsonSchema.properties.status.bsonType",
+          "string",
+          "collection metadata exposes the evolved status field",
+        ),
+      ]);
+    case "db-T06-inspect-schema":
+      return item([
+        mongoCheck(
+          "axarena_schema_probe_{ns}",
+          "listCollections",
+          { filter: { name: "axarena_schema_probe_{ns}" } },
+          "0.options.validator.$jsonSchema.properties.name.bsonType",
+          "string",
+          "collection metadata exposes the name field",
+        ),
+        mongoCheck(
+          "axarena_schema_probe_{ns}",
+          "listCollections",
+          { filter: { name: "axarena_schema_probe_{ns}" } },
+          "0.options.validator.$jsonSchema.properties.status.bsonType",
+          "string",
+          "collection metadata exposes the status field",
+        ),
+      ]);
+    case "db-T07-query-records":
+      return item([
+        mongoCheck(
+          "axarena_query_items_{ns}",
+          "count",
+          { filter: { status: "active" } },
+          "count",
+          2,
+          "filtered read returns exactly two active records",
+        ),
+        mongoCheck(
+          "axarena_query_items_{ns}",
+          "count",
+          { filter: { status: "active", label: { $in: ["alpha_{ns}", "gamma_{ns}"] } } },
+          "count",
+          2,
+          "the active set is alpha and gamma",
+        ),
+      ]);
+    case "db-T08-server-side-execution":
+      return item([
+        mongoCheck(
+          "axarena_server_results_{ns}",
+          "findOne",
+          { filter: { routine: "axarena_echo_{ns}" } },
+          "result",
+          "axarena_ok_{ns}",
+          "server-side routine writes the expected marker result",
+        ),
+      ]);
+    case "db-T09-vector-search":
+      return item([
+        mongoCheck(
+          "axarena_vectors_{ns}",
+          "aggregate",
+          {
+            pipeline: [
+              {
+                $vectorSearch: {
+                  index: "{vector_index_name}",
+                  path: "embedding",
+                  queryVector: [1, 0, 0],
+                  numCandidates: 10,
+                  limit: 1,
+                },
+              },
+              { $project: { label: 1, _id: 0 } },
+            ],
+          },
+          "0.label",
+          "alpha_{ns}",
+          "Atlas vector search ranks alpha first",
+        ),
+      ]);
+    case "db-T10-write-records":
+      return item([
+        mongoCheck(
+          "axarena_write_items_{ns}",
+          "count",
+          { filter: { label: "final_{ns}" } },
+          "count",
+          1,
+          "updated surviving record is final",
+        ),
+        mongoCheck(
+          "axarena_write_items_{ns}",
+          "count",
+          { filter: { label: "delete_me_{ns}" } },
+          "count",
+          0,
+          "throwaway record was deleted",
+        ),
+      ]);
+    default:
+      return null;
+  }
+}
+
+function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
+  const item = (checks: OracleCheck[]): OracleExtractItem =>
+    OracleExtractItemSchema.parse({
+      task_id: task.id,
+      na: false,
+      checks,
+    });
+  switch (task.id) {
+    case "db-T01-access-control":
+      return item([
+        convexQueryCheck(
+          "acl_probe_query_path",
+          "value.allowedRecordCount",
+          1,
+          "verifier query confirms one allowed owned record is visible under the configured guard",
+        ),
+        convexQueryCheck(
+          "acl_probe_query_path",
+          "value.deniedRecordCount",
+          0,
+          "verifier query confirms the guard hides disallowed records",
+        ),
+      ]);
+    case "db-T02-backup-and-restore":
+      return item([
+        convexQueryCheck(
+          "backup_probe_query_path",
+          "value.markerCount",
+          1,
+          "verifier query confirms the active/restored deployment contains the backup marker",
+        ),
+      ]);
+    case "db-T03-change-data-capture":
+      return item([
+        convexQueryCheck(
+          "cdc_probe_query_path",
+          "value.eventCount",
+          1,
+          "verifier query confirms a durable captured event exists for the CDC marker",
+        ),
+      ]);
+    case "db-T04-define-data-container":
+      return item([
+        convexQueryCheck(
+          "items_schema_query_path",
+          "value.hasLabelField",
+          true,
+          "verifier query confirms axarena_items_{ns} can store/read label values",
+        ),
+      ]);
+    case "db-T05-evolve-schema":
+      return item([
+        convexQueryCheck(
+          "migration_probe_query_path",
+          "value.statusFieldCount",
+          1,
+          "verifier query confirms status is visible after schema evolution",
+        ),
+      ]);
+    case "db-T06-inspect-schema":
+      return item([
+        convexQueryCheck(
+          "schema_probe_query_path",
+          "value.hasNameAndStatus",
+          true,
+          "verifier query confirms name and status fields are visible",
+        ),
+      ]);
+    case "db-T07-query-records":
+      return item([
+        convexQueryCheck(
+          "query_items_probe_path",
+          "value.activeCount",
+          2,
+          "filtered read returns exactly two active records",
+        ),
+        convexQueryCheck(
+          "query_items_probe_path",
+          "value.expectedLabelsCount",
+          2,
+          "the active set is alpha and gamma",
+        ),
+      ]);
+    case "db-T08-server-side-execution":
+      return item([
+        convexQueryCheck(
+          "server_execution_probe_path",
+          "value.result",
+          "axarena_ok_{ns}",
+          "server-side function produces the expected marker",
+        ),
+      ]);
+    case "db-T09-vector-search":
+      return item([
+        convexQueryCheck(
+          "vector_probe_query_path",
+          "value.topLabel",
+          "alpha_{ns}",
+          "vector query ranks alpha first",
+        ),
+      ]);
+    case "db-T10-write-records":
+      return item([
+        convexQueryCheck(
+          "write_probe_query_path",
+          "value.finalCount",
+          1,
+          "updated surviving record is final",
+        ),
+        convexQueryCheck(
+          "write_probe_query_path",
+          "value.deletedCount",
+          0,
+          "throwaway record was deleted",
+        ),
+      ]);
+    default:
+      return null;
+  }
+}
+
+function seedTaskCheck(vendor: ResolveResult, task: SuiteTask): OracleExtractItem | null {
+  if (vendor.category !== "database") return null;
+  if (["supabase", "neon", "cockroachdb", "insforge"].includes(vendor.slug)) return postgresSeededTask(task);
+  if (vendor.slug === "turso") return tursoSeededTask(task);
+  if (vendor.slug === "mongodb-atlas") return mongoAtlasSeededTask(task);
+  if (vendor.slug === "convex") return convexSeededTask(task);
+  return null;
+}
+
+function applyFixedSupport(item: OracleExtractItem, fixedSupport?: {
+  supportedSurfaces: string[];
+  unsupportedSurfaces: string[];
+  reference?: string;
+}): OracleExtractItem {
+  if (!fixedSupport) return item;
+  const naSurfaces = [...new Set(fixedSupport.unsupportedSurfaces)].filter((surface): surface is ExtractSurfaceId =>
+    SurfaceIdSchema.safeParse(surface).success,
+  );
+  const supportedSurfaces = fixedSupport.supportedSurfaces;
+  if (item.na) {
+    return {
+      ...item,
+      na_surfaces: [],
+      na_surfaces_reason: undefined,
+      support_reference: fixedSupport.reference,
+    };
+  }
+  return {
+    ...item,
+    na: supportedSurfaces.length === 0,
+    na_reason: supportedSurfaces.length === 0 ? (item.na_reason ?? "unsupported for this vendor in support matrix") : undefined,
+    na_surfaces: supportedSurfaces.length === 0 ? [] : naSurfaces,
+    na_surfaces_reason: naSurfaces.length ? (item.na_surfaces_reason ?? "unsupported for these surfaces in support matrix") : undefined,
+    support_reference: fixedSupport.reference,
+  };
+}
 
 async function withRetry<T>(label: string, fn: () => Promise<T>): Promise<T> {
   let lastErr: unknown;
@@ -305,16 +938,31 @@ async function extractTaskCheck(
   opts: ExtractOraclesOptions,
 ): Promise<OracleExtractItem> {
   const label = `${vendor.vendor}/${task.id}`;
+  const supportEntries = opts.supportMatrix?.entries.filter((entry) => entry.vendor === vendor.vendor && entry.task_id === task.id) ?? [];
+  const fixedSupport = supportEntries.length
+    ? {
+        supportedSurfaces: supportEntries.filter((entry) => entry.status === "supported").map((entry) => entry.surface),
+        unsupportedSurfaces: supportEntries.filter((entry) => entry.status !== "supported").map((entry) => entry.surface),
+        reference: supportEntries[0]?.source_concept ? `${vendor.slug}:${task.id}:${supportEntries[0].source_concept}` : undefined,
+      }
+    : undefined;
+  const seeded = seedTaskCheck(vendor, task);
+  if (seeded) return applyFixedSupport(seeded, fixedSupport);
   return withRetry(label, async () => {
-    const raw = await invokeHarness(buildTaskPrompt(vendor, task), {
-      harness: opts.harness ?? "claude-code",
+    const raw = await invokeGenerator(buildTaskPrompt(vendor, task, fixedSupport), {
+      requireWebFetch: true,
+      fallbackHarness: opts.harness ?? "claude-code",
       model: opts.model,
       effort: opts.effort,
-      requireWebFetch: true,
       heartbeat: { everyMs: 30_000, label },
       timeoutMs: PER_CALL_TIMEOUT_MS,
     });
-    const json = extractJsonObject(raw);
+    const json = await extractJsonObjectWithRepair(raw, {
+      fallbackHarness: opts.harness ?? "claude-code",
+      model: opts.model,
+      effort: opts.effort,
+      label,
+    });
     const parsed = OracleExtractItemSchema.safeParse(JSON.parse(json));
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
@@ -323,25 +971,32 @@ async function extractTaskCheck(
     if (parsed.data.task_id !== task.id) {
       throw new Error(`oracle-extract for "${vendor.vendor}" returned task_id "${parsed.data.task_id}", expected "${task.id}"`);
     }
-    return parsed.data;
+    return applyFixedSupport(parsed.data, fixedSupport);
   });
 }
 
 async function extractVendorConfig(
   vendor: ResolveResult,
   opts: ExtractOraclesOptions,
-): Promise<z.infer<typeof VendorConfigSchema>> {
+): Promise<VendorConfig> {
+  const seeded = seedVendorConfig(vendor);
+  if (seeded) return seeded;
   const label = `${vendor.vendor}/vendor_config`;
   return withRetry(label, async () => {
-    const raw = await invokeHarness(buildVendorConfigPrompt(vendor), {
-      harness: opts.harness ?? "claude-code",
+    const raw = await invokeGenerator(buildVendorConfigPrompt(vendor), {
+      requireWebFetch: true,
+      fallbackHarness: opts.harness ?? "claude-code",
       model: opts.model,
       effort: opts.effort,
-      requireWebFetch: true,
       heartbeat: { everyMs: 30_000, label },
       timeoutMs: PER_CALL_TIMEOUT_MS,
     });
-    const json = extractJsonObject(raw);
+    const json = await extractJsonObjectWithRepair(raw, {
+      fallbackHarness: opts.harness ?? "claude-code",
+      model: opts.model,
+      effort: opts.effort,
+      label,
+    });
     const parsed = VendorConfigSchema.safeParse(JSON.parse(json));
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
@@ -360,10 +1015,26 @@ export async function extractOracles(
   suite: Suite,
   opts: ExtractOraclesOptions = {},
 ): Promise<OracleExtractResult> {
-  const [vendorConfig, ...tasks] = await Promise.all([
+  const [vendorConfig, taskSettled] = await Promise.all([
     extractVendorConfig(vendor, opts),
-    ...suite.tasks.map((t) => extractTaskCheck(vendor, t, opts)),
+    mapSettledLimit(
+      suite.tasks,
+      PER_VENDOR_TASK_CONCURRENCY,
+      (task) => extractTaskCheck(vendor, task, opts),
+    ),
   ]);
+  const taskFailures = taskSettled
+    .map((result, index) => ({ result, task: suite.tasks[index] }))
+    .filter((entry): entry is { result: PromiseRejectedResult; task: SuiteTask | undefined } => entry.result.status === "rejected");
+  if (taskFailures.length > 0) {
+    const details = taskFailures
+      .map((entry) => `${entry.task?.id ?? "unknown"}: ${entry.result.reason instanceof Error ? entry.result.reason.message : String(entry.result.reason)}`)
+      .join("; ");
+    throw new Error(`oracle extraction failed for ${vendor.vendor} on ${taskFailures.length} task(s): ${details}`);
+  }
+  const tasks = taskSettled
+    .filter((result): result is PromiseFulfilledResult<OracleExtractItem> => result.status === "fulfilled")
+    .map((result) => result.value);
   return OracleExtractResultSchema.parse({
     vendor: vendor.vendor,
     category: vendor.category,
@@ -388,7 +1059,11 @@ export async function extractOraclesAll(
   suite: Suite,
   opts: ExtractOraclesOptions = {},
 ): Promise<ExtractOutcome[]> {
-  const settled = await Promise.allSettled(vendors.map((v) => extractOracles(v, suite, opts)));
+  const settled = await mapSettledLimit(
+    vendors,
+    VENDOR_EXTRACTION_CONCURRENCY,
+    (vendor) => extractOracles(vendor, suite, opts),
+  );
   return settled.map((s, i) => {
     const vendor = vendors[i]!.vendor;
     return s.status === "fulfilled"

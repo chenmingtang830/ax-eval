@@ -17,7 +17,9 @@ import type { Suite } from "./suite.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { OracleExtractResult } from "./task-extract.js";
 import type { SurfaceExtractResult } from "./surface-extract.js";
+import { CANONICAL_SURFACE_SCOPE, type SupportMatrix } from "./methodology.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
+import { applyDatabasePackPromptOverride } from "./database-pack-overrides.js";
 
 export interface ComposePackOptions {
   /** Generation provenance label recorded on the pack. */
@@ -26,6 +28,27 @@ export interface ComposePackOptions {
    *  per surface (verification always reads state back via REST/SQL), so
    *  this only affects how the agent is told to act on non-API surfaces. */
   surfaces?: SurfaceExtractResult;
+  supportMatrix?: SupportMatrix;
+}
+
+function vendorSandboxScope(vendor: ResolveResult): TargetPack["sandbox_scope"] {
+  if (vendor.slug === "neon") {
+    return [
+      {
+        name: "project_id",
+        env: "NEON_PROJECT_ID",
+        required: true,
+        instructions: "existing Neon sandbox project id; use this instead of creating a new project",
+      },
+      {
+        name: "branch_id",
+        env: "NEON_BRANCH_ID",
+        required: false,
+        instructions: "optional existing Neon sandbox branch id connected to NEON_DATABASE_URL; if unset, discover the branch from the project via the Neon API",
+      },
+    ];
+  }
+  return [];
 }
 
 /** Compose one vendor's frozen TargetPack from suite + oracle extract + vendor card. */
@@ -42,7 +65,8 @@ export function composePack(
     if (!o) {
       throw new Error(`compose-pack: oracle extract for "${vendor.vendor}" is missing task "${suiteTask.id}"`);
     }
-    const prompt = suiteTask.intent.trim().replace(/\{ns\}/g, NS_PLACEHOLDER);
+    const basePrompt = suiteTask.intent.trim().replace(/\{ns\}/g, NS_PLACEHOLDER);
+    const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt);
     if (o.na) {
       return {
         id: suiteTask.id,
@@ -63,7 +87,26 @@ export function composePack(
     // scoring (tasksForSurface filters by this), same as whole-task na —
     // just scoped to one surface.
     const naSurfaces = new Set<string>(o.na_surfaces);
-    const allowedSurfaces = suiteTask.allowed_surfaces.filter((s) => !naSurfaces.has(s));
+    const supportEntries = opts.supportMatrix?.entries.filter((entry) => entry.vendor === vendor.vendor && entry.task_id === suiteTask.id) ?? [];
+    // MCP disabled for v1 (see AXARENA_PLAN.md): each vendor's MCP server has
+    // its own auth/transport conventions requiring per-vendor provisioning
+    // work (already found and fixed one real stdio-vs-http bug here), signal
+    // so far is thin (near-0% across both tested vendors), and claude-code's
+    // MCP surface specifically requires a paid API key (subscription auth
+    // can't reach the isolated home MCP testing needs). Revisit once MCP is
+    // more uniformly mature across vendors — code path is untouched, just
+    // excluded from the composed pack's allowed_surfaces.
+    const DISABLED_SURFACES = new Set(["mcp"]);
+    const methodologyScope = suite.methodology?.surface_scope ?? [...CANONICAL_SURFACE_SCOPE];
+    const supportedFromMatrix = supportEntries.length
+      ? new Set(supportEntries.filter((entry) => entry.status === "supported").map((entry) => entry.surface))
+      : null;
+    const allowedSurfaces = suiteTask.allowed_surfaces.filter((s) =>
+      methodologyScope.includes(s as typeof CANONICAL_SURFACE_SCOPE[number]) &&
+      !naSurfaces.has(s) &&
+      !DISABLED_SURFACES.has(s) &&
+      (!supportedFromMatrix || supportedFromMatrix.has(s as typeof CANONICAL_SURFACE_SCOPE[number]))
+    );
     return {
       id: suiteTask.id,
       title: suiteTask.title,
@@ -80,14 +123,20 @@ export function composePack(
               sqlDialect: check.sql_dialect ?? extract.vendor_config.sql_dialect,
               sqlQuery: check.sql_query.replace(/\{ns\}/g, NS_PLACEHOLDER),
             }
-          : {
-              readMethod: check.read_method,
-              readPathTemplate: check.read_path_template?.replace(/\{ns\}/g, NS_PLACEHOLDER),
-            }),
+          : check.mongo_query
+            ? {
+                mongoQuery: check.mongo_query,
+              }
+            : {
+                readMethod: check.read_method,
+                readPathTemplate: check.read_path_template?.replace(/\{ns\}/g, NS_PLACEHOLDER),
+                readBodyTemplate: check.read_body_template,
+              }),
         assertField: check.assert_field,
         expected:
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
         authField: check.auth_field,
+        sqlConnField: check.sql_conn_field,
       })),
     };
   });
@@ -115,7 +164,7 @@ export function composePack(
       header: extract.vendor_config.auth_header,
       extra_header: extract.vendor_config.extra_auth_header,
     },
-    sandbox_scope: [],
+    sandbox_scope: vendorSandboxScope(vendor),
     surfaces: opts.surfaces
       ? {
           ...(opts.surfaces.cli
@@ -124,14 +173,19 @@ export function composePack(
           ...(opts.surfaces.sdk
             ? { sdk: { package: opts.surfaces.sdk.package, language: opts.surfaces.sdk.language, install: opts.surfaces.sdk.install, reference_url: opts.surfaces.sdk.reference_url, auth: opts.surfaces.sdk.auth } }
             : {}),
-          ...(opts.surfaces.mcp
-            ? { mcp: { server: opts.surfaces.mcp.server, transport: opts.surfaces.mcp.transport, setup: opts.surfaces.mcp.setup, docs_url: opts.surfaces.mcp.docs_url, auth: opts.surfaces.mcp.auth } }
-            : {}),
+          // mcp surface disabled for v1 — see DISABLED_SURFACES above.
+          // Deliberately not declaring surfaces.mcp even when extracted, so
+          // an accidental `--surface mcp` invocation fails loudly (no
+          // provisioning info) rather than silently running.
         }
       : undefined,
     sql_conn:
       extract.vendor_config.sql_dialect && extract.vendor_config.sql_connection_env
         ? { dialect: extract.vendor_config.sql_dialect, connection_string_env: extract.vendor_config.sql_connection_env }
+        : undefined,
+    mongo_conn:
+      extract.vendor_config.mongo_connection_env
+        ? { connection_string_env: extract.vendor_config.mongo_connection_env, database: extract.vendor_config.mongo_database }
         : undefined,
     base_url: extract.vendor_config.base_url,
     headers: {},
