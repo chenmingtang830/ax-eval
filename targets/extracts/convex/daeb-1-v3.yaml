@@ -2,7 +2,7 @@ vendor: Convex
 category: database
 slug: convex
 suite_name: DAEB-1-V3
-extracted_at: 2026-07-02T11:08:52.682Z
+extracted_at: 2026-07-02T22:21:15.196Z
 vendor_config:
   base_url: ${CONVEX_URL}
   auth_type: bearer
@@ -143,11 +143,11 @@ tasks:
     support_reference: convex:db-T08-server-side-execution:server-side-execution
     checks:
       - read_method: POST
-        read_path_template: /api/query
+        read_path_template: /api/action
         read_body_template:
           path: "{server_execution_probe_path}"
           args: {}
-        assert_field: value.result
+        assert_field: value
         expected: axarena_ok_{ns}
         description: server-side function produces the expected marker
   - task_id: db-T09-vector-search
@@ -158,7 +158,7 @@ tasks:
     support_reference: convex:db-T09-vector-search:vector-search
     checks:
       - read_method: POST
-        read_path_template: /api/query
+        read_path_template: /api/action
         read_body_template:
           path: "{vector_probe_query_path}"
           args: {}

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-ylpb7h
+# run_id: 2026-07-02-18ekhg
 name: convex
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-ylpb7h
+run_id: 2026-07-02-18ekhg
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -45,6 +45,10 @@ tasks:
       discoverable through a documented control surface.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `acl_probe_query_path` as a public query
+      path that accepts `{}` and returns `{allowedRecordCount:number,
+      deniedRecordCount:number}`.
     oracles:
       - type: roundtrip
         expected: 1
@@ -109,6 +113,9 @@ tasks:
       verification.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `cdc_probe_query_path` as a public query
+      path that accepts `{}` and returns `{eventCount:number}`.
     oracles:
       - type: roundtrip
         expected: 1
@@ -136,6 +143,9 @@ tasks:
       text field named `label`.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `items_schema_query_path` as a public
+      query path that accepts `{}` and returns `{hasLabelField:boolean}`.
     oracles:
       - type: roundtrip
         expected: true
@@ -162,6 +172,9 @@ tasks:
       schema or metadata surface.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `migration_probe_query_path` as a public
+      query path that accepts `{}` and returns `{statusFieldCount:number}`.
     oracles:
       - type: roundtrip
         expected: 1
@@ -186,6 +199,9 @@ tasks:
       mechanism to confirm both fields are present.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `schema_probe_query_path` as a public
+      query path that accepts `{}` and returns `{hasNameAndStatus:boolean}`.
     oracles:
       - type: roundtrip
         expected: true
@@ -214,6 +230,10 @@ tasks:
       the matching count.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `query_items_probe_path` as a public
+      query path that accepts `{}` and returns `{activeCount:number,
+      expectedLabelsCount:number}`.
     oracles:
       - type: roundtrip
         expected: 2
@@ -248,16 +268,19 @@ tasks:
       exactly once using the vendor's idiomatic execution surface.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `server_execution_probe_path` as a public
+      action path that accepts `{}` and returns the string `axarena_ok_{ns}`.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
         description: server-side function produces the expected marker
         readMethod: POST
-        readPathTemplate: /api/query
+        readPathTemplate: /api/action
         readBodyTemplate:
           path: "{server_execution_probe_path}"
           args: {}
-        assertField: value.result
+        assertField: value
     difficulty: L3
     allowed_surfaces:
       - api
@@ -275,12 +298,15 @@ tasks:
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `vector_probe_query_path` as a public
+      action path that accepts `{}` and returns `{topLabel:string}`.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
         description: vector query ranks alpha first
         readMethod: POST
-        readPathTemplate: /api/query
+        readPathTemplate: /api/action
         readBodyTemplate:
           path: "{vector_probe_query_path}"
           args: {}
@@ -302,6 +328,10 @@ tasks:
       surviving record identity.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex verifier contract: report `write_probe_query_path` as a public
+      query path that accepts `{}` and returns `{finalCount:number,
+      deletedCount:number}`.
     oracles:
       - type: roundtrip
         expected: 1

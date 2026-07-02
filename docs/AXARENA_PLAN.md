@@ -2,7 +2,7 @@
 
 > **Status:** Draft v1 · Branch: `axarena-branch` · Internal strategy doc
 >
-> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, SDK low `0/8` because Supabase JS cannot create the required SQL objects without a pre-existing SQL RPC/baseline setup path, CLI low `6/7`; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is currently `0/10` because the agent discovered the official SDK but used the newer query API incorrectly; Neon CLI low is `10/10` but exposed a sandbox-scope guardrail gap around deleting pre-existing stale branches; MongoDB Atlas API low improved from `0/9` to `7/8` after adding a short pack-level MongoDB database scope, schema-metadata verifiers, and a support-matrix correction that marks MongoDB's inline `$function` capability unsupported for the named-routine T08 task; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution. The current work is execution hardening and matrix expansion, not publication finalization.
+> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, SDK low `0/8` because Supabase JS cannot create the required SQL objects without a pre-existing SQL RPC/baseline setup path, CLI low `6/7`; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is currently `0/10` because the agent discovered the official SDK but used the newer query API incorrectly; Neon CLI low is `10/10` but exposed a sandbox-scope guardrail gap around deleting pre-existing stale branches; MongoDB Atlas API low improved from `0/9` to `7/8` after adding a short pack-level MongoDB database scope, schema-metadata verifiers, and a support-matrix correction that marks MongoDB's inline `$function` capability unsupported for the named-routine T08 task; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts; Insforge API low is currently `0/9` after two smoke runs because the agent discovered the docs/admin endpoints but still chose migration/raw-SQL paths rejected by Insforge's security parser. The current work is execution hardening and matrix expansion, not publication finalization.
 >
 > This document captures the full strategic reasoning, competitive analysis,
 > positioning, methodology, vendor selection, code-feasibility assessment,
@@ -583,17 +583,23 @@ for Supabase; steps 8–10 have not been run for real yet (see §7.7).
 - ✅ **5 (verification-extract)**: deterministic verifier seeds generated for
   all 7 active vendors. Postgres-backed vendors use SQL read-back; Turso uses
   `/v2/pipeline` body templates; MongoDB Atlas uses Mongo wire-protocol
-  verifier checks; Convex uses `/api/query` body templates with reported query
-  path fields.
+  verifier checks; Convex uses `/api/query` and `/api/action` body templates
+  with reported function path fields and a Convex-specific no-auth/public
+  function read-back client.
 - ✅ **6 (compose-pack)**: done for all 7 active vendors on DAEB-1 V3.
 - ✅ **7 (review/approve)**: done for all 7 active vendors on DAEB-1 V3.
 - ✅ **Preflight env gate**: all 7 active packs pass `check-env`, including
   auth envs, SQL/Mongo verifier envs, and `${ENV_VAR}` URL-template vars.
-- 🔲 **8 (exec)**: **not run yet for any vendor.** This is the actual
-  next step.
-- 🔲 **9 (verify)**: only smoke-tested against a synthetic fake result
-  (proved DB/REST connectivity works; did not exercise a real agent run).
-- 🔲 **10 (report)**: not started — needs ≥1 real exec+verify cycle first.
+- 🟨 **8 (exec)**: smoke execution is underway. Codex API/CLI/SDK low/high
+  cells have already exposed real vendor adapter bugs, support-matrix
+  questions, and agent execution failures. Continue expanding the matrix
+  before publication logic is hardened.
+- 🟨 **9 (verify)**: smoke records now exist for Supabase, Neon, MongoDB Atlas,
+  Turso, and Convex; the full 7-vendor × 3-surface × 2-harness × 2-effort
+  matrix is still pending.
+- 🟨 **10 (report)**: single-cell generated reports and normalized records are
+  working; publication-grade bundle/reporting should stay thin until the full
+  execution matrix exists.
 
 ### 7.7 Findings From the First Real Dry-Run (Supabase, 2026-07-01)
 

@@ -22,7 +22,9 @@ import {
   writeTraceReview,
 } from "../src/generate/methodology.js";
 import { composePack } from "../src/generate/compose-pack.js";
+import { buildVerificationClientOptions } from "../src/generate/verification-client.js";
 import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
+import { TargetPackSchema } from "../src/schemas.js";
 import type { Suite } from "../src/generate/suite.js";
 
 describe("suite methodology artifacts", () => {
@@ -272,7 +274,91 @@ describe("suite methodology artifacts", () => {
 
     expect(convexPack.tasks[0]?.prompt).toContain("Convex-specific database adapter note");
     expect(convexPack.tasks[0]?.prompt).toContain("replacing non-alphanumeric characters with underscores");
+    expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasLabelField:boolean}`");
     expect(acmePack.tasks[0]?.prompt).not.toContain("Convex-specific database adapter note");
+  });
+
+  it("uses the agent-discovered Convex deployment and no auth for function read-back", () => {
+    const pack = TargetPackSchema.parse({
+      name: "convex",
+      run_id: "2026-07-02-demo",
+      base_url: "${CONVEX_URL}",
+      auth: { type: "bearer", env: "CONVEX_DEPLOY_KEY", header: "Authorization" },
+      tasks: [],
+    });
+    const opts = buildVerificationClientOptions(pack, {
+      profile: "low",
+      ns: "demo",
+      surface: "api",
+      discovery: {
+        base_url_found: "https://preview-example-123.convex.cloud",
+        searches: [],
+        urls_visited: [],
+        endpoint_used: "POST /api/query",
+        auth_scheme_found: "public Convex function endpoint",
+        notes: "",
+      },
+      results: {},
+    });
+
+    expect(opts.baseUrl).toBe("https://preview-example-123.convex.cloud");
+    expect(opts.authScheme).toBe("none");
+    expect(opts.token).toBe("");
+    expect(opts.authHeader).toBeUndefined();
+  });
+
+  it("isolates Insforge API schema guidance to the database vendor pack", () => {
+    const suite: Suite = {
+      name: "DEMO",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T04-define-data-container",
+        title: "T04: create container",
+        difficulty: "L1",
+        skill: "define-data-container",
+        intent: "Create `axarena_items_{ns}`.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api"],
+        na_examples: [],
+      }],
+    };
+    const extract = {
+      vendor: "Insforge",
+      category: "database",
+      slug: "insforge",
+      suite_name: "DEMO",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+      vendor_config: {
+        base_url: "${INSFORGE_PROJECT_URL}",
+        auth_type: "bearer" as const,
+        auth_env: "INSFORGE_API_KEY",
+        sql_dialect: "postgres" as const,
+        sql_connection_env: "INSFORGE_CONNECTION_STRING",
+      },
+      tasks: [{
+        task_id: "db-T04-define-data-container",
+        na: false,
+        checks: [{
+          sql_dialect: "postgres" as const,
+          sql_query: "select 1 as count",
+          assert_field: "0.count",
+          expected: 1,
+          description: "",
+        }],
+      }],
+    };
+
+    const pack = composePack(
+      suite,
+      { vendor: "Insforge", slug: "insforge", category: "database", docs_url: "https://docs.insforge.dev", site_url: "https://insforge.dev" },
+      extract,
+    );
+
+    expect(pack.tasks[0]?.prompt).toContain("Insforge-specific database adapter note");
+    expect(pack.tasks[0]?.prompt).toContain("prefer the documented admin table/schema endpoints");
+    expect(pack.tasks[0]?.prompt).toContain("Avoid batching");
   });
 
   it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {

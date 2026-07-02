@@ -46,6 +46,7 @@ import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
+import { buildVerificationClientOptions } from "./generate/verification-client.js";
 import {
   GENERATED_REPORT_SNAPSHOT_SCHEMA,
   loadGeneratedReportSnapshot,
@@ -2261,16 +2262,6 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   if (args.results.length === 0) throw new Error("provide at least one --results <run.json>");
   const pack = loadPack(args.pack);
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
-  const client = new BearerClient({
-    baseUrl: resolveEnvTemplate(pack.base_url),
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraAuthHeader: pack.auth?.extra_header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
   const byAttempt: ProfileRun[] = [];
   // Runtime warnings captured while assembling the report — surfaced verbatim
   // in the report's Methodology so the reader sees what couldn't be measured.
@@ -2293,6 +2284,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   };
   for (const rPath of args.results) {
     const executor = loadResults(rPath);
+    const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
     // self-report, else "api" (the default + back-compat surface). `--surface all`
     // is not an override — each result keeps its own self-reported surface.

@@ -358,6 +358,20 @@ function convexQueryCheck(pathField: string, assert_field: string, expected: str
   });
 }
 
+function convexActionCheck(pathField: string, assert_field: string, expected: string | number | boolean, description: string): OracleCheck {
+  return OracleCheckSchema.parse({
+    read_method: "POST",
+    read_path_template: "/api/action",
+    read_body_template: {
+      path: `{${pathField}}`,
+      args: {},
+    },
+    assert_field,
+    expected,
+    description,
+  });
+}
+
 function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
   const item = (checks: OracleCheck[]): OracleExtractItem =>
     OracleExtractItemSchema.parse({
@@ -844,16 +858,16 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
       ]);
     case "db-T08-server-side-execution":
       return item([
-        convexQueryCheck(
+        convexActionCheck(
           "server_execution_probe_path",
-          "value.result",
+          "value",
           "axarena_ok_{ns}",
           "server-side function produces the expected marker",
         ),
       ]);
     case "db-T09-vector-search":
       return item([
-        convexQueryCheck(
+        convexActionCheck(
           "vector_probe_query_path",
           "value.topLabel",
           "alpha_{ns}",

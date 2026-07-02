@@ -143,6 +143,54 @@ describe("task extraction seeds", () => {
     expect(check?.expected).toBe("1");
   });
 
+  it("verifies Convex action-backed tasks through /api/action", async () => {
+    const vendor: ResolveResult = {
+      vendor: "Convex",
+      category: "database",
+      slug: "convex",
+      discovered_at: "2026-01-01T00:00:00.000Z",
+      resolver: { method: "llm-search", harness: "codex", model: "test", prompt_version: "test" },
+      site_url: "https://www.convex.dev",
+      docs_url: "https://docs.convex.dev/home",
+      http_status: null,
+    };
+    const suite: Suite = {
+      name: "DAEB-1-V3",
+      version: 3,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [
+        {
+          id: "db-T08-server-side-execution",
+          title: "T08: Create and invoke a server-side routine",
+          difficulty: "L3",
+          skill: "server-side-execution",
+          intent: "Create `axarena_echo_{ns}`.",
+          oracle_hint: "Read back marker output.",
+          allowed_surfaces: ["api", "sdk", "cli"],
+          na_examples: [],
+        },
+        {
+          id: "db-T09-vector-search",
+          title: "T09: Vector search",
+          difficulty: "L2",
+          skill: "vector-search",
+          intent: "Rank `alpha_{ns}` first.",
+          oracle_hint: "Read back top label.",
+          allowed_surfaces: ["api", "sdk", "cli"],
+          na_examples: [],
+        },
+      ],
+    };
+
+    const result = await extractOracles(vendor, suite, { harness: "codex", effort: "low" });
+    const checks = result.tasks.map((task) => task.checks[0]);
+
+    expect(checks.map((check) => check?.read_path_template)).toEqual(["/api/action", "/api/action"]);
+    expect(checks[0]?.assert_field).toBe("value");
+    expect(checks[1]?.assert_field).toBe("value.topLabel");
+  });
+
   it("uses a short pack-level MongoDB database scope for Atlas seeds", async () => {
     const vendor: ResolveResult = {
       vendor: "MongoDB Atlas",
