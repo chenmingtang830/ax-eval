@@ -44,6 +44,9 @@ export interface NormalizedResult {
    *  divided by 100). Orthogonal to discovery: "once found, is the spec usable?"
    *  null when no openapi_url was configured / the audit didn't run. */
   content_quality: number | null;
+  /** SDK surface-quality score, 0-1. null when no SDK surface was configured /
+   *  the audit didn't run. */
+  sdk_quality?: number | null;
   /** Profiles that contributed (e.g. floor, ceiling) — provenance, not a key. */
   profiles: string[];
   /** The profile whose metrics this record reports (the strongest one). */
@@ -124,6 +127,8 @@ export function buildNormalizedResult(
   runs: ProfileRun[],
   /** Content-quality score 0–1 (the v3 smell audit, /100). null = not measured. */
   contentQuality: number | null = null,
+  /** SDK surface-quality score 0-1. null = not measured. */
+  sdkQuality: number | null = null,
 ): NormalizedResult {
   const best = bestRun(runs);
   const first = best ? firstAttempts(best.outcomes) : [];
@@ -146,6 +151,7 @@ export function buildNormalizedResult(
     attempts: k,
     discovery_score: discoveryScore(best?.discovery),
     content_quality: contentQuality,
+    sdk_quality: sdkQuality,
     profiles: runs.map((r) => r.profile),
     best_profile: best?.profile ?? null,
     model: best?.model ?? null,
@@ -175,6 +181,7 @@ export function buildNormalizedResultCells(
   pack: TargetPack,
   runs: ProfileRun[],
   contentQuality: number | null = null,
+  sdkQuality: number | null = null,
   fallbackHarness = "unknown",
 ): NormalizedResultCell[] {
   const grouped = new Map<string, ProfileRun[]>();
@@ -190,7 +197,7 @@ export function buildNormalizedResultCells(
       surface,
       fileStem: `${cellFileStem(harness)}.${surface}`,
       runs: cellRuns,
-      record: buildNormalizedResult(pack, surface, harness, cellRuns, contentQuality),
+      record: buildNormalizedResult(pack, surface, harness, cellRuns, contentQuality, sdkQuality),
     };
   });
 }
@@ -222,6 +229,7 @@ export function buildBlockedResult(
     attempts: 1,
     discovery_score: null,
     content_quality: null,
+    sdk_quality: null,
     profiles: [],
     best_profile: null,
     model: null,

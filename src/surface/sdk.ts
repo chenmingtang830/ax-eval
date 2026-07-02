@@ -18,6 +18,9 @@ export const sdkSurface: Surface = {
       `You must operate ${productName(pack)} through its official ${s.language} SDK, NOT raw HTTP/curl.`,
     ];
     lines.push(s.install ? `Install it: ${s.install}` : `Install the \`${s.package}\` package for ${s.language}.`);
+    if (s.reference_url) lines.push(`SDK reference: ${s.reference_url}`);
+    if (s.examples_url) lines.push(`SDK examples: ${s.examples_url}`);
+    if (s.types_url) lines.push(`SDK types/signatures: ${s.types_url}`);
     lines.push(``);
     return lines;
   },
@@ -29,6 +32,9 @@ export const sdkSurface: Surface = {
       DISCOVERY_HEADER,
       `Before doing ANY task, work out how to use ${product}'s official ${s?.language ?? ""} SDK (\`${pkg}\`).`,
       `You are NOT given the client class, the method names, or how to authenticate the client.`,
+      ...(s?.reference_url ? [`- Start from the SDK reference: ${s.reference_url}`] : []),
+      ...(s?.examples_url ? [`- Use SDK examples/quickstart: ${s.examples_url}`] : []),
+      ...(s?.types_url ? [`- Confirm method signatures/types here: ${s.types_url}`] : []),
       `- Read the SDK reference / README / type definitions, and/or WEB SEARCH the official docs.`,
       `- Determine: how to construct + authenticate the client from the credential in .env, and the`,
       `  exact methods to create each resource.`,

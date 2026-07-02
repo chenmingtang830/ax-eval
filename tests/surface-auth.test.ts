@@ -126,6 +126,7 @@ describe("buildBlockedResult + report rendering", () => {
       discovery_score: 0.9,
       discoverability: 0.9,
       content_quality: 0.8,
+      sdk_quality: null,
       profiles: ["ceiling"],
       best_profile: "ceiling",
     };

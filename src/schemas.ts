@@ -176,6 +176,10 @@ export const SdkSurfaceSchema = z.object({
   install: z.string().optional(),
   /** SDK reference URL (an authoritative discovery source). */
   reference_url: z.string().optional(),
+  /** Copy-pastable SDK examples or quickstart URL. */
+  examples_url: z.string().optional(),
+  /** Type definitions or method-signature reference URL. */
+  types_url: z.string().optional(),
   /** Per-surface auth (defaults to inheriting the API credential). */
   auth: SurfaceAuthSchema.optional(),
 });
