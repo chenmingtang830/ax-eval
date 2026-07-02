@@ -11,6 +11,8 @@ build/
 .npm/
 .npm-cache/
 .claude/
+.codex/
+.understand-anything/
 
 # Run artifacts (created on demand by the CLI) — local only, never published
 results/
@@ -27,6 +29,14 @@ docs/
 # skill. Kept on disk locally; the product surface is the `ax-eval` CLI.
 scripts/
 run-*.cjs
+
+# Locally generated target packs can contain sandbox-specific review state.
+targets/*/generated*.pack.yaml
+targets/*/generated*.pack.approval.json
+!targets/examples/
+!targets/examples/**/
+!targets/examples/*/generated*.pack.yaml
+!targets/examples/*/generated*.pack.approval.json
 
 # OS / editor
 .DS_Store

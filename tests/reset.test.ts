@@ -9,8 +9,9 @@ function makePack(name: string): TargetPack {
 /** Stub the get/del slice the resetter uses; record delete calls. */
 function stubClient(tasks: Array<{ gid?: string; name?: string }>) {
   const deleted: string[] = [];
+  const get = vi.fn(async () => tasks as unknown);
   const client: ResetClient = {
-    get: vi.fn(async () => tasks as unknown),
+    get: get as unknown as ResetClient["get"],
     del: vi.fn(async (path: string) => {
       deleted.push(path);
     }),

@@ -6,20 +6,10 @@
  * keys (e.g. "task.due_on") resolved against nested objects.
  */
 import type { OracleResult, OracleSpec, World } from "./schemas.js";
-
-const MISSING = Symbol("missing");
+import { DOTTED_MISSING, resolveDottedPath } from "./dotted.js";
 
 function resolve(world: World, path: string | undefined): unknown {
-  if (!path) return MISSING;
-  let node: unknown = world;
-  for (const part of path.split(".")) {
-    if (node !== null && typeof node === "object" && part in (node as object)) {
-      node = (node as Record<string, unknown>)[part];
-    } else {
-      return MISSING;
-    }
-  }
-  return node;
+  return resolveDottedPath(world, path);
 }
 
 export type OracleFn = (spec: OracleSpec, world: World) => OracleResult;
@@ -27,20 +17,20 @@ export type OracleFn = (spec: OracleSpec, world: World) => OracleResult;
 export const ORACLES: Record<string, OracleFn> = {
   exists(spec, world) {
     const value = resolve(world, spec.path);
-    const passed = value !== MISSING;
+    const passed = value !== DOTTED_MISSING;
     return { type: "exists", passed, detail: `${spec.path} ${passed ? "present" : "missing"}` };
   },
 
   equals(spec, world) {
     const value = resolve(world, spec.path);
-    if (value === MISSING) return { type: "equals", passed: false, detail: `${spec.path} missing` };
+    if (value === DOTTED_MISSING) return { type: "equals", passed: false, detail: `${spec.path} missing` };
     const passed = deepEqual(value, spec.expected);
     return { type: "equals", passed, detail: `${spec.path}=${fmt(value)} expected=${fmt(spec.expected)}` };
   },
 
   contains(spec, world) {
     const value = resolve(world, spec.path);
-    if (value === MISSING) return { type: "contains", passed: false, detail: `${spec.path} missing` };
+    if (value === DOTTED_MISSING) return { type: "contains", passed: false, detail: `${spec.path} missing` };
     let passed = false;
     if (Array.isArray(value)) passed = value.some((v) => deepEqual(v, spec.value));
     else if (typeof value === "string") passed = value.includes(String(spec.value));

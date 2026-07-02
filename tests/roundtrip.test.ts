@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
 import { HttpApiError, resolveDotted } from "../src/http/client.js";
-import type { TargetPack } from "../src/schemas.js";
+import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { profileSatisfies, getProfile } from "../src/harness/profile.js";
 
-const pack: TargetPack = {
+const pack = TargetPackSchema.parse({
   name: "t",
   version: "0",
   standard_set_version: "gen-test",
@@ -34,7 +34,7 @@ const pack: TargetPack = {
       ],
     },
   ],
-};
+});
 
 // Fake client: returns the (already-unwrapped) resource body by gid.
 function fakeClient(store: Record<string, Record<string, unknown>>) {

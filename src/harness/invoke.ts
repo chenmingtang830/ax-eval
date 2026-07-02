@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { taskResultKeys } from "./result-shape.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -259,20 +260,6 @@ function detectWith(command: string, spawn: Spawn): InvokeDetection {
 
 export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_SPAWN): InvokeDetection {
   return detectWith(commandFor(id), spawn);
-}
-
-function taskResultKeys(task: TargetPack["tasks"][number]): string[] {
-  const keys = new Set<string>(["gid"]);
-  const scan = (template: string | undefined) => {
-    if (!template) return;
-    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
-      const key = match[1];
-      if (key && key !== "gid") keys.add(key);
-    }
-  };
-  scan(task.create_path);
-  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
-  return [...keys];
 }
 
 function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {

@@ -123,6 +123,7 @@ describe("buildBlockedResult + report rendering", () => {
       pass_at_1: 1,
       pass_at_k: 1,
       attempts: 1,
+      model: "host-default",
       discovery_score: 0.9,
       discoverability: 0.9,
       content_quality: 0.8,
