@@ -10,7 +10,7 @@
  */
 import { readFileSync } from "node:fs";
 import { BearerClient, resolveDotted, type ApiStyle } from "../http/client.js";
-import { applyNs } from "../harness/executor.js";
+import { applyNs } from "../harness/namespace.js";
 import type { DiscoverySpec } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 

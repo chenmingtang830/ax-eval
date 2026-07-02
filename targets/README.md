@@ -16,18 +16,18 @@ packs. Runtime artifacts still belong under `results/`.
 
 ## Good Starting Points
 
-- `examples/notion/pack.yaml` — REST target with API / CLI / SDK / MCP coverage and the
+- `targets/examples/notion/pack.yaml` — REST target with API / CLI / SDK / MCP coverage and the
   current README screenshot/report.
-- `examples/stripe/pack.yaml` — REST target with API / CLI / SDK / MCP in test mode.
-- `examples/linear/pack.yaml` — GraphQL target with SDK + MCP surfaces.
-- `examples/exa/pack.yaml` — non-CRUD/search API target.
+- `targets/examples/stripe/pack.yaml` — REST target with API / CLI / SDK / MCP in test mode.
+- `targets/examples/linear/pack.yaml` — GraphQL target with SDK + MCP surfaces.
+- `targets/examples/exa/pack.yaml` — non-CRUD/search API target.
 
 ## Additional Packs
 
-- `examples/asana/pack.yaml` — legacy REST reference pack and internal benchmark; review
+- `targets/examples/asana/pack.yaml` — legacy REST reference pack and internal benchmark; review
   and approve it before live runs, or use one of the committed generated Asana
   variants in this repository.
-- `examples/monday/pack.yaml` — GraphQL work-management pack; useful for local rehearsal.
+- `targets/examples/monday/pack.yaml` — GraphQL work-management pack; useful for local rehearsal.
 
 Generated variants such as `generated.pack.yaml` and `generated.full.pack.yaml`
 are fixtures or larger benchmark sets. Prefer the plain `pack.yaml` when you are

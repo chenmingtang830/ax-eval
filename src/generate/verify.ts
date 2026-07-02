@@ -8,7 +8,8 @@
  */
 import { readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
-import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import { applyNs, NS_PLACEHOLDER } from "../harness/namespace.js";
+import type { TraceStep } from "../harness/executor.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
@@ -29,7 +30,7 @@ export interface ExecutorResults {
    *  invoke.ts), not the profile's hardcoded label. undefined for older runs. */
   model?: string;
   /** task id -> reported ids (at least { gid }). */
-  results: Record<string, { gid?: string } & Record<string, unknown>>;
+  results: Record<string, { gid?: string | null } & Record<string, unknown>>;
 }
 
 export interface RoundtripOutcome {
@@ -154,7 +155,7 @@ function inferValueFromNote(note: string | undefined, name: string): string | un
 function inferTemplateValue(
   task: Task,
   name: string,
-  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  reported: ({ gid?: string | null } & Record<string, unknown>) | undefined,
   trace: TraceStep[],
   readPathTemplate: string,
 ): string | undefined {
@@ -182,7 +183,7 @@ function inferTemplateValue(
 function resolvePathTemplate(
   task: Task,
   readPathTemplate: string,
-  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  reported: ({ gid?: string | null } & Record<string, unknown>) | undefined,
   trace: TraceStep[],
 ): { path?: string; missing?: string } {
   const placeholders = [...readPathTemplate.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
@@ -282,7 +283,7 @@ async function readRoundtripBody(
 
 async function verifyRoundtrip(
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: { gid?: string | null } | undefined,
   client: BearerClient,
   ns: string | undefined,
   fieldSelectParam: string | undefined,

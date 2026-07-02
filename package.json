@@ -44,9 +44,12 @@
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean",
+    "check:approvals": "vitest run tests/example-approvals.test.ts",
+    "pack:dry-run": "npm pack --dry-run",
     "prepublishOnly": "npm run build",
     "test": "vitest run tests",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "typecheck:tests": "tsc --noEmit -p tsconfig.test.json"
   },
   "engines": {
     "node": ">=22"

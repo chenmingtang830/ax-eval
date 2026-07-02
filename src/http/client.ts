@@ -9,6 +9,7 @@
  * `none` omits it. `extraHeaders` carries pack constants like Notion's required
  * `Notion-Version`.
  */
+import { DOTTED_MISSING, resolveDottedPath } from "../dotted.js";
 
 export type AuthScheme = "bearer" | "api-key" | "oauth" | "none";
 
@@ -43,15 +44,8 @@ export interface BearerClientOptions {
 
 /** Resolve a dotted path against a nested object; undefined if absent. */
 export function resolveDotted(obj: unknown, path: string): unknown {
-  let node: unknown = obj;
-  for (const part of path.split(".")) {
-    if (node !== null && typeof node === "object" && part in (node as object)) {
-      node = (node as Record<string, unknown>)[part];
-    } else {
-      return undefined;
-    }
-  }
-  return node;
+  const value = resolveDottedPath(obj, path);
+  return value === DOTTED_MISSING ? undefined : value;
 }
 
 export class BearerClient {

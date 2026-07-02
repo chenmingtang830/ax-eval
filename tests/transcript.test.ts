@@ -262,6 +262,6 @@ describe("transcript Codex-surface capture (codex exec --json)", () => {
     // Projected funnel: official docs reached + canonical create call + auth found.
     const disc = observedToDiscovery(run, undefined, "api");
     expect(disc.endpoint_used).toBe("POST /tasks");
-    expect(disc.searches.length).toBeGreaterThan(0);
+    expect(disc.searches?.length).toBeGreaterThan(0);
   });
 });

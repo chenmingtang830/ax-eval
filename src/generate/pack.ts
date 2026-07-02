@@ -28,12 +28,11 @@ import {
   taskAllowedSurfacesForResources,
   type SurfaceTaskPolicies,
 } from "./surface-policy.js";
+import { NS_PLACEHOLDER, PROBE_PREFIX, probeValue } from "../harness/namespace.js";
+
+export { NS_PLACEHOLDER, PROBE_PREFIX, probeValue };
 
 export const GENERATED_BY = "deterministic@no-model";
-
-/** Prefix every generated probe resource name carries, so a teardown (reset)
- *  can recognize AX-created resources without a baked id. */
-export const PROBE_PREFIX = "AX probe";
 
 /**
  * Per-generation id — a frozen *version tag* for the standard_set (pack
@@ -43,18 +42,6 @@ export function newRunId(): string {
   const date = new Date().toISOString().slice(0, 10);
   const rand = Math.random().toString(36).slice(2, 8);
   return `${date}-${rand}`;
-}
-
-/**
- * Probe names carry a `{ns}` placeholder, NOT a baked id. The namespace is
- * resolved per *execution* (per harness × attempt), so two harnesses running
- * the same frozen pack never collide on resource names — while the oracle's
- * `expected` stays an exact-match template (verify substitutes the same ns).
- */
-export const NS_PLACEHOLDER = "{ns}";
-
-export function probeValue(resource: string): string {
-  return `${PROBE_PREFIX} ${resource} ${NS_PLACEHOLDER}`;
 }
 
 /** Build the round-trip oracle for a created resource. */
