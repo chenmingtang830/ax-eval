@@ -125,6 +125,7 @@ const COMMANDS = [
   "competitive",
   "trace-diff",
   "reset",
+  "mcp-server",
   "automate-report",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
@@ -1972,12 +1973,40 @@ async function main(): Promise<number> {
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
+    case "mcp-server":
+      return cmdMcpServer();
     case "automate-report":
       return cmdAutomateReport(args);
     default:
       console.error(USAGE);
       return 2;
   }
+}
+
+async function cmdMcpServer(): Promise<number> {
+  const { startMcpServer } = await import("./mcp-server.js");
+  const { requestShutdown } = await startMcpServer();
+  // `connect()` resolves once the stdio transport is wired up — it does NOT
+  // block for the server's lifetime, and the SDK does not close or exit on
+  // stdin EOF on its own. Returning here would let `main()` resolve and trigger
+  // `process.exit(0)`, killing the server before it handles a single request.
+  // So we wait on an explicit shutdown trigger: the client closing the pipe
+  // (stdin `end`/`close`) or a termination signal.
+  //
+  // `requestShutdown()` is event-driven: if a tool call is still in flight when
+  // the trigger arrives, it defers the transport close until that call finishes
+  // (so a slow ax_eval_run's result is flushed, not dropped), then resolves.
+  // It's idempotent, so wiring it to multiple triggers is safe.
+  await new Promise<void>((resolve) => {
+    const shutdown = () => {
+      void requestShutdown().then(resolve);
+    };
+    process.stdin.once("end", shutdown);
+    process.stdin.once("close", shutdown);
+    process.once("SIGINT", shutdown);
+    process.once("SIGTERM", shutdown);
+  });
+  return 0;
 }
 
 main().then((code) => process.exit(code)).catch((err) => {
