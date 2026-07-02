@@ -35,14 +35,14 @@ function runCli(args: string[], env: Record<string, string> = {}): { code: numbe
 describe("cli arg handling", () => {
   it("top-level help prints usage with exit 0", () => {
     const { code, out } = runCli(["--help"]);
-    expect(code).toBe(0);
+    expect(code, out).toBe(0);
     expect(out).toContain("usage: ax-eval");
     expect(out).toContain("generate");
   });
 
   it("subcommand help prints command usage with exit 0", () => {
     const { code, out } = runCli(["generate", "--help"]);
-    expect(code).toBe(0);
+    expect(code, out).toBe(0);
     expect(out).toContain("usage: ax-eval generate --from <ingest.json>");
     expect(out).toContain("--deterministic");
     expect(out).not.toContain("unknown flag");
@@ -80,6 +80,162 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["automate-report"]);
     expect(code).toBe(1);
     expect(out).toContain("usage: ax-eval automate-report --company <name>");
+  });
+});
+
+describe("verify-generated CLI help quality", () => {
+  const dirs: string[] = [];
+  function freshDir(prefix = "ax-cli-quality-"): string {
+    const d = mkdtempSync(resolve(tmpdir(), prefix));
+    dirs.push(d);
+    return d;
+  }
+  afterEach(() => {
+    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("captures declared CLI help and renders CLI help quality in the report", () => {
+    const dir = freshDir();
+    const fakeCli = resolve(dir, "acme");
+    writeFileSync(
+      fakeCli,
+      [
+        "#!/usr/bin/env node",
+        "console.log(`Acme CLI manages Acme workspace resources from scripts.",
+        "Usage: acme <command> [flags]",
+        "Commands:",
+        "  login        Authenticate with an API token",
+        "  task create  Create a task",
+        "Options:",
+        "  --token <token>       API token or ACME_API_KEY",
+        "  --workspace <id>      Workspace id",
+        "Examples:",
+        "  acme login --token $ACME_API_KEY",
+        "  acme task create --workspace ws_1 --name AX",
+        "`);",
+      ].join("\n"),
+    );
+    chmodSync(fakeCli, 0o755);
+
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, JSON.stringify({
+      name: "acme",
+      standard_set_version: "cli-quality-v1",
+      run_id: "cli-quality",
+      generated_by: "fixture",
+      base_url: "https://api.acme.test",
+      auth: { type: "none", env: "" },
+      surfaces: {
+        cli: {
+          bin: "acme",
+          help: `${fakeCli} --help`,
+        },
+      },
+      tasks: [
+        {
+          id: "cli-task",
+          title: "Create a CLI task",
+          difficulty: "L1",
+          prompt: "Create a task through the CLI.",
+          allowed_surfaces: ["cli", "docs"],
+          oracles: [{ type: "exists", path: "gid" }],
+        },
+      ],
+    }, null, 2));
+
+    const resultPath = resolve(dir, "run-high-cli.json");
+    writeFileSync(resultPath, JSON.stringify({
+      profile: "high",
+      harness: "fixture",
+      surface: "cli",
+      ns: "ns",
+      discovery: {},
+      results: { "cli-task": { gid: "gid-1" } },
+    }, null, 2));
+
+    const htmlPath = resolve(dir, "report.html");
+    const { code, out } = runCli([
+      "verify-generated",
+      "--pack", packPath,
+      "--results", resultPath,
+      "--html", htmlPath,
+      "--min-pass-rate", "0",
+      "--allow-cli-help-command",
+      "--snapshot", resolve(dir, "snapshot.json"),
+    ]);
+
+    expect(code, out).toBe(0);
+    expect(out).toContain("Auditing CLI help quality");
+    const html = readFileSync(htmlPath, "utf8");
+    expect(html).toContain("CLI help quality");
+    expect(html).toContain("Score 100/100");
+  });
+
+  it("does not execute the pack-declared CLI help command unless explicitly allowed", () => {
+    const dir = freshDir();
+    const fakeCli = resolve(dir, "acme");
+    const marker = resolve(dir, "executed");
+    writeFileSync(
+      fakeCli,
+      [
+        "#!/usr/bin/env node",
+        "require('node:fs').writeFileSync(process.argv[2], 'ran');",
+        "console.log('Acme CLI manages Acme resources. Usage: acme <command> [flags]');",
+      ].join("\n"),
+    );
+    chmodSync(fakeCli, 0o755);
+
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, JSON.stringify({
+      name: "acme",
+      standard_set_version: "cli-quality-v1",
+      run_id: "cli-quality",
+      generated_by: "fixture",
+      base_url: "https://api.acme.test",
+      auth: { type: "none", env: "" },
+      surfaces: {
+        cli: {
+          bin: "acme",
+          help: `${fakeCli} ${marker} --help`,
+        },
+      },
+      tasks: [
+        {
+          id: "cli-task",
+          title: "Create a CLI task",
+          difficulty: "L1",
+          prompt: "Create a task through the CLI.",
+          allowed_surfaces: ["cli", "docs"],
+          oracles: [{ type: "exists", path: "gid" }],
+        },
+      ],
+    }, null, 2));
+
+    const resultPath = resolve(dir, "run-high-cli.json");
+    writeFileSync(resultPath, JSON.stringify({
+      profile: "high",
+      harness: "fixture",
+      surface: "cli",
+      ns: "ns",
+      discovery: {},
+      results: { "cli-task": { gid: "gid-1" } },
+    }, null, 2));
+
+    const htmlPath = resolve(dir, "report.html");
+    const { code, out } = runCli([
+      "verify-generated",
+      "--pack", packPath,
+      "--results", resultPath,
+      "--html", htmlPath,
+      "--min-pass-rate", "0",
+      "--snapshot", resolve(dir, "snapshot.json"),
+    ]);
+
+    expect(code, out).toBe(0);
+    expect(out).not.toContain("Auditing CLI help quality");
+    expect(existsSync(marker)).toBe(false);
+    const html = readFileSync(htmlPath, "utf8");
+    expect(html).toContain("CLI help-quality audit skipped: pass --allow-cli-help-command");
   });
 });
 

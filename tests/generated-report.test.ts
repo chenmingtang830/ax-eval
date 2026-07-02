@@ -13,6 +13,7 @@ import type { RoundtripOutcome } from "../src/generate/verify.js";
 import type { DiscoveryReport, DiscoveryMetric } from "../src/generate/discovery.js";
 import type { TraceStep } from "../src/harness/executor.js";
 import { auditSpecQuality } from "../src/static/smells.js";
+import { auditCliHelpQuality } from "../src/static/cli-smells.js";
 
 /** A small OpenAPI doc that trips several smells, for content-quality tests. */
 function smellyAudit() {
@@ -262,6 +263,29 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain('class="ax-scorecard"'); // plain 3-col grid
     expect(html).not.toContain('class="ax-scorecard ax-scorecard--four"');
     expect(html).not.toContain("Content quality (spec smells)");
+  });
+
+  it("weaves the CLI help-quality axis into the pipeline report", () => {
+    const { pack, runs, stat } = comprehensiveScenario();
+    const cliAudit = auditCliHelpQuality("Usage: demo\n\nCommands:\n  delete", {
+      title: "demo",
+      command: "demo --help",
+      bin: "demo",
+    });
+    const statCli: StaticReadiness = {
+      ...stat,
+      cliHelpScore: cliAudit.score,
+      cliHelpQuality: cliAudit,
+    };
+    const html = renderGeneratedReport(pack, runs, statCli);
+
+    expect(html).toContain("CLI help quality");
+    expect(html).toContain("CLI help surface");
+    expect(html).toContain("Improve the CLI help quality");
+    expect(html).toContain("CLI help quality is");
+
+    const recs = buildRecommendations(pack, runs, statCli);
+    expect(recs.map((r) => r.title)).toContain("Improve the CLI help quality");
   });
 
   it("escapes interpolated text (task prompts, oracle details)", () => {

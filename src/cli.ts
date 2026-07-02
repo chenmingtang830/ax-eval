@@ -11,7 +11,7 @@
  *   ax-eval init --pack <yaml>                                     print a .env stub for a pack
  *   ax-eval check-env --pack <yaml>                                  show env required by the pack
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   generated-run verify + CI gate
- *       [--min-pass-rate 0.8] [--html path]
+ *       [--min-pass-rate 0.8] [--html path] [--allow-cli-help-command]
  *   ax-eval ingest --openapi <url> [--out json] [--offline]          parse a spec → IngestedSpec
  *   ax-eval ingest --graphql <endpoint|file> [--out json] [--offline] introspect a GraphQL schema → rich IngestedGraphql
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
@@ -38,6 +38,7 @@ import { run } from "./runner.js";
 import { auditSite } from "./static/audit.js";
 import { discoverSurfaces, renderDiscovery } from "./static/discover.js";
 import { auditSpecQuality, renderSpecQuality, renderSpecQualityHtml } from "./static/smells.js";
+import { auditCliSurfaceQuality } from "./static/cli-smells.js";
 import { renderAudit, renderGap } from "./static/render.js";
 import { loadReport, saveReport } from "./storage.js";
 import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
@@ -156,7 +157,7 @@ function commandUsage(command: string | undefined): string {
       return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--surface api|cli|sdk|mcp|all] [--invoke]`;
     case "verify-generated":
     case "verify":
-      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
+      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8] [--allow-cli-help-command]";
     case "competitive":
       return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
     case "render-generated":
@@ -253,6 +254,7 @@ interface Parsed {
   ns: string;
   attempts: number;
   minPassRate: number | undefined;
+  allowCliHelpCommand: boolean;
   trace: string;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
@@ -310,6 +312,7 @@ function parseArgs(argv: string[]): Parsed {
     ns: "",
     attempts: 1,
     minPassRate: undefined,
+    allowCliHelpCommand: false,
     trace: "",
     company: "",
     approveBy: "",
@@ -407,6 +410,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
+    else if (a === "--allow-cli-help-command") p.allowCliHelpCommand = true;
     else if (a === "--trace") p.trace = value(++i, "--trace");
     else if (a === "--surface") {
       const v = value(++i, "--surface");
@@ -1459,9 +1463,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   // hiccup fail the (already-completed) behavioral verification.
   let staticReadiness: StaticReadiness | undefined;
   const site = pack.site_url;
-  if (!site && !pack.openapi_url) {
+  if (!site && !pack.openapi_url && !pack.surfaces?.cli) {
     warnings.push(
-      "Static readiness skipped: pack has neither site_url nor openapi_url, so the gap can't be reported.",
+      "Static readiness skipped: pack has no site_url, openapi_url, or CLI surface, so the gap can't be reported.",
     );
   } else {
     const mode = args.offline ? "fixture" : "live";
@@ -1483,7 +1487,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         warnings.push(`Static v2 discover failed: ${err instanceof Error ? err.message : String(err)}.`);
       }
     } else {
-      warnings.push("Static v0/v2 skipped: pack has no site_url (content-quality audit still ran via openapi_url).");
+      warnings.push("Static v0/v2 skipped: pack has no site_url.");
     }
     // v3 content-quality (OpenAPI smell) audit — the "once found, is it usable?"
     // axis. Best-effort, like v0/v2: never fail an already-completed run.
@@ -1499,6 +1503,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       }
     } else {
       warnings.push("Content-quality (v3) audit skipped: pack has no openapi_url.");
+    }
+    if (pack.surfaces?.cli && args.allowCliHelpCommand) {
+      console.log("  Auditing CLI help quality…");
+      try {
+        const audit = auditCliSurfaceQuality(pack.surfaces.cli, { cwd: process.cwd() });
+        staticReadiness.cliHelpScore = audit.score;
+        staticReadiness.cliHelpQuality = audit;
+      } catch (err) {
+        warnings.push(`CLI help-quality audit skipped: ${err instanceof Error ? err.message : String(err)}.`);
+      }
+    } else if (pack.surfaces?.cli) {
+      warnings.push("CLI help-quality audit skipped: pass --allow-cli-help-command to execute the pack-declared CLI help command.");
     }
   }
   console.log("  Rendering report…");
