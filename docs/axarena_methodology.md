@@ -569,6 +569,11 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - `v3`: `0/10` before SQL prompt hardening. The agent connected through the official Postgres-compatible `pg` SQL-wire path but every schema/data task failed on unquoted hyphenated canonical SQL identifiers.
   - Fix: the same database SQL identifier contract used for Neon was applied to SQL-backed database packs, and the T08 zero-argument routine contract was added for server-side execution.
   - `v4`: `10/10` verified tasks passed; latency was about `98s`. This cross-vendor recovery confirms the identifier/routine changes are database-category template hardening, not a Neon-specific workaround.
+- CockroachDB CLI/Codex low-high smoke evidence:
+  - `v1`: low/high native Codex CLI smoke verified `19/20` with `--invoke-retries 0`. Low passed `10/10` in `157.097s` with `4` transcript-derived tool calls. High passed `9/10` in `302.006s` with `18` transcript-derived tool calls.
+  - The normalized `{codex, cli}` cell reports best profile `low`, model `gpt-5.5`, pass@1 `10/10`, latency `157.097s`, and `4` tool calls. This is useful evidence that the SQL identifier and zero-argument routine contracts generalize from SDK to CLI for CockroachDB.
+  - The single high failure was `db-T03-change-data-capture`: the trace shows the agent created source/capture tables, inserted the probe row, and read a CockroachDB changefeed event whose payload encoded the label in hex. It then checked for the plain label string and did not persist the decoded event into the capture table, so the verifier found `0` captured rows.
+  - Classification: `agent-execution-failure` for the high profile's CDC implementation. Low passed the same task on the same surface, so do not weaken the verifier or change support from this one failure.
 - MongoDB Atlas API/Codex low smoke evidence:
   - `v1`: `0/9`; latency was about `272.7s`, with `37` transcript-derived tool calls.
   - The agent correctly discovered that Atlas Admin API cannot access cluster data with the provided credential, then used the MongoDB data-plane connection string. It failed all executable tasks because it invented a run-scoped database name longer than MongoDB's 38-byte database-name limit.
@@ -936,7 +941,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, and post-role-contract CLI low/high `18/20`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, and CockroachDB CLI low/high `19/20`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
