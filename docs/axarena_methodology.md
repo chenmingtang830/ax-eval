@@ -639,6 +639,8 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Classification: `vendor-specific-adapter/verifier-bug`. The pack must tell agents the exact verifier function return contract and must read actions through `/api/action`.
   - Fix: Convex prompt overrides now include task-specific verifier contracts such as `{hasLabelField:boolean}`, `{activeCount:number, expectedLabelsCount:number}`, action return `axarena_ok_{ns}`, and `{topLabel:string}`. Convex T08/T09 seeded checks now use `/api/action`.
   - `v3`: `8/8`; latency was about `276s`. All eight API-surface Convex tasks passed verified read-back, including access control, CDC capture, schema/container checks, query filtering, server-side execution, vector search, and write lifecycle.
+  - `high-v1`: native Codex API high-only smoke timed out after `905.972s` with `34` transcript-derived tool calls and verified `0/10` in the raw normalized output. The artifact had no trace file and no verifier-visible function paths or gids; the transcript shows the agent spent the run window researching Convex deployment internals, npm package source, and push-request mechanics, then timed out while generating the deploy bundle before durable writes.
+  - High-v1 classification: `agent-execution-failure` / runtime timeout. This does not change Convex API support semantics or the verifier contract because the low profile already produced verified `8/8` outcome evidence on the same composed pack. Methodology consequence: high-effort cells can over-investigate deployment machinery; timeout/partial artifacts should be recorded as execution learning, not converted into support-matrix changes without repeated evidence.
   - Generalization decision: do not move these fixes into core harness/report/publication. They are isolated Convex/database adapter behavior. Revisit only if another functions-as-code database repeats the same preview-deployment or public-function auth pattern.
 - Do not add large abstractions from a single failing cell. Generalize only when the same failure mode appears across multiple vendors, surfaces, or harnesses.
 - Claude Code execution lane status:
@@ -971,7 +973,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB SDK low/high best-cell `10/10`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, and Turso CLI low/high best-cell `9/10`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB SDK low/high best-cell `10/10`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, Turso CLI low/high best-cell `9/10`, and Convex API low `8/8`; Convex API high-only timed out before verifier-visible writes and is recorded as execution-learning evidence
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
