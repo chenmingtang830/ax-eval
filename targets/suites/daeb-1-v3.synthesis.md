@@ -32,20 +32,20 @@ Difficulty: L2 · Skill: access-control
 
 | Vendor | Capability |
 |---|---|
+| CockroachDB | role-based-access-control |
+| Convex | oidc-jwt-authentication |
+| Convex | function-level-auth-checks |
+| Insforge | row-level-security |
+| MongoDB Atlas | role-based-access-control |
+| MongoDB Atlas | multiple-authentication-methods |
+| Neon | role-based-access-control |
+| Neon | ip-allowlisting-and-private-networking |
 | Supabase | row-level-security |
 | Supabase | column-level-security |
 | Supabase | role-based-access-control |
 | Supabase | jwt-auth-integration |
-| Neon | role-based-access-control |
-| Neon | ip-allowlisting-and-private-networking |
-| MongoDB Atlas | role-based-access-control |
-| MongoDB Atlas | multiple-authentication-methods |
 | Turso | fine-grained-access-control |
 | Turso | network-access-allow-rules |
-| Convex | oidc-jwt-authentication |
-| Convex | function-level-auth-checks |
-| Insforge | row-level-security |
-| CockroachDB | role-based-access-control |
 
 ### db-T02-backup-and-restore — T02: Produce a recoverable backup artifact
 
@@ -57,21 +57,21 @@ Difficulty: L4 · Skill: backup-and-restore
 
 | Vendor | Capability |
 |---|---|
+| CockroachDB | backup-and-restore |
+| Convex | backups-and-restore |
+| Insforge | database-export |
+| Insforge | database-import |
+| MongoDB Atlas | cloud-backup-and-snapshot-restore |
+| MongoDB Atlas | point-in-time-restore |
+| Neon | point-in-time-restore |
+| Neon | data-import-and-migration |
 | Supabase | automated-daily-backup |
 | Supabase | point-in-time-recovery |
 | Supabase | logical-backup-export |
 | Supabase | physical-backup |
 | Supabase | backup-restore |
-| Neon | point-in-time-restore |
-| Neon | data-import-and-migration |
-| MongoDB Atlas | cloud-backup-and-snapshot-restore |
-| MongoDB Atlas | point-in-time-restore |
 | Turso | point-in-time-recovery |
 | Turso | snapshot-export-and-sqlite-import |
-| Convex | backups-and-restore |
-| Insforge | database-export |
-| Insforge | database-import |
-| CockroachDB | backup-and-restore |
 
 ### db-T03-change-data-capture — T03: Emit one observable change event
 
@@ -83,19 +83,19 @@ Difficulty: L4 · Skill: change-data-capture
 
 | Vendor | Capability |
 |---|---|
+| CockroachDB | change-data-capture |
+| Convex | reactive-query-subscriptions |
+| Insforge | realtime-change-feeds |
+| MongoDB Atlas | change-streams |
+| Neon | logical-replication |
 | Supabase | realtime-postgres-changes |
 | Supabase | logical-replication |
 | Supabase | read-replica |
 | Supabase | managed-cdc-pipeline |
 | Supabase | realtime-broadcast |
 | Supabase | realtime-presence |
-| Neon | logical-replication |
-| MongoDB Atlas | change-streams |
 | Turso | change-data-capture |
 | Turso | change-listen-endpoint |
-| Convex | reactive-query-subscriptions |
-| Insforge | realtime-change-feeds |
-| CockroachDB | change-data-capture |
 
 ### db-T04-define-data-container — T04: Create a logical data container
 
@@ -107,13 +107,13 @@ Difficulty: L1 · Skill: define-data-container
 
 | Vendor | Capability |
 |---|---|
-| Supabase | create-table |
-| MongoDB Atlas | create-collection |
-| Turso | create-table |
-| Convex | document-data-model |
-| Insforge | create-table |
 | CockroachDB | create-schema |
 | CockroachDB | create-table |
+| Convex | document-data-model |
+| Insforge | create-table |
+| MongoDB Atlas | create-collection |
+| Supabase | create-table |
+| Turso | create-table |
 
 ### db-T05-evolve-schema — T05: Apply a schema evolution
 
@@ -125,15 +125,15 @@ Difficulty: L3 · Skill: evolve-schema
 
 | Vendor | Capability |
 |---|---|
-| Supabase | tracked-migration-files |
-| Supabase | schema-diff |
-| MongoDB Atlas | schema-evolution |
-| Turso | alter-table-schema-evolution |
+| CockroachDB | online-schema-evolution |
 | Convex | online-data-migrations |
 | Insforge | schema-evolution |
 | Insforge | file-based-migrations |
 | Insforge | ad-hoc-migration-execution |
-| CockroachDB | online-schema-evolution |
+| MongoDB Atlas | schema-evolution |
+| Supabase | tracked-migration-files |
+| Supabase | schema-diff |
+| Turso | alter-table-schema-evolution |
 
 ### db-T06-inspect-schema — T06: Inspect container metadata
 
@@ -145,14 +145,14 @@ Difficulty: L1 · Skill: inspect-schema
 
 | Vendor | Capability |
 |---|---|
-| Supabase | schema-introspection |
-| MongoDB Atlas | collection-introspection |
-| Turso | schema-introspection |
+| CockroachDB | schema-introspection |
 | Convex | system-table-introspection |
 | Insforge | list-tables |
 | Insforge | get-table-schema |
 | Insforge | database-object-introspection |
-| CockroachDB | schema-introspection |
+| MongoDB Atlas | collection-introspection |
+| Supabase | schema-introspection |
+| Turso | schema-introspection |
 
 ### db-T07-query-records — T07: Filter and read matching records
 
@@ -164,6 +164,14 @@ Difficulty: L1 · Skill: query-records
 
 | Vendor | Capability |
 |---|---|
+| CockroachDB | filtered-reads-and-aggregates |
+| Convex | single-document-read |
+| Convex | filtered-document-queries |
+| Convex | javascript-aggregation-and-count |
+| Insforge | filtered-reads |
+| MongoDB Atlas | filtered-read-query |
+| MongoDB Atlas | count-documents |
+| MongoDB Atlas | aggregation-pipeline |
 | Supabase | filtered-query |
 | Supabase | sorted-query |
 | Supabase | count-query |
@@ -172,15 +180,7 @@ Difficulty: L1 · Skill: query-records
 | Supabase | rpc-function-call |
 | Supabase | graphql-query |
 | Supabase | rest-api-crud |
-| MongoDB Atlas | filtered-read-query |
-| MongoDB Atlas | count-documents |
-| MongoDB Atlas | aggregation-pipeline |
 | Turso | filtered-reads-and-counts |
-| Convex | single-document-read |
-| Convex | filtered-document-queries |
-| Convex | javascript-aggregation-and-count |
-| Insforge | filtered-reads |
-| CockroachDB | filtered-reads-and-aggregates |
 
 ### db-T08-server-side-execution — T08: Create and invoke a server-side routine
 
@@ -192,20 +192,20 @@ Difficulty: L3 · Skill: server-side-execution
 
 | Vendor | Capability |
 |---|---|
-| Supabase | stored-function |
-| Supabase | edge-function |
-| Supabase | database-webhook |
-| Supabase | scheduled-job |
-| Neon | management-api-and-sdk |
-| MongoDB Atlas | server-side-javascript-function |
-| Turso | sql-over-http |
-| Turso | server-side-triggers |
+| CockroachDB | stored-procedures-and-udfs |
 | Convex | server-side-actions |
 | Convex | scheduled-functions |
 | Insforge | admin-raw-sql |
 | Insforge | database-rpc |
 | Insforge | edge-functions |
-| CockroachDB | stored-procedures-and-udfs |
+| MongoDB Atlas | server-side-javascript-function |
+| Neon | management-api-and-sdk |
+| Supabase | stored-function |
+| Supabase | edge-function |
+| Supabase | database-webhook |
+| Supabase | scheduled-job |
+| Turso | sql-over-http |
+| Turso | server-side-triggers |
 
 ### db-T09-vector-search — T09: Create a vector-enabled dataset and query it
 
@@ -217,14 +217,14 @@ Difficulty: L2 · Skill: vector-search
 
 | Vendor | Capability |
 |---|---|
-| Supabase | vector-similarity-search |
-| Supabase | vector-metadata-filter |
-| Neon | vector-search |
-| MongoDB Atlas | vector-search |
-| Turso | vector-search |
+| CockroachDB | vector-search |
 | Convex | vector-search |
 | Insforge | vector-search |
-| CockroachDB | vector-search |
+| MongoDB Atlas | vector-search |
+| Neon | vector-search |
+| Supabase | vector-similarity-search |
+| Supabase | vector-metadata-filter |
+| Turso | vector-search |
 
 ### db-T10-write-records — T10: Create, update, and delete one record lifecycle
 
@@ -236,19 +236,9 @@ Difficulty: L1 · Skill: write-records
 
 | Vendor | Capability |
 |---|---|
-| Supabase | row-insert |
-| Supabase | row-update |
-| Supabase | row-delete |
-| Supabase | upsert |
-| Supabase | bulk-import-csv |
-| Supabase | bulk-copy-command |
-| Supabase | pgloader-import |
-| MongoDB Atlas | document-insert |
-| MongoDB Atlas | document-update |
-| MongoDB Atlas | document-delete |
-| Turso | row-insert |
-| Turso | row-update |
-| Turso | row-delete |
+| CockroachDB | row-insert |
+| CockroachDB | row-update |
+| CockroachDB | row-delete |
 | Convex | document-insert |
 | Convex | document-patch-update |
 | Convex | document-replace |
@@ -257,6 +247,16 @@ Difficulty: L1 · Skill: write-records
 | Insforge | row-update |
 | Insforge | row-delete |
 | Insforge | row-upsert |
-| CockroachDB | row-insert |
-| CockroachDB | row-update |
-| CockroachDB | row-delete |
+| MongoDB Atlas | document-insert |
+| MongoDB Atlas | document-update |
+| MongoDB Atlas | document-delete |
+| Supabase | row-insert |
+| Supabase | row-update |
+| Supabase | row-delete |
+| Supabase | upsert |
+| Supabase | bulk-import-csv |
+| Supabase | bulk-copy-command |
+| Supabase | pgloader-import |
+| Turso | row-insert |
+| Turso | row-update |
+| Turso | row-delete |

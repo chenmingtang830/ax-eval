@@ -19,7 +19,7 @@ import type { OracleExtractResult } from "./task-extract.js";
 import type { SurfaceExtractResult } from "./surface-extract.js";
 import { CANONICAL_SURFACE_SCOPE, type SupportMatrix } from "./methodology.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
-import { applyDatabasePackPromptOverride } from "./database-pack-overrides.js";
+import { applyDatabasePackPromptOverride, databaseSurfaceFallback } from "./database-pack-overrides.js";
 
 export interface ComposePackOptions {
   /** Generation provenance label recorded on the pack. */
@@ -51,6 +51,19 @@ function vendorSandboxScope(vendor: ResolveResult): TargetPack["sandbox_scope"] 
   return [];
 }
 
+const NON_API_SURFACES = ["cli", "sdk", "mcp"] as const;
+
+function assertDeclaredTaskSurfaces(pack: TargetPack): void {
+  for (const surface of NON_API_SURFACES) {
+    const taskIds = pack.tasks.filter((task) => task.allowed_surfaces.includes(surface)).map((task) => task.id);
+    if (!taskIds.length) continue;
+    if (pack.surfaces?.[surface]) continue;
+    throw new Error(
+      `compose-pack: ${pack.name} allows surface "${surface}" on task(s) ${taskIds.join(", ")} but is missing surfaces.${surface}`,
+    );
+  }
+}
+
 /** Compose one vendor's frozen TargetPack from suite + oracle extract + vendor card. */
 export function composePack(
   suite: Suite,
@@ -59,6 +72,7 @@ export function composePack(
   opts: ComposePackOptions = {},
 ): TargetPack {
   const extractByTaskId = new Map(extract.tasks.map((t) => [t.task_id, t]));
+  const surfaces = opts.surfaces ?? databaseSurfaceFallback(vendor, extract);
 
   const tasks = suite.tasks.map((suiteTask) => {
     const o = extractByTaskId.get(suiteTask.id);
@@ -140,6 +154,7 @@ export function composePack(
       })),
     };
   });
+  const taskSurfaceSet = new Set(tasks.flatMap((task) => task.allowed_surfaces));
 
   const pack = {
     name: vendor.slug,
@@ -165,13 +180,13 @@ export function composePack(
       extra_header: extract.vendor_config.extra_auth_header,
     },
     sandbox_scope: vendorSandboxScope(vendor),
-    surfaces: opts.surfaces
+    surfaces: surfaces
       ? {
-          ...(opts.surfaces.cli
-            ? { cli: { bin: opts.surfaces.cli.bin, install: opts.surfaces.cli.install, help: opts.surfaces.cli.help, docs_url: opts.surfaces.cli.docs_url, auth: opts.surfaces.cli.auth } }
+          ...(surfaces.cli && taskSurfaceSet.has("cli")
+            ? { cli: { bin: surfaces.cli.bin, install: surfaces.cli.install, help: surfaces.cli.help, docs_url: surfaces.cli.docs_url, auth: surfaces.cli.auth } }
             : {}),
-          ...(opts.surfaces.sdk
-            ? { sdk: { package: opts.surfaces.sdk.package, language: opts.surfaces.sdk.language, install: opts.surfaces.sdk.install, reference_url: opts.surfaces.sdk.reference_url, auth: opts.surfaces.sdk.auth } }
+          ...(surfaces.sdk && taskSurfaceSet.has("sdk")
+            ? { sdk: { package: surfaces.sdk.package, language: surfaces.sdk.language, install: surfaces.sdk.install, reference_url: surfaces.sdk.reference_url, auth: surfaces.sdk.auth } }
             : {}),
           // mcp surface disabled for v1 — see DISABLED_SURFACES above.
           // Deliberately not declaring surfaces.mcp even when extracted, so
@@ -199,7 +214,9 @@ export function composePack(
     tasks,
   };
 
-  return TargetPackSchema.parse(pack);
+  const parsed = TargetPackSchema.parse(pack);
+  assertDeclaredTaskSurfaces(parsed);
+  return parsed;
 }
 
 /** Path where a composed pack is written. */

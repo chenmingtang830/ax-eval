@@ -363,7 +363,7 @@ export function reviewSummary(pack: TargetPack): string {
   );
   for (const t of pack.tasks) {
     lines.push(`### [${t.difficulty}] ${t.id}`);
-    lines.push(`surfaces: \`${t.allowed_surfaces.join(", ") || "any"}\``);
+    lines.push(`surfaces: \`${t.allowed_surfaces.join(", ") || "none"}\``);
     lines.push("```");
     lines.push(t.prompt.trim());
     lines.push("```");

@@ -522,7 +522,7 @@ export function buildSupportMatrixArtifact(
             reason: `${surface} excluded from task allowed_surfaces`,
           };
         }
-        const compatibilityOverride = databaseTaskSupportOverride(category, vendor, task, decision);
+        const compatibilityOverride = databaseTaskSupportOverride(category, vendor, task, decision, surface);
         if (compatibilityOverride) {
           return {
             vendor,
@@ -569,16 +569,120 @@ function databaseTaskSupportOverride(
   vendor: string,
   task: SynthesizedTask,
   decision: CoverageDecision,
+  surface: "api" | "sdk" | "cli",
 ): { status: "unsupported"; reason: string } | null {
   if (category !== "database") return null;
-  if (vendor !== "MongoDB Atlas") return null;
-  if (task.skill !== "server-side-execution") return null;
-  if (decision.capability_name !== "server-side-javascript-function") return null;
-  return {
-    status: "unsupported",
-    reason:
-      "MongoDB Atlas evidence is inline aggregation `$function`; DAEB-1 T08 requires a named server-side routine with observable invocation output, so this concrete task is unsupported for the current database benchmark template.",
-  };
+  if (vendor === "MongoDB Atlas" && task.skill === "server-side-execution" && decision.capability_name === "server-side-javascript-function") {
+    return {
+      status: "unsupported",
+      reason:
+        "MongoDB Atlas evidence is inline aggregation `$function`; DAEB-1 T08 requires a named server-side routine with observable invocation output, so this concrete task is unsupported for the current database benchmark template.",
+    };
+  }
+  const cliUnsupportedReason = databaseCliUnsupportedReason(vendor);
+  if (surface === "cli" && cliUnsupportedReason) return { status: "unsupported", reason: cliUnsupportedReason };
+  if (surface !== "sdk") return null;
+  const sdkUnsupportedReason =
+    databaseSdkUnsupportedReason(vendor, task.id) ??
+    databaseSdkFamilyUnsupportedReason(vendor, task.skill);
+  return sdkUnsupportedReason ? { status: "unsupported", reason: sdkUnsupportedReason } : null;
+}
+
+const SUPABASE_SDK_UNSUPPORTED = new Set([
+  "db-T01-access-control",
+  "db-T02-backup-and-restore",
+  "db-T03-change-data-capture",
+  "db-T04-define-data-container",
+  "db-T05-evolve-schema",
+  "db-T06-inspect-schema",
+  "db-T07-query-records",
+  "db-T08-server-side-execution",
+  "db-T09-vector-search",
+  "db-T10-write-records",
+]);
+
+const NEON_SDK_UNSUPPORTED = new Set([
+  "db-T02-backup-and-restore",
+  "db-T03-change-data-capture",
+]);
+
+const MONGODB_ATLAS_SDK_UNSUPPORTED = new Set([
+  "db-T01-access-control",
+  "db-T02-backup-and-restore",
+  "db-T08-server-side-execution",
+]);
+
+const TURSO_SDK_UNSUPPORTED = new Set([
+  "db-T01-access-control",
+  "db-T02-backup-and-restore",
+  "db-T03-change-data-capture",
+  "db-T08-server-side-execution",
+]);
+
+const CONVEX_SDK_UNSUPPORTED = new Set([
+  "db-T01-access-control",
+  "db-T02-backup-and-restore",
+  "db-T03-change-data-capture",
+  "db-T04-define-data-container",
+  "db-T05-evolve-schema",
+  "db-T06-inspect-schema",
+  "db-T07-query-records",
+  "db-T08-server-side-execution",
+  "db-T09-vector-search",
+  "db-T10-write-records",
+]);
+
+const INSFORGE_SDK_UNSUPPORTED = new Set([
+  "db-T01-access-control",
+  "db-T02-backup-and-restore",
+  "db-T03-change-data-capture",
+  "db-T04-define-data-container",
+  "db-T05-evolve-schema",
+  "db-T06-inspect-schema",
+  "db-T07-query-records",
+  "db-T08-server-side-execution",
+  "db-T09-vector-search",
+  "db-T10-write-records",
+]);
+
+function databaseSdkUnsupportedReason(vendor: string, taskId: string): string | null {
+  if (vendor === "Supabase" && SUPABASE_SDK_UNSUPPORTED.has(taskId)) {
+    return "Supabase JS is a data-plane client and does not expose the DDL/control-plane path this DAEB-1 task requires from a blank sandbox; unsupported SDK cells are excluded from the denominator.";
+  }
+  if (vendor === "Neon" && NEON_SDK_UNSUPPORTED.has(taskId)) {
+    return "Neon's serverless driver is a SQL data-plane driver; this task requires backup/CDC/control-plane behavior not evidenced through that SDK path.";
+  }
+  if (vendor === "MongoDB Atlas" && MONGODB_ATLAS_SDK_UNSUPPORTED.has(taskId)) {
+    return "MongoDB's Node driver supports data-plane operations, but this DAEB-1 task requires Atlas Admin/control-plane or named-routine behavior not evidenced through the driver.";
+  }
+  if (vendor === "Turso" && TURSO_SDK_UNSUPPORTED.has(taskId)) {
+    return "Turso's libSQL client supports SQL data-plane operations, but this DAEB-1 task requires access-control, backup, CDC, or server-side routine behavior not evidenced through the SDK.";
+  }
+  if (vendor === "Convex" && CONVEX_SDK_UNSUPPORTED.has(taskId)) {
+    return "Convex DAEB-1 tasks require project code/schema/function deployment; no standalone official SDK path is evidenced for completing this canonical task from the benchmark runner.";
+  }
+  if (vendor === "Insforge" && INSFORGE_SDK_UNSUPPORTED.has(taskId)) {
+    return "Insforge has no benchmark-declared official SDK/client-library path for completing this DAEB-1 task; API support is not inherited by SDK.";
+  }
+  return null;
+}
+
+function databaseSdkFamilyUnsupportedReason(vendor: string, skill: string): string | null {
+  if (vendor === "CockroachDB") return null;
+  if (["backup-and-restore", "change-data-capture"].includes(skill) && ["Neon", "Turso"].includes(vendor)) {
+    return `${vendor}'s SDK path is treated as data-plane only for DAEB-1; ${skill} requires explicit SDK evidence before it can enter the denominator.`;
+  }
+  return null;
+}
+
+function databaseCliUnsupportedReason(vendor: string): string | null {
+  if (vendor === "Convex") {
+    return "Convex has no benchmark-declared CLI surface for DAEB-1; CLI support is not inferred from API or project-code support.";
+  }
+  if (vendor === "Insforge") {
+    return "Insforge has no benchmark-declared CLI surface for DAEB-1; CLI support is not inferred from API support.";
+  }
+  return null;
 }
 
 function buildGraderLedgerArtifact(benchmark: string, tasks: SynthesizedTask[]) {

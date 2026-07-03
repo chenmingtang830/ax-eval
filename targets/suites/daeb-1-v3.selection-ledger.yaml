@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
 benchmark: DAEB-1-V3
 category: database
-generated_at: 2026-07-02T10:13:31.112Z
+generated_at: 2026-07-02T22:58:48.218Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -74,13 +74,13 @@ entries:
     proposed_difficulty: L2
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -91,13 +91,13 @@ entries:
     proposed_difficulty: L4
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -108,13 +108,13 @@ entries:
     proposed_difficulty: L4
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -125,13 +125,13 @@ entries:
     proposed_difficulty: L1
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -142,13 +142,13 @@ entries:
     proposed_difficulty: L3
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -159,13 +159,13 @@ entries:
     proposed_difficulty: L1
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -176,13 +176,13 @@ entries:
     proposed_difficulty: L1
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -193,13 +193,13 @@ entries:
     proposed_difficulty: L3
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -210,13 +210,13 @@ entries:
     proposed_difficulty: L2
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -227,13 +227,13 @@ entries:
     proposed_difficulty: L1
     coverage_pct: 1
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
+      - CockroachDB
       - Convex
       - Insforge
-      - CockroachDB
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -244,29 +244,29 @@ entries:
     proposed_difficulty: L2
     coverage_pct: 0.8571428571428571
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
-      - Convex
       - CockroachDB
+      - Convex
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: trimmed to target task count after deterministic ranking
   - concept_name: full-text-search
-    title: Full-Text Search (tsvector / tsquery)
+    title: Full-Text Search
     family: search
     proposed_difficulty: L2
     coverage_pct: 0.8571428571428571
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
-      - Convex
       - CockroachDB
+      - Convex
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false
@@ -278,12 +278,12 @@ entries:
     proposed_difficulty: L1
     coverage_pct: 0.8571428571428571
     covered_vendors:
-      - Supabase
-      - Neon
-      - MongoDB Atlas
-      - Turso
-      - Insforge
       - CockroachDB
+      - Insforge
+      - MongoDB Atlas
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false
@@ -295,11 +295,11 @@ entries:
     proposed_difficulty: L3
     coverage_pct: 0.7142857142857143
     covered_vendors:
-      - Supabase
-      - Neon
-      - Turso
       - Convex
       - Insforge
+      - Neon
+      - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false

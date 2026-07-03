@@ -2,7 +2,7 @@
 
 > **Status:** Draft v1 · Branch: `axarena-branch` · Internal strategy doc
 >
-> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, SDK low `0/8` because Supabase JS cannot create the required SQL objects without a pre-existing SQL RPC/baseline setup path, CLI low `6/7`; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is currently `0/10` because the agent discovered the official SDK but used the newer query API incorrectly; Neon CLI low is `10/10` but exposed a sandbox-scope guardrail gap around deleting pre-existing stale branches; MongoDB Atlas API low improved from `0/9` to `7/8` after adding a short pack-level MongoDB database scope, schema-metadata verifiers, and a support-matrix correction that marks MongoDB's inline `$function` capability unsupported for the named-routine T08 task; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts; Insforge API low is currently `0/9` after two smoke runs because the agent discovered the docs/admin endpoints but still chose migration/raw-SQL paths rejected by Insforge's security parser. The current work is execution hardening and matrix expansion, not publication finalization.
+> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, CLI low `6/7`; Supabase SDK is now excluded from DAEB-1 V3 scoring (`0` eligible SDK tasks) because Supabase JS cannot create the required SQL/schema/control-plane objects from a blank sandbox without a pre-existing SQL RPC/baseline setup path; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is now scored over `8` eligible SQL/DDL tasks after excluding backup/CDC from SDK support, and post-audit smoke is `7/8`; Neon CLI low is `10/10` but exposed a sandbox-scope guardrail gap around deleting pre-existing stale branches; CockroachDB SDK low recovered from SQL identifier failures to `10/10`; MongoDB Atlas API low improved from `0/9` to `7/8`, and MongoDB Atlas SDK low currently smokes at `5/7` after surface-aware SDK support filtering; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts; Insforge API low is currently `0/9` after two smoke runs because the agent discovered the docs/admin endpoints but still chose migration/raw-SQL paths rejected by Insforge's security parser. Claude Code headless execution is now unblocked: default `claude` smoke passed Neon API low `10/10`; native Claude Code `2.1.198` exposes `--model` and `--effort`; a pinned native low lane with `--model sonnet` stamped `claude-sonnet-5` and passed Neon API `9/10`, failing only vector-search label exactness; the paired pinned high lane timed out after two 900s attempts and verified `0/10`, which is an execution/runtime lesson rather than a verifier change. The current work is execution hardening and matrix expansion, not publication finalization.
 >
 > This document captures the full strategic reasoning, competitive analysis,
 > positioning, methodology, vendor selection, code-feasibility assessment,
@@ -588,6 +588,11 @@ for Supabase; steps 8–10 have not been run for real yet (see §7.7).
   function read-back client.
 - ✅ **6 (compose-pack)**: done for all 7 active vendors on DAEB-1 V3.
 - ✅ **7 (review/approve)**: done for all 7 active vendors on DAEB-1 V3.
+- ✅ **SDK support audit**: support matrix is now surface-aware and does not
+  inherit SDK support from API support. Unsupported SDK task/surface cells are
+  excluded from the denominator rather than scored as failures. Current SDK
+  eligible-task counts: Supabase `0`, Neon `8`, MongoDB Atlas `7`, Turso `6`,
+  Convex `0`, Insforge `0`, CockroachDB `10`.
 - ✅ **Preflight env gate**: all 7 active packs pass `check-env`, including
   auth envs, SQL/Mongo verifier envs, and `${ENV_VAR}` URL-template vars.
 - 🟨 **8 (exec)**: smoke execution is underway. Codex API/CLI/SDK low/high
@@ -1042,9 +1047,12 @@ Most decisions are now locked in §14. What's still open:
   `backup-and-restore` 3→7/8, `schema-migration` 5→7/8, etc.). Final
   DAEB-1-v2 suite: **10 canonical tasks**, all meeting the then-current
   coverage threshold, difficulty spread L1-L4. Superseded by DAEB-1-v3.
-- **2026-07-01** Model pinning: claude-code → `claude-sonnet-5`, codex →
-  `gpt-5.4` (**not** gpt-5.5 as originally specified in the 2026-06-30 log
-  — this was a scripting oversight, not a deliberate change; revisit).
+- **2026-07-01** Model pinning target: Claude Code should run with
+  `--model sonnet` (or the full stamped Sonnet 5 slug once confirmed by the
+  first pinned lane) and Codex should run with a Codex-compatible GPT slug.
+  Do not put both harnesses in one `exec-plan` command when passing `--model`,
+  because the slug namespace is harness-specific. The normalized record's
+  stamped model remains the ground truth for publication.
 - **2026-07-01** ax-eval's own generation tooling (capability-extract,
   synthesize-suite, task-extract) decoupled from the exec-plan harness
   path: `invokeGenerator()` calls the configured provider's API directly
@@ -1154,7 +1162,10 @@ remaining work is matrix expansion and evidence-backed hardening.
 
 1. **Execution matrix** — run all 7 active vendors across `api/sdk/cli`,
    Codex and Claude Code, low/high effort. MCP remains excluded from the
-   canonical usability-suite scope.
+   canonical usability-suite scope. For first full-matrix expansion, prefer
+   `--invoke-retries 0` so one high-effort timeout consumes one timeout window
+   instead of two; rerun specific flaky cells separately when evidence suggests
+   a transient failure.
 
 2. **Verification matrix** — run `verify-generated` against every execution
    result and produce snapshots/HTML reports without resetting sandboxes before

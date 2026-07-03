@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-nqb84w
+# run_id: 2026-07-02-08y63e
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-nqb84w
+run_id: 2026-07-02-08y63e
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -47,6 +47,15 @@ tasks:
       discoverable through a documented control surface.
 
 
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, prefer the documented admin table/schema endpoints for table
       creation and schema evolution. Avoid batching many CREATE TABLE, RLS
@@ -71,7 +80,6 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -81,6 +89,15 @@ tasks:
       Create or use a container named `axarena_backup_{ns}` with one marker
       record labeled `marker_{ns}`, then produce a recoverable backup, snapshot,
       or export artifact using the vendor's idiomatic recovery mechanism.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -117,6 +134,15 @@ tasks:
       verification.
 
 
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, prefer the documented admin table/schema endpoints for table
       creation and schema evolution. Avoid batching many CREATE TABLE, RLS
@@ -135,7 +161,6 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -146,6 +171,15 @@ tasks:
       vendor's idiomatic mechanism (table, collection, or equivalent). The
       resulting container must support an externally addressable id/key and a
       text field named `label`.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -179,6 +213,15 @@ tasks:
       schema or metadata surface.
 
 
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, prefer the documented admin table/schema endpoints for table
       creation and schema evolution. Avoid batching many CREATE TABLE, RLS
@@ -207,6 +250,15 @@ tasks:
       Create or use a container named `axarena_schema_probe_{ns}` with fields
       `name` and `status`, then use the vendor's schema or metadata inspection
       mechanism to confirm both fields are present.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -240,6 +292,15 @@ tasks:
       `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
       that returns only the active records and report the container name plus
       the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -278,6 +339,22 @@ tasks:
       exactly once using the vendor's idiomatic execution surface.
 
 
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      SQL server-side routine contract: for this task, create a zero-argument
+      routine whose body returns the literal marker value directly. Do not rely
+      on bind parameters inside `CREATE FUNCTION` or `CREATE PROCEDURE`; bind
+      parameters are for the outer query execution, not for static routine
+      bodies.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, prefer the documented admin table/schema endpoints for table
       creation and schema evolution. Avoid batching many CREATE TABLE, RLS
@@ -308,6 +385,15 @@ tasks:
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
 
 
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, prefer the documented admin table/schema endpoints for table
       creation and schema evolution. Avoid batching many CREATE TABLE, RLS
@@ -324,9 +410,7 @@ tasks:
         sqlQuery: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
           '[1,0,0]' LIMIT 1
     difficulty: L2
-    allowed_surfaces:
-      - sdk
-      - cli
+    allowed_surfaces: []
     na: false
     depends_on: []
     trace: []
@@ -338,6 +422,15 @@ tasks:
       `final_{ns}`, then delete one separate throwaway record labeled
       `delete_me_{ns}`. Report the externally addressable container name and the
       surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
 
 
       Insforge-specific database adapter note: when operating through the API

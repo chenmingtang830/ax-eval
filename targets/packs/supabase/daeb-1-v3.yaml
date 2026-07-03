@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-9ns2pr
+# run_id: 2026-07-02-jzr01z
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-9ns2pr
+run_id: 2026-07-02-jzr01z
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -35,13 +35,6 @@ surfaces:
       kind: token
       token_env: SUPABASE_ACCESS_TOKEN
       token_env_aliases: []
-  sdk:
-    package: "@supabase/supabase-js"
-    language: node
-    reference_url: https://supabase.com/docs/reference/javascript/introduction
-    auth:
-      kind: inherit
-      token_env_aliases: []
 base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
 headers: {}
 site_url: https://supabase.com
@@ -56,11 +49,21 @@ static:
 tasks:
   - id: db-T01-access-control
     title: "T01: Configure access control for owned records"
-    prompt: Configure an access-control rule for a container named
-      `axarena_acl_{ns}` so records are scoped to the caller's ownership or
-      explicit allowance using the vendor's idiomatic access-control mechanism.
-      Create one allowed record owned by the active principal and make the rule
-      configuration discoverable through a documented control surface.
+    prompt: >-
+      Configure an access-control rule for a container named `axarena_acl_{ns}`
+      so records are scoped to the caller's ownership or explicit allowance
+      using the vendor's idiomatic access-control mechanism. Create one allowed
+      record owned by the active principal and make the rule configuration
+      discoverable through a documented control surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 1
@@ -78,16 +81,25 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []
     trace: []
   - id: db-T02-backup-and-restore
     title: "T02: Produce a recoverable backup artifact"
-    prompt: Create or use a container named `axarena_backup_{ns}` with one marker
+    prompt: >-
+      Create or use a container named `axarena_backup_{ns}` with one marker
       record labeled `marker_{ns}`, then produce a recoverable backup, snapshot,
       or export artifact using the vendor's idiomatic recovery mechanism.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 1
@@ -105,13 +117,23 @@ tasks:
     trace: []
   - id: db-T03-change-data-capture
     title: "T03: Emit one observable change event"
-    prompt: Enable a change stream, realtime subscription, or CDC feed for a
-      container named `axarena_cdc_{ns}`, then create one record labeled
-      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
-      or feed. Persist the observed event into a durable capture container with
-      either a `row_label` field equal to `cdc_probe_{ns}` or a `payload` field
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container with either a
+      `row_label` field equal to `cdc_probe_{ns}` or a `payload` field
       containing `cdc_probe_{ns}`, and report that capture container name for
       verification.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 1
@@ -123,16 +145,25 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
   - id: db-T04-define-data-container
     title: "T04: Create a logical data container"
-    prompt: Create a logical data container named `axarena_items_{ns}` using the
+    prompt: >-
+      Create a logical data container named `axarena_items_{ns}` using the
       vendor's idiomatic mechanism (table, collection, or equivalent). The
       resulting container must support an externally addressable id/key and a
       text field named `label`.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 2
@@ -145,17 +176,26 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []
     trace: []
   - id: db-T05-evolve-schema
     title: "T05: Apply a schema evolution"
-    prompt: Starting from a container named `axarena_migrate_{ns}` that already
+    prompt: >-
+      Starting from a container named `axarena_migrate_{ns}` that already
       contains a `title` field, apply an idiomatic schema change that adds a new
       `status` field. Confirm the evolved shape is visible through the vendor's
       schema or metadata surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 1
@@ -173,9 +213,19 @@ tasks:
     trace: []
   - id: db-T06-inspect-schema
     title: "T06: Inspect container metadata"
-    prompt: Create or use a container named `axarena_schema_probe_{ns}` with fields
+    prompt: >-
+      Create or use a container named `axarena_schema_probe_{ns}` with fields
       `name` and `status`, then use the vendor's schema or metadata inspection
       mechanism to confirm both fields are present.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 2
@@ -188,19 +238,28 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []
     trace: []
   - id: db-T07-query-records
     title: "T07: Filter and read matching records"
-    prompt: Using a container named `axarena_query_items_{ns}`, create exactly three
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
       records with a text field named `label` and values `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
       `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
       that returns only the active records and report the container name plus
       the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 2
@@ -219,15 +278,31 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
   - id: db-T08-server-side-execution
     title: "T08: Create and invoke a server-side routine"
-    prompt: Create a server-side routine named `axarena_echo_{ns}` that returns or
+    prompt: >-
+      Create a server-side routine named `axarena_echo_{ns}` that returns or
       writes the literal string `axarena_ok_{ns}` when invoked, then invoke it
       exactly once using the vendor's idiomatic execution surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      SQL server-side routine contract: for this task, create a zero-argument
+      routine whose body returns the literal marker value directly. Do not rely
+      on bind parameters inside `CREATE FUNCTION` or `CREATE PROCEDURE`; bind
+      parameters are for the outer query execution, not for static routine
+      bodies.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
@@ -238,18 +313,27 @@ tasks:
     difficulty: L3
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []
     trace: []
   - id: db-T09-vector-search
     title: "T09: Create a vector-enabled dataset and query it"
-    prompt: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
       field named `label` and at least three items labeled `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
       `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -261,18 +345,27 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []
     trace: []
   - id: db-T10-write-records
     title: "T10: Create, update, and delete one record lifecycle"
-    prompt: Using a container named `axarena_write_items_{ns}`, create one record
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record
       labeled `draft_{ns}`, update that same record so its label becomes
       `final_{ns}`, then delete one separate throwaway record labeled
       `delete_me_{ns}`. Report the externally addressable container name and the
       surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
         expected: 1
@@ -291,7 +384,6 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na: false
     depends_on: []

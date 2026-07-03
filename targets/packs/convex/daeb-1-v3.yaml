@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-18ekhg
+# run_id: 2026-07-02-cb40py
 name: convex
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-18ekhg
+run_id: 2026-07-02-cb40py
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -72,7 +72,6 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -96,8 +95,7 @@ tasks:
           args: {}
         assertField: value.markerCount
     difficulty: L4
-    allowed_surfaces:
-      - cli
+    allowed_surfaces: []
     na: false
     depends_on: []
     trace: []
@@ -130,7 +128,6 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -159,7 +156,6 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -186,8 +182,7 @@ tasks:
           args: {}
         assertField: value.statusFieldCount
     difficulty: L3
-    allowed_surfaces:
-      - sdk
+    allowed_surfaces: []
     na: false
     depends_on: []
     trace: []
@@ -215,7 +210,6 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -256,7 +250,6 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -284,7 +277,6 @@ tasks:
     difficulty: L3
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -314,7 +306,6 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []
@@ -354,7 +345,6 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
-      - sdk
     na: false
     depends_on: []
     trace: []

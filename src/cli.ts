@@ -161,7 +161,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--surface api|cli|sdk|mcp|all] [--invoke]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";

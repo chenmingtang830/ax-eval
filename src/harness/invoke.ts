@@ -1,5 +1,5 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
@@ -48,8 +48,7 @@ export interface InvokeRunOptions {
   model?: string;
   /** Canonical effort level. Translated to each harness's native convention at
    *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
-   *  convention); claude-code applies effort at the prompt level (no CLI knob),
-   *  so this is informational there. */
+   *  convention); claude-code → `--effort <level>` on modern Claude Code. */
   effort?: "low" | "medium" | "high";
   /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
    *  exceeds it, it is killed and the attempt counts as a timeout failure
@@ -257,6 +256,36 @@ function redactFileIfExists(path: string): void {
   writeRedactedFile(path, readFileSync(path, "utf8"));
 }
 
+function isInvokeHomePath(path: string): boolean {
+  return path.split(/[\\/]/).includes(".invoke-home");
+}
+
+function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
+  const home = opts.env?.HOME;
+  if (!home || !isInvokeHomePath(home) || !existsSync(home)) return;
+  const visit = (path: string) => {
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch {
+      return;
+    }
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(path)) visit(resolve(path, entry));
+      return;
+    }
+    if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
+    try {
+      const raw = readFileSync(path);
+      if (raw.includes(0)) return;
+      writeRedactedFile(path, raw.toString("utf8"));
+    } catch {
+      /* best effort: host CLI caches are evidence, not primary artifacts. */
+    }
+  };
+  visit(home);
+}
+
 function detectWith(command: string, spawn: Spawn): InvokeDetection {
   const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
   if (res.error) {
@@ -338,14 +367,14 @@ export function codexOutputSchema(pack: TargetPack, profile: string, surface: Su
 function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOptions): { command: string; args: string[] } {
   if (id === "claude-code") {
     const modelArgs = opts.model ? ["--model", opts.model] : [];
+    const effortArgs = opts.effort ? ["--effort", opts.effort] : [];
     // stream-json emits the full event stream (assistant tool_use, tool_result,
     // …) to stdout, ending with a `type:result` line — so the transcript carries
     // REAL tool events for --observe discovery scoring, not just a summary blob.
-    // Print mode requires --verbose for stream-json. (Claude Code has no
-    // reasoning-effort CLI knob, so effort is applied at the prompt level.)
+    // Print mode requires --verbose for stream-json.
     return {
       command: commandFor("claude-code"),
-      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs],
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
     };
   }
   if (!opts.paths.codexSchemaPath) {
@@ -670,6 +699,7 @@ export async function runInvokeHarness(
   // Keep a single transcript file path for verify --observe / report evidence.
   // If a harness emits structured JSONL later, this path can hold it directly.
   writeRedactedFile(opts.paths.transcriptPath, stdout || stderr);
+  redactInvokeHomeIfPresent(opts);
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
@@ -681,6 +711,7 @@ export async function runInvokeHarness(
   } else {
     const reason = redactSensitiveText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
     writeFailureArtifacts(opts, reason);
+    stampResultFile(opts);
   }
   redactFileIfExists(opts.paths.resultsPath);
   redactFileIfExists(opts.paths.tracePath);

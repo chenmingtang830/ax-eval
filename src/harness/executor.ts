@@ -55,17 +55,10 @@ export function applyNs(text: string, ns: string): string {
   return text.split(NS_PLACEHOLDER).join(ns);
 }
 
-// claude-code has no native reasoning-effort CLI knob — prompt-level
-// coaching is the ONLY way to differentiate its low/high profiles, so it
-// can't be dropped there without collapsing both profiles into identical
-// runs. codex DOES have a native knob (model_reasoning_effort, set
-// separately — see invoke.ts), so layering the same coaching on top of it
-// double-encodes effort for codex specifically. Since the prompt is shared
-// across harnesses at this point in the code, the fix is to make the
-// wording describe a genuine, moderate difference in care/thoroughness
-// (not an exaggerated "do the bare minimum, never verify" caricature) —
-// realistic enough to still matter for claude-code, mild enough that it
-// isn't doing most of the work for codex, where the native knob dominates.
+// Native harness effort knobs do most of the work (codex:
+// model_reasoning_effort; Claude Code: --effort). The prompt still names the
+// intended behavior so transcripts are interpretable, but the wording stays
+// moderate to avoid double-encoding effort as hidden task hints.
 const EFFORT_BLOCK: Record<HarnessProfile["effort"], string> = {
   low:
     "Work at a normal, unhurried pace: it's fine to go with the first reasonable approach " +
@@ -149,14 +142,18 @@ function surfaceCredentialEnvNames(pack: TargetPack): string[] {
 
 /** Tell the agent which .env vars hold the credential + sandbox scope. Derived
  *  from the pack's declarations (target-agnostic); falls back to the legacy Asana
- *  vars when a pack predates the `auth`/`sandbox_scope` blocks. */
+ *  vars only for Asana packs that predate the `auth`/`sandbox_scope` blocks. */
 function credentialBlock(pack: TargetPack): string[] {
   const lines: string[] = [];
   if (!pack.auth?.env && pack.sandbox_scope.length === 0) {
-    lines.push(
-      `Use process.env.ASANA_PAT, process.env.ASANA_SANDBOX_PROJECT_GID, and process.env.ASANA_SANDBOX_WORKSPACE_GID`,
-      `(use the leading numeric portion of each scope value).`,
-    );
+    if (/asana/i.test(pack.name)) {
+      lines.push(
+        `Use process.env.ASANA_PAT, process.env.ASANA_SANDBOX_PROJECT_GID, and process.env.ASANA_SANDBOX_WORKSPACE_GID`,
+        `(use the leading numeric portion of each scope value).`,
+      );
+    } else {
+      lines.push(`No credential env var is declared by this pack; do not assume product-specific default credentials.`);
+    }
     return lines;
   }
   const authVar = pack.auth?.env || "the credential var";
@@ -232,6 +229,8 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ``,
     `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
     ...tasks.map((t) => taskLine(t, ns)),
+    ``,
+    `Treat tasks as independent best-effort attempts: if one task fails, record that task's gid as null, log the failure, and continue with the remaining tasks instead of aborting the whole run.`,
     ``,
     `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
     `id). If a task truly fails, record gid as null.`,

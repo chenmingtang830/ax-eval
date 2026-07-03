@@ -103,7 +103,7 @@ export const PROFILES: Record<string, HarnessProfile> = {
   // minimal harness that calls each model's API directly.
   sonnet: {
     name: "sonnet",
-    model: "claude-4.6-sonnet", // spawn slug: claude-4.6-sonnet-medium-thinking
+    model: "sonnet", // CLI alias; invoked runs stamp the exact reported model.
     effort: "high",
     autonomy: "auto",
     surfaces: ["docs", "api"],

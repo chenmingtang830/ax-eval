@@ -232,6 +232,98 @@ describe("synthesize-suite helpers", () => {
     ]);
   });
 
+  it("adjudicates database SDK support per task instead of inheriting API support", () => {
+    const methodology = {
+      ...defaultSuiteMethodology("database"),
+      target_task_count: 4,
+      min_vendor_coverage_pct: 0.5,
+    };
+    const coverageMatrix = {
+      schema: "ax.coverage-matrix/v1" as const,
+      category: "database",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      concepts: [
+        {
+          concept_name: "define-data-container",
+          title: "Define Data Container",
+          decisions: ["Supabase", "Neon", "MongoDB Atlas"].map((vendor) => ({
+            concept_name: "define-data-container",
+            vendor,
+            status: "supported" as const,
+            source: "inventory" as const,
+            capability_name: "create-container",
+            family: "data-definition",
+            surfaces_documented: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
+            evidence: [{ doc_url: "https://docs.example", quote: "Supported." }],
+          })),
+        },
+        {
+          concept_name: "backup-and-restore",
+          title: "Backup And Restore",
+          decisions: ["Supabase", "Neon", "MongoDB Atlas"].map((vendor) => ({
+            concept_name: "backup-and-restore",
+            vendor,
+            status: "supported" as const,
+            source: "inventory" as const,
+            capability_name: "backup",
+            family: "recovery",
+            surfaces_documented: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
+            evidence: [{ doc_url: "https://docs.example/backup", quote: "Supported." }],
+          })),
+        },
+      ],
+    };
+    const tasks: SynthesizedTask[] = [
+      {
+        id: "db-T04-define-data-container",
+        title: "T04: Create a logical data container",
+        difficulty: "L1",
+        skill: "define-data-container",
+        intent: "Create a container.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api", "sdk", "cli"],
+        na_examples: [],
+        rationale: "Selected.",
+        coverage: [],
+      },
+      {
+        id: "db-T02-backup-and-restore",
+        title: "T02: Produce a recoverable backup artifact",
+        difficulty: "L4",
+        skill: "backup-and-restore",
+        intent: "Create a backup.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api", "sdk", "cli"],
+        na_examples: [],
+        rationale: "Selected.",
+        coverage: [],
+      },
+    ];
+    const selectedClusters = [
+      { cluster_name: "define-data-container", title: "Define Data Container", difficulty: "L1", rationale: "Selected.", coverage: [] },
+      { cluster_name: "backup-and-restore", title: "Backup And Restore", difficulty: "L4", rationale: "Selected.", coverage: [] },
+    ];
+
+    const supportMatrix = buildSupportMatrixArtifact(
+      "DATABASE-CANONICAL",
+      "database",
+      methodology,
+      coverageMatrix,
+      tasks,
+      selectedClusters,
+    );
+    const status = (vendor: string, taskId: string, surface: "api" | "sdk" | "cli") =>
+      supportMatrix.entries.find((entry) => entry.vendor === vendor && entry.task_id === taskId && entry.surface === surface);
+
+    expect(status("Supabase", "db-T04-define-data-container", "api")?.status).toBe("supported");
+    expect(status("Supabase", "db-T04-define-data-container", "sdk")?.status).toBe("unsupported");
+    expect(status("Supabase", "db-T04-define-data-container", "sdk")?.reason).toContain("does not expose the DDL/control-plane path");
+    expect(status("Neon", "db-T04-define-data-container", "sdk")?.status).toBe("supported");
+    expect(status("Neon", "db-T02-backup-and-restore", "sdk")?.status).toBe("unsupported");
+    expect(status("MongoDB Atlas", "db-T04-define-data-container", "sdk")?.status).toBe("supported");
+    expect(status("MongoDB Atlas", "db-T02-backup-and-restore", "sdk")?.status).toBe("unsupported");
+  });
+
   it("persists the execution-learning failure taxonomy used for DAEB-1 hardening", async () => {
     const result = await synthesizeSuite("database", [{
       vendor: "Acme",

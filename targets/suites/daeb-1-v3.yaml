@@ -215,8 +215,8 @@ tasks:
     title: "T09: Create a vector-enabled dataset and query it"
     difficulty: L2
     skill: vector-search
-    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a
-      text field named `label` and at least three items labeled `alpha_{ns}`,
+    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
       `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.

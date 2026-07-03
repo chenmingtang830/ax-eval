@@ -198,15 +198,17 @@ report. Then summarize for the user:
 ### Cross-harness / cross-surface (optional, CLI-driven)
 
 The steps above make *you* the harness. To compare harnesses instead, let the
-CLI drive them as subprocesses: `exec-plan --invoke --harness claude-code
---harness codex --surface all` runs the same reviewed pack through each agent
-CLI (parallel by default, `--concurrency N` to bound it), stamps the model each
-harness actually reported, and writes one normalized `{surface, product,
-harness}` record per cell. `verify` then renders them as a single **neutral
-matrix** (surface · harness · effort) — no cell is crowned "best". Codex needs
-its sandbox network opened and an OpenAI-strict output schema; the adapter
-handles both. This is one product across harnesses/surfaces — `competitive` is
-reserved for cross-*product* comparison.
+CLI drive them as subprocesses: run one lane per harness so each receives a
+compatible model slug, for example `exec-plan --invoke --harness claude-code
+--surface all --profile low --profile high --model sonnet`, then a separate
+Codex lane with `--harness codex --model <gpt-model>`. The CLI stamps the model
+each harness actually reported, applies native effort where available, and
+writes one normalized `{surface, product, harness}` record per cell. `verify`
+then renders them as a single **neutral matrix** (surface · harness · effort) —
+no cell is crowned "best". Codex needs its sandbox network opened and an
+OpenAI-strict output schema; the adapter handles both. This is one product
+across harnesses/surfaces — `competitive` is reserved for cross-*product*
+comparison.
 
 When consolidating a report for review, put every cell's artifacts in one run
 directory before rendering the HTML. Keep result JSON, trace JSON, transcript,

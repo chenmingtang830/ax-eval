@@ -195,7 +195,11 @@ npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
-  --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
+  --harness claude-code --surface all --profile low --profile high \
+  --model sonnet --run-dir <dir> # Claude Code, records the actual reported Sonnet model
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness codex --surface all --profile low --profile high \
+  --model <gpt-model> --run-dir <dir> # Codex, use a Codex-compatible model slug
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]

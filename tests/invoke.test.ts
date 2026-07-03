@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -158,6 +158,34 @@ describe("runInvokeHarness", () => {
     expect(executor.profile).toBe("ceiling");
   });
 
+  it("passes pinned model and native effort to Claude Code", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("--model");
+      expect(args).toContain("sonnet");
+      expect(args).toContain("--effort");
+      expect(args).toContain("low");
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "low",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+
+    const result = await runInvokeHarness({ ...run, profile: "low", model: "sonnet", effort: "low" }, spawn);
+    expect(result.ok).toBe(true);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.model).toBe("claude-sonnet-5");
+  });
+
   it("writes explainable failure artifacts when the harness exits before writing results", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
@@ -218,6 +246,31 @@ describe("runInvokeHarness", () => {
       expect(content).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
       expect(content).toContain("<redacted");
     }
+  });
+
+  it("redacts isolated invoke-home host CLI caches", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const home = resolve(dir, ".invoke-home", "demo-claude");
+    const cacheDir = resolve(home, ".claude", "projects", "demo");
+    mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = resolve(cacheDir, "session.jsonl");
+    const secretDsn = "postgresql://user:pass@example.test:5432/db";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(cacheFile, `tool output DATABASE_URL=${secretDsn}\n`);
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from("ok") });
+    };
+
+    const result = await runInvokeHarness({ ...run, env: { HOME: home } }, spawn);
+    expect(result.ok).toBe(true);
+    const content = readFileSync(cacheFile, "utf8");
+    expect(content).toContain("DATABASE_URL=<redacted>");
+    expect(content).not.toContain(secretDsn);
   });
 
   it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
@@ -385,12 +438,13 @@ describe("runInvokeHarness", () => {
       // Simulate the child being killed by the wall-clock cap (no results written).
       return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, stdout: Buffer.from("") });
     };
-    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, retries: 0 }, spawn);
+    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, retries: 0, model: "sonnet" }, spawn);
     expect(seenTimeout).toBe(1000);
     expect(result.timedOut).toBe(true);
     expect(result.ok).toBe(false);
     expect(result.attempts).toBe(1);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.model).toBe("sonnet");
     expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
   });
 

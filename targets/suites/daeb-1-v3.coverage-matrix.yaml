@@ -1,74 +1,27 @@
 schema: ax.coverage-matrix/v1
 category: database
-generated_at: 2026-07-02T10:13:31.111Z
+generated_at: 2026-07-02T22:58:48.217Z
 concepts:
   - concept_name: access-control
     title: Access Control
     decisions:
       - concept_name: access-control
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: row-level-security
-        family: access-control
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
-            quote: "Supabase supports four policy operations: SELECT (USING clause), INSERT
-              (WITH CHECK clause), UPDATE (USING + WITH CHECK), DELETE (USING
-              clause). auth.uid() returns the ID of the user making the
-              request."
-      - concept_name: access-control
-        vendor: Neon
+        vendor: CockroachDB
         status: supported
         source: inventory
         capability_name: role-based-access-control
         family: access-control
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://neon.com/docs/manage/roles
-            quote: When you create a child branch, roles in the parent branch are duplicated
-              in the child branch.
-      - concept_name: access-control
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: role-based-access-control
-        family: access-control
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
-            quote: A database user's access is determined by the roles assigned to the user.
-          - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
-            quote: If the built-in database user roles don't provide the desired set of
-              privileges, you can create custom roles.
-      - concept_name: access-control
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: fine-grained-access-control
-        family: access-control
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
-            quote: Fine-grained permissions let you control access at the table and action
-              level.
-          - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
-            quote: data_read data_add data_update data_delete schema_add schema_update
-              schema_delete
-          - doc_url: https://docs.turso.tech/cli/db/tokens/create
-            quote: Restrict the token to read only access.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/grant
+            quote: The `GRANT` statement controls each role or user's SQL privileges for
+              interacting with specific databases, schemas, tables, or
+              user-defined types.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/grant
+            quote: You can use `GRANT` to directly grant privileges to a role or user, or
+              you can grant membership to an existing role.
       - concept_name: access-control
         vendor: Convex
         status: supported
@@ -101,84 +54,91 @@ concepts:
           - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
             quote: Use `SELECT` policies on `realtime.channels` to control who can subscribe
       - concept_name: access-control
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
         capability_name: role-based-access-control
         family: access-control
         surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+            quote: A database user's access is determined by the roles assigned to the user.
+          - doc_url: https://www.mongodb.com/docs/atlas/security-add-mongodb-users/
+            quote: If the built-in database user roles don't provide the desired set of
+              privileges, you can create custom roles.
+      - concept_name: access-control
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: role-based-access-control
+        family: access-control
+        surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/grant
-            quote: The `GRANT` statement controls each role or user's SQL privileges for
-              interacting with specific databases, schemas, tables, or
-              user-defined types.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/grant
-            quote: You can use `GRANT` to directly grant privileges to a role or user, or
-              you can grant membership to an existing role.
+          - doc_url: https://neon.com/docs/manage/roles
+            quote: When you create a child branch, roles in the parent branch are duplicated
+              in the child branch.
+      - concept_name: access-control
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: row-level-security
+        family: access-control
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
+            quote: "Supabase supports four policy operations: SELECT (USING clause), INSERT
+              (WITH CHECK clause), UPDATE (USING + WITH CHECK), DELETE (USING
+              clause). auth.uid() returns the ID of the user making the
+              request."
+      - concept_name: access-control
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: fine-grained-access-control
+        family: access-control
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
+            quote: Fine-grained permissions let you control access at the table and action
+              level.
+          - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions
+            quote: data_read data_add data_update data_delete schema_add schema_update
+              schema_delete
+          - doc_url: https://docs.turso.tech/cli/db/tokens/create
+            quote: Restrict the token to read only access.
   - concept_name: backup-and-restore
     title: Backup And Restore
     decisions:
       - concept_name: backup-and-restore
-        vendor: Supabase
+        vendor: CockroachDB
         status: supported
         source: inventory
-        capability_name: automated-daily-backup
+        capability_name: backup-and-restore
         family: backup-and-recovery
         surfaces_documented:
-          - api
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/platform/backups
-            quote: "Supabase automatically backs up Pro, Team, and Enterprise projects
-              daily. Pro Plan: Last 7 days of backups. Team Plan: Last 14 days.
-              Enterprise Plan: Up to 30 days."
-      - concept_name: backup-and-restore
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: point-in-time-restore
-        family: backup-and-recovery
-        surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://neon.com/docs/introduction/point-in-time-restore
-            quote: "You can use instant restore to recover: roll the branch back to any
-              point in time that still falls within your project's history
-              window."
-      - concept_name: backup-and-restore
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: cloud-backup-and-snapshot-restore
-        family: backup-and-recovery
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/overview/
-            quote: Atlas Cloud Backups provide localized backup storage using the native
-              snapshot functionality of the cluster's cloud service provider.
-          - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/
-            quote: Atlas lets you restore data from a scheduled or on-demand Cloud Backup,
-              including snapshots from different projects or organizations.
-      - concept_name: backup-and-restore
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: point-in-time-recovery
-        family: backup-and-recovery
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/features/point-in-time-recovery
-            quote: You create a new database from the existing database using the CLI or
-              API.
-          - doc_url: https://docs.turso.tech/features/point-in-time-recovery
-            quote: Restoring from a PITR creates a new database.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/backup
+            quote: CockroachDB's `BACKUP` statement allows you to create full or incremental
+              backups of your cluster's schema and data.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/restore
+            quote: The `RESTORE` statement restores your cluster's schemas and data from a
+              BACKUP.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/restore
+            quote: Running a backup with `revision_history` captures every change made
+              within the garbage collection period.
       - concept_name: backup-and-restore
         vendor: Convex
         status: supported
@@ -208,93 +168,83 @@ concepts:
           - doc_url: https://docs.insforge.dev/sdks/rest/database
             quote: includeFunctions boolean No false Include database functions
       - concept_name: backup-and-restore
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: backup-and-restore
+        capability_name: cloud-backup-and-snapshot-restore
         family: backup-and-recovery
         surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/overview/
+            quote: Atlas Cloud Backups provide localized backup storage using the native
+              snapshot functionality of the cluster's cloud service provider.
+          - doc_url: https://www.mongodb.com/docs/atlas/backup/cloud-backup/restore-from-snapshot/
+            quote: Atlas lets you restore data from a scheduled or on-demand Cloud Backup,
+              including snapshots from different projects or organizations.
+      - concept_name: backup-and-restore
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: point-in-time-restore
+        family: backup-and-recovery
+        surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/backup
-            quote: CockroachDB's `BACKUP` statement allows you to create full or incremental
-              backups of your cluster's schema and data.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/restore
-            quote: The `RESTORE` statement restores your cluster's schemas and data from a
-              BACKUP.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/restore
-            quote: Running a backup with `revision_history` captures every change made
-              within the garbage collection period.
+          - doc_url: https://neon.com/docs/introduction/point-in-time-restore
+            quote: "You can use instant restore to recover: roll the branch back to any
+              point in time that still falls within your project's history
+              window."
+      - concept_name: backup-and-restore
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: automated-daily-backup
+        family: backup-and-recovery
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/platform/backups
+            quote: "Supabase automatically backs up Pro, Team, and Enterprise projects
+              daily. Pro Plan: Last 7 days of backups. Team Plan: Last 14 days.
+              Enterprise Plan: Up to 30 days."
+      - concept_name: backup-and-restore
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: point-in-time-recovery
+        family: backup-and-recovery
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/features/point-in-time-recovery
+            quote: You create a new database from the existing database using the CLI or
+              API.
+          - doc_url: https://docs.turso.tech/features/point-in-time-recovery
+            quote: Restoring from a PITR creates a new database.
   - concept_name: change-data-capture
     title: Change Data Capture
     decisions:
       - concept_name: change-data-capture
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: realtime-postgres-changes
-        family: change-data-capture
-        surfaces_documented:
-          - api
-          - sdk
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/realtime/postgres-changes
-            quote: "Supabase Realtime supports four database event types: INSERT, UPDATE,
-              DELETE, Wildcard (*). Filtering scope: Schema-level, table-level,
-              column-level. Old record data available when replica identity is
-              set to full."
-      - concept_name: change-data-capture
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: logical-replication
-        family: change-data-capture
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://neon.com/docs/introduction/logical-replication
-            quote: stream data from your Neon database to external destinations, enabling
-              Change Data Capture (CDC) and real-time analytics.
-      - concept_name: change-data-capture
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: change-streams
-        family: change-data-capture
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
-            quote: You can open a change stream cursor for a single collection.
-          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
-            quote: You can open a change stream cursor for a single database.
-          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
-            quote: You can open a change stream cursor for a deployment.
-      - concept_name: change-data-capture
-        vendor: Turso
+        vendor: CockroachDB
         status: supported
         source: inventory
         capability_name: change-data-capture
         family: change-data-capture
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/tursodb/cdc
-            quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
-              deletes) made to your database tables.
-          - doc_url: https://docs.turso.tech/tursodb/cdc
-            quote: Changes are recorded in a local table that you can query like any other
-              table.
-          - doc_url: https://docs.turso.tech/tursodb/cdc
-            quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE INDEX,
-              etc.) as changes to the sqlite_schema table
+          - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
+            quote: Changefeeds are customizable jobs that monitor row-level changes in a
+              table and emit updates in real time.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
+            quote: sinkless changefeeds allow you to stream change data directly to your SQL
+              client.
       - concept_name: change-data-capture
         vendor: Convex
         status: supported
@@ -328,88 +278,89 @@ concepts:
           - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
             quote: Channels can also fan out the same messages to webhook URLs
       - concept_name: change-data-capture
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: supported
+        source: inventory
+        capability_name: change-streams
+        family: change-data-capture
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+            quote: You can open a change stream cursor for a single collection.
+          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+            quote: You can open a change stream cursor for a single database.
+          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+            quote: You can open a change stream cursor for a deployment.
+      - concept_name: change-data-capture
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: logical-replication
+        family: change-data-capture
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/introduction/logical-replication
+            quote: stream data from your Neon database to external destinations, enabling
+              Change Data Capture (CDC) and real-time analytics.
+      - concept_name: change-data-capture
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: realtime-postgres-changes
+        family: change-data-capture
+        surfaces_documented:
+          - api
+          - sdk
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/realtime/postgres-changes
+            quote: "Supabase Realtime supports four database event types: INSERT, UPDATE,
+              DELETE, Wildcard (*). Filtering scope: Schema-level, table-level,
+              column-level. Old record data available when replica identity is
+              set to full."
+      - concept_name: change-data-capture
+        vendor: Turso
         status: supported
         source: inventory
         capability_name: change-data-capture
         family: change-data-capture
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
-            quote: Changefeeds are customizable jobs that monitor row-level changes in a
-              table and emit updates in real time.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview
-            quote: sinkless changefeeds allow you to stream change data directly to your SQL
-              client.
+          - doc_url: https://docs.turso.tech/tursodb/cdc
+            quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
+              deletes) made to your database tables.
+          - doc_url: https://docs.turso.tech/tursodb/cdc
+            quote: Changes are recorded in a local table that you can query like any other
+              table.
+          - doc_url: https://docs.turso.tech/tursodb/cdc
+            quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE INDEX,
+              etc.) as changes to the sqlite_schema table
   - concept_name: server-side-execution
     title: Server-Side Execution
     decisions:
       - concept_name: server-side-execution
-        vendor: Supabase
+        vendor: CockroachDB
         status: supported
         source: inventory
-        capability_name: stored-function
+        capability_name: stored-procedures-and-udfs
         family: compute
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://supabase.com/docs/guides/database/functions
-            quote: "Multiple Languages: Functions support SQL, PL/pgSQL, PL/Python, and
-              other procedural languages. Security Context: Choose between
-              security definer (creator privileges) and security invoker (caller
-              privileges)."
-      - concept_name: server-side-execution
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: management-api-and-sdk
-        family: compute
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://neon.com/docs/reference/sdk
-            quote: Management SDKs (TypeScript and Python) let developers programmatically
-              manage Neon projects, branches, databases, and other platform
-              resources.
-      - concept_name: server-side-execution
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: server-side-javascript-function
-        family: server-side-execution
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
-            quote: Defines a custom aggregation function or expression in JavaScript.
-          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
-            quote: You can use the $function operator to define custom functions to
-              implement behavior not supported by the MongoDB Query Language.
-          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
-            quote: Starting in MongoDB 8.0, server-side JavaScript functions
-              (`$accumulator`, `$function`, `$where`) are deprecated.
-      - concept_name: server-side-execution
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: sql-over-http
-        family: core-operations
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/sdk/http/reference
-            quote: Turso Databases can be accessed via HTTP.
-          - doc_url: https://docs.turso.tech/sdk/http/reference
-            quote: execute execute a statement on the connection.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
+            quote: A stored procedure is a database object consisting of PL/pgSQL or SQL
+              statements that can be issued with a single `CALL` statement.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
+            quote: This allows complex logic to be executed repeatedly within the database.
       - concept_name: server-side-execution
         vendor: Convex
         status: supported
@@ -439,95 +390,88 @@ concepts:
           - doc_url: https://docs.insforge.dev/sdks/rest/database
             quote: This endpoint has relaxed restrictions and can access system tables.
       - concept_name: server-side-execution
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: stored-procedures-and-udfs
-        family: compute
+        capability_name: server-side-javascript-function
+        family: server-side-execution
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
-            quote: A stored procedure is a database object consisting of PL/pgSQL or SQL
-              statements that can be issued with a single `CALL` statement.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures
-            quote: This allows complex logic to be executed repeatedly within the database.
+          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+            quote: Defines a custom aggregation function or expression in JavaScript.
+          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+            quote: You can use the $function operator to define custom functions to
+              implement behavior not supported by the MongoDB Query Language.
+          - doc_url: https://www.mongodb.com/docs/manual/reference/operator/aggregation/function/
+            quote: Starting in MongoDB 8.0, server-side JavaScript functions
+              (`$accumulator`, `$function`, `$where`) are deprecated.
+      - concept_name: server-side-execution
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: management-api-and-sdk
+        family: compute
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/reference/sdk
+            quote: Management SDKs (TypeScript and Python) let developers programmatically
+              manage Neon projects, branches, databases, and other platform
+              resources.
+      - concept_name: server-side-execution
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: stored-function
+        family: compute
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/functions
+            quote: "Multiple Languages: Functions support SQL, PL/pgSQL, PL/Python, and
+              other procedural languages. Security Context: Choose between
+              security definer (creator privileges) and security invoker (caller
+              privileges)."
+      - concept_name: server-side-execution
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: sql-over-http
+        family: core-operations
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sdk/http/reference
+            quote: Turso Databases can be accessed via HTTP.
+          - doc_url: https://docs.turso.tech/sdk/http/reference
+            quote: execute execute a statement on the connection.
   - concept_name: vector-search
     title: Vector Search
     decisions:
       - concept_name: vector-search
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: vector-similarity-search
-        family: search
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/ai/vector-indexes
-            quote: "Two indexing options: HNSW (recommended for performance) and IVFFlat.
-              Distance operators: <-> Euclidean distance, <#> negative inner
-              product, <=> cosine distance. vector type maximum 2,000
-              dimensions."
-          - doc_url: https://supabase.com/docs/guides/ai/vector-columns
-            quote: pgvector extension enabling vector storage and querying within standard
-              database tables. Dot product tends to be the fastest if your
-              vectors are normalized.
-      - concept_name: vector-search
-        vendor: Neon
+        vendor: CockroachDB
         status: supported
         source: inventory
         capability_name: vector-search
         family: search
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://neon.com/docs/ai/ai-intro
-            quote: Neon provides the pgvector extension, enabling developers to store and
-              query vector embeddings within their Postgres database.
-      - concept_name: vector-search
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: vector-search
-        family: search
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
-            quote: You can store these embeddings in a MongoDB collection as a field in a
-              document.
-          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
-            quote: To perform vector search on your data in MongoDB, you must create a
-              MongoDB Vector Search index.
-          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
-            quote: MongoDB Vector Search determines semantic similarity by identifying the
-              vector embeddings that are closest in distance to your query
-              vector.
-      - concept_name: vector-search
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: vector-search
-        family: search
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/guides/vector-search
-            quote: Turso supports vector search as a native feature - no extensions
-              required.
-          - doc_url: https://docs.turso.tech/guides/vector-search
-            quote: Store vector embeddings alongside your relational data and query them
-              using built-in distance functions for similarity search.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
+            quote: A vector index enables efficient approximate nearest neighbor (ANN)
+              search on high-dimensional VECTOR columns.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
+            quote: CockroachDB vector indexes organize vectors into a hierarchical structure
+              of partitions using k-means clustering.
       - concept_name: vector-search
         vendor: Convex
         status: supported
@@ -561,85 +505,97 @@ concepts:
             quote: Create a `documents` table with `content` and a 1536-dim `embedding`
               column, plus an HNSW cosine index.
       - concept_name: vector-search
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
         capability_name: vector-search
         family: search
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
-            quote: A vector index enables efficient approximate nearest neighbor (ANN)
-              search on high-dimensional VECTOR columns.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes
-            quote: CockroachDB vector indexes organize vectors into a hierarchical structure
-              of partitions using k-means clustering.
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+            quote: You can store these embeddings in a MongoDB collection as a field in a
+              document.
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+            quote: To perform vector search on your data in MongoDB, you must create a
+              MongoDB Vector Search index.
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/
+            quote: MongoDB Vector Search determines semantic similarity by identifying the
+              vector embeddings that are closest in distance to your query
+              vector.
+      - concept_name: vector-search
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: vector-search
+        family: search
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/ai/ai-intro
+            quote: Neon provides the pgvector extension, enabling developers to store and
+              query vector embeddings within their Postgres database.
+      - concept_name: vector-search
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: vector-similarity-search
+        family: search
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/ai/vector-indexes
+            quote: "Two indexing options: HNSW (recommended for performance) and IVFFlat.
+              Distance operators: <-> Euclidean distance, <#> negative inner
+              product, <=> cosine distance. vector type maximum 2,000
+              dimensions."
+          - doc_url: https://supabase.com/docs/guides/ai/vector-columns
+            quote: pgvector extension enabling vector storage and querying within standard
+              database tables. Dot product tends to be the fastest if your
+              vectors are normalized.
+      - concept_name: vector-search
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: vector-search
+        family: search
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/guides/vector-search
+            quote: Turso supports vector search as a native feature - no extensions
+              required.
+          - doc_url: https://docs.turso.tech/guides/vector-search
+            quote: Store vector embeddings alongside your relational data and query them
+              using built-in distance functions for similarity search.
   - concept_name: data-integrity-and-transactions
     title: Data Integrity And Transactions
     decisions:
       - concept_name: data-integrity-and-transactions
-        vendor: Supabase
+        vendor: CockroachDB
         status: supported
         source: inventory
-        capability_name: check-constraint
+        capability_name: integrity-constraints
         family: integrity
         surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/database/tables
-            quote: Support for extensive Postgres data types and constraints including check
-              constraints.
-      - concept_name: data-integrity-and-transactions
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: connection-pooling
-        family: integrity
-        surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://neon.com/docs/connect/connection-pooling
-            quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
-              concurrent connections.
-      - concept_name: data-integrity-and-transactions
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: multi-document-transactions
-        family: integrity
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
-            quote: For situations that require atomicity of reads and writes to multiple
-              documents (in a single or multiple collections), MongoDB supports
-              distributed transactions.
-          - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
-            quote: Transactions either apply all data changes or roll back the changes.
-      - concept_name: data-integrity-and-transactions
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: transactions
-        family: integrity
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
-            quote: Transactions group multiple SQL statements into a single atomic unit of
-              work.
-          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
-            quote: Either all statements in a transaction succeed and are committed, or the
-              entire transaction is rolled back and no changes are applied.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
+            quote: Constraints offer additional data integrity by enforcing conditions on
+              the data within a column.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
+            quote: Whenever values are manipulated (inserted, deleted, or updated),
+              constraints are checked and modifications that violate constraints
+              are rejected.
       - concept_name: data-integrity-and-transactions
         vendor: Convex
         status: supported
@@ -663,85 +619,81 @@ concepts:
         evidence: []
         reason: Gap check confirmed lack of support.
       - concept_name: data-integrity-and-transactions
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: integrity-constraints
+        capability_name: multi-document-transactions
         family: integrity
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
-            quote: Constraints offer additional data integrity by enforcing conditions on
-              the data within a column.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/constraints
-            quote: Whenever values are manipulated (inserted, deleted, or updated),
-              constraints are checked and modifications that violate constraints
-              are rejected.
+          - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+            quote: For situations that require atomicity of reads and writes to multiple
+              documents (in a single or multiple collections), MongoDB supports
+              distributed transactions.
+          - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+            quote: Transactions either apply all data changes or roll back the changes.
+      - concept_name: data-integrity-and-transactions
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: connection-pooling
+        family: integrity
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/connect/connection-pooling
+            quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
+              concurrent connections.
+      - concept_name: data-integrity-and-transactions
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: check-constraint
+        family: integrity
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/tables
+            quote: Support for extensive Postgres data types and constraints including check
+              constraints.
+      - concept_name: data-integrity-and-transactions
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: transactions
+        family: integrity
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+            quote: Transactions group multiple SQL statements into a single atomic unit of
+              work.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions
+            quote: Either all statements in a transaction succeed and are committed, or the
+              entire transaction is rolled back and no changes are applied.
   - concept_name: define-data-container
     title: Define Data Container
     decisions:
       - concept_name: define-data-container
-        vendor: Supabase
+        vendor: CockroachDB
         status: supported
         source: inventory
-        capability_name: create-table
+        capability_name: create-schema
         family: data-definition
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://supabase.com/docs/guides/database/tables
-            quote: Create tables via Dashboard Table Editor or SQL. You can add or remove
-              columns after table creation.
-          - doc_url: https://supabase.com/docs/guides/database/overview
-            quote: Every Supabase project gets a full Postgres database, not a Postgres
-              abstraction.
-      - concept_name: define-data-container
-        vendor: Neon
-        status: supported
-        source: gap-check
-        evidence:
-          - doc_url: https://neon.com/docs/get-started-with-neon/query-with-neon-sql-editor
-            quote: Neon runs standard Postgres, so you create tables from the SQL Editor
-              with standard CREATE TABLE syntax.
-        reason: Gap check confirmed support.
-      - concept_name: define-data-container
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: create-collection
-        family: data-definition
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
-            quote: Creates a new collection.
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
-            quote: Use `db.createCollection()` primarily to create collections that use
-              specific options, including new collection that uses schema
-              validation.
-      - concept_name: define-data-container
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: create-table
-        family: data-definition
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
-            quote: Create a new table in the database with column definitions, data types,
-              and constraints.
-          - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
-            quote: PRIMARY KEY [ASC | DESC] [AUTOINCREMENT] NOT NULL UNIQUE DEFAULT
-              expression CHECK (expression) REFERENCES foreign-table
+          - doc_url: https://www.cockroachlabs.com/docs/stable/create-schema
+            quote: The `CREATE SCHEMA` statement creates a user-defined schema.
       - concept_name: define-data-container
         vendor: Convex
         status: supported
@@ -772,76 +724,82 @@ concepts:
           - doc_url: https://docs.insforge.dev/api-reference/admin/create-table
             quote: '"foreignKey": { "table": "<string>", "column": "<string>" }'
       - concept_name: define-data-container
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: create-schema
+        capability_name: create-collection
         family: data-definition
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/create-schema
-            quote: The `CREATE SCHEMA` statement creates a user-defined schema.
-  - concept_name: evolve-schema
-    title: Evolve Schema
-    decisions:
-      - concept_name: evolve-schema
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: tracked-migration-files
-        family: migration
-        surfaces_documented:
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/cli/local-development
-            quote: "Generate a new migration to store the SQL needed for schema updates,
-              then apply them locally via supabase db reset before deploying.
-              Pushing changes: supabase db push deploys migrations."
-      - concept_name: evolve-schema
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
+            quote: Creates a new collection.
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.createCollection/
+            quote: Use `db.createCollection()` primarily to create collections that use
+              specific options, including new collection that uses schema
+              validation.
+      - concept_name: define-data-container
         vendor: Neon
         status: supported
         source: gap-check
         evidence:
-          - doc_url: https://neon.com/docs/guides/django-migrations
-            quote: Django schema migrations with Neon Postgres use Django's built-in ORM and
-              the makemigrations/migrate commands to create and evolve database
-              tables in a serverless Postgres database.
+          - doc_url: https://neon.tech/docs/get-started-with-neon/query-with-neon-sql-editor
+            quote: CREATE TABLE IF NOT EXISTS playing_with_neon(id SERIAL PRIMARY KEY, name
+              TEXT NOT NULL, value REAL)
         reason: Gap check confirmed support.
-      - concept_name: evolve-schema
-        vendor: MongoDB Atlas
+      - concept_name: define-data-container
+        vendor: Supabase
         status: supported
         source: inventory
-        capability_name: schema-evolution
-        family: migration
+        capability_name: create-table
+        family: data-definition
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
-            quote: "`validator` allows users to specify validation rules or expressions for
-              a collection."
-          - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
-            quote: Validation occurs during updates and inserts. Existing documents do not
-              undergo validation checks until modification.
-      - concept_name: evolve-schema
+          - doc_url: https://supabase.com/docs/guides/database/tables
+            quote: Create tables via Dashboard Table Editor or SQL. You can add or remove
+              columns after table creation.
+          - doc_url: https://supabase.com/docs/guides/database/overview
+            quote: Every Supabase project gets a full Postgres database, not a Postgres
+              abstraction.
+      - concept_name: define-data-container
         vendor: Turso
         status: supported
         source: inventory
-        capability_name: alter-table-schema-evolution
-        family: migration
+        capability_name: create-table
+        family: data-definition
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
-            quote: Modify the structure of an existing table by renaming, adding, or
-              dropping columns.
-          - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
-            quote: Turso supports four forms of ALTER TABLE
+          - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
+            quote: Create a new table in the database with column definitions, data types,
+              and constraints.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/create-table
+            quote: PRIMARY KEY [ASC | DESC] [AUTOINCREMENT] NOT NULL UNIQUE DEFAULT
+              expression CHECK (expression) REFERENCES foreign-table
+  - concept_name: evolve-schema
+    title: Evolve Schema
+    decisions:
+      - concept_name: evolve-schema
+        vendor: CockroachDB
+        status: supported
+        source: inventory
+        capability_name: online-schema-evolution
+        family: migration
+        surfaces_documented:
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
+            quote: The `ALTER TABLE` statement changes the definition of a table.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
+            quote: This schema change statement is registered as a job.
       - concept_name: evolve-schema
         vendor: Convex
         status: supported
@@ -873,81 +831,82 @@ concepts:
           - doc_url: https://docs.insforge.dev/api-reference/admin/update-table-schema
             quote: Rename the table
       - concept_name: evolve-schema
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: online-schema-evolution
+        capability_name: schema-evolution
         family: migration
-        surfaces_documented:
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
-            quote: The `ALTER TABLE` statement changes the definition of a table.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/alter-table
-            quote: This schema change statement is registered as a job.
-  - concept_name: inspect-schema
-    title: Inspect Schema
-    decisions:
-      - concept_name: inspect-schema
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: schema-introspection
-        family: data-read
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://supabase.com/docs/guides/api
-            quote: Instant and auto-generated, self documenting, and scalable. Postgres
-              Views, Materialized Views and Foreign Tables are supported.
-          - doc_url: https://supabase.com/docs/guides/graphql
-            quote: "Schema Reflection: Autogenerated GraphQL APIs with Postgres using
-              pg_graphql, which automatically reflects your database schema."
-      - concept_name: inspect-schema
+          - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
+            quote: "`validator` allows users to specify validation rules or expressions for
+              a collection."
+          - doc_url: https://www.mongodb.com/docs/manual/reference/command/collMod/
+            quote: Validation occurs during updates and inserts. Existing documents do not
+              undergo validation checks until modification.
+      - concept_name: evolve-schema
         vendor: Neon
         status: supported
         source: gap-check
         evidence:
-          - doc_url: https://neon.com/docs/ai/neon-mcp-server
-            quote: Inspect tables and columns; run schema changes via a safe temporary
-              branch workflow
+          - doc_url: https://neon.com/docs/guides/prisma-migrations
+            quote: "Modify your schema: Update models in `prisma/schema.prisma`... Generate
+              migration: Run `npx prisma migrate dev`... Review the migration:
+              Check the generated SQL in `prisma/migrations/`"
         reason: Gap check confirmed support.
-      - concept_name: inspect-schema
-        vendor: MongoDB Atlas
+      - concept_name: evolve-schema
+        vendor: Supabase
         status: supported
         source: inventory
-        capability_name: collection-introspection
-        family: data-read
+        capability_name: tracked-migration-files
+        family: migration
+        surfaces_documented:
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/cli/local-development
+            quote: "Generate a new migration to store the SQL needed for schema updates,
+              then apply them locally via supabase db reset before deploying.
+              Pushing changes: supabase db push deploys migrations."
+      - concept_name: evolve-schema
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: alter-table-schema-evolution
+        family: migration
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
-            quote: The following returns information for all collections in the `example`
-              database.
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
-            quote: The command returns the names and types for collection(s) where the user
-              has privileges.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
+            quote: Modify the structure of an existing table by renaming, adding, or
+              dropping columns.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table
+            quote: Turso supports four forms of ALTER TABLE
+  - concept_name: inspect-schema
+    title: Inspect Schema
+    decisions:
       - concept_name: inspect-schema
-        vendor: Turso
+        vendor: CockroachDB
         status: supported
         source: inventory
         capability_name: schema-introspection
         family: data-read
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/pragmas
-            quote: PRAGMA statements are special commands used to query or modify database
-              configuration, retrieve metadata, and control database behavior.
-          - doc_url: https://docs.turso.tech/sql-reference/pragmas
-            quote: table_info Returns one row for each column in the named table.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/show-tables
+            quote: "`SHOW TABLES`"
+          - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
+            quote: The `SHOW CREATE` statement shows the `CREATE` statement for an existing
+              database, function, table, trigger, view, or sequence.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
+            quote: "`SHOW CREATE ALL TABLES` also returns the `ALTER statements` that add,
+              modify, and validate an object's constraints."
       - concept_name: inspect-schema
         vendor: Convex
         status: supported
@@ -976,86 +935,82 @@ concepts:
           - doc_url: https://docs.insforge.dev/api-reference/admin/list-tables
             quote: List of table names
       - concept_name: inspect-schema
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: supported
+        source: inventory
+        capability_name: collection-introspection
+        family: data-read
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
+            quote: The following returns information for all collections in the `example`
+              database.
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.getCollectionInfos/
+            quote: The command returns the names and types for collection(s) where the user
+              has privileges.
+      - concept_name: inspect-schema
+        vendor: Neon
+        status: supported
+        source: gap-check
+        evidence:
+          - doc_url: https://api-docs.neon.tech/reference/getprojectbranchschema
+            quote: Retrieves the schema from the specified database.
+        reason: Gap check confirmed support.
+      - concept_name: inspect-schema
+        vendor: Supabase
         status: supported
         source: inventory
         capability_name: schema-introspection
         family: data-read
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/show-tables
-            quote: "`SHOW TABLES`"
-          - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
-            quote: The `SHOW CREATE` statement shows the `CREATE` statement for an existing
-              database, function, table, trigger, view, or sequence.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/show-create
-            quote: "`SHOW CREATE ALL TABLES` also returns the `ALTER statements` that add,
-              modify, and validate an object's constraints."
+          - doc_url: https://supabase.com/docs/guides/api
+            quote: Instant and auto-generated, self documenting, and scalable. Postgres
+              Views, Materialized Views and Foreign Tables are supported.
+          - doc_url: https://supabase.com/docs/guides/graphql
+            quote: "Schema Reflection: Autogenerated GraphQL APIs with Postgres using
+              pg_graphql, which automatically reflects your database schema."
+      - concept_name: inspect-schema
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: schema-introspection
+        family: data-read
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sql-reference/pragmas
+            quote: PRAGMA statements are special commands used to query or modify database
+              configuration, retrieve metadata, and control database behavior.
+          - doc_url: https://docs.turso.tech/sql-reference/pragmas
+            quote: table_info Returns one row for each column in the named table.
   - concept_name: query-records
     title: Query Records
     decisions:
       - concept_name: query-records
-        vendor: Supabase
+        vendor: CockroachDB
         status: supported
         source: inventory
-        capability_name: filtered-query
+        capability_name: filtered-reads-and-aggregates
         family: data-read
         surfaces_documented:
-          - api
-          - sdk
-        evidence:
-          - doc_url: https://supabase.com/docs/reference/javascript/select
-            quote: The select() method supports extensive filtering through operators like
-              eq(), neq(), gt(), gte(), lt(), lte(), like(), ilike(), in(),
-              contains(), containedBy(), overlaps(), is(), match(), and
-              textSearch().
-      - concept_name: query-records
-        vendor: Neon
-        status: supported
-        source: gap-check
-        evidence:
-          - doc_url: https://neon.com/docs/postgresql/query-reference
-            quote: SELECT * FROM users WHERE user_id > 10; — the page showcases various
-              filtering scenarios including exact matches, ranges using BETWEEN,
-              IN operators, pattern matching with LIKE, NULL checks, AND/OR
-              combinations, and subqueries.
-        reason: Gap check confirmed support.
-      - concept_name: query-records
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: filtered-read-query
-        family: data-read
-        surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
-            quote: Selects documents in a collection or view and returns a cursor to the
-              selected documents.
-          - doc_url: https://www.mongodb.com/docs/manual/crud/
-            quote: You can specify query filters or criteria that identify the documents to
-              return.
-      - concept_name: query-records
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: filtered-reads-and-counts
-        family: data-read
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/select
-            quote: SELECT is the primary way to read data in Turso and supports filtering,
-              joining, aggregation, sorting, subqueries, and set operations.
-          - doc_url: https://docs.turso.tech/sql-reference/statements/select
-            quote: Groups rows that share the same values in the specified columns.
-              Typically used with aggregate functions.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
+            quote: Filter rows with expressions that use columns and return Boolean values
+              in the `WHERE` clause.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
+            quote: SELECT count(*) AS unfiltered, count(*) FILTER (WHERE revenue > 50) AS
+              filtered
       - concept_name: query-records
         vendor: Convex
         status: supported
@@ -1083,79 +1038,81 @@ concepts:
           - doc_url: https://docs.insforge.dev/sdks/rest/database
             quote: select string Comma-separated columns to return
       - concept_name: query-records
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
-        capability_name: filtered-reads-and-aggregates
+        capability_name: filtered-read-query
         family: data-read
-        surfaces_documented:
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
-            quote: Filter rows with expressions that use columns and return Boolean values
-              in the `WHERE` clause.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause
-            quote: SELECT count(*) AS unfiltered, count(*) FILTER (WHERE revenue > 50) AS
-              filtered
-  - concept_name: write-records
-    title: Write Records
-    decisions:
-      - concept_name: write-records
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: row-insert
-        family: data-write
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://supabase.com/docs/reference/javascript/introduction
-            quote: Core query functions include select, insert, update, delete, and upsert.
-          - doc_url: https://supabase.com/docs/guides/database/functions
-            quote: Insert operations with RETURNING clauses to capture new values.
-      - concept_name: write-records
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
+            quote: Selects documents in a collection or view and returns a cursor to the
+              selected documents.
+          - doc_url: https://www.mongodb.com/docs/manual/crud/
+            quote: You can specify query filters or criteria that identify the documents to
+              return.
+      - concept_name: query-records
         vendor: Neon
         status: supported
         source: gap-check
         evidence:
-          - doc_url: https://neon.tech/docs/get-started-with-neon/query-with-neon-sql-editor
-            quote: The Tables page in the Neon Console, powered by Drizzle Studio, provides
-              a visual interface for exploring and modifying data and schemas
-              directly from the console, with the ability to add, update, and
-              delete records.
+          - doc_url: https://neon.com/postgresql/tutorial/where
+            quote: The SELECT statement returns all rows from one or more columns in a
+              table. To retrieve rows that satisfy a specified condition, you
+              use a WHERE clause.
         reason: Gap check confirmed support.
-      - concept_name: write-records
-        vendor: MongoDB Atlas
+      - concept_name: query-records
+        vendor: Supabase
         status: supported
         source: inventory
-        capability_name: document-insert
-        family: data-write
+        capability_name: filtered-query
+        family: data-read
+        surfaces_documented:
+          - api
+          - sdk
+        evidence:
+          - doc_url: https://supabase.com/docs/reference/javascript/select
+            quote: The select() method supports extensive filtering through operators like
+              eq(), neq(), gt(), gte(), lt(), lte(), like(), ilike(), in(),
+              contains(), containedBy(), overlaps(), is(), match(), and
+              textSearch().
+      - concept_name: query-records
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: filtered-reads-and-counts
+        family: data-read
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.insertOne/
-            quote: Inserts a single document into a collection.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/select
+            quote: SELECT is the primary way to read data in Turso and supports filtering,
+              joining, aggregation, sorting, subqueries, and set operations.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/select
+            quote: Groups rows that share the same values in the specified columns.
+              Typically used with aggregate functions.
+  - concept_name: write-records
+    title: Write Records
+    decisions:
       - concept_name: write-records
-        vendor: Turso
+        vendor: CockroachDB
         status: supported
         source: inventory
         capability_name: row-insert
         family: data-write
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/insert
-            quote: Adds one or more rows to a table.
-          - doc_url: https://docs.turso.tech/sql-reference/statements/insert
-            quote: Rows can be specified as literal values, copied from another query, or
-              generated from column defaults.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/insert
+            quote: The `INSERT` statement inserts one or more rows into a table.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/insert
+            quote: the `ON CONFLICT` clause can be used to update rather than insert rows.
       - concept_name: write-records
         vendor: Convex
         status: supported
@@ -1185,79 +1142,73 @@ concepts:
           - doc_url: https://docs.insforge.dev/sdks/rest/database
             quote: Request body MUST be an array, even for single records.
       - concept_name: write-records
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: supported
+        source: inventory
+        capability_name: document-insert
+        family: data-write
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.insertOne/
+            quote: Inserts a single document into a collection.
+      - concept_name: write-records
+        vendor: Neon
+        status: supported
+        source: gap-check
+        evidence:
+          - doc_url: https://neon.com/docs/get-started-with-neon/signing-up
+            quote: INSERT INTO public.playing_with_neon (name, value) VALUES ('Google',
+              1000.5), ('Apple', 1200.75), ('Microsoft', 950.25);
+        reason: Gap check confirmed support.
+      - concept_name: write-records
+        vendor: Supabase
         status: supported
         source: inventory
         capability_name: row-insert
         family: data-write
         surfaces_documented:
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/insert
-            quote: The `INSERT` statement inserts one or more rows into a table.
-          - doc_url: https://www.cockroachlabs.com/docs/stable/insert
-            quote: the `ON CONFLICT` clause can be used to update rather than insert rows.
-  - concept_name: full-text-search
-    title: Full-Text Search (tsvector / tsquery)
-    decisions:
-      - concept_name: full-text-search
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: full-text-search
-        family: search
-        surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://supabase.com/docs/guides/database/full-text-search
-            quote: to_tsvector() converts data into searchable tokens. to_tsquery()
-              transforms search strings into queryable tokens.
-              websearch_to_tsquery() supports web search syntax. Weighted
-              ranking assigns importance levels (A-D) to different fields.
-          - doc_url: https://supabase.com/docs/reference/javascript/select
-            quote: textSearch() filter enables full-text search via the SDK.
-      - concept_name: full-text-search
-        vendor: Neon
-        status: supported
-        source: gap-check
-        evidence:
-          - doc_url: https://neon.com/guides/full-text-search
-            quote: The `tsvector` type enables you to use full text search on your text
-              content in Postgres.
-        reason: Gap check confirmed support.
-      - concept_name: full-text-search
-        vendor: MongoDB Atlas
-        status: supported
-        source: inventory
-        capability_name: full-text-search
-        family: search
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/atlas-search/
-            quote: MongoDB Search is an embedded full-text search that gives you a seamless,
-              scalable experience for building relevance-based app features.
-      - concept_name: full-text-search
+          - doc_url: https://supabase.com/docs/reference/javascript/introduction
+            quote: Core query functions include select, insert, update, delete, and upsert.
+          - doc_url: https://supabase.com/docs/guides/database/functions
+            quote: Insert operations with RETURNING clauses to capture new values.
+      - concept_name: write-records
         vendor: Turso
         status: supported
         source: inventory
-        capability_name: full-text-search
-        family: search
+        capability_name: row-insert
+        family: data-write
         surfaces_documented:
           - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/functions/fts
-            quote: Turso provides full-text search through custom FTS indexes and three SQL
-              functions
-          - doc_url: https://docs.turso.tech/sql-reference/functions/fts
-            quote: FTS indexes are created with the USING fts clause on CREATE INDEX.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/insert
+            quote: Adds one or more rows to a table.
+          - doc_url: https://docs.turso.tech/sql-reference/statements/insert
+            quote: Rows can be specified as literal values, copied from another query, or
+              generated from column defaults.
+  - concept_name: full-text-search
+    title: Full-Text Search
+    decisions:
+      - concept_name: full-text-search
+        vendor: CockroachDB
+        status: supported
+        source: inventory
+        capability_name: full-text-search
+        family: search
+        surfaces_documented:
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
+            quote: TSQUERY formats search queries using logical operators.
       - concept_name: full-text-search
         vendor: Convex
         status: supported
@@ -1280,69 +1231,71 @@ concepts:
         evidence: []
         reason: Gap check confirmed lack of support.
       - concept_name: full-text-search
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: supported
         source: inventory
         capability_name: full-text-search
         family: search
         surfaces_documented:
+          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
-            quote: TSQUERY formats search queries using logical operators.
-  - concept_name: database-branching
-    title: Database Preview Branching
-    decisions:
-      - concept_name: database-branching
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: database-branching
-        family: migration
-        surfaces_documented:
-          - cli
-          - api
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/platform/branching
-            quote: Preview branches are ephemeral and best suited for focused testing. They
-              are automatically paused after inactivity or deleted when a PR is
-              merged or closed. Supabase connects directly with GitHub
-              repositories.
-          - doc_url: https://supabase.com/docs/guides/platform/branching
-            quote: When branches merge into the main project, Supabase automatically runs a
-              deployment workflow to deploy your changes to production.
-      - concept_name: database-branching
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-search/
+            quote: MongoDB Search is an embedded full-text search that gives you a seamless,
+              scalable experience for building relevance-based app features.
+      - concept_name: full-text-search
         vendor: Neon
         status: supported
         source: gap-check
         evidence:
-          - doc_url: https://neon.com/docs/conceptual-guides/branching
-            quote: quickly branch your data for development, testing, and various other
-              purposes, enabling you to improve developer productivity and
-              optimize continuous integration and delivery (CI/CD) pipelines.
+          - doc_url: https://neon.com/guides/full-text-search
+            quote: The tsvector type enables you to use full text search on your text
+              content in Postgres.
         reason: Gap check confirmed support.
+      - concept_name: full-text-search
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: full-text-search
+        family: search
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/full-text-search
+            quote: to_tsvector() converts data into searchable tokens. to_tsquery()
+              transforms search strings into queryable tokens.
+              websearch_to_tsquery() supports web search syntax. Weighted
+              ranking assigns importance levels (A-D) to different fields.
+          - doc_url: https://supabase.com/docs/reference/javascript/select
+            quote: textSearch() filter enables full-text search via the SDK.
+      - concept_name: full-text-search
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: full-text-search
+        family: search
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sql-reference/functions/fts
+            quote: Turso provides full-text search through custom FTS indexes and three SQL
+              functions
+          - doc_url: https://docs.turso.tech/sql-reference/functions/fts
+            quote: FTS indexes are created with the USING fts clause on CREATE INDEX.
+  - concept_name: database-branching
+    title: Database Preview Branching
+    decisions:
       - concept_name: database-branching
-        vendor: MongoDB Atlas
+        vendor: CockroachDB
         status: unsupported
         source: gap-check
         evidence: []
         reason: Gap check confirmed lack of support.
-      - concept_name: database-branching
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: database-branching
-        family: migration
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/features/branching
-            quote: You can create a new database from an existing database using the CLI or
-              API.
-          - doc_url: https://docs.turso.tech/features/branching
-            quote: Database branches are completely separate from the original database.
       - concept_name: database-branching
         vendor: Convex
         status: supported
@@ -1362,32 +1315,86 @@ concepts:
               edge functions, email templates, realtime channels, and schedules.
         reason: Gap check confirmed support.
       - concept_name: database-branching
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
         status: unsupported
         source: gap-check
         evidence: []
         reason: Gap check confirmed lack of support.
-  - concept_name: query-pagination
-    title: Query Pagination with LIMIT / OFFSET
-    decisions:
-      - concept_name: query-pagination
-        vendor: Supabase
-        status: supported
-        source: gap-check
-        evidence:
-          - doc_url: https://supabase.com/docs/reference/javascript/limit
-            quote: The limit method limits the result with the specified count, setting the
-              maximum number of rows to return. Use .range() to paginate through
-              your data by specifying a starting offset and ending offset.
-        reason: Gap check confirmed support.
-      - concept_name: query-pagination
+      - concept_name: database-branching
         vendor: Neon
         status: supported
         source: gap-check
         evidence:
-          - doc_url: https://neon.com/postgresql/postgresql-tutorial/postgresql-limit
-            quote: If you want to skip a number of rows before returning the row_count rows,
-              you can use OFFSET clause placed after the LIMIT clause
+          - doc_url: https://neon.tech/docs/conceptual-guides/branching
+            quote: Neon's database branching feature lets you instantly create branches of
+              your data that you can include in your workflow, as many branches
+              as you need.
+        reason: Gap check confirmed support.
+      - concept_name: database-branching
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        family: migration
+        surfaces_documented:
+          - cli
+          - api
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/platform/branching
+            quote: Preview branches are ephemeral and best suited for focused testing. They
+              are automatically paused after inactivity or deleted when a PR is
+              merged or closed. Supabase connects directly with GitHub
+              repositories.
+          - doc_url: https://supabase.com/docs/guides/platform/branching
+            quote: When branches merge into the main project, Supabase automatically runs a
+              deployment workflow to deploy your changes to production.
+      - concept_name: database-branching
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        family: migration
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/features/branching
+            quote: You can create a new database from an existing database using the CLI or
+              API.
+          - doc_url: https://docs.turso.tech/features/branching
+            quote: Database branches are completely separate from the original database.
+  - concept_name: query-pagination
+    title: Query Pagination with LIMIT / OFFSET
+    decisions:
+      - concept_name: query-pagination
+        vendor: CockroachDB
+        status: supported
+        source: inventory
+        capability_name: query-pagination
+        family: data-read
+        surfaces_documented:
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
+            quote: "`OFFSET` instructs the operation to skip a specified number of rows."
+          - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
+            quote: It is often used in conjunction with `LIMIT` to "paginate" through
+              retrieved rows.
+      - concept_name: query-pagination
+        vendor: Convex
+        status: unsupported
+        source: gap-check
+        evidence: []
+        reason: Gap check confirmed lack of support.
+      - concept_name: query-pagination
+        vendor: Insforge
+        status: supported
+        source: gap-check
+        evidence:
+          - doc_url: https://docs.insforge.dev/api-reference/client/query-records
+            quote: Maximum number of records to return [limit, default 100, range 1-1000];
+              Number of records to skip for pagination [offset, default 0]
         reason: Gap check confirmed support.
       - concept_name: query-pagination
         vendor: MongoDB Atlas
@@ -1397,6 +1404,25 @@ concepts:
           - doc_url: https://www.mongodb.com/docs/atlas/atlas-ui/query/skip/
             quote: $skip corresponds to the LIMIT ... OFFSET ... clause in a SQL SELECT
               statement.
+        reason: Gap check confirmed support.
+      - concept_name: query-pagination
+        vendor: Neon
+        status: supported
+        source: gap-check
+        evidence:
+          - doc_url: https://neon.tech/postgresql/postgresql-tutorial/postgresql-limit
+            quote: If you want to skip a number of rows before returning the row_count rows,
+              you can use OFFSET clause placed after the LIMIT clause
+        reason: Gap check confirmed support.
+      - concept_name: query-pagination
+        vendor: Supabase
+        status: supported
+        source: gap-check
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/graphql/api
+            quote: Collections may also be paged using first and offset, which operates like
+              SQL's limit and offset to skip offset number of records in the
+              results.
         reason: Gap check confirmed support.
       - concept_name: query-pagination
         vendor: Turso
@@ -1414,39 +1440,39 @@ concepts:
               rows.
           - doc_url: https://docs.turso.tech/sql-reference/statements/select
             quote: Always use ORDER BY with LIMIT and OFFSET.
-      - concept_name: query-pagination
-        vendor: Convex
-        status: unsupported
-        source: gap-check
-        evidence: []
-        reason: Gap check confirmed lack of support.
-      - concept_name: query-pagination
-        vendor: Insforge
-        status: supported
-        source: gap-check
-        evidence:
-          - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
-            quote: "limit: Maximum number of records to return (default 100, range 1-1000);
-              offset: Number of records to skip for pagination (default 0)"
-        reason: Gap check confirmed support.
-      - concept_name: query-pagination
-        vendor: CockroachDB
-        status: supported
-        source: inventory
-        capability_name: query-pagination
-        family: data-read
-        surfaces_documented:
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
-            quote: "`OFFSET` instructs the operation to skip a specified number of rows."
-          - doc_url: https://www.cockroachlabs.com/docs/stable/limit-offset
-            quote: It is often used in conjunction with `LIMIT` to "paginate" through
-              retrieved rows.
   - concept_name: column-type-definition
     title: Column & Data Type Definition
     decisions:
+      - concept_name: column-type-definition
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: column-type-definition
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: column-type-definition
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: column-type-definition
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: column-type-definition
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: column-type-definition
         vendor: Supabase
         status: supported
@@ -1462,37 +1488,7 @@ concepts:
             quote: You must define the 'data type' when you create a column. Support for
               extensive Postgres data types (60+ types documented).
       - concept_name: column-type-definition
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: column-type-definition
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: column-type-definition
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: column-type-definition
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: column-type-definition
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: column-type-definition
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1501,7 +1497,25 @@ concepts:
     title: SOC 2 / ISO 27001 Compliance
     decisions:
       - concept_name: compliance-certifications
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: compliance-certifications
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: compliance-certifications
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: compliance-certifications
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1521,7 +1535,7 @@ concepts:
             quote: Neon maintains SOC2, ISO27001, and ISO27701 certifications... annual
               audits for SOC2 and ISO by two independent firms.
       - concept_name: compliance-certifications
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1532,27 +1546,39 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: compliance-certifications
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: compliance-certifications
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: compliance-certifications
+  - concept_name: connection-pooling
+    title: Connection Pooling (Supavisor / PgBouncer)
+    decisions:
+      - concept_name: connection-pooling
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: connection-pooling
-    title: Connection Pooling (Supavisor / PgBouncer)
-    decisions:
+      - concept_name: connection-pooling
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: connection-pooling
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: connection-pooling
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: connection-pooling
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: connection-pooling
         vendor: Supabase
         status: supported
@@ -1569,37 +1595,7 @@ concepts:
               Transaction Mode: serverless and edge functions. Transaction mode
               does not support prepared statements."
       - concept_name: connection-pooling
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: connection-pooling
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: connection-pooling
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: connection-pooling
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: connection-pooling
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: connection-pooling
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1608,7 +1604,25 @@ concepts:
     title: Copy-on-Write Database Branching
     decisions:
       - concept_name: copy-on-write-branching
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: copy-on-write-branching
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: copy-on-write-branching
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: copy-on-write-branching
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1628,31 +1642,13 @@ concepts:
             quote: A database branch is a copy-on-write clone of your data... Writes to a
               branch are saved as a delta.
       - concept_name: copy-on-write-branching
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: copy-on-write-branching
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: copy-on-write-branching
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: copy-on-write-branching
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: copy-on-write-branching
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1661,25 +1657,7 @@ concepts:
     title: Cursor-Based Reactive Pagination
     decisions:
       - concept_name: cursor-based-pagination
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-based-pagination
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-based-pagination
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-based-pagination
-        vendor: Turso
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1705,7 +1683,25 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: cursor-based-pagination
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-based-pagination
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-based-pagination
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-based-pagination
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1714,13 +1710,19 @@ concepts:
     title: Cursor Pagination
     decisions:
       - concept_name: cursor-pagination
-        vendor: Supabase
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: cursor-pagination
-        vendor: Neon
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-pagination
+        vendor: Insforge
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1745,25 +1747,19 @@ concepts:
             quote: The following JavaScript function uses skip() to paginate a collection by
               its `_id` field.
       - concept_name: cursor-pagination
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-pagination
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cursor-pagination
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-pagination
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-pagination
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: cursor-pagination
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1772,13 +1768,19 @@ concepts:
     title: Data Migration and Import
     decisions:
       - concept_name: data-migration-and-import
-        vendor: Supabase
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: data-migration-and-import
-        vendor: Neon
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-migration-and-import
+        vendor: Insforge
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1802,25 +1804,19 @@ concepts:
             quote: To migrate from legacy relational databases to MongoDB, use the
               Relational Migrator tool.
       - concept_name: data-migration-and-import
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-migration-and-import
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-migration-and-import
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-migration-and-import
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-migration-and-import
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-migration-and-import
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1828,6 +1824,36 @@ concepts:
   - concept_name: direct-postgres-connection
     title: Direct Postgres Connection
     decisions:
+      - concept_name: direct-postgres-connection
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: direct-postgres-connection
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: direct-postgres-connection
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: direct-postgres-connection
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: direct-postgres-connection
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: direct-postgres-connection
         vendor: Supabase
         status: supported
@@ -1842,37 +1868,7 @@ concepts:
               for persistent servers, such as virtual machines (VMs) and
               long-lasting containers.
       - concept_name: direct-postgres-connection
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: direct-postgres-connection
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: direct-postgres-connection
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: direct-postgres-connection
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: direct-postgres-connection
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: direct-postgres-connection
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1881,7 +1877,25 @@ concepts:
     title: Encryption at Rest and in Transit
     decisions:
       - concept_name: encryption-at-rest-and-in-transit
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-and-in-transit
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-and-in-transit
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-and-in-transit
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1901,7 +1915,7 @@ concepts:
             quote: The data on NVMe instance storage is encrypted using an AES-256 block
               cipher... encryption is enforced using TLS 1.2/1.3 protocols.
       - concept_name: encryption-at-rest-and-in-transit
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1912,27 +1926,39 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: encryption-at-rest-and-in-transit
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: encryption-at-rest-and-in-transit
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: encryption-at-rest-and-in-transit
+  - concept_name: extension-management
+    title: Postgres Extension Management
+    decisions:
+      - concept_name: extension-management
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: extension-management
-    title: Postgres Extension Management
-    decisions:
+      - concept_name: extension-management
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: extension-management
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: extension-management
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: extension-management
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: extension-management
         vendor: Supabase
         status: supported
@@ -1947,37 +1973,7 @@ concepts:
             quote: Supabase is pre-configured with over 50 extensions. Pure SQL extensions
               can be installed directly via the SQL editor.
       - concept_name: extension-management
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: extension-management
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: extension-management
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: extension-management
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: extension-management
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: extension-management
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -1985,6 +1981,36 @@ concepts:
   - concept_name: foreign-key-constraint
     title: Foreign Key & Relationship Definition
     decisions:
+      - concept_name: foreign-key-constraint
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: foreign-key-constraint
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: foreign-key-constraint
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: foreign-key-constraint
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: foreign-key-constraint
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: foreign-key-constraint
         vendor: Supabase
         status: supported
@@ -2001,37 +2027,7 @@ concepts:
               category_id bigint references categories. Create many-to-many
               relationships using join tables."
       - concept_name: foreign-key-constraint
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: foreign-key-constraint
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: foreign-key-constraint
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: foreign-key-constraint
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: foreign-key-constraint
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: foreign-key-constraint
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2040,25 +2036,7 @@ concepts:
     title: Import, Export, and Atomic Reseed
     decisions:
       - concept_name: import-export-and-atomic-reseed
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: import-export-and-atomic-reseed
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: import-export-and-atomic-reseed
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: import-export-and-atomic-reseed
-        vendor: Turso
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2085,7 +2063,25 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: import-export-and-atomic-reseed
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: import-export-and-atomic-reseed
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: import-export-and-atomic-reseed
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: import-export-and-atomic-reseed
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2093,6 +2089,36 @@ concepts:
   - concept_name: index-creation
     title: Index Creation
     decisions:
+      - concept_name: index-creation
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: index-creation
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: index-creation
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: index-creation
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: index-creation
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: index-creation
         vendor: Supabase
         status: supported
@@ -2111,37 +2137,7 @@ concepts:
             quote: "Two indexing options are available in pgvector: HNSW (recommended for
               performance) and IVFFlat."
       - concept_name: index-creation
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: index-creation
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: index-creation
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: index-creation
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: index-creation
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: index-creation
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2150,25 +2146,7 @@ concepts:
     title: Integrity Constraints
     decisions:
       - concept_name: integrity-constraints
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: integrity-constraints
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: integrity-constraints
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: integrity-constraints
-        vendor: Turso
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2196,7 +2174,25 @@ concepts:
           - doc_url: https://docs.insforge.dev/core-concepts/database/migrations
             quote: The CLI applies pending files in order inside a transaction
       - concept_name: integrity-constraints
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: integrity-constraints
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: integrity-constraints
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: integrity-constraints
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2205,25 +2201,7 @@ concepts:
     title: Multi-Field Secondary Indexes
     decisions:
       - concept_name: multi-field-indexes
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-field-indexes
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-field-indexes
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-field-indexes
-        vendor: Turso
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2250,7 +2228,25 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: multi-field-indexes
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-field-indexes
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-field-indexes
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-field-indexes
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2259,29 +2255,17 @@ concepts:
     title: Multi-Region Table Locality
     decisions:
       - concept_name: multi-region-table-locality
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-region-table-locality
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-region-table-locality
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: multi-region-table-locality
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
+        vendor: CockroachDB
+        status: supported
+        source: inventory
+        capability_name: multi-region-table-locality
+        family: core-operations
+        surfaces_documented:
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview
+            quote: Change table localities (global, regional by table, regional by row).
       - concept_name: multi-region-table-locality
         vendor: Convex
         status: inconclusive
@@ -2295,20 +2279,62 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: multi-region-table-locality
-        vendor: CockroachDB
-        status: supported
-        source: inventory
-        capability_name: multi-region-table-locality
-        family: core-operations
-        surfaces_documented:
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview
-            quote: Change table localities (global, regional by table, regional by row).
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-region-table-locality
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-region-table-locality
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: multi-region-table-locality
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: paginated-query
     title: Paginated Query (LIMIT / OFFSET / RANGE)
     decisions:
+      - concept_name: paginated-query
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: paginated-query
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: paginated-query
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: paginated-query
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: paginated-query
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: paginated-query
         vendor: Supabase
         status: supported
@@ -2323,37 +2349,7 @@ concepts:
             quote: Data retrieval can be limited and ranged using the limit() and range()
               modifiers to control result sets.
       - concept_name: paginated-query
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: paginated-query
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: paginated-query
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: paginated-query
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: paginated-query
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: paginated-query
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2362,25 +2358,7 @@ concepts:
     title: Pagination & Total Counts
     decisions:
       - concept_name: pagination-and-counts
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: pagination-and-counts
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: pagination-and-counts
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: pagination-and-counts
-        vendor: Turso
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2407,7 +2385,25 @@ concepts:
           - doc_url: https://docs.insforge.dev/sdks/rest/database
             quote: X-Total-Count Total records matching the query
       - concept_name: pagination-and-counts
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: pagination-and-counts
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: pagination-and-counts
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: pagination-and-counts
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2416,7 +2412,25 @@ concepts:
     title: 100+ Postgres Extensions
     decisions:
       - concept_name: postgres-extensions
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-extensions
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-extensions
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-extensions
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2436,7 +2450,7 @@ concepts:
             quote: Neon supports over 100 PostgreSQL extensions across versions PG14 through
               PG18.
       - concept_name: postgres-extensions
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2447,27 +2461,39 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-extensions
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-extensions
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-extensions
+  - concept_name: postgres-version-upgrade
+    title: In-Place Postgres Version Upgrade
+    decisions:
+      - concept_name: postgres-version-upgrade
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: postgres-version-upgrade
-    title: In-Place Postgres Version Upgrade
-    decisions:
+      - concept_name: postgres-version-upgrade
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-version-upgrade
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-version-upgrade
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgres-version-upgrade
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: postgres-version-upgrade
         vendor: Supabase
         status: supported
@@ -2483,37 +2509,7 @@ concepts:
               latest version with data migrated via pg_upgrade. Includes
               automatic rollback to original database if upgrade fails.
       - concept_name: postgres-version-upgrade
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-version-upgrade
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-version-upgrade
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-version-upgrade
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-version-upgrade
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgres-version-upgrade
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2521,42 +2517,6 @@ concepts:
   - concept_name: postgresql-wire-compatibility
     title: PostgreSQL Wire Protocol Compatibility
     decisions:
-      - concept_name: postgresql-wire-compatibility
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgresql-wire-compatibility
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgresql-wire-compatibility
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgresql-wire-compatibility
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgresql-wire-compatibility
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: postgresql-wire-compatibility
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
       - concept_name: postgresql-wire-compatibility
         vendor: CockroachDB
         status: supported
@@ -2573,37 +2533,47 @@ concepts:
           - doc_url: https://www.cockroachlabs.com/docs/stable/postgresql-compatibility
             quote: existing applications built on PostgreSQL can often be migrated to
               CockroachDB without changing application code.
-  - concept_name: primary-key-constraint
-    title: Primary Key Definition
-    decisions:
-      - concept_name: primary-key-constraint
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: primary-key-constraint
-        family: data-definition
-        surfaces_documented:
-          - api
-          - sdk
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/database/tables
-            quote: It's recommended to create a Primary Key for every table. Use generated
-              always as identity or generated by default as identity.
-      - concept_name: primary-key-constraint
-        vendor: Neon
+      - concept_name: postgresql-wire-compatibility
+        vendor: Convex
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: primary-key-constraint
+      - concept_name: postgresql-wire-compatibility
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgresql-wire-compatibility
         vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: primary-key-constraint
+      - concept_name: postgresql-wire-compatibility
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgresql-wire-compatibility
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: postgresql-wire-compatibility
         vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: primary-key-constraint
+    title: Primary Key Definition
+    decisions:
+      - concept_name: primary-key-constraint
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2621,7 +2591,33 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: primary-key-constraint
-        vendor: CockroachDB
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: primary-key-constraint
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: primary-key-constraint
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: primary-key-constraint
+        family: data-definition
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/tables
+            quote: It's recommended to create a Primary Key for every table. Use generated
+              always as identity or generated by default as identity.
+      - concept_name: primary-key-constraint
+        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2630,7 +2626,25 @@ concepts:
     title: Read Replicas (Shared-Storage)
     decisions:
       - concept_name: read-replicas
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2651,7 +2665,7 @@ concepts:
               requests from the same storage as the primary compute... No data
               is duplicated or replicated.
       - concept_name: read-replicas
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2662,29 +2676,29 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: read-replicas
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: read-replicas
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: read-replicas
+  - concept_name: scale-to-zero
+    title: Scale-to-Zero (Auto-Suspend)
+    decisions:
+      - concept_name: scale-to-zero
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: scale-to-zero
-    title: Scale-to-Zero (Auto-Suspend)
-    decisions:
       - concept_name: scale-to-zero
-        vendor: Supabase
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: scale-to-zero
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: scale-to-zero
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2705,7 +2719,7 @@ concepts:
               them in milliseconds on the next query, so you pay only for active
               compute time.
       - concept_name: scale-to-zero
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2716,27 +2730,39 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: scale-to-zero
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: scale-to-zero
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: scale-to-zero
+  - concept_name: schema-namespace
+    title: Schema (Namespace) Management
+    decisions:
+      - concept_name: schema-namespace
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: schema-namespace
-    title: Schema (Namespace) Management
-    decisions:
+      - concept_name: schema-namespace
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-namespace
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-namespace
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-namespace
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: schema-namespace
         vendor: Supabase
         status: supported
@@ -2751,37 +2777,7 @@ concepts:
             quote: "Tables belong to schemas for organization. Default schema is public.
               Create custom schemas: create schema private."
       - concept_name: schema-namespace
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-namespace
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-namespace
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-namespace
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-namespace
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-namespace
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2790,13 +2786,19 @@ concepts:
     title: Collection Schema Validation
     decisions:
       - concept_name: schema-validation
-        vendor: Supabase
+        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: schema-validation
-        vendor: Neon
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-validation
+        vendor: Insforge
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2818,25 +2820,19 @@ concepts:
           - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
             quote: All document inserts must match the rules.
       - concept_name: schema-validation
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-validation
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: schema-validation
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-validation
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-validation
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: schema-validation
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2844,6 +2840,36 @@ concepts:
   - concept_name: seed-data
     title: Seed Data Management
     decisions:
+      - concept_name: seed-data
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: seed-data
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: seed-data
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: seed-data
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: seed-data
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: seed-data
         vendor: Supabase
         status: supported
@@ -2858,37 +2884,7 @@ concepts:
               developers to reset to a known state at any time, complete with
               seed data.
       - concept_name: seed-data
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: seed-data
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: seed-data
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: seed-data
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: seed-data
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: seed-data
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2897,7 +2893,25 @@ concepts:
     title: Autoscaling Compute
     decisions:
       - concept_name: serverless-autoscaling
-        vendor: Supabase
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-autoscaling
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-autoscaling
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-autoscaling
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2918,7 +2932,7 @@ concepts:
               compute in response to the current load, eliminating the need for
               manual intervention or restarts.
       - concept_name: serverless-autoscaling
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2929,29 +2943,29 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: serverless-autoscaling
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: serverless-autoscaling
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: serverless-autoscaling
+  - concept_name: stateless-compute-storage-separation
+    title: Compute–Storage Separation
+    decisions:
+      - concept_name: stateless-compute-storage-separation
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: stateless-compute-storage-separation
-    title: Compute–Storage Separation
-    decisions:
       - concept_name: stateless-compute-storage-separation
-        vendor: Supabase
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: stateless-compute-storage-separation
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: stateless-compute-storage-separation
+        vendor: MongoDB Atlas
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2971,7 +2985,7 @@ concepts:
             quote: a compute in Neon is a stateless Postgres process... Safekeepers store
               the data changes durably until they are processed by Pageservers.
       - concept_name: stateless-compute-storage-separation
-        vendor: MongoDB Atlas
+        vendor: Supabase
         status: inconclusive
         source: selection-default
         evidence: []
@@ -2982,35 +2996,23 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-      - concept_name: stateless-compute-storage-separation
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: stateless-compute-storage-separation
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: stateless-compute-storage-separation
+  - concept_name: unique-indexes
+    title: Unique Index Integrity Constraints
+    decisions:
+      - concept_name: unique-indexes
         vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: unique-indexes
-    title: Unique Index Integrity Constraints
-    decisions:
       - concept_name: unique-indexes
-        vendor: Supabase
+        vendor: Convex
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: unique-indexes
-        vendor: Neon
+        vendor: Insforge
         status: inconclusive
         source: selection-default
         evidence: []
@@ -3033,25 +3035,19 @@ concepts:
             quote: By default, MongoDB creates a unique index on the `_id` field during the
               creation of a collection.
       - concept_name: unique-indexes
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: unique-indexes
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: unique-indexes
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: unique-indexes
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: unique-indexes
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: unique-indexes
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []
@@ -3059,6 +3055,36 @@ concepts:
   - concept_name: view-creation
     title: View & Materialized View Creation
     decisions:
+      - concept_name: view-creation
+        vendor: CockroachDB
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: view-creation
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: view-creation
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: view-creation
+        vendor: MongoDB Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: view-creation
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
       - concept_name: view-creation
         vendor: Supabase
         status: supported
@@ -3074,37 +3100,7 @@ concepts:
               store results to disk for faster access. Views can restrict data
               access for security.
       - concept_name: view-creation
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: view-creation
-        vendor: MongoDB Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: view-creation
         vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: view-creation
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: view-creation
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: view-creation
-        vendor: CockroachDB
         status: inconclusive
         source: selection-default
         evidence: []

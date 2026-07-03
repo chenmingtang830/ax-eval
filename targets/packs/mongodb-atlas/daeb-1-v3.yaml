@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-1438ap
+# run_id: 2026-07-02-t2x731
 name: mongodb-atlas
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-1438ap
+run_id: 2026-07-02-t2x731
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -25,6 +25,25 @@ sandbox_scope: []
 mongo_conn:
   connection_string_env: ATLAS_CONNECTION_STRING
   database: axarena_eval
+surfaces:
+  cli:
+    bin: mongosh
+    install: Install MongoDB Shell from the official MongoDB Shell installation docs.
+    help: mongosh --help
+    docs_url: https://www.mongodb.com/docs/mongodb-shell/
+    auth:
+      kind: token
+      token_env: ATLAS_CONNECTION_STRING
+      token_env_aliases: []
+  sdk:
+    package: mongodb
+    language: node
+    install: npm install mongodb
+    reference_url: https://www.mongodb.com/docs/drivers/node/current/
+    auth:
+      kind: token
+      token_env: ATLAS_CONNECTION_STRING
+      token_env_aliases: []
 base_url: https://cloud.mongodb.com
 headers: {}
 site_url: https://www.mongodb.com
@@ -78,13 +97,20 @@ tasks:
     trace: []
   - id: db-T03-change-data-capture
     title: "T03: Emit one observable change event"
-    prompt: Enable a change stream, realtime subscription, or CDC feed for a
-      container named `axarena_cdc_{ns}`, then create one record labeled
-      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
-      or feed. Persist the observed event into a durable capture container with
-      either a `row_label` field equal to `cdc_probe_{ns}` or a `payload` field
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container with either a
+      `row_label` field equal to `cdc_probe_{ns}` or a `payload` field
       containing `cdc_probe_{ns}`, and report that capture container name for
       verification.
+
+
+      MongoDB Atlas change-stream contract: open the change stream before
+      inserting the probe document, then persist the observed insert event into
+      a durable capture collection and report that `capture_collection` value
+      for verification. A stream opened after the insert may miss the event.
     oracles:
       - type: roundtrip
         expected: 1
@@ -247,11 +273,20 @@ tasks:
     trace: []
   - id: db-T09-vector-search
     title: "T09: Create a vector-enabled dataset and query it"
-    prompt: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
       field named `label` and at least three items labeled `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
       `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      MongoDB Atlas vector-search contract: when creating Atlas Search/vector
+      indexes through the Node driver, do not enable Stable API strict mode
+      (`apiStrict: true`), because `createSearchIndexes` is not part of API
+      Version 1. Use the official driver path without strict API mode, create
+      the vector index, wait until it is queryable if necessary, and report
+      `vector_index_name`.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
