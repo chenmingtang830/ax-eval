@@ -200,15 +200,22 @@ report. Then summarize for the user:
 The steps above make *you* the harness. To compare harnesses instead, let the
 CLI drive them as subprocesses: run one lane per harness so each receives a
 compatible model slug, for example `exec-plan --invoke --harness claude-code
---surface all --profile low --profile high --model sonnet`, then a separate
-Codex lane with `--harness codex --model <gpt-model>`. The CLI stamps the model
-each harness actually reported, applies native effort where available, and
-writes one normalized `{surface, product, harness}` record per cell. `verify`
-then renders them as a single **neutral matrix** (surface · harness · effort) —
-no cell is crowned "best". Codex needs its sandbox network opened and an
-OpenAI-strict output schema; the adapter handles both. This is one product
-across harnesses/surfaces — `competitive` is reserved for cross-*product*
-comparison.
+--surface all --profile low --profile high --model sonnet --invoke-retries 0`,
+then a separate Codex lane with `--harness codex --model <gpt-model>
+--invoke-retries 0`. The CLI stamps the model each harness actually reported,
+applies native effort where available, and writes one normalized `{surface,
+product, harness}` record per cell. `verify` then renders them as a single
+**neutral matrix** (surface · harness · effort) — no cell is crowned "best".
+Codex needs its sandbox network opened and an OpenAI-strict output schema; the
+adapter handles both.
+
+For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
+and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
+CLI, and SDK Codex cells are invoked with an isolated Codex home plus
+`mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
+failures. MCP cells still receive their explicit pack-declared MCP provisioning.
+This is one product across harnesses/surfaces — `competitive` is reserved for
+cross-*product* comparison.
 
 When consolidating a report for review, put every cell's artifacts in one run
 directory before rendering the HTML. Keep result JSON, trace JSON, transcript,

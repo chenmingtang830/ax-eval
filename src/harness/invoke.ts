@@ -392,6 +392,10 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // flag shape. If we leave the default in place, remote MCP write-tool calls
   // can collapse into "user cancelled MCP tool call" in headless runs.
   const approvalArgs = ["-c", 'approval_policy="never"'];
+  // Non-MCP benchmark surfaces should not inherit the operator's global MCP
+  // servers. A broken unrelated MCP login can otherwise stall API/CLI/SDK cells
+  // and turn the benchmark into a local-config test.
+  const mcpArgs = opts.surface === "mcp" ? [] : ["-c", "mcp_servers={}"];
   // The eval REQUIRES outbound network (the agent calls the product's API / MCP
   // server and web-searches in discovery). codex's `workspace-write` sandbox
   // denies network by default (`network_access: false`) — every curl then fails
@@ -406,6 +410,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     command: commandFor("codex"),
     args: [
       ...approvalArgs,
+      ...mcpArgs,
       "exec",
       "--sandbox", "workspace-write",
       ...networkArgs,

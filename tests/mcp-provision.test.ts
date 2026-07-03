@@ -54,6 +54,28 @@ function pack(): TargetPack {
 }
 
 describe("provisionHarnessForSurface", () => {
+  it("writes an isolated no-MCP Codex home for non-MCP surfaces", async () => {
+    const dir = freshDir();
+    const paths = defaultInvokePaths(dir, "codex-low-api", "codex");
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "codex",
+      surface: "api",
+      paths,
+      cwd: "/repo",
+    });
+
+    expect(provisioning.env.HOME).toContain(".invoke-home");
+    expect(provisioning.env.CODEX_HOME).toBe(resolve(provisioning.env.HOME!, ".codex"));
+    expect(provisioning.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
+
+    const config = resolve(provisioning.env.CODEX_HOME!, "config.toml");
+    expect(existsSync(config)).toBe(true);
+    const text = readFileSync(config, "utf8");
+    expect(text).toContain("mcp_servers = {}");
+    expect(text).not.toContain("[mcp_servers.");
+  });
+
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
     const dir = freshDir();
     process.env.ASANA_MCP_CLIENT_ID = "client-id";

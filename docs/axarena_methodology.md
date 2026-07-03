@@ -615,6 +615,14 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - The paired pinned native Neon API high smoke stamped `claude-sonnet-5` in stdout but timed out after two `900s` attempts, producing a failure artifact that verified `0/10`. The transcript shows the agent spent the window in discovery/research rather than completing resource creation. Classification: `agent-execution-failure` / runtime timeout for this high-effort cell. Methodology consequence: first-pass full-matrix execution should use `--invoke-retries 0` and rerun specific timeout cells intentionally, rather than doubling every timeout by default.
   - Generic harness/tooling bug found from that timeout: failure/timeout result artifacts did not carry the requested or stamped model, so normalized records could show `model: null` despite a model-pinned run. Fix: timeout failure artifacts now pass through the same result stamping path as successful artifacts, preserving requested model and any detectable harness-reported model for publication diagnostics.
   - Methodology decision: Claude Code is now eligible for DAEB-1 execution learning and the full matrix. Publication-grade Claude lanes should prefer `AX_EVAL_CLAUDE_BIN=<native claude>` plus `--model sonnet`; the normalized record's stamped model is the source of truth.
+- Codex execution lane status:
+  - Wrapper-based Codex runs initially exposed a generic harness/tooling bug: API/CLI/SDK cells inherited unrelated global MCP server configuration from the operator's Codex home. Broken local MCP OAuth/login state then stalled non-MCP benchmark cells and produced auth-noise stderr unrelated to the vendor under test.
+  - Fix: non-MCP Codex invocations now get an isolated per-cell Codex home, copy only the operator's Codex login when needed, and pass `mcp_servers={}`. MCP cells remain explicitly provisioned from the pack's MCP auth contract.
+  - Publication-grade Codex lanes should prefer the native app binary through `AX_EVAL_CODEX_BIN=/Applications/Codex.app/Contents/Resources/codex` instead of wrapper executables that may rewrite config or inject corporate defaults.
+  - Native Codex Neon API low smoke with `gpt-5.5` completed in about `69s` and verified `10/10`. The isolated config stayed clean (`mcp_servers = {}`), with no unrelated MCP auth failures.
+  - Native Codex Neon full slice over `api`, `cli`, and `sdk`, low/high profiles, `--invoke-retries 0`, produced these best normalized cells: API `10/10`, SDK `8/8`, CLI `5/10`, aggregate `32/56` verified outcomes.
+  - CLI failures are not verifier failures. The low CLI run failed every task because `neonctl psql` required an explicit `--role-name` when multiple branch roles existed; the high CLI run timed out after partial success. Classification: `vendor-specific-adapter-bug` / database CLI prompt contract for role disambiguation, plus `agent-execution-failure` / runtime timeout for the high cell.
+  - SDK high timed out with no useful artifacts while SDK low passed `8/8`; classification remains `agent-execution-failure` / runtime timeout, not a support-denominator issue.
 
 ### 5.10 Compose Pack
 
@@ -879,6 +887,7 @@ Reviewer checks:
 
 - [`src/harness/executor.ts`](/Users/richardtang/ax-eval/src/harness/executor.ts)
 - [`src/harness/invoke.ts`](/Users/richardtang/ax-eval/src/harness/invoke.ts)
+- [`src/harness/mcp-provision.ts`](/Users/richardtang/ax-eval/src/harness/mcp-provision.ts)
 
 Claude Code execution recipe:
 
@@ -886,10 +895,23 @@ Claude Code execution recipe:
 AX_EVAL_CLAUDE_BIN=/Users/richardtang/.cursor/extensions/anthropic.claude-code-2.1.198-darwin-arm64/resources/native-binary/claude \
 npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
   --run-dir results/runs/daeb-1-v3/smoke/neon-api-claude-low-pinned \
-  --invoke --harness claude-code --profile low --surface api --model sonnet
+  --invoke --harness claude-code --profile low --surface api --model sonnet \
+  --invoke-retries 0
+```
+
+Codex execution recipe:
+
+```bash
+AX_EVAL_CODEX_BIN=/Applications/Codex.app/Contents/Resources/codex \
+npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
+  --run-dir results/runs/daeb-1-v3/full/neon-codex-gpt55-native-v1 \
+  --invoke --harness codex --profile low --profile high --surface all \
+  --model gpt-5.5 --invoke-retries 0 --concurrency 3
 ```
 
 Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability.
+
+For non-MCP Codex surfaces, the invocation layer creates an isolated Codex home and passes `mcp_servers={}`. This keeps API/CLI/SDK usability evidence independent from unrelated operator MCP server login state. For MCP surfaces, the harness still uses the pack-declared MCP provisioning path.
 
 For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be useful for a known flaky cell, but automatic retries on high-effort timeouts can double wall-clock time without adding independent evidence.
 
@@ -906,7 +928,9 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Supabase API/Codex smoke execution has started and produced verified low/high records
+- Codex native execution has a verified Neon full slice over API/CLI/SDK, with API low `10/10`, SDK low `8/8`, and CLI best `5/10`
+- Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
+- Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Normalized records now carry efficiency diagnostics fields without changing outcome scoring
 - Harness artifacts are redacted before persistence to avoid publishing secret-shaped values
 
@@ -917,6 +941,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - regression-set graduation workflow once tasks saturate
 - methodology revision memo template per suite release
 - real execution, verification, normalized records, and publication-bundle interpretation for the remaining 7-vendor × 3-surface × 2-harness × 2-effort matrix cells
+- Neon CLI prompt/adapter contract for role-disambiguated `neonctl psql` calls, then targeted CLI rerun
 - true latency values for all normalized records, available automatically for new invokes through `durationMs` in invoke metadata
 
 ## 12. Working Principle

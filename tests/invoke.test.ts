@@ -186,6 +186,30 @@ describe("runInvokeHarness", () => {
     expect(executor.model).toBe("claude-sonnet-5");
   });
 
+  it("disables inherited MCP servers for non-MCP Codex invocations", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("-c");
+      expect(args).toContain("mcp_servers={}");
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "low",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from("{}"), stderr: Buffer.from("model: gpt-5.5\n") });
+    };
+
+    const result = await runInvokeHarness({ ...run, profile: "low", model: "gpt-5.5", effort: "low" }, spawn);
+    expect(result.ok).toBe(true);
+  });
+
   it("writes explainable failure artifacts when the harness exits before writing results", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");

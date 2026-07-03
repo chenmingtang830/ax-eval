@@ -1,5 +1,5 @@
 import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
@@ -22,6 +22,17 @@ function tomlString(value: string): string {
 
 function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
+}
+
+function copyCodexAuth(codexDir: string): void {
+  // Reuse the operator's own `codex login` session instead of requiring a
+  // separate OPENAI_API_KEY: codex CLI stores it in a plain file (unlike
+  // claude-code, which is Keychain-based and doesn't transfer to a fresh
+  // isolated HOME).
+  const realAuthPath = resolve(homedir(), ".codex", "auth.json");
+  if (!process.env.OPENAI_API_KEY && existsSync(realAuthPath)) {
+    copyFileSync(realAuthPath, resolve(codexDir, "auth.json"));
+  }
 }
 
 function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string): void {
@@ -94,15 +105,7 @@ function writeCodexMcpHome(opts: {
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-codex-mcp`);
   const codexDir = resolve(home, ".codex");
   mkdirSync(codexDir, { recursive: true });
-  // Reuse the operator's own `codex login` session instead of requiring a
-  // separate OPENAI_API_KEY: codex CLI stores it in a plain file (unlike
-  // claude-code, which is Keychain-based and doesn't transfer to a fresh
-  // isolated HOME). The isolated home still gets its OWN mcp config (below),
-  // so this only reuses the LOGIN, not the developer's other MCP approvals.
-  const realAuthPath = resolve(homedir(), ".codex", "auth.json");
-  if (!process.env.OPENAI_API_KEY && existsSync(realAuthPath)) {
-    copyFileSync(realAuthPath, resolve(codexDir, "auth.json"));
-  }
+  copyCodexAuth(codexDir);
   const configPath = resolve(codexDir, "config.toml");
   const typeLine = mcp.transport === "http" ? `type = "http"\n` : "";
   const config =
@@ -125,6 +128,27 @@ function writeCodexMcpHome(opts: {
   writeFileSync(configPath, config, { mode: 0o600 });
   try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
   return { home, configPath, serverName };
+}
+
+function writeCodexNoMcpHome(opts: {
+  paths: InvokePaths;
+  surface: SurfaceId;
+}): { home: string; codexDir: string; configPath: string } {
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-codex-${opts.surface}-no-mcp`);
+  const codexDir = resolve(home, ".codex");
+  mkdirSync(codexDir, { recursive: true });
+  copyCodexAuth(codexDir);
+  const configPath = resolve(codexDir, "config.toml");
+  writeFileSync(
+    configPath,
+    `check_for_update_on_startup = false\n` +
+      // Non-MCP benchmark surfaces must not inherit the operator's personal or
+      // corporate MCP servers. Those can be slow, unauthenticated, or product-
+      // unrelated, and they turn API/CLI/SDK cells into config-noise tests.
+      `mcp_servers = {}\n`,
+  );
+  return { home, codexDir, configPath };
 }
 
 function writeClaudeMcpHome(opts: {
@@ -194,7 +218,21 @@ export async function provisionHarnessForSurface(opts: {
   paths: InvokePaths;
   cwd: string;
 }): Promise<HarnessProvisioning> {
-  if (opts.surface !== "mcp") return { env: {} };
+  if (opts.surface !== "mcp") {
+    if (opts.harness !== "codex") return { env: {} };
+    const codex = writeCodexNoMcpHome({ paths: opts.paths, surface: opts.surface });
+    return {
+      env: {
+        HOME: codex.home,
+        CODEX_HOME: codex.codexDir,
+      },
+      meta: {
+        codex_home: codex.home,
+        codex_config: codex.configPath,
+        mcp_provisioning: "disabled_for_non_mcp_surface",
+      },
+    };
+  }
   const auth = opts.pack.surfaces?.mcp?.auth;
   if (!auth || auth.kind === "inherit") return { env: {} };
 

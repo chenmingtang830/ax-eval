@@ -196,10 +196,10 @@ npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness claude-code --surface all --profile low --profile high \
-  --model sonnet --run-dir <dir> # Claude Code, records the actual reported Sonnet model
+  --model sonnet --run-dir <dir> --invoke-retries 0 # Claude Code, records the actual reported Sonnet model
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness codex --surface all --profile low --profile high \
-  --model <gpt-model> --run-dir <dir> # Codex, use a Codex-compatible model slug
+  --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
@@ -214,6 +214,13 @@ npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
 authoring is a developer workflow that ends at `review --approve`.
+
+For publication-grade cross-harness lanes, prefer native host-agent binaries over
+PATH wrappers when a wrapper injects unrelated local config. `AX_EVAL_CLAUDE_BIN`
+and `AX_EVAL_CODEX_BIN` let a run pin the executable while the normalized record
+still stamps the model actually reported by the harness. Non-MCP Codex cells are
+run with an isolated Codex home and `mcp_servers={}` so API/CLI/SDK scores are not
+polluted by the operator's unrelated global MCP server logins.
 
 ## Safety
 
