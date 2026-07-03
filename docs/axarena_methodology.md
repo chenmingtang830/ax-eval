@@ -617,6 +617,11 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Low classification: `agent-execution-failure`. The low trace used the database token as a Turso platform token/config credential and wrote no verifier-visible state. The high trace discovered the usable official CLI shell path by passing the database JWT through the `libsql://...turso.io?jwt=<redacted>` URL.
   - High T08 classification: `database-category seed/template/verifier contract bug`. High created and invoked a trigger-backed routine analogue and reported `result_table`, but used a `result` column while the verifier required `value`. The task prompt did not previously make that helper-table column contract explicit enough.
   - Fix: SQL-backed DAEB server-side-execution prompts now state that trigger/helper-table implementations must persist the marker in a result table column named `value` and report that table as `result_table`. The verifier remains strict and outcome-first; it was not widened to accept arbitrary agent-chosen column names.
+- Turso SDK/Codex low-high smoke evidence:
+  - `v1`: native Codex SDK low/high smoke verified `11/12` with `--invoke-retries 0` and passed the `0.80` gate. Low passed `5/6`; high passed `6/6`.
+  - The normalized `{codex, sdk}` cell reports best profile `high`, model `gpt-5.5`, pass@1 `6/6`, latency `134.150s`, `21` transcript-derived tool calls, and null token usage/cost because the current native Codex transcript does not expose provider token accounting.
+  - Low T09 classification: `agent-execution-failure`. Low installed and used `@libsql/client` correctly for CRUD/schema/query/write tasks, but modeled vector search with plain numeric `x/y/z` columns and a hand-written distance expression. The canonical Turso verifier requires a vector-enabled table using `embedding` plus `vector_distance_cos`, so read-back returned `undefined`.
+  - High T09 completed the canonical vector path with `F32_BLOB(3)`, `vector32(...)`, and `vector_distance_cos(...)`. Its attempted DiskANN/vector-index path failed with `unable to initialize diskann`, then the agent fell back to exact vector distance and passed. This is execution-learning evidence, not a support-matrix change.
 - Convex API/Codex low smoke evidence:
   - `v1`: `0/8`; latency was about `276s`. The agent found Convex deployment/admin APIs and function APIs, but deployment failed because canonical DAEB names included hyphens and Convex table/function identifiers may only use letters, digits, and underscores.
   - Classification: `vendor-specific-adapter-bug`. The canonical names and marker strings remain benchmark outcomes, but Convex code identifiers need a deterministic safe-identifier mapping.
@@ -960,7 +965,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB CLI low/high `19/20`, and Turso CLI low/high best-cell `9/10`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, and Turso CLI low/high best-cell `9/10`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
