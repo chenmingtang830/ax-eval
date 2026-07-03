@@ -595,13 +595,13 @@ for Supabase; steps 8–10 have not been run for real yet (see §7.7).
   Convex `0`, Insforge `0`, CockroachDB `10`.
 - ✅ **Preflight env gate**: all 7 active packs pass `check-env`, including
   auth envs, SQL/Mongo verifier envs, and `${ENV_VAR}` URL-template vars.
-- 🟨 **8 (exec)**: smoke execution is underway, but publication-grade DAEB-1
-  execution is shifting from coarse cell/batch prompts toward task-level
-  evidence. Existing batch mode remains useful for smoke/regression, while the
-  publication lane should use one canonical task per invocation, persisted
-  task-level result/trace/transcript/meta artifacts, and aggregated cell-level
-  normalized records. First-action timeout diagnostics now distinguish
-  `runtime_timeout_no_action` from real product execution failures.
+- 🟨 **8 (exec)**: smoke execution is underway, and publication-grade DAEB-1
+  now has an explicit task-level lane via `exec-plan --invoke --execution-mode task`.
+  Existing batch mode remains useful for smoke/regression, while the publication
+  lane uses one canonical task per invocation, persists task-level
+  result/trace/transcript/meta artifacts, and aggregates them back into
+  cell-level normalized records. First-action timeout diagnostics now
+  distinguish `runtime_timeout_no_action` from real product execution failures.
 - 🟨 **9 (verify)**: smoke records now exist for Supabase, Neon, MongoDB Atlas,
   Turso, and Convex; the full 7-vendor × 3-surface × 2-harness × 2-effort
   matrix is still pending.

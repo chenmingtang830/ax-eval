@@ -512,10 +512,10 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - DAEB-1/database is treated as the flagship vertical benchmark, not proof that every category is already generic.
 - The core artifact architecture remains generic: capability inventory, concept universe, coverage matrix, selection ledger, support matrix, suite YAML, vendor-specific verifier adapters, execution, verification, reporting, and publication.
 - Database-specific deterministic seeds/templates/verifiers are allowed, but they must remain isolated in database-specific generation or verifier branches.
-- Current publication-grade execution decision: keep existing cell/batch execution mode for compatibility and smoke/regression comparisons, but move DAEB-1 publication evidence toward task-level execution. The desired publication lane is one canonical task per invocation, one task-level result JSON, one task-level trace, one task-level transcript, and one task-level invoke meta, later aggregated back into the existing cell-level normalized record.
+- Current publication-grade execution decision: keep existing cell/batch execution mode for compatibility and smoke/regression comparisons, but move DAEB-1 publication evidence toward task-level execution. `ax-eval exec-plan --invoke --execution-mode task` now runs one canonical task per invocation, persists task-level result/trace/transcript/invoke artifacts, and aggregates them back into the existing cell-level normalized record.
 - Two-phase DAEB-1 execution model:
   - Phase A: discovery/bootstrap per `{vendor, surface, harness, profile}`. Persist a concise runbook containing auth/base URL/CLI/SDK setup quirks and official docs links.
-  - Phase B: per-task execution. Each prompt receives only the task, exact namespace/resource names, verifier-critical expected state, surface-specific allowed path, the concise runbook, and shared database contracts once.
+  - Phase B: per-task execution. The current implementation is task-level invocation with cell-level aggregation; a separately persisted shared discovery/runbook artifact is still the next refinement. Each task prompt receives only the task, exact namespace/resource names, verifier-critical expected state, and surface-specific allowed path instead of the whole cell task bank.
 - Prompt compaction rule: do not repeat long SQL/database contracts or all other tasks inside every execution prompt. Methodology prose belongs in docs and artifacts, not in live task prompts.
 - Runtime-validity diagnostics are now first-class evidence fields: `validity_status`, `first_action_latency_ms`, `transcript_event_count`, and `action_occurred`. `runtime_timeout_no_action` and `runtime_timeout_partial` are harness/runtime validity evidence, not product capability scores.
 - `--first-action-timeout <seconds>` is the execution stop-loss for high-effort no-action stalls. For DAEB-1 publication learning, use `120–180s` and at most one intentional rerun. Do not wait the full wall timeout when no tool/API/command action occurred.
@@ -962,7 +962,7 @@ Claude Code execution recipe:
 AX_EVAL_CLAUDE_BIN=/Users/richardtang/.cursor/extensions/anthropic.claude-code-2.1.198-darwin-arm64/resources/native-binary/claude \
 npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
   --run-dir results/runs/daeb-1-v3/smoke/neon-api-claude-low-pinned \
-  --invoke --harness claude-code --profile low --surface api --model sonnet \
+  --invoke --execution-mode task --harness claude-code --profile low --surface api --model sonnet \
   --invoke-retries 0 --first-action-timeout 180
 ```
 
@@ -972,11 +972,11 @@ Codex execution recipe:
 AX_EVAL_CODEX_BIN=/Applications/Codex.app/Contents/Resources/codex \
 npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
   --run-dir results/runs/daeb-1-v3/full/neon-codex-gpt55-native-v1 \
-  --invoke --harness codex --profile low --profile high --surface all \
+  --invoke --execution-mode task --harness codex --profile low --profile high --surface all \
   --model gpt-5.5 --invoke-retries 0 --first-action-timeout 180 --concurrency 3
 ```
 
-Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability.
+Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability. `--execution-mode task` currently requires `--invoke`, because ax-eval performs the task-artifact aggregation step before `verify-generated`.
 
 Execution parallelism stays bounded. Use parallel proposal/review where it is safe (vendor capability extraction, `(vendor, concept, surface)` support/gap adjudication, task drafting, trace triage), but keep canonical concept clustering, coverage closure, selection ledgers, support matrix finalization, frozen suite YAML, and publication bundle assembly centralized and deterministic. Live execution should usually run one vendor at a time with low/high profiles in parallel; do not fan out across many vendors sharing quota-bound sandboxes.
 

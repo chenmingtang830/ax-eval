@@ -74,4 +74,19 @@ describe("buildExecutorPrompt", () => {
     expect(prompt).toContain("LOW-EFFORT");
     expect(prompt).toMatch(/~40 API actions/);
   });
+
+  it("can scope the prompt to a single canonical task", () => {
+    const single = buildExecutorPrompt({
+      pack,
+      profile: getProfile("floor"),
+      ns: "joaufx-floor-ab12",
+      resultsPath: "results/run-floor-gen-l1-tasks.json",
+      tracePath: "results/run-floor-gen-l1-tasks.trace.json",
+      tasks: [pack.tasks[0]!],
+    });
+    expect(single).toContain("THIS ONE TASK");
+    expect(single).toContain("gen-l1-tasks");
+    expect(single).not.toContain("gen-l3-tasks");
+    expect(single).toContain("whether the task succeeded or failed");
+  });
 });

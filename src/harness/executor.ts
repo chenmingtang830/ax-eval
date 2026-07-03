@@ -190,18 +190,27 @@ export interface BuildPromptOptions {
   /** Which surface the agent must operate the product through. Defaults to the
    *  API surface, whose prompt is identical to the original hard-coded flow. */
   surface?: Surface;
+  /** Optional explicit task subset for task-level execution mode. Defaults to
+   *  every task eligible on the selected surface. */
+  tasks?: Task[];
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
 export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const { pack, profile, ns, resultsPath, tracePath } = opts;
   const surface = opts.surface ?? apiSurface;
-  const tasks = tasksForSurface(pack, surface.id);
+  const tasks = opts.tasks ?? tasksForSurface(pack, surface.id);
   const resultsShape = tasks.map((task) => {
     const fields = ["\"gid\": \"<gid or null>\"", ...namedFieldsFor(task).map((field) => `"${field}": "<value or null>"`)];
     return `      "${task.id}": {${fields.join(", ")}}`;
   }).join(",\n");
   const effortLabel = `${profile.effort.toUpperCase()}-EFFORT`;
+  const taskScope = tasks.length === 1
+    ? `THIS ONE TASK`
+    : `ALL tasks`;
+  const completionLine = tasks.length === 1
+    ? `When done, report whether the task succeeded or failed and the id.`
+    : `When done, report which tasks succeeded/failed and the ids.`;
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
@@ -209,7 +218,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ``,
     `=== PROFILE: "${profile.name}" (${effortLabel}, effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
     EFFORT_BLOCK[profile.effort],
-    `Budget: at most ~${profile.maxTurns} ${surface.actionUnit} total across discovery + ALL tasks.`,
+    `Budget: at most ~${profile.maxTurns} ${surface.actionUnit} total across discovery + ${taskScope}.`,
     ``,
     `=== CREDENTIALS (the "where", not the "how") ===`,
     `The harness has already loaded declared .env values into the child process environment.`,
@@ -270,6 +279,6 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ``,
     `Honesty matters: the discovery funnel is scored, so record your real searches/URLs.`,
     `${surface.actionGuidance(pack)} Do not edit any files other than ${resultsPath} and ${tracePath}.`,
-    `When done, report which tasks succeeded/failed and the ids.`,
+    completionLine,
   ].join("\n");
 }

@@ -67,7 +67,7 @@ import {
   type NormalizedResult,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { TargetPackSchema, type OracleSpec, type TargetPack } from "./schemas.js";
+import { TargetPackSchema, type OracleSpec, type TargetPack, type Task } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
@@ -161,7 +161,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--invoke-timeout seconds] [--first-action-timeout seconds]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -328,6 +328,7 @@ interface Parsed {
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
   surface?: string;
+  executionMode: "cell" | "task";
   _: string[];
 }
 
@@ -384,6 +385,7 @@ function parseArgs(argv: string[]): Parsed {
     vendor: "",
     vendors: "",
     category: "",
+    executionMode: "cell",
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -490,6 +492,10 @@ function parseArgs(argv: string[]): Parsed {
       const v = value(++i, "--surface");
       if (v !== "all" && !isSurfaceId(v)) throw new Error(`--surface must be one of api|cli|sdk|mcp|all (got ${v})`);
       p.surface = v;
+    } else if (a === "--execution-mode") {
+      const v = value(++i, "--execution-mode");
+      if (v !== "cell" && v !== "task") throw new Error(`--execution-mode must be one of cell|task (got ${v})`);
+      p.executionMode = v;
     } else if (a!.startsWith("--")) throw new Error(`unknown flag ${a}`);
     else p._.push(a!);
   }
@@ -1749,6 +1755,119 @@ function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
 }
 
+function packWithTask(pack: TargetPack, task: Task): TargetPack {
+  return { ...pack, tasks: [task] };
+}
+
+function uniqueStrings(values: (string | undefined)[]): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function mergeTaskDiscovery(results: DiscoveryResult[]): DiscoveryResult | undefined {
+  if (!results.length) return undefined;
+  return {
+    ns: results.find((result) => result.ns)?.ns,
+    base_url_found: results.find((result) => result.base_url_found)?.base_url_found,
+    completed_gid: results.find((result) => result.completed_gid !== undefined)?.completed_gid,
+    searches: uniqueStrings(results.flatMap((result) => result.searches ?? [])),
+    urls_visited: uniqueStrings(results.flatMap((result) => result.urls_visited ?? [])),
+    endpoint_used: results.find((result) => result.endpoint_used)?.endpoint_used,
+    auth_scheme_found: results.find((result) => result.auth_scheme_found)?.auth_scheme_found,
+    inspected_local_source: results.some((result) => result.inspected_local_source) ? true : undefined,
+    notes: uniqueStrings(results.map((result) => result.notes)).join(" | ") || undefined,
+  };
+}
+
+function aggregateTaskInvokeValidity(values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    if (value && value !== "valid") return value;
+  }
+  return values.find((value): value is string => typeof value === "string");
+}
+
+function aggregateTaskInvokeGroup(args: {
+  groupLabel: string;
+  paths: ReturnType<typeof defaultInvokePaths>;
+  taskIdsInOrder: string[];
+  jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+}): void {
+  const taskResults = args.jobPaths
+    .map((paths) => existsSync(paths.resultsPath) ? loadResults(paths.resultsPath) : undefined)
+    .filter((result): result is ReturnType<typeof loadResults> => Boolean(result));
+  const first = taskResults[0];
+  const combinedResults = {
+    profile: first?.profile ?? "unknown",
+    harness: first?.harness,
+    ns: first?.ns,
+    surface: first?.surface,
+    discovery: mergeTaskDiscovery(taskResults.map((result) => result.discovery).filter((value): value is DiscoveryResult => Boolean(value))),
+    model: first?.model,
+    results: Object.fromEntries(
+      args.taskIdsInOrder.map((taskId) => {
+        const match = taskResults.find((result) => result.results[taskId] !== undefined);
+        return [taskId, match?.results[taskId] ?? { gid: null }];
+      }),
+    ),
+  };
+  writeFileSync(args.paths.resultsPath, JSON.stringify(combinedResults, null, 2));
+
+  const combinedTrace = args.jobPaths.flatMap((paths) => {
+    if (!existsSync(paths.tracePath)) return [];
+    return loadTrace(paths.tracePath);
+  }).map((step, index) => ({ ...step, step: index + 1 }));
+  writeFileSync(args.paths.tracePath, JSON.stringify(combinedTrace, null, 2));
+
+  const joinArtifacts = (picker: (paths: ReturnType<typeof defaultInvokePaths>) => string): string =>
+    args.jobPaths
+      .map((paths) => picker(paths))
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, "utf8").trim())
+      .filter(Boolean)
+      .join("\n");
+
+  writeFileSync(
+    args.paths.promptPath,
+    [
+      `Task-level execution aggregate for ${args.groupLabel}.`,
+      `This cell was executed as one prompt per task and aggregated back into the combined run artifact.`,
+      ...args.jobPaths.map((paths) => `- ${paths.promptPath}`),
+    ].join("\n"),
+  );
+  writeFileSync(args.paths.transcriptPath, joinArtifacts((paths) => paths.transcriptPath));
+  writeFileSync(args.paths.stdoutPath, joinArtifacts((paths) => paths.stdoutPath));
+  writeFileSync(args.paths.stderrPath, joinArtifacts((paths) => paths.stderrPath));
+
+  const taskMetas = args.jobPaths
+    .map((paths) => existsSync(paths.metaPath) ? readJsonObject(paths.metaPath) : undefined)
+    .filter((meta): meta is Record<string, unknown> => Boolean(meta));
+  const durationMs = taskMetas.reduce((sum, meta) => sum + (typeof meta.durationMs === "number" ? meta.durationMs : 0), 0);
+  const transcriptEvents = taskMetas.reduce((sum, meta) => sum + (typeof meta.transcript_event_count === "number" ? meta.transcript_event_count : 0), 0);
+  const firstActionValues = taskMetas
+    .map((meta) => typeof meta.first_action_latency_ms === "number" ? meta.first_action_latency_ms : undefined)
+    .filter((value): value is number => typeof value === "number");
+  const combinedMeta = {
+    ...(taskMetas[0] ?? {}),
+    ok: taskMetas.every((meta) => meta.ok === true),
+    attempts: Math.max(0, ...taskMetas.map((meta) => typeof meta.attempts === "number" ? meta.attempts : 0)),
+    timedOut: taskMetas.some((meta) => meta.timedOut === true),
+    durationMs,
+    validity_status: aggregateTaskInvokeValidity(taskMetas.map((meta) => typeof meta.validity_status === "string" ? meta.validity_status : undefined)),
+    first_action_latency_ms: firstActionValues.length ? Math.min(...firstActionValues) : null,
+    transcript_event_count: transcriptEvents,
+    action_occurred: taskMetas.some((meta) => meta.action_occurred === true),
+    promptPath: args.paths.promptPath,
+    resultsPath: args.paths.resultsPath,
+    tracePath: args.paths.tracePath,
+    transcriptPath: args.paths.transcriptPath,
+    stdoutPath: args.paths.stdoutPath,
+    stderrPath: args.paths.stderrPath,
+    metaPath: args.paths.metaPath,
+    executionMode: "task",
+    taskMetaPaths: args.jobPaths.map((paths) => paths.metaPath),
+  };
+  writeFileSync(args.paths.metaPath, JSON.stringify(combinedMeta, null, 2));
+}
+
 async function cmdExecPlan(args: Parsed): Promise<number> {
   // Load .env so the per-surface auth gate sees the credentials the developer
   // has set (otherwise every surface would read as blocked).
@@ -1783,6 +1902,9 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   if (!Number.isInteger(args.attempts) || args.attempts < 1) {
     throw new Error("--attempts must be a positive integer");
   }
+  if (args.executionMode === "task" && !args.invoke) {
+    throw new Error("--execution-mode task currently requires --invoke so ax-eval can aggregate task artifacts back into a combined run");
+  }
   // Resolve the surface selection. `all` fans out over every surface the pack
   // declares; a single id is validated against what the pack exposes. The
   // default (no flag) is api-only, byte-identical to the original behavior.
@@ -1801,16 +1923,26 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
   interface InvokeJob {
+    groupKey: string;
     harness: InvokeHarnessId;
     profileName: string;
     surfaceId: SurfaceId;
     attempt: number;
     ns: string;
     paths: ReturnType<typeof defaultInvokePaths>;
+    combinedPaths: ReturnType<typeof defaultInvokePaths>;
+    taskId?: string;
     runOpts: InvokeRunOptions;
     label: string;
   }
+  interface InvokeGroup {
+    label: string;
+    combinedPaths: ReturnType<typeof defaultInvokePaths>;
+    taskIdsInOrder: string[];
+    jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+  }
   const invokeJobs: InvokeJob[] = [];
+  const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
@@ -1903,34 +2035,92 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
               ...(args.model ? { model: args.model } : {}),
               ...(args.effort ? { effort: args.effort as HarnessProfile["effort"] } : {}),
             };
-            const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
-            writeFileSync(paths.promptPath, prompt);
-            // Collect the job; it runs in the concurrency pool after planning.
-            invokeJobs.push({
+            const eligibleTasks = tasksForSurface(pack, surfaceId);
+            const groupKey = `${harness}::${surfaceId}::${name}::${attempt}`;
+            const baseLabel = `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`;
+            const sharedRunOpts = {
               harness,
-              profileName: name,
-              surfaceId,
-              attempt,
+              profile: name,
+              surface: surfaceId,
               ns,
-              paths,
-              label: `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`,
-              runOpts: {
-                pack,
+              cwd: process.cwd(),
+              model: args.model || undefined,
+              effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
+              timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
+              firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
+              retries: args.invokeRetries,
+              env: provisioning.env,
+              provisioning: provisioning.meta,
+            } satisfies Omit<InvokeRunOptions, "pack" | "paths">;
+            if (args.executionMode === "task") {
+              invokeGroups.set(groupKey, {
+                label: baseLabel,
+                combinedPaths: paths,
+                taskIdsInOrder: eligibleTasks.map((task) => task.id),
+                jobPaths: [],
+              });
+              writeFileSync(
+                paths.promptPath,
+                [
+                  `Task-level execution aggregate placeholder for ${baseLabel}.`,
+                  `Each eligible task for this cell is executed as its own prompt and later aggregated into this combined run artifact.`,
+                ].join("\n"),
+              );
+              for (const task of eligibleTasks) {
+                const taskStem = `${stem}-${task.id}`;
+                const taskPaths = defaultInvokePaths(dir, taskStem, harness);
+                for (const p of [taskPaths.resultsPath, taskPaths.tracePath, taskPaths.stdoutPath, taskPaths.stderrPath, taskPaths.transcriptPath, taskPaths.metaPath]) {
+                  if (existsSync(p)) rmSync(p);
+                }
+                const prompt = buildExecutorPrompt({
+                  pack,
+                  profile: runProfile,
+                  ns,
+                  resultsPath: taskPaths.resultsPath,
+                  tracePath: taskPaths.tracePath,
+                  surface,
+                  tasks: [task],
+                });
+                writeFileSync(taskPaths.promptPath, prompt);
+                invokeGroups.get(groupKey)?.jobPaths.push(taskPaths);
+                invokeJobs.push({
+                  groupKey,
+                  harness,
+                  profileName: name,
+                  surfaceId,
+                  attempt,
+                  ns,
+                  paths: taskPaths,
+                  combinedPaths: paths,
+                  taskId: task.id,
+                  label: `${baseLabel}/${task.id}`,
+                  runOpts: {
+                    pack: packWithTask(pack, task),
+                    paths: taskPaths,
+                    ...sharedRunOpts,
+                  },
+                });
+              }
+            } else {
+              const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
+              writeFileSync(paths.promptPath, prompt);
+              invokeJobs.push({
+                groupKey,
                 harness,
-                profile: name,
-                surface: surfaceId,
+                profileName: name,
+                surfaceId,
+                attempt,
                 ns,
                 paths,
-                cwd: process.cwd(),
-                model: args.model || undefined,
-                effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
-                timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
-                firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
-                retries: args.invokeRetries,
-                env: provisioning.env,
-                provisioning: provisioning.meta,
-              },
-            });
+                combinedPaths: paths,
+                label: baseLabel,
+                runOpts: {
+                  pack,
+                  paths,
+                  ...sharedRunOpts,
+                },
+              });
+            }
           }
         } else {
           // The label feeds both the namespace and the filenames; the surface tag
@@ -1939,16 +2129,32 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
           const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
           const ns = resolveNs(pack.run_id, attemptLabel);
           const stem = args.attempts === 1 ? `${name}${sfx}` : `${name}${sfx}-a${attempt}`;
-          const resultsPath = `${dir}/run-${stem}.json`;
-          const tracePath = `${dir}/run-${stem}.trace.json`;
-          const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
-          const out = `${dir}/prompt-${stem}.txt`;
-          writeFileSync(out, prompt);
-          resultPaths.push(resultsPath);
-          console.log(
-            `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
-              `(results→${resultsPath}, trace→${tracePath})`,
-          );
+          if (args.executionMode === "task") {
+            const eligibleTasks = tasksForSurface(pack, surfaceId);
+            console.log(
+              `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${eligibleTasks.length} task prompt(s)`,
+            );
+            for (const task of eligibleTasks) {
+              const taskStem = `${stem}-${task.id}`;
+              const resultsPath = `${dir}/run-${taskStem}.json`;
+              const tracePath = `${dir}/run-${taskStem}.trace.json`;
+              const out = `${dir}/prompt-${taskStem}.txt`;
+              const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface, tasks: [task] });
+              writeFileSync(out, prompt);
+              console.log(`  task=${task.id} → ${out} (results→${resultsPath}, trace→${tracePath})`);
+            }
+          } else {
+            const resultsPath = `${dir}/run-${stem}.json`;
+            const tracePath = `${dir}/run-${stem}.trace.json`;
+            const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
+            const out = `${dir}/prompt-${stem}.txt`;
+            writeFileSync(out, prompt);
+            resultPaths.push(resultsPath);
+            console.log(
+              `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
+                `(results→${resultsPath}, trace→${tracePath})`,
+            );
+          }
           if (attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${ns}`);
         }
       }
@@ -1978,12 +2184,29 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
           `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
       );
     });
+    if (args.executionMode === "task") {
+      for (const group of invokeGroups.values()) {
+        aggregateTaskInvokeGroup({
+          groupLabel: group.label,
+          paths: group.combinedPaths,
+          taskIdsInOrder: group.taskIdsInOrder,
+          jobPaths: group.jobPaths,
+        });
+      }
+    }
+    const emittedResultPaths = args.executionMode === "task"
+      ? [...invokeGroups.values()].map((group) => group.combinedPaths.resultsPath)
+      : invokeJobs.map((job) => job.paths.resultsPath);
     for (const job of invokeJobs) {
-      resultPaths.push(job.paths.resultsPath);
-      const grouped = resultPathsByHarness.get(job.harness) ?? [];
-      grouped.push(job.paths.resultsPath);
-      resultPathsByHarness.set(job.harness, grouped);
       if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
+    }
+    for (const resultPath of emittedResultPaths) {
+      resultPaths.push(resultPath);
+      const meta = siblingInvokeMeta(resultPath);
+      const harness = typeof meta?.harness === "string" ? meta.harness : "unknown";
+      const grouped = resultPathsByHarness.get(harness) ?? [];
+      grouped.push(resultPath);
+      resultPathsByHarness.set(harness, grouped);
     }
     console.log(`Finished ${invokeJobs.length} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
   }
@@ -2009,12 +2232,19 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
       );
     }
   } else {
-    console.log(
-      `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
-        `  ax-eval verify-generated --pack ${args.pack} ` +
-        resultPaths.map((p) => `--results ${p}`).join(" ") +
-        ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
-    );
+    if (args.executionMode === "task") {
+      console.log(
+        `\nTask-level prompt generation currently requires ax-eval-managed invocation for aggregation. ` +
+          `Re-run with --invoke --execution-mode task to produce combined run artifacts for verify-generated.`,
+      );
+    } else {
+      console.log(
+        `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
+          `  ax-eval verify-generated --pack ${args.pack} ` +
+          resultPaths.map((p) => `--results ${p}`).join(" ") +
+          ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
+      );
+    }
   }
   if (resetHints.length) {
     console.log(`\nBetween attempts, reset the previous namespace so pass@k is isolated:\n${resetHints.join("\n")}`);

@@ -469,6 +469,101 @@ console.log(JSON.stringify({ ok: true }));
     expect(executor.profile).toBe("floor");
   });
 
+  it("`--execution-mode task` runs one prompt per task and aggregates them back into a combined run", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const packDir = freshDir();
+    const taskPack = resolve(packDir, "task-pack.yaml");
+    writeFileSync(
+      taskPack,
+      `
+name: task-pack
+run_id: gen
+base_url: https://api.example.test
+tasks:
+  - id: task-one
+    difficulty: L1
+    prompt: Create task one {ns}
+    allowed_surfaces: [api]
+    oracles:
+      - type: roundtrip
+        readPathTemplate: /things/{gid}
+        assertField: ok
+        expected: true
+  - id: task-two
+    difficulty: L2
+    prompt: Create task two {ns}
+    allowed_surfaces: [api]
+    oracles:
+      - type: roundtrip
+        readPathTemplate: /things/{gid}
+        assertField: ok
+        expected: true
+`.trim(),
+    );
+    const fakeClaude = resolve(binDir, "claude");
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  console.log("claude fake-test");
+  process.exit(0);
+}
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+const taskId = /- ([^\\s]+) \\[L\\d\\]:/.exec(prompt)?.[1];
+if (!resultPath || !tracePath || !taskId) {
+  console.error("missing paths or task");
+  process.exit(1);
+}
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "floor",
+  ns: "fake-ns",
+  surface: "api",
+  discovery: { base_url_found: "", searches: [taskId], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: taskId },
+  results: { [taskId]: { gid: taskId + "-gid" } }
+}, null, 2));
+fs.writeFileSync(tracePath, JSON.stringify([{ step: 1, taskId, action: "did " + taskId }], null, 2));
+console.log(JSON.stringify({ ok: true }));
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+
+    const { code, out } = runCli(
+      [
+        "exec-plan", "--pack", taskPack, "--skip-review", "--invoke", "--harness", "claude-code",
+        "--profile", "floor", "--attempts", "1", "--execution-mode", "task", "--run-dir", dir,
+      ],
+      { PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    );
+
+    expect(code).toBe(0);
+    const files = readdirSync(dir).sort();
+    expect(files).toContain("run-claude-code-floor.json");
+    expect(files).toContain("run-claude-code-floor.trace.json");
+    expect(files).toContain("run-claude-code-floor.invoke.json");
+    expect(files.some((file) => file.startsWith("run-claude-code-floor-") && file.endsWith(".json"))).toBe(true);
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.json"), "utf8"));
+    expect(Object.keys(executor.results).length).toBeGreaterThan(1);
+    expect(Object.values(executor.results).every((value: unknown) => {
+      return !!value && typeof value === "object" && typeof (value as { gid?: string }).gid === "string";
+    })).toBe(true);
+    const meta = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.invoke.json"), "utf8"));
+    expect(meta.executionMode).toBe("task");
+    expect(Array.isArray(meta.taskMetaPaths)).toBe(true);
+    expect(meta.taskMetaPaths.length).toBeGreaterThan(1);
+  });
+
+  it("rejects `--execution-mode task` without `--invoke`", () => {
+    const dir = freshDir();
+    const { code, out } = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--execution-mode", "task", "--run-dir", dir]);
+    expect(code).toBe(1);
+    expect(out).toContain("--execution-mode task currently requires --invoke");
+  });
+
   it("runs multiple configs through the concurrency pool (parallel by default)", () => {
     const dir = freshDir();
     const binDir = freshDir();
