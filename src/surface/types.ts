@@ -24,8 +24,8 @@ export function productName(pack: TargetPack): string {
 }
 
 /** Concrete execution surfaces explicitly named on a task, excluding helper
- *  affordances like `docs`. Empty means the task bank hasn't been narrowed for
- *  execution surfaces yet, so the task applies everywhere. */
+ *  affordances like `docs`. Empty means no executable surface is currently
+ *  supported for this task/vendor cell. */
 export function taskExecutionSurfaces(task: Pick<Task, "allowed_surfaces">): SurfaceId[] {
   return task.allowed_surfaces.filter(isSurfaceId);
 }
@@ -33,7 +33,7 @@ export function taskExecutionSurfaces(task: Pick<Task, "allowed_surfaces">): Sur
 /** Whether a task should run on the selected execution surface. */
 export function taskSupportsSurface(task: Pick<Task, "allowed_surfaces">, surface: SurfaceId): boolean {
   const concrete = taskExecutionSurfaces(task);
-  return concrete.length === 0 || concrete.includes(surface);
+  return concrete.includes(surface);
 }
 
 /** Subset of tasks that apply to the selected execution surface. Tasks

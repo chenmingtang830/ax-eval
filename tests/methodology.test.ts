@@ -785,8 +785,13 @@ describe("suite methodology artifacts", () => {
     );
 
     expect(pack.tasks[0]?.prompt).toContain("Insforge-specific database adapter note");
-    expect(pack.tasks[0]?.prompt).toContain("prefer the documented admin table/schema endpoints");
-    expect(pack.tasks[0]?.prompt).toContain("Avoid batching");
+    expect(pack.tasks[0]?.prompt).toContain("POST /api/database/tables");
+    expect(pack.tasks[0]?.prompt).toContain("PATCH /api/database/tables/{tableName}/schema");
+    expect(pack.tasks[0]?.prompt).toContain("columns: [{columnName, type, isNullable, isUnique}]");
+    expect(pack.tasks[0]?.prompt).toContain("migration `name` lowercase");
+    expect(pack.tasks[0]?.prompt).toContain("POST /api/database/rpc/{functionName}");
+    expect(pack.tasks[0]?.prompt).toContain("Do not batch");
+    expect(pack.tasks[0]?.prompt).toContain("security-parser rejection");
   });
 
   it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {

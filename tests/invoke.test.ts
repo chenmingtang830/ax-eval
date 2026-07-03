@@ -39,6 +39,7 @@ function pack(): TargetPack {
       {
         id: "t1",
         prompt: "Create one thing.",
+        allowed_surfaces: ["api"],
         oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "x" }],
       },
     ],

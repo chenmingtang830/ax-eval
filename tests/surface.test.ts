@@ -108,6 +108,31 @@ describe("surface registry", () => {
     expect(tasksForSurface(pack, "sdk").map((task) => task.id)).toEqual(["data-plane-write"]);
     expect(tasksForSurface(pack, "api").map((task) => task.id)).toEqual(["schema-control-plane", "data-plane-write"]);
   });
+
+  it("treats an empty allowed_surfaces list as unsupported on every execution surface", () => {
+    const pack = TargetPackSchema.parse({
+      ...base,
+      tasks: [
+        {
+          id: "unsupported-task",
+          difficulty: "L2",
+          prompt: "This task has no supported execution surface.",
+          allowed_surfaces: [],
+          oracles: [{ type: "roundtrip", readPathTemplate: "/x/{gid}", assertField: "ok", expected: true }],
+        },
+        {
+          id: "api-task",
+          difficulty: "L1",
+          prompt: "This task is API-supported.",
+          allowed_surfaces: ["api"],
+          oracles: [{ type: "roundtrip", readPathTemplate: "/y/{gid}", assertField: "ok", expected: true }],
+        },
+      ],
+    });
+
+    expect(tasksForSurface(pack, "api").map((task) => task.id)).toEqual(["api-task"]);
+    expect(tasksForSurface(pack, "sdk")).toEqual([]);
+  });
 });
 
 describe("surface-parameterized executor prompt", () => {

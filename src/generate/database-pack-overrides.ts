@@ -35,11 +35,22 @@ const CONVEX_VERIFIER_CONTRACTS: Record<string, string> = {
 };
 
 const INSFORGE_API_SCHEMA_NOTE = [
-  "Insforge-specific database adapter note: when operating through the API surface, prefer the",
-  "documented admin table/schema endpoints for table creation and schema evolution. Avoid batching",
-  "many CREATE TABLE, RLS policy, trigger, and function statements into one custom migration; Insforge's",
-  "migration parser may reject complex SQL for security reasons. Use small, documented admin/schema",
-  "operations first, and only use custom migrations or raw SQL for simple statements the API accepts.",
+  "Insforge-specific database adapter note: when operating through the API surface, use the",
+  "documented admin table/schema endpoints as the first path for schema setup: `POST /api/database/tables`",
+  "with `tableName`, `columns`, and `rlsEnabled`. For current hosted projects, if the live API reports",
+  "`columnName`, `isNullable`, or `isUnique` as required fields, use that request shape:",
+  "`columns: [{columnName, type, isNullable, isUnique}]`. Use the same live schema field names for",
+  "`PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body. Use",
+  "`GET /api/database/tables/{tableName}/schema` for metadata inspection. Then use the PostgREST-style record endpoint",
+  "`/api/database/records/{tableName}` for row writes and reads. Do not batch the benchmark's many",
+  "CREATE TABLE, RLS policy, trigger, and function statements into one `/api/database/migrations`",
+  "request; Insforge's migration parser may reject complex SQL for security reasons. Custom migrations",
+  "or raw SQL are fallback paths only for small task-local SQL fragments that the admin table/schema",
+  "endpoints cannot express. When using `/api/database/migrations`, keep the migration `name` lowercase",
+  "letters, numbers, and hyphens only. Invoke database RPC functions through",
+  "`POST /api/database/rpc/{functionName}`, not under `/api/database/records/`. If a migration returns",
+  "a security-parser rejection, stop using that path and switch to admin table/schema endpoints before",
+  "attempting record writes.",
 ].join(" ");
 
 const SQL_IDENTIFIER_CONTRACT_NOTE = [

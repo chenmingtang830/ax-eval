@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-08y63e
+# run_id: 2026-07-03-3z8srg
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-08y63e
+run_id: 2026-07-03-3z8srg
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -57,12 +57,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 1
@@ -101,12 +115,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 1
@@ -144,12 +172,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 1
@@ -183,12 +225,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 2
@@ -223,12 +279,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 1
@@ -262,12 +332,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 2
@@ -304,12 +388,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 2
@@ -352,16 +450,32 @@ tasks:
       routine whose body returns the literal marker value directly. Do not rely
       on bind parameters inside `CREATE FUNCTION` or `CREATE PROCEDURE`; bind
       parameters are for the outer query execution, not for static routine
-      bodies.
+      bodies. If the vendor surface requires modeling the invocation through a
+      trigger or helper table, persist the marker in a result table column named
+      `value` and report that table as `result_table` for verification.
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
@@ -395,12 +509,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -434,12 +562,26 @@ tasks:
 
 
       Insforge-specific database adapter note: when operating through the API
-      surface, prefer the documented admin table/schema endpoints for table
-      creation and schema evolution. Avoid batching many CREATE TABLE, RLS
-      policy, trigger, and function statements into one custom migration;
-      Insforge's migration parser may reject complex SQL for security reasons.
-      Use small, documented admin/schema operations first, and only use custom
-      migrations or raw SQL for simple statements the API accepts.
+      surface, use the documented admin table/schema endpoints as the first path
+      for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
+      and `rlsEnabled`. For current hosted projects, if the live API reports
+      `columnName`, `isNullable`, or `isUnique` as required fields, use that
+      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
+      the same live schema field names for `PATCH
+      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
+      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
+      Then use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` for row writes and reads. Do not batch
+      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
+      statements into one `/api/database/migrations` request; Insforge's
+      migration parser may reject complex SQL for security reasons. Custom
+      migrations or raw SQL are fallback paths only for small task-local SQL
+      fragments that the admin table/schema endpoints cannot express. When using
+      `/api/database/migrations`, keep the migration `name` lowercase letters,
+      numbers, and hyphens only. Invoke database RPC functions through `POST
+      /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
+      a migration returns a security-parser rejection, stop using that path and
+      switch to admin table/schema endpoints before attempting record writes.
     oracles:
       - type: roundtrip
         expected: 1
