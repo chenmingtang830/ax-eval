@@ -558,6 +558,11 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - The run exposed a generic sandbox-scope guardrail gap: when backup branch creation hit a branch quota, the agent deleted a pre-existing stale eval branch to free capacity before retrying.
   - Classification for the pass result: verified outcome success. Classification for the deletion behavior: `generic-harness-tooling-bug`.
   - Fix: executor prompts now explicitly forbid deleting, resetting, overwriting, or mutating pre-existing resources not created in the current run. If a quota or sandbox limit blocks a task, the agent must record that task as failed instead of cleaning up unrelated resources.
+  - Native full-slice regression: a later native Codex full slice showed CLI low `0/10` and CLI high `5/10`; the low trace failed every SQL-backed task with `Multiple roles found for the branch, please provide one with the --role-name option`. Classification: `vendor-specific-adapter-bug` in the Neon CLI prompt contract, not a verifier/report bug.
+  - Fix: Neon composed prompts now include a CLI role/database contract: when using `neonctl psql` or `neonctl connection-string`, silently parse `NEON_DATABASE_URL` for role and database and pass `--project-id`, `--role-name`, and `--database-name`; use `NEON_BRANCH_ID` as the branch argument when set; never print connection strings or tokens.
+  - `rolecontract-v1`: targeted native Codex CLI low smoke verified `9/10`; latency was `58.981s`, with `4` transcript-derived tool calls and model `gpt-5.5`. The role error disappeared. The remaining failure was `db-T10-write-records`: final record count was `0` and `delete_me` count was `1`, so the agent's write lifecycle logic reversed the expected final/delete state. Classification: `agent-execution-failure`.
+  - The same smoke still hit `branches limit exceeded` while creating a recovery branch after the backup marker existed. Because the backup-marker verifier passed, classify the branch quota as an `environment-failure` diagnostic, not a failed product capability for this cell.
+  - Generic harness/tooling bug from the artifact audit: `neonctl --help` can echo a line-wrapped default API key into stdout/transcript. Persisted artifact redaction now covers raw, line-wrapped, JSON-escaped, and partially redacted Neon `napi_` token shapes.
 - CockroachDB SDK/Codex low smoke evidence:
   - `v3`: `0/10` before SQL prompt hardening. The agent connected through the official Postgres-compatible `pg` SQL-wire path but every schema/data task failed on unquoted hyphenated canonical SQL identifiers.
   - Fix: the same database SQL identifier contract used for Neon was applied to SQL-backed database packs, and the T08 zero-argument routine contract was added for server-side execution.
@@ -928,9 +933,10 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has a verified Neon full slice over API/CLI/SDK, with API low `10/10`, SDK low `8/8`, and CLI best `5/10`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, and post-role-contract CLI low `9/10`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
+- Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
 - Normalized records now carry efficiency diagnostics fields without changing outcome scoring
 - Harness artifacts are redacted before persistence to avoid publishing secret-shaped values
 
@@ -941,7 +947,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - regression-set graduation workflow once tasks saturate
 - methodology revision memo template per suite release
 - real execution, verification, normalized records, and publication-bundle interpretation for the remaining 7-vendor × 3-surface × 2-harness × 2-effort matrix cells
-- Neon CLI prompt/adapter contract for role-disambiguated `neonctl psql` calls, then targeted CLI rerun
+- rerun Neon CLI high/full slice after the role contract to measure whether the remaining T10 write-lifecycle failure is stable or agent-variance
 - true latency values for all normalized records, available automatically for new invokes through `durationMs` in invoke metadata
 
 ## 12. Working Principle

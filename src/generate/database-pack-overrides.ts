@@ -65,6 +65,15 @@ const SQL_SERVER_ROUTINE_CONTRACT_NOTE = [
   "`CREATE PROCEDURE`; bind parameters are for the outer query execution, not for static routine bodies.",
 ].join(" ");
 
+const NEON_CLI_ROLE_CONTRACT_NOTE = [
+  "Neon CLI contract: when operating through `neonctl psql` or `neonctl connection-string`, do not rely",
+  "on Neon CLI's default role/database inference. In shared benchmark branches, multiple roles may exist.",
+  "Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as the role name and the path",
+  "database as the database name, then pass `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and",
+  "`--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID` is set, use it as the branch",
+  "argument. Never print the connection string or token values.",
+].join(" ");
+
 const MONGODB_ATLAS_TASK_CONTRACTS: Record<string, string> = {
   "db-T03-change-data-capture": [
     "MongoDB Atlas change-stream contract: open the change stream before inserting the probe document,",
@@ -89,6 +98,7 @@ export function applyDatabasePackPromptOverride(
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
     if (task.id === "db-T08-server-side-execution") prompt = `${prompt}\n\n${SQL_SERVER_ROUTINE_CONTRACT_NOTE}`;
   }
+  if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
   if (vendor.slug === "mongodb-atlas" && task.id.startsWith("db-")) {
     const contract = MONGODB_ATLAS_TASK_CONTRACTS[task.id];

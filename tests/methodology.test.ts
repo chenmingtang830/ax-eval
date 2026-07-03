@@ -538,8 +538,13 @@ describe("suite methodology artifacts", () => {
     expect(neonPack.tasks[0]?.prompt).toContain("Database SQL identifier contract");
     expect(neonPack.tasks[0]?.prompt).toContain("double-quote table, function, policy, index, trigger");
     expect(neonPack.tasks[0]?.prompt).toContain("do not replace hyphens with underscores for SQL-backed vendors");
+    expect(neonPack.tasks[0]?.prompt).toContain("Neon CLI contract");
+    expect(neonPack.tasks[0]?.prompt).toContain("`--role-name <role>`");
+    expect(neonPack.tasks[0]?.prompt).toContain("process.env.NEON_DATABASE_URL");
     expect(mongoPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
+    expect(mongoPack.tasks[0]?.prompt).not.toContain("Neon CLI contract");
     expect(convexPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
+    expect(convexPack.tasks[0]?.prompt).not.toContain("Neon CLI contract");
     expect(convexPack.tasks[0]?.prompt).toContain("Convex-specific database adapter note");
   });
 

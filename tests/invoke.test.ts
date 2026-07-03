@@ -99,6 +99,11 @@ describe("redactSensitiveText", () => {
     const raw = [
       "DATABASE_URL=postgresql://user:pass@example.test:5432/db",
       "SUPABASE_ACCESS_TOKEN=sbp_abcdefghijklmnopqrstuvwxyz",
+      "neonctl help default --api-key napi_1l1uah8v9netldvmvzu7164ebe951zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7",
+      "wrapped neon default [default: \"napi_1l1uah8v9netldvmvzu7164ebe9\n                    51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7\"]",
+      "json escaped neon default [default: \\\"napi_1l1uah8v9netldvmvzu7164ebe9\\n                    51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7\\\"]",
+      "partially redacted wrapped neon default [default: \"<redacted-token>\n                    51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7\"]",
+      "partially redacted escaped neon default [default: \\\"<redacted-token>\\n                    51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7\\\"]",
       "ASANA_PAT=2/123/abc:def",
       "CONVEX_DEPLOY_KEY=preview:team:project|eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc",
       "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
@@ -121,6 +126,8 @@ describe("redactSensitiveText", () => {
     expect(redacted).toContain("\"dsn\":\"<redacted>\"");
     expect(redacted).not.toContain("user:pass");
     expect(redacted).not.toContain("sbp_abcdefghijklmnopqrstuvwxyz");
+    expect(redacted).not.toContain("napi_1l1uah8v9netldvmvzu7164ebe951zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7");
+    expect(redacted).not.toContain("51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7");
     expect(redacted).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
     expect(redacted).not.toContain("3bbe57a973254129bcb93e47dc0cc46f");
     expect(redacted).toContain("@supabase/postgrest-js");
