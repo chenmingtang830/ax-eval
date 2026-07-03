@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-02-pnre96
+# run_id: 2026-07-03-99evpm
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-02-pnre96
+run_id: 2026-07-03-99evpm
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -316,7 +316,9 @@ tasks:
       routine whose body returns the literal marker value directly. Do not rely
       on bind parameters inside `CREATE FUNCTION` or `CREATE PROCEDURE`; bind
       parameters are for the outer query execution, not for static routine
-      bodies.
+      bodies. If the vendor surface requires modeling the invocation through a
+      trigger or helper table, persist the marker in a result table column named
+      `value` and report that table as `result_table` for verification.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
@@ -380,6 +382,13 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      SQL write lifecycle contract: before reporting this task, read back the
+      target table and ensure the postcondition is exact: one row labeled
+      `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
+      `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
+      fix only this run-scoped table before reporting the gid.
     oracles:
       - type: roundtrip
         expected: 1

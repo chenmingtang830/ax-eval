@@ -603,6 +603,77 @@ describe("suite methodology artifacts", () => {
     expect(pack.tasks[0]?.prompt).toContain("result table column named `value`");
   });
 
+  it("adds exact SQL write-lifecycle postcondition guidance for SQL-backed T10 tasks", () => {
+    const suite: Suite = {
+      name: "DEMO",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T10-write-records",
+        title: "T10: write lifecycle",
+        difficulty: "L1",
+        skill: "write-records",
+        intent: "Create, update, and delete marker records in `axarena_write_items_{ns}`.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api"],
+        na_examples: [],
+      }],
+    };
+    const extract = {
+      vendor: "Supabase",
+      category: "database",
+      slug: "supabase",
+      suite_name: "DEMO",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+      vendor_config: {
+        base_url: "https://${SUPABASE_PROJECT_REF}.supabase.co",
+        auth_type: "bearer" as const,
+        auth_env: "SUPABASE_API_KEY",
+        sql_dialect: "postgres" as const,
+        sql_connection_env: "SUPABASE_DB_URL",
+      },
+      tasks: [{
+        task_id: "db-T10-write-records",
+        na: false,
+        checks: [{
+          sql_dialect: "postgres" as const,
+          sql_query: "select 1 as count",
+          assert_field: "0.count",
+          expected: 1,
+          description: "",
+        }],
+      }],
+    };
+
+    const supabasePack = composePack(
+      suite,
+      { vendor: "Supabase", slug: "supabase", category: "database", docs_url: "https://supabase.com/docs", site_url: "https://supabase.com" },
+      extract,
+    );
+    const mongoPack = composePack(
+      suite,
+      { vendor: "MongoDB Atlas", slug: "mongodb-atlas", category: "database", docs_url: "https://www.mongodb.com/docs/atlas", site_url: "https://www.mongodb.com/atlas" },
+      {
+        ...extract,
+        vendor: "MongoDB Atlas",
+        slug: "mongodb-atlas",
+        vendor_config: {
+          base_url: "https://cloud.mongodb.com/api/atlas/v2",
+          auth_type: "bearer" as const,
+          auth_env: "MONGODB_ATLAS_ADMIN_API_KEY",
+          mongo_connection_env: "ATLAS_CONNECTION_STRING",
+        },
+      },
+    );
+
+    expect(supabasePack.tasks[0]?.prompt).toContain("SQL write lifecycle contract");
+    expect(supabasePack.tasks[0]?.prompt).toContain("one row labeled `final_{ns}`");
+    expect(supabasePack.tasks[0]?.prompt).toContain("zero rows labeled `draft_{ns}`");
+    expect(supabasePack.tasks[0]?.prompt).toContain("zero rows labeled `delete_me_{ns}`");
+    expect(mongoPack.tasks[0]?.prompt).not.toContain("SQL write lifecycle contract");
+  });
+
   it("adds MongoDB Atlas SDK task contracts for change streams and vector indexes", () => {
     const suite: Suite = {
       name: "DEMO",

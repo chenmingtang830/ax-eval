@@ -78,6 +78,13 @@ const SQL_SERVER_ROUTINE_CONTRACT_NOTE = [
   "marker in a result table column named `value` and report that table as `result_table` for verification.",
 ].join(" ");
 
+const SQL_WRITE_LIFECYCLE_CONTRACT_NOTE = [
+  "SQL write lifecycle contract: before reporting this task, read back the target table and ensure the",
+  "postcondition is exact: one row labeled `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows",
+  "labeled `delete_me_{ns}`. If a partial attempt or retry created extra marker rows, fix only this",
+  "run-scoped table before reporting the gid.",
+].join(" ");
+
 const NEON_CLI_ROLE_CONTRACT_NOTE = [
   "Neon CLI contract: when operating through `neonctl psql` or `neonctl connection-string`, do not rely",
   "on Neon CLI's default role/database inference. In shared benchmark branches, multiple roles may exist.",
@@ -110,6 +117,7 @@ export function applyDatabasePackPromptOverride(
   if (SQL_IDENTIFIER_CONTRACT_VENDORS.has(vendor.slug) && task.id.startsWith("db-")) {
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
     if (task.id === "db-T08-server-side-execution") prompt = `${prompt}\n\n${SQL_SERVER_ROUTINE_CONTRACT_NOTE}`;
+    if (task.id === "db-T10-write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
   if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
