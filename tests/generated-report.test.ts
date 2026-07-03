@@ -602,6 +602,10 @@ describe("renderGeneratedReport (HTML)", () => {
           tool_call_count: 5,
           token_usage: { input_tokens: 100, output_tokens: 25 },
           token_cost: null,
+          validity_status: "valid",
+          first_action_latency_ms: 321,
+          transcript_event_count: 9,
+          action_occurred: true,
         },
       },
     ];
@@ -612,6 +616,10 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(record.tool_call_count).toBe(5);
     expect(record.token_usage).toEqual({ input_tokens: 100, output_tokens: 25 });
     expect(record.token_cost).toBeNull();
+    expect(record.validity_status).toBe("valid");
+    expect(record.first_action_latency_ms).toBe(321);
+    expect(record.transcript_event_count).toBe(9);
+    expect(record.action_occurred).toBe(true);
   });
 
   it("methodology note explains the effort-only spread without surfacing matrix/paid framing", () => {

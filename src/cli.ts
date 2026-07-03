@@ -161,7 +161,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--invoke-timeout seconds] [--first-action-timeout seconds]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -273,6 +273,9 @@ interface Parsed {
    *  the whole matrix; the cell is retried (see `invokeRetries`) then recorded
    *  as a timeout failure. 0 disables the cap. */
   invokeTimeout: number;
+  /** Optional cap in seconds for runs that never take a tool/action
+   *  (`--first-action-timeout`). 0 disables the cap. */
+  firstActionTimeout: number;
   /** Retries for a failed/timed-out invocation (`--invoke-retries`, default 1).
    *  0 disables retries. */
   invokeRetries: number;
@@ -341,6 +344,7 @@ function parseArgs(argv: string[]): Parsed {
     generatorEffort: "high",
     concurrency: 4,
     invokeTimeout: 900,
+    firstActionTimeout: 0,
     invokeRetries: 1,
     out: "results/last-run.json",
     site: "",
@@ -424,6 +428,11 @@ function parseArgs(argv: string[]): Parsed {
       const n = Number(value(++i, "--invoke-timeout"));
       if (!Number.isInteger(n) || n < 0) throw new Error(`--invoke-timeout must be a non-negative integer (seconds; got ${n})`);
       p.invokeTimeout = n;
+    }
+    else if (a === "--first-action-timeout") {
+      const n = Number(value(++i, "--first-action-timeout"));
+      if (!Number.isInteger(n) || n < 0) throw new Error(`--first-action-timeout must be a non-negative integer (seconds; got ${n})`);
+      p.firstActionTimeout = n;
     }
     else if (a === "--invoke-retries") {
       const n = Number(value(++i, "--invoke-retries"));
@@ -1916,6 +1925,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                 model: args.model || undefined,
                 effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
                 timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
+                firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
                 retries: args.invokeRetries,
                 env: provisioning.env,
                 provisioning: provisioning.meta,
@@ -1960,6 +1970,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
       const invoke = await runInvokeHarness(job.runOpts);
       const note = [
         invoke.timedOut ? "timed out" : null,
+        invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
         (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
       ].filter(Boolean).join(", ");
       console.log(
@@ -2077,6 +2088,11 @@ function sumNullable(a: number | null | undefined, b: number | null | undefined)
   return values.length ? values.reduce((sum, v) => sum + v, 0) : null;
 }
 
+function minNullable(a: number | null | undefined, b: number | null | undefined): number | null {
+  const values = [a, b].filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return values.length ? Math.min(...values) : null;
+}
+
 function mergeTokenUsage(
   a: Record<string, number> | null | undefined,
   b: Record<string, number> | null | undefined,
@@ -2091,6 +2107,18 @@ function mergeTokenUsage(
   return Object.keys(out).length ? out : null;
 }
 
+function mergeValidityStatus(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (a && a !== "valid") return a;
+  if (b && b !== "valid") return b;
+  return a ?? b ?? null;
+}
+
+function mergeNullableBooleanOr(a: boolean | null | undefined, b: boolean | null | undefined): boolean | null {
+  if (a === true || b === true) return true;
+  if (a === false || b === false) return false;
+  return null;
+}
+
 function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"]): ProfileRun["efficiency"] | undefined {
   if (!a) return b;
   if (!b) return a;
@@ -2099,6 +2127,10 @@ function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"
     tool_call_count: sumNullable(a.tool_call_count, b.tool_call_count),
     token_usage: mergeTokenUsage(a.token_usage, b.token_usage),
     token_cost: sumNullable(a.token_cost, b.token_cost),
+    validity_status: mergeValidityStatus(a.validity_status, b.validity_status),
+    first_action_latency_ms: minNullable(a.first_action_latency_ms, b.first_action_latency_ms),
+    transcript_event_count: sumNullable(a.transcript_event_count, b.transcript_event_count),
+    action_occurred: mergeNullableBooleanOr(a.action_occurred, b.action_occurred),
   };
 }
 
@@ -2166,23 +2198,38 @@ function collectTokenUsage(value: unknown, acc: Record<string, number>): void {
   }
 }
 
-function transcriptMetrics(path: string | undefined): { tool_call_count: number | null; token_usage: Record<string, number> | null } {
-  if (!path || !existsSync(path)) return { tool_call_count: null, token_usage: null };
+function transcriptMetrics(path: string | undefined): {
+  tool_call_count: number | null;
+  token_usage: Record<string, number> | null;
+  transcript_event_count: number | null;
+  action_occurred: boolean | null;
+} {
+  if (!path || !existsSync(path)) {
+    return { tool_call_count: null, token_usage: null, transcript_event_count: null, action_occurred: null };
+  }
   const tokenUsage: Record<string, number> = {};
   let toolCalls = 0;
+  let events = 0;
+  let actionOccurred = false;
   for (const line of readFileSync(path, "utf8").split("\n")) {
     const trimmed = line.trim();
     if (!trimmed) continue;
     try {
       const event = JSON.parse(trimmed) as Record<string, unknown>;
+      events += 1;
       collectTokenUsage(event, tokenUsage);
       const item = event.item as { type?: unknown } | undefined;
-      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) toolCalls += 1;
+      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
+        toolCalls += 1;
+        actionOccurred = true;
+      }
       const message = event.message as { content?: unknown } | undefined;
       if (Array.isArray(message?.content)) {
-        toolCalls += message.content.filter((block) =>
+        const claudeToolCalls = message.content.filter((block) =>
           block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
         ).length;
+        toolCalls += claudeToolCalls;
+        if (claudeToolCalls > 0) actionOccurred = true;
       }
     } catch {
       /* Non-JSON transcript lines are allowed; they just do not carry metrics. */
@@ -2191,6 +2238,8 @@ function transcriptMetrics(path: string | undefined): { tool_call_count: number 
   return {
     tool_call_count: toolCalls,
     token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
+    transcript_event_count: events,
+    action_occurred: actionOccurred,
   };
 }
 
@@ -2204,6 +2253,10 @@ function efficiencyForRun(resultPath: string, transcriptPath: string | undefined
     // Cost requires a versioned pricing table. Keep it explicit and nullable
     // rather than inventing a number from model names.
     token_cost: null,
+    validity_status: typeof meta?.validity_status === "string" ? meta.validity_status : null,
+    first_action_latency_ms: typeof meta?.first_action_latency_ms === "number" ? meta.first_action_latency_ms : null,
+    transcript_event_count: typeof meta?.transcript_event_count === "number" ? meta.transcript_event_count : metrics.transcript_event_count,
+    action_occurred: typeof meta?.action_occurred === "boolean" ? meta.action_occurred : metrics.action_occurred,
   };
 }
 

@@ -58,6 +58,12 @@ export interface NormalizedResult {
   tool_call_count?: number | null;
   token_usage?: Record<string, number> | null;
   token_cost?: number | null;
+  /** Runtime validity diagnostics are explanatory only. They separate harness
+   *  runtime issues (for example, no-action timeouts) from vendor capability. */
+  validity_status?: string | null;
+  first_action_latency_ms?: number | null;
+  transcript_event_count?: number | null;
+  action_occurred?: boolean | null;
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
    *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
@@ -162,6 +168,10 @@ export function buildNormalizedResult(
     tool_call_count: best?.efficiency?.tool_call_count ?? null,
     token_usage: best?.efficiency?.token_usage ?? null,
     token_cost: best?.efficiency?.token_cost ?? null,
+    validity_status: best?.efficiency?.validity_status ?? null,
+    first_action_latency_ms: best?.efficiency?.first_action_latency_ms ?? null,
+    transcript_event_count: best?.efficiency?.transcript_event_count ?? null,
+    action_occurred: best?.efficiency?.action_occurred ?? null,
   };
 }
 
@@ -242,6 +252,10 @@ export function buildBlockedResult(
     tool_call_count: null,
     token_usage: null,
     token_cost: null,
+    validity_status: null,
+    first_action_latency_ms: null,
+    transcript_event_count: null,
+    action_occurred: null,
     blocked,
   };
 }

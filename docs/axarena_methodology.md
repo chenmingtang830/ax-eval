@@ -512,6 +512,14 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - DAEB-1/database is treated as the flagship vertical benchmark, not proof that every category is already generic.
 - The core artifact architecture remains generic: capability inventory, concept universe, coverage matrix, selection ledger, support matrix, suite YAML, vendor-specific verifier adapters, execution, verification, reporting, and publication.
 - Database-specific deterministic seeds/templates/verifiers are allowed, but they must remain isolated in database-specific generation or verifier branches.
+- Current publication-grade execution decision: keep existing cell/batch execution mode for compatibility and smoke/regression comparisons, but move DAEB-1 publication evidence toward task-level execution. The desired publication lane is one canonical task per invocation, one task-level result JSON, one task-level trace, one task-level transcript, and one task-level invoke meta, later aggregated back into the existing cell-level normalized record.
+- Two-phase DAEB-1 execution model:
+  - Phase A: discovery/bootstrap per `{vendor, surface, harness, profile}`. Persist a concise runbook containing auth/base URL/CLI/SDK setup quirks and official docs links.
+  - Phase B: per-task execution. Each prompt receives only the task, exact namespace/resource names, verifier-critical expected state, surface-specific allowed path, the concise runbook, and shared database contracts once.
+- Prompt compaction rule: do not repeat long SQL/database contracts or all other tasks inside every execution prompt. Methodology prose belongs in docs and artifacts, not in live task prompts.
+- Runtime-validity diagnostics are now first-class evidence fields: `validity_status`, `first_action_latency_ms`, `transcript_event_count`, and `action_occurred`. `runtime_timeout_no_action` and `runtime_timeout_partial` are harness/runtime validity evidence, not product capability scores.
+- `--first-action-timeout <seconds>` is the execution stop-loss for high-effort no-action stalls. For DAEB-1 publication learning, use `120–180s` and at most one intentional rerun. Do not wait the full wall timeout when no tool/API/command action occurred.
+- Token/cost status: latency and tool-call count are measured from invoke meta/transcripts. Token usage is parsed only when the harness transcript exposes usage fields. Token cost remains `null` until a versioned pricing table exists; unavailable cost must be documented as unavailable, not estimated.
 - Initial Supabase API/Codex smoke evidence:
   - `low` / `gpt-5.5`: `9/9` verified tasks passed after database identifier, vector, query-record, and CDC wording fixes.
   - `high` / `gpt-5.5`: `7/9` verified tasks passed; failures were `vector-search` and `write-records`.
@@ -535,7 +543,7 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Classification: `agent-execution-failure`. This does not justify changing the outcome verifier or weakening the task; the API low run already passed the same verifier, and CLI completed the other schema-heavy tasks.
   - `low-v2` / `gpt-5.5`: native Codex CLI low rerun verified `6/7`; latency was `198.186s`, with `14` transcript-derived tool calls. The same T10 task failed again, but with a different residual state: exactly one `final_{ns}` row existed, while one `delete_me_{ns}` throwaway row remained after a partial CTE attempt plus follow-up retry.
   - Cross-run T10 classification: repeated Supabase CLI failures are still agent execution failures for the cell, but the repeated lifecycle-retry pattern exposed a database-category prompt-contract clarity bug. SQL-backed T10 prompts now include an exact postcondition contract: before reporting, read back one `final_{ns}` row, zero `draft_{ns}` rows, and zero `delete_me_{ns}` rows, and repair only the run-scoped table if a partial retry leaked marker rows.
-  - `high-v1` / `gpt-5.5`: native Codex CLI high timed out after `967.065s` before any command execution. Transcript contains only `thread.started` and `turn.started`, so verifier found `0/7` reported gids and all tasks failed. Classification: `agent-execution-failure` / runtime timeout, not a Supabase CLI capability failure or verifier bug.
+  - `high-v1` / `gpt-5.5`: native Codex CLI high timed out after `967.065s` before any command execution. Transcript contains only `thread.started` and `turn.started`, so verifier found `0/7` reported gids and all tasks failed. Classification: `agent-runtime-timeout-before-first-action`, not a Supabase CLI capability failure, verifier bug, or scored vendor usability failure.
   - Contrast with SDK: CLI can perform the schema-heavy setup through `supabase db query --linked`; SDK cannot create the required tables/functions without a pre-existing SQL RPC. This supports treating the current Supabase SDK failure as a surface support/baseline-ops question, not a core suite/verifier failure.
 - Neon API/Codex low smoke evidence:
   - `v1`: `0/10`; agent discovered Neon API auth/base URL but attempted `POST /projects` and hit `org_id is required`.
@@ -727,6 +735,10 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - `token_usage`
   - `token_cost` / `cost_per_task`
   - `latency_ms`
+  - `first_action_latency_ms`
+  - `transcript_event_count`
+  - `action_occurred`
+  - `validity_status`
   - `time_to_first_token`
   - `time_to_last_token`
 - Human calibration requirements by difficulty
@@ -756,8 +768,10 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - `database-category-seed-template-verifier-bug`
 - `vendor-specific-adapter-bug`
 - `agent-execution-failure`
+- `environment-runtime-failure`
+- `agent-runtime-timeout-before-first-action`
 
-These buckets are intentionally engineering-facing for the DAEB-1 hardening loop. They keep the core engine generic while letting database-specific seeds/templates/verifiers evolve quickly when real execution proves they are wrong.
+These buckets are intentionally engineering-facing for the DAEB-1 hardening loop. They keep the core engine generic while letting database-specific seeds/templates/verifiers evolve quickly when real execution proves they are wrong. A no-action timeout is a runtime-validity finding; it should be disclosed separately and excluded from vendor usability pass-rate denominators unless a later task-level execution actually performs vendor-visible work and fails verification.
 
 **Metrics**
 
@@ -949,7 +963,7 @@ AX_EVAL_CLAUDE_BIN=/Users/richardtang/.cursor/extensions/anthropic.claude-code-2
 npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
   --run-dir results/runs/daeb-1-v3/smoke/neon-api-claude-low-pinned \
   --invoke --harness claude-code --profile low --surface api --model sonnet \
-  --invoke-retries 0
+  --invoke-retries 0 --first-action-timeout 180
 ```
 
 Codex execution recipe:
@@ -959,7 +973,7 @@ AX_EVAL_CODEX_BIN=/Applications/Codex.app/Contents/Resources/codex \
 npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
   --run-dir results/runs/daeb-1-v3/full/neon-codex-gpt55-native-v1 \
   --invoke --harness codex --profile low --profile high --surface all \
-  --model gpt-5.5 --invoke-retries 0 --concurrency 3
+  --model gpt-5.5 --invoke-retries 0 --first-action-timeout 180 --concurrency 3
 ```
 
 Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability.
@@ -972,7 +986,7 @@ Sandbox reset is an explicit baseline operation, never an agent behavior and nev
 
 For non-MCP Codex surfaces, the invocation layer creates an isolated Codex home and passes `mcp_servers={}`. This keeps API/CLI/SDK usability evidence independent from unrelated operator MCP server login state. For MCP surfaces, the harness still uses the pack-declared MCP provisioning path.
 
-For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be useful for a known flaky cell, but automatic retries on high-effort timeouts can double wall-clock time without adding independent evidence.
+For first-pass matrix expansion, prefer `--invoke-retries 0` plus `--first-action-timeout 180`. A retry can be useful for a known flaky cell, but automatic retries on high-effort timeouts can double wall-clock time without adding independent evidence. A no-action timeout is reported as runtime validity evidence and should not enter the vendor pass-rate denominator.
 
 ## 11. What Is Done vs. What Remains
 

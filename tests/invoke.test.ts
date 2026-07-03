@@ -59,6 +59,9 @@ function makeSpawnResult() {
     status: 0,
     signal: null,
     error: undefined,
+    timedOut: undefined,
+    timeoutReason: undefined,
+    firstActionLatencyMs: undefined,
   };
 }
 
@@ -465,19 +468,50 @@ describe("runInvokeHarness", () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
     let seenTimeout: number | undefined;
+    let seenFirstActionTimeout: number | undefined;
     const spawn: AsyncSpawn = async (_command, _args, _cwd, spawnOpts) => {
       seenTimeout = spawnOpts?.timeoutMs;
+      seenFirstActionTimeout = spawnOpts?.firstActionTimeoutMs;
       // Simulate the child being killed by the wall-clock cap (no results written).
-      return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, stdout: Buffer.from("") });
+      return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, timeoutReason: "first-action", stdout: Buffer.from("") });
     };
-    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, retries: 0, model: "sonnet" }, spawn);
+    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, firstActionTimeoutMs: 250, retries: 0, model: "sonnet" }, spawn);
     expect(seenTimeout).toBe(1000);
+    expect(seenFirstActionTimeout).toBe(250);
     expect(result.timedOut).toBe(true);
+    expect(result.timeoutReason).toBe("first-action");
+    expect(result.validity_status).toBe("runtime_timeout_no_action");
+    expect(result.action_occurred).toBe(false);
+    expect(result.transcript_event_count).toBe(0);
     expect(result.ok).toBe(false);
     expect(result.attempts).toBe(1);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(executor.model).toBe("sonnet");
-    expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
+    expect(String(executor.discovery?.notes ?? "")).toMatch(/before first action/i);
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.validity_status).toBe("runtime_timeout_no_action");
+    expect(meta.action_occurred).toBe(false);
+  });
+
+  it("records runtime_timeout_partial when a timed-out transcript contains an action", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const stdout = JSON.stringify({
+      type: "item.completed",
+      item: { type: "command_execution", command: "democtl create thing" },
+    });
+    const result = await runInvokeHarness(
+      { ...run, timeoutMs: 1000, retries: 0 },
+      async () => spawnResult({ status: null, signal: "SIGTERM", timedOut: true, timeoutReason: "wall", stdout: Buffer.from(stdout) }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("runtime_timeout_partial");
+    expect(result.action_occurred).toBe(true);
+    expect(result.transcript_event_count).toBe(1);
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.validity_status).toBe("runtime_timeout_partial");
+    expect(meta.action_occurred).toBe(true);
   });
 
   it("terminates a lingering wrapper once the required artifacts exist", async () => {
@@ -497,6 +531,22 @@ describe("runInvokeHarness", () => {
 
     expect(result.status).toBe(0);
     expect(result.timedOut).toBe(false);
+    expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("terminates a no-action child at the first-action timeout", async () => {
+    const dir = freshDir();
+    const started = Date.now();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/bin/sh",
+      ["-c", "node -e \"setTimeout(() => {}, 30000)\""],
+      dir,
+      { timeoutMs: 60000, firstActionTimeoutMs: 50 },
+    );
+
+    expect(result.timedOut).toBe(true);
+    expect(result.timeoutReason).toBe("first-action");
+    expect(result.firstActionLatencyMs).toBeNull();
     expect(Date.now() - started).toBeLessThan(10000);
   });
 
@@ -543,6 +593,9 @@ describe("runInvokeHarness", () => {
 
     expect(result.ok).toBe(true);
     expect(result.timedOut).toBe(true);
+    expect(result.validity_status).toBe("runtime_timeout_partial");
+    expect(result.action_occurred).toBe(true);
+    expect(result.transcript_event_count).toBe(2);
     expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-recovered");
     expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))[0].action).toBe("create thing");
   });

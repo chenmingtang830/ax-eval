@@ -55,6 +55,10 @@ export interface ProfileRun {
     tool_call_count?: number | null;
     token_usage?: Record<string, number> | null;
     token_cost?: number | null;
+    validity_status?: string | null;
+    first_action_latency_ms?: number | null;
+    transcript_event_count?: number | null;
+    action_occurred?: boolean | null;
   };
   /** Source files this run was assembled from. Surfaced verbatim in the report
    *  so a reader can drill from the rendered HTML back to the raw evidence
