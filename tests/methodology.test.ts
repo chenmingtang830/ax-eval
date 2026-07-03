@@ -600,6 +600,7 @@ describe("suite methodology artifacts", () => {
     expect(pack.tasks[0]?.prompt).toContain("SQL server-side routine contract");
     expect(pack.tasks[0]?.prompt).toContain("zero-argument routine");
     expect(pack.tasks[0]?.prompt).toContain("Do not rely on bind parameters inside `CREATE FUNCTION`");
+    expect(pack.tasks[0]?.prompt).toContain("result table column named `value`");
   });
 
   it("adds MongoDB Atlas SDK task contracts for change streams and vector indexes", () => {

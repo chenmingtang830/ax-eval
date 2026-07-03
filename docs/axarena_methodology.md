@@ -612,6 +612,11 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Remaining v3 failures:
     - `db-T01-access-control`: agent inspected auth-related SQL surface but did not implement a verifiable fine-grained token flow with the provided database token. Classification: `agent-execution-failure` for now; watch whether high-effort or CLI can complete it before changing support.
     - `db-T03-change-data-capture`: agent tried both documented CDC/listen directions; the generic database host returned `404` for `/beta/listen`, while earlier PRAGMA attempts were rejected through SQL-over-HTTP. Classification: `database-category seed/template/verifier watch item`; evidence suggests Turso CDC may require primary-instance host context or a different adapter path, not a broad core change.
+- Turso CLI/Codex low-high smoke evidence:
+  - `v1`: native Codex CLI low/high smoke verified `9/20` with `--invoke-retries 0`. Low passed `0/10` in `104.920s` with `19` transcript-derived tool calls; high passed `9/10` in `483.767s` with `14` transcript-derived tool calls. The normalized `{codex, cli}` cell reports best profile `high`, model `gpt-5.5`, pass@1 `9/10`, latency `483.767s`, and `14` tool calls.
+  - Low classification: `agent-execution-failure`. The low trace used the database token as a Turso platform token/config credential and wrote no verifier-visible state. The high trace discovered the usable official CLI shell path by passing the database JWT through the `libsql://...turso.io?jwt=<redacted>` URL.
+  - High T08 classification: `database-category seed/template/verifier contract bug`. High created and invoked a trigger-backed routine analogue and reported `result_table`, but used a `result` column while the verifier required `value`. The task prompt did not previously make that helper-table column contract explicit enough.
+  - Fix: SQL-backed DAEB server-side-execution prompts now state that trigger/helper-table implementations must persist the marker in a result table column named `value` and report that table as `result_table`. The verifier remains strict and outcome-first; it was not widened to accept arbitrary agent-chosen column names.
 - Convex API/Codex low smoke evidence:
   - `v1`: `0/8`; latency was about `276s`. The agent found Convex deployment/admin APIs and function APIs, but deployment failed because canonical DAEB names included hyphens and Convex table/function identifiers may only use letters, digits, and underscores.
   - Classification: `vendor-specific-adapter-bug`. The canonical names and marker strings remain benchmark outcomes, but Convex code identifiers need a deterministic safe-identifier mapping.
@@ -955,7 +960,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, and CockroachDB CLI low/high `19/20`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB CLI low/high `19/20`, and Turso CLI low/high best-cell `9/10`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash

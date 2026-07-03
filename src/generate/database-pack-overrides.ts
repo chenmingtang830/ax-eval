@@ -63,6 +63,8 @@ const SQL_SERVER_ROUTINE_CONTRACT_NOTE = [
   "SQL server-side routine contract: for this task, create a zero-argument routine whose body returns",
   "the literal marker value directly. Do not rely on bind parameters inside `CREATE FUNCTION` or",
   "`CREATE PROCEDURE`; bind parameters are for the outer query execution, not for static routine bodies.",
+  "If the vendor surface requires modeling the invocation through a trigger or helper table, persist the",
+  "marker in a result table column named `value` and report that table as `result_table` for verification.",
 ].join(" ");
 
 const NEON_CLI_ROLE_CONTRACT_NOTE = [
