@@ -569,6 +569,10 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - `v3`: `0/10` before SQL prompt hardening. The agent connected through the official Postgres-compatible `pg` SQL-wire path but every schema/data task failed on unquoted hyphenated canonical SQL identifiers.
   - Fix: the same database SQL identifier contract used for Neon was applied to SQL-backed database packs, and the T08 zero-argument routine contract was added for server-side execution.
   - `v4`: `10/10` verified tasks passed; latency was about `98s`. This cross-vendor recovery confirms the identifier/routine changes are database-category template hardening, not a Neon-specific workaround.
+- CockroachDB SDK/Codex high smoke evidence:
+  - `high-v1`: native Codex SDK high smoke verified `9/10` with `--invoke-retries 0` and passed the `0.80` gate. The normalized `{codex, sdk}` high-profile record reports model `gpt-5.5`, latency `234.200s`, `22` transcript-derived tool calls, and null token usage/cost because native Codex transcripts do not expose provider token accounting.
+  - The single failure was `db-T03-change-data-capture`: the trace shows the agent created source/capture tables and inserted the source row, then timed out after `20s` waiting for a sinkless changefeed event. Because `capture_table` remained `null`, the verifier queried the placeholder `{capture_table}` and failed.
+  - Classification: `agent-execution-failure` / runtime timing for the high profile's CDC implementation. The SDK low profile already passed `10/10`, so this does not justify weakening the CDC verifier or changing CockroachDB SDK support.
 - CockroachDB CLI/Codex low-high smoke evidence:
   - `v1`: low/high native Codex CLI smoke verified `19/20` with `--invoke-retries 0`. Low passed `10/10` in `157.097s` with `4` transcript-derived tool calls. High passed `9/10` in `302.006s` with `18` transcript-derived tool calls.
   - The normalized `{codex, cli}` cell reports best profile `low`, model `gpt-5.5`, pass@1 `10/10`, latency `157.097s`, and `4` tool calls. This is useful evidence that the SQL identifier and zero-argument routine contracts generalize from SDK to CLI for CockroachDB.
@@ -967,7 +971,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, and Turso CLI low/high best-cell `9/10`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB SDK low/high best-cell `10/10`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, and Turso CLI low/high best-cell `9/10`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
