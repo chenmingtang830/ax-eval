@@ -165,8 +165,8 @@ export function buildNormalizedResult(
   };
 }
 
-function cellKey(run: ProfileRun): string {
-  return `${run.harness ?? "unknown"}\0${run.surface ?? "api"}`;
+function cellKey(run: ProfileRun, fallbackHarness: string): string {
+  return `${run.harness ?? fallbackHarness}\0${run.surface ?? "api"}`;
 }
 
 function cellFileStem(value: string): string {
@@ -192,7 +192,7 @@ export function buildNormalizedResultCells(
 ): NormalizedResultCell[] {
   const grouped = new Map<string, ProfileRun[]>();
   for (const run of runs) {
-    const key = cellKey(run);
+    const key = cellKey(run, fallbackHarness);
     grouped.set(key, [...(grouped.get(key) ?? []), run]);
   }
   return [...grouped.values()].map((cellRuns) => {

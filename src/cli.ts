@@ -2111,6 +2111,45 @@ function readJsonObject(path: string): Record<string, unknown> | undefined {
   }
 }
 
+function siblingInvokeMeta(resultPath: string): Record<string, unknown> | undefined {
+  return readJsonObject(resultPath.replace(/\.json$/, ".invoke.json"));
+}
+
+function codexBannerModelForRun(resultPath: string): string | undefined {
+  const stderrPath = resultPath.replace(/\.json$/, ".stderr.txt");
+  if (!existsSync(stderrPath)) return undefined;
+  const match = readFileSync(stderrPath, "utf8").match(/^\s*model:\s*(\S+)/m);
+  return match?.[1];
+}
+
+function executorHarnessFromArtifacts(executorHarness: string | undefined, meta: Record<string, unknown> | undefined): string | undefined {
+  return executorHarness ?? (typeof meta?.harness === "string" ? meta.harness : undefined);
+}
+
+function modelFromInvokeArgs(meta: Record<string, unknown> | undefined): string | undefined {
+  const args = meta?.args;
+  if (!Array.isArray(args)) return undefined;
+  const values = args.filter((arg): arg is string => typeof arg === "string");
+  for (let i = 0; i < values.length; i += 1) {
+    if ((values[i] === "-m" || values[i] === "--model") && values[i + 1]) return values[i + 1];
+    const inline = values[i]!.match(/^--model=(.+)$/);
+    if (inline) return inline[1];
+  }
+  return undefined;
+}
+
+function executorModelFromArtifacts(
+  executorModel: string | undefined,
+  meta: Record<string, unknown> | undefined,
+  resultPath: string,
+): string | undefined {
+  return executorModel
+    ?? (typeof meta?.model === "string" ? meta.model : undefined)
+    ?? (typeof meta?.requestedModel === "string" ? meta.requestedModel : undefined)
+    ?? modelFromInvokeArgs(meta)
+    ?? codexBannerModelForRun(resultPath);
+}
+
 function addTokenField(acc: Record<string, number>, key: string, value: unknown): void {
   if (typeof value === "number" && Number.isFinite(value)) acc[key] = (acc[key] ?? 0) + value;
 }
@@ -2156,7 +2195,7 @@ function transcriptMetrics(path: string | undefined): { tool_call_count: number 
 }
 
 function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
-  const meta = readJsonObject(resultPath.replace(/\.json$/, ".invoke.json"));
+  const meta = siblingInvokeMeta(resultPath);
   const metrics = transcriptMetrics(transcriptPath);
   return {
     latency_ms: typeof meta?.durationMs === "number" ? meta.durationMs : null,
@@ -2284,6 +2323,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   };
   for (const rPath of args.results) {
     const executor = loadResults(rPath);
+    const invokeMeta = siblingInvokeMeta(rPath);
+    const executorHarness = executorHarnessFromArtifacts(executor.harness, invokeMeta);
+    const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);
     const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
     // self-report, else "api" (the default + back-compat surface). `--surface all`
@@ -2355,8 +2397,8 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const traceExisted = existsSync(tracePath);
     byAttempt.push({
       profile: executor.profile,
-      harness: executor.harness,
-      model: executor.model,
+      harness: executorHarness,
+      model: executorModel,
       outcomes,
       surface,
       ns: executor.ns,

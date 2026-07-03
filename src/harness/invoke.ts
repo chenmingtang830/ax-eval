@@ -71,6 +71,10 @@ export interface InvokeRunResult {
   ok: boolean;
   exitCode: number | null;
   signal: NodeJS.Signals | null;
+  profile?: string;
+  surface?: SurfaceId;
+  requestedModel?: string;
+  effort?: InvokeRunOptions["effort"];
   stdoutPath: string;
   stderrPath: string;
   transcriptPath: string;
@@ -733,6 +737,10 @@ export async function runInvokeHarness(
     ok,
     exitCode,
     signal,
+    profile: opts.profile,
+    surface: opts.surface,
+    requestedModel: opts.model,
+    effort: opts.effort,
     attempts: attempt,
     timedOut,
     durationMs,

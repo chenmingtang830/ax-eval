@@ -561,8 +561,10 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Native full-slice regression: a later native Codex full slice showed CLI low `0/10` and CLI high `5/10`; the low trace failed every SQL-backed task with `Multiple roles found for the branch, please provide one with the --role-name option`. Classification: `vendor-specific-adapter-bug` in the Neon CLI prompt contract, not a verifier/report bug.
   - Fix: Neon composed prompts now include a CLI role/database contract: when using `neonctl psql` or `neonctl connection-string`, silently parse `NEON_DATABASE_URL` for role and database and pass `--project-id`, `--role-name`, and `--database-name`; use `NEON_BRANCH_ID` as the branch argument when set; never print connection strings or tokens.
   - `rolecontract-v1`: targeted native Codex CLI low smoke verified `9/10`; latency was `58.981s`, with `4` transcript-derived tool calls and model `gpt-5.5`. The role error disappeared. The remaining failure was `db-T10-write-records`: final record count was `0` and `delete_me` count was `1`, so the agent's write lifecycle logic reversed the expected final/delete state. Classification: `agent-execution-failure`.
+  - `rolecontract-lowhigh-v1`: targeted native Codex CLI low/high smoke verified `18/20` with `--invoke-retries 0`. Low passed `9/10` in `74.961s` with `5` transcript-derived tool calls and failed only `db-T10-write-records` on final/delete state. High passed `9/10` in `1,193.060s` with `11` transcript-derived tool calls and failed only `db-T05-evolve-schema` after a timeout path. The role-disambiguation error did not recur. Classification: remaining failures are `agent-execution-failure` / runtime behavior, not verifier failures.
   - The same smoke still hit `branches limit exceeded` while creating a recovery branch after the backup marker existed. Because the backup-marker verifier passed, classify the branch quota as an `environment-failure` diagnostic, not a failed product capability for this cell.
   - Generic harness/tooling bug from the artifact audit: `neonctl --help` can echo a line-wrapped default API key into stdout/transcript. Persisted artifact redaction now covers raw, line-wrapped, JSON-escaped, and partially redacted Neon `napi_` token shapes.
+  - Generic methodology/artifact bug from `rolecontract-lowhigh-v1`: one agent-authored result file omitted `harness` and `model`, so normalized cell generation grouped low and high separately but wrote both through the same fallback file stem (`codex.cli`), overwriting one cell record. Fix: normalized cell grouping applies fallback harness before grouping, and `verify-generated` enriches missing provenance from sibling invoke metadata, invoke args, and Codex stderr before building snapshots/normalized records. Outcome scoring is unchanged.
 - CockroachDB SDK/Codex low smoke evidence:
   - `v3`: `0/10` before SQL prompt hardening. The agent connected through the official Postgres-compatible `pg` SQL-wire path but every schema/data task failed on unquoted hyphenated canonical SQL identifiers.
   - Fix: the same database SQL identifier contract used for Neon was applied to SQL-backed database packs, and the T08 zero-argument routine contract was added for server-side execution.
@@ -627,6 +629,7 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Native Codex Neon API low smoke with `gpt-5.5` completed in about `69s` and verified `10/10`. The isolated config stayed clean (`mcp_servers = {}`), with no unrelated MCP auth failures.
   - Native Codex Neon full slice over `api`, `cli`, and `sdk`, low/high profiles, `--invoke-retries 0`, produced these best normalized cells: API `10/10`, SDK `8/8`, CLI `5/10`, aggregate `32/56` verified outcomes.
   - CLI failures are not verifier failures. The low CLI run failed every task because `neonctl psql` required an explicit `--role-name` when multiple branch roles existed; the high CLI run timed out after partial success. Classification: `vendor-specific-adapter-bug` / database CLI prompt contract for role disambiguation, plus `agent-execution-failure` / runtime timeout for the high cell.
+  - After the Neon role/database contract, a focused native Codex CLI low/high smoke verified `18/20` and produced a single clean `ax.normalized-result/v1` record for the `{codex, cli}` cell with profiles `low/high`, best profile `low`, model `gpt-5.5`, latency `74.961s`, and `5` tool calls.
   - SDK high timed out with no useful artifacts while SDK low passed `8/8`; classification remains `agent-execution-failure` / runtime timeout, not a support-denominator issue.
 
 ### 5.10 Compose Pack
@@ -933,11 +936,12 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, and post-role-contract CLI low `9/10`
+- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, and post-role-contract CLI low/high `18/20`
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
 - Normalized records now carry efficiency diagnostics fields without changing outcome scoring
+- Normalized cell grouping/provenance is hardened against agent-authored result files that omit `harness` or `model`
 - Harness artifacts are redacted before persistence to avoid publishing secret-shaped values
 
 ### Remaining upgrades
@@ -947,7 +951,6 @@ For first-pass matrix expansion, prefer `--invoke-retries 0`. A retry can be use
 - regression-set graduation workflow once tasks saturate
 - methodology revision memo template per suite release
 - real execution, verification, normalized records, and publication-bundle interpretation for the remaining 7-vendor × 3-surface × 2-harness × 2-effort matrix cells
-- rerun Neon CLI high/full slice after the role contract to measure whether the remaining T10 write-lifecycle failure is stable or agent-variance
 - true latency values for all normalized records, available automatically for new invokes through `durationMs` in invoke metadata
 
 ## 12. Working Principle
