@@ -586,6 +586,13 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - After the support-matrix correction and pack reapproval, the same `v2` run verifies at `7/8` (`88%`) and passes the `0.80` smoke gate.
   - Remaining v2 failure:
     - `db-T03-change-data-capture`: agent opened a change stream but timed out before persisting an observed event into the capture collection. Classification: `agent-execution-failure` for now.
+- MongoDB Atlas CLI/Codex low-high smoke evidence:
+  - `v1`: low/high native Codex CLI smoke verified `14/16` with `--invoke-retries 0`. Both profiles passed backup/export marker, change-stream capture, collection creation, schema validator checks, query filtering, and write lifecycle. Both failed `db-T09-vector-search` because Atlas reported the maximum number of FTS indexes had been reached for the instance size.
+  - Classification for v1 T09: `environment-failure` / sandbox baseline contamination. The agent correctly refused to delete unrelated indexes during execution. This is not a support-denominator failure and not a generic harness bug.
+  - Fix: MongoDB Atlas now has an explicit vendor-specific resetter in `src/target/reset.ts`. It uses the official MongoDB driver and pack-declared `mongo_conn`, refuses broad resets without a dedicated database, and only targets eval-created `axarena_*` collections plus matching Atlas Search indexes. This is baseline ops, not agent behavior; run it after verification, never before.
+  - Reset evidence: dry-run found `49` eval-created resources, including an old `axarena_vector_index_*`; explicit reset deleted `49/49`. After the v2 verify, a second reset deleted `20/20` newly-created eval resources.
+  - `v2`: after reset, low passed vector search and verified `6/8`; high verified `7/8`. Low failures were T05/T06 because it created collections without the expected validator metadata. High failed T09 because the low run's vector index consumed the small shared Atlas FTS quota during the concurrent low/high run.
+  - Methodology consequence: bounded execution remains necessary even within one vendor when a surface uses scarce shared quota. For MongoDB Atlas vector-search cells, either run low/high sequentially after reset or use per-run cleanup before interpreting a high-profile T09 failure as capability evidence.
 - MongoDB Atlas SDK/Codex low smoke evidence:
   - `v1`: `5/7`; latency was about `98s`. The stricter SDK denominator correctly excluded Atlas access-control, backup, and named-routine cells. Passing tasks were collection creation, schema evolution, schema inspection, query filtering, and write lifecycle.
   - `v1` failures: `db-T03-change-data-capture` timed out before durable capture persistence, and `db-T09-vector-search` failed because the agent enabled Stable API strict mode, which rejects `createSearchIndexes`.
@@ -895,6 +902,7 @@ Reviewer checks:
 
 - [`src/generate/publication.ts`](/Users/richardtang/ax-eval/src/generate/publication.ts)
 - [`src/cli.ts`](/Users/richardtang/ax-eval/src/cli.ts)
+- [`src/target/reset.ts`](/Users/richardtang/ax-eval/src/target/reset.ts)
 
 ### Execution / profile context
 
@@ -923,6 +931,12 @@ npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
 ```
 
 Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability.
+
+Execution parallelism stays bounded. Use parallel proposal/review where it is safe (vendor capability extraction, `(vendor, concept, surface)` support/gap adjudication, task drafting, trace triage), but keep canonical concept clustering, coverage closure, selection ledgers, support matrix finalization, frozen suite YAML, and publication bundle assembly centralized and deterministic. Live execution should usually run one vendor at a time with low/high profiles in parallel; do not fan out across many vendors sharing quota-bound sandboxes.
+
+Sandbox reset is an explicit baseline operation, never an agent behavior and never a pre-verify cleanup. Run `reset` only after verification has persisted the result artifacts. MongoDB Atlas now has a vendor-specific resetter that clears eval-created `axarena_*` collections and matching Atlas Search indexes in the dedicated `axarena_eval` database, which prevents old vector-search indexes from turning Atlas FTS quotas into fake capability failures.
+
+`integrations.sh` is a candidate upstream evidence source for the front half of the pipeline: surface inventory bootstrap, official docs/auth pointers, API/CLI/MCP existence prefill, discoverability inputs, and vendor onboarding. It must not become benchmark authority. SDK support remains explicitly adjudicated from official SDK/client-library evidence, and final support semantics still come from the AXArena support matrix plus reviewer-approved artifacts.
 
 For non-MCP Codex surfaces, the invocation layer creates an isolated Codex home and passes `mcp_servers={}`. This keeps API/CLI/SDK usability evidence independent from unrelated operator MCP server login state. For MCP surfaces, the harness still uses the pack-declared MCP provisioning path.
 

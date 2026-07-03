@@ -2,7 +2,7 @@
 
 > **Status:** Draft v1 · Branch: `axarena-branch` · Internal strategy doc
 >
-> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, CLI low `6/7`; Supabase SDK is now excluded from DAEB-1 V3 scoring (`0` eligible SDK tasks) because Supabase JS cannot create the required SQL/schema/control-plane objects from a blank sandbox without a pre-existing SQL RPC/baseline setup path; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is now scored over `8` eligible SQL/DDL tasks after excluding backup/CDC from SDK support, and post-audit smoke moved from `7/8` to a native Codex full-slice low result of `8/8`; native Codex Neon API low passed `10/10`; native Codex Neon CLI exposed role-disambiguation issues in the full slice (`5/10` best), then recovered to role-contract low/high smoke of `18/20` after adding a Neon CLI role/database contract; CockroachDB SDK low recovered from SQL identifier failures to `10/10`, and CockroachDB CLI low/high now verifies `19/20`; MongoDB Atlas API low improved from `0/9` to `7/8`, and MongoDB Atlas SDK low currently smokes at `5/7` after surface-aware SDK support filtering; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts; Insforge API low is currently `0/9` after two smoke runs because the agent discovered the docs/admin endpoints but still chose migration/raw-SQL paths rejected by Insforge's security parser. Generic Codex harness/tooling bugs fixed during execution: non-MCP API/CLI/SDK cells now use an isolated Codex home plus `mcp_servers={}`, persisted artifacts redact line-wrapped Neon CLI API-key defaults, and normalized cell grouping/provenance now tolerate agent-authored result files that omit harness/model metadata. Claude Code headless execution is now unblocked: native Claude Code `2.1.198` exposes `--model` and `--effort`; a pinned native low lane with `--model sonnet` stamped `claude-sonnet-5` and passed Neon API `9/10`, failing only vector-search label exactness; the paired pinned high lane timed out after two 900s attempts and verified `0/10`, which is an execution/runtime lesson rather than a verifier change. The current work is execution hardening and matrix expansion, not publication finalization.
+> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, CLI low `6/7`; Supabase SDK is now excluded from DAEB-1 V3 scoring (`0` eligible SDK tasks) because Supabase JS cannot create the required SQL/schema/control-plane objects from a blank sandbox without a pre-existing SQL RPC/baseline setup path; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is now scored over `8` eligible SQL/DDL tasks after excluding backup/CDC from SDK support, and post-audit smoke moved from `7/8` to a native Codex full-slice low result of `8/8`; native Codex Neon API low passed `10/10`; native Codex Neon CLI exposed role-disambiguation issues in the full slice (`5/10` best), then recovered to role-contract low/high smoke of `18/20` after adding a Neon CLI role/database contract; CockroachDB SDK low recovered from SQL identifier failures to `10/10`, and CockroachDB CLI low/high now verifies `19/20`; MongoDB Atlas API low improved from `0/9` to `7/8`, MongoDB Atlas SDK low currently smokes at `5/7`, and MongoDB Atlas CLI low/high has best smoke `14/16` with vector-search quota now traced to baseline contamination; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts; Insforge API low is currently `0/9` after two smoke runs because the agent discovered the docs/admin endpoints but still chose migration/raw-SQL paths rejected by Insforge's security parser. Generic Codex harness/tooling bugs fixed during execution: non-MCP API/CLI/SDK cells now use an isolated Codex home plus `mcp_servers={}`, persisted artifacts redact line-wrapped Neon CLI API-key defaults, normalized cell grouping/provenance now tolerate agent-authored result files that omit harness/model metadata, and MongoDB Atlas has an explicit eval-resource resetter for `axarena_*` collections/search indexes. Claude Code headless execution is now unblocked: native Claude Code `2.1.198` exposes `--model` and `--effort`; a pinned native low lane with `--model sonnet` stamped `claude-sonnet-5` and passed Neon API `9/10`, failing only vector-search label exactness; the paired pinned high lane timed out after two 900s attempts and verified `0/10`, which is an execution/runtime lesson rather than a verifier change. The current work is execution hardening and matrix expansion, not publication finalization.
 >
 > This document captures the full strategic reasoning, competitive analysis,
 > positioning, methodology, vendor selection, code-feasibility assessment,
@@ -1165,11 +1165,13 @@ remaining work is matrix expansion and evidence-backed hardening.
    canonical usability-suite scope. For first full-matrix expansion, prefer
    `--invoke-retries 0` so one high-effort timeout consumes one timeout window
    instead of two; rerun specific flaky cells separately when evidence suggests
-   a transient failure.
+   a transient failure. Keep execution concurrency bounded: one vendor at a
+   time, low/high in parallel only when the surface is not quota-scarce.
 
 2. **Verification matrix** — run `verify-generated` against every execution
    result and produce snapshots/HTML reports without resetting sandboxes before
-   verification.
+   verification. Reset is allowed only after verification has persisted the
+   artifacts; vendor-specific resetters are baseline ops, not agent behavior.
 
 3. **Trace/reasoning audit** — review traces for product failure, agent
    failure, environment failure, and evaluation failure before changing
@@ -1182,14 +1184,20 @@ remaining work is matrix expansion and evidence-backed hardening.
 5. **Metrics interpretation** — publish correctness separately from latency,
    token cost, tool-call count, turn count, and trace diagnostics.
 
-6. **First cross-vendor report** — `ax-eval competitive` across all 7
+6. **Upstream discovery acceleration** — evaluate `integrations.sh` as an
+   optional candidate-evidence source for surface inventory, docs/auth pointers,
+   API/CLI/MCP prefill, and Discoverability inputs. Do not use it as benchmark
+   authority; SDK support remains explicitly adjudicated from official SDK
+   evidence and the support matrix remains final.
+
+7. **First cross-vendor report** — `ax-eval competitive` across all 7
    normalized records. This is the first artifact that's actually a
    "benchmark" rather than a per-vendor pack.
 
-7. **axarena.ai** — DNS/hosting setup, deploy `docs/launch/web/` with
+8. **axarena.ai** — DNS/hosting setup, deploy `docs/launch/web/` with
    real scores substituted in.
 
-8. **Vendor preview emails** (T-2 from launch).
+9. **Vendor preview emails** (T-2 from launch).
 
 ---
 
