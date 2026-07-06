@@ -6,7 +6,7 @@ Every task below traces to specific, cited vendor documentation.
 ## Two-layer methodology
 
 - Discoverability & Readiness is a separate publication layer covering discoverability, content quality, and capability exposure.
-- Usability Canonical Suite remains the benchmark of record and is scored only from verified outcomes on api/sdk/cli.
+- Usability Canonical Suite remains the benchmark of record and is scored only from verified outcomes on api/cli for DAEB-1/database v1. SDK remains a deferred future surface and any existing SDK runs are research artifacts, not benchmark-of-record cells.
 
 ## Ontology
 

@@ -34,7 +34,9 @@ methodology:
     source_of_truth: Verified world state read back from the live product
     notes:
       - Usability-suite scoring is governed only by verified task outcomes on
-        api/cli/sdk surfaces.
+        api/cli surfaces for DAEB-1/database v1. SDK remains a deferred future
+        surface and any existing SDK runs are research artifacts, not
+        benchmark-of-record cells.
   capability_families:
     - data-definition
     - data-write
@@ -49,10 +51,11 @@ methodology:
   extraction_requirements:
     - Use only official vendor documentation as evidence.
     - Persist every extracted capability with structured evidence objects.
-    - Document supported api/sdk/cli surfaces where evidence exists.
+    - Document supported api/cli surfaces where evidence exists for the
+      benchmark-of-record. SDK evidence may still be retained as research
+      metadata.
   surface_scope:
     - api
-    - sdk
     - cli
   min_vendor_coverage_pct: 0.75
   target_task_count: 10
@@ -84,11 +87,10 @@ tasks:
       protected container.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor does not expose a configurable access-control mechanism on
-        api/sdk/cli surfaces.
+        api/cli surfaces.
   - id: db-T02-backup-and-restore
     title: "T02: Produce a recoverable backup artifact"
     difficulty: L4
@@ -101,11 +103,10 @@ tasks:
       `marker_{ns}`.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor does not expose a recoverable backup, snapshot, or export
-        flow on api/sdk/cli surfaces.
+        flow on api/cli surfaces.
   - id: db-T03-change-data-capture
     title: "T03: Emit one observable change event"
     difficulty: L4
@@ -121,11 +122,10 @@ tasks:
       emitted event corresponds to `cdc_probe_{ns}`.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor does not expose a documented CDC, change stream, or realtime
-        feed on api/sdk/cli surfaces.
+        feed on api/cli surfaces.
   - id: db-T04-define-data-container
     title: "T04: Create a logical data container"
     difficulty: L1
@@ -138,11 +138,10 @@ tasks:
       container exists with an id/key field plus a `label` field.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor cannot create or persist a named data container on
-        api/sdk/cli surfaces.
+        api/cli surfaces.
   - id: db-T05-evolve-schema
     title: "T05: Apply a schema evolution"
     difficulty: L3
@@ -155,11 +154,10 @@ tasks:
       `status` field is now present.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor does not support a documented schema evolution or migration
-        flow on api/sdk/cli surfaces.
+        flow on api/cli surfaces.
   - id: db-T06-inspect-schema
     title: "T06: Inspect container metadata"
     difficulty: L1
@@ -171,10 +169,9 @@ tasks:
       confirm the `name` and `status` fields are visible.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
-      - This vendor does not expose schema or metadata inspection on api/sdk/cli
+      - This vendor does not expose schema or metadata inspection on api/cli
         surfaces.
   - id: db-T07-query-records
     title: "T07: Filter and read matching records"
@@ -191,10 +188,9 @@ tasks:
       `gamma_{ns}`.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
-      - This vendor cannot perform filtered record reads on api/sdk/cli surfaces.
+      - This vendor cannot perform filtered record reads on api/cli surfaces.
   - id: db-T08-server-side-execution
     title: "T08: Create and invoke a server-side routine"
     difficulty: L3
@@ -206,10 +202,9 @@ tasks:
       persisted result showing the literal `axarena_ok_{ns}`.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
-      - This vendor does not expose server-side routine execution on api/sdk/cli
+      - This vendor does not expose server-side routine execution on api/cli
         surfaces.
   - id: db-T09-vector-search
     title: "T09: Create a vector-enabled dataset and query it"
@@ -224,11 +219,10 @@ tasks:
       `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor does not expose vector indexing or similarity search on
-        api/sdk/cli surfaces.
+        api/cli surfaces.
   - id: db-T10-write-records
     title: "T10: Create, update, and delete one record lifecycle"
     difficulty: L1
@@ -243,11 +237,10 @@ tasks:
       remains.
     allowed_surfaces:
       - api
-      - sdk
       - cli
     na_examples:
       - This vendor cannot perform create, update, and delete record operations
-        on api/sdk/cli surfaces.
+        on api/cli surfaces.
 scoring:
   per_task: pass | fail | na
   overall:
@@ -259,4 +252,5 @@ scoring:
     static_ax: Discoverability & Readiness is published separately and never alters
       usability-suite pass rates.
     behavioral: Usability Canonical Suite is scored only from verified outcomes on
-      api/cli/sdk.
+      api/cli for DAEB-1/database v1; SDK remains published only as research
+      evidence when available.

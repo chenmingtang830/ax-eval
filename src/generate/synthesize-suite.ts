@@ -60,7 +60,7 @@ const SynthesizedTaskSchema = z.object({
   skill: z.string().min(1),
   intent: z.string().min(1),
   oracle_hint: z.string().min(1),
-  allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "sdk", "cli"]),
+  allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "cli"]),
   na_examples: z.array(z.string()).default([]),
   rationale: z.string(),
   coverage: z.array(CoverageSchema),
@@ -114,13 +114,13 @@ function buildTaskDraftPrompt(category: string, cluster: Cluster, matched: Array
     `  never name a specific vendor's API/SDK call. Specify exact, checkable outcomes (exact counts, exact`,
     `  patterns) so verification doesn't need guesswork.`,
     `- oracle_hint: what a verifier should read back to confirm success`,
-    `- allowed_surfaces: default ["api","sdk","cli"] unless the evidence specifically suggests most`,
+    `- allowed_surfaces: default ["api","cli"] unless the evidence specifically suggests most`,
     `  vendors only expose this via a subset`,
     `- na_examples: example phrasing for when a vendor structurally lacks this`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"id": "...", "title": "...", "difficulty": "${cluster.difficulty}", "skill": "...", "intent": "...",`,
-    ` "oracle_hint": "...", "allowed_surfaces": ["api","sdk","cli"], "na_examples": ["..."]}`,
+    ` "oracle_hint": "...", "allowed_surfaces": ["api","cli"], "na_examples": ["..."]}`,
   ].join("\n");
 }
 
@@ -141,7 +141,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create a logical data container named `axarena_items_{ns}` using the vendor's idiomatic mechanism (table, collection, or equivalent). The resulting container must support an externally addressable id/key and a text field named `label`.",
     oracle_hint:
       "Read back metadata for `axarena_items_{ns}` and confirm the container exists with an id/key field plus a `label` field.",
-    na_examples: ["This vendor cannot create or persist a named data container on api/sdk/cli surfaces."],
+    na_examples: ["This vendor cannot create or persist a named data container on api/cli surfaces."],
   },
   "query-records": {
     skill: "query-records",
@@ -150,7 +150,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Using a container named `axarena_query_items_{ns}`, create exactly three records with a text field named `label` and values `alpha_{ns}`, `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read that returns only the active records and report the container name plus the matching count.",
     oracle_hint:
       "Verify the container exists and that a filtered read for `status=active` returns exactly two records with labels `alpha_{ns}` and `gamma_{ns}`.",
-    na_examples: ["This vendor cannot perform filtered record reads on api/sdk/cli surfaces."],
+    na_examples: ["This vendor cannot perform filtered record reads on api/cli surfaces."],
   },
   "write-records": {
     skill: "write-records",
@@ -159,7 +159,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Using a container named `axarena_write_items_{ns}`, create one record labeled `draft_{ns}`, update that same record so its label becomes `final_{ns}`, then delete one separate throwaway record labeled `delete_me_{ns}`. Report the externally addressable container name and the surviving record identity.",
     oracle_hint:
       "Read back `axarena_write_items_{ns}` and confirm the surviving record label is `final_{ns}` while no record labeled `delete_me_{ns}` remains.",
-    na_examples: ["This vendor cannot perform create, update, and delete record operations on api/sdk/cli surfaces."],
+    na_examples: ["This vendor cannot perform create, update, and delete record operations on api/cli surfaces."],
   },
   "inspect-schema": {
     skill: "inspect-schema",
@@ -168,7 +168,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create or use a container named `axarena_schema_probe_{ns}` with fields `name` and `status`, then use the vendor's schema or metadata inspection mechanism to confirm both fields are present.",
     oracle_hint:
       "Read back schema or metadata for `axarena_schema_probe_{ns}` and confirm the `name` and `status` fields are visible.",
-    na_examples: ["This vendor does not expose schema or metadata inspection on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose schema or metadata inspection on api/cli surfaces."],
   },
   "evolve-schema": {
     skill: "evolve-schema",
@@ -177,7 +177,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Starting from a container named `axarena_migrate_{ns}` that already contains a `title` field, apply an idiomatic schema change that adds a new `status` field. Confirm the evolved shape is visible through the vendor's schema or metadata surface.",
     oracle_hint:
       "Read back metadata for `axarena_migrate_{ns}` and confirm the added `status` field is now present.",
-    na_examples: ["This vendor does not support a documented schema evolution or migration flow on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not support a documented schema evolution or migration flow on api/cli surfaces."],
   },
   "data-integrity-and-transactions": {
     skill: "data-integrity-and-transactions",
@@ -186,7 +186,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create a container named `axarena_integrity_{ns}` with an integrity rule or atomic write guarantee on `external_id`. Commit one valid record using `external_id=primary_{ns}`. Then perform one conflicting or invalid write that should not leave a second committed record with the same logical key.",
     oracle_hint:
       "Read back `axarena_integrity_{ns}` and confirm only the valid `external_id=primary_{ns}` record is durably committed after the conflicting or invalid attempt.",
-    na_examples: ["This vendor cannot enforce a documented integrity rule or atomic write guarantee on api/sdk/cli surfaces."],
+    na_examples: ["This vendor cannot enforce a documented integrity rule or atomic write guarantee on api/cli surfaces."],
   },
   "access-control": {
     skill: "access-control",
@@ -195,7 +195,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Configure an access-control rule for a container named `axarena_acl_{ns}` so records are scoped to the caller's ownership or explicit allowance using the vendor's idiomatic access-control mechanism. Create one allowed record owned by the active principal and make the rule configuration discoverable through a documented control surface.",
     oracle_hint:
       "Read back the access-control configuration protecting `axarena_acl_{ns}` and confirm an allowed owned record exists under that protected container.",
-    na_examples: ["This vendor does not expose a configurable access-control mechanism on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose a configurable access-control mechanism on api/cli surfaces."],
   },
   "backup-and-restore": {
     skill: "backup-and-restore",
@@ -204,7 +204,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create or use a container named `axarena_backup_{ns}` with one marker record labeled `marker_{ns}`, then produce a recoverable backup, snapshot, or export artifact using the vendor's idiomatic recovery mechanism.",
     oracle_hint:
       "Read back the backup or export artifact metadata and confirm it corresponds to `axarena_backup_{ns}` with the marker record labeled `marker_{ns}`.",
-    na_examples: ["This vendor does not expose a recoverable backup, snapshot, or export flow on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose a recoverable backup, snapshot, or export flow on api/cli surfaces."],
   },
   "server-side-execution": {
     skill: "server-side-execution",
@@ -213,7 +213,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create a server-side routine named `axarena_echo_{ns}` that returns or writes the literal string `axarena_ok_{ns}` when invoked, then invoke it exactly once using the vendor's idiomatic execution surface.",
     oracle_hint:
       "Read back the routine metadata and the observable output or persisted result showing the literal `axarena_ok_{ns}`.",
-    na_examples: ["This vendor does not expose server-side routine execution on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose server-side routine execution on api/cli surfaces."],
   },
   "vector-search": {
     skill: "vector-search",
@@ -222,7 +222,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text field named `label` and at least three items labeled `alpha_{ns}`, `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.",
     oracle_hint:
       "Read back the vector dataset and verify a similarity query for `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.",
-    na_examples: ["This vendor does not expose vector indexing or similarity search on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose vector indexing or similarity search on api/cli surfaces."],
   },
   "full-text-search": {
     skill: "full-text-search",
@@ -231,7 +231,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Create a text-searchable dataset named `axarena_search_{ns}` with at least three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and `harbor_{ns}`. Run one full-text search query that matches only the `orchard_{ns}` item and report the top matching result.",
     oracle_hint:
       "Read back the searchable dataset and verify a documented full-text search query returns `orchard_{ns}` as a top match.",
-    na_examples: ["This vendor does not expose full-text search on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose full-text search on api/cli surfaces."],
   },
   "query-pagination": {
     skill: "query-pagination",
@@ -240,7 +240,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Using a container named `axarena_page_items_{ns}`, create at least five records with deterministic labels, then retrieve them through the vendor's documented pagination mechanism in at least two pages without losing or duplicating records.",
     oracle_hint:
       "Read back `axarena_page_items_{ns}` and confirm the paginated traversal yields the full expected set of records across multiple pages.",
-    na_examples: ["This vendor does not expose a documented pagination mechanism on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose a documented pagination mechanism on api/cli surfaces."],
   },
   "change-data-capture": {
     skill: "change-data-capture",
@@ -249,7 +249,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
       "Enable a change stream, realtime subscription, or CDC feed for a container named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}` so the resulting insert becomes observable in the stream or feed. Persist the observed event into a durable capture container with either a `row_label` field equal to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and report that capture container name for verification.",
     oracle_hint:
       "Read back the durable capture container and confirm at least one emitted event corresponds to `cdc_probe_{ns}`.",
-    na_examples: ["This vendor does not expose a documented CDC, change stream, or realtime feed on api/sdk/cli surfaces."],
+    na_examples: ["This vendor does not expose a documented CDC, change stream, or realtime feed on api/cli surfaces."],
   },
 };
 
@@ -263,7 +263,7 @@ function deterministicDatabaseTaskDraft(cluster: Cluster, index: number): Synthe
     skill: template.skill,
     intent: template.intent,
     oracle_hint: template.oracle_hint,
-    allowed_surfaces: template.allowed_surfaces ?? ["api", "sdk", "cli"],
+    allowed_surfaces: template.allowed_surfaces ?? ["api", "cli"],
     na_examples: template.na_examples ?? [],
     rationale: cluster.rationale,
     coverage: cluster.coverage,
@@ -779,7 +779,7 @@ export async function draftTask(
     skill: z.string().min(1),
     intent: z.string().min(1),
     oracle_hint: z.string().min(1),
-    allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "sdk", "cli"]),
+    allowed_surfaces: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "cli"]),
     na_examples: z.array(z.string()).default([]),
   });
   const parsed = draftSchema.safeParse(JSON.parse(json));
@@ -897,7 +897,7 @@ export function renderSuiteYaml(name: string, version: number, category: string,
       },
       layers: {
         static_ax: "Discoverability & Readiness is published separately and never alters usability-suite pass rates.",
-        behavioral: "Usability Canonical Suite is scored only from verified outcomes on api/cli/sdk.",
+        behavioral: "Usability Canonical Suite is scored only from verified outcomes on api/cli for DAEB-1/database v1; SDK remains a deferred future surface and any existing SDK runs are research artifacts, not benchmark-of-record cells.",
       },
     },
   };

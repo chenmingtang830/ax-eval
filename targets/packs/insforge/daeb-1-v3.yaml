@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-03-sen4sh
+# run_id: 2026-07-05-6mr2pd
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-03-sen4sh
+run_id: 2026-07-05-6mr2pd
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -59,24 +59,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 1
@@ -117,24 +134,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 1
@@ -174,24 +208,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 1
@@ -227,24 +278,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 2
@@ -281,24 +349,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 1
@@ -334,24 +419,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 2
@@ -390,24 +492,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 2
@@ -458,24 +577,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
@@ -511,24 +647,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -571,24 +724,41 @@ tasks:
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
-      and `rlsEnabled`. For current hosted projects, if the live API reports
-      `columnName`, `isNullable`, or `isUnique` as required fields, use that
-      request shape: `columns: [{columnName, type, isNullable, isUnique}]`. Use
-      the same live schema field names for `PATCH
-      /api/database/tables/{tableName}/schema` and its `addColumns` body. Use
-      `GET /api/database/tables/{tableName}/schema` for metadata inspection.
-      Then use the PostgREST-style record endpoint
-      `/api/database/records/{tableName}` for row writes and reads. Do not batch
-      the benchmark's many CREATE TABLE, RLS policy, trigger, and function
-      statements into one `/api/database/migrations` request; Insforge's
-      migration parser may reject complex SQL for security reasons. Custom
-      migrations or raw SQL are fallback paths only for small task-local SQL
-      fragments that the admin table/schema endpoints cannot express. When using
+      and `rlsEnabled`. On current hosted Insforge projects, default to the
+      hosted request shape immediately: `columns: [{columnName, type,
+      isNullable, isUnique}]`. Do not try the legacy `{name, nullable, unique}`
+      shape first unless the live API explicitly rejects `columnName`-style
+      fields as unknown. For textual columns on the admin create-table endpoint,
+      use the hosted type name `string` and do not use SQL names like `text`;
+      hosted projects may otherwise fail with `Cannot read properties of
+      undefined (reading 'sqlType')`. Use the same live schema field names for
+      `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body.
+      Admin bearer tokens are project credentials, not end-user session cookies:
+      do not call user-session discovery endpoints such as `GET
+      /api/auth/sessions/current` to discover the active principal for DAEB
+      tasks. After creating a table, re-read `GET
+      /api/database/tables/{tableName}/schema` (and, if needed, `GET
+      /api/database/tables`) before attempting row writes so the hosted control
+      plane has acknowledged the table. Prefer single-record JSON objects rather
+      than array batch bodies unless the live docs explicitly require arrays.
+      Use the PostgREST-style record endpoint
+      `/api/database/records/{tableName}` only after schema read-back succeeds.
+      If that record endpoint still returns `404` for a table whose schema
+      read-back succeeds, treat it as a hosted admin/data-path mismatch: stop
+      retrying the records endpoint for that task and switch the row-level
+      portion to one small task-local SQL fallback. Do not batch the benchmark's
+      many CREATE TABLE, RLS policy, trigger, and function statements into one
+      `/api/database/migrations` request; Insforge's migration parser may reject
+      complex SQL for security reasons. Custom migrations or raw SQL are
+      fallback paths only for small task-local SQL fragments that the admin
+      table/schema endpoints cannot express. When using
       `/api/database/migrations`, keep the migration `name` lowercase letters,
-      numbers, and hyphens only. Invoke database RPC functions through `POST
+      numbers, and hyphens only, and make it globally monotonic for the project
+      so hosted Insforge does not reject it as older than an already-applied
+      migration. Invoke database RPC functions through `POST
       /api/database/rpc/{functionName}`, not under `/api/database/records/`. If
-      a migration returns a security-parser rejection, stop using that path and
-      switch to admin table/schema endpoints before attempting record writes.
+      a migration returns a security-parser rejection or version conflict, stop
+      using that migration path for the task instead of repeatedly retrying it.
     oracles:
       - type: roundtrip
         expected: 1

@@ -1,6 +1,6 @@
 # AXArena Methodology
 
-**Status:** current working methodology for publication-grade canonical suites  
+**Status:** current working methodology for publication-grade canonical suites; DAEB-1/database v1 is publication-ready on the v4 production lane  
 **Scope:** DAEB-1 first, then generalize  
 **Owners:** maintainers of `ax-eval` / AXArena
 
@@ -44,8 +44,10 @@ This ontology follows Anthropic's evaluation structure closely for `task`, `tria
 
 ### Non-negotiable benchmark rules
 
-- Canonical suite benchmark scope is **`api` / `sdk` / `cli` only**
+- Generic canonical suite engine supports **`api` / `sdk` / `cli`**
+- **DAEB-1/database v1 benchmark-of-record scope is `api` / `cli`**
 - **MCP is out of canonical usability-suite scope for v1**
+- Existing DAEB-1 SDK runs may be retained as execution-learning research artifacts, but they are not part of the v1 scoring denominator, rankings, or benchmark-of-record publication summaries
 - Discoverability & Readiness and usability-suite scoring are **separate layers**
 - Support judgments are computed **before** outcome-verifier authoring
 - Outcome correctness is the **primary authority**
@@ -314,7 +316,7 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - Task selection is not just prompt output.
 - LLMs may propose cluster labels and rationale, but **final eligibility is code-enforced**.
 - Selection is governed by methodology thresholds:
-  - `surface_scope = [api, sdk, cli]`
+  - `surface_scope = [api, cli]` for DAEB-1/database v1
   - `min_vendor_coverage_pct`
   - `target_task_count`
   - `family_diversity_cap`
@@ -400,30 +402,16 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - SDK support requires explicit evidence that the official SDK/client-library path
   can complete the concrete canonical task, not merely that the vendor has an SDK.
 
-**DAEB-1 SDK support policy**
+**DAEB-1/database v1 SDK policy**
 
-- Data-plane SDKs are only eligible for tasks they can complete from the benchmark
-  sandbox without hidden baseline setup. A CRUD/query SDK does not automatically
-  support schema creation, migrations, RLS/access policies, triggers, functions,
-  backups, CDC, or project/branch management.
-- SQL-wire or control-plane SDKs remain eligible when official evidence shows they
-  can execute the required SQL/DDL or management operation.
-- Unsupported `(task, vendor, sdk)` cells are excluded from the execution and
-  scoring denominator; they are not counted as behavioral failures.
-- Current DAEB-1 V3 SDK audit:
-  - Supabase SDK: `0` eligible tasks. Supabase JS is data-plane only for this
-    blank-sandbox suite; schema/control-plane tasks are unsupported.
-  - Neon SDK: `8` eligible tasks. SQL/DDL tasks remain eligible through the
-    serverless driver; backup and CDC are excluded.
-  - MongoDB Atlas SDK: `7` eligible tasks. MongoDB Node driver data-plane,
-    schema-validator, change-stream, vector, query, and write tasks remain
-    eligible; Atlas backup/access-control/named-routine tasks are excluded.
-  - Turso SDK: `6` eligible tasks. libSQL SQL data-plane tasks remain eligible;
-    access-control, backup, CDC, and server-side routine tasks are excluded.
-  - CockroachDB SDK: `10` eligible tasks through the Postgres-compatible `pg`
-    SQL-wire path.
-  - Convex and Insforge SDK: `0` eligible tasks until a benchmark-declared
-    official SDK path is evidenced.
+- DAEB-1/database v1 does **not** include SDK in the benchmark-of-record
+  execution or scoring matrix.
+- Reason: database SDK semantics are unusually ambiguous across data-plane
+  clients, SQL-wire paths, and control-plane/admin libraries, so support
+  adjudication is not yet stable enough for publication-grade v1 scoring.
+- Existing SDK evidence remains useful as **research artifacts** and may inform a
+  future DAEB revision, but it does not enter the v1 denominator, rankings, or
+  publication matrix.
 
 **Per-entry fields**
 
@@ -497,7 +485,7 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - across vendors
 - This is an orchestration reliability requirement for publication-quality bundles: uncontrolled fan-out makes traces noisy, increases harness flakiness, and weakens reproducibility.
 
-**Current DAEB-1 V3 status**
+**Current DAEB-1 V4 status**
 
 - Seeded, composed, env-checked, and reviewed: `supabase`, `neon`, `cockroachdb`, `insforge`, `turso`, `mongodb-atlas`, `convex`
 - `supabase`, `neon`, `cockroachdb`, and `insforge` use Postgres SQL verifier seeds where live state is best read through the wire protocol.
@@ -506,16 +494,21 @@ These are not rank metrics by themselves; they are input completeness metrics.
 - `convex` uses deterministic `/api/query` and `/api/action` verifier-body templates. Agents must report the deployed function path fields requested by the executor prompt so the harness can read back durable state without trusting free-form claims. Convex verification is intentionally adapter-specific: the verifier follows the agent-discovered preview deployment URL and omits deploy-key bearer auth for public function read-back.
 - `Planetscale` was removed from the active suite because it no longer has a usable free tier for this benchmark.
 - Pre-execution env gates now include auth envs, SQL/Mongo verifier envs, and `${ENV_VAR}` placeholders in pack URL/verifier templates.
+- The benchmark-of-record production lane is now complete under `results/runs/daeb-1-v4-production`: 7 vendors × 2 surfaces (`api/cli`) × 2 harnesses (`codex`, `claude-code`) × 3 `medium` trials, with a publication-ready bundle at `results/runs/daeb-1-v4-production/publication-bundle-final`.
 
 **Current execution-learning status**
 
+- **Benchmark-of-record reminder:** DAEB-1/database v1 publishes only `api` and `cli` usability cells. Historical `sdk` runs below are retained as execution-learning evidence for engine hardening and future suite design; they are not part of the v1 scoring denominator, rankings, or publication summaries.
+- **Execution-learning reminder:** the rest of this section mixes benchmark-of-record evidence with deferred-surface research evidence. Read `api`/`cli` cells as publication-lane status and `sdk` cells as methodology-learning status unless explicitly stated otherwise.
 - DAEB-1/database is treated as the flagship vertical benchmark, not proof that every category is already generic.
 - The core artifact architecture remains generic: capability inventory, concept universe, coverage matrix, selection ledger, support matrix, suite YAML, vendor-specific verifier adapters, execution, verification, reporting, and publication.
 - Database-specific deterministic seeds/templates/verifiers are allowed, but they must remain isolated in database-specific generation or verifier branches.
 - Current publication-grade execution decision: keep existing cell/batch execution mode for compatibility and smoke/regression comparisons, but move DAEB-1 publication evidence toward task-level execution. `ax-eval exec-plan --invoke --execution-mode task` now runs one canonical task per invocation, persists task-level result/trace/transcript/invoke artifacts, and aggregates them back into the existing cell-level normalized record.
+- Historical matrix-completion operator lane was `ax-eval daeb-low-pass`. It ran one vendor and one surface at a time, while fanning out Codex low and Claude Code low in parallel for that shared `{vendor, surface}` cell group. That lane is now retained only as execution-learning history under archived/local run artifacts; the benchmark-of-record lane is `ax-eval daeb-production-rerun`.
 - Two-phase DAEB-1 execution model:
   - Phase A: discovery/bootstrap per `{vendor, surface, harness, profile}`. Persist a concise runbook containing auth/base URL/CLI/SDK setup quirks and official docs links.
-  - Phase B: per-task execution. The current implementation is task-level invocation with cell-level aggregation; a separately persisted shared discovery/runbook artifact is still the next refinement. Each task prompt receives only the task, exact namespace/resource names, verifier-critical expected state, and surface-specific allowed path instead of the whole cell task bank.
+  - Phase B: per-task execution. The current implementation is task-level invocation with cell-level aggregation plus a shared bootstrap artifact. Each `{vendor, surface, harness, profile}` group first runs one bootstrap prompt that captures discovery/auth/base-URL evidence without executing a canonical task. Subsequent one-task prompts receive that shared bootstrap context and should reuse it rather than repeating full cold-start discovery for every task.
+- Harness isolation rule for task-level execution: bootstrap and every single-task invocation must get their own isolated harness home/config directory. Reusing one Codex isolated home across multiple task prompts let artifact redaction mutate cached CLI files and caused false runtime failures unrelated to vendor capability.
 - Prompt compaction rule: do not repeat long SQL/database contracts or all other tasks inside every execution prompt. Methodology prose belongs in docs and artifacts, not in live task prompts.
 - Runtime-validity diagnostics are now first-class evidence fields: `validity_status`, `first_action_latency_ms`, `transcript_event_count`, and `action_occurred`. `runtime_timeout_no_action` and `runtime_timeout_partial` are harness/runtime validity evidence, not product capability scores.
 - `--first-action-timeout <seconds>` is the execution stop-loss for high-effort no-action stalls. For DAEB-1 publication learning, use `120–180s` and at most one intentional rerun. Do not wait the full wall timeout when no tool/API/command action occurred.
@@ -660,10 +653,12 @@ These are not rank metrics by themselves; they are input completeness metrics.
   - Additional v2 verifier-contract finding: several agent-authored query functions returned real state with ad hoc shapes, and action-backed tasks were incorrectly seeded as `/api/query`.
   - Classification: `vendor-specific-adapter/verifier-bug`. The pack must tell agents the exact verifier function return contract and must read actions through `/api/action`.
   - Fix: Convex prompt overrides now include task-specific verifier contracts such as `{hasLabelField:boolean}`, `{activeCount:number, expectedLabelsCount:number}`, action return `axarena_ok_{ns}`, and `{topLabel:string}`. Convex T08/T09 seeded checks now use `/api/action`.
-  - `v3`: `8/8`; latency was about `276s`. All eight API-surface Convex tasks passed verified read-back, including access control, CDC capture, schema/container checks, query filtering, server-side execution, vector search, and write lifecycle.
+  - `v3` current benchmark-of-record status is not a clean `8/8`. The first full low-pass Codex cell improved to `4/8` verified after the verifier/base-URL fixes, and the remaining misses were concentrated in task-local preview-deployment execution rather than support semantics.
+  - Current targeted rerun evidence (results/runs/daeb-1-v3/targeted-low/convex-post-normalize/convex/api) shows further recovery on the same composed pack. The aggregated Codex low artifact now effectively reaches `7/8`: `db-T01-access-control`, `db-T03-change-data-capture`, `db-T04-define-data-container`, `db-T06-inspect-schema`, `db-T07-query-records`, `db-T08-server-side-execution`, and `db-T09-vector-search` all complete against run-scoped preview deployments with concrete function paths and successful smoke-check traces, while only `db-T10-write-records` remains failed after a local npm-cache/bootstrap preparation issue. Claude low has also recovered `db-T01-access-control`, including a successful preview deployment, successful mutation/query smoke checks, and a persisted result JSON with concrete probe path `acl_t01:aclProbeT01`, but subsequent tasks remain inconsistent: `db-T03-change-data-capture` timed out, and both `db-T04-define-data-container` and `db-T06-inspect-schema` failed by re-entering a blocked local-tooling path instead of stably reusing the already-proven Convex scaffold. This upgrades the lane from "opaque Convex verifier failure" to "one remaining Codex task plus a small Claude execution-consistency cleanup problem."
+  - Parallel artifact-hygiene fix: invocation result stamping now normalizes placeholder-like `discovery.base_url_found` values (for example `"<CONVEX_URL>"`) to the declared env-template URL when the agent has not yet substituted a concrete deployment URL. This keeps Convex bootstrap artifacts publication-safe without changing task scoring.
   - `high-v1`: native Codex API high-only smoke timed out after `905.972s` with `34` transcript-derived tool calls and verified `0/10` in the raw normalized output. The artifact had no trace file and no verifier-visible function paths or gids; the transcript shows the agent spent the run window researching Convex deployment internals, npm package source, and push-request mechanics, then timed out while generating the deploy bundle before durable writes.
-  - High-v1 classification: `agent-execution-failure` / runtime timeout. This does not change Convex API support semantics or the verifier contract because the low profile already produced verified `8/8` outcome evidence on the same composed pack. Methodology consequence: high-effort cells can over-investigate deployment machinery; timeout/partial artifacts should be recorded as execution learning, not converted into support-matrix changes without repeated evidence.
-  - Generalization decision: do not move these fixes into core harness/report/publication. They are isolated Convex/database adapter behavior. Revisit only if another functions-as-code database repeats the same preview-deployment or public-function auth pattern.
+  - High-v1 classification: `agent-execution-failure` / runtime timeout. This does not change Convex API support semantics or the verifier contract because the low profile has now shown concrete verified recovery on multiple tasks with the same composed pack. Methodology consequence: high-effort cells can over-investigate deployment machinery; timeout/partial artifacts should be recorded as execution learning, not converted into support-matrix changes without repeated evidence.
+  - Generalization decision: do not move these fixes into broad category-independent methodology claims. The preview-deployment and public-function auth behavior remains isolated Convex/database adapter behavior unless another functions-as-code database repeats the same pattern.
 - Do not add large abstractions from a single failing cell. Generalize only when the same failure mode appears across multiple vendors, surfaces, or harnesses.
 - Claude Code execution lane status:
   - Native Claude Code CLI headless auth is now unblocked, and the Asana `claude` wrapper has also been validated for headless invocation.
@@ -873,7 +868,8 @@ The methodology is enforced by tests, not only prose.
 
 ### Current enforced invariants
 
-- canonical suite scope defaults to `api/sdk/cli`
+- generic methodology supports `api/sdk/cli`, while DAEB-1/database v1 freezes benchmark-of-record scope to `api/cli`
+- DAEB-1/database v1 benchmark-of-record scope is `api/cli`
 - no canonical suite task includes `mcp`
 - capability inventory writes new and legacy extract files
 - compose-pack respects support matrix
@@ -978,6 +974,40 @@ npm run ax-eval -- exec-plan --pack targets/packs/neon/daeb-1-v3.yaml \
 
 Codex and Claude Code should be run as separate model-pinned lanes. `--model` is passed through to the selected harness, and the model namespace is not shared across harnesses. `--effort low|medium|high` is now translated to native harness effort where available (`codex` model reasoning effort, Claude Code `--effort`) and is also described in the executor prompt for trace interpretability. `--execution-mode task` currently requires `--invoke`, because ax-eval performs the task-artifact aggregation step before `verify-generated`.
 
+For the DAEB-1/database v1 production lane, ax-eval now has a separate orchestration command:
+
+```bash
+npm run ax-eval -- daeb-production-rerun \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --codex-model gpt-5.4 \
+  --claude-model sonnet
+```
+
+This production protocol is intentionally distinct from the old low/high exploration lanes:
+
+- benchmark-of-record surfaces are `api` and `cli` only
+- benchmark-of-record effort is fixed to `medium`
+- one trial equals one full `{invoke -> verify -> snapshot/report -> failure classification -> reset}` cycle
+- each `{vendor, surface, harness}` cell is run three times under isolated `trial-1/2/3` directories
+- each cell then writes an `aggregate/` directory with:
+  - trial manifest
+  - aggregate normalized record
+  - mean pass rate
+  - pass-rate range
+  - `pass_all_3` reliability signal
+  - links back to source trial artifacts
+
+Publication bundles can now read these aggregate-only production cells by passing:
+
+```bash
+npm run ax-eval -- publication-bundle \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --run-dir results/runs/daeb-1-v4-production \
+  --out results/runs/daeb-1-v4-production/publication-bundle \
+  --effort-profiles medium \
+  --required-effort-profiles medium
+```
+
 Execution parallelism stays bounded. Use parallel proposal/review where it is safe (vendor capability extraction, `(vendor, concept, surface)` support/gap adjudication, task drafting, trace triage), but keep canonical concept clustering, coverage closure, selection ledgers, support matrix finalization, frozen suite YAML, and publication bundle assembly centralized and deterministic. Live execution should usually run one vendor at a time with low/high profiles in parallel; do not fan out across many vendors sharing quota-bound sandboxes.
 
 Sandbox reset is an explicit baseline operation, never an agent behavior and never a pre-verify cleanup. Run `reset` only after verification has persisted the result artifacts. MongoDB Atlas now has a vendor-specific resetter that clears eval-created `axarena_*` collections and matching Atlas Search indexes in the dedicated `axarena_eval` database, which prevents old vector-search indexes from turning Atlas FTS quotas into fake capability failures.
@@ -993,7 +1023,7 @@ For first-pass matrix expansion, prefer `--invoke-retries 0` plus `--first-actio
 ### Done
 
 - Two-layer publication contract exists in code
-- Canonical benchmark scope is narrowed to `api/sdk/cli`
+- DAEB-1/database v1 benchmark scope is narrowed to `api/cli`
 - Capability inventory is first-class
 - Concept universe / coverage matrix / selection ledger / support matrix are persisted
 - Support decisions are separated from outcome-verifier authoring
@@ -1001,7 +1031,8 @@ For first-pass matrix expansion, prefer `--invoke-retries 0` plus `--first-actio
 - Grader ledger exists
 - Failure taxonomy and trace review artifacts exist
 - Publication bundle exposes static and usability-suite layers separately
-- Codex native execution has verified Neon API low `10/10`, SDK low `8/8`, post-role-contract Neon CLI low/high `18/20`, CockroachDB SDK low/high best-cell `10/10`, CockroachDB CLI low/high `19/20`, Turso SDK low/high best-cell `6/6`, Turso CLI low/high best-cell `9/10`, and Convex API low `8/8`; Convex API high-only and Insforge API low v4 timed out before verifier-visible writes and are recorded as execution-learning evidence
+- Benchmark-of-record API/CLI execution has real evidence: Neon API low `10/10`, Neon CLI low/high `18/20`, CockroachDB CLI low/high `19/20`, Turso API high `18/20`, Turso CLI low `15/20`, plus additional low/high partial evidence on Supabase, MongoDB Atlas, Insforge, and an actively recovering Convex API lane
+- Deferred-surface SDK execution-learning evidence exists for future methodology hardening, but remains outside the v1 leaderboard denominator
 - Claude Code native headless execution is unblocked and eligible for DAEB-1 matrix expansion
 - Non-MCP Codex surfaces are isolated from unrelated global MCP server config
 - Neon CLI role/database disambiguation is now encoded in the composed pack and approved review hash
@@ -1015,7 +1046,9 @@ For first-pass matrix expansion, prefer `--invoke-retries 0` plus `--first-actio
 - stronger deterministic selection tests for concept clustering closure
 - regression-set graduation workflow once tasks saturate
 - methodology revision memo template per suite release
-- real execution, verification, normalized records, and publication-bundle interpretation for the remaining 7-vendor × 3-surface × 2-harness × 2-effort matrix cells
+- full production rerun completion for the remaining 7-vendor × 2-surface (`api/cli`) × 2-harness benchmark-of-record cells under the new 3-trial `medium` protocol, including aggregate publication artifacts
+- publication-ready interpretation of the aggregate production lane, with mean/range as the headline score and `pass_all_3` as the secondary reliability signal
+- optional synthesis of deferred SDK research results into a future DAEB revision once support semantics are benchmark-stable
 - true latency values for all normalized records, available automatically for new invokes through `durationMs` in invoke metadata
 
 ## 12. Working Principle

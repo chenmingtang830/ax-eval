@@ -5,6 +5,7 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
 import { namedFieldsFor } from "./executor.js";
+import { resolveEnvTemplate } from "../target/config.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -286,6 +287,69 @@ function text(buf: Buffer | string | null | undefined): string {
   return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
 }
 
+function retryWithShellQuoteRecovery(text: string): string {
+  return text.replace(/\\'/g, "'");
+}
+
+function repairBareInnerQuotes(text: string): string {
+  let out = "";
+  let inString = false;
+  let escaping = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]!;
+    if (!inString) {
+      out += ch;
+      if (ch === '"') {
+        inString = true;
+        escaping = false;
+      }
+      continue;
+    }
+    if (escaping) {
+      out += ch;
+      escaping = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaping = true;
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j]!)) j += 1;
+      const next = text[j];
+      if (next === "," || next === "}" || next === "]" || next === ":") {
+        out += ch;
+        inString = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+function parseJsonWithRecovery<T = unknown>(raw: string): T {
+  try {
+    return JSON.parse(raw) as T;
+  } catch (error) {
+    const shellRecovered = retryWithShellQuoteRecovery(raw);
+    if (shellRecovered !== raw) {
+      try {
+        return JSON.parse(shellRecovered) as T;
+      } catch {
+        /* fall through */
+      }
+    }
+    const quoteRecovered = repairBareInnerQuotes(shellRecovered);
+    if (quoteRecovered === raw) throw error;
+    return JSON.parse(quoteRecovered) as T;
+  }
+}
+
 const SECRET_ENV_NAME =
   /([A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DB_URL|DATABASE_URL|CONNECTION_STRING|URI|DSN|PRIVATE_KEY|JWT)[A-Z0-9_]*\s*=\s*)(["']?)[^\s"',}]+/gi;
 const SECRET_JSON_FIELD =
@@ -551,7 +615,7 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
 
 function stampResultFile(opts: InvokeRunOptions): void {
   if (!existsSync(opts.paths.resultsPath)) return;
-  const parsed = JSON.parse(readFileSync(opts.paths.resultsPath, "utf8")) as Record<string, unknown>;
+  const parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
   parsed.harness = opts.harness;
   parsed.profile = typeof parsed.profile === "string" && parsed.profile.trim() ? parsed.profile : opts.profile;
   parsed.surface = typeof parsed.surface === "string" && parsed.surface.trim() ? parsed.surface : opts.surface;
@@ -561,7 +625,28 @@ function stampResultFile(opts: InvokeRunOptions): void {
   // doesn't carry the model in its output, so fall back to its stderr banner.
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
+  normalizeDiscoveryResult(parsed, opts.pack);
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+}
+
+function looksLikeBaseUrlPlaceholder(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (/^https?:\/\/[^<>{}\s]+$/i.test(trimmed) && !/\$\{[A-Z0-9_]+\}/.test(trimmed)) return false;
+  return /<[^>]+>|\{[^}]+\}|\$\{[A-Z0-9_]+\}|\bCONVEX_URL\b|\bdeployment URL\b/i.test(trimmed);
+}
+
+function normalizeDiscoveryResult(parsed: Record<string, unknown>, pack: TargetPack): void {
+  const discovery = parsed.discovery;
+  if (!discovery || typeof discovery !== "object" || Array.isArray(discovery)) return;
+  const record = discovery as Record<string, unknown>;
+  const baseUrlFound = typeof record.base_url_found === "string" ? record.base_url_found : "";
+  if (!looksLikeBaseUrlPlaceholder(baseUrlFound)) return;
+  try {
+    record.base_url_found = resolveEnvTemplate(pack.base_url);
+  } catch {
+    /* Leave the self-report unchanged when the template cannot be resolved. */
+  }
 }
 
 function parseResultPayload(text: string): Record<string, unknown> | undefined {

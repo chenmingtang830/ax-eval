@@ -54,6 +54,26 @@ describe("cli arg handling", () => {
     expect(code).toBe(0);
     expect(out).toContain("usage: ax-eval publication-bundle");
     expect(out).toContain("--suite <suite.yaml>");
+    expect(out).toContain("--effort-profiles <a,b,c>");
+  });
+
+  it("daeb-low-pass help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["daeb-low-pass", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval daeb-low-pass");
+    expect(out).toContain("--surface api|cli|all");
+    expect(out).toContain("--codex-model <slug>");
+    expect(out).toContain("--claude-model <slug>");
+    expect(out).toContain("--skip-reset");
+  });
+
+  it("daeb-production-rerun help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["daeb-production-rerun", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval daeb-production-rerun");
+    expect(out).toContain("--trial-count 3");
+    expect(out).toContain("--invoke-timeout seconds");
+    expect(out).toContain("--skip-archive");
   });
 
   it("generate without --from or --suite errors with a helpful usage hint", () => {
@@ -118,7 +138,7 @@ describe("cli arg handling", () => {
       expect(manifest.schema).toBe("ax.publication-bundle/v2");
       expect(manifest.benchmark).toBe("DAEB-1");
       expect(manifest.publication_readiness).toBe("draft");
-      expect(manifest.expected_matrix.surfaces).toEqual(["api", "sdk", "cli"]);
+      expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
       expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
       expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
@@ -135,6 +155,18 @@ describe("cli arg handling", () => {
     } finally {
       rmSync(outDir, { recursive: true, force: true });
     }
+  });
+
+  it("daeb-low-pass rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
+    const { code, out } = runCli(["daeb-low-pass", "--vendor", "neon", "--surface", "sdk"]);
+    expect(code).toBe(1);
+    expect(out).toContain('surface "sdk" is out of scope');
+  });
+
+  it("daeb-production-rerun rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
+    const { code, out } = runCli(["daeb-production-rerun", "--vendor", "neon", "--surface", "sdk"]);
+    expect(code).toBe(1);
+    expect(out).toContain('surface "sdk" is out of scope');
   });
 });
 

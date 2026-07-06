@@ -193,6 +193,18 @@ export interface BuildPromptOptions {
   /** Optional explicit task subset for task-level execution mode. Defaults to
    *  every task eligible on the selected surface. */
   tasks?: Task[];
+  /** Optional shared discovery/bootstrap context for task-level execution. When
+   *  present, the prompt should reuse the prior cell bootstrap instead of
+   *  rerunning full cold-start discovery for every task. */
+  sharedDiscovery?: {
+    path: string;
+    base_url_found?: string;
+    endpoint_used?: string;
+    auth_scheme_found?: string;
+    searches?: string[];
+    urls_visited?: string[];
+    notes?: string;
+  };
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
@@ -200,17 +212,52 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const { pack, profile, ns, resultsPath, tracePath } = opts;
   const surface = opts.surface ?? apiSurface;
   const tasks = opts.tasks ?? tasksForSurface(pack, surface.id);
+  const sharedDiscovery = opts.sharedDiscovery;
   const resultsShape = tasks.map((task) => {
     const fields = ["\"gid\": \"<gid or null>\"", ...namedFieldsFor(task).map((field) => `"${field}": "<value or null>"`)];
     return `      "${task.id}": {${fields.join(", ")}}`;
   }).join(",\n");
   const effortLabel = `${profile.effort.toUpperCase()}-EFFORT`;
-  const taskScope = tasks.length === 1
-    ? `THIS ONE TASK`
-    : `ALL tasks`;
-  const completionLine = tasks.length === 1
-    ? `When done, report whether the task succeeded or failed and the id.`
-    : `When done, report which tasks succeeded/failed and the ids.`;
+  const taskScope = tasks.length === 0
+    ? "shared bootstrap only"
+    : tasks.length === 1
+      ? "THIS ONE TASK"
+      : "ALL tasks";
+  const completionLine = tasks.length === 0
+    ? "When done, report the shared discovery/bootstrap you established for this cell."
+    : tasks.length === 1
+      ? `When done, report whether the task succeeded or failed and the id.`
+      : `When done, report which tasks succeeded/failed and the ids.`;
+  const phase0Block = sharedDiscovery
+    ? [
+        `=== PHASE 0 — SHARED BOOTSTRAP (already completed for this cell) ===`,
+        `A prior bootstrap run already established the baseline discovery for this ${surface.subject}.`,
+        `Reuse that shared discovery instead of repeating the full cold-start workflow unless it proves unusable.`,
+        `Shared bootstrap artifact: ${sharedDiscovery.path}`,
+        `- base_url_found: ${sharedDiscovery.base_url_found ?? "<unknown>"}`,
+        `- endpoint_used: ${sharedDiscovery.endpoint_used ?? "<unknown>"}`,
+        `- auth_scheme_found: ${sharedDiscovery.auth_scheme_found ?? "<unknown>"}`,
+        `- searches: ${(sharedDiscovery.searches ?? []).join(" | ") || "<none recorded>"}`,
+        `- urls_visited: ${(sharedDiscovery.urls_visited ?? []).join(" | ") || "<none recorded>"}`,
+        `- notes: ${sharedDiscovery.notes ?? "<none>"}`,
+        `Only do extra discovery if the shared bootstrap is missing, stale, or insufficient for this task.`,
+        `If you do additional discovery, append the real extra searches/URLs you used to the output discovery object instead of inventing a fresh cold-start funnel.`,
+      ]
+    : [
+        `=== PHASE 0 — DISCOVERY (cold start, scored) ===`,
+        `Before doing ANY task, work out how to use ${pack.name}'s ${surface.subject}. You are NOT given the`,
+        `base URL, any endpoint, the request/response shape, or a documentation link.`,
+        ...surface.discoveryBlock(pack),
+      ];
+  const phase1Block = tasks.length === 0
+    ? [
+        `=== PHASE 1 — SHARED BOOTSTRAP OUTPUT ===`,
+        `There is no canonical task in this bootstrap run. Only complete shared discovery/bootstrap and write an empty "results" object.`,
+      ]
+    : [
+        `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
+        ...tasks.map((t) => taskLine(t, ns)),
+      ];
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
@@ -229,30 +276,35 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     `what the base URL / endpoints are (Phase 0).`,
     ``,
     ...surface.setupBlock(pack),
-    ...surface.discoveryBlock(pack),
+    ...phase0Block,
     `=== NAMESPACE ===`,
     `Every task name below already has the namespace "${ns}" substituted in. Create resources`,
     `with EXACTLY those names — do not change them.`,
     `Do not delete, reset, overwrite, or mutate pre-existing resources that were not created in this run.`,
     `If a quota or sandbox limit blocks a task, record that task as failed instead of cleaning up unrelated resources.`,
     ``,
-    `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
-    ...tasks.map((t) => taskLine(t, ns)),
+    ...phase1Block,
     ``,
-    `Treat tasks as independent best-effort attempts: if one task fails, record that task's gid as null, log the failure, and continue with the remaining tasks instead of aborting the whole run.`,
+    ...(tasks.length
+      ? [`Treat tasks as independent best-effort attempts: if one task fails, record that task's gid as null, log the failure, and continue with the remaining tasks instead of aborting the whole run.`]
+      : [`Do not create benchmark resources in this bootstrap run beyond whatever minimal discovery/bootstrap setup is required to learn the documented path.`]),
     ``,
-    `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
-    `id). If a task truly fails, record gid as null.`,
-    ``,
-    `Some tasks need more than just "gid" reported to be verifiable — e.g. a second identity/credential (row-`,
-    `level access control needs two signed-in users' tokens to demonstrate isolation between them), or a`,
-    `specific value only you determine while doing the task (e.g. the id of a particular row you're using to`,
-    `test something, or the exact duplicate value you attempted). Whenever a task's instructions imply this,`,
-    `report each such extra value as an EXTRA key alongside that task's "gid" in your results JSON — e.g.`,
-    `{"gid": "<created row id>", "user_a_token": "<user A's signed-in token>", "user_b_token": "<user B's`,
-    `signed-in token>", "test_row_id": "<a specific row's id>"}. Use short, descriptive key names; these are`,
-    `read back by the verifier.`,
-    ``,
+    ...(tasks.length
+      ? [
+          `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
+          `id). If a task truly fails, record gid as null.`,
+          ``,
+          `Some tasks need more than just "gid" reported to be verifiable — e.g. a second identity/credential (row-`,
+          `level access control needs two signed-in users' tokens to demonstrate isolation between them), or a`,
+          `specific value only you determine while doing the task (e.g. the id of a particular row you're using to`,
+          `test something, or the exact duplicate value you attempted). Whenever a task's instructions imply this,`,
+          `report each such extra value as an EXTRA key alongside that task's "gid" in your results JSON — e.g.`,
+          `{"gid": "<created row id>", "user_a_token": "<user A's signed-in token>", "user_b_token": "<user B's`,
+          `signed-in token>", "test_row_id": "<a specific row's id>"}. Use short, descriptive key names; these are`,
+          `read back by the verifier.`,
+          ``,
+        ]
+      : []),
     `=== OBSERVABILITY (required) ===`,
     `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
     `[{"step":1,"taskId":"<id or 'discovery'>","action":"create task","method":"POST","path":"/tasks","status":201,"note":"ok"}, ...]`,

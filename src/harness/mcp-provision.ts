@@ -1,6 +1,7 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
@@ -137,6 +138,7 @@ function writeCodexNoMcpHome(opts: {
   const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-codex-${opts.surface}-no-mcp`);
   const codexDir = resolve(home, ".codex");
+  rmSync(home, { recursive: true, force: true });
   mkdirSync(codexDir, { recursive: true });
   copyCodexAuth(codexDir);
   const configPath = resolve(codexDir, "config.toml");
@@ -207,6 +209,36 @@ function writeClaudeMcpHome(opts: {
   return { home, configPath, headersHelperPath, serverName };
 }
 
+function prependPath(dir: string, currentPath = process.env.PATH ?? ""): string {
+  return currentPath ? `${dir}:${currentPath}` : dir;
+}
+
+function ensureTursoCli(paths: InvokePaths): { home: string; binDir: string; binaryPath: string } {
+  const sharedHome = resolve(dirname(paths.resultsPath), ".invoke-home", "turso-cli-shared");
+  const binaryPath = resolve(sharedHome, ".turso", "turso");
+  if (existsSync(binaryPath)) {
+    return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
+  }
+  rmSync(sharedHome, { recursive: true, force: true });
+  mkdirSync(sharedHome, { recursive: true });
+  const install = spawnSync("/bin/sh", ["-lc", "curl -sSfL https://get.tur.so/install.sh | bash"], {
+    cwd: dirname(paths.resultsPath),
+    env: {
+      ...process.env,
+      HOME: sharedHome,
+      PATH: process.env.PATH ?? "",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (install.status !== 0 || !existsSync(binaryPath)) {
+    const detail = (install.stderr || install.stdout || `exit ${install.status ?? "unknown"}`).trim();
+    throw new Error(`failed to provision shared Turso CLI: ${detail.slice(0, 500)}`);
+  }
+  return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
+}
+
 /**
  * Provision an invoked harness with pack-declared MCP auth. This deliberately
  * avoids relying on a developer's already-authenticated global MCP session.
@@ -218,18 +250,41 @@ export async function provisionHarnessForSurface(opts: {
   paths: InvokePaths;
   cwd: string;
 }): Promise<HarnessProvisioning> {
+  const tursoCli =
+    opts.surface === "cli" && opts.pack.name === "turso"
+      ? ensureTursoCli(opts.paths)
+      : undefined;
   if (opts.surface !== "mcp") {
-    if (opts.harness !== "codex") return { env: {} };
+    if (opts.harness !== "codex") {
+      return tursoCli
+        ? {
+            env: {
+              PATH: prependPath(tursoCli.binDir),
+            },
+            meta: {
+              shared_cli_home: tursoCli.home,
+              shared_cli_binary: tursoCli.binaryPath,
+            },
+          }
+        : { env: {} };
+    }
     const codex = writeCodexNoMcpHome({ paths: opts.paths, surface: opts.surface });
     return {
       env: {
         HOME: codex.home,
         CODEX_HOME: codex.codexDir,
+        ...(tursoCli ? { PATH: prependPath(tursoCli.binDir) } : {}),
       },
       meta: {
         codex_home: codex.home,
         codex_config: codex.configPath,
         mcp_provisioning: "disabled_for_non_mcp_surface",
+        ...(tursoCli
+          ? {
+              shared_cli_home: tursoCli.home,
+              shared_cli_binary: tursoCli.binaryPath,
+            }
+          : {}),
       },
     };
   }

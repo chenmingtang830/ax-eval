@@ -127,20 +127,39 @@ definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
 
-After running and verifying the vendor matrix, freeze a publication bundle:
+For DAEB-1/database v1, the benchmark-of-record production lane is narrower
+than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
+medium-effort model per harness, and three trials per supported
+vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+SDK evidence is research-only for v1.
+
+Run the production lane with:
+
+```bash
+npm run ax-eval -- daeb-production-rerun \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --codex-model gpt-5.4 \
+  --claude-model sonnet
+```
+
+Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
+pass rate, observed range, and links to the source trial artifacts. After
+running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
 npm run ax-eval -- publication-bundle \
   --suite targets/suites/daeb-1-v3.yaml \
-  --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
-  --run-dir results/runs/daeb-1-v3 \
-  --out results/publications/daeb-1-v3
+  --run-dir results/runs/daeb-1-v4-production \
+  --out results/runs/daeb-1-v4-production/publication-bundle \
+  --effort-profiles medium \
+  --required-effort-profiles medium
 ```
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
 cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
-records, and competitive report. Missing live artifacts are listed explicitly so
-draft bundles can be audited while the 7-vendor run is still in progress.
+records, and competitive report. Missing live artifacts are listed explicitly;
+a publication-ready DAEB-1 v1 bundle has no missing references and all required
+quality gates passing.
 
 ## Architecture
 

@@ -1,5 +1,5 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { basename, dirname, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve, sep } from "node:path";
 import { loadPack } from "../config.js";
 import type { TraceStep } from "../harness/executor.js";
 import type { NormalizedResult } from "./record.js";
@@ -18,6 +18,14 @@ import {
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
 const PUBLICATION_EFFORT_PROFILES = ["low", "high"] as const;
+const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["low"] as const;
+const IGNORED_RECURSIVE_DIRS = new Set([
+  ".invoke-home",
+  ".codex",
+  ".cache",
+  "Library",
+  "_compiled",
+]);
 
 export type PublicationQualityGate = {
   id: string;
@@ -29,6 +37,7 @@ export type PublicationQualityGate = {
 export type PublicationVendor = {
   slug: string;
   pack: string;
+  expected_surfaces: string[];
   missing: string[];
   validation_errors: string[];
   artifacts: {
@@ -38,7 +47,9 @@ export type PublicationVendor = {
     approval?: string;
     support_matrix?: string;
     snapshot?: string;
+    snapshots?: string[];
     report_html?: string;
+    report_htmls?: string[];
     normalized_records: string[];
   };
 };
@@ -55,6 +66,7 @@ export type PublicationManifest = {
     surfaces: string[];
     harnesses: string[];
     effort_profiles: string[];
+    required_effort_profiles: string[];
     expected_cells: number;
   };
   quality_gates: PublicationQualityGate[];
@@ -81,6 +93,8 @@ export type BuildPublicationBundleOptions = {
   vendors: string[];
   runDir: string;
   outDir: string;
+  effortProfiles?: string[];
+  requiredEffortProfiles?: string[];
 };
 
 function copyIfExists(src: string, dest: string, missing: string[]): string | undefined {
@@ -94,11 +108,28 @@ function copyIfExists(src: string, dest: string, missing: string[]): string | un
 }
 
 function listNormalizedRecords(dir: string): string[] {
+  const all = listFilesRecursive(dir, (name) => name.endsWith(".normalized.json"));
+  const aggregate = all.filter((path) => relative(dir, path).split(sep).includes("aggregate"));
+  return (aggregate.length ? aggregate : all).sort();
+}
+
+function listFilesRecursive(dir: string, predicate: (name: string) => boolean): string[] {
   if (!existsSync(dir)) return [];
-  return readdirSync(dir)
-    .filter((name) => name.endsWith(".normalized.json"))
-    .sort()
-    .map((name) => resolve(dir, name));
+  const out: string[] = [];
+  const stack = [dir];
+  while (stack.length) {
+    const current = stack.pop()!;
+    for (const name of readdirSync(current, { withFileTypes: true })) {
+      const full = resolve(current, name.name);
+      if (name.isDirectory()) {
+        if (IGNORED_RECURSIVE_DIRS.has(name.name)) continue;
+        stack.push(full);
+      } else if (name.isFile() && predicate(name.name)) {
+        out.push(full);
+      }
+    }
+  }
+  return out.sort();
 }
 
 function rel(root: string, path: string | undefined): string | undefined {
@@ -174,6 +205,10 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
   const outRoot = resolve(opts.root, opts.outDir);
   mkdirSync(outRoot, { recursive: true });
   const topLevelMissing: string[] = [];
+  const expectedSurfaces = [...(opts.suite.methodology?.surface_scope ?? CANONICAL_SURFACE_SCOPE)];
+  const expectedHarnesses = [...PUBLICATION_HARNESSES];
+  const expectedProfiles = opts.effortProfiles?.length ? [...opts.effortProfiles] : [...PUBLICATION_EFFORT_PROFILES];
+  const requiredProfiles = opts.requiredEffortProfiles?.length ? [...opts.requiredEffortProfiles] : [...REQUIRED_PUBLICATION_EFFORT_PROFILES];
 
   const copiedSuite = copyIfExists(
     resolve(opts.root, opts.suitePath),
@@ -198,6 +233,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
     const runVendorDir = resolve(opts.root, opts.runDir, slug);
 
     let validationErrors: string[] = [];
+    let expectedVendorSurfaces = [...expectedSurfaces];
     if (existsSync(sourcePack)) {
       const pack = loadPack(sourcePack);
       validationErrors = validatePackAgainstSuite(
@@ -209,16 +245,33 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
           validationErrors.push(`Task ${task.id} is executable but has no oracle.`);
         }
       }
+      expectedVendorSurfaces = expectedSurfaces.filter((surface) =>
+        pack.tasks.some((task) => !task.na && (task.allowed_surfaces ?? []).includes(surface)),
+      );
     } else {
       missing.push(sourcePack);
     }
 
     const normalizedRecords = listNormalizedRecords(runVendorDir)
       .map((record) =>
-        copyIfExists(record, resolve(destVendorDir, "normalized", basename(record)), missing),
+        copyIfExists(record, resolve(destVendorDir, "normalized", relative(runVendorDir, record)), missing),
       )
       .filter((path): path is string => Boolean(path));
     if (normalizedRecords.length === 0) missing.push(`${runVendorDir}/*.normalized.json`);
+
+    const snapshots = listFilesRecursive(runVendorDir, (name) => name === "generated-eval.snapshot.json")
+      .map((snapshot) =>
+        copyIfExists(snapshot, resolve(destVendorDir, "reports", relative(runVendorDir, snapshot)), missing),
+      )
+      .filter((path): path is string => Boolean(path));
+    if (snapshots.length === 0) missing.push(`${runVendorDir}/**/generated-eval.snapshot.json`);
+
+    const reportHtmls = listFilesRecursive(runVendorDir, (name) => name === "generated-eval.html")
+      .map((report) =>
+        copyIfExists(report, resolve(destVendorDir, "reports", relative(runVendorDir, report)), missing),
+      )
+      .filter((path): path is string => Boolean(path));
+    if (reportHtmls.length === 0) missing.push(`${runVendorDir}/**/generated-eval.html`);
 
     const artifacts = {
       vendor_card: copyIfExists(
@@ -242,22 +295,17 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
         resolve(destVendorDir, "suite-support-matrix.yaml"),
         missing,
       ),
-      snapshot: copyIfExists(
-        resolve(runVendorDir, "generated-eval.snapshot.json"),
-        resolve(destVendorDir, "generated-eval.snapshot.json"),
-        missing,
-      ),
-      report_html: copyIfExists(
-        resolve(runVendorDir, "generated-eval.html"),
-        resolve(destVendorDir, "generated-eval.html"),
-        missing,
-      ),
+      snapshot: snapshots[0],
+      snapshots: snapshots.map((path) => relative(outRoot, path)),
+      report_html: reportHtmls[0],
+      report_htmls: reportHtmls.map((path) => relative(outRoot, path)),
       normalized_records: normalizedRecords.map((path) => relative(outRoot, path)),
     };
 
     return {
       slug,
       pack: relative(opts.root, sourcePack),
+      expected_surfaces: expectedVendorSurfaces,
       missing: missing.map((path) => relative(opts.root, path)),
       validation_errors: validationErrors,
       artifacts: {
@@ -267,7 +315,9 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
         approval: rel(outRoot, artifacts.approval),
         support_matrix: rel(outRoot, artifacts.support_matrix),
         snapshot: rel(outRoot, artifacts.snapshot),
+        snapshots: artifacts.snapshots,
         report_html: rel(outRoot, artifacts.report_html),
+        report_htmls: artifacts.report_htmls,
         normalized_records: artifacts.normalized_records,
       },
     };
@@ -278,10 +328,10 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
     resolve(outRoot, "competitive.html"),
     topLevelMissing,
   );
-  const expectedSurfaces = [...CANONICAL_SURFACE_SCOPE];
-  const expectedHarnesses = [...PUBLICATION_HARNESSES];
-  const expectedProfiles = [...PUBLICATION_EFFORT_PROFILES];
-  const expectedCells = opts.vendors.length * expectedSurfaces.length * expectedHarnesses.length;
+  const expectedCells = vendors.reduce(
+    (sum, vendor) => sum + (vendor.expected_surfaces.length * expectedHarnesses.length),
+    0,
+  );
   const qualityGates: PublicationQualityGate[] = [];
 
   const vendorMissing = vendors.flatMap((vendor) => vendor.missing.map((missing) => `${vendor.slug}: ${missing}`));
@@ -304,7 +354,8 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
   });
 
   const missingCells: string[] = [];
-  const missingProfiles: string[] = [];
+  const missingRequiredProfiles: string[] = [];
+  const missingOptionalProfiles: string[] = [];
   const recordsByVendor = new Map<string, NormalizedResult[]>();
   for (const vendor of vendors) {
     const records = loadNormalizedRecords(
@@ -312,25 +363,41 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
     );
     recordsByVendor.set(vendor.slug, records);
     for (const harness of expectedHarnesses) {
-      for (const surface of expectedSurfaces) {
+      for (const surface of vendor.expected_surfaces) {
         const cellRecords = records.filter((record) => record.harness === harness && record.surface === surface);
         if (!cellRecords.length) {
           missingCells.push(`${vendor.slug}/${surface}/${harness}`);
           continue;
         }
         const profiles = new Set(cellRecords.flatMap((record) => record.profiles ?? []));
-        const missing = expectedProfiles.filter((profile) => !profiles.has(profile));
-        if (missing.length) missingProfiles.push(`${vendor.slug}/${surface}/${harness}: missing ${missing.join(",")}`);
+        const missingRequired = requiredProfiles.filter((profile) => !profiles.has(profile));
+        if (missingRequired.length) {
+          missingRequiredProfiles.push(`${vendor.slug}/${surface}/${harness}: missing required ${missingRequired.join(",")}`);
+        }
+        const missingOptional = expectedProfiles
+          .filter((profile) => !requiredProfiles.includes(profile as (typeof REQUIRED_PUBLICATION_EFFORT_PROFILES)[number]))
+          .filter((profile) => !profiles.has(profile));
+        if (missingOptional.length) {
+          missingOptionalProfiles.push(`${vendor.slug}/${surface}/${harness}: missing optional ${missingOptional.join(",")}`);
+        }
       }
     }
   }
   addGate(qualityGates, {
     id: "matrix-completeness",
     label: "Expected usability matrix cells are present",
-    status: missingCells.length || missingProfiles.length ? "fail" : "pass",
-    detail: missingCells.length || missingProfiles.length
-      ? `${missingCells.length}/${expectedCells} cell(s) missing; ${missingProfiles.length} cell(s) lack low/high profile coverage.`
-      : `${expectedCells} expected vendor×surface×harness cells are present with low/high profiles.`,
+    status: missingCells.length || missingRequiredProfiles.length ? "fail" : "pass",
+    detail: missingCells.length || missingRequiredProfiles.length
+      ? `${missingCells.length}/${expectedCells} cell(s) missing; ${missingRequiredProfiles.length} cell(s) lack required profile coverage (${requiredProfiles.join("/")}).`
+      : `${expectedCells} expected vendor×surface×harness cells are present with required profile coverage (${requiredProfiles.join("/")}).`,
+  });
+  addGate(qualityGates, {
+    id: "high-profile-coverage",
+    label: "Optional high-effort evidence is tracked separately",
+    status: missingOptionalProfiles.length ? "warn" : "pass",
+    detail: missingOptionalProfiles.length
+      ? `${missingOptionalProfiles.length} cell(s) lack optional high-effort coverage; low remains the publication-critical requirement.`
+      : "Optional high-effort evidence is present for every expected cell.",
   });
 
   const allRecords = [...recordsByVendor.values()].flat();
@@ -364,7 +431,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
     status: competitiveReport ? "pass" : "fail",
     detail: competitiveReport ? "competitive.html is included." : "competitive.html is missing from the run directory.",
   });
-  const publicationReady = qualityGates.every((gate) => gate.status === "pass");
+  const publicationReady = qualityGates.every((gate) => gate.status !== "fail");
 
   const manifest: PublicationManifest = {
     schema: "ax.publication-bundle/v2",
@@ -378,6 +445,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
       surfaces: expectedSurfaces,
       harnesses: expectedHarnesses,
       effort_profiles: expectedProfiles,
+      required_effort_profiles: requiredProfiles,
       expected_cells: expectedCells,
     },
     quality_gates: qualityGates,
@@ -389,7 +457,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
           .map((path) => relative(outRoot, path)),
       },
       behavioral: {
-        description: "Usability Canonical Suite is the benchmark of record and is scored only from verified outcomes on api/cli/sdk.",
+        description: `Usability Canonical Suite is the benchmark of record and is scored only from verified outcomes on ${expectedSurfaces.join("/")}.`,
         methodology_artifacts: methodologyArtifacts
           .filter((path) => /support-matrix|grader-ledger|selection-ledger|coverage-matrix|methodology/i.test(path))
           .map((path) => relative(outRoot, path)),
@@ -402,7 +470,8 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
       "Compiled TargetPacks are executable vendor adapters produced from the canonical suite plus vendor-specific verification extraction.",
       "Discoverability & Readiness artifacts and usability-suite artifacts are published side by side but remain separate scoring layers.",
       "Publication-grade bundles require both Discoverability & Readiness artifacts and usability-suite artifacts; missing methodology files are recorded explicitly.",
-      "publication_readiness is draft until required artifacts, matrix coverage, efficiency metrics, and competitive report gates pass.",
+      "publication_readiness is draft until required artifacts, low-effort matrix coverage, efficiency metrics, and competitive report gates pass.",
+      "High-effort artifacts remain valuable execution-learning and publication evidence, but missing high coverage does not block a publication-ready bundle when the low-effort matrix is complete.",
       "Missing artifacts are recorded so draft bundles can be created before every live run finishes.",
       "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle.",
     ],

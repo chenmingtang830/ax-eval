@@ -243,7 +243,7 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
       label: "Usability Canonical Suite",
       source_of_truth: "Verified world state read back from the live product",
       notes: [
-        "Usability-suite scoring is governed only by verified task outcomes on api/cli/sdk surfaces.",
+        "Usability-suite scoring is governed only by verified task outcomes on the suite-declared benchmark surfaces.",
       ],
     },
     capability_families: category === "database"
@@ -263,7 +263,7 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
     extraction_requirements: [
       "Use only official vendor documentation as evidence.",
       "Persist every extracted capability with structured evidence objects.",
-      "Document supported api/sdk/cli surfaces where evidence exists.",
+      "Document supported benchmark surfaces where evidence exists; deferred surfaces may still be retained as research metadata.",
     ],
     min_vendor_coverage_pct: 0.75,
     target_task_count: 10,

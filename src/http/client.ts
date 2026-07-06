@@ -110,6 +110,23 @@ export class BearerClient {
     });
   }
 
+  /** A client sharing this one's auth/header behavior but targeting a different
+   *  base URL — used for vendors like Convex where task-level execution may
+   *  legitimately move onto a preview deployment URL discovered during the run. */
+  withBaseUrl(baseUrl: string): BearerClient {
+    return new BearerClient({
+      baseUrl,
+      token: this.token,
+      responseEnvelope: this.envelope,
+      authScheme: this.authScheme,
+      authHeader: this.authHeader,
+      extraAuthHeader: this.extraAuthHeader,
+      extraAuthToken: this.extraAuthToken,
+      extraHeaders: this.extraHeaders,
+      apiStyle: this.apiStyle,
+    });
+  }
+
   /** Pull a human-readable message out of an error body across the several
    *  shapes vendors use: Notion/GraphQL-style `{errors: [{message}]}`, a
    *  bare `{error: "..."}` string, or PostgREST/plain-REST's `{message}`. */

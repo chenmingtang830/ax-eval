@@ -240,6 +240,87 @@ describe("runInvokeHarness", () => {
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
   });
 
+  it("normalizes placeholder discovery base URLs from declared env templates", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const original = process.env.CONVEX_URL;
+    process.env.CONVEX_URL = "preview-example-123.convex.cloud";
+    try {
+      const convexPack = TargetPackSchema.parse({
+        name: "convex",
+        standard_set_version: "demo-v1",
+        run_id: "gen",
+        base_url: "https://${CONVEX_URL}",
+        tasks: [
+          {
+            id: "t1",
+            prompt: "Create one thing.",
+            allowed_surfaces: ["api"],
+            oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "x" }],
+          },
+        ],
+      });
+      const spawn: AsyncSpawn = async () => {
+        writeFileSync(
+          run.paths.resultsPath,
+          JSON.stringify({
+            profile: "ceiling",
+            ns: run.ns,
+            surface: "api",
+            discovery: {
+              base_url_found: "<CONVEX_URL>/api/{query|mutation|action}",
+              searches: [],
+              urls_visited: [],
+              endpoint_used: "POST /api/query",
+              auth_scheme_found: "Authorization: Convex <deploy_key>",
+              notes: "placeholder-like base URL",
+            },
+            results: { t1: { gid: "gid-1" } },
+          }),
+        );
+        writeFileSync(run.paths.tracePath, "[]");
+        return spawnResult({ stdout: Buffer.from("{}"), stderr: Buffer.from("model: gpt-5.5\n") });
+      };
+
+      const result = await runInvokeHarness({ ...run, pack: convexPack }, spawn);
+      expect(result.ok).toBe(true);
+      const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+      expect(executor.discovery.base_url_found).toBe("https://preview-example-123.convex.cloud");
+    } finally {
+      if (original === undefined) delete process.env.CONVEX_URL;
+      else process.env.CONVEX_URL = original;
+    }
+  });
+
+  it("recovers agent-written result JSON with bare inner quotes instead of crashing", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const malformed = `{
+  "profile": "ceiling",
+  "ns": "${run.ns}",
+  "surface": "api",
+  "discovery": {
+    "base_url_found": "demo",
+    "searches": [],
+    "urls_visited": [],
+    "endpoint_used": "tool \"quoted\" command",
+    "auth_scheme_found": "token",
+    "notes": "ok"
+  },
+  "results": { "t1": { "gid": "gid-1" } }
+}`;
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, malformed);
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.discovery.endpoint_used).toBe('tool "quoted" command');
+  });
+
   it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");

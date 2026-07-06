@@ -215,7 +215,28 @@ describe("surface-parameterized executor prompt", () => {
   });
 
   it("tells agents to continue remaining tasks after one task fails", () => {
-    const p = promptFor("sdk");
+    const p = buildExecutorPrompt({
+      pack: TargetPackSchema.parse({
+        ...base,
+        tasks: [
+          {
+            id: "sdk-task",
+            difficulty: "L2",
+            prompt: `Create one SDK task named "AX SDK {ns}".`,
+            allowed_surfaces: ["sdk"],
+            oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "AX SDK {ns}" }],
+          },
+        ],
+        surfaces: {
+          sdk: { package: "@demo/sdk", language: "node" },
+        },
+      }),
+      profile: getProfile("floor"),
+      ns: "demo-floor-ab12",
+      resultsPath: "results/run.json",
+      tracePath: "results/run.trace.json",
+      surface: getSurface("sdk"),
+    });
     expect(p).toContain("Treat tasks as independent best-effort attempts");
     expect(p).toContain("continue with the remaining tasks instead of aborting the whole run");
   });

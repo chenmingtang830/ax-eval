@@ -32,7 +32,9 @@ methodology:
     source_of_truth: Verified world state read back from the live product
     notes:
       - Usability-suite scoring is governed only by verified task outcomes on
-        api/cli/sdk surfaces.
+        api/cli surfaces for DAEB-1/database v1. SDK remains a deferred future
+        surface and any existing SDK runs are research artifacts, not
+        benchmark-of-record cells.
   capability_families:
     - data-definition
     - data-write
@@ -47,10 +49,11 @@ methodology:
   extraction_requirements:
     - Use only official vendor documentation as evidence.
     - Persist every extracted capability with structured evidence objects.
-    - Document supported api/sdk/cli surfaces where evidence exists.
+    - Document supported api/cli surfaces where evidence exists for the
+      benchmark-of-record. SDK evidence may still be retained as research
+      metadata.
   surface_scope:
     - api
-    - sdk
     - cli
   min_vendor_coverage_pct: 0.75
   target_task_count: 10

@@ -222,6 +222,25 @@ directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
 stdout/stderr, invoke metadata, and a small manifest together so reviewers can
 deep-dive without hunting through prior scratch runs.
 
+### DAEB-1 production lane
+
+DAEB-1/database v1 has a dedicated production rerun command for the
+benchmark-of-record matrix:
+
+```bash
+ax-eval daeb-production-rerun \
+  --suite targets/suites/daeb-1-v3.yaml \
+  --codex-model gpt-5.4 \
+  --claude-model sonnet
+```
+
+This lane is intentionally scoped to `api` and `cli`, Codex and Claude Code,
+`medium` effort, and three trials per supported vendor/surface/harness cell.
+It writes `trial-1/2/3` directories plus an `aggregate/` directory whose
+normalized record reports the three-trial mean and range. SDK and MCP should
+not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
+research evidence unless a later suite revision says otherwise.
+
 ## Rules
 
 - Only mutate the **sandbox** scope the pack declares. Never touch production

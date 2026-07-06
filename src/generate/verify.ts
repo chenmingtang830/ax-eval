@@ -49,14 +49,80 @@ export interface RoundtripOutcome {
   na: boolean;
 }
 
+function retryWithShellQuoteRecovery(text: string): string {
+  // Some agent-authored result files accidentally include shell-style escaping
+  // like '\'' inside JSON strings. JSON does not allow \' escapes, so strip
+  // only the invalid backslash before retrying parse.
+  return text.replace(/\\'/g, "'");
+}
+
+function repairBareInnerQuotes(text: string): string {
+  let out = "";
+  let inString = false;
+  let escaping = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]!;
+    if (!inString) {
+      out += ch;
+      if (ch === '"') {
+        inString = true;
+        escaping = false;
+      }
+      continue;
+    }
+    if (escaping) {
+      out += ch;
+      escaping = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaping = true;
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j]!)) j += 1;
+      const next = text[j];
+      if (next === "," || next === "}" || next === "]" || next === ":") {
+        out += ch;
+        inString = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+export function parseJsonWithRecovery<T = unknown>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    const shellRecovered = retryWithShellQuoteRecovery(text);
+    if (shellRecovered !== text) {
+      try {
+        return JSON.parse(shellRecovered) as T;
+      } catch {
+        /* fall through to inner-quote recovery */
+      }
+    }
+    const quoteRecovered = repairBareInnerQuotes(shellRecovered);
+    if (quoteRecovered === text) throw error;
+    return JSON.parse(quoteRecovered) as T;
+  }
+}
+
 export function loadResults(path: string): ExecutorResults {
-  return JSON.parse(readFileSync(path, "utf8")) as ExecutorResults;
+  return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
 }
 
 /** Load a sibling *.trace.json if present (observability); empty if missing. */
 export function loadTrace(path: string): TraceStep[] {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8"));
     return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
   } catch {
     return [];
@@ -91,6 +157,16 @@ function normalizeUrl(value: unknown): string | null {
     return url.toString().replace(/\/$/, "");
   } catch {
     return value.trim().replace(/[#?].*$/, "").replace(/\/+$/, "");
+  }
+}
+
+function isAbsoluteHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
   }
 }
 
@@ -339,6 +415,12 @@ async function verifyRoundtrip(
         continue;
       }
       requestClient = client.withToken(token);
+    }
+    const taskBaseUrl = typeof reported?.__task_base_url === "string"
+      ? reported.__task_base_url.trim()
+      : "";
+    if (isAbsoluteHttpUrl(taskBaseUrl)) {
+      requestClient = requestClient.withBaseUrl(taskBaseUrl);
     }
     const path = applyReportedFields(applyNsTemplate(oracle.readPathTemplate)).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);

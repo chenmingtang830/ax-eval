@@ -183,6 +183,64 @@ describe("round-trip verification", () => {
     const out = await verifyGeneratedPack(urlPack, exec, fakeClient({}));
     expect(out[0]!.success).toBe(true);
   });
+
+  it("can verify a task against a task-level discovered base URL", async () => {
+    const calls: string[] = [];
+    const client = {
+      withBaseUrl(baseUrl: string) {
+        calls.push(baseUrl);
+        return this;
+      },
+      async get(path: string) {
+        expect(path).toBe("/tasks/1");
+        return { name: "hello" };
+      },
+      async post(path: string, body: unknown) {
+        return { path, body };
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      results: {
+        "gen-l1-tasks": {
+          gid: "1",
+          __task_base_url: "https://preview-example-123.convex.cloud",
+        },
+      },
+    };
+    const out = await verifyGeneratedPack(pack, exec, client);
+    expect(out[0]!.success).toBe(true);
+    expect(calls).toEqual(["https://preview-example-123.convex.cloud"]);
+  });
+
+  it("ignores an invalid task-level base URL override", async () => {
+    const calls: string[] = [];
+    const client = {
+      withBaseUrl(baseUrl: string) {
+        calls.push(baseUrl);
+        return this;
+      },
+      async get(path: string) {
+        expect(path).toBe("/tasks/1");
+        return { name: "hello" };
+      },
+      async post(path: string, body: unknown) {
+        return { path, body };
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const exec: ExecutorResults = {
+      profile: "ceiling",
+      results: {
+        "gen-l1-tasks": {
+          gid: "1",
+          __task_base_url: "turso CLI v1.0.29 (already installed at cold start)",
+        },
+      },
+    };
+    const out = await verifyGeneratedPack(pack, exec, client);
+    expect(out[0]!.success).toBe(true);
+    expect(calls).toEqual([]);
+  });
 });
 
 describe("resolveDotted", () => {

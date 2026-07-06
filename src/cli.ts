@@ -31,7 +31,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
 import { render } from "./reporting.js";
@@ -45,7 +45,7 @@ import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
 import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
-import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
+import { loadResults, loadTrace, parseJsonWithRecovery, verifyGeneratedPack } from "./generate/verify.js";
 import { buildVerificationClientOptions } from "./generate/verification-client.js";
 import {
   GENERATED_REPORT_SNAPSHOT_SCHEMA,
@@ -79,10 +79,36 @@ import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract }
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
+import {
+  DAEB_LOW_PASS_SCHEMA,
+  combinedResultPath,
+  daebFreshPackPath,
+  daebPackPath,
+  daebVendorOrder,
+  defaultLowPassRunRoot,
+  supportedLowPassSurfaces,
+  upsertLowPassSurfaceRecord,
+  writeFailureClassificationStub,
+  type LowPassManifest,
+  type LowPassSurfaceRecord,
+} from "./generate/low-pass.js";
+import {
+  DAEB_PRODUCTION_EFFORT,
+  DAEB_PRODUCTION_HARNESSES,
+  DAEB_PRODUCTION_TRIAL_COUNT,
+  archiveDaebDebugArtifacts,
+  daebProductionVendorOrder,
+  defaultProductionRunRoot,
+  loadAggregateCandidateRecords,
+  productionTrialDir,
+  writeArchiveManifest,
+  writeProductionAggregate,
+  type ProductionTrialRecord,
+} from "./generate/production-run.js";
 import { loadSupportMatrix } from "./generate/methodology.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
-import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
+import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
 import {
   defaultInvokePaths,
   detectInvokeHarness,
@@ -131,6 +157,8 @@ const COMMANDS = [
   "extract-capabilities",
   "synthesize-suite",
   "publication-bundle",
+  "daeb-low-pass",
+  "daeb-production-rerun",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -225,9 +253,30 @@ function commandUsage(command: string | undefined): string {
     case "publication-bundle":
       return [
         "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
+        "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>]",
         "  Freeze a publication bundle manifest from the canonical suite, vendor",
         "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
         "  and normalized records. Missing live artifacts are recorded in manifest.json.",
+      ].join("\n");
+    case "daeb-low-pass":
+      return [
+        "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
+        "                             [--surface api|cli|all] [--run-dir <dir>]",
+        "                             [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
+        "  Runs DAEB-1 task-level low coverage with Codex + Claude in parallel,",
+        "  one vendor/surface at a time, then verifies, writes a failure-review stub,",
+        "  and optionally resets after artifacts are persisted.",
+      ].join("\n");
+    case "daeb-production-rerun":
+      return [
+        "usage: ax-eval daeb-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
+        "                                     [--surface api|cli|all] [--run-dir <dir>]",
+        "                                     [--codex-model <slug>] [--claude-model <slug>]",
+        "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
+        "                                     [--skip-reset] [--skip-archive]",
+        "  Runs the DAEB-1/database v1 production rerun lane with api/cli only,",
+        "  one vendor → one surface → one harness → three medium-effort trials,",
+        "  then writes aggregate mean/range/pass^3 artifacts under aggregate/.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -324,6 +373,13 @@ interface Parsed {
   vendor: string;
   vendors: string;
   category: string;
+  codexModel: string;
+  claudeModel: string;
+  effortProfiles: string;
+  requiredEffortProfiles: string;
+  skipReset: boolean;
+  skipArchive: boolean;
+  trialCount: number;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
@@ -385,6 +441,13 @@ function parseArgs(argv: string[]): Parsed {
     vendor: "",
     vendors: "",
     category: "",
+    codexModel: "gpt-5.4",
+    claudeModel: "sonnet",
+    effortProfiles: "",
+    requiredEffortProfiles: "",
+    skipReset: false,
+    skipArchive: false,
+    trialCount: DAEB_PRODUCTION_TRIAL_COUNT,
     executionMode: "cell",
     _: [],
   };
@@ -463,6 +526,10 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
     else if (a === "--vendors") p.vendors = value(++i, "--vendors");
+    else if (a === "--codex-model") p.codexModel = value(++i, "--codex-model");
+    else if (a === "--claude-model") p.claudeModel = value(++i, "--claude-model");
+    else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
+    else if (a === "--required-effort-profiles") p.requiredEffortProfiles = value(++i, "--required-effort-profiles");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
@@ -482,10 +549,13 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--approve") p.approve = true;
     else if (a === "--by") p.by = value(++i, "--by");
     else if (a === "--skip-review") p.skipReview = true;
+    else if (a === "--skip-reset") p.skipReset = true;
+    else if (a === "--skip-archive") p.skipArchive = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
+    else if (a === "--trial-count") p.trialCount = Number(value(++i, "--trial-count"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
     else if (a === "--trace") p.trace = value(++i, "--trace");
     else if (a === "--surface") {
@@ -1555,6 +1625,12 @@ function cmdPublicationBundle(args: Parsed): number {
     vendors: vendorSlugs,
     runDir: args.runDir,
     outDir: args.out,
+    effortProfiles: args.effortProfiles
+      ? args.effortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
+      : undefined,
+    requiredEffortProfiles: args.requiredEffortProfiles
+      ? args.requiredEffortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
+      : undefined,
   });
 
   const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);
@@ -1568,6 +1644,548 @@ function cmdPublicationBundle(args: Parsed): number {
     }
     return 1;
   }
+  return 0;
+}
+
+function loadNormalizedRecordForTrial(runDir: string, harness: string, surface: SurfaceId): { path: string; record: NormalizedResult } {
+  const candidates = loadAggregateCandidateRecords(runDir);
+  for (const candidate of candidates) {
+    const parsed = readJsonObject(candidate) as NormalizedResult | undefined;
+    if (parsed?.schema !== "ax.normalized-result/v1") continue;
+    if (parsed.harness === harness && parsed.surface === surface) {
+      return { path: candidate, record: parsed };
+    }
+  }
+  throw new Error(`No normalized record found for ${harness}/${surface} in ${runDir}`);
+}
+
+function buildProductionFailureRecord(
+  pack: TargetPack,
+  surface: SurfaceId,
+  harness: string,
+  model: string,
+  profile: string,
+): NormalizedResult {
+  return {
+    schema: "ax.normalized-result/v1",
+    surface,
+    product: pack.name.replace(/-generated$/, ""),
+    harness,
+    standard_set_version: pack.standard_set_version,
+    generated_at: new Date().toISOString(),
+    tasks_total: tasksForSurface(pack, surface).length,
+    tasks_passed: 0,
+    pass_at_1: 0,
+    pass_at_k: 0,
+    attempts: 1,
+    discovery_score: null,
+    content_quality: null,
+    profiles: [profile],
+    best_profile: profile,
+    model,
+    latency_ms: null,
+    tool_call_count: null,
+    token_usage: null,
+    token_cost: null,
+    validity_status: "invoke_failed",
+    first_action_latency_ms: null,
+    transcript_event_count: null,
+    action_occurred: false,
+    summary_kind: "single",
+  };
+}
+
+function writeProductionFailureClassificationStub(opts: {
+  outPath: string;
+  vendor: string;
+  surface: SurfaceId;
+  harness: string;
+  model: string;
+  trial: number;
+  error: string;
+  resultPath?: string;
+  normalizedPath?: string;
+}): void {
+  mkdirSync(dirname(opts.outPath), { recursive: true });
+  writeFileSync(opts.outPath, [
+    "# DAEB-1 production rerun failure review",
+    "",
+    `vendor: ${opts.vendor}`,
+    `surface: ${opts.surface}`,
+    `harness: ${opts.harness}`,
+    `model: ${opts.model}`,
+    `trial: ${opts.trial}`,
+    `generated_at: ${new Date().toISOString()}`,
+    "",
+    "- classification: TODO",
+    "- validity_status: invoke_failed",
+    `- error: ${opts.error}`,
+    `- results: ${opts.resultPath ?? "not produced"}`,
+    `- normalized_record: ${opts.normalizedPath ?? "not produced"}`,
+    "- notes:",
+    "",
+  ].join("\n"));
+}
+
+async function runProductionHarnessTrial(opts: {
+  packPath: string;
+  pack: TargetPack;
+  runRoot: string;
+  vendor: string;
+  surface: SurfaceId;
+  harness: (typeof DAEB_PRODUCTION_HARNESSES)[number];
+  model: string;
+  trial: number;
+  trialCount: number;
+  invokeTimeout: number;
+  firstActionTimeout: number;
+  skipReset: boolean;
+}): Promise<{ harness: (typeof DAEB_PRODUCTION_HARNESSES)[number]; trialRecord: ProductionTrialRecord; normalizedRecord: NormalizedResult }> {
+  const trialDir = productionTrialDir(opts.runRoot, opts.vendor, opts.surface, opts.harness, opts.trial);
+  mkdirSync(trialDir, { recursive: true });
+  console.log(`    ${opts.harness} trial ${opts.trial}/${opts.trialCount} → ${trialDir}`);
+  const resultPath = combinedResultPath(trialDir, opts.harness, "medium", opts.surface);
+  const htmlPath = resolve(trialDir, "generated-eval.html");
+  const snapshotPath = resolve(trialDir, "generated-eval.snapshot.json");
+  const classificationPath = resolve(trialDir, "failure-review.md");
+
+  try {
+    const normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
+    console.log(`      resuming existing normalized artifact → ${normalized.path}`);
+    return {
+      harness: opts.harness,
+      trialRecord: {
+        trial: opts.trial,
+        trial_dir: trialDir,
+        normalized_record: normalized.path,
+        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
+        report_html: existsSync(htmlPath) ? htmlPath : undefined,
+        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
+        result_paths: existsSync(resultPath) ? [resultPath] : [],
+      },
+      normalizedRecord: normalized.record,
+    };
+  } catch {
+    // No normalized artifact yet — continue with exec or verify-resume below.
+  }
+
+  try {
+    if (!existsSync(resultPath)) {
+      await runCliSubcommand([
+        "exec-plan",
+        "--pack", opts.packPath,
+        "--skip-review",
+        "--run-dir", trialDir,
+        "--invoke",
+        "--execution-mode", "task",
+        "--harness", opts.harness,
+        "--profile", "medium",
+        "--surface", opts.surface,
+        "--model", opts.model,
+        "--effort", DAEB_PRODUCTION_EFFORT,
+        "--invoke-retries", "0",
+        "--invoke-timeout", String(opts.invokeTimeout || 1800),
+        "--first-action-timeout", String(opts.firstActionTimeout || 240),
+        "--concurrency", "1",
+      ]);
+    } else {
+      console.log(`      resuming existing combined result → ${resultPath}`);
+    }
+
+    if (!existsSync(resultPath)) {
+      throw new Error(`No aggregated result file was produced for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}`);
+    }
+
+    try {
+      await runCliSubcommand([
+        "verify-generated",
+        "--pack", opts.packPath,
+        "--results", resultPath,
+        "--run-dir", trialDir,
+        "--html", htmlPath,
+        "--snapshot", snapshotPath,
+        "--min-pass-rate", "0.8",
+      ]);
+    } catch (error) {
+      if (!existsSync(snapshotPath)) throw error;
+      console.warn(`verify-generated failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}, but snapshot exists; continuing.`);
+    }
+
+    if (existsSync(snapshotPath)) {
+      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
+      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
+    }
+
+    const normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
+    if (!opts.skipReset) {
+      const ns = loadResults(resultPath).ns;
+      const scope = resolveScope(opts.pack);
+      const client = new BearerClient(buildVerificationClientOptions(opts.pack, {
+        profile: "medium",
+        surface: opts.surface,
+        ns,
+        discovery: {},
+        results: {},
+      }));
+      await resetPack(opts.pack, client, scope, { ns });
+    }
+
+    return {
+      harness: opts.harness,
+      trialRecord: {
+        trial: opts.trial,
+        trial_dir: trialDir,
+        normalized_record: normalized.path,
+        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
+        report_html: existsSync(htmlPath) ? htmlPath : undefined,
+        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
+        result_paths: [resultPath],
+      },
+      normalizedRecord: normalized.record,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    let normalized: { path: string; record: NormalizedResult };
+    try {
+      normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
+    } catch {
+      const record = buildProductionFailureRecord(opts.pack, opts.surface, opts.harness, opts.model, "medium");
+      const normalizedPath = resolve(trialDir, `${opts.harness}.${opts.surface}.failed.normalized.json`);
+      writeFileSync(normalizedPath, JSON.stringify(record, null, 2) + "\n");
+      normalized = { path: normalizedPath, record };
+    }
+    if (existsSync(snapshotPath)) {
+      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
+      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
+    } else {
+      writeProductionFailureClassificationStub({
+        outPath: classificationPath,
+        vendor: opts.vendor,
+        surface: opts.surface,
+        harness: opts.harness,
+        model: opts.model,
+        trial: opts.trial,
+        error: message,
+        resultPath: existsSync(resultPath) ? resultPath : undefined,
+        normalizedPath: normalized.path,
+      });
+    }
+    console.warn(`production trial failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}; recording classified failure and continuing: ${message}`);
+    return {
+      harness: opts.harness,
+      trialRecord: {
+        trial: opts.trial,
+        trial_dir: trialDir,
+        normalized_record: normalized.path,
+        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
+        report_html: existsSync(htmlPath) ? htmlPath : undefined,
+        classification_path: classificationPath,
+        result_paths: existsSync(resultPath) ? [resultPath] : [],
+      },
+      normalizedRecord: normalized.record,
+    };
+  }
+}
+
+async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
+  loadDotenv();
+  const root = process.cwd();
+  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb-1-v3.yaml");
+  const suite = loadSuite(suitePath);
+  const requestedSurface = concreteSurface(args);
+  const benchmarkScope: SurfaceId[] =
+    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
+    ?? ["api", "cli"];
+  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
+    throw new Error(`DAEB-1/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
+  }
+  if (!Number.isInteger(args.trialCount) || args.trialCount < 1) {
+    throw new Error("--trial-count must be a positive integer");
+  }
+  const vendors = args.vendor
+    ? [args.vendor]
+    : args.vendors
+      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
+      : daebProductionVendorOrder();
+  const runRoot = defaultProductionRunRoot(root, args.runDir);
+  mkdirSync(runRoot, { recursive: true });
+  if (!args.skipArchive) {
+    const archiveRoot = resolve(runRoot, "_archive", "pre-production");
+    const entries = archiveDaebDebugArtifacts(root, archiveRoot);
+    const manifestPath = writeArchiveManifest(archiveRoot, entries);
+    console.log(`Archived debug artifacts manifest → ${manifestPath}`);
+  }
+  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
+
+  for (const vendor of vendors) {
+    const committedPackPath = daebPackPath(root, vendor, suitePath);
+    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
+    let packPath = committedPackPath;
+    const vendorCard = loadVendorCard(root, vendor);
+    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
+    if (vendorCard && extract) {
+      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
+      const freshPack = composePack(suite, vendorCard, extract, { surfaces, supportMatrix });
+      mkdirSync(dirname(freshPackPath), { recursive: true });
+      writeFileSync(
+        freshPackPath,
+        `# GENERATED — fresh production compiled pack. Do not hand-edit.\n` +
+          `# source_suite: ${suitePath}\n` +
+          `# source_vendor: ${vendorCard.slug}\n` +
+          yamlStringify(freshPack),
+      );
+      packPath = freshPackPath;
+    }
+    if (!existsSync(packPath)) throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
+    const pack = loadPack(packPath);
+    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
+    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
+    for (const surface of surfaces) {
+      console.log(`\nSurface ${vendor}/${surface}`);
+      const perHarness = new Map<(typeof DAEB_PRODUCTION_HARNESSES)[number], {
+        model: string;
+        trialRecords: ProductionTrialRecord[];
+        normalizedRecords: NormalizedResult[];
+      }>();
+      for (const harness of DAEB_PRODUCTION_HARNESSES) {
+        const model = harness === "codex" ? args.codexModel : args.claudeModel;
+        perHarness.set(harness, { model, trialRecords: [], normalizedRecords: [] });
+        console.log(`  Harness ${harness} → model=${model} effort=${DAEB_PRODUCTION_EFFORT}`);
+      }
+      for (let trial = 1; trial <= args.trialCount; trial++) {
+        console.log(`  Trial ${trial}/${args.trialCount} → concurrent harness lane`);
+        const results = await Promise.all(
+          DAEB_PRODUCTION_HARNESSES.map((harness) => runProductionHarnessTrial({
+            packPath,
+            pack,
+            runRoot,
+            vendor,
+            surface,
+            harness,
+            model: perHarness.get(harness)!.model,
+            trial,
+            trialCount: args.trialCount,
+            invokeTimeout: args.invokeTimeout,
+            firstActionTimeout: args.firstActionTimeout,
+            skipReset: args.skipReset,
+          })),
+        );
+        for (const result of results) {
+          perHarness.get(result.harness)!.trialRecords.push(result.trialRecord);
+          perHarness.get(result.harness)!.normalizedRecords.push(result.normalizedRecord);
+        }
+      }
+      for (const harness of DAEB_PRODUCTION_HARNESSES) {
+        const state = perHarness.get(harness)!;
+        writeProductionAggregate({
+          runRoot,
+          vendor,
+          surface,
+          harness,
+          model: state.model,
+          trials: state.trialRecords,
+          records: state.normalizedRecords,
+        });
+      }
+    }
+  }
+  console.log(`\nCompleted DAEB production rerun workflow → ${runRoot}`);
+  console.log(`Publication bundle command: ax-eval publication-bundle --suite ${suitePath} --run-dir ${runRoot} --out ${resolve(runRoot, "publication-bundle")} --effort-profiles medium --required-effort-profiles medium`);
+  return 0;
+}
+
+async function cmdDaebLowPass(args: Parsed): Promise<number> {
+  loadDotenv();
+  const root = process.cwd();
+  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb-1-v3.yaml");
+  const suite = loadSuite(suitePath);
+  const requestedSurface = concreteSurface(args);
+  const benchmarkScope: SurfaceId[] =
+    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
+    ?? ["api", "cli"];
+  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
+    throw new Error(`DAEB-1/database v1 low-pass scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
+  }
+  const vendors = args.vendor
+    ? [args.vendor]
+    : args.vendors
+      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
+      : daebVendorOrder();
+  const runRoot = defaultLowPassRunRoot(root, args.runDir);
+  mkdirSync(runRoot, { recursive: true });
+  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
+
+  for (const vendor of vendors) {
+    const committedPackPath = daebPackPath(root, vendor, suitePath);
+    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
+    let packPath = committedPackPath;
+    const vendorCard = loadVendorCard(root, vendor);
+    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
+    if (vendorCard && extract) {
+      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
+      const freshPack = composePack(suite, vendorCard, extract, {
+        surfaces,
+        supportMatrix,
+      });
+      mkdirSync(dirname(freshPackPath), { recursive: true });
+      writeFileSync(
+        freshPackPath,
+        `# GENERATED — fresh low-pass compiled pack. Do not hand-edit.\n` +
+          `# source_suite: ${suitePath}\n` +
+          `# source_vendor: ${vendorCard.slug}\n` +
+          yamlStringify(freshPack),
+      );
+      packPath = freshPackPath;
+    }
+    if (!existsSync(packPath)) {
+      throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
+    }
+    const pack = loadPack(packPath);
+    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
+    const manifestPath = resolve(runRoot, vendor, "low-pass.manifest.json");
+    const existingManifest = existsSync(manifestPath)
+      ? JSON.parse(readFileSync(manifestPath, "utf8")) as LowPassManifest
+      : null;
+    const manifest: LowPassManifest = existingManifest?.schema === DAEB_LOW_PASS_SCHEMA
+      ? {
+          ...existingManifest,
+          suite: suitePath,
+          vendor,
+          generated_at: new Date().toISOString(),
+          harnesses: ["codex", "claude-code"],
+          profile: "low",
+          execution_mode: "task",
+          surfaces: [...existingManifest.surfaces],
+        }
+      : {
+          schema: DAEB_LOW_PASS_SCHEMA,
+          suite: suitePath,
+          vendor,
+          generated_at: new Date().toISOString(),
+          harnesses: ["codex", "claude-code"],
+          profile: "low",
+          execution_mode: "task",
+          surfaces: [],
+        };
+    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
+    for (const surface of surfaces) {
+      const surfaceDir = resolve(runRoot, vendor, surface);
+      mkdirSync(surfaceDir, { recursive: true });
+      console.log(`\nRunning ${vendor}/${surface}: Codex low + Claude low in parallel`);
+      await Promise.all([
+        runCliSubcommand([
+          "exec-plan",
+          "--pack", packPath,
+          "--skip-review",
+          "--run-dir", surfaceDir,
+          "--invoke",
+          "--execution-mode", "task",
+          "--harness", "codex",
+          "--profile", "low",
+          "--surface", surface,
+          "--model", args.codexModel,
+          "--invoke-retries", "0",
+          "--first-action-timeout", String(args.firstActionTimeout || 180),
+          "--concurrency", "1",
+        ]),
+        runCliSubcommand([
+          "exec-plan",
+          "--pack", packPath,
+          "--skip-review",
+          "--run-dir", surfaceDir,
+          "--invoke",
+          "--execution-mode", "task",
+          "--harness", "claude-code",
+          "--profile", "low",
+          "--surface", surface,
+          "--model", args.claudeModel,
+          "--invoke-retries", "0",
+          "--first-action-timeout", String(args.firstActionTimeout || 180),
+          "--concurrency", "1",
+        ]),
+      ]);
+
+      const resultPaths = [
+        combinedResultPath(surfaceDir, "codex", "low", surface),
+        combinedResultPath(surfaceDir, "claude-code", "low", surface),
+      ].filter((path) => existsSync(path));
+      if (resultPaths.length === 0) {
+        throw new Error(`No aggregated result files were produced for ${vendor}/${surface}`);
+      }
+
+      const htmlPath = resolve(surfaceDir, "generated-eval.html");
+      const snapshotPath = resolve(surfaceDir, "generated-eval.snapshot.json");
+      let verifyStatus: "passed" | "failed" = "passed";
+      let verifyError: string | undefined;
+      try {
+        await runCliSubcommand([
+          "verify-generated",
+          "--pack", packPath,
+          ...resultPaths.flatMap((path) => ["--results", path]),
+          "--run-dir", surfaceDir,
+          "--html", htmlPath,
+          "--snapshot", snapshotPath,
+          "--min-pass-rate", "0.8",
+        ]);
+      } catch (error) {
+        verifyStatus = "failed";
+        verifyError = error instanceof Error ? error.message : String(error);
+        if (!existsSync(snapshotPath)) {
+          throw error;
+        }
+        console.warn(`verify-generated failed for ${vendor}/${surface}, but snapshot exists; continuing to classify/reset.`);
+      }
+      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
+      const classificationPath = resolve(surfaceDir, "failure-review.md");
+      writeFailureClassificationStub(snapshot, classificationPath, { vendor, surface });
+
+      const namespaces = resultPaths
+        .map((path) => loadResults(path).ns)
+        .filter((value): value is string => Boolean(value));
+      let resetRecord: LowPassSurfaceRecord["reset"];
+      if (!args.skipReset) {
+        const scope = resolveScope(pack);
+        const client = new BearerClient(buildVerificationClientOptions(pack, {
+          profile: "low",
+          surface,
+          ns: namespaces[0],
+          discovery: {},
+          results: {},
+        }));
+        const results = await Promise.all(namespaces.map((ns) => resetPack(pack, client, scope, { ns })));
+        resetRecord = {
+          performed: true,
+          supported: results.every((result) => result.supported),
+          message: results.map((result) => result.message).join(" | "),
+          errors: results.flatMap((result) => result.errors),
+        };
+      } else {
+        resetRecord = {
+          performed: false,
+          supported: true,
+          message: "skip-reset requested",
+          errors: [],
+        };
+      }
+
+      const surfaceRecord: LowPassSurfaceRecord = {
+        surface,
+        run_dir: surfaceDir,
+        result_paths: resultPaths,
+        html_report: htmlPath,
+        snapshot_path: snapshotPath,
+        classification_path: classificationPath,
+        namespaces,
+        reset: resetRecord,
+        verify_status: verifyStatus,
+        verify_error: verifyError,
+      };
+      const nextManifest = upsertLowPassSurfaceRecord(manifest, surfaceRecord);
+      manifest.surfaces = nextManifest.surfaces;
+      writeFileSync(manifestPath, JSON.stringify(nextManifest, null, 2));
+    }
+  }
+  console.log(`\nCompleted DAEB low-pass workflow → ${runRoot}`);
   return 0;
 }
 
@@ -1755,12 +2373,60 @@ function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
 }
 
+function currentCliExecArgs(subcommandArgs: string[]): string[] {
+  const entry = process.argv[1] ?? fileURLToPath(import.meta.url);
+  return entry.endsWith(".ts")
+    ? ["--import", "tsx", entry, ...subcommandArgs]
+    : [entry, ...subcommandArgs];
+}
+
+function runCliSubcommand(subcommandArgs: string[], envOverrides: Record<string, string | undefined> = {}): Promise<void> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(process.execPath, currentCliExecArgs(subcommandArgs), {
+      cwd: process.cwd(),
+      stdio: "inherit",
+      env: { ...process.env, ...envOverrides },
+    });
+    let settled = false;
+    const finish = (error?: Error) => {
+      if (settled) return;
+      settled = true;
+      if (error) rejectPromise(error);
+      else resolvePromise();
+    };
+    child.on("error", (error) => finish(error));
+    // Use the child process' actual exit as the completion signal. Some harness
+    // wrappers spawn descendants that briefly keep inherited stdio open after the
+    // main subcommand exits, which can delay or suppress `close` and wedge the
+    // production rerun orchestrator even though the subprocess is done.
+    child.on("exit", (code) => {
+      if ((code ?? 1) === 0) finish();
+      else finish(new Error(`subcommand failed (${subcommandArgs.join(" ")}) with exit ${code ?? "unknown"}`));
+    });
+  });
+}
+
 function packWithTask(pack: TargetPack, task: Task): TargetPack {
   return { ...pack, tasks: [task] };
 }
 
+function packWithoutTasks(pack: TargetPack): TargetPack {
+  return { ...pack, tasks: [] };
+}
+
 function uniqueStrings(values: (string | undefined)[]): string[] {
   return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function taskLevelResultValue(result: ReturnType<typeof loadResults> | undefined, taskId: string): ({ gid?: string } & Record<string, unknown>) | undefined {
+  const taskResult = result?.results[taskId];
+  if (!taskResult) return undefined;
+  const taskBaseUrl = result?.discovery?.base_url_found?.trim();
+  if (!taskBaseUrl) return taskResult;
+  return {
+    ...taskResult,
+    __task_base_url: taskBaseUrl,
+  };
 }
 
 function mergeTaskDiscovery(results: DiscoveryResult[]): DiscoveryResult | undefined {
@@ -1790,22 +2456,30 @@ function aggregateTaskInvokeGroup(args: {
   paths: ReturnType<typeof defaultInvokePaths>;
   taskIdsInOrder: string[];
   jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+  bootstrapPaths?: ReturnType<typeof defaultInvokePaths>;
 }): void {
+  const bootstrapResult = args.bootstrapPaths && existsSync(args.bootstrapPaths.resultsPath)
+    ? loadResults(args.bootstrapPaths.resultsPath)
+    : undefined;
   const taskResults = args.jobPaths
     .map((paths) => existsSync(paths.resultsPath) ? loadResults(paths.resultsPath) : undefined)
     .filter((result): result is ReturnType<typeof loadResults> => Boolean(result));
-  const first = taskResults[0];
+  const first = taskResults[0] ?? bootstrapResult;
   const combinedResults = {
     profile: first?.profile ?? "unknown",
     harness: first?.harness,
     ns: first?.ns,
     surface: first?.surface,
-    discovery: mergeTaskDiscovery(taskResults.map((result) => result.discovery).filter((value): value is DiscoveryResult => Boolean(value))),
+    discovery: mergeTaskDiscovery(
+      [bootstrapResult, ...taskResults]
+        .map((result) => result?.discovery)
+        .filter((value): value is DiscoveryResult => Boolean(value)),
+    ),
     model: first?.model,
     results: Object.fromEntries(
       args.taskIdsInOrder.map((taskId) => {
         const match = taskResults.find((result) => result.results[taskId] !== undefined);
-        return [taskId, match?.results[taskId] ?? { gid: null }];
+        return [taskId, taskLevelResultValue(match, taskId) ?? { gid: null }];
       }),
     ),
   };
@@ -1817,27 +2491,28 @@ function aggregateTaskInvokeGroup(args: {
   }).map((step, index) => ({ ...step, step: index + 1 }));
   writeFileSync(args.paths.tracePath, JSON.stringify(combinedTrace, null, 2));
 
-  const joinArtifacts = (picker: (paths: ReturnType<typeof defaultInvokePaths>) => string): string =>
-    args.jobPaths
+  writeFileSync(
+    args.paths.promptPath,
+    [
+      `Task-level execution aggregate for ${args.groupLabel}.`,
+      ...(args.bootstrapPaths ? [`- bootstrap: ${args.bootstrapPaths.promptPath}`] : []),
+      `This cell was executed as one prompt per task and aggregated back into the combined run artifact.`,
+      ...args.jobPaths.map((paths) => `- ${paths.promptPath}`),
+    ].join("\n"),
+  );
+  const orderedArtifactPaths = args.bootstrapPaths ? [args.bootstrapPaths, ...args.jobPaths] : args.jobPaths;
+  const joinOrderedArtifacts = (picker: (paths: ReturnType<typeof defaultInvokePaths>) => string): string =>
+    orderedArtifactPaths
       .map((paths) => picker(paths))
       .filter((path) => existsSync(path))
       .map((path) => readFileSync(path, "utf8").trim())
       .filter(Boolean)
       .join("\n");
+  writeFileSync(args.paths.transcriptPath, joinOrderedArtifacts((paths) => paths.transcriptPath));
+  writeFileSync(args.paths.stdoutPath, joinOrderedArtifacts((paths) => paths.stdoutPath));
+  writeFileSync(args.paths.stderrPath, joinOrderedArtifacts((paths) => paths.stderrPath));
 
-  writeFileSync(
-    args.paths.promptPath,
-    [
-      `Task-level execution aggregate for ${args.groupLabel}.`,
-      `This cell was executed as one prompt per task and aggregated back into the combined run artifact.`,
-      ...args.jobPaths.map((paths) => `- ${paths.promptPath}`),
-    ].join("\n"),
-  );
-  writeFileSync(args.paths.transcriptPath, joinArtifacts((paths) => paths.transcriptPath));
-  writeFileSync(args.paths.stdoutPath, joinArtifacts((paths) => paths.stdoutPath));
-  writeFileSync(args.paths.stderrPath, joinArtifacts((paths) => paths.stderrPath));
-
-  const taskMetas = args.jobPaths
+  const taskMetas = orderedArtifactPaths
     .map((paths) => existsSync(paths.metaPath) ? readJsonObject(paths.metaPath) : undefined)
     .filter((meta): meta is Record<string, unknown> => Boolean(meta));
   const durationMs = taskMetas.reduce((sum, meta) => sum + (typeof meta.durationMs === "number" ? meta.durationMs : 0), 0);
@@ -1863,6 +2538,7 @@ function aggregateTaskInvokeGroup(args: {
     stderrPath: args.paths.stderrPath,
     metaPath: args.paths.metaPath,
     executionMode: "task",
+    bootstrapMetaPath: args.bootstrapPaths?.metaPath,
     taskMetaPaths: args.jobPaths.map((paths) => paths.metaPath),
   };
   writeFileSync(args.paths.metaPath, JSON.stringify(combinedMeta, null, 2));
@@ -1922,7 +2598,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
-  interface InvokeJob {
+interface InvokeJob {
     groupKey: string;
     harness: InvokeHarnessId;
     profileName: string;
@@ -1933,14 +2609,17 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     combinedPaths: ReturnType<typeof defaultInvokePaths>;
     taskId?: string;
     runOpts: InvokeRunOptions;
-    label: string;
-  }
-  interface InvokeGroup {
-    label: string;
-    combinedPaths: ReturnType<typeof defaultInvokePaths>;
-    taskIdsInOrder: string[];
-    jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
-  }
+  label: string;
+}
+interface InvokeGroup {
+  label: string;
+  combinedPaths: ReturnType<typeof defaultInvokePaths>;
+  taskIdsInOrder: string[];
+  jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+  bootstrapPaths?: ReturnType<typeof defaultInvokePaths>;
+  bootstrapRunOpts?: InvokeRunOptions;
+  taskJobs?: InvokeJob[];
+}
   const invokeJobs: InvokeJob[] = [];
   const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
@@ -2053,16 +2732,69 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
               provisioning: provisioning.meta,
             } satisfies Omit<InvokeRunOptions, "pack" | "paths">;
             if (args.executionMode === "task") {
+              const provisionForPaths = async (invokePaths: ReturnType<typeof defaultInvokePaths>) => {
+                try {
+                  return await provisionHarnessForSurface({
+                    pack,
+                    harness,
+                    surface: surfaceId,
+                    paths: invokePaths,
+                    cwd: process.cwd(),
+                  });
+                } catch (e) {
+                  const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+                  const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
+                  writeFileSync(recordPath, JSON.stringify(record, null, 2));
+                  console.log(
+                    `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (mcp provisioning failed): ` +
+                      `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
+                  );
+                  return undefined;
+                }
+              };
+              const bootstrapStem = `${stem}-bootstrap`;
+              const bootstrapPaths = defaultInvokePaths(dir, bootstrapStem, harness);
+              const reuseBootstrap = existsSync(bootstrapPaths.resultsPath);
+              let bootstrapProvisioning: Awaited<ReturnType<typeof provisionForPaths>> | undefined;
+              if (!reuseBootstrap) {
+                for (const p of [bootstrapPaths.resultsPath, bootstrapPaths.tracePath, bootstrapPaths.stdoutPath, bootstrapPaths.stderrPath, bootstrapPaths.transcriptPath, bootstrapPaths.metaPath]) {
+                  if (existsSync(p)) rmSync(p);
+                }
+                bootstrapProvisioning = await provisionForPaths(bootstrapPaths);
+                if (!bootstrapProvisioning) continue;
+                const bootstrapPrompt = buildExecutorPrompt({
+                  pack: packWithoutTasks(pack),
+                  profile: runProfile,
+                  ns,
+                  resultsPath: bootstrapPaths.resultsPath,
+                  tracePath: bootstrapPaths.tracePath,
+                  surface,
+                  tasks: [],
+                });
+                writeFileSync(bootstrapPaths.promptPath, bootstrapPrompt);
+              }
               invokeGroups.set(groupKey, {
                 label: baseLabel,
                 combinedPaths: paths,
                 taskIdsInOrder: eligibleTasks.map((task) => task.id),
                 jobPaths: [],
+                bootstrapPaths,
+                bootstrapRunOpts: bootstrapProvisioning
+                  ? {
+                    pack: packWithoutTasks(pack),
+                    paths: bootstrapPaths,
+                    ...sharedRunOpts,
+                    env: bootstrapProvisioning.env,
+                    provisioning: bootstrapProvisioning.meta,
+                  }
+                  : undefined,
+                taskJobs: [],
               });
               writeFileSync(
                 paths.promptPath,
                 [
                   `Task-level execution aggregate placeholder for ${baseLabel}.`,
+                  `Bootstrap prompt: ${bootstrapPaths.promptPath}`,
                   `Each eligible task for this cell is executed as its own prompt and later aggregated into this combined run artifact.`,
                 ].join("\n"),
               );
@@ -2072,6 +2804,8 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                 for (const p of [taskPaths.resultsPath, taskPaths.tracePath, taskPaths.stdoutPath, taskPaths.stderrPath, taskPaths.transcriptPath, taskPaths.metaPath]) {
                   if (existsSync(p)) rmSync(p);
                 }
+                const taskProvisioning = await provisionForPaths(taskPaths);
+                if (!taskProvisioning) continue;
                 const prompt = buildExecutorPrompt({
                   pack,
                   profile: runProfile,
@@ -2082,8 +2816,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                   tasks: [task],
                 });
                 writeFileSync(taskPaths.promptPath, prompt);
-                invokeGroups.get(groupKey)?.jobPaths.push(taskPaths);
-                invokeJobs.push({
+                const job: InvokeJob = {
                   groupKey,
                   harness,
                   profileName: name,
@@ -2098,8 +2831,12 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                     pack: packWithTask(pack, task),
                     paths: taskPaths,
                     ...sharedRunOpts,
+                    env: taskProvisioning.env,
+                    provisioning: taskProvisioning.meta,
                   },
-                });
+                };
+                invokeGroups.get(groupKey)?.jobPaths.push(taskPaths);
+                invokeGroups.get(groupKey)?.taskJobs?.push(job);
               }
             } else {
               const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
@@ -2164,40 +2901,102 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // default; --concurrency 1 forces serial). Distinct namespaces per job mean
   // concurrent runs don't collide in the sandbox. Bookkeeping is collected in
   // deterministic (planned) order regardless of completion order.
-  if (invokeJobs.length) {
-    const conc = Math.max(1, Math.min(args.concurrency, invokeJobs.length));
+  const plannedInvokeCount = args.executionMode === "task"
+    ? [...invokeGroups.values()].reduce((sum, group) => sum + (group.bootstrapPaths ? 1 : 0) + (group.taskJobs?.length ?? 0), 0)
+    : invokeJobs.length;
+  if (plannedInvokeCount) {
+    const taskGroups = [...invokeGroups.entries()];
+    const conc = Math.max(1, Math.min(args.concurrency, args.executionMode === "task" ? taskGroups.length : invokeJobs.length));
     const started = Date.now();
     console.log(
-      `\nRunning ${invokeJobs.length} harness invocation(s) at concurrency=${conc}` +
+      `\nRunning ${plannedInvokeCount} harness invocation(s) at concurrency=${conc}` +
         `${conc === 1 ? " (serial)" : ""}… this may take several minutes.`,
     );
-    await runPool(invokeJobs, conc, async (job) => {
-      console.log(`  ▶ start  ${job.label}`);
-      const invoke = await runInvokeHarness(job.runOpts);
-      const note = [
-        invoke.timedOut ? "timed out" : null,
-        invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
-        (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
-      ].filter(Boolean).join(", ");
-      console.log(
-        `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
-          `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
-      );
-    });
     if (args.executionMode === "task") {
+      await runPool(taskGroups, conc, async ([groupKey, group]) => {
+        if (group.bootstrapPaths && group.bootstrapRunOpts) {
+          console.log(`  ▶ start  ${group.label}/bootstrap`);
+          const bootstrapInvoke = await runInvokeHarness(group.bootstrapRunOpts);
+          const note = [
+            bootstrapInvoke.timedOut ? "timed out" : null,
+            bootstrapInvoke.validity_status && bootstrapInvoke.validity_status !== "valid" ? bootstrapInvoke.validity_status : null,
+            (bootstrapInvoke.attempts ?? 1) > 1 ? `${bootstrapInvoke.attempts} attempts` : null,
+          ].filter(Boolean).join(", ");
+          console.log(
+            `  ${bootstrapInvoke.ok ? "✓ done " : "✗ FAIL "} ${group.label}/bootstrap → ${bootstrapInvoke.ok ? "DONE" : "FAILED"}` +
+              `${note ? ` (${note})` : ""} (results→${group.bootstrapPaths.resultsPath})`,
+          );
+        }
+        let sharedDiscovery: BuildPromptOptions["sharedDiscovery"] | undefined;
+        if (group.bootstrapPaths && existsSync(group.bootstrapPaths.resultsPath)) {
+          const bootstrap = loadResults(group.bootstrapPaths.resultsPath);
+          sharedDiscovery = {
+            path: group.bootstrapPaths.resultsPath,
+            ...bootstrap.discovery,
+          };
+        }
+        for (const job of group.taskJobs ?? []) {
+          if (sharedDiscovery) {
+            const rerenderedPrompt = buildExecutorPrompt({
+              pack: job.runOpts.pack,
+              profile: {
+                ...getProfile(job.profileName),
+                ...(job.runOpts.model ? { model: job.runOpts.model } : {}),
+                ...(job.runOpts.effort ? { effort: job.runOpts.effort as HarnessProfile["effort"] } : {}),
+              },
+              ns: job.ns,
+              resultsPath: job.paths.resultsPath,
+              tracePath: job.paths.tracePath,
+              surface: getSurface(job.surfaceId),
+              tasks: job.taskId ? [job.runOpts.pack.tasks[0]!] : undefined,
+              sharedDiscovery,
+            });
+            writeFileSync(job.paths.promptPath, rerenderedPrompt);
+          }
+          console.log(`  ▶ start  ${job.label}`);
+          const invoke = await runInvokeHarness(job.runOpts);
+          const note = [
+            invoke.timedOut ? "timed out" : null,
+            invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
+            (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
+          ].filter(Boolean).join(", ");
+          console.log(
+            `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
+              `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
+          );
+        }
+      });
       for (const group of invokeGroups.values()) {
         aggregateTaskInvokeGroup({
           groupLabel: group.label,
           paths: group.combinedPaths,
           taskIdsInOrder: group.taskIdsInOrder,
           jobPaths: group.jobPaths,
+          bootstrapPaths: group.bootstrapPaths,
         });
       }
+    } else {
+      await runPool(invokeJobs, conc, async (job) => {
+        console.log(`  ▶ start  ${job.label}`);
+        const invoke = await runInvokeHarness(job.runOpts);
+        const note = [
+          invoke.timedOut ? "timed out" : null,
+          invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
+          (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
+        ].filter(Boolean).join(", ");
+        console.log(
+          `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
+            `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
+        );
+      });
     }
     const emittedResultPaths = args.executionMode === "task"
       ? [...invokeGroups.values()].map((group) => group.combinedPaths.resultsPath)
       : invokeJobs.map((job) => job.paths.resultsPath);
-    for (const job of invokeJobs) {
+    const resetNs = args.executionMode === "task"
+      ? [...invokeGroups.values()].flatMap((group) => group.taskJobs ?? []).map((job) => ({ ns: job.ns, attempt: job.attempt }))
+      : invokeJobs.map((job) => ({ ns: job.ns, attempt: job.attempt }));
+    for (const job of resetNs) {
       if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
     }
     for (const resultPath of emittedResultPaths) {
@@ -2208,7 +3007,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
       grouped.push(resultPath);
       resultPathsByHarness.set(harness, grouped);
     }
-    console.log(`Finished ${invokeJobs.length} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
+    console.log(`Finished ${plannedInvokeCount} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
   }
   if (args.invoke) {
     if (resultPathsByHarness.size) {
@@ -2366,7 +3165,7 @@ function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"
 
 function readJsonObject(path: string): Record<string, unknown> | undefined {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8")) as unknown;
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8")) as unknown;
     return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
   } catch {
     return undefined;
@@ -2546,20 +3345,20 @@ async function cmdCompetitive(args: Parsed): Promise<number> {
   return 0;
 }
 
-function absoluteIfPresent(path: string | undefined): string | undefined {
-  return path ? resolve(path) : undefined;
+function absoluteIfPresent(baseDir: string, path: string | undefined): string | undefined {
+  return path ? resolve(baseDir, path) : undefined;
 }
 
-function snapshotRuns(runs: ProfileRun[]): ProfileRun[] {
+function snapshotRuns(runs: ProfileRun[], evidenceBaseDir: string): ProfileRun[] {
   return runs.map((run) => ({
     ...run,
     trace: [...(run.trace ?? [])],
     outcomes: [...run.outcomes],
     evidence: run.evidence
       ? {
-          results: (run.evidence.results ?? []).map((p) => resolve(p)),
-          trace: (run.evidence.trace ?? []).map((p) => resolve(p)),
-          transcript: absoluteIfPresent(run.evidence.transcript),
+          results: (run.evidence.results ?? []).map((p) => resolve(evidenceBaseDir, p)),
+          trace: (run.evidence.trace ?? []).map((p) => resolve(evidenceBaseDir, p)),
+          transcript: absoluteIfPresent(evidenceBaseDir, run.evidence.transcript),
         }
       : undefined,
   }));
@@ -2760,7 +3559,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const snapshot: GeneratedReportSnapshot = {
     schema: GENERATED_REPORT_SNAPSHOT_SCHEMA,
     pack,
-    runs: snapshotRuns(byProfile),
+    runs: snapshotRuns(byProfile, dirname(snapshotPath)),
     staticReadiness,
     harness: probeHarness(),
     warnings,
@@ -2943,6 +3742,10 @@ async function main(): Promise<number> {
       return cmdSynthesizeSuite(args);
     case "publication-bundle":
       return cmdPublicationBundle(args);
+    case "daeb-low-pass":
+      return await cmdDaebLowPass(args);
+    case "daeb-production-rerun":
+      return await cmdDaebProductionRerun(args);
     default:
       console.error(USAGE);
       return 2;

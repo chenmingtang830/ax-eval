@@ -2,7 +2,7 @@
 
 > **Status:** Draft v1 · Branch: `axarena-branch` · Internal strategy doc
 >
-> **Build progress:** DAEB-1 V3 pre-execution artifacts are complete for the active 7-vendor set (`supabase`, `neon`, `mongodb-atlas`, `turso`, `convex`, `insforge`, `cockroachdb`): suite artifacts, methodology artifacts, verification extracts, composed packs, env gates, and content-hash approvals. DAEB-1/database is the flagship vertical benchmark, not proof that the engine is fully generic across every future category. Execution has started with Codex smoke runs: Supabase API low `9/9`, API high `7/9`, CLI low remains `6/7` across two runs with repeated T10 write-lifecycle retry residue, and CLI high timed out before any tool action with `0/7`; that high cell is now classified as `agent-runtime-timeout-before-first-action`, not a Supabase CLI capability failure. SQL-backed T10 prompts now require an exact final/draft/delete_me postcondition read-back before reporting; Supabase SDK is now excluded from DAEB-1 V3 scoring (`0` eligible SDK tasks) because Supabase JS cannot create the required SQL/schema/control-plane objects from a blank sandbox without a pre-existing SQL RPC/baseline setup path; Neon API low improved from `0/10` to `10/10` after adding existing sandbox project/branch context to the Neon pack; Neon SDK low is now scored over `8` eligible SQL/DDL tasks after excluding backup/CDC from SDK support, and post-audit smoke moved from `7/8` to a native Codex full-slice low result of `8/8`; native Codex Neon API low passed `10/10`; native Codex Neon CLI exposed role-disambiguation issues in the full slice (`5/10` best), then recovered to role-contract low/high smoke of `18/20` after adding a Neon CLI role/database contract; CockroachDB SDK low recovered from SQL identifier failures to `10/10`, CockroachDB SDK high now verifies `9/10` with only CDC timing failing, and CockroachDB CLI low/high now verifies `19/20`; MongoDB Atlas API low improved from `0/9` to `7/8`, MongoDB Atlas SDK low currently smokes at `5/7`, and MongoDB Atlas CLI low/high has best smoke `14/16` with vector-search quota now traced to baseline contamination; Turso API low improved from `0/10` to `8/10` after tightening endpoint/context env handling and fixing the trigger-result verifier for server-side execution, while Turso API high timed out after discovery with `0/10` and no verifier-visible writes; Turso SDK low/high now has a best high-effort smoke of `6/6`, with low failing only vector-search after using plain numeric columns instead of Turso/libSQL vector embeddings; Turso CLI low/high produced a best high-effort smoke of `9/10` while low failed `0/10` after choosing the wrong platform-token auth path, and the high T08 failure exposed a database prompt-contract gap now fixed by requiring trigger/helper result tables to report a `value` column; Convex API low improved from `0/8` to `8/8` after isolating Convex-safe identifier guidance plus Convex function verifier auth/base-url/query/action contracts, while Convex API high timed out after deployment-internals research with `0/10`, no trace, and no verifier-visible function paths; Insforge API low remains `0/9`, but execution has now isolated two vendor-adapter issues: agents first chose broad migration/raw-SQL paths rejected by Insforge's security parser, then switched to `POST /api/database/tables` and exposed live hosted API schema drift requiring `columnName`/`isNullable`/`isUnique` fields despite official docs showing `name`/`nullable`; the Insforge composed pack now encodes concrete table/schema endpoints, live column-shape fallback, lowercase-hyphen migration names, and the correct database RPC path. Generic Codex harness/tooling bugs fixed during execution: non-MCP API/CLI/SDK cells now use an isolated Codex home plus `mcp_servers={}`, persisted artifacts redact line-wrapped Neon CLI API-key defaults, normalized cell grouping/provenance now tolerate agent-authored result files that omit harness/model metadata, unsupported `allowed_surfaces: []` tasks are excluded from execution/scoring denominators, first-action/runtime-validity diagnostics are persisted into invoke meta and normalized records, and MongoDB Atlas has an explicit eval-resource resetter for `axarena_*` collections/search indexes. Claude Code headless execution is now unblocked: native Claude Code `2.1.198` exposes `--model` and `--effort`; a pinned native low lane with `--model sonnet` stamped `claude-sonnet-5` and passed Neon API `9/10`, failing only vector-search label exactness; the paired pinned high lane timed out after two 900s attempts and verified `0/10`, which is an execution/runtime lesson rather than a verifier change. The current work is execution hardening and matrix expansion, not publication finalization.
+> **Build progress:** DAEB-1/database v1 is now **publication ready** on the v4 production lane. The benchmark-of-record is frozen as **7 vendors × 2 surfaces (`api` / `cli`) × 2 harnesses (Codex / Claude Code) × 3 trials**, with effort fixed to `medium` and models pinned to `GPT-5.4` and `Sonnet 5`. The production run root is `results/runs/daeb-1-v4-production`, and the final publication-ready manifest is `results/runs/daeb-1-v4-production/publication-bundle-final/manifest.json`. SDK remains implemented in the generic engine but is deferred from the DAEB-1 v1 scoring denominator; historical SDK runs are research artifacts only. DAEB-1/database remains the flagship vertical used to harden the engine, not proof that every future category is already generic. The remaining work is no longer “get the matrix runnable”; it is interpretation, narrative, and deciding which local evidence artifacts should stay local rather than become repo history.
 >
 > This document captures the full strategic reasoning, competitive analysis,
 > positioning, methodology, vendor selection, code-feasibility assessment,
@@ -22,7 +22,7 @@ authoritative leaderboard, build editorial trust, monetize later via B2B.
 - **Methodology wedge:** Read-back oracle vs. LLM-as-judge (used by both
   AXIS and `app.promptingco.com/benchmark`).
 - **First launch:** *Database AX Benchmark V1 (DAEB-1)* — **7 vendors**,
-  canonical usability-suite scope = 3 surfaces (API / SDK / CLI), 2 harnesses
+  canonical usability-suite benchmark-of-record scope = 2 surfaces (API / CLI), 2 harnesses
   (Claude Code + Codex). MCP remains strategically important but is not part of
   the publication-grade canonical suite scope.
 - **Launch hook:** A direct, respectful head-to-head with the Prompting
@@ -603,8 +603,9 @@ for Supabase; steps 8–10 have not been run for real yet (see §7.7).
   cell-level normalized records. First-action timeout diagnostics now
   distinguish `runtime_timeout_no_action` from real product execution failures.
 - 🟨 **9 (verify)**: smoke records now exist for Supabase, Neon, MongoDB Atlas,
-  Turso, and Convex; the full 7-vendor × 3-surface × 2-harness × 2-effort
-  matrix is still pending.
+  Turso, and Convex; the full 7-vendor × 2-surface (`api/cli`) × 2-harness × 2-effort
+  benchmark-of-record matrix is still pending. Historical SDK cells remain
+  execution-learning artifacts only.
 - 🟨 **10 (report)**: single-cell generated reports and normalized records are
   working; publication-grade bundle/reporting should stay thin until the full
   execution matrix exists.
@@ -1079,7 +1080,8 @@ Most decisions are now locked in §14. What's still open:
   an HTTP endpoint, and the provisioner only knew how to configure HTTP).
   Revisit once MCP is more uniformly mature across the active vendor set.
 - **2026-07-01** Real exec-plan run completed for Supabase and Neon across
-  api/sdk/cli × claude-code/codex × low/high effort (16 cells each,
+  api/sdk/cli × claude-code/codex × low/high effort as execution-learning
+  research artifacts (SDK later deferred from the DAEB-1 v1 benchmark-of-record,
   MCP excluded). Several real bugs found and fixed along the way:
   SQL identifiers containing `{ns}` (which has dashes) must be
   double-quoted or Postgres throws a syntax error; node-postgres returns
@@ -1149,28 +1151,37 @@ old hand-authored `daeb-1.yaml`, and treats exec-plan as not-yet-run). See
 
 ---
 
-## 16. Current State & Next Steps — updated 2026-07-02
+## 16. Current State & Next Steps — updated 2026-07-06
 
 **Suite**: DAEB-1-v3 (`targets/suites/daeb-1-v3.yaml`), 10 canonical tasks,
 bottom-up-derived via `extract-capabilities` + deterministic/family-aware
-`synthesize-suite` + required `coverage-gap-check`, all constrained to
-canonical usability surfaces (`api`, `sdk`, `cli`). Supersedes both the
-original hand-authored `daeb-1.yaml` and the transitional V2 suite.
+`synthesize-suite` + required `coverage-gap-check`. For DAEB-1/database v1,
+the benchmark-of-record execution scope is now `api` + `cli`; SDK remains
+implemented in the generic engine and existing SDK runs are retained only as
+execution-learning research artifacts. This supersedes both the original
+hand-authored `daeb-1.yaml` and the transitional V2 suite.
 
-**Pre-execution complete for 7 of 7 active vendors**: Supabase, Neon,
-MongoDB Atlas, Turso, Convex, Insforge, and CockroachDB all have V3
-verification extracts, composed packs, passing `check-env`, and matching
-approval sidecars. V3 execution has started with Codex smoke cells; the
-remaining work is matrix expansion and evidence-backed hardening.
+**Execution + publication complete for 7 of 7 active vendors**: Supabase,
+Neon, MongoDB Atlas, Turso, Convex, Insforge, and CockroachDB all have V3
+verification extracts, composed packs, passing env gates, matching approval
+sidecars, completed v4 production executions, aggregate normalized records,
+and a publication-ready bundle manifest. The benchmark-of-record matrix is no
+longer pending execution; the remaining work is interpretation, write-up,
+publication presentation, and selective cleanup of local-only artifacts.
 
-1. **Execution matrix** — run all 7 active vendors across `api/sdk/cli`,
-   Codex and Claude Code, low/high effort. MCP remains excluded from the
-   canonical usability-suite scope. Before broad high-effort expansion, use
-   `--invoke-retries 0 --first-action-timeout 180` and prioritize task-level
-   execution evidence over making every failed batch cell green. A no-action
-   timeout is runtime validity evidence, not a vendor pass-rate failure. Keep
-   execution concurrency bounded: one vendor at a time, low/high in parallel
-   only when the surface is not quota-scarce.
+1. **Execution matrix** — the benchmark-of-record production lane is now:
+   7 active vendors × 2 surfaces (`api/cli`) × 2 harnesses (Codex / Claude Code)
+   × 3 trials, with effort fixed to `medium`. MCP remains excluded from the
+   canonical usability-suite scope, and SDK is deferred from the DAEB-1 v1
+   benchmark-of-record. The production orchestrator is
+   `ax-eval daeb-production-rerun`: one vendor at a time, `api` before `cli`,
+   one harness at a time, and three full `{invoke -> verify -> snapshot/report
+   -> failure classification -> reset}` cycles per cell. Each harness/surface
+   cell writes `trial-1/2/3` plus an `aggregate/` directory containing the
+   trial manifest, aggregate normalized record, mean/range summary, and
+   `pass_all_3` reliability signal. Keep execution concurrency bounded; do not
+   overlap surfaces within the same vendor until the lane is stable. This step
+   is complete for the v4 production lane.
 
 2. **Verification matrix** — run `verify-generated` against every execution
    result and produce snapshots/HTML reports without resetting sandboxes before
@@ -1183,7 +1194,12 @@ remaining work is matrix expansion and evidence-backed hardening.
 
 4. **Publication bundle** — freeze manifest + normalized records + reports +
    static Discoverability & Readiness artifacts side by side with usability
-   results.
+   results. For DAEB-1/database v1, publication readiness is now keyed to
+   complete 3-trial `medium` coverage for every benchmark-of-record `{vendor,
+   surface, harness}` cell. Publication reads aggregate production records and
+   uses mean/range as the headline metric, with `pass_all_3` as the secondary
+   reliability signal. This step is complete for
+   `results/runs/daeb-1-v4-production/publication-bundle-final`.
 
 5. **Metrics interpretation** — publish correctness separately from latency,
    first-action latency, transcript event count, tool-call count, turn count,

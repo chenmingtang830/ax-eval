@@ -22,6 +22,7 @@ import {
   writeTraceReview,
 } from "../src/generate/methodology.js";
 import { composePack } from "../src/generate/compose-pack.js";
+import { applyDatabasePackPromptOverride } from "../src/generate/database-pack-overrides.js";
 import { buildVerificationClientOptions } from "../src/generate/verification-client.js";
 import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
 import { TargetPackSchema } from "../src/schemas.js";
@@ -183,6 +184,108 @@ describe("suite methodology artifacts", () => {
     expect(pack.tasks[0]?.allowed_surfaces).toEqual(["api", "cli"]);
     expect(pack.tasks[0]?.allowed_surfaces).not.toContain("mcp");
     expect(pack.tasks[0]?.oracles[0]?.readBodyTemplate).toEqual({ id: "{gid}", ns: "{ns}" });
+  });
+
+  it("compose-pack keeps DAEB-style API/CLI suite scope even when support matrix retains SDK research entries", () => {
+    const suite: Suite = {
+      name: "DAEB-1-V3",
+      version: 3,
+      category: "database",
+      methodology: {
+        ...defaultSuiteMethodology("database"),
+        surface_scope: ["api", "cli"],
+      },
+      tasks: [{
+        id: "db-T04-define-data-container",
+        title: "T04: create container",
+        difficulty: "L1",
+        skill: "define-data-container",
+        intent: "Create a container.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api", "sdk", "cli"],
+        na_examples: [],
+      }],
+    };
+    const pack = composePack(
+      suite,
+      { vendor: "Acme", slug: "acme", category: "database", docs_url: "https://docs.example", site_url: "https://example.com" },
+      {
+        vendor: "Acme",
+        category: "database",
+        slug: "acme",
+        suite_name: "DAEB-1-V3",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        vendor_config: { base_url: "https://api.example", auth_type: "bearer", auth_env: "ACME_TOKEN" },
+        tasks: [{
+          task_id: "db-T04-define-data-container",
+          na: false,
+          support_reference: "acme:db-T04-define-data-container:define-data-container",
+          checks: [{
+            read_method: "GET",
+            read_path_template: "/containers/{ns}",
+            assert_field: "name",
+            expected: "ok",
+            description: "",
+          }],
+        }],
+      },
+      {
+        surfaces: {
+          vendor: "Acme",
+          slug: "acme",
+          extracted_at: "2026-01-01T00:00:00.000Z",
+          cli: {
+            bin: "acme",
+            install: "npm install -g acme",
+            help: "acme --help",
+            docs_url: "https://docs.example/cli",
+            auth: { kind: "inherit" },
+          },
+          sdk: {
+            package: "@acme/sdk",
+            language: "typescript",
+            install: "npm install @acme/sdk",
+            reference_url: "https://docs.example/sdk",
+            auth: { kind: "token", token_env: "ACME_TOKEN" },
+          },
+          mcp: null,
+        },
+        supportMatrix: {
+          schema: "ax.support-matrix/v1",
+          benchmark: "DAEB-1-V3",
+          category: "database",
+          generated_at: "2026-01-01T00:00:00.000Z",
+          entries: [
+            { vendor: "Acme", task_id: "db-T04-define-data-container", surface: "api", status: "supported", source_concept: "define-data-container" },
+            { vendor: "Acme", task_id: "db-T04-define-data-container", surface: "sdk", status: "supported", source_concept: "define-data-container" },
+            { vendor: "Acme", task_id: "db-T04-define-data-container", surface: "cli", status: "supported", source_concept: "define-data-container" },
+          ],
+        },
+      },
+    );
+    expect(pack.tasks[0]?.allowed_surfaces).toEqual(["api", "cli"]);
+    expect(pack.surfaces?.sdk).toBeUndefined();
+  });
+
+  it("applies the hardened Insforge API adapter contract to database prompts", () => {
+    const prompt = applyDatabasePackPromptOverride(
+      { vendor: "Insforge", slug: "insforge", category: "database", docs_url: "https://docs.insforge.dev" },
+      {
+        id: "db-T10-write-records",
+        title: "T10: write records",
+        difficulty: "L1",
+        skill: "write-records",
+        intent: "Write one lifecycle.",
+        oracle_hint: "Read it back.",
+        allowed_surfaces: ["api"],
+        na_examples: [],
+      },
+      "Write one lifecycle.",
+    );
+
+    expect(prompt).toContain("do not call user-session discovery endpoints such as `GET /api/auth/sessions/current`");
+    expect(prompt).toContain("use the hosted type name `string` and do not use SQL names like `text`");
+    expect(prompt).toContain("make it globally monotonic for the project");
   });
 
   it("compose-pack rejects non-API task surfaces without pack-level surface declarations", () => {
@@ -457,6 +560,12 @@ describe("suite methodology artifacts", () => {
 
     expect(convexPack.tasks[0]?.prompt).toContain("Convex-specific database adapter note");
     expect(convexPack.tasks[0]?.prompt).toContain("replacing non-alphanumeric characters with underscores");
+    expect(convexPack.tasks[0]?.prompt).toContain("Convex deployment/admin contract");
+    expect(convexPack.tasks[0]?.prompt).toContain("convex deploy --preview-name <run-scoped-name>");
+    expect(convexPack.tasks[0]?.prompt).toContain("stop guessing pre-existing mutation/action names");
+    expect(convexPack.tasks[0]?.prompt).toContain("prefer reusing the existing local Convex project scaffold");
+    expect(convexPack.tasks[0]?.prompt).toContain("not as a reason to run `npm install`");
+    expect(convexPack.tasks[0]?.prompt).toContain("prefer that preview-deployment path by default");
     expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasLabelField:boolean}`");
     expect(acmePack.tasks[0]?.prompt).not.toContain("Convex-specific database adapter note");
   });
@@ -546,6 +655,10 @@ describe("suite methodology artifacts", () => {
     expect(convexPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
     expect(convexPack.tasks[0]?.prompt).not.toContain("Neon CLI contract");
     expect(convexPack.tasks[0]?.prompt).toContain("Convex-specific database adapter note");
+    expect(convexPack.tasks[0]?.prompt).toContain("Convex deployment/admin contract");
+    expect(convexPack.tasks[0]?.prompt).toContain("deploy task-local public functions");
+    expect(convexPack.tasks[0]?.prompt).toContain("prefer reusing the existing local Convex project scaffold");
+    expect(convexPack.tasks[0]?.prompt).toContain("smoke-check them on the preview deployment");
   });
 
   it("adds zero-argument SQL routine guidance for SQL-backed server-side execution tasks", () => {
