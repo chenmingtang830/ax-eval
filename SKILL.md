@@ -241,6 +241,19 @@ normalized record reports the three-trial mean and range. SDK and MCP should
 not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
 
+After freezing a publication bundle, export website data with:
+
+```bash
+ax-eval export-publication \
+  --from results/runs/daeb-1-v4-production/publication-bundle-final \
+  --out results/runs/daeb-1-v4-production/axarena-export
+```
+
+This keeps the repo boundary clean: `ax-eval` owns suite compilation,
+execution, verification, aggregation, redaction, bundles, and public JSON
+exports; `axarena` owns the curated website, leaderboard presentation, result
+interpretation, and paper-style appendix.
+
 ## Rules
 
 - Only mutate the **sandbox** scope the pack declares. Never touch production

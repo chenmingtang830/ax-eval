@@ -161,6 +161,20 @@ records, and competitive report. Missing live artifacts are listed explicitly;
 a publication-ready DAEB-1 v1 bundle has no missing references and all required
 quality gates passing.
 
+`ax-eval` remains the tooling layer. The AXArena website should consume an
+exported dataset instead of learning runner internals or recomputing scores:
+
+```bash
+npm run ax-eval -- export-publication \
+  --from results/runs/daeb-1-v4-production/publication-bundle-final \
+  --out results/runs/daeb-1-v4-production/axarena-export
+```
+
+This writes website-ready JSON indexes for leaderboard rows, cells, task
+drilldowns, trial outcomes, evidence links, methodology metadata, and failure
+review placeholders. New reusable benchmark tooling should live here; the
+`axarena` repo should own the curated website, narrative, and presentation.
+
 ## Architecture
 
 `ax-eval` is pack-centered and surface-aware.

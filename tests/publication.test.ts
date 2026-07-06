@@ -1,9 +1,9 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
-import { buildPublicationBundle } from "../src/generate/publication.js";
+import { buildAxArenaExport, buildPublicationBundle } from "../src/generate/publication.js";
 import { loadSuite } from "../src/generate/suite.js";
 
 const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -340,5 +340,179 @@ describe("publication bundle", () => {
 
     expect(manifest.publication_readiness).toBe("publication_ready");
     expect(manifest.vendors[0].artifacts.normalized_records.some((record) => record.includes(".invoke-home"))).toBe(false);
+  });
+
+  it("exports an axarena-ready dataset from a publication bundle", () => {
+    const runDir = freshDir("ax-pub-export-run-");
+    const bundleDir = freshDir("ax-pub-export-bundle-");
+    const outDir = freshDir("ax-pub-export-out-");
+    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suite = loadSuite(resolve(ROOT, suitePath));
+    const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
+    const trialDir = resolve(runDir, "supabase", "api", "codex", "trial-1");
+    mkdirSync(aggregateDir, { recursive: true });
+    mkdirSync(trialDir, { recursive: true });
+
+    writeFileSync(resolve(aggregateDir, "codex.api.aggregate.normalized.json"), JSON.stringify({
+      schema: "ax.normalized-result/v1",
+      surface: "api",
+      product: "supabase",
+      harness: "codex",
+      standard_set_version: "DAEB-1-v3",
+      generated_at: "2026-07-05T00:00:00.000Z",
+      tasks_total: 1,
+      tasks_passed: 1,
+      pass_at_1: 1,
+      pass_at_k: 1,
+      attempts: 1,
+      discovery_score: 0.75,
+      content_quality: 0.8,
+      profiles: ["medium"],
+      best_profile: "medium",
+      model: "gpt-5.4",
+      latency_ms: 1200,
+      tool_call_count: 5,
+      token_usage: { input: 100, output: 50 },
+      token_cost: 0.12,
+      validity_status: "valid",
+      first_action_latency_ms: 100,
+      transcript_event_count: 12,
+      action_occurred: true,
+      summary_kind: "aggregate",
+      trial_count: 3,
+      trial_values: [1, 1, 1],
+      mean_pass_rate: 1,
+      range_pass_rate: { min: 1, max: 1 },
+      pass_all_3: 1,
+      source_records: ["trial-1/codex.api.normalized.json"],
+    }, null, 2));
+    mkdirSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate"), { recursive: true });
+    writeFileSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate", "claude-code.api.aggregate.normalized.json"), JSON.stringify({
+      schema: "ax.normalized-result/v1",
+      surface: "api",
+      product: "supabase",
+      harness: "claude-code",
+      standard_set_version: "DAEB-1-v3",
+      generated_at: "2026-07-05T00:00:00.000Z",
+      tasks_total: 1,
+      tasks_passed: 0,
+      pass_at_1: 0,
+      pass_at_k: 0,
+      attempts: 1,
+      discovery_score: 0.75,
+      content_quality: 0.8,
+      profiles: ["medium"],
+      best_profile: "medium",
+      model: "sonnet",
+      latency_ms: 1200,
+      tool_call_count: 5,
+      token_usage: { input: 100, output: 50 },
+      token_cost: 0.12,
+      validity_status: "valid",
+      first_action_latency_ms: 100,
+      transcript_event_count: 12,
+      action_occurred: true,
+    }, null, 2));
+    mkdirSync(resolve(runDir, "supabase", "cli", "codex", "aggregate"), { recursive: true });
+    writeFileSync(resolve(runDir, "supabase", "cli", "codex", "aggregate", "codex.cli.aggregate.normalized.json"), JSON.stringify({
+      schema: "ax.normalized-result/v1",
+      surface: "cli",
+      product: "supabase",
+      harness: "codex",
+      standard_set_version: "DAEB-1-v3",
+      generated_at: "2026-07-05T00:00:00.000Z",
+      tasks_total: 1,
+      tasks_passed: 1,
+      pass_at_1: 1,
+      pass_at_k: 1,
+      attempts: 1,
+      discovery_score: 0.75,
+      content_quality: 0.8,
+      profiles: ["medium"],
+      best_profile: "medium",
+      model: "gpt-5.4",
+      latency_ms: 1200,
+      tool_call_count: 5,
+      token_usage: { input: 100, output: 50 },
+      token_cost: 0.12,
+      validity_status: "valid",
+      first_action_latency_ms: 100,
+      transcript_event_count: 12,
+      action_occurred: true,
+    }, null, 2));
+    mkdirSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate"), { recursive: true });
+    writeFileSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate", "claude-code.cli.aggregate.normalized.json"), JSON.stringify({
+      schema: "ax.normalized-result/v1",
+      surface: "cli",
+      product: "supabase",
+      harness: "claude-code",
+      standard_set_version: "DAEB-1-v3",
+      generated_at: "2026-07-05T00:00:00.000Z",
+      tasks_total: 1,
+      tasks_passed: 1,
+      pass_at_1: 1,
+      pass_at_k: 1,
+      attempts: 1,
+      discovery_score: 0.75,
+      content_quality: 0.8,
+      profiles: ["medium"],
+      best_profile: "medium",
+      model: "sonnet",
+      latency_ms: 1200,
+      tool_call_count: 5,
+      token_usage: { input: 100, output: 50 },
+      token_cost: 0.12,
+      validity_status: "valid",
+      first_action_latency_ms: 100,
+      transcript_event_count: 12,
+      action_occurred: true,
+    }, null, 2));
+    writeFileSync(resolve(trialDir, "generated-eval.snapshot.json"), JSON.stringify({
+      runs: [{
+        profile: "medium",
+        harness: "codex",
+        surface: "api",
+        model: "gpt-5.4",
+        outcomes: [
+          { taskId: "db-T04-define-data-container", success: true, status: "pass" },
+          { taskId: "db-T09-vector-search", success: false, status: "fail" },
+        ],
+        evidence: {
+          results: ["run.json"],
+          trace: ["run.trace.json"],
+          transcript: "run.transcript.jsonl",
+        },
+      }],
+    }, null, 2));
+    writeFileSync(resolve(trialDir, "generated-eval.html"), "<html><body>report</body></html>\n");
+    writeFileSync(resolve(runDir, "competitive.html"), "<html><body>competitive</body></html>\n");
+
+    buildPublicationBundle({
+      root: ROOT,
+      suite,
+      suitePath,
+      vendors: ["supabase"],
+      runDir,
+      outDir: bundleDir,
+      effortProfiles: ["medium"],
+      requiredEffortProfiles: ["medium"],
+    });
+
+    const manifest = buildAxArenaExport({
+      root: ROOT,
+      bundleDir,
+      outDir,
+    });
+
+    expect(manifest.schema).toBe("ax.axarena-export/v1");
+    for (const file of manifest.files) {
+      expect(existsSync(resolve(outDir, file.path))).toBe(true);
+    }
+    const cells = JSON.parse(readFileSync(resolve(outDir, "cells.json"), "utf8"));
+    const failures = JSON.parse(readFileSync(resolve(outDir, "failures.json"), "utf8"));
+    expect(cells.schema).toBe("ax.axarena-cells/v1");
+    expect(cells.cells.some((cell: { id: string }) => cell.id === "supabase/api/codex")).toBe(true);
+    expect(failures.failures).toHaveLength(1);
+    expect(failures.failures[0].task_id).toBe("db-T09-vector-search");
   });
 });

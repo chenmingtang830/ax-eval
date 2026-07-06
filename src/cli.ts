@@ -78,7 +78,7 @@ import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./gene
 import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
-import { buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
+import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import {
   DAEB_LOW_PASS_SCHEMA,
   combinedResultPath,
@@ -157,6 +157,7 @@ const COMMANDS = [
   "extract-capabilities",
   "synthesize-suite",
   "publication-bundle",
+  "export-publication",
   "daeb-low-pass",
   "daeb-production-rerun",
 ] as const;
@@ -257,6 +258,12 @@ function commandUsage(command: string | undefined): string {
         "  Freeze a publication bundle manifest from the canonical suite, vendor",
         "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
         "  and normalized records. Missing live artifacts are recorded in manifest.json.",
+      ].join("\n");
+    case "export-publication":
+      return [
+        "usage: ax-eval export-publication --from <publication-bundle-dir> --out <dir>",
+        "  Exports an axarena-ready JSON dataset from a frozen publication bundle.",
+        "  Writes leaderboard, cell, task, trial, failure, evidence, and methodology indexes.",
       ].join("\n");
     case "daeb-low-pass":
       return [
@@ -1644,6 +1651,21 @@ function cmdPublicationBundle(args: Parsed): number {
     }
     return 1;
   }
+  return 0;
+}
+
+function cmdExportPublication(args: Parsed): number {
+  if (!args.from) throw new Error("--from <publication-bundle-dir> is required");
+  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
+  const root = process.cwd();
+  const manifest = buildAxArenaExport({
+    root,
+    bundleDir: args.from,
+    outDir: args.out,
+  });
+  console.log(`Saved axarena export → ${args.out}`);
+  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
+  console.log(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
   return 0;
 }
 
@@ -3742,6 +3764,8 @@ async function main(): Promise<number> {
       return cmdSynthesizeSuite(args);
     case "publication-bundle":
       return cmdPublicationBundle(args);
+    case "export-publication":
+      return cmdExportPublication(args);
     case "daeb-low-pass":
       return await cmdDaebLowPass(args);
     case "daeb-production-rerun":

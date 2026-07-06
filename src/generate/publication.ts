@@ -97,6 +97,28 @@ export type BuildPublicationBundleOptions = {
   requiredEffortProfiles?: string[];
 };
 
+export type AxArenaExportFile = {
+  id: string;
+  path: string;
+};
+
+export type AxArenaExportManifest = {
+  schema: "ax.axarena-export/v1";
+  benchmark: string;
+  category: string;
+  suite_version: number;
+  generated_at: string;
+  source_bundle: string;
+  source_manifest: string;
+  files: AxArenaExportFile[];
+};
+
+export type BuildAxArenaExportOptions = {
+  root: string;
+  bundleDir: string;
+  outDir: string;
+};
+
 function copyIfExists(src: string, dest: string, missing: string[]): string | undefined {
   if (!existsSync(src)) {
     missing.push(src);
@@ -150,6 +172,50 @@ function loadNormalizedRecords(paths: string[]): NormalizedResult[] {
     .filter((record): record is NormalizedResult =>
       Boolean(record && typeof record === "object" && (record as { schema?: unknown }).schema === "ax.normalized-result/v1"),
     );
+}
+
+function writeJson(path: string, value: unknown): void {
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
+}
+
+function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array<Record<string, unknown>> {
+  if (!snapshot || typeof snapshot !== "object") return [];
+  const runs = (snapshot as { runs?: unknown }).runs;
+  if (!Array.isArray(runs)) return [];
+  const out: Array<Record<string, unknown>> = [];
+  for (const run of runs) {
+    if (!run || typeof run !== "object") continue;
+    const r = run as {
+      profile?: unknown;
+      harness?: unknown;
+      surface?: unknown;
+      model?: unknown;
+      outcomes?: unknown;
+      evidence?: { results?: unknown; trace?: unknown; transcript?: unknown };
+    };
+    if (!Array.isArray(r.outcomes)) continue;
+    for (const outcome of r.outcomes) {
+      if (!outcome || typeof outcome !== "object") continue;
+      const o = outcome as Record<string, unknown>;
+      out.push({
+        task_id: o.taskId ?? o.task_id ?? o.id ?? null,
+        success: typeof o.success === "boolean" ? o.success : null,
+        status: o.status ?? null,
+        profile: r.profile ?? null,
+        harness: r.harness ?? null,
+        surface: r.surface ?? null,
+        model: r.model ?? null,
+        evidence: {
+          snapshot: snapshotPath,
+          results: Array.isArray(r.evidence?.results) ? r.evidence?.results : [],
+          trace: Array.isArray(r.evidence?.trace) ? r.evidence?.trace : [],
+          transcript: typeof r.evidence?.transcript === "string" ? r.evidence?.transcript : null,
+        },
+      });
+    }
+  }
+  return out;
 }
 
 function hasEfficiencyMetrics(record: Record<string, unknown>): boolean {
@@ -478,4 +544,195 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
   };
   writeFileSync(resolve(outRoot, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   return manifest;
+}
+
+export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExportManifest {
+  const bundleRoot = resolve(opts.root, opts.bundleDir);
+  const outRoot = resolve(opts.root, opts.outDir);
+  const manifestPath = resolve(bundleRoot, "manifest.json");
+  const manifest = readJsonFile(manifestPath) as PublicationManifest | null;
+  if (manifest?.schema !== "ax.publication-bundle/v2") {
+    throw new Error(`${manifestPath} is not an ax.publication-bundle/v2 manifest`);
+  }
+
+  const recordsByPath = new Map<string, NormalizedResult>();
+  const cells: Array<Record<string, unknown>> = [];
+  const taskResults: Array<Record<string, unknown>> = [];
+  const evidence: Array<Record<string, unknown>> = [];
+
+  for (const vendor of manifest.vendors) {
+    for (const recordPath of vendor.artifacts.normalized_records) {
+      const absolute = resolve(bundleRoot, recordPath);
+      const record = readJsonFile(absolute) as NormalizedResult | null;
+      if (record?.schema !== "ax.normalized-result/v1") continue;
+      recordsByPath.set(recordPath, record);
+      cells.push({
+        id: `${vendor.slug}/${record.surface}/${record.harness}`,
+        vendor: vendor.slug,
+        surface: record.surface,
+        harness: record.harness,
+        model: record.model,
+        profiles: record.profiles,
+        task_count: record.tasks_total,
+        tasks_passed: record.tasks_passed,
+        mean_success_rate: record.mean_pass_rate ?? record.pass_at_1,
+        range_success_rate: record.range_pass_rate ?? null,
+        trial_count: record.trial_count ?? null,
+        trial_values: record.trial_values ?? null,
+        pass_all_3: record.pass_all_3 ?? null,
+        latency_ms: record.latency_ms ?? null,
+        first_action_latency_ms: record.first_action_latency_ms ?? null,
+        tool_call_count: record.tool_call_count ?? null,
+        token_usage: record.token_usage ?? null,
+        token_cost: record.token_cost ?? null,
+        validity_status: record.validity_status ?? null,
+        normalized_record: recordPath,
+        source_records: record.source_records ?? [],
+      });
+      evidence.push({
+        kind: "normalized_record",
+        vendor: vendor.slug,
+        surface: record.surface,
+        harness: record.harness,
+        path: recordPath,
+      });
+    }
+
+    for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
+      const parsed = readJsonFile(resolve(bundleRoot, snapshotPath));
+      const results = taskResultsFromSnapshot(snapshotPath, parsed).map((result) => ({
+        vendor: vendor.slug,
+        ...result,
+      }));
+      taskResults.push(...results);
+      evidence.push({
+        kind: "snapshot",
+        vendor: vendor.slug,
+        path: snapshotPath,
+      });
+    }
+
+    for (const reportPath of vendor.artifacts.report_htmls ?? []) {
+      evidence.push({
+        kind: "report_html",
+        vendor: vendor.slug,
+        path: reportPath,
+      });
+    }
+  }
+
+  const leaderboard = manifest.vendors.map((vendor) => {
+    const vendorCells = cells.filter((cell) => cell.vendor === vendor.slug);
+    const rates = vendorCells
+      .map((cell) => cell.mean_success_rate)
+      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+    return {
+      vendor: vendor.slug,
+      expected_surfaces: vendor.expected_surfaces,
+      cell_count: vendorCells.length,
+      mean_success_rate: rates.length ? rates.reduce((sum, value) => sum + value, 0) / rates.length : null,
+      cells: vendorCells.map((cell) => cell.id),
+    };
+  }).sort((a, b) => (b.mean_success_rate ?? -1) - (a.mean_success_rate ?? -1));
+
+  const tasks = taskResults.reduce((acc, result) => {
+    const taskId = result.task_id;
+    if (typeof taskId !== "string") return acc;
+    const bucket = acc.get(taskId) ?? {
+      task_id: taskId,
+      results: [],
+    };
+    (bucket.results as Array<Record<string, unknown>>).push(result);
+    acc.set(taskId, bucket);
+    return acc;
+  }, new Map<string, Record<string, unknown>>());
+
+  const failures = taskResults
+    .filter((result) => result.success === false)
+    .map((result) => ({
+      ...result,
+      failure_type: "unclassified",
+      classification_status: "needs_review",
+    }));
+
+  const methodology = {
+    static_ax: manifest.layers.static_ax,
+    behavioral: manifest.layers.behavioral,
+    suite: manifest.suite,
+    expected_matrix: manifest.expected_matrix,
+    quality_gates: manifest.quality_gates,
+  };
+
+  if (manifest.competitive_report) {
+    evidence.push({
+      kind: "competitive_report",
+      path: manifest.competitive_report,
+    });
+  }
+
+  const files: AxArenaExportFile[] = [
+    { id: "leaderboard", path: "leaderboard.json" },
+    { id: "cells", path: "cells.json" },
+    { id: "tasks", path: "tasks.json" },
+    { id: "trials", path: "trials.json" },
+    { id: "failures", path: "failures.json" },
+    { id: "evidence-index", path: "evidence-index.json" },
+    { id: "methodology-index", path: "methodology-index.json" },
+  ];
+
+  writeJson(resolve(outRoot, "leaderboard.json"), {
+    schema: "ax.axarena-leaderboard/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    rows: leaderboard,
+  });
+  writeJson(resolve(outRoot, "cells.json"), {
+    schema: "ax.axarena-cells/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    cells,
+  });
+  writeJson(resolve(outRoot, "tasks.json"), {
+    schema: "ax.axarena-tasks/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    tasks: [...tasks.values()].sort((a, b) => String(a.task_id).localeCompare(String(b.task_id))),
+  });
+  writeJson(resolve(outRoot, "trials.json"), {
+    schema: "ax.axarena-trials/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    task_results: taskResults,
+  });
+  writeJson(resolve(outRoot, "failures.json"), {
+    schema: "ax.axarena-failures/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    failures,
+  });
+  writeJson(resolve(outRoot, "evidence-index.json"), {
+    schema: "ax.axarena-evidence-index/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    evidence,
+  });
+  writeJson(resolve(outRoot, "methodology-index.json"), {
+    schema: "ax.axarena-methodology-index/v1",
+    benchmark: manifest.benchmark,
+    generated_at: new Date().toISOString(),
+    methodology,
+  });
+
+  const exportManifest: AxArenaExportManifest = {
+    schema: "ax.axarena-export/v1",
+    benchmark: manifest.benchmark,
+    category: manifest.category,
+    suite_version: manifest.suite_version,
+    generated_at: new Date().toISOString(),
+    source_bundle: relative(outRoot, bundleRoot),
+    source_manifest: relative(outRoot, manifestPath),
+    files,
+  };
+  writeJson(resolve(outRoot, "manifest.json"), exportManifest);
+  return exportManifest;
 }

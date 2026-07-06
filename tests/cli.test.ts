@@ -57,6 +57,14 @@ describe("cli arg handling", () => {
     expect(out).toContain("--effort-profiles <a,b,c>");
   });
 
+  it("export-publication help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["export-publication", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval export-publication");
+    expect(out).toContain("--from <publication-bundle-dir>");
+    expect(out).toContain("axarena-ready JSON dataset");
+  });
+
   it("daeb-low-pass help prints command usage with exit 0", () => {
     const { code, out } = runCli(["daeb-low-pass", "--help"]);
     expect(code).toBe(0);
