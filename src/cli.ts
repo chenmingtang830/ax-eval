@@ -73,6 +73,12 @@ import { checkApproval, reviewSummary, writeApproval } from "./generate/review.j
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
+import {
+  fetchRegistrySurface,
+  registryToVendorCard,
+  registryToSurfaceExtract,
+  registryOpenApiUrl,
+} from "./ingest/registry.js";
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
@@ -152,6 +158,7 @@ const COMMANDS = [
   "trace-diff",
   "reset",
   "resolve-vendor",
+  "import-registry",
   "extract-tasks",
   "compose-pack",
   "extract-surfaces",
@@ -210,6 +217,18 @@ function commandUsage(command: string | undefined): string {
         "                              [--harness claude-code|codex] [--effort low|medium|high]",
         "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
         "  under targets/vendors/<slug>.discovered.yaml.",
+      ].join("\n");
+    case "import-registry":
+      return [
+        "usage: ax-eval import-registry --category <category>",
+        "                               --domain <example.com> [--vendor <Name>] [--slug <slug>]",
+        "                               --vendors <slug=domain,slug=domain,...>",
+        "  Seed the authoring pipeline from the integrations.sh public registry",
+        "  (MIT). Fetches GET integrations.sh/api/<domain>/surface and writes a",
+        "  vendor card + surface extract (CLI/MCP + auth) without a grounded LLM",
+        "  discovery call. Prints the OpenAPI spec URL to feed `ingest` when the",
+        "  registry knows one. Domains missing from the registry are reported so",
+        "  they can fall back to resolve-vendor/extract-surfaces.",
       ].join("\n");
     case "extract-tasks":
       return [
@@ -382,6 +401,10 @@ interface Parsed {
   vendor: string;
   vendors: string;
   category: string;
+  /** import-registry: a single integrations.sh domain (e.g. "supabase.com"). */
+  domain: string;
+  /** import-registry: explicit ax-eval slug when it differs from the domain. */
+  slug: string;
   codexModel: string;
   claudeModel: string;
   effortProfiles: string;
@@ -452,6 +475,8 @@ function parseArgs(argv: string[]): Parsed {
     vendor: "",
     vendors: "",
     category: "",
+    domain: "",
+    slug: "",
     codexModel: "gpt-5.4",
     claudeModel: "sonnet",
     effortProfiles: "",
@@ -538,6 +563,8 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
     else if (a === "--vendors") p.vendors = value(++i, "--vendors");
+    else if (a === "--domain") p.domain = value(++i, "--domain");
+    else if (a === "--slug") p.slug = value(++i, "--slug");
     else if (a === "--codex-model") p.codexModel = value(++i, "--codex-model");
     else if (a === "--claude-model") p.claudeModel = value(++i, "--claude-model");
     else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
@@ -1352,6 +1379,71 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
     console.log(`\n  ${result.vendor} → ${path}`);
     console.log(`    site_url: ${result.site_url ?? "(none)"}`);
     console.log(`    docs_url: ${result.docs_url ?? "(none)"}`);
+  }
+  return 0;
+}
+
+async function cmdImportRegistry(args: Parsed): Promise<number> {
+  loadDotenv();
+  if (!args.category) throw new Error("--category is required (e.g. --category database)");
+  // Selection: --domain (single, optional --vendor/--slug override) OR
+  // --vendors as slug=domain pairs (bare domains allowed; slug then derived).
+  type Target = { domain: string; vendorName?: string; slug?: string };
+  const targets: Target[] = [];
+  if (args.domain) {
+    targets.push({ domain: args.domain, vendorName: args.vendor || undefined, slug: args.slug || undefined });
+  }
+  if (args.vendors) {
+    for (const raw of args.vendors.split(",").map((v) => v.trim()).filter(Boolean)) {
+      const eq = raw.indexOf("=");
+      if (eq === -1) targets.push({ domain: raw });
+      else targets.push({ slug: raw.slice(0, eq).trim(), domain: raw.slice(eq + 1).trim() });
+    }
+  }
+  if (!targets.length) {
+    throw new Error("provide --domain <example.com> or --vendors <slug=domain,...>");
+  }
+
+  const root = process.cwd();
+  const missing: string[] = [];
+  const ingestHints: string[] = [];
+  for (const target of targets) {
+    const surface = await fetchRegistrySurface(target.domain);
+    if (!surface) {
+      missing.push(target.domain);
+      console.log(`\n  ${target.domain} → NOT in registry (fall back to resolve-vendor/extract-surfaces)`);
+      continue;
+    }
+    const mapOpts = { category: args.category, vendorName: target.vendorName, slug: target.slug };
+    const card = registryToVendorCard(surface, mapOpts);
+    const surfaceExtract = registryToSurfaceExtract(surface, mapOpts);
+    const cardPath = writeVendorCard(root, card);
+    const surfacePath = writeSurfaceExtract(root, surfaceExtract);
+    const found = [surfaceExtract.cli && "cli", surfaceExtract.mcp && "mcp"].filter(Boolean).join(", ") || "api-only";
+    console.log(`\n  ${card.vendor} (${target.domain}) → ${card.slug}`);
+    console.log(`    vendor card    → ${cardPath}`);
+    console.log(`    surface extract → ${surfacePath} (${found})`);
+    console.log(`    docs_url: ${card.docs_url ?? "(none)"}`);
+    const openapi = registryOpenApiUrl(surface);
+    if (openapi) {
+      console.log(`    openapi spec: ${openapi}`);
+      ingestHints.push(`  ax-eval ingest ${openapi} --out results/${card.slug}-ingest.json   # then: generate --from …`);
+    } else {
+      console.log(`    openapi spec: (none in registry — extract-capabilities will ground from docs)`);
+    }
+  }
+
+  console.log(
+    `\nNext: extract-capabilities for the imported vendor(s), then synthesize-suite → compose-pack.`,
+  );
+  if (ingestHints.length) {
+    console.log(`\nRegistry-known OpenAPI specs you can ingest directly:\n${ingestHints.join("\n")}`);
+  }
+  if (missing.length) {
+    console.log(
+      `\n${missing.length} domain(s) not in the registry: ${missing.join(", ")}.\n` +
+        `  Resolve them the grounded way:  ax-eval resolve-vendor --vendors "<names>" --category ${args.category}`,
+    );
   }
   return 0;
 }
@@ -3854,6 +3946,8 @@ async function main(): Promise<number> {
       return cmdReset(args);
     case "resolve-vendor":
       return cmdResolveVendor(args);
+    case "import-registry":
+      return cmdImportRegistry(args);
     case "extract-tasks":
       return cmdExtractTasks(args);
     case "compose-pack":

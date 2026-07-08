@@ -20,10 +20,12 @@ const ResolveResultSchema = z.object({
   slug: z.string(),
   discovered_at: z.string(),
   resolver: z.object({
-    method: z.literal("llm-search"),
+    method: z.enum(["llm-search", "registry"]),
     harness: z.string().optional(),
     model: z.string().optional(),
     prompt_version: z.string().optional(),
+    /** For method "registry": the source domain looked up in integrations.sh. */
+    registry_domain: z.string().optional(),
   }),
   site_url: z.string().nullable(),
   docs_url: z.string().nullable(),
