@@ -199,7 +199,7 @@ export interface ExtractCapabilitiesOptions {
   specSummary?: string;
 }
 
-const TIMEOUT_MS = 8 * 60 * 1000;
+const TIMEOUT_MS = 12 * 60 * 1000;
 
 /** Extract raw, cited capabilities for a single vendor. */
 export async function extractCapabilities(

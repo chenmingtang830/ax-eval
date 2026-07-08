@@ -57,7 +57,7 @@ export interface SpecSummary {
 }
 
 /** Parse OpenAPI (JSON or YAML) text into a compact operation inventory. */
-export function summarizeOpenApiText(text: string, source: string, maxOps = 250): SpecSummary {
+export function summarizeOpenApiText(text: string, source: string, maxOps = 150): SpecSummary {
   let spec: Record<string, unknown>;
   try {
     spec = JSON.parse(text) as Record<string, unknown>;
