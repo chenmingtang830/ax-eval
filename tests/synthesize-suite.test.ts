@@ -342,7 +342,7 @@ describe("synthesize-suite helpers", () => {
         evidence: [{ doc_url: "https://docs.example/tables", quote: "Create tables." }],
         extraction_provenance: { source: "official-docs", extracted_at: "2026-01-01T00:00:00.000Z", extractor: "test" },
       }],
-    }], { targetTaskCount: 1 });
+    }], { targetTaskCount: 1, deterministic: true });
 
     expect(result.failureTaxonomy.categories.map((category) => category.id)).toEqual([
       "generic-harness-tooling-bug",
@@ -357,7 +357,6 @@ describe("synthesize-suite helpers", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),
       target_task_count: 1,
-      family_diversity_cap: 5,
       min_vendor_coverage_pct: 0.5,
     };
     const conceptUniverse: ConceptUniverse = {

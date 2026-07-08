@@ -276,21 +276,25 @@ export interface SynthesizeSuiteOptions {
   harness?: string;
   model?: string;
   effort?: string;
+  /** When true, skip the LLM concept-refine step and use the deterministic seed universe directly. */
+  deterministic?: boolean;
   targetTaskCount?: number;
 }
 
 const TASK_DRAFT_TIMEOUT_MS = 6 * 60 * 1000;
 const TASK_DRAFT_CONCURRENCY = 3;
 
-function inferDifficulty(family: string): Cluster["difficulty"] {
-  if (family === "backup-and-recovery" || family === "change-data-capture") return "L4";
-  if (family === "compute" || family === "migration") return "L3";
-  if (family === "access-control" || family === "search" || family === "integrity") return "L2";
+/** Infer difficulty from the canonical concept name. This is the deterministic
+ *  fallback used after the family taxonomy is removed; the final authority is
+ *  the human pipeline-review gate (which may override it). */
+function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] {
+  const l4 = new Set(["backup-and-restore", "change-data-capture", "data-integrity-and-transactions"]);
+  const l3 = new Set(["server-side-execution", "evolve-schema", "migration"]);
+  const l2 = new Set(["access-control", "vector-search", "full-text-search", "data-integrity"]);
+  if (l4.has(conceptName)) return "L4";
+  if (l3.has(conceptName)) return "L3";
+  if (l2.has(conceptName)) return "L2";
   return "L1";
-}
-
-function firstFamily(decisions: CoverageDecision[]): string {
-  return decisions.find((decision) => decision.family)?.family ?? "uncategorized";
 }
 
 function inventoryCoverageForConcept(universe: ConceptUniverse, conceptName: string): z.infer<typeof CoverageSchema>[] {
@@ -304,7 +308,7 @@ export function proposeClustersFromUniverse(
   return coverageMatrix.concepts.map((concept) => ({
     cluster_name: concept.concept_name,
     title: concept.title,
-    difficulty: inferDifficulty(firstFamily(concept.decisions)),
+    difficulty: inferDifficultyFromConcept(concept.concept_name),
     rationale: "Deterministic proposal from concept universe and coverage closure.",
     coverage: inventoryCoverageForConcept(universe, concept.concept_name),
   }));
@@ -317,14 +321,12 @@ export function buildCoverageMatrixArtifact(
   gapChecks: Awaited<ReturnType<typeof crossCheckGaps>>,
 ): CoverageMatrix {
   const evidenceByVendorCap = new Map<string, {
-    family: string;
     surfaces_documented: Array<"api" | "sdk" | "cli">;
     evidence: Array<{ doc_url: string; quote: string; note?: string }>;
   }>();
   for (const extract of extracts) {
     for (const capability of extract.capabilities) {
       evidenceByVendorCap.set(`${extract.vendor}::${capability.capability_name}`, {
-        family: capability.family,
         surfaces_documented: capability.surfaces_documented,
         evidence: capability.evidence,
       });
@@ -349,7 +351,6 @@ export function buildCoverageMatrixArtifact(
             status: "supported" as const,
             source: "inventory" as const,
             capability_name: coverage.capability_name,
-            family: evidence?.family,
             surfaces_documented: evidence?.surfaces_documented,
             evidence: evidence?.evidence ?? [],
           };
@@ -387,38 +388,29 @@ export function buildSelectionLedgerArtifact(
   proposed: Cluster[],
 ): SelectionLedger {
   const proposedByConcept = new Map(proposed.map((cluster) => [cluster.cluster_name, cluster]));
-  const familyCounts = new Map<string, number>();
   const entries = coverageMatrix.concepts.map((concept) => {
     const supported = concept.decisions.filter((decision) => decision.status === "supported");
     const coveragePct = concept.decisions.length === 0 ? 0 : supported.length / concept.decisions.length;
-    const family = firstFamily(concept.decisions);
     const proposal = proposedByConcept.get(concept.concept_name);
-    const proposedDifficulty = proposal?.difficulty ?? inferDifficulty(family);
+    const proposedDifficulty = proposal?.difficulty ?? inferDifficultyFromConcept(concept.concept_name);
     const selectedByModel = Boolean(proposal);
-    const verifiable = family !== "uncategorized";
     const coveredVendors = supported.map((decision) => decision.vendor);
     let selected = false;
     let rejectionReason: string | undefined;
     if (coveragePct < methodology.min_vendor_coverage_pct) {
       rejectionReason = `coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}%`;
-    } else if (!verifiable) {
-      rejectionReason = "not independently verifiable";
     } else if (!selectedByModel) {
       rejectionReason = "not proposed by clustering stage";
-    } else if ((familyCounts.get(family) ?? 0) >= methodology.family_diversity_cap) {
-      rejectionReason = `family cap exceeded for ${family}`;
     } else {
       selected = true;
-      familyCounts.set(family, (familyCounts.get(family) ?? 0) + 1);
     }
     return {
       concept_name: concept.concept_name,
       title: concept.title,
-      family,
       proposed_difficulty: proposedDifficulty,
       coverage_pct: coveragePct,
       covered_vendors: coveredVendors,
-      verifiable,
+      verifiable: true,
       selected_by_model: selectedByModel,
       selected,
       rationale: proposal?.rationale ?? "Deterministic coverage candidate from concept universe.",
@@ -438,12 +430,10 @@ export function buildSelectionLedgerArtifact(
   if (selectedCount < methodology.target_task_count) {
     for (const entry of entries) {
       if (entry.selected) continue;
-      if (entry.coverage_pct < methodology.min_vendor_coverage_pct || !entry.verifiable) continue;
-      if ((familyCounts.get(entry.family) ?? 0) >= methodology.family_diversity_cap) continue;
+      if (entry.coverage_pct < methodology.min_vendor_coverage_pct) continue;
       entry.selected = true;
       entry.rejection_reason = undefined;
       entry.rationale = `${entry.rationale} Promoted by deterministic coverage fallback to hit target task count.`;
-      familyCounts.set(entry.family, (familyCounts.get(entry.family) ?? 0) + 1);
       if (entries.filter((candidate) => candidate.selected).length >= methodology.target_task_count) break;
     }
   }
@@ -805,6 +795,7 @@ export async function synthesizeSuite(
     harness: opts.harness as "claude-code" | "codex" | undefined,
     model: opts.model,
     effort: opts.effort as "low" | "medium" | "high" | undefined,
+    deterministic: opts.deterministic,
   });
   const conceptUniverse: ConceptUniverse = {
     schema: "ax.concept-universe/v1",
@@ -832,7 +823,7 @@ export async function synthesizeSuite(
       return {
         cluster_name: entry.concept_name,
         title: entry.title,
-        difficulty: entry.proposed_difficulty ?? inferDifficulty(entry.family),
+        difficulty: entry.proposed_difficulty ?? inferDifficultyFromConcept(entry.concept_name),
         rationale: entry.rationale,
         coverage: concept?.coverage ?? [],
       };

@@ -51,7 +51,6 @@ type CapabilityRecord = CapabilityExtractResult["capabilities"][number];
 interface DeterministicConceptRule {
   concept_name: string;
   title: string;
-  families?: string[];
   patterns: RegExp[];
 }
 
@@ -59,7 +58,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "define-data-container",
     title: "Define Data Container",
-    families: ["data-definition"],
     patterns: [
       /\bcreate-table\b/,
       /\bcreate-collection\b/,
@@ -71,7 +69,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "write-records",
     title: "Write Records",
-    families: ["data-write"],
     patterns: [
       /\brow-insert\b/,
       /\bdocument-insert\b/,
@@ -91,7 +88,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "query-records",
     title: "Query Records",
-    families: ["data-read"],
     patterns: [
       /\bfiltered-query\b/,
       /\bfiltered-read-query\b/,
@@ -115,7 +111,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "inspect-schema",
     title: "Inspect Schema",
-    families: ["data-read"],
     patterns: [
       /\bschema-introspection\b/,
       /\bcollection-introspection\b/,
@@ -128,7 +123,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "evolve-schema",
     title: "Evolve Schema",
-    families: ["migration"],
     patterns: [
       /\bschema-evolution\b/,
       /\balter-table-schema-evolution\b/,
@@ -144,7 +138,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "data-integrity-and-transactions",
     title: "Data Integrity And Transactions",
-    families: ["integrity"],
     patterns: [
       /\bconstraint\b/,
       /\bschema-validation\b/,
@@ -161,7 +154,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "access-control",
     title: "Access Control",
-    families: ["access-control"],
     patterns: [
       /\brow-level-security\b/,
       /\brole-based-access-control\b/,
@@ -178,7 +170,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "backup-and-restore",
     title: "Backup And Restore",
-    families: ["backup-and-recovery"],
     patterns: [
       /\bbackup\b/,
       /\brestore\b/,
@@ -189,7 +180,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "server-side-execution",
     title: "Server-Side Execution",
-    families: ["compute", "server-side-execution", "core-operations"],
     patterns: [
       /\bstored-function\b/,
       /\bstored-procedure\b/,
@@ -213,13 +203,11 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
   {
     concept_name: "vector-search",
     title: "Vector Search",
-    families: ["search"],
     patterns: [/\bvector\b/],
   },
   {
     concept_name: "change-data-capture",
     title: "Change Data Capture",
-    families: ["change-data-capture"],
     patterns: [
       /\blogical-replication\b/,
       /\bchange-streams\b/,
@@ -253,7 +241,6 @@ function normalizeFallbackConceptName(capabilityName: string): string {
 function deterministicDatabaseConcept(capability: CapabilityRecord): { concept_name: string; title: string } {
   const haystack = `${capability.capability_name} ${capability.title} ${capability.description}`.toLowerCase();
   for (const rule of DATABASE_DETERMINISTIC_RULES) {
-    if (rule.families && !rule.families.includes(capability.family)) continue;
     if (rule.patterns.some((pattern) => pattern.test(haystack))) {
       return { concept_name: rule.concept_name, title: rule.title };
     }
@@ -298,9 +285,68 @@ export interface GapCheckGeneratorOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  deterministic?: boolean;
 }
 
 const GAP_CHECK_CONCURRENCY = 6;
+
+function buildConceptRefinePrompt(seedClusters: ConceptCluster[], extracts: CapabilityExtractResult[]): string {
+  const seedSummary = seedClusters
+    .map(
+      (c) =>
+        `- ${c.concept_name} (${c.title})\n  vendors: ${c.vendors_citing.map((v) => `${v.vendor}=${v.capability_name}`).join(", ")}`,
+    )
+    .join("\n");
+  const capabilityCorpus = extracts
+    .map((e) => `${e.vendor}:\n${e.capabilities.map((c) => `  - ${c.capability_name}: ${c.title}`).join("\n")}`)
+    .join("\n\n");
+  return [
+    `Refine a candidate concept universe for a benchmark. The SEED clusters below were produced by a`,
+    `deterministic rule pass over the vendor capability inventories. Your job is to clean them up:`,
+    `  1. Merge clusters that are really the same underlying agent task but were split because vendors used`,
+    `     different capability names (e.g. "query-pagination", "cursor-based-pagination", "paginated-query"`,
+    `     should all merge into a single "pagination" concept).`,
+    `  2. Keep clusters that represent genuinely distinct agent tasks separate — do NOT over-merge.`,
+    `  3. Use canonical, cross-vendor, kebab-case concept names that reflect the underlying task, not vendor jargon.`,
+    `  4. Preserve all vendor citations from the merged clusters in the final cluster's vendors_citing list.`,
+    `  5. You MAY drop singleton clusters (cited by only 1 vendor) if they are clearly vendor-specific noise,`,
+    `     but keep any singleton that represents a real, distinct benchmark-worthy task.`,
+    ``,
+    `SEED CLUSTERS:`,
+    seedSummary,
+    ``,
+    `RAW CAPABILITY INVENTORIES (for reference):`,
+    capabilityCorpus,
+    ``,
+    `Return ONLY this JSON, no commentary:`,
+    `{"clusters": [{"concept_name": "kebab-slug", "title": "...", "vendors_citing": [{"vendor": "...", "capability_name": "..."}]}]}`,
+  ].join("\n");
+}
+
+export async function refineConceptUniverse(
+  seedClusters: ConceptCluster[],
+  extracts: CapabilityExtractResult[],
+  opts: GapCheckGeneratorOptions = {},
+): Promise<ConceptCluster[]> {
+  const raw = await invokeGenerator(buildConceptRefinePrompt(seedClusters, extracts), {
+    fallbackHarness: opts.harness ?? "claude-code",
+    model: opts.model,
+    effort: opts.effort,
+    heartbeat: { everyMs: 30_000, label: "refine-concept-universe" },
+    timeoutMs: 8 * 60 * 1000,
+  });
+  const json = await extractJsonObjectWithRepair(raw, {
+    fallbackHarness: opts.harness ?? "claude-code",
+    model: opts.model,
+    effort: opts.effort,
+    label: "refine-concept-universe",
+  });
+  const parsed = UniverseResultSchema.safeParse(JSON.parse(json));
+  if (!parsed.success) {
+    throw new Error(`refine-concept-universe returned non-conforming JSON: ${parsed.error.issues.map((i) => i.message).join("; ")}`);
+  }
+  return parsed.data.clusters;
+}
 
 /** Cluster the full union of every vendor's cited capabilities — no selection,
  *  no coverage filtering, just an exhaustive concept map to cross-check against. */
@@ -309,7 +355,9 @@ export async function deriveCandidateUniverse(
   opts: GapCheckGeneratorOptions = {},
 ): Promise<ConceptCluster[]> {
   if (extracts[0]?.category === "database") {
-    return deriveCandidateUniverseDeterministic(extracts);
+    const seed = deriveCandidateUniverseDeterministic(extracts);
+    if (opts.deterministic) return seed;
+    return refineConceptUniverse(seed, extracts, opts);
   }
   const raw = await invokeGenerator(buildUniverseClusterPrompt(extracts), {
     fallbackHarness: opts.harness ?? "claude-code",

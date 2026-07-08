@@ -246,7 +246,7 @@ function commandUsage(command: string | undefined): string {
     case "synthesize-suite":
       return [
         "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
-        "                                [--task-count N] [--harness claude-code|codex]",
+        "                                [--task-count N] [--harness claude-code|codex] [--deterministic]",
         "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
         "  universe, closes coverage gaps, selects the canonical suite, and drafts",
         "  suite tasks. NOT grounded (reasons over already-cited input, no WebFetch).",
@@ -1603,6 +1603,7 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
     harness,
     model: args.generatorModel || undefined,
     effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    deterministic: args.deterministic,
     targetTaskCount: args.taskCount,
   });
 

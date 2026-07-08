@@ -101,7 +101,7 @@ describe("suite methodology artifacts", () => {
       const loaded = loadCapabilityExtract(dir, "acme");
       expect(loaded?.capabilities).toHaveLength(1);
       expect(loaded?.capabilities[0]?.capability_name).toBe("row-level-security");
-      expect(loaded?.capabilities[0]?.family).toBe("access-control");
+      expect(loaded?.capabilities[0]?.family).toBeUndefined();
       expect(loaded?.capabilities[0]?.evidence[0]?.doc_url).toBe("https://docs.example/rls");
       expect(readdirSync(extractDir)).toContain("capability-inventory.yaml");
     } finally {

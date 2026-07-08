@@ -29,7 +29,7 @@ import type { ResolveResult } from "./vendor-resolve.js";
 const CapabilitySchema = z.object({
   capability_name: z.string(),
   title: z.string(),
-  family: z.string(),
+  family: z.string().optional(),
   description: z.string(),
   resource_kind: z.string(),
   operation_kind: z.string(),
@@ -57,24 +57,6 @@ const LegacyCapabilityExtractSchema = z.object({
   extracted_at: z.string().min(1),
   capabilities: z.array(LegacyCapabilityItemSchema),
 });
-
-function inferLegacyFamily(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["family"] {
-  const primary = `${capability.name} ${capability.title}`.toLowerCase();
-  const secondary = capability.description.toLowerCase();
-  if (/\b(vector|embedding|semantic|similarity|ann|nearest-neighbor)\b/.test(primary)) return "search";
-  if (/\b(full-text|keyword search|atlas search|tantivy|lucene|search)\b/.test(primary)) return "search";
-  if (/\b(backup|restore|pitr|point-in-time)\b/.test(primary)) return "backup-and-recovery";
-  if (/\b(cdc|change data capture|change stream|changefeed|logical replication|replication)\b/.test(primary)) return "change-data-capture";
-  if (/\b(row-level|rls|rbac|role-based|access control|allowlist|authentication|auth)\b/.test(primary)) return "access-control";
-  if (/\b(migration|schema change|schema migration|deploy request|online ddl|branching)\b/.test(primary)) return "migration";
-  if (/\b(trigger|function|procedure|rpc|cron|action|compute|webhook)\b/.test(primary)) return "compute";
-  if (/\b(foreign key|unique|constraint|validation|transaction|acid)\b/.test(primary)) return "integrity";
-  if (/\b(table|column|schema definition|ddl)\b/.test(primary)) return "data-definition";
-  if (/\b(import|export|copy|bulk)\b/.test(primary)) return "data-write";
-  if (/\b(query|read|pagination|index|analytics|sql)\b/.test(primary)) return "data-read";
-  if (/\b(change data capture|change stream|logical replication|realtime)\b/.test(secondary)) return "change-data-capture";
-  return "core-operations";
-}
 
 function inferLegacyResourceKind(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["resource_kind"] {
   const primary = `${capability.name} ${capability.title}`.toLowerCase();
@@ -106,12 +88,11 @@ function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilit
     slug: legacy.slug,
     category: legacy.category,
     extracted_at: legacy.extracted_at,
-    capabilities: legacy.capabilities.map((capability) => ({
-      capability_name: capability.name,
-      title: capability.title,
-      family: inferLegacyFamily(capability),
-      description: capability.description,
-      resource_kind: inferLegacyResourceKind(capability),
+      capabilities: legacy.capabilities.map((capability) => ({
+        capability_name: capability.name,
+        title: capability.title,
+        description: capability.description,
+        resource_kind: inferLegacyResourceKind(capability),
       operation_kind: inferLegacyOperationKind(capability),
       surfaces_documented: ["api", "sdk", "cli"],
       support_type: "unknown",
@@ -173,9 +154,6 @@ export function buildCapabilityPrompt(vendor: ResolveResult): string {
     `- capability_name: a short, generic, cross-vendor-comparable slug (kebab-case) for the CAPABILITY, not the vendor's`,
     `  product name for it — e.g. "row-level-security" not "supabase-rls", "schema-migration" not`,
     `  "database-migrations-feature". This lets the same capability be recognized across different vendors.`,
-    `- family: a benchmark-oriented family such as data-definition, data-write, data-read, access-control,`,
-    `  integrity, migration, search, compute, change-data-capture, or backup-and-recovery. Prefer a family`,
-    `  from the docs' actual behavior, not marketing taxonomy.`,
     `- title: short human title`,
     `- description: 1-2 sentences, what it actually does`,
     `- resource_kind: the primary resource type touched (table, row, collection, role, function, snapshot, etc.)`,
@@ -187,7 +165,7 @@ export function buildCapabilityPrompt(vendor: ResolveResult): string {
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"capabilities": [`,
-    `  {"capability_name": "...", "title": "...", "family": "...", "description": "...", "resource_kind": "...",`,
+    `  {"capability_name": "...", "title": "...", "description": "...", "resource_kind": "...",`,
     `   "operation_kind": "...", "surfaces_documented": ["api","cli"], "support_type": "native", "evidence": [{"doc_url": "...", "quote": "..."}],`,
     `   "extraction_provenance": {"source":"official-docs","extracted_at":"2026-01-01T00:00:00.000Z","extractor":"llm-capability-inventory-v1"}}`,
     `]}`,
