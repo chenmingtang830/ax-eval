@@ -125,6 +125,7 @@ import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
+import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -190,7 +191,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -280,7 +281,7 @@ function commandUsage(command: string | undefined): string {
         "                                     [--surface api|cli|all] [--run-dir <dir>]",
         "                                     [--codex-model <slug>] [--claude-model <slug>]",
         "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
-        "                                     [--skip-reset] [--skip-archive]",
+        "                                     [--skip-reset] [--skip-archive] [--reclaim]",
         "  Runs the DAEB-1/database v1 production rerun lane with api/cli only,",
         "  one vendor → one surface → one harness → three medium-effort trials,",
         "  then writes aggregate mean/range/pass^3 artifacts under aggregate/.",
@@ -368,6 +369,7 @@ interface Parsed {
   dryRun: boolean;
   ns: string;
   attempts: number;
+  trial: number | undefined;
   minPassRate: number | undefined;
   trace: string;
   /** Path to a canonical-task-suite YAML (DAEB-1, VAB-1, ...). When set,
@@ -386,6 +388,7 @@ interface Parsed {
   requiredEffortProfiles: string;
   skipReset: boolean;
   skipArchive: boolean;
+  reclaim: boolean;
   trialCount: number;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
@@ -442,6 +445,7 @@ function parseArgs(argv: string[]): Parsed {
     dryRun: false,
     ns: "",
     attempts: 1,
+    trial: undefined,
     minPassRate: undefined,
     trace: "",
     suite: "",
@@ -454,6 +458,7 @@ function parseArgs(argv: string[]): Parsed {
     requiredEffortProfiles: "",
     skipReset: false,
     skipArchive: false,
+    reclaim: false,
     trialCount: DAEB_PRODUCTION_TRIAL_COUNT,
     executionMode: "cell",
     _: [],
@@ -558,10 +563,16 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--skip-review") p.skipReview = true;
     else if (a === "--skip-reset") p.skipReset = true;
     else if (a === "--skip-archive") p.skipArchive = true;
+    else if (a === "--reclaim") p.reclaim = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
+    else if (a === "--trial") {
+      const n = Number(value(++i, "--trial"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--trial must be a positive integer (got ${n})`);
+      p.trial = n;
+    }
     else if (a === "--trial-count") p.trialCount = Number(value(++i, "--trial-count"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
     else if (a === "--trace") p.trace = value(++i, "--trace");
@@ -1809,6 +1820,8 @@ async function runProductionHarnessTrial(opts: {
         "--invoke-timeout", String(opts.invokeTimeout || 1800),
         "--first-action-timeout", String(opts.firstActionTimeout || 240),
         "--concurrency", "1",
+        "--trial", String(opts.trial),
+        "--skip-reset",
       ]);
     } else {
       console.log(`      resuming existing combined result → ${resultPath}`);
@@ -1840,16 +1853,19 @@ async function runProductionHarnessTrial(opts: {
 
     const normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
     if (!opts.skipReset) {
-      const ns = loadResults(resultPath).ns;
-      const scope = resolveScope(opts.pack);
-      const client = new BearerClient(buildVerificationClientOptions(opts.pack, {
-        profile: "medium",
-        surface: opts.surface,
-        ns,
-        discovery: {},
-        results: {},
-      }));
-      await resetPack(opts.pack, client, scope, { ns });
+      const result = loadResults(resultPath);
+      if (result.ns) {
+        try {
+          const scope = resolveScope(opts.pack);
+          const client = new BearerClient(buildVerificationClientOptions(opts.pack, result));
+          const resetResult = await resetPack(opts.pack, client, scope, { ns: result.ns });
+          console.log(`      reset ns=${result.ns} → ${resetResult.message}`);
+        } catch (e) {
+          console.warn(`      reset ns=${result.ns} failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      } else {
+        console.warn(`      skip reset: no ns recorded in ${resultPath}`);
+      }
     }
 
     return {
@@ -1960,6 +1976,8 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
     }
     if (!existsSync(packPath)) throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
     const pack = loadPack(packPath);
+    // Hygiene gate before any trials start for this vendor.
+    await runHealthCheck(pack, args.reclaim);
     const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
     console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
     for (const surface of surfaces) {
@@ -2167,14 +2185,26 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
       let resetRecord: LowPassSurfaceRecord["reset"];
       if (!args.skipReset) {
         const scope = resolveScope(pack);
-        const client = new BearerClient(buildVerificationClientOptions(pack, {
-          profile: "low",
-          surface,
-          ns: namespaces[0],
-          discovery: {},
-          results: {},
-        }));
-        const results = await Promise.all(namespaces.map((ns) => resetPack(pack, client, scope, { ns })));
+        const results = await Promise.all(
+          resultPaths.map(async (path) => {
+            const result = loadResults(path);
+            if (!result.ns) {
+              return { supported: true, message: `no ns recorded in ${path}`, deleted: [], candidates: 0, errors: [] };
+            }
+            try {
+              const client = new BearerClient(buildVerificationClientOptions(pack, result));
+              return resetPack(pack, client, scope, { ns: result.ns });
+            } catch (e) {
+              return {
+                supported: false,
+                message: `reset ns=${result.ns} failed: ${e instanceof Error ? e.message : String(e)}`,
+                deleted: [],
+                candidates: 0,
+                errors: [e instanceof Error ? e.message : String(e)],
+              };
+            }
+          }),
+        );
         resetRecord = {
           performed: true,
           supported: results.every((result) => result.supported),
@@ -2566,11 +2596,43 @@ function aggregateTaskInvokeGroup(args: {
   writeFileSync(args.paths.metaPath, JSON.stringify(combinedMeta, null, 2));
 }
 
+/** Build a BearerClient for reset/health-check operations from a pack. */
+function buildResetClient(pack: TargetPack): BearerClient {
+  return new BearerClient({
+    baseUrl: resolveEnvTemplate(pack.base_url),
+    token: resolveToken(pack),
+    responseEnvelope: pack.response_envelope,
+    authScheme: pack.auth?.type ?? "bearer",
+    authHeader: pack.auth?.header,
+    extraAuthHeader: pack.auth?.extra_header,
+    extraHeaders: pack.headers,
+    apiStyle: pack.api_style,
+  });
+}
+
+/** Pre-run hygiene gate: list or reclaim probe resources left in the sandbox.
+ *  Never throws — failures are warnings so the main run isn't blocked. */
+async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<void> {
+  try {
+    const client = buildResetClient(pack);
+    const scope = resolveScope(pack);
+    const result = await healthCheckPack(pack, client, scope, { reclaim });
+    console.log(`  ${result.message}`);
+    if (!result.supported && result.candidates > 0) {
+      console.warn(`  health-check not supported for ${pack.name}; manual cleanup may be needed.`);
+    }
+  } catch (e) {
+    console.warn(`  health-check skipped: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function cmdExecPlan(args: Parsed): Promise<number> {
   // Load .env so the per-surface auth gate sees the credentials the developer
   // has set (otherwise every surface would read as blocked).
   loadDotenv();
   const pack = loadPack(args.pack);
+  // Hygiene gate: warn about or reclaim leftover probe resources before we start.
+  await runHealthCheck(pack, args.reclaim);
   // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
   if (!args.skipReview) {
     const status = checkApproval(pack, args.pack);
@@ -2700,7 +2762,7 @@ interface InvokeGroup {
             }
             const base = tagSurface ? `${surfaceId}-${harness}-${name}` : `${harness}-${name}`;
             const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
-            const ns = resolveNs(pack.run_id, attemptLabel);
+            const ns = resolveNs(pack.run_id, attemptLabel, args.trial);
             const stem = args.attempts === 1 ? `${harness}-${name}${sfx}` : `${harness}-${name}${sfx}-a${attempt}`;
             const paths = defaultInvokePaths(dir, stem, harness);
             // A prior exec-plan run's output files at this same deterministic
@@ -2886,7 +2948,7 @@ interface InvokeGroup {
           // keeps concurrent surfaces from colliding on the live product's ns.
           const base = tagSurface ? `${surfaceId}-${name}` : name;
           const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
-          const ns = resolveNs(pack.run_id, attemptLabel);
+          const ns = resolveNs(pack.run_id, attemptLabel, args.trial);
           const stem = args.attempts === 1 ? `${name}${sfx}` : `${name}${sfx}-a${attempt}`;
           if (args.executionMode === "task") {
             const eligibleTasks = tasksForSurface(pack, surfaceId);
@@ -3067,7 +3129,46 @@ interface InvokeGroup {
       );
     }
   }
-  if (resetHints.length) {
+  if (args.invoke && !args.skipReset && (invokeJobs.length || invokeGroups.size)) {
+    console.log("\nResetting sandbox namespaces after verification…");
+    let resetClient: BearerClient | undefined;
+    let scope: Record<string, string> | undefined;
+    try {
+      resetClient = new BearerClient({
+        baseUrl: resolveEnvTemplate(pack.base_url),
+        token: resolveToken(pack),
+        responseEnvelope: pack.response_envelope,
+        authScheme: pack.auth?.type ?? "bearer",
+        authHeader: pack.auth?.header,
+        extraAuthHeader: pack.auth?.extra_header,
+        extraHeaders: pack.headers,
+        apiStyle: pack.api_style,
+      });
+      scope = resolveScope(pack);
+    } catch (e) {
+      console.warn(
+        `  Could not build reset client/scope: ${e instanceof Error ? e.message : String(e)}; reset skipped.`,
+      );
+    }
+    if (resetClient && scope) {
+      const usedNs = new Set<string>();
+      if (args.executionMode === "task") {
+        for (const group of invokeGroups.values()) {
+          for (const job of group.taskJobs ?? []) usedNs.add(job.ns);
+        }
+      } else {
+        for (const job of invokeJobs) usedNs.add(job.ns);
+      }
+      for (const ns of usedNs) {
+        try {
+          const result = await resetPack(pack, resetClient, scope, { ns });
+          console.log(`  ns=${ns} → ${result.message}`);
+        } catch (e) {
+          console.warn(`  ns=${ns} reset failed: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+    }
+  } else if (resetHints.length) {
     console.log(`\nBetween attempts, reset the previous namespace so pass@k is isolated:\n${resetHints.join("\n")}`);
   }
   if (blockedNotes.length) {

@@ -43,11 +43,17 @@ export interface TraceStep {
   note?: string;
 }
 
-/** Resolve a per-execution namespace: <genVersion>-<profile>-<shortRand>. */
-export function resolveNs(runId: string, profile: string): string {
-  const rand = Math.random().toString(36).slice(2, 6);
+/** Resolve a per-execution namespace.
+ *
+ * By default the suffix is a short random token, so concurrent runs with the
+ * same label don't collide. When `trial` is provided the suffix is
+ * deterministic (`t${trial}`), making each production trial use a distinct,
+ * reproducible namespace and preventing cross-trial sandbox pollution.
+ */
+export function resolveNs(runId: string, profile: string, trial?: number): string {
+  const suffix = trial !== undefined ? `t${trial}` : Math.random().toString(36).slice(2, 6);
   const base = (runId || "gen").replace(/[^a-z0-9-]/gi, "");
-  return `${base}-${profile}-${rand}`;
+  return `${base}-${profile}-${suffix}`;
 }
 
 /** Substitute {ns} everywhere in a string. */
