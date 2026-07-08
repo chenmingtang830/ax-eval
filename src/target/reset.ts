@@ -262,18 +262,36 @@ function parseConvexDeploymentName(baseUrl: string): string | null {
   }
 }
 
+interface ConvexDeployment {
+  id: number;
+  name: string;
+  deploymentType: "dev" | "prod" | "preview" | "custom";
+  projectId: number;
+  isDefault: boolean;
+  /** The `--preview-name` the agent/CLI passed to `convex deploy` — the most
+   *  reliable field to match a benchmark trial's namespace against, since the
+   *  auto-generated `name` (e.g. "shocking-cuttlefish-911") never reflects it. */
+  previewIdentifier?: string | null;
+  reference?: string;
+}
+
 /**
- * Convex reset: delete preview deployments created by benchmark trials using the
- * Convex Management API. This requires a team/project management token (not the
- * deployment-scoped CONVEX_DEPLOY_KEY) in the CONVEX_MANAGEMENT_TOKEN env var.
+ * Convex reset: delete PREVIEW deployments created by benchmark trials using the
+ * Convex Management API (https://api.convex.dev/v1). This requires a Team Access
+ * Token (created in the Convex dashboard team settings) in CONVEX_TEAM_ACCESS_TOKEN
+ * — the deployment-scoped CONVEX_DEPLOY_KEY cannot delete deployments.
+ *
+ * Only non-default deployments with deploymentType === "preview" are ever
+ * candidates — the base dev/prod deployment the pack points at (isDefault:
+ * true) is never touched.
  */
 const convexReset: Resetter = async (pack, _client, _scope, opts) => {
-  const managementToken = process.env.CONVEX_MANAGEMENT_TOKEN;
+  const managementToken = process.env.CONVEX_TEAM_ACCESS_TOKEN ?? process.env.CONVEX_MANAGEMENT_TOKEN;
   if (!managementToken) {
     return {
       supported: false,
       message:
-        "Convex reset requires CONVEX_MANAGEMENT_TOKEN (a team/project management token). " +
+        "Convex reset requires CONVEX_TEAM_ACCESS_TOKEN (a Team Access Token from the Convex dashboard). " +
         "CONVEX_DEPLOY_KEY is deployment-scoped and cannot delete deployments.",
       deleted: [],
       candidates: 0,
@@ -302,20 +320,25 @@ const convexReset: Resetter = async (pack, _client, _scope, opts) => {
   });
 
   try {
-    const baseDeployment = await mgmtClient.get<{ project_id: number | string }>(
-      `/deployments/${baseDeploymentName}`,
-    );
-    const projectId = String(baseDeployment.project_id);
-    const deployments = await mgmtClient.get<Array<{ name: string }>>(
-      `/projects/${projectId}/deployments`,
+    const baseDeployment = await mgmtClient.get<ConvexDeployment>(`/deployments/${baseDeploymentName}`);
+    const deployments = await mgmtClient.get<ConvexDeployment[]>(
+      `/projects/${baseDeployment.projectId}/list_deployments`,
     );
 
     const nsPatterns = opts.ns
       ? [opts.ns, opts.ns.replace(/-/g, "_"), opts.ns.replace(/_/g, "-")]
       : [];
+    // Never touch the default dev/prod deployments. When an ns is given, only
+    // match preview deployments whose previewIdentifier/reference/name carry
+    // it (a specific trial's cleanup). With no ns, this is a broad --reclaim
+    // of every leftover preview deployment in this benchmark-dedicated
+    // project — naming has drifted across runs, so we don't rely on a fixed
+    // substring like "axarena" here.
     const candidates = deployments.filter((d) => {
-      if (opts.ns) return nsPatterns.some((p) => d.name.includes(p));
-      return d.name.toLowerCase().includes("axarena");
+      if (d.deploymentType !== "preview" || d.isDefault) return false;
+      if (!opts.ns) return true;
+      const haystack = `${d.previewIdentifier ?? ""} ${d.reference ?? ""} ${d.name}`;
+      return nsPatterns.some((p) => haystack.includes(p));
     });
 
     const deleted: string[] = [];
@@ -335,8 +358,8 @@ const convexReset: Resetter = async (pack, _client, _scope, opts) => {
 
     return {
       supported: true,
-      message: `Convex reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${candidates.length} deployment(s)${
-        opts.ns ? ` matching ns "${opts.ns}"` : ""
+      message: `Convex reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${candidates.length} preview deployment(s)${
+        opts.ns ? ` matching ns "${opts.ns}"` : " (broad reclaim)"
       }.`,
       deleted,
       candidates: candidates.length,
