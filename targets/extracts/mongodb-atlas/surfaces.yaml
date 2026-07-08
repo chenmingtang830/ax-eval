@@ -1,0 +1,18 @@
+vendor: Mongodb Atlas
+slug: mongodb-atlas
+extracted_at: 2026-07-08T08:07:43.494Z
+cli:
+  bin: atlas
+  install: brew install mongodb-atlas-cli
+  docs_url: https://www.mongodb.com/docs/atlas/cli/current/
+  auth:
+    kind: token
+    token_env: MONGODB_ATLAS_CLIENT_ID
+sdk: null
+mcp:
+  server: npx -y mongodb-mcp-server@latest
+  transport: stdio
+  docs_url: https://www.mongodb.com/docs/mcp-server/get-started/
+  auth:
+    kind: token
+    token_env: MDB_MCP_API_CLIENT_ID

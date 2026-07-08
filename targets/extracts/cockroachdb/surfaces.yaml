@@ -1,0 +1,16 @@
+vendor: Cockroachdb
+slug: cockroachdb
+extracted_at: 2026-07-08T08:08:23.546Z
+cli:
+  bin: ccloud
+  install: brew install cockroachdb/tap/ccloud
+  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
+  auth:
+    kind: oauth_app
+sdk: null
+mcp:
+  server: https://cockroachlabs.cloud/mcp
+  transport: http
+  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/connect-to-the-cockroachdb-cloud-mcp-server
+  auth:
+    kind: token

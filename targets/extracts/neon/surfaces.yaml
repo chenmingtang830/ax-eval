@@ -1,0 +1,24 @@
+vendor: Neon
+slug: neon
+extracted_at: 2026-07-08T08:08:18.989Z
+cli:
+  bin: neon
+  install: npm install -g neon
+  docs_url: https://neon.com/docs/reference/neon-cli
+  auth:
+    kind: token
+    token_env: NEON_API_KEY
+sdk:
+  package: "@neondatabase/api-client"
+  language: node
+  reference_url: https://api-docs.neon.tech/reference/getting-started-with-neon-api
+  auth:
+    kind: token
+    token_env: NEON_API_KEY
+mcp:
+  server: npx -y @neondatabase/mcp-server-neon start
+  transport: stdio
+  docs_url: https://neon.com/docs/ai/neon-mcp-server
+  auth:
+    kind: token
+    token_env: NEON_API_KEY

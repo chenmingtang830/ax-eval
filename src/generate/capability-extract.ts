@@ -124,15 +124,31 @@ function categoryCoverageChecklist(category: string): string[] {
   ];
 }
 
-export function buildCapabilityPrompt(vendor: ResolveResult): string {
+export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: string): string {
   const checklist = categoryCoverageChecklist(vendor.category);
+  const groundingBlock = specSummary
+    ? [
+        `The DOCUMENTED API OPERATIONS below (from ${vendor.vendor}'s OpenAPI spec) are the authoritative`,
+        `surface — treat them as the candidate set. Derive the capability inventory from these operations;`,
+        `you do NOT need to web-search. Cite the operation (METHOD /path) and ${vendor.docs_url} as evidence.`,
+        `Group related operations into one capability (e.g. many table endpoints → a "define-data-container"`,
+        `capability). Include benchmark-relevant capabilities the operations imply even if not marketed as features.`,
+        ``,
+        `=== DOCUMENTED API OPERATIONS ===`,
+        specSummary,
+        `=== END OPERATIONS ===`,
+        ``,
+      ]
+    : [
+        `WebFetch ${vendor.docs_url} and follow linked pages (guides, API/SDK reference, feature list) as needed.`,
+        `Ground every capability in what you actually read — cite the specific doc URL and, where practical, a`,
+        `short supporting quote. Do not list capabilities from memory/training knowledge alone.`,
+        ``,
+      ];
   return [
     `${vendor.vendor} (${vendor.category}).`,
     ``,
-    `WebFetch ${vendor.docs_url} and follow linked pages (guides, API/SDK reference, feature list) as needed.`,
-    `Ground every capability in what you actually read — cite the specific doc URL and, where practical, a`,
-    `short supporting quote. Do not list capabilities from memory/training knowledge alone.`,
-    ``,
+    ...groundingBlock,
     `Build a benchmark-grade capability inventory for ${vendor.vendor} AS A ${vendor.category.toUpperCase()}.`,
     `Capture the documented capabilities a benchmark author would need to reason about canonical task coverage.`,
     `This is an inventory stage, not a "top 10" ranking stage: include every benchmark-relevant documented`,
@@ -176,6 +192,11 @@ export interface ExtractCapabilitiesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  /** A compact OpenAPI operation inventory (see ingest/spec-summary.ts) to seed
+   *  the capability judgment from the documented surface instead of a blind,
+   *  slow doc crawl. When set, the call is NOT grounded (the spec is the
+   *  authoritative surface), which also avoids the WebFetch grounding retry. */
+  specSummary?: string;
 }
 
 const TIMEOUT_MS = 8 * 60 * 1000;
@@ -186,8 +207,11 @@ export async function extractCapabilities(
   opts: ExtractCapabilitiesOptions = {},
 ): Promise<CapabilityExtractResult> {
   const label = `${vendor.vendor}/capabilities`;
-  const raw = await invokeGenerator(buildCapabilityPrompt(vendor), {
-    requireWebFetch: true,
+  // Spec-seeded runs are grounded by the inlined operations, so we don't force
+  // (and pay for) a WebFetch — this is what makes them fast and avoids the
+  // grounding retry that made blind doc-crawl runs time out.
+  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary), {
+    requireWebFetch: !opts.specSummary,
     fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
     model: opts.model,
     effort: opts.effort,

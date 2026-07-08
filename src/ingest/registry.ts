@@ -266,6 +266,7 @@ export function registryToVendorCard(surface: RegistrySurface, opts: RegistryMap
     site_url: `https://${surface.domain}`,
     docs_url: docsUrl,
     http_status: null,
+    openapi_url: registryOpenApiUrl(surface),
   };
 }
 

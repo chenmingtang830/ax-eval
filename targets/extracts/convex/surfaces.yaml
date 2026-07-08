@@ -1,0 +1,23 @@
+vendor: Convex
+slug: convex
+extracted_at: 2026-07-08T08:08:17.710Z
+cli:
+  bin: npx convex
+  install: npm install convex
+  docs_url: https://docs.convex.dev/cli
+  auth:
+    kind: token
+    token_env: CONVEX_DEPLOY_KEY
+sdk:
+  package: convex
+  language: node
+  reference_url: https://docs.convex.dev/api/modules/browser
+  auth:
+    kind: token
+mcp:
+  server: npx -y convex@latest mcp start
+  transport: stdio
+  docs_url: https://docs.convex.dev/ai/convex-mcp-server
+  auth:
+    kind: token
+    token_env: CONVEX_DEPLOY_KEY

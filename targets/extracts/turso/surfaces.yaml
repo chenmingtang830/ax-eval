@@ -1,0 +1,22 @@
+vendor: Turso
+slug: turso
+extracted_at: 2026-07-08T08:08:24.475Z
+cli:
+  bin: turso
+  install: brew install tursodatabase/tap/turso
+  docs_url: https://docs.turso.tech/cli/introduction
+  auth:
+    kind: oauth_app
+sdk:
+  package: "@libsql/client"
+  language: typescript
+  reference_url: https://docs.turso.tech/sdk/ts/reference
+  auth:
+    kind: token
+    token_env: TURSO_AUTH_TOKEN
+mcp:
+  server: https://mcp.turso.ai/mcp
+  transport: http
+  docs_url: https://docs.turso.tech/integrations/mcp
+  auth:
+    kind: oauth_app

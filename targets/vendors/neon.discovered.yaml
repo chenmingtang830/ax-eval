@@ -1,0 +1,10 @@
+vendor: Neon
+category: database
+slug: neon
+discovered_at: 2026-07-02T23:47:05.920Z
+resolver:
+  method: registry
+  registry_domain: neon.com
+site_url: https://neon.com
+docs_url: https://neon.com/docs/reference/api-reference
+http_status: null

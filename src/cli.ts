@@ -81,7 +81,8 @@ import {
 } from "./ingest/registry.js";
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
-import { extractCapabilitiesAll, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { fetchSpecSummary } from "./ingest/spec-summary.js";
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
@@ -258,8 +259,12 @@ function commandUsage(command: string | undefined): string {
       return [
         "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
         "                                    [--harness claude-code|codex] [--effort low|medium|high]",
-        "  Layer 0a of suite authoring: grounded per-vendor discovery of the product's",
-        "  benchmark-grade capability inventory with structured evidence. Writes",
+        "                                    [--specs <slug=openapi-url,...>]",
+        "  Layer 0a of suite authoring: per-vendor benchmark-grade capability",
+        "  inventory with structured evidence. Vendors with a known OpenAPI spec",
+        "  (the vendor card's openapi_url from import-registry, or a --specs",
+        "  override) are seeded from the spec's operations (fast, no blind crawl);",
+        "  the rest are grounded by reading the docs. Runs at concurrency 3. Writes",
         "  targets/extracts/<slug>/capability-inventory.yaml (and a legacy capabilities.yaml).",
       ].join("\n");
     case "synthesize-suite":
@@ -405,6 +410,9 @@ interface Parsed {
   domain: string;
   /** import-registry: explicit ax-eval slug when it differs from the domain. */
   slug: string;
+  /** extract-capabilities: per-vendor OpenAPI spec URLs to seed from, as
+   *  "slug=url,slug=url" — overrides the vendor card's openapi_url. */
+  specs: string;
   codexModel: string;
   claudeModel: string;
   effortProfiles: string;
@@ -477,6 +485,7 @@ function parseArgs(argv: string[]): Parsed {
     category: "",
     domain: "",
     slug: "",
+    specs: "",
     codexModel: "gpt-5.4",
     claudeModel: "sonnet",
     effortProfiles: "",
@@ -565,6 +574,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--vendors") p.vendors = value(++i, "--vendors");
     else if (a === "--domain") p.domain = value(++i, "--domain");
     else if (a === "--slug") p.slug = value(++i, "--slug");
+    else if (a === "--specs") p.specs = value(++i, "--specs");
     else if (a === "--codex-model") p.codexModel = value(++i, "--codex-model");
     else if (a === "--claude-model") p.claudeModel = value(++i, "--claude-model");
     else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
@@ -1658,23 +1668,53 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
 
   const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
-  console.log(`Extracting capabilities for ${vendors.length} vendor(s) via ${harness}…`);
-  const outcomes = await extractCapabilitiesAll(vendors, {
-    harness,
-    model: args.generatorModel || undefined,
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
-  });
-  let failures = 0;
-  for (const outcome of outcomes) {
-    if (!outcome.ok) {
-      failures++;
-      console.error(`\n  ${outcome.vendor} → FAILED: ${outcome.error}`);
-      continue;
-    }
-    const path = writeCapabilityExtract(root, outcome.result);
-    console.log(`\n  ${outcome.vendor} → ${path} (${outcome.result.capabilities.length} capabilities)`);
+  // Per-vendor OpenAPI spec URLs: --specs override wins, else the vendor card's
+  // openapi_url (seeded by import-registry). Vendors with a spec are seeded from
+  // it (fast, no grounding retry); the rest fall back to the grounded doc crawl.
+  const specOverrides = new Map<string, string>();
+  for (const raw of args.specs.split(",").map((s) => s.trim()).filter(Boolean)) {
+    const eq = raw.indexOf("=");
+    if (eq !== -1) specOverrides.set(raw.slice(0, eq).trim(), raw.slice(eq + 1).trim());
   }
-  if (failures) console.error(`\n${failures}/${outcomes.length} vendor(s) failed.`);
+  const specUrlFor = (v: (typeof vendors)[number]): string | undefined =>
+    specOverrides.get(v.slug) ?? v.openapi_url ?? undefined;
+  const seededCount = vendors.filter((v) => specUrlFor(v)).length;
+  console.log(
+    `Extracting capabilities for ${vendors.length} vendor(s) via ${harness}` +
+      ` (${seededCount} spec-seeded, ${vendors.length - seededCount} grounded)…`,
+  );
+
+  // Bounded concurrency: heavy grounded crawls all-at-once previously starved
+  // each other and timed out. Spec-seeded calls are fast, but cap anyway.
+  const CONCURRENCY = 3;
+  let failures = 0;
+  await runPool(vendors, CONCURRENCY, async (vendor) => {
+    const specUrl = specUrlFor(vendor);
+    try {
+      let specSummary: string | undefined;
+      if (specUrl) {
+        try {
+          const summary = await fetchSpecSummary(specUrl);
+          specSummary = summary.text;
+          console.log(`  ${vendor.vendor}: seeding from spec ${specUrl} (${summary.operationCount} ops)`);
+        } catch (e) {
+          console.warn(`  ${vendor.vendor}: spec fetch failed (${e instanceof Error ? e.message : String(e)}); falling back to grounded.`);
+        }
+      }
+      const result = await extractCapabilities(vendor, {
+        harness,
+        model: args.generatorModel || undefined,
+        effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+        specSummary,
+      });
+      const path = writeCapabilityExtract(root, result);
+      console.log(`\n  ${vendor.vendor} → ${path} (${result.capabilities.length} capabilities)`);
+    } catch (e) {
+      failures++;
+      console.error(`\n  ${vendor.vendor} → FAILED: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  });
+  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
   return failures ? 1 : 0;
 }
 

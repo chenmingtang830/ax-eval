@@ -30,6 +30,9 @@ const ResolveResultSchema = z.object({
   site_url: z.string().nullable(),
   docs_url: z.string().nullable(),
   http_status: z.number().nullable(),
+  /** Downloadable OpenAPI spec URL when known (e.g. from the integrations.sh
+   *  registry) — lets extract-capabilities seed from the spec. */
+  openapi_url: z.string().optional(),
 });
 export type ResolveResult = z.infer<typeof ResolveResultSchema>;
 
