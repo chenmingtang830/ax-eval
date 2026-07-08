@@ -9,7 +9,9 @@
  * a per-target resetter is registered. Asana is the concrete reference; targets
  * without a resetter fail GRACEFULLY (a clear message, never a throw).
  */
+import { BearerClient } from "../http/client.js";
 import { PROBE_PREFIX } from "../generate/pack.js";
+import { resolveEnvTemplate } from "./config.js";
 import type { TargetPack } from "../schemas.js";
 
 /** The slice of the HTTP client a resetter needs (so tests stub it offline). */
@@ -249,11 +251,114 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
   return { deleted, candidates, errors };
 };
 
+/** Parse the deployment name (subdomain) out of a Convex deployment URL. */
+function parseConvexDeploymentName(baseUrl: string): string | null {
+  try {
+    const host = new URL(baseUrl).hostname;
+    const match = /^([a-z0-9-]+)\.convex\.cloud$/i.exec(host);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Convex reset: delete preview deployments created by benchmark trials using the
+ * Convex Management API. This requires a team/project management token (not the
+ * deployment-scoped CONVEX_DEPLOY_KEY) in the CONVEX_MANAGEMENT_TOKEN env var.
+ */
+const convexReset: Resetter = async (pack, _client, _scope, opts) => {
+  const managementToken = process.env.CONVEX_MANAGEMENT_TOKEN;
+  if (!managementToken) {
+    return {
+      supported: false,
+      message:
+        "Convex reset requires CONVEX_MANAGEMENT_TOKEN (a team/project management token). " +
+        "CONVEX_DEPLOY_KEY is deployment-scoped and cannot delete deployments.",
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+
+  const baseUrl = resolveEnvTemplate(pack.base_url);
+  const baseDeploymentName = parseConvexDeploymentName(baseUrl);
+  if (!baseDeploymentName) {
+    return {
+      supported: false,
+      message: `Could not parse Convex deployment name from base_url "${baseUrl}".`,
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+
+  const mgmtClient = new BearerClient({
+    baseUrl: "https://api.convex.dev/v1",
+    token: managementToken,
+    authScheme: "bearer",
+    responseEnvelope: undefined,
+    apiStyle: "rest",
+  });
+
+  try {
+    const baseDeployment = await mgmtClient.get<{ project_id: number | string }>(
+      `/deployments/${baseDeploymentName}`,
+    );
+    const projectId = String(baseDeployment.project_id);
+    const deployments = await mgmtClient.get<Array<{ name: string }>>(
+      `/projects/${projectId}/deployments`,
+    );
+
+    const nsPatterns = opts.ns
+      ? [opts.ns, opts.ns.replace(/-/g, "_"), opts.ns.replace(/_/g, "-")]
+      : [];
+    const candidates = deployments.filter((d) => {
+      if (opts.ns) return nsPatterns.some((p) => d.name.includes(p));
+      return d.name.toLowerCase().includes("axarena");
+    });
+
+    const deleted: string[] = [];
+    const errors: string[] = [];
+    for (const d of candidates) {
+      try {
+        if (opts.dryRun) {
+          deleted.push(d.name);
+          continue;
+        }
+        await mgmtClient.post(`/deployments/${d.name}/delete`, {});
+        deleted.push(d.name);
+      } catch (err) {
+        errors.push(`delete ${d.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return {
+      supported: true,
+      message: `Convex reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${candidates.length} deployment(s)${
+        opts.ns ? ` matching ns "${opts.ns}"` : ""
+      }.`,
+      deleted,
+      candidates: candidates.length,
+      errors,
+    };
+  } catch (err) {
+    return {
+      supported: false,
+      message: `Convex management API reset failed: ${err instanceof Error ? err.message : String(err)}`,
+      deleted: [],
+      candidates: 0,
+      errors: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+};
+
 /** Per-target resetters, keyed by pack name. */
 const RESETTERS: Record<string, Resetter> = {
   asana: asanaReset,
   "asana-generated": asanaReset,
   "mongodb-atlas": mongodbAtlasReset,
+  convex: convexReset,
 };
 
 /**
