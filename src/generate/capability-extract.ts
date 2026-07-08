@@ -200,7 +200,11 @@ export async function extractCapabilities(
     effort: opts.effort,
     label,
   });
-  const parsed = z.object({ capabilities: z.array(CapabilitySchema) }).safeParse(JSON.parse(json));
+  // Some models return a bare `[...]` of capabilities instead of the requested
+  // `{"capabilities": [...]}` envelope — accept both.
+  const rawJson = JSON.parse(json) as unknown;
+  const enveloped = Array.isArray(rawJson) ? { capabilities: rawJson } : rawJson;
+  const parsed = z.object({ capabilities: z.array(CapabilitySchema) }).safeParse(enveloped);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     throw new Error(`capability-extract for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);
