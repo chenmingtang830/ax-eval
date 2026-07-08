@@ -1,5 +1,7 @@
-import { chmodSync, mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, resolve } from "node:path";
+import { homedir } from "node:os";
+import { spawnSync } from "node:child_process";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
@@ -21,6 +23,17 @@ function tomlString(value: string): string {
 
 function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
+}
+
+function copyCodexAuth(codexDir: string): void {
+  // Reuse the operator's own `codex login` session instead of requiring a
+  // separate OPENAI_API_KEY: codex CLI stores it in a plain file (unlike
+  // claude-code, which is Keychain-based and doesn't transfer to a fresh
+  // isolated HOME).
+  const realAuthPath = resolve(homedir(), ".codex", "auth.json");
+  if (!process.env.OPENAI_API_KEY && existsSync(realAuthPath)) {
+    copyFileSync(realAuthPath, resolve(codexDir, "auth.json"));
+  }
 }
 
 function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string): void {
@@ -93,6 +106,7 @@ function writeCodexMcpHome(opts: {
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-codex-mcp`);
   const codexDir = resolve(home, ".codex");
   mkdirSync(codexDir, { recursive: true });
+  copyCodexAuth(codexDir);
   const configPath = resolve(codexDir, "config.toml");
   const typeLine = mcp.transport === "http" ? `type = "http"\n` : "";
   const config =
@@ -101,6 +115,11 @@ function writeCodexMcpHome(opts: {
     `url = ${tomlString(mcp.server)}\n` +
     typeLine +
     `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n` +
+    // Server-level blanket approval — without it codex's default approval
+    // policy blocks MCP write calls waiting for interactive confirmation,
+    // which a headless eval run can never provide ("cancelled by host").
+    // Confirmed against a prior working config (results/runs/stripe-mcp-codex-ok).
+    `require_approval = "never"\n` +
     Object.entries(mcp.tool_approval_mode ?? {})
       .map(([toolName, mode]) => `\n[mcp_servers.${serverName}.tools.${toolName}]\napproval_mode = ${tomlString(mode)}\n`)
       .join("") +
@@ -110,6 +129,28 @@ function writeCodexMcpHome(opts: {
   writeFileSync(configPath, config, { mode: 0o600 });
   try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
   return { home, configPath, serverName };
+}
+
+function writeCodexNoMcpHome(opts: {
+  paths: InvokePaths;
+  surface: SurfaceId;
+}): { home: string; codexDir: string; configPath: string } {
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-codex-${opts.surface}-no-mcp`);
+  const codexDir = resolve(home, ".codex");
+  rmSync(home, { recursive: true, force: true });
+  mkdirSync(codexDir, { recursive: true });
+  copyCodexAuth(codexDir);
+  const configPath = resolve(codexDir, "config.toml");
+  writeFileSync(
+    configPath,
+    `check_for_update_on_startup = false\n` +
+      // Non-MCP benchmark surfaces must not inherit the operator's personal or
+      // corporate MCP servers. Those can be slow, unauthenticated, or product-
+      // unrelated, and they turn API/CLI/SDK cells into config-noise tests.
+      `mcp_servers = {}\n`,
+  );
+  return { home, codexDir, configPath };
 }
 
 function writeClaudeMcpHome(opts: {
@@ -140,16 +181,25 @@ function writeClaudeMcpHome(opts: {
   writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(settingsPath, 0o600); } catch { /* best effort */ }
 
+  // stdio servers (an npm package run locally, e.g. Neon's MCP server) need a
+  // command/args entry, NOT a url — treating the package name as a URL (the
+  // previous bug here) leaves claude-code unable to ever connect. `${VAR}`
+  // in args is claude-code's own documented env-var interpolation, so the
+  // token never needs to be written to disk in plaintext.
+  const mcpServerEntry =
+    mcp.transport === "stdio"
+      ? { command: "npx", args: ["-y", mcp.server, "start", `\${${opts.bearerTokenEnvVar}}`] }
+      : {
+          type: mcp.transport === "http" ? "http" : "streamable-http",
+          url: mcp.server,
+          headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
+        };
   const configPath = resolve(home, ".claude.json");
   const config = {
     projects: {
       [opts.cwd]: {
         mcpServers: {
-          [serverName]: {
-            type: mcp.transport === "http" ? "http" : "streamable-http",
-            url: mcp.server,
-            headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
-          },
+          [serverName]: mcpServerEntry,
         },
       },
     },
@@ -157,6 +207,36 @@ function writeClaudeMcpHome(opts: {
   writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
   return { home, configPath, headersHelperPath, serverName };
+}
+
+function prependPath(dir: string, currentPath = process.env.PATH ?? ""): string {
+  return currentPath ? `${dir}:${currentPath}` : dir;
+}
+
+function ensureTursoCli(paths: InvokePaths): { home: string; binDir: string; binaryPath: string } {
+  const sharedHome = resolve(dirname(paths.resultsPath), ".invoke-home", "turso-cli-shared");
+  const binaryPath = resolve(sharedHome, ".turso", "turso");
+  if (existsSync(binaryPath)) {
+    return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
+  }
+  rmSync(sharedHome, { recursive: true, force: true });
+  mkdirSync(sharedHome, { recursive: true });
+  const install = spawnSync("/bin/sh", ["-lc", "curl -sSfL https://get.tur.so/install.sh | bash"], {
+    cwd: dirname(paths.resultsPath),
+    env: {
+      ...process.env,
+      HOME: sharedHome,
+      PATH: process.env.PATH ?? "",
+    },
+    stdio: ["ignore", "pipe", "pipe"],
+    encoding: "utf8",
+    maxBuffer: 10 * 1024 * 1024,
+  });
+  if (install.status !== 0 || !existsSync(binaryPath)) {
+    const detail = (install.stderr || install.stdout || `exit ${install.status ?? "unknown"}`).trim();
+    throw new Error(`failed to provision shared Turso CLI: ${detail.slice(0, 500)}`);
+  }
+  return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
 }
 
 /**
@@ -170,7 +250,44 @@ export async function provisionHarnessForSurface(opts: {
   paths: InvokePaths;
   cwd: string;
 }): Promise<HarnessProvisioning> {
-  if (opts.surface !== "mcp") return { env: {} };
+  const tursoCli =
+    opts.surface === "cli" && opts.pack.name === "turso"
+      ? ensureTursoCli(opts.paths)
+      : undefined;
+  if (opts.surface !== "mcp") {
+    if (opts.harness !== "codex") {
+      return tursoCli
+        ? {
+            env: {
+              PATH: prependPath(tursoCli.binDir),
+            },
+            meta: {
+              shared_cli_home: tursoCli.home,
+              shared_cli_binary: tursoCli.binaryPath,
+            },
+          }
+        : { env: {} };
+    }
+    const codex = writeCodexNoMcpHome({ paths: opts.paths, surface: opts.surface });
+    return {
+      env: {
+        HOME: codex.home,
+        CODEX_HOME: codex.codexDir,
+        ...(tursoCli ? { PATH: prependPath(tursoCli.binDir) } : {}),
+      },
+      meta: {
+        codex_home: codex.home,
+        codex_config: codex.configPath,
+        mcp_provisioning: "disabled_for_non_mcp_surface",
+        ...(tursoCli
+          ? {
+              shared_cli_home: tursoCli.home,
+              shared_cli_binary: tursoCli.binaryPath,
+            }
+          : {}),
+      },
+    };
+  }
   const auth = opts.pack.surfaces?.mcp?.auth;
   if (!auth || auth.kind === "inherit") return { env: {} };
 

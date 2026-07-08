@@ -297,6 +297,7 @@ function restL3Task(
     difficulty: "L3",
     prompt: REST_L3_PROMPTS[index % REST_L3_PROMPTS.length]!(val),
     allowed_surfaces: ["api", "docs"],
+    na: false,
     create_path: res.createPath,
     create_envelope: spec.requestEnvelope ?? undefined,
     depends_on: [],
@@ -351,6 +352,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         `Create one ${res.name} named "${val}" in the sandbox workspace, using the ` +
         `API you discovered. Report the created id.`,
       allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -378,6 +380,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         `First create a ${parent.name}. Then, using its id, create a ${chain.name} ` +
         `under it named "${childVal}". Report both ids.`,
       allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: chain.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [parent.name],
@@ -415,6 +418,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         `Create one ${res.name} named "${before}" in the sandbox workspace, then ` +
         `update that same ${res.name} so its ${idField(res)} is "${after}". Report its id.`,
       allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -440,6 +444,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       difficulty: "L4",
       prompt: tmpl.prompt.replace(/\{val\}/g, val),
       allowed_surfaces: tmpl.allowedSurfaces ?? ["api", "docs"],
+      na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -474,6 +479,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       difficulty: tmpl.difficulty,
       prompt: tmpl.prompt,
       allowed_surfaces: ["api", "docs"],
+    na: false,
       depends_on: [],
       trace: tmpl.trace ?? [
         { type: "required_call", method: "POST", path: "/search", description: "operate the documented search endpoint" },

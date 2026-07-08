@@ -80,6 +80,14 @@ export const PROFILES: Record<string, HarnessProfile> = {
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
   },
+  medium: {
+    name: "medium",
+    model: null,
+    effort: "medium",
+    autonomy: "auto",
+    surfaces: ["docs", "api"],
+    maxTurns: CONTROLLED_MAX_TURNS,
+  },
   high: {
     name: "high",
     model: null,
@@ -103,7 +111,7 @@ export const PROFILES: Record<string, HarnessProfile> = {
   // minimal harness that calls each model's API directly.
   sonnet: {
     name: "sonnet",
-    model: "claude-4.6-sonnet", // spawn slug: claude-4.6-sonnet-medium-thinking
+    model: "sonnet", // CLI alias; invoked runs stamp the exact reported model.
     effort: "high",
     autonomy: "auto",
     surfaces: ["docs", "api"],

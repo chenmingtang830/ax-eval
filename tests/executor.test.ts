@@ -74,4 +74,58 @@ describe("buildExecutorPrompt", () => {
     expect(prompt).toContain("LOW-EFFORT");
     expect(prompt).toMatch(/~40 API actions/);
   });
+
+  it("can scope the prompt to a single canonical task", () => {
+    const single = buildExecutorPrompt({
+      pack,
+      profile: getProfile("floor"),
+      ns: "joaufx-floor-ab12",
+      resultsPath: "results/run-floor-gen-l1-tasks.json",
+      tracePath: "results/run-floor-gen-l1-tasks.trace.json",
+      tasks: [pack.tasks[0]!],
+    });
+    expect(single).toContain("THIS ONE TASK");
+    expect(single).toContain("gen-l1-tasks");
+    expect(single).not.toContain("gen-l3-tasks");
+    expect(single).toContain("whether the task succeeded or failed");
+  });
+
+  it("can build a shared bootstrap prompt with no canonical task payload", () => {
+    const bootstrap = buildExecutorPrompt({
+      pack: { ...pack, tasks: [] },
+      profile: getProfile("floor"),
+      ns: "joaufx-floor-ab12",
+      resultsPath: "results/run-floor-bootstrap.json",
+      tracePath: "results/run-floor-bootstrap.trace.json",
+      tasks: [],
+    });
+    expect(bootstrap).toContain("shared bootstrap only");
+    expect(bootstrap).toContain("PHASE 1 — SHARED BOOTSTRAP OUTPUT");
+    expect(bootstrap).toContain('"results": {');
+    expect(bootstrap).toContain("report the shared discovery/bootstrap");
+  });
+
+  it("can reuse a shared bootstrap artifact for task-level prompts", () => {
+    const single = buildExecutorPrompt({
+      pack,
+      profile: getProfile("floor"),
+      ns: "joaufx-floor-ab12",
+      resultsPath: "results/run-floor-gen-l1-tasks.json",
+      tracePath: "results/run-floor-gen-l1-tasks.trace.json",
+      tasks: [pack.tasks[0]!],
+      sharedDiscovery: {
+        path: "results/run-floor-bootstrap.json",
+        base_url_found: "https://api.example.test",
+        endpoint_used: "POST /tasks",
+        auth_scheme_found: "Bearer token",
+        searches: ["asana api create task"],
+        urls_visited: ["https://developers.asana.com/docs"],
+        notes: "bootstrap ok",
+      },
+    });
+    expect(single).toContain("PHASE 0 — SHARED BOOTSTRAP");
+    expect(single).toContain("results/run-floor-bootstrap.json");
+    expect(single).toContain("Reuse that shared discovery");
+    expect(single).not.toContain("WEB SEARCH");
+  });
 });
