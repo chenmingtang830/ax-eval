@@ -67,11 +67,11 @@ describe("production rerun helpers", () => {
       "mongodb-atlas",
       "insforge",
     ]);
-    expect(defaultProductionRunRoot("/repo")).toBe("/repo/results/runs/daeb-1-v4-production");
-    expect(productionTrialDir("/repo/results/runs/daeb-1-v4-production", "neon", "api", "codex", 2))
-      .toBe("/repo/results/runs/daeb-1-v4-production/neon/api/codex/trial-2");
-    expect(productionAggregateDir("/repo/results/runs/daeb-1-v4-production", "neon", "api", "codex"))
-      .toBe("/repo/results/runs/daeb-1-v4-production/neon/api/codex/aggregate");
+    expect(defaultProductionRunRoot("/repo")).toBe("/repo/results/runs/daeb-production");
+    expect(productionTrialDir("/repo/results/runs/daeb-production", "neon", "api", "codex", 2))
+      .toBe("/repo/results/runs/daeb-production/neon/api/codex/trial-2");
+    expect(productionAggregateDir("/repo/results/runs/daeb-production", "neon", "api", "codex"))
+      .toBe("/repo/results/runs/daeb-production/neon/api/codex/aggregate");
   });
 
   it("aggregates three trial records into mean/range/reliability output", () => {
@@ -149,12 +149,13 @@ describe("production rerun helpers", () => {
 
   it("archives known debug artifacts into a separate manifest", () => {
     const root = freshDir();
-    const archiveRoot = resolve(root, "results", "runs", "daeb-1-v4-production", "_archive", "pre-production");
-    const previewDir = resolve(root, "results", "runs", "daeb-1-v3", "low-pass");
-    mkdirSync(resolve(root, "results", "runs", "daeb-1-v3", "targeted-low"), { recursive: true });
+    const runRoot = resolve(root, "results", "runs", "daeb-production");
+    const archiveRoot = resolve(runRoot, "_archive", "pre-production");
+    const previewDir = resolve(runRoot, "low-pass");
+    mkdirSync(resolve(runRoot, "targeted-low"), { recursive: true });
     mkdirSync(previewDir, { recursive: true });
     writeFileSync(resolve(previewDir, "competitive-matrix-preview-v2.html"), "<html></html>\n");
-    const entries = archiveDaebDebugArtifacts(root, archiveRoot);
+    const entries = archiveDaebDebugArtifacts(runRoot, archiveRoot);
     const manifestPath = writeArchiveManifest(archiveRoot, entries);
     expect(entries.some((entry) => entry.status === "archived")).toBe(true);
     expect(readFileSync(manifestPath, "utf8")).toContain("ax.daeb-production-archive/v1");

@@ -142,7 +142,7 @@ const BLOCKING_SIGNALS = ["canonical"] as const;
 // Pure analysis helpers (shared by the recommendations engine + the renderer).
 // ---------------------------------------------------------------------------
 
-/** N/A tasks (per DAEB-1 methodology) are excluded from both the numerator
+/** N/A tasks (per DAEB methodology) are excluded from both the numerator
  *  and denominator of any pass-rate figure — they're disclosed separately,
  *  never silently counted as failures. */
 function scoredOutcomes(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {

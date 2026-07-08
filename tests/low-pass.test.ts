@@ -66,8 +66,8 @@ describe("daeb low-pass helpers", () => {
   });
 
   it("uses the dedicated DAEB low-pass run root when no explicit run-dir is provided", () => {
-    expect(defaultLowPassRunRoot("/repo")).toBe("/repo/results/runs/daeb-1-v3/low-pass");
-    expect(defaultLowPassRunRoot("/repo", "results")).toBe("/repo/results/runs/daeb-1-v3/low-pass");
+    expect(defaultLowPassRunRoot("/repo")).toBe("/repo/results/runs/daeb-low-pass");
+    expect(defaultLowPassRunRoot("/repo", "results")).toBe("/repo/results/runs/daeb-low-pass");
     expect(defaultLowPassRunRoot("/repo", "tmp/custom-low-pass")).toBe("/repo/tmp/custom-low-pass");
   });
 

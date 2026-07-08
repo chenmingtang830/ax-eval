@@ -89,7 +89,7 @@ export function combinedResultPath(runDir: string, harness: "codex" | "claude-co
 
 export function defaultLowPassRunRoot(root: string, runDir?: string): string {
   if (!runDir || runDir === "results") {
-    return resolve(root, "results", "runs", "daeb-1-v3", "low-pass");
+    return resolve(root, "results", "runs", "daeb-low-pass");
   }
   return resolve(root, runDir);
 }
@@ -123,7 +123,7 @@ export function writeFailureClassificationStub(
   const artifactDir = dirname(outPath);
   const absolutize = (value: string): string => (isAbsolute(value) ? value : resolve(artifactDir, value));
   const lines: string[] = [
-    `# DAEB-1 low-pass failure review`,
+    `# DAEB low-pass failure review`,
     ``,
     `vendor: ${context.vendor}`,
     `surface: ${context.surface}`,

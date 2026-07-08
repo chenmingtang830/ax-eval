@@ -184,7 +184,7 @@ function commandUsage(command: string | undefined): string {
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
-        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB-1, ...)",
+        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB, ...)",
         "  docs-only mode: omit --from, pass --suite + --product + --docs.",
         "                  the LLM web-searches the product's docs in lieu of ingest.",
       ].join("\n");
@@ -271,7 +271,7 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
         "                             [--surface api|cli|all] [--run-dir <dir>]",
         "                             [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
-        "  Runs DAEB-1 task-level low coverage with Codex + Claude in parallel,",
+        "  Runs DAEB task-level low coverage with Codex + Claude in parallel,",
         "  one vendor/surface at a time, then verifies, writes a failure-review stub,",
         "  and optionally resets after artifacts are persisted.",
       ].join("\n");
@@ -282,7 +282,7 @@ function commandUsage(command: string | undefined): string {
         "                                     [--codex-model <slug>] [--claude-model <slug>]",
         "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
         "                                     [--skip-reset] [--skip-archive] [--reclaim]",
-        "  Runs the DAEB-1/database v1 production rerun lane with api/cli only,",
+        "  Runs the DAEB/database v1 production rerun lane with api/cli only,",
         "  one vendor → one surface → one harness → three medium-effort trials,",
         "  then writes aggregate mean/range/pass^3 artifacts under aggregate/.",
       ].join("\n");
@@ -372,7 +372,7 @@ interface Parsed {
   trial: number | undefined;
   minPassRate: number | undefined;
   trace: string;
-  /** Path to a canonical-task-suite YAML (DAEB-1, VAB-1, ...). When set,
+  /** Path to a canonical-task-suite YAML (DAEB, VAB, ...). When set,
    *  `generate` constrains the LLM to produce a pack whose task ids/titles/
    *  difficulties match the suite exactly — the mechanism that makes
    *  cross-vendor scores comparable. */
@@ -1742,7 +1742,7 @@ function writeProductionFailureClassificationStub(opts: {
 }): void {
   mkdirSync(dirname(opts.outPath), { recursive: true });
   writeFileSync(opts.outPath, [
-    "# DAEB-1 production rerun failure review",
+    "# DAEB production rerun failure review",
     "",
     `vendor: ${opts.vendor}`,
     `surface: ${opts.surface}`,
@@ -1929,14 +1929,14 @@ async function runProductionHarnessTrial(opts: {
 async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb-1-v3.yaml");
+  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb.yaml");
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =
     (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
     ?? ["api", "cli"];
   if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB-1/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
+    throw new Error(`DAEB/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
   }
   if (!Number.isInteger(args.trialCount) || args.trialCount < 1) {
     throw new Error("--trial-count must be a positive integer");
@@ -1950,7 +1950,7 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   mkdirSync(runRoot, { recursive: true });
   if (!args.skipArchive) {
     const archiveRoot = resolve(runRoot, "_archive", "pre-production");
-    const entries = archiveDaebDebugArtifacts(root, archiveRoot);
+    const entries = archiveDaebDebugArtifacts(runRoot, archiveRoot);
     const manifestPath = writeArchiveManifest(archiveRoot, entries);
     console.log(`Archived debug artifacts manifest → ${manifestPath}`);
   }
@@ -2038,14 +2038,14 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
 async function cmdDaebLowPass(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb-1-v3.yaml");
+  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb.yaml");
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =
     (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
     ?? ["api", "cli"];
   if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB-1/database v1 low-pass scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
+    throw new Error(`DAEB/database v1 low-pass scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
   }
   const vendors = args.vendor
     ? [args.vendor]
@@ -3414,7 +3414,7 @@ function efficiencyForRun(resultPath: string, transcriptPath: string | undefined
 }
 
 function passRate(runs: ProfileRun[]): number {
-  // N/A tasks (per DAEB-1 methodology) are excluded from both the numerator
+  // N/A tasks (per DAEB methodology) are excluded from both the numerator
   // and denominator — a vendor lacking a mechanism entirely shouldn't drag
   // its score down for something it structurally can't do.
   const outcomes = runs.flatMap((r) => r.outcomes).filter((o) => !o.na);

@@ -101,7 +101,7 @@ function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
 }
 
 /** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k).
- *  N/A tasks (per DAEB-1 methodology) are excluded from both solved and tasks. */
+ *  N/A tasks (per DAEB methodology) are excluded from both solved and tasks. */
 function passAtK(outcomes: RoundtripOutcome[]): { solved: number; tasks: number; k: number } {
   const byTask = new Map<string, RoundtripOutcome[]>();
   for (const o of outcomes) {

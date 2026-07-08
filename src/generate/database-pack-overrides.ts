@@ -31,7 +31,7 @@ const CONVEX_DEPLOYMENT_FLOW_NOTE = [
   "previous scaffold is missing or broken. In particular, if one task has already deployed successfully, treat later",
   "tasks as edits to that working local scaffold first, not as a reason to run `npm install` or other package bootstrap",
   "steps again.",
-  "For DAEB-1 Convex database tasks, prefer that preview-deployment path by default whenever the task needs task-local",
+  "For DAEB Convex database tasks, prefer that preview-deployment path by default whenever the task needs task-local",
   "tables, queries, actions, or verifier functions. Do not assume the base deployment already exposes benchmark helper",
   "functions for this namespace. After deploying, invoke the exact exported public function paths you just created and",
   "smoke-check them on the preview deployment before finalizing the reported `*_probe_path` fields.",

@@ -165,14 +165,24 @@ describe("cli arg handling", () => {
     }
   });
 
-  it("daeb-low-pass rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
-    const { code, out } = runCli(["daeb-low-pass", "--vendor", "neon", "--surface", "sdk"]);
+  it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {
+    const { code, out } = runCli([
+      "daeb-low-pass",
+      "--suite", "targets/suites/daeb-1-v3.yaml",
+      "--vendor", "neon",
+      "--surface", "sdk",
+    ]);
     expect(code).toBe(1);
     expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  it("daeb-production-rerun rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
-    const { code, out } = runCli(["daeb-production-rerun", "--vendor", "neon", "--surface", "sdk"]);
+  it("daeb-production-rerun rejects sdk because DAEB/database v1 scope is api+cli", () => {
+    const { code, out } = runCli([
+      "daeb-production-rerun",
+      "--suite", "targets/suites/daeb-1-v3.yaml",
+      "--vendor", "neon",
+      "--surface", "sdk",
+    ]);
     expect(code).toBe(1);
     expect(out).toContain('surface "sdk" is out of scope');
   });
