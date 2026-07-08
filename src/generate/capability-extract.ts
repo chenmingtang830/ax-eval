@@ -21,6 +21,7 @@ import {
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   ExtractionProvenanceSchema,
+  capabilityInventoryPath,
   legacyCapabilityExtractPath,
   writeCapabilityInventory,
 } from "./methodology.js";
@@ -176,14 +177,18 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: strin
     `- operation_kind: the primary operation type (create, read, update, search, migrate, restore, stream, etc.)`,
     `- surfaces_documented: subset of ["api","sdk","cli"] directly evidenced in the docs`,
     `- support_type: native | idiomatic-pattern | managed-surface | unknown`,
-    `- evidence: one or more objects with {doc_url, quote, note?}; doc_url must be a specific page, not only the docs root`,
-    `- extraction_provenance: {"source":"official-docs","extracted_at":"<iso>","extractor":"llm-capability-inventory-v1"}`,
+    `- evidence: one or more objects with {doc_url, quote, note?, strength?}; doc_url must be a specific page, not only the docs root`,
+    `  strength is "direct" when the quote directly documents the capability,`,
+    `  "derived_from_connection_surface" when a control-plane endpoint only exposes a SQL/wire/data-plane connection,`,
+    `  "summary_index" for llms.txt or other summary indexes, "marketing_claim" for product/marketing pages,`,
+    `  and "inferred" when the quote only indirectly supports the capability.`,
+    `- extraction_provenance: {"source":"official-docs","extracted_at":"<current ISO timestamp>","extractor":"llm-capability-inventory-v1"}`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"capabilities": [`,
     `  {"capability_name": "...", "title": "...", "description": "...", "resource_kind": "...",`,
-    `   "operation_kind": "...", "surfaces_documented": ["api","cli"], "support_type": "native", "evidence": [{"doc_url": "...", "quote": "..."}],`,
-    `   "extraction_provenance": {"source":"official-docs","extracted_at":"2026-01-01T00:00:00.000Z","extractor":"llm-capability-inventory-v1"}}`,
+    `   "operation_kind": "...", "surfaces_documented": ["api","cli"], "support_type": "native", "evidence": [{"doc_url": "...", "quote": "...", "strength": "direct"}],`,
+    `   "extraction_provenance": {"source":"official-docs","extracted_at":"<current ISO timestamp>","extractor":"llm-capability-inventory-v1"}}`,
     `]}`,
   ].filter((line): line is string => typeof line === "string").join("\n");
 }
@@ -197,6 +202,7 @@ export interface ExtractCapabilitiesOptions {
    *  slow doc crawl. When set, the call is NOT grounded (the spec is the
    *  authoritative surface), which also avoids the WebFetch grounding retry. */
   specSummary?: string;
+  specUrl?: string;
 }
 
 const TIMEOUT_MS = 12 * 60 * 1000;
@@ -238,6 +244,16 @@ export async function extractCapabilities(
     slug: vendor.slug,
     category: vendor.category,
     extracted_at: new Date().toISOString(),
+    extraction_context: {
+      mode: opts.specSummary ? "openapi-seeded" : "grounded-doc-crawl",
+      harness: opts.harness,
+      model: opts.model,
+      spec_url: opts.specUrl,
+    },
+    audit_status: "candidate",
+    audit_notes: opts.specSummary
+      ? ["Spec-seeded candidate inventory; data-plane capabilities require direct docs review before publication."]
+      : ["Grounded doc-crawl candidate inventory; citations require human review before publication."],
     capabilities: parsed.data.capabilities.map((cap) => ({
       ...cap,
       extraction_provenance: cap.extraction_provenance ?? {
@@ -268,7 +284,7 @@ export async function extractCapabilitiesAll(
 }
 
 export function capabilityExtractPath(root: string, slug: string): string {
-  return legacyCapabilityExtractPath(root, slug);
+  return capabilityInventoryPath(root, slug);
 }
 
 export function writeCapabilityExtract(root: string, result: CapabilityExtractResult): string {
@@ -278,7 +294,7 @@ export function writeCapabilityExtract(root: string, result: CapabilityExtractRe
 
 export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
   const inventoryPath = resolve(root, "targets", "extracts", slug, "capability-inventory.yaml");
-  const legacyPath = capabilityExtractPath(root, slug);
+  const legacyPath = legacyCapabilityExtractPath(root, slug);
 
   if (existsSync(inventoryPath)) {
     const inventoryRaw = readFileSync(inventoryPath, "utf8");

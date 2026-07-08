@@ -1,23 +1,27 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+
+schema: ax.surface-extract/v1
 vendor: Convex
 slug: convex
-extracted_at: 2026-07-08T08:08:17.710Z
+extracted_at: 2026-07-08T09:07:37.502Z
+extraction_context:
+  mode: manual-review
+  notes: Corrected CLI binary and headless deploy-key auth.
+audit_status: candidate
+audit_notes:
+  - Surface only covers Convex CLI; capability inventory still needs a data-plane
+    docs pass before publication.
 cli:
-  bin: npx convex
-  install: npm install convex
-  docs_url: https://docs.convex.dev/cli
+  bin: convex
+  install: npm install -g convex
+  docs_url: https://docs.convex.dev/cli/overview
   auth:
     kind: token
     token_env: CONVEX_DEPLOY_KEY
-sdk:
-  package: convex
-  language: node
-  reference_url: https://docs.convex.dev/api/modules/browser
-  auth:
-    kind: token
-mcp:
-  server: npx -y convex@latest mcp start
-  transport: stdio
-  docs_url: https://docs.convex.dev/ai/convex-mcp-server
-  auth:
-    kind: token
-    token_env: CONVEX_DEPLOY_KEY
+    instructions: Convex CLI commands can run non-interactively with a deployment
+      key in CONVEX_DEPLOY_KEY. Without that env var, the CLI falls back to an
+      interactive login/config-file flow.
+sdk: null
+mcp: null

@@ -1,6 +1,19 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+
+schema: ax.surface-extract/v1
 vendor: Mongodb Atlas
 slug: mongodb-atlas
 extracted_at: 2026-07-08T08:07:43.494Z
+extraction_context:
+  mode: manual-review
+  notes: Corrected auth to include the required service-account secret and MCP
+    connection string in addition to client ID.
+audit_status: candidate
+audit_notes:
+  - Atlas CLI/MCP require multi-env credentials; verify project/org scoping before
+    benchmark execution.
 cli:
   bin: atlas
   install: brew install mongodb-atlas-cli
@@ -8,6 +21,9 @@ cli:
   auth:
     kind: token
     token_env: MONGODB_ATLAS_CLIENT_ID
+    client_secret_env: MONGODB_ATLAS_CLIENT_SECRET
+    instructions: Service-account authentication for headless Atlas CLI commands
+      requires both MONGODB_ATLAS_CLIENT_ID and MONGODB_ATLAS_CLIENT_SECRET.
 sdk: null
 mcp:
   server: npx -y mongodb-mcp-server@latest
@@ -15,4 +31,9 @@ mcp:
   docs_url: https://www.mongodb.com/docs/mcp-server/get-started/
   auth:
     kind: token
-    token_env: MDB_MCP_API_CLIENT_ID
+    token_env: MONGODB_URI
+    client_id_env: MONGODB_ATLAS_CLIENT_ID
+    client_secret_env: MONGODB_ATLAS_CLIENT_SECRET
+    instructions: MongoDB MCP requires a MongoDB connection string for data-plane
+      tools. Atlas-specific MCP tools additionally require Atlas service-account
+      client ID and secret.

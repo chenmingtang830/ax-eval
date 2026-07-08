@@ -29,8 +29,15 @@ For DAEB-1, the vendor files are layered:
   docs URL, site URL, category metadata.
 - `targets/extracts/<vendor>/daeb-1-v3.yaml` — vendor-specific verifier adapter:
   read-back checks, auth/base URL, N/A mapping.
-- `targets/extracts/<vendor>/surfaces.yaml` — optional CLI/SDK surface
-  adapter.
+- `targets/extracts/<vendor>/surfaces.yaml` — optional CLI/SDK/MCP surface
+  adapters for the agent (`extract-surfaces`). REST API is the implicit default
+  surface and is intentionally omitted from this file; API auth/base URL live in
+  the oracle extract.
+- `targets/extracts/<vendor>/capability-inventory.yaml` — cited capability
+  inventory (`extract-capabilities`). Each entry's `surfaces_documented` field
+  records which surfaces the official docs say can perform that capability
+  (documentation attribution for suite synthesis), which is separate from
+  `surfaces.yaml`.
 - `targets/packs/<vendor>/daeb-1-v3.yaml` — compiled executable `TargetPack`
   produced from the canonical suite plus the adapters above.
 
@@ -43,6 +50,29 @@ suite layer were derived without collapsing them into one score.
 The compiled DAEB-1 packs are not separate benchmark definitions. They exist so
 `exec-plan` and `verify-generated` can run against each vendor while preserving
 one shared suite and scoring contract.
+
+## Auditing Extracts
+
+Files under `targets/extracts/<vendor>/` are candidate methodology inputs until
+the pipeline-review gate signs them off. For publication work, review them in
+this order:
+
+1. Rerun `ax-eval extract-surfaces` and `ax-eval extract-capabilities` (with
+   registry/OpenAPI seeds where available) and diff capability slugs, evidence
+   URLs, and surface auth fields.
+2. Spot-check each quoted `doc_url`. Capability evidence marked
+   `derived_from_connection_surface`, `summary_index`, `marketing_claim`, or
+   `inferred` needs an explicit reviewer decision before it can support a
+   behavioral task.
+3. Verify `surfaces_documented` describes documented capability attribution, not
+   merely agent setup. The implicit API surface comes from the oracle extract;
+   non-API execution surfaces must be declared in `surfaces.yaml` or generated
+   by a vendor-specific fallback.
+4. Keep managed-only capabilities (`support_type: managed-surface`) out of the
+   behavioral suite unless the task can perform and verify a user-visible state
+   change.
+5. Reconcile accepted capabilities with the suite coverage matrix, selection
+   ledger, and support matrix before publishing.
 
 ## Good Starting Points
 

@@ -8,3 +8,4 @@ resolver:
 site_url: https://neon.com
 docs_url: https://neon.com/docs/reference/api-reference
 http_status: null
+openapi_url: https://neon.com/api_spec/release/v2.json

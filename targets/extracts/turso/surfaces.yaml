@@ -1,6 +1,18 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+
+schema: ax.surface-extract/v1
 vendor: Turso
 slug: turso
 extracted_at: 2026-07-08T08:08:24.475Z
+extraction_context:
+  mode: registry-seeded-grounded
+  notes: Candidate surface extract with SDK token auth and OAuth-only CLI/MCP paths.
+audit_status: candidate
+audit_notes:
+  - CLI and MCP appear OAuth-oriented; SDK is the most clearly headless token-friendly
+    non-API surface.
 cli:
   bin: turso
   install: brew install tursodatabase/tap/turso

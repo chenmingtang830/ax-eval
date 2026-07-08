@@ -252,6 +252,7 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval extract-surfaces [--vendor <slug>] [--vendors <a,b,c>]",
         "                                [--harness claude-code|codex] [--effort low|medium|high]",
         "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
+        "  REST API is the implicit default surface and is not written to this file.",
         "  The round-trip oracle never changes per surface — this only affects how the",
         "  agent is told to act on non-API surfaces. Writes targets/extracts/<slug>/surfaces.yaml.",
       ].join("\n");
@@ -265,7 +266,7 @@ function commandUsage(command: string | undefined): string {
         "  (the vendor card's openapi_url from import-registry, or a --specs",
         "  override) are seeded from the spec's operations (fast, no blind crawl);",
         "  the rest are grounded by reading the docs. Runs at concurrency 3. Writes",
-        "  targets/extracts/<slug>/capability-inventory.yaml (and a legacy capabilities.yaml).",
+        "  targets/extracts/<slug>/capability-inventory.yaml.",
       ].join("\n");
     case "synthesize-suite":
       return [
@@ -1706,6 +1707,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
         model: args.generatorModel || undefined,
         effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
         specSummary,
+        specUrl: specSummary ? specUrl : undefined,
       });
       const path = writeCapabilityExtract(root, result);
       console.log(`\n  ${vendor.vendor} → ${path} (${result.capabilities.length} capabilities)`);

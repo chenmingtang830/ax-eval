@@ -1,7 +1,22 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+
+schema: ax.capability-inventory/v1
 vendor: Insforge
 slug: insforge
 category: database
 extracted_at: 2026-07-08T08:26:50.860Z
+methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extraction_context:
+  mode: grounded-doc-crawl
+  notes: Grounded candidate inventory with multi-page citations; managed-only and
+    marketing-page evidence require reviewer gating before behavioral synthesis.
+audit_status: candidate
+audit_notes:
+  - Managed-surface capabilities with no executable surface should remain static
+    readiness evidence unless a task can perform and verify a state change.
 capabilities:
   - capability_name: table-creation
     title: Table Creation via SQL DDL

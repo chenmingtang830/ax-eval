@@ -183,14 +183,14 @@ function mapAuth(
   entry: RegistrySurfaceEntry,
   surface: RegistrySurface,
   sharedHttpIds: Set<string>,
-): { kind: "inherit" | "token" | "oauth_app"; instructions?: string } {
+): { kind: "inherit" | "token" | "oauth_app"; token_env_aliases: string[]; instructions?: string } {
   const credId = firstCredentialId(entry);
-  if (!credId) return { kind: "inherit" };
+  if (!credId) return { kind: "inherit", token_env_aliases: [] };
   const cred = surface.credentials?.[credId];
   const instructions = cred?.setup ?? cred?.label;
-  if (sharedHttpIds.has(credId)) return { kind: "inherit", instructions };
-  if ((cred?.type ?? "").toLowerCase().includes("oauth")) return { kind: "oauth_app", instructions };
-  return { kind: "token", instructions };
+  if (sharedHttpIds.has(credId)) return { kind: "inherit", token_env_aliases: [], instructions };
+  if ((cred?.type ?? "").toLowerCase().includes("oauth")) return { kind: "oauth_app", token_env_aliases: [], instructions };
+  return { kind: "token", token_env_aliases: [], instructions };
 }
 
 /** Best available launch string for an MCP surface: an http url, an explicit
@@ -304,9 +304,16 @@ export function registryToSurfaceExtract(surface: RegistrySurface, opts: Registr
     : null;
 
   return {
+    schema: "ax.surface-extract/v1",
     vendor: vendorName,
     slug,
     extracted_at: new Date().toISOString(),
+    extraction_context: {
+      mode: "registry-seeded-grounded",
+      notes: "Seeded from integrations.sh registry; run extract-surfaces to verify against vendor docs.",
+    },
+    audit_status: "candidate",
+    audit_notes: ["Registry surface data is a hypothesis until verified against live vendor docs."],
     cli,
     sdk: null,
     mcp,

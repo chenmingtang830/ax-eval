@@ -181,22 +181,29 @@ export function databaseSurfaceFallback(
   if (vendor.slug === "cockroachdb") {
     if (extract.vendor_config.sql_dialect !== "postgres" || !extract.vendor_config.sql_connection_env) return undefined;
     return {
+      schema: "ax.surface-extract/v1",
       vendor: vendor.vendor,
       slug: vendor.slug,
       extracted_at: "2026-07-02T00:00:00.000Z",
+      extraction_context: {
+        mode: "manual-review",
+        notes: "Vendor-specific fallback for SQL wire protocol surfaces.",
+      },
+      audit_status: "candidate",
+      audit_notes: ["Fallback surface generated from SQL connection metadata; verify docs before publication."],
       cli: {
         bin: "psql",
         install: "Install PostgreSQL client tools (for example: brew install libpq, then add libpq/bin to PATH).",
         help: "psql --help",
         docs_url: "https://www.cockroachlabs.com/docs/stable/connect-to-the-database.html",
-        auth: { kind: "token", token_env: extract.vendor_config.sql_connection_env },
+        auth: { kind: "token", token_env: extract.vendor_config.sql_connection_env, token_env_aliases: [] },
       },
       sdk: {
         package: "pg",
         language: "node",
         install: "npm install pg",
         reference_url: "https://www.cockroachlabs.com/docs/stable/build-a-nodejs-app-with-cockroachdb.html",
-        auth: { kind: "token", token_env: extract.vendor_config.sql_connection_env },
+        auth: { kind: "token", token_env: extract.vendor_config.sql_connection_env, token_env_aliases: [] },
       },
       mcp: null,
     };
@@ -204,44 +211,58 @@ export function databaseSurfaceFallback(
   if (vendor.slug === "mongodb-atlas") {
     if (!extract.vendor_config.mongo_connection_env) return undefined;
     return {
+      schema: "ax.surface-extract/v1",
       vendor: vendor.vendor,
       slug: vendor.slug,
       extracted_at: "2026-07-02T00:00:00.000Z",
+      extraction_context: {
+        mode: "manual-review",
+        notes: "Vendor-specific fallback for MongoDB wire protocol surfaces.",
+      },
+      audit_status: "candidate",
+      audit_notes: ["Fallback surface generated from MongoDB connection metadata; verify docs before publication."],
       cli: {
         bin: "mongosh",
         install: "Install MongoDB Shell from the official MongoDB Shell installation docs.",
         help: "mongosh --help",
         docs_url: "https://www.mongodb.com/docs/mongodb-shell/",
-        auth: { kind: "token", token_env: extract.vendor_config.mongo_connection_env },
+        auth: { kind: "token", token_env: extract.vendor_config.mongo_connection_env, token_env_aliases: [] },
       },
       sdk: {
         package: "mongodb",
         language: "node",
         install: "npm install mongodb",
         reference_url: "https://www.mongodb.com/docs/drivers/node/current/",
-        auth: { kind: "token", token_env: extract.vendor_config.mongo_connection_env },
+        auth: { kind: "token", token_env: extract.vendor_config.mongo_connection_env, token_env_aliases: [] },
       },
       mcp: null,
     };
   }
   if (vendor.slug === "turso") {
     return {
+      schema: "ax.surface-extract/v1",
       vendor: vendor.vendor,
       slug: vendor.slug,
       extracted_at: "2026-07-02T00:00:00.000Z",
+      extraction_context: {
+        mode: "manual-review",
+        notes: "Vendor-specific fallback for Turso CLI and libSQL SDK surfaces.",
+      },
+      audit_status: "candidate",
+      audit_notes: ["Fallback surface generated from vendor pack auth metadata; verify docs before publication."],
       cli: {
         bin: "turso",
         install: "Install the official Turso CLI from the Turso CLI documentation.",
         help: "turso --help",
         docs_url: "https://docs.turso.tech/cli",
-        auth: { kind: "token", token_env: extract.vendor_config.auth_env },
+        auth: { kind: "token", token_env: extract.vendor_config.auth_env, token_env_aliases: [] },
       },
       sdk: {
         package: "@libsql/client",
         language: "node",
         install: "npm install @libsql/client",
         reference_url: "https://docs.turso.tech/sdk/ts/reference",
-        auth: { kind: "token", token_env: extract.vendor_config.auth_env },
+        auth: { kind: "token", token_env: extract.vendor_config.auth_env, token_env_aliases: [] },
       },
       mcp: null,
     };

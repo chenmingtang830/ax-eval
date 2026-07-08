@@ -20,9 +20,16 @@ import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
+const SURFACE_EXTRACT_SCHEMA_VERSION = "ax.surface-extract/v1" as const;
+
 const SurfaceAuthExtractSchema = z.object({
   kind: z.enum(["inherit", "token", "oauth_app"]),
   token_env: z.string().nullish().transform((v) => v ?? undefined),
+  token_env_aliases: z.array(z.string()).default([]),
+  client_id_env: z.string().nullish().transform((v) => v ?? undefined),
+  client_secret_env: z.string().nullish().transform((v) => v ?? undefined),
+  refresh_token_env: z.string().nullish().transform((v) => v ?? undefined),
+  token_url: z.string().url().nullish().transform((v) => v ?? undefined),
   instructions: z.string().nullish().transform((v) => v ?? undefined),
 });
 
@@ -51,9 +58,18 @@ const McpExtractSchema = z.object({
 });
 
 const SurfaceExtractResultSchema = z.object({
+  schema: z.literal(SURFACE_EXTRACT_SCHEMA_VERSION).default(SURFACE_EXTRACT_SCHEMA_VERSION),
   vendor: z.string(),
   slug: z.string(),
   extracted_at: z.string(),
+  extraction_context: z.object({
+    mode: z.enum(["registry-seeded-grounded", "grounded-doc-crawl", "manual-review"]),
+    harness: z.string().optional(),
+    model: z.string().optional(),
+    notes: z.string().optional(),
+  }).optional(),
+  audit_status: z.enum(["candidate", "reviewed", "needs-reextract"]).default("candidate"),
+  audit_notes: z.array(z.string()).default([]),
   cli: CliExtractSchema.nullable(),
   sdk: SdkExtractSchema.nullable(),
   mcp: McpExtractSchema.nullable(),
@@ -97,24 +113,25 @@ function buildSurfacePrompt(vendor: ResolveResult, prior?: SurfaceExtractResult)
     `  - docs_url: CLI docs page`,
     `  - auth: how the CLI authenticates non-interactively (for a headless/CI run, NOT interactive login):`,
     `    "inherit" if it uses the SAME token as the REST API, "token" if it needs its own env var (give`,
-    `    token_env, a SCREAMING_SNAKE_CASE name), "oauth_app" if only interactive OAuth login works headlessly`,
-    `    (no env-var path at all).`,
+    `    token_env, a SCREAMING_SNAKE_CASE name; token_env_aliases if the vendor supports equivalent env names),`,
+    `    "oauth_app" if headless use needs OAuth app env vars (client_id_env, client_secret_env, refresh_token_env, token_url).`,
     `- sdk: the official first-party SDK/client library for a common language (prefer Node/JS/TypeScript if`,
     `  multiple exist). null if none exists.`,
     `  - package: the package name (e.g. "@supabase/supabase-js")`,
     `  - language: e.g. "node"`,
     `  - reference_url: SDK reference docs page`,
-    `  - auth: same kind/token_env convention as above — does the SDK use the same credential as the REST API?`,
+    `  - auth: same convention as above — does the SDK use the same credential as the REST API, a connection string,`,
+    `    or a vendor-specific token?`,
     `- mcp: an official MCP server for this vendor. null if none exists.`,
     `  - server: the stdio launch command (e.g. "npx -y @supabase/mcp-server-supabase@latest") or the http URL`,
     `  - transport: "stdio" or "http"`,
     `  - docs_url: MCP setup docs page`,
-    `  - auth: same kind/token_env convention — can a headless run authenticate with an env-var token, or is`,
-    `    it OAuth-only?`,
+    `  - auth: same convention — include all required env names for MCP setup (for example connection string plus`,
+    `    service-account client id/secret), not just the first credential mentioned in the docs.`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{`,
-    `  "cli": {"bin": "...", "install": "...", "docs_url": "...", "auth": {"kind": "inherit"|"token"|"oauth_app", "token_env": "..." or null}} or null,`,
+    `  "cli": {"bin": "...", "install": "...", "docs_url": "...", "auth": {"kind": "inherit"|"token"|"oauth_app", "token_env": "..." or null, "token_env_aliases": [], "client_id_env": null, "client_secret_env": null, "refresh_token_env": null, "token_url": null, "instructions": "..." or null}} or null,`,
     `  "sdk": {"package": "...", "language": "...", "reference_url": "...", "auth": {...}} or null,`,
     `  "mcp": {"server": "...", "transport": "stdio"|"http", "docs_url": "...", "auth": {...}} or null`,
     `}`,
@@ -163,6 +180,16 @@ export async function extractSurfaces(
     vendor: vendor.vendor,
     slug: vendor.slug,
     extracted_at: new Date().toISOString(),
+    extraction_context: {
+      mode: opts.prior ? "registry-seeded-grounded" : "grounded-doc-crawl",
+      harness: opts.harness,
+      model: opts.model,
+      notes: opts.prior
+        ? "Registry-seeded hypothesis corrected against live docs."
+        : "Grounded doc-crawl surface candidate.",
+    },
+    audit_status: "candidate",
+    audit_notes: ["Verify headless auth fields against vendor docs before publication."],
     ...parsed.data,
   });
 }
@@ -171,10 +198,49 @@ export function surfaceExtractPath(root: string, slug: string): string {
   return resolve(root, "targets", "extracts", slug, "surfaces.yaml");
 }
 
+const SURFACE_EXTRACT_HEADER = [
+  "# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).",
+  "# REST API is always the implicit default surface and is intentionally omitted here;",
+  "# API auth and base URL come from the vendor oracle extract, not this file.",
+  "",
+].join("\n");
+
+function surfaceAuthNotes(label: string, auth: z.infer<typeof SurfaceAuthExtractSchema> | undefined): string[] {
+  if (!auth) return [];
+  const notes: string[] = [];
+  const instructions = auth.instructions?.toLowerCase() ?? "";
+  if (auth.kind === "token" && !auth.token_env && !auth.client_id_env && !auth.client_secret_env && !auth.refresh_token_env) {
+    notes.push(`${label} declares token auth but no headless credential env var.`);
+  }
+  if (auth.kind === "inherit" && /\boauth\b|browser|approve access|dynamic client registration|mcp client/.test(instructions)) {
+    notes.push(`${label} inherit auth mentions OAuth/browser/MCP setup; verify it is not copied from another surface.`);
+  }
+  if ((auth.client_id_env || auth.client_secret_env) && !(auth.client_id_env && auth.client_secret_env)) {
+    notes.push(`${label} OAuth/service-account auth names only one side of the client id/secret pair.`);
+  }
+  return notes;
+}
+
+export function auditSurfaceExtract(result: z.input<typeof SurfaceExtractResultSchema>): SurfaceExtractResult {
+  const parsed = SurfaceExtractResultSchema.parse(result);
+  const auditNotes = [
+    ...(parsed.audit_notes ?? []),
+    ...surfaceAuthNotes("cli", parsed.cli?.auth),
+    ...surfaceAuthNotes("sdk", parsed.sdk?.auth),
+    ...surfaceAuthNotes("mcp", parsed.mcp?.auth),
+  ];
+  return SurfaceExtractResultSchema.parse({
+    ...parsed,
+    schema: SURFACE_EXTRACT_SCHEMA_VERSION,
+    audit_status: parsed.audit_status ?? "candidate",
+    audit_notes: Array.from(new Set(auditNotes)),
+  });
+}
+
 export function writeSurfaceExtract(root: string, result: SurfaceExtractResult): string {
   const path = surfaceExtractPath(root, result.slug);
   mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(result));
+  writeFileSync(path, `${SURFACE_EXTRACT_HEADER}${yamlStringify(auditSurfaceExtract(result))}`);
   return path;
 }
 

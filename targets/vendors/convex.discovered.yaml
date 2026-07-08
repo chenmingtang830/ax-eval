@@ -8,3 +8,4 @@ resolver:
 site_url: https://convex.dev
 docs_url: https://docs.convex.dev/management-api
 http_status: null
+openapi_url: https://api.convex.dev/v1/openapi.json

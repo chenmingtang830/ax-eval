@@ -8,3 +8,4 @@ resolver:
 site_url: https://supabase.com
 docs_url: https://api.supabase.com/api/v1
 http_status: null
+openapi_url: https://api.supabase.com/api/v1-json

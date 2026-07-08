@@ -1,1287 +1,905 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+
+schema: ax.capability-inventory/v1
 vendor: Cockroachdb
 slug: cockroachdb
 category: database
-extracted_at: 2026-07-08T08:43:29.032Z
+extracted_at: 2026-07-08T09:25:15.618Z
+methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extraction_context:
+  mode: grounded-doc-crawl
+  notes: Candidate inventory generated from official docs; SQL/data-plane capabilities
+    inferred from documented connection-string access need direct SQL docs review before
+    publication.
+audit_status: candidate
+audit_notes:
+  - Many SQL capabilities cite the Cloud API connection-string endpoint plus notes;
+    direct SQL docs should be added before using those entries as final publication
+    evidence.
 capabilities:
+  - capability_name: cluster-provisioning
+    title: Cluster Provisioning
+    description: Create, initialize, list, and delete CockroachDB Cloud clusters
+      across available regions and hardware configurations. Supports querying
+      available regions and existing cluster details before provisioning.
+    resource_kind: cluster
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters — Create and initialize a new cluster
+        note: "Also: GET /api/v1/clusters (list), GET /api/v1/clusters/{cluster_id} (get
+          extended info), DELETE /api/v1/clusters/{cluster_id}, GET
+          /api/v1/clusters/available-regions"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cluster-scaling
+    title: Cluster Scaling and Configuration
+    description: Scale a cluster's compute or storage resources and edit cluster
+      configuration through the management API, supporting live adjustments
+      without re-creation.
+    resource_kind: cluster
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: PATCH /api/v1/clusters/{cluster_id} — Scale, edit or upgrade a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cluster-version-management
+    title: Cluster Version Listing and Upgrade Control
+    description: List all available major CockroachDB cluster versions and get or
+      set a deferral policy that postpones automatic major-version upgrades for
+      a specific cluster.
+    resource_kind: cluster
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/cluster-versions — List available major cluster versions
+        note: "Also: GET /api/v1/clusters/{cluster_id}/version-deferral — Get the
+          version upgrade deferral policy; PUT
+          /api/v1/clusters/{cluster_id}/version-deferral — Set the version
+          upgrade deferral policy"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: node-inspection
+    title: Cluster Node Inspection
+    description: List the individual nodes comprising a cluster to surface
+      node-level topology, helping with capacity planning, monitoring, and
+      debugging.
+    resource_kind: node
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/nodes — List nodes for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: connection-string-retrieval
+    title: Connection String Retrieval
+    description: Retrieve a formatted generic connection string for a cluster,
+      providing the credentials and endpoint needed to connect via CockroachDB's
+      PostgreSQL-compatible wire protocol.
+    resource_kind: cluster
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: This endpoint exposes the SQL wire-protocol surface; all SQL-layer
+          capabilities below are accessible via the returned connection string
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-management
+    title: Database Namespace Management
+    description: Create, list, rename, and delete logical databases within a
+      CockroachDB cluster, establishing isolated namespaces that each contain
+      their own tables and schema objects.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/databases — Create a new database; GET
+          /api/v1/clusters/{cluster_id}/databases — List databases for a
+          cluster; PATCH /api/v1/clusters/{cluster_id}/databases/{name} — Update
+          a database; DELETE /api/v1/clusters/{cluster_id}/databases/{name} —
+          Delete a database
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
   - capability_name: table-definition
-    title: Create Tables with Columns and Constraints
-    description: CREATE TABLE with rich column types (UUID, STRING, INT, DECIMAL,
-      JSONB, VECTOR, TIMESTAMP, etc.), column families, primary keys, NOT NULL,
-      UNIQUE, CHECK, DEFAULT, ON UPDATE, COLLATE, and GENERATED
-      (computed/identity) columns.
+    title: Table Definition (SQL DDL)
+    description: Create, alter, and drop tables with typed columns and primary keys
+      using CockroachDB's PostgreSQL-compatible SQL DDL surface, accessible via
+      the cluster connection string.
     resource_kind: table
     operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-table.html
-        quote: CockroachDB supports creating tables with 'a name/identifier and data
-          type' for each column, plus optional qualifications like constraints
-          and default values.
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Full support for NOT NULL, UNIQUE, PRIMARY KEY, CHECK, FOREIGN KEY, and
-          DEFAULT VALUE constraints.
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB exposes a PostgreSQL-compatible SQL wire protocol; CREATE
+          TABLE, ALTER TABLE, DROP TABLE are part of the standard SQL DDL
+          surface accessible via this connection
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: schema-objects
-    title: Database, Schema, Sequence, and View Object Management
-    description: CREATE/DROP/ALTER for databases, user-defined schemas, sequences,
-      temporary objects, and views organized in a three-tier hierarchy (database
-      → schema → tables/objects).
-    resource_kind: schema
+  - capability_name: constraint-management
+    title: Constraint Management (SQL)
+    description: Define and enforce primary keys, foreign key relationships, unique
+      constraints, NOT NULL, and CHECK constraints on tables via SQL DDL to
+      guarantee data integrity at the schema level.
+    resource_kind: constraint
     operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/schema-design-overview.html
-        quote: Schemas comprise the second tier, with each schema belonging to a single
-          database. Each schema includes 'tables and other objects, like views
-          and sequences.'
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB's PostgreSQL-compatible SQL surface supports PRIMARY KEY,
+          FOREIGN KEY, UNIQUE, NOT NULL, and CHECK constraints via CREATE TABLE
+          and ALTER TABLE
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: computed-columns
-    title: Computed Columns (Stored and Virtual)
-    description: Columns whose values are derived from SQL expressions over other
-      columns in the same row; can be STORED (persisted to disk) or VIRTUAL
-      (computed at query time). Usable as index keys.
-    resource_kind: column
+  - capability_name: index-management
+    title: Index Management (SQL)
+    description: Create, inspect, and drop secondary indexes — including partial,
+      expression, and multi-column indexes — on tables via SQL DDL to optimize
+      query performance.
+    resource_kind: index
     operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: computed columns (stored and virtual), ON UPDATE expressions,
-          multi-region capabilities, sequences, identity columns, views,
-          materialized views, window functions
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: row-insert
-    title: Row Insert
-    description: INSERT statement for adding single or multiple rows to a table,
-      with support for RETURNING clause and conflict handling.
-    resource_kind: row
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: "'Common statements' are supported, plus UPSERT, EXPLAIN, 'SELECT ...
-          INTO,' and 'SELECT FOR UPDATE.'"
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: LIMIT, LIMIT with OFFSET, and RETURNING clauses all supported.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: row-update
-    title: Row Update
-    description: UPDATE statement for modifying existing rows, supporting WHERE
-      filtering, RETURNING clause, and multi-table updates via joins.
-    resource_kind: row
-    operation_kind: update
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Full ALTER TABLE support including renames, column type changes,
-          adding/removing columns and constraints.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: row-delete
-    title: Row Delete
-    description: DELETE statement for removing rows matching a WHERE predicate, with
-      support for RETURNING clause and cascading deletes via foreign key
-      actions.
-    resource_kind: row
-    operation_kind: delete
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: "'Common statements' are supported, plus UPSERT, EXPLAIN, 'SELECT ...
-          INTO,' and 'SELECT FOR UPDATE.'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: upsert
-    title: Upsert / Insert-or-Update
-    description: UPSERT statement and INSERT ... ON CONFLICT ... DO UPDATE for
-      inserting rows or updating them when a uniqueness constraint is violated;
-      supports non-primary-key conflict targets via ON CONFLICT.
-    resource_kind: row
-    operation_kind: update
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/upsert.html
-        quote: The UPSERT statement inserts rows in cases where specified values do not
-          violate uniqueness constraints and updates rows in cases where values
-          do violate uniqueness constraints.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: bulk-import
-    title: Bulk Data Import
-    description: IMPORT INTO statement appends data from CSV, Avro
-      (OCF/JSON/binary), Parquet, and delimited files stored in cloud storage
-      (S3, GCS, Azure) or accessible URLs into existing tables.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/import-into.html
-        quote: "CockroachDB's IMPORT INTO statement handles four primary formats: CSV,
-          Avro (including OCF, JSON records, and binary records), Parquet ('flat
-          schemas with primitive types', preview feature), and Delimited Data."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: data-export
-    title: Data Export to External Storage
-    description: EXPORT statement writes SELECT query results as CSV or Parquet
-      files to cloud storage (S3, GCS, Azure) or local file servers; supports
-      compression, chunking, and parallelized DistSQL execution.
-    resource_kind: table
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/export.html
-        quote: Exports return filename, row count, and file size in bytes. Parallelized
-          execution across cluster nodes via DistSQL. SELECT statement
-          support—export query results, not just tables.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: filtered-query
-    title: Filtered Row Retrieval
-    description: SELECT with WHERE clause supporting single/multi-column predicates,
-      IN, LIKE/ILIKE, POSIX regex, BETWEEN, IS NULL, and any boolean expression
-      including subqueries.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: "WHERE clause: 'Only retrieve rows that return TRUE for a_expr.' Single
-          and multiple conditions using AND/OR/NOT operators. IN operator for
-          list-based filtering. LIKE operator with wildcards."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: query-sorting-pagination
-    title: Query Sorting and Pagination
-    description: ORDER BY with multi-column sort and DESC/ASC direction; LIMIT and
-      LIMIT/OFFSET for keyset or offset pagination; DISTINCT and DISTINCT ON for
-      deduplication.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: ORDER BY for result ordering. LIMIT/OFFSET for pagination. Reverse scans
-          with DESC direction.
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: LIMIT, LIMIT with OFFSET, and RETURNING clauses all supported.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: aggregation-query
-    title: Aggregation and Grouping
-    description: GROUP BY with aggregate functions (MIN, MAX, SUM, COUNT, AVG),
-      HAVING clause for post-aggregation filtering, FILTER clause per aggregate,
-      and ORDER BY within aggregates for ordered aggregation.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: "FILTER clause to selectively process rows: 'those that return FALSE or
-          NULL for the FILTER clause's Boolean expression are not fed into the
-          aggregate function.' GROUP BY for creating aggregate groups. HAVING
-          for filtering aggregate results."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: join-query
-    title: Multi-Table Joins
-    description: All standard JOIN types (INNER, LEFT/RIGHT/FULL OUTER, CROSS) plus
-      natural joins; lateral subqueries; set operations (UNION, INTERSECT,
-      EXCEPT).
-    resource_kind: table
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: JOIN operations (all types), aliased expressions, and subqueries
-          supported.
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: Set operations (UNION, INTERSECT, EXCEPT)
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: window-functions
-    title: Window / Analytic Functions
-    description: SQL window functions (OVER clause with PARTITION BY and ORDER BY)
-      for running totals, rank, lag/lead, and other analytic computations
-      without collapsing rows.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: window functions, common table expressions, stored procedures (partial),
-          cursors (partial), triggers (partial)
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: Window functions support
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: common-table-expressions
-    title: Common Table Expressions (CTEs)
-    description: WITH queries including multiple named CTEs, recursive CTEs with
-      UNION/UNION ALL, correlated CTEs, MATERIALIZED/NOT MATERIALIZED hints, and
-      data-modifying CTEs (INSERT/UPDATE/DELETE in WITH).
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/common-table-expressions.html
-        quote: A common table expression (CTE), also called a WITH query, provides a
-          shorthand name to a possibly complex subquery before it is used in a
-          larger query context. Recursive CTEs allow subqueries to reference
-          their own output.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: time-travel-query
-    title: Historical / Time-Travel Queries
-    description: AS OF SYSTEM TIME clause on SELECT (and materialized view refresh)
-      allows querying the database state at a past timestamp, useful for
-      reducing contention and consistent reporting.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: "AS OF SYSTEM TIME: Time-travel queries for historical data"
-      - doc_url: https://www.cockroachlabs.com/docs/stable/views.html
-        quote: Compatible with AS OF SYSTEM TIME for historical data and contention
-          reduction
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB's SQL surface supports CREATE INDEX, CREATE UNIQUE INDEX, DROP
+          INDEX, and index-aware query planning via the PostgreSQL-compatible
+          wire protocol
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
   - capability_name: schema-introspection
-    title: Schema Introspection
-    description: SHOW TABLES, SHOW DATABASES, SHOW SCHEMAS, SHOW CREATE, SHOW
-      COLUMNS, plus information_schema (86+ views), pg_catalog, and
-      crdb_internal virtual schemas for programmatic metadata access.
+    title: Schema Introspection (SQL)
+    description: Query information_schema and pg_catalog system catalogs to discover
+      tables, columns, indexes, constraints, and sequences without explicit
+      metadata APIs.
     resource_kind: schema
     operation_kind: read
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/show-tables.html
-        quote: SHOW TABLES lists 'schema, table name, table type, owner, and estimated
-          row count for the tables or views in a schema or database.'
-          CockroachDB includes virtual tables accessible through
-          information_schema schema with 86+ documented views.
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB's PostgreSQL-compatible SQL surface exposes information_schema
+          and pg_catalog for schema discovery and introspection
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: online-schema-change
-    title: Online Schema Changes (Non-Blocking DDL)
-    description: ALTER TABLE, CREATE INDEX, ALTER PRIMARY KEY, TRUNCATE, and other
-      DDL execute online — concurrent reads and writes are permitted while the
-      schema change backfills in the background as a pausable/resumable job.
-    resource_kind: table
-    operation_kind: migrate
+  - capability_name: data-write
+    title: Row-Level Data Write (SQL DML)
+    description: Insert, update, delete, and upsert rows in tables using SQL DML
+      (INSERT, UPDATE, DELETE, UPSERT, INSERT ON CONFLICT) via CockroachDB's
+      PostgreSQL-compatible connection.
+    resource_kind: row
+    operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/online-schema-changes.html
-        quote: CockroachDB enables schema modifications without downtime through its
-          built-in online schema change engine. The system permits concurrent
-          reads and writes during alterations, maintains data consistency
-          throughout the process, and executes changes as background jobs that
-          can be paused, resumed, or canceled.
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB supports full SQL DML including INSERT, UPDATE, DELETE,
+          UPSERT, and INSERT ... ON CONFLICT accessible via the
+          PostgreSQL-compatible wire protocol
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: schema-migration-tooling
-    title: Third-Party Schema Migration Tool Compatibility
-    description: CockroachDB is compatible with Flyway, Liquibase, and most
-      PostgreSQL schema migration tools, enabling tracked schema change
-      workflows with version control and rollback.
+  - capability_name: data-read-query
+    title: Filtered Data Read and Querying (SQL SELECT)
+    description: Execute filtered, sorted, paginated SELECT queries with
+      aggregations, JOINs, and subqueries against tables using SQL, including
+      COUNT, LIMIT/OFFSET, and GROUP BY clauses.
+    resource_kind: row
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB's PostgreSQL-compatible SQL surface supports SELECT with
+          WHERE, ORDER BY, LIMIT/OFFSET, GROUP BY, HAVING, JOIN, subqueries,
+          window functions, and CTEs
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transaction-management
+    title: ACID Transaction Management (SQL)
+    description: Execute multi-statement ACID-compliant transactions using
+      BEGIN/COMMIT/ROLLBACK with serializable isolation guarantees across
+      distributed nodes.
+    resource_kind: transaction
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB is a distributed ACID SQL database offering serializable
+          isolation; BEGIN, COMMIT, ROLLBACK, and SAVEPOINT are accessible via
+          the PostgreSQL-compatible wire protocol
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration
+    title: Online Schema Migration (SQL ALTER TABLE)
+    description: Apply incremental, non-blocking schema changes — adding/dropping
+      columns, renaming columns, changing data types — to live tables using SQL
+      ALTER TABLE without downtime.
     resource_kind: schema
     operation_kind: migrate
     surfaces_documented:
-      - cli
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/schema-design-overview.html
-        quote: CockroachDB is compatible with most PostgreSQL database schema migration
-          tools, including Flyway and Liquibase.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: table-partitioning
-    title: Table and Index Partitioning
-    description: List and range partitioning on tables and indexes; subpartitioning
-      (nested list); replication zones per partition for geo-pinning data; SHOW
-      PARTITIONS and ALTER TABLE ... PARTITION BY for management.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/partitioning.html
-        quote: "List Partitioning: Maps tuples to partitions by enumerating specific
-          values. Range Partitioning: Defines partitions using contiguous value
-          ranges. Subpartitioning: List partitions can be nested infinitely."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: acid-transactions
-    title: ACID Transactions with Serializable Isolation
-    description: Full ACID transactions with SERIALIZABLE as the default isolation
-      level; supports BEGIN/COMMIT/ROLLBACK, automatic retry on contention,
-      configurable transaction priorities, and row-limit guardrails.
-    resource_kind: transaction
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
-        quote: "SERIALIZABLE (default): 'Permits no concurrency anomalies' and may
-          require client-side retry handling. CockroachDB supports bundling
-          multiple SQL statements into atomic transactions with ACID
-          guarantees."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: read-committed-isolation
-    title: Read Committed Isolation Level
-    description: READ COMMITTED isolation level that minimizes transaction aborts
-      and eliminates retry requirements by allowing some concurrency anomalies;
-      mixed isolation levels supported within the same cluster.
-    resource_kind: transaction
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
-        quote: "READ COMMITTED: Allows some anomalies but minimizes aborts and
-          eliminates retry requirements. Mixed isolation levels are
-          supported—transactions behave according to their respective settings."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: savepoints
-    title: Savepoints and Nested Transactions
-    description: SAVEPOINT and RELEASE SAVEPOINT enable sub-transactions that can be
-      rolled back independently without aborting the parent transaction; also
-      used as the mechanism for client-side automatic retry.
-    resource_kind: transaction
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
-        quote: "Nested Transactions: Savepoints enable sub-transactions that can
-          rollback independently without discarding the parent transaction
-          state."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: foreign-key-constraints
-    title: Foreign Key Constraints with Referential Actions
-    description: FOREIGN KEY constraints with ON DELETE / ON UPDATE actions
-      (CASCADE, SET NULL, SET DEFAULT, RESTRICT, NO ACTION) enforcing
-      cross-table referential integrity.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-table.html
-        quote: FOREIGN KEY with actions (ON DELETE CASCADE, ON UPDATE CASCADE)
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Full support for NOT NULL, UNIQUE, PRIMARY KEY, CHECK, FOREIGN KEY, and
-          DEFAULT VALUE constraints.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: check-constraints
-    title: Check Constraints
-    description: CHECK constraints on columns or tables enforce arbitrary boolean
-      SQL expressions, rejecting inserts or updates that violate the predicate.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Full support for NOT NULL, UNIQUE, PRIMARY KEY, CHECK, FOREIGN KEY, and
-          DEFAULT VALUE constraints.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: role-based-access-control
-    title: Role-Based Access Control (RBAC)
-    description: SQL roles acting as groups; role membership inheritance; 40+
-      fine-grained privilege types across system, database, schema, table,
-      function and type levels; WITH GRANT OPTION and WITH ADMIN OPTION.
-    resource_kind: role
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-role.html
-        quote: CREATE ROLE establishes SQL roles that function as 'groups containing any
-          number of roles and users as members.' All privileges of a role are
-          inherited by all of its members.
-      - doc_url: https://www.cockroachlabs.com/docs/stable/grant.html
-        quote: Users granted a privilege with WITH GRANT OPTION can in turn grant that
-          privilege to others.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: row-level-security
-    title: Row-Level Security (RLS)
-    description: CREATE POLICY with USING and WITH CHECK clauses; permissive (OR)
-      and restrictive (AND) policy combination; ENABLE/FORCE ROW LEVEL SECURITY
-      per table; BYPASSRLS role attribute for admin exemption.
-    resource_kind: row
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/row-level-security.html
-        quote: CockroachDB enables administrators to create RLS policies using CREATE
-          POLICY, allowing control over 'which rows within the table are
-          accessible or modifiable.' Policies function as automatic filters
-          applied during query execution.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: privilege-management
-    title: Privilege Grant and Revoke
-    description: GRANT/REVOKE for 40+ privilege types on databases, schemas, tables,
-      sequences, types, functions, and procedures; wildcard grants (GRANT ALL ON
-      *); ALTER DEFAULT PRIVILEGES for future objects.
-    resource_kind: role
-    operation_kind: update
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/grant.html
-        quote: "System-Level: CREATEDB, CREATEROLE, CREATELOGIN, MODIFYCLUSTERSETTING,
-          CONTROLJOB, CANCELQUERY, BACKUP, RESTORE, VIEWACTIVITY...
-          Table/Sequence-Level: SELECT, INSERT, UPDATE, DELETE, TRIGGER,
-          CHANGEFEED, BYPASSRLS..."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: full-backup
-    title: Full Cluster/Database/Table Backup
-    description: BACKUP statement creates a full, un-replicated copy of a cluster,
-      database, or table to cloud storage (S3, GCS, Azure) with optional
-      encryption (KMS or passphrase) and locality-aware placement.
-    resource_kind: snapshot
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/backup-and-restore-overview.html
-        quote: "Full Backup: 'An un-replicated copy of your cluster, database, or
-          table's data. A full backup is the base for any further backups.'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: incremental-backup
-    title: Incremental Backups
-    description: Incremental backups capture only the changes since the last full or
-      incremental backup, reducing storage and time cost; include revision
-      history backups for PITR.
-    resource_kind: snapshot
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/backup-and-restore-overview.html
-        quote: "Incremental Backup: 'A copy of the changes in your data since the
-          specified base backup (either a full backup or a full backup plus an
-          incremental backup).'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: scheduled-backup
-    title: Scheduled Automated Backups
-    description: CREATE SCHEDULE FOR BACKUP with crontab recurrence, automatic
-      full/incremental strategy selection, failure handling
-      (retry/reschedule/pause), and ALTER/PAUSE/RESUME/DROP SCHEDULES
-      management.
-    resource_kind: snapshot
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-schedule-for-backup.html
-        quote: "The CREATE SCHEDULE FOR BACKUP statement establishes periodic backups
-          with crontab format scheduling (e.g., @daily). on_execution_failure:
-          Specifies recovery behavior ('retry,' 'reschedule,' or 'pause')."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: point-in-time-recovery
-    title: Point-in-Time Recovery (PITR)
-    description: RESTORE from an arbitrary timestamp within the garbage collection /
-      revision history window of a backup; enabled by revision_history option on
-      BACKUP; supports cluster-, database-, and table-level restore.
-    resource_kind: snapshot
-    operation_kind: restore
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/backup-and-restore-overview.html
-        quote: "'A restore from an arbitrary point in time within the revision history
-          of a backup' allows recovering data to specific moments in time when
-          using backups with revision history."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: backup-encryption
-    title: Encrypted Backups
-    description: Backups can be encrypted using AWS KMS, Google Cloud KMS, or Azure
-      Key Vault key management services, or with a passphrase; decryption key
-      required for restore.
-    resource_kind: snapshot
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/backup-and-restore-overview.html
-        quote: Encrypted backups using KMS or passphrases
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-schedule-for-backup.html
-        quote: "kms: Uses key management services (AWS KMS, Google Cloud KMS, Azure Key
-          Vault)"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: user-defined-functions
-    title: User-Defined Functions (UDFs)
-    description: CREATE FUNCTION in SQL or PL/pgSQL with IN/OUT/INOUT argument
-      modes; VOLATILE/STABLE/IMMUTABLE volatility; SETOF return types; callable
-      from SELECT, WHERE, DEFAULT, and computed columns.
-    resource_kind: function
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/user-defined-functions.html
-        quote: "CockroachDB supports two languages: SQL for straightforward query-based
-          functions and PL/pgSQL enabling complex logic with loops,
-          conditionals, and exception handling."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: stored-procedures
-    title: Stored Procedures
-    description: CREATE PROCEDURE in SQL or PL/pgSQL invoked via CALL; supports
-      IN/OUT/INOUT parameters and REFCURSOR; statements tracked in SQL Activity;
-      executes within transactions.
-    resource_kind: function
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures.html
-        quote: Stored procedures in CockroachDB are database objects consisting of
-          PL/pgSQL or SQL statements invoked via the CALL statement. SQL
-          statements within procedures are 'tracked in the SQL statistics
-          subsystem.'
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: triggers
-    title: Row-Level Triggers (BEFORE / AFTER)
-    description: BEFORE and AFTER triggers on INSERT, UPDATE, DELETE written in
-      PL/pgSQL; access to NEW/OLD row variables and TG_OP; statement-level
-      triggers not yet supported.
-    resource_kind: function
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/triggers.html
-        quote: "BEFORE triggers: Execute before INSERT, UPDATE, or DELETE statements;
-          can validate or modify data. AFTER triggers: Execute after operations
-          commit; useful for auditing or cascading changes. 'A trigger activates
-          when one or more SQL statements is issued on a table.'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: row-level-ttl
-    title: Row-Level TTL (Automatic Row Expiration)
-    description: Storage parameters ttl_expire_after (fixed interval) or
-      ttl_expiration_expression (per-row SQL expression) schedule background
-      deletion jobs; configurable batch sizes, rate limits, and cron frequency.
-    resource_kind: row
-    operation_kind: delete
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/row-level-ttl.html
-        quote: "Rows from a table are considered 'expired' and can be automatically
-          deleted once those rows have been stored longer than a specified
-          expiration time. Elastic CPU Control: Dynamically adjusts CPU usage to
-          minimize application impact."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: background-job-management
-    title: Background Job Lifecycle Management
-    description: SHOW JOBS, PAUSE JOB, RESUME JOB, CANCEL JOB for schema changes,
-      backups, imports, changefeeds, TTL, statistics, and replication jobs;
-      14-day job retention; job state machine with retry/reverting states.
-    resource_kind: function
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/show-jobs.html
-        quote: "CockroachDB tracks long-running tasks including schema operations, data
-          operations (IMPORT, BACKUP, RESTORE), changefeeds, TTL, and
-          replication. Jobs progress through statuses: pending, running,
-          retry-running, pause-requested, paused, succeeded, failed, canceled."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: full-text-search
-    title: Full-Text Search
-    description: TSVECTOR/TSQUERY data types with to_tsvector(), to_tsquery(),
-      plainto_tsquery(), phraseto_tsquery(); @@ match operator; ts_rank()
-      relevance scoring; 13 language dictionaries; GIN index acceleration.
-    resource_kind: row
-    operation_kind: search
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
-        quote: "Full-text search converts documents into searchable TSVECTOR data
-          through normalization—removing stop words, applying stemming
-          algorithms, and stripping punctuation. The system provides 13 language
-          dictionaries: English, Danish, Dutch, Finnish, French, German,
-          Hungarian, Italian, Norwegian, Portuguese, Russian, Spanish, and
-          Swedish."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: vector-search
-    title: Vector Similarity Search (ANN)
-    description: VECTOR column type with CREATE INDEX USING CSPANN; approximate
-      nearest neighbor search using L2 (<->), cosine (<=>), and inner product
-      (<#>) distance operators; prefix column pre-filtering; tunable beam size
-      and partition parameters.
-    resource_kind: row
-    operation_kind: search
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/vector-indexes.html
-        quote: "Vector indexes employ k-means clustering for hierarchical partitioning.
-          Three operator classes optimize searches: vector_l2_ops (default),
-          vector_cosine_ops, vector_ip_ops. Prefix Columns: Enables
-          pre-filtering by non-vector columns, restricting search space before
-          similarity ranking."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: change-data-capture
-    title: Change Data Capture (Changefeeds)
-    description: CREATE CHANGEFEED FOR TABLE streams row-level changes at-least-once
-      to Kafka, Google Cloud Pub/Sub, cloud storage, or webhook sinks; CDC
-      queries for filtering/transforming; scheduled changefeeds;
-      PAUSE/RESUME/ALTER/CANCEL management.
-    resource_kind: row
-    operation_kind: stream
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/change-data-capture-overview.html
-        quote: "Change Data Capture 'detects row-level data changes in CockroachDB and
-          emits those changes as messages for downstream processing.' Each
-          emitted row change is delivered at least once. Supported sinks: Kafka,
-          Cloud Storage, Webhook, Google Cloud Pub/Sub."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: multi-region-data-placement
-    title: Multi-Region Table Locality and Data Placement
-    description: LOCALITY GLOBAL, REGIONAL BY TABLE, and REGIONAL BY ROW table
-      modes; survival goals (zone vs region); super regions for data domiciling;
-      secondary regions for failover; zone config extensions.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview.html
-        quote: "Table Locality: Optimizes data access through settings like regional,
-          global, or regional-by-row configurations. Super Regions (Preview):
-          Groups database regions to enforce data domiciling. 'All replicas
-          (voting and non-voting) are placed within the super region.'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: spatial-data
-    title: Geospatial / Spatial Data Types and Functions
-    description: GEOMETRY and GEOGRAPHY column types for 7 spatial object types
-      (Point, LineString, Polygon, Multi*, GeometryCollection); WKT/WKB/GeoJSON
-      representations; ST_* spatial functions; GIST spatial indexes.
-    resource_kind: column
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/spatial-features.html
-        quote: "CockroachDB supports seven spatial object types: POINT, LINESTRING,
-          POLYGON, MULTIPOINT, MULTILINESTRING, MULTIPOLYGON,
-          GEOMETRYCOLLECTION. The platform includes documented functions:
-          ST_Contains, ST_Within, ST_Covers, ST_Intersects, ST_ConvexHull,
-          ST_Union..."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: jsonb-document-storage
-    title: JSONB Semi-Structured Document Storage
-    description: "JSONB column type storing schemaless JSON as binary; rich operator
-      set (->, ->>, @>, ?, #>, subscript); jsonb_* functions; GIN inverted
-      indexes for containment and existence queries; expression indexing on JSON
-      paths."
-    resource_kind: column
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/jsonb.html
-        quote: The JSONB data type stores JSON data in binary format, 'eliminates
-          whitespace, duplicate keys, and key ordering.' GIN indexes optimize
-          JSONB queries. Expression indexes can target specific fields.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: secondary-indexes
-    title: Secondary Indexes
-    description: CREATE INDEX on non-primary columns with multi-column, covering
-      (STORING), and descending support; index visibility control (VISIBLE/NOT
-      VISIBLE); multiple indexes per query; hash-sharded indexes for sequential
-      write distribution.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-index.html
-        quote: "Multiple-column indexes: Sort columns in the order listed. Unique
-          indexes: Prevent duplicate values among indexed columns.
-          Covering/Storing Indexes: Store non-sorted columns for query coverage.
-          Index Visibility Control: Set indexes as VISIBLE, NOT VISIBLE, or
-          partially visible to the optimizer."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: gin-inverted-indexes
-    title: GIN Inverted Indexes
-    description: CREATE INDEX USING GIN on JSONB, ARRAY, TSVECTOR, and STRING
-      (trigram) columns; support for containment (@>) and existence (?)
-      operators; trigram indexes with gin_trgm_ops/gist_trgm_ops for fuzzy
-      string matching.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-index.html
-        quote: "GIN Indexes (Inverted Indexes): 'Create a GIN index on the schemaless
-          data in the specified JSONB column' or use USING GIN syntax for
-          PostgreSQL compatibility. Trigram Indexes: Built on GIN/GiST
-          foundations for STRING columns using gin_trgm_ops or gist_trgm_ops
-          operators."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: partial-indexes
-    title: Partial Indexes
-    description: CREATE INDEX ... WHERE predicate creates a partial index covering
-      only rows satisfying the condition, reducing index size and improving
-      performance for sparse or filtered access patterns.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-index.html
-        quote: "Partial Indexes: Use optional WHERE clause for predicate-based indexing"
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Supported index types include standard indexes, multi-column indexes,
-          covering indexes, GIN indexes, trigram indexes, partial indexes,
-          spatial indexes, full-text indexes, expression indexes, and
-          hash-sharded indexes.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: expression-indexes
-    title: Expression / Functional Indexes
-    description: CREATE INDEX on a computed SQL expression (e.g. lower(email))
-      rather than a raw column, allowing optimized queries that filter or sort
-      on derived values.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-index.html
-        quote: "Expression Indexes: Index computed expressions via func_expr_windowless"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: physical-cluster-replication
-    title: Physical Cluster Replication for Disaster Recovery
-    description: Asynchronous cluster-level replication from a primary to a standby
-      cluster; replication lag in tens of seconds; failover to a specific
-      timestamp; fast failback replaying only net-new changes; RPO/RTO
-      improvement over backup restore.
-    resource_kind: snapshot
-    operation_kind: restore
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/physical-cluster-replication-overview.html
-        quote: "PCR 'continuously sends all data at the cluster level from a primary
-          cluster to an independent standby cluster.' It automatically
-          replicates schema changes, user modifications, privilege updates, and
-          zone configuration adjustments. Failover Speed: Should typically
-          complete 'within five minutes' when using the LATEST option."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: materialized-views
-    title: Materialized Views
-    description: CREATE MATERIALIZED VIEW stores query results on disk; REFRESH
-      MATERIALIZED VIEW updates stale data; supports indexing on materialized
-      view columns to accelerate subsequent queries.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/views.html
-        quote: "Materialized Views: Store query results for improved performance, though
-          data may become stale until refreshed. Supports indexing to improve
-          query performance. Can be refreshed using REFRESH MATERIALIZED VIEW."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: sequences
-    title: Sequences for Auto-Increment Key Generation
-    description: CREATE SEQUENCE for generating monotonically increasing integers;
-      usable as DEFAULT or via nextval(); SERIAL pseudo-type as shorthand;
-      identity columns (GENERATED BY DEFAULT / ALWAYS AS IDENTITY).
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Automatic key generation is available as an alternative to AUTO
-          INCREMENT. sequences, identity columns...
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-table.html
-        quote: Identity columns (GENERATED BY DEFAULT AS IDENTITY / GENERATED ALWAYS AS
-          IDENTITY)
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: sql-audit-logging
-    title: SQL Audit Logging
-    description: Captures SQL statements and session activity to audit logs for
-      non-repudiation and compliance; configurable per table; organization-level
-      audit log export with timestamp filtering via Cloud API.
-    resource_kind: table
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
-        quote: SQL Audit Logging capability for non-repudiation
-      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
-        quote: "Audit Logging: Export organization audit logs with timestamp filtering.
-          Support for ascending/descending sort order. Configurable result
-          limits."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: customer-managed-encryption-keys
-    title: Customer-Managed Encryption Keys (CMEK)
-    description: Advanced cluster storage encrypted using customer-controlled KMS
-      keys; supports enable, rotate, revoke, and status-check operations via
-      Cloud API; prevents CockroachDB staff from reading customer data at rest.
-    resource_kind: snapshot
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: managed-surface
     evidence:
       - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
-        quote: "Customer-Managed Encryption Keys (CMEK): Enable CMEK on Advanced
-          clusters. Check CMEK status. Rotate CMEK keys. Modify CMEK
-          configurations (add regions). Revoke CMEK access."
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB performs online schema changes that are non-blocking for
+          concurrent reads and writes; ALTER TABLE is accessible via the
+          PostgreSQL-compatible wire protocol
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: tls-authentication
-    title: TLS/Certificate-Based Authentication
-    description: Inter-node and client authentication via TLS 1.2/1.3; SCRAM-SHA-256
-      password authentication; enterprise options for JWT, GSSAPI/Kerberos, and
-      OIDC-based SSO; post-quantum TLS key exchange support.
-    resource_kind: role
+  - capability_name: sql-privilege-management
+    title: SQL Privilege Management (GRANT/REVOKE)
+    description: Grant and revoke fine-grained SQL privileges (SELECT, INSERT,
+      UPDATE, DELETE, CREATE, etc.) on databases, tables, and schemas to SQL
+      users, controlling row- and object-level access.
+    resource_kind: privilege
     operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
-        quote: "TLS-based: 'Inter-node and node identity authentication using TLS 1.3'
-          and SQL client authentication via TLS 1.2/1.3. Enterprise options:
-          SASL/SCRAM-SHA-256, JWT tokens, GSSAPI/Kerberos, and SSO via OpenID
-          Connect."
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB's PostgreSQL-compatible SQL surface supports GRANT and REVOKE
+          statements for fine-grained privilege control on all database objects
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: select-for-update-locking
-    title: Pessimistic Row Locking (SELECT FOR UPDATE)
-    description: SELECT FOR UPDATE acquires row-level write locks before reading,
-      enabling pessimistic concurrency control patterns and preventing
-      concurrent updates to the same rows within a transaction.
-    resource_kind: row
-    operation_kind: read
+  - capability_name: server-side-functions
+    title: Server-Side User-Defined Functions and Stored Procedures
+    description: Define and invoke user-defined functions (UDFs) and stored
+      procedures in SQL to encapsulate reusable server-side logic within the
+      database engine.
+    resource_kind: function
+    operation_kind: create
     surfaces_documented:
-      - api
+      - sdk
       - cli
     support_type: native
     evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: "'Common statements' are supported, plus UPSERT, EXPLAIN, 'SELECT ...
-          INTO,' and 'SELECT FOR UPDATE.'"
-      - doc_url: https://www.cockroachlabs.com/docs/stable/select-clause.html
-        quote: "SELECT FOR UPDATE: Row-level locking for concurrency control"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: explain-query-plan
-    title: Query Plan Inspection (EXPLAIN)
-    description: EXPLAIN and EXPLAIN ANALYZE show the query execution plan and
-      runtime statistics; helps diagnose missing indexes, full-table scans, and
-      join strategies.
-    resource_kind: table
-    operation_kind: read
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: "'Common statements' are supported, plus UPSERT, EXPLAIN, 'SELECT ...
-          INTO,' and 'SELECT FOR UPDATE.'"
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/connection-string — Get a formatted
+          generic connection string for a cluster
+        note: CockroachDB supports CREATE FUNCTION and CREATE PROCEDURE (stored
+          procedures) via its PostgreSQL-compatible SQL surface; accessible via
+          the connection string
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
   - capability_name: sql-user-management
     title: SQL User Management
-    description: CREATE/DROP USER, password reset, and VALID UNTIL expiration via
-      SQL statements and Cloud API; X.509 certificate subject binding;
-      CREATELOGIN privilege for delegating credential management.
+    description: Create and delete SQL database users and update their passwords
+      through the Cloud API, controlling which identities can authenticate to
+      cluster databases.
+    resource_kind: sql-user
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/sql-users — Create a new SQL user; GET
+          /api/v1/clusters/{cluster_id}/sql-users — List SQL users for a
+          cluster; DELETE /api/v1/clusters/{cluster_id}/sql-users/{name} —
+          Delete a SQL user; PUT
+          /api/v1/clusters/{cluster_id}/sql-users/{name}/password — Update a SQL
+          user's password
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: role-based-access-control
+    title: Organization-Level Role-Based Access Control
+    description: Assign, replace, and revoke role grants on organization resources
+      (clusters, folders) for human users and service accounts, controlling
+      administrative permission boundaries.
     resource_kind: role
     operation_kind: create
     surfaces_documented:
       - api
-      - cli
     support_type: native
     evidence:
       - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
-        quote: "User Administration: List all SQL users in a cluster. Create new SQL
-          users with passwords. Delete SQL users. Reset user passwords."
+        quote: GET /api/v1/roles — List all RoleGrants; GET /api/v1/roles/{user_id} —
+          Get all Role Grants for a user; PUT /api/v1/roles/{user_id} — Replace
+          the roles for a user or service account; POST
+          /api/v1/roles/{user_id}/{resource_type}/{resource_id}/{role_name} —
+          Add a role; DELETE
+          /api/v1/roles/{user_id}/{resource_type}/{resource_id}/{role_name} —
+          Remove a role
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
       extractor: llm-capability-inventory-v1
-  - capability_name: hash-sharded-indexes
-    title: Hash-Sharded Indexes
-    description: Hash-sharded indexes distribute sequential write traffic uniformly
-      across ranges to eliminate hotspots; created with USING HASH syntax on
-      primary or secondary keys.
-    resource_kind: table
+  - capability_name: service-account-management
+    title: Service Account Management
+    description: Create, read, update, and delete service accounts for
+      machine-to-machine programmatic access to the CockroachDB Cloud API,
+      separate from human user identities.
+    resource_kind: service-account
     operation_kind: create
     surfaces_documented:
       - api
-      - cli
     support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/create-index.html
-        quote: "Hash-Sharded Indexes: 'Hash-sharded indexes distribute sequential
-          traffic uniformly across ranges' using USING HASH."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: enum-types
-    title: User-Defined Enum Types
-    description: CREATE TYPE ... AS ENUM defines ordered sets of string labels
-      usable as column types; enumerated values are schema objects with
-      privilege controls.
-    resource_kind: column
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/sql-feature-support.html
-        quote: Supported data types include ARRAY, BIT, BOOLEAN, BYTES, DATE,
-          DECIMAL/NUMERIC, ENUM, FLOAT/REAL, INET, INT, INTERVAL, JSON/JSONB,
-          NULL, OID, SERIAL, STRING/CHARACTER, TIME, TIMESTAMP/TIMESTAMPTZ,
-          TSQUERY, TSVECTOR, and UUID.
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: encryption-at-rest
-    title: Encryption at Rest
-    description: Enterprise encryption at rest via storage-level encryption service;
-      cloud-managed S3/GCP server-side encryption for backups; CMEK for Advanced
-      Cloud clusters.
-    resource_kind: snapshot
-    operation_kind: create
-    surfaces_documented:
-      - api
-      - cli
-    support_type: native
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
-        quote: "At-rest: Backup encryption via AWS S3 and GCP server-side encryption;
-          Enterprise supports proprietary 'storage-level Enterprise Encryption
-          At Rest service'"
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: network-access-control
-    title: IP Allowlisting and Private Connectivity
-    description: SQL-level and network-level IP allowlisting (Standard tier+); VPC
-      peering and AWS PrivateLink for private network connectivity; prevents
-      unauthorized public internet access to clusters.
-    resource_kind: role
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: managed-surface
-    evidence:
-      - doc_url: https://www.cockroachlabs.com/docs/stable/security-reference/security-overview.html
-        quote: "IP restrictions: SQL-level and network-level IP allowlisting (Standard
-          tier and above). Private connectivity: VPC peering and AWS PrivateLink
-          options."
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: cluster-management-api
-    title: Cloud Cluster Lifecycle Management API
-    description: REST API for creating, modifying, and deleting
-      Serverless/Standard/Advanced clusters; manage node counts, vCPU
-      allocations, regions, maintenance windows, and patch deferral policies
-      programmatically.
-    resource_kind: table
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: managed-surface
     evidence:
       - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
-        quote: "Create Clusters: serverless, standard, advanced deployment models.
-          Modify Cluster Configuration: Update resource limits, adjust
-          provisioned vCPUs, change hardware per region. Rate limit: 10
-          requests/second per user."
+        quote: POST /api/v1/service-accounts — Create a service account; GET
+          /api/v1/service-accounts — List service accounts for an organization;
+          GET /api/v1/service-accounts/{id} — Get a service account by ID; PATCH
+          /api/v1/service-accounts/{id} — Update a service account; DELETE
+          /api/v1/service-accounts/{id} — Delete a service account
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: api-key-management
+    title: API Key Lifecycle Management
+    description: Create, list, update, and delete API keys used to authenticate
+      requests to the CockroachDB Cloud management API.
+    resource_kind: api-key
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/api-keys — Create a new API Key; GET /api/v1/api-keys — List
+          API Keys; GET /api/v1/api-keys/{id} — Get an API Key by ID; PATCH
+          /api/v1/api-keys/{id} — Update an API Key; DELETE
+          /api/v1/api-keys/{id} — Delete an API Key
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scim-provisioning
+    title: SCIM 2.0 User and Group Provisioning
+    description: Provision and deprovision users and groups via the SCIM 2.0
+      protocol, enabling automated identity lifecycle management and
+      synchronization through enterprise identity providers.
+    resource_kind: user
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/scim/v2/Users — Create a user; PUT /api/scim/v2/Users/{id} —
+          Update a user by supplying all values; PATCH /api/scim/v2/Users/{id} —
+          Patch a user by supplying partial updates; DELETE
+          /api/scim/v2/Users/{id} — Delete a user; POST /api/scim/v2/Groups —
+          Create a group; PATCH /api/scim/v2/Groups/{id} — Patch a group
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scim-user-group-search
+    title: SCIM User and Group Search
+    description: Search and list users and groups managed via SCIM 2.0, supporting
+      identity provider sync verification and compliance audits.
+    resource_kind: user
+    operation_kind: search
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/scim/v2/Users — List Users; POST /api/scim/v2/Users/.search —
+          Search Users; GET /api/scim/v2/Groups — List groups; POST
+          /api/scim/v2/Groups/.search — Search groups; GET
+          /api/scim/v2/ServiceProviderConfig — Return the SCIM Service Provider
+          configuration
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: jwt-auth-configuration
+    title: JWT Issuer Configuration
+    description: Register, update, and delete JWT issuers to enable token-based
+      authentication for SQL clients and API consumers, allowing short-lived
+      credentials from trusted identity providers.
+    resource_kind: jwt-issuer
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/jwt-issuers — Add a JWT Issuer; GET /api/v1/jwt-issuers —
+          List all JWT Issuers; GET /api/v1/jwt-issuers/{id} — Get a JWT Issuer;
+          PATCH /api/v1/jwt-issuers/{id} — Update a JWT Issuer; DELETE
+          /api/v1/jwt-issuers/{id} — Delete a JWT Issuer
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: client-certificate-auth
+    title: Client CA Certificate Management (mTLS)
+    description: Set, update, and delete client CA certificates for a cluster to
+      enforce mutual TLS authentication on SQL connections, requiring clients to
+      present verifiable certificates.
+    resource_kind: certificate
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/client-ca-cert — Set Client CA Cert
+          for a cluster; GET /api/v1/clusters/{cluster_id}/client-ca-cert — Get
+          Client CA Cert information; PATCH
+          /api/v1/clusters/{cluster_id}/client-ca-cert — Update Client CA Cert;
+          DELETE /api/v1/clusters/{cluster_id}/client-ca-cert — Delete Client CA
+          Cert for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: ip-allowlist
+    title: IP Allowlist Management
+    description: Manage a CIDR-based IP allowlist and observe its propagation status
+      to restrict which network addresses can establish connections to a
+      cluster.
+    resource_kind: network-rule
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/networking/allowlist — Get the IP
+          allowlist and propagation status for a cluster; POST
+          /api/v1/clusters/{cluster_id}/networking/allowlist — Add a new CIDR
+          address to the IP allowlist; PATCH
+          /api/v1/clusters/{cluster_id}/networking/allowlist/{cidr_ip}/{cidr_mask}
+          — Update an IP allowlist entry; DELETE
+          /api/v1/clusters/{cluster_id}/networking/allowlist/{cidr_ip}/{cidr_mask}
+          — Delete an IP allowlist entry
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: private-endpoint-ingress
+    title: Private Endpoint Ingress Connectivity
+    description: Create and manage private endpoint services and connections (e.g.,
+      AWS PrivateLink) for secure, non-public-internet ingress to a cluster,
+      including trusted-owner allowlists.
+    resource_kind: network-endpoint
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/networking/private-endpoint-services —
+          Create all PrivateEndpointServices for a cluster; POST
+          /api/v1/clusters/{cluster_id}/networking/private-endpoint-connections
+          — Add a connection to a cluster's private endpoint service; PATCH
+          /api/v1/clusters/{cluster_id}/networking/aws-endpoint-connections/{endpoint_id}
+          — Set the AWS Endpoint Connection state; POST
+          /api/v1/clusters/{cluster_id}/networking/private-endpoint-trusted-owners
+          — Add a private endpoint trusted owner; DELETE
+          /api/v1/clusters/{cluster_id}/networking/private-endpoint-trusted-owners/{owner_id}
+          — Remove a trusted owner
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: egress-private-endpoint
+    title: Egress Private Endpoint Management
+    description: Create and manage outbound private endpoints that allow the cluster
+      to securely reach external services over private network links without
+      traversing the public internet.
+    resource_kind: network-endpoint
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/networking/egress-private-endpoints —
+          Create an egress private endpoint; GET
+          /api/v1/clusters/{cluster_id}/networking/egress-private-endpoints —
+          List egress private endpoints; PATCH
+          /api/v1/clusters/{cluster_id}/networking/egress-private-endpoints/{id}
+          — Update egress private endpoint; DELETE
+          /api/v1/clusters/{cluster_id}/networking/egress-private-endpoints/{id}
+          — Delete an egress private endpoint
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: egress-rule-management
+    title: Egress Rule and Traffic Policy Management
+    description: Define and manage egress rules and an outbound traffic policy to
+      control which external destinations a cluster can reach, enabling a
+      default-deny posture for cluster-initiated connections.
+    resource_kind: network-rule
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/networking/egress-rules — Add an
+          egress rule; POST
+          /api/v1/clusters/{cluster_id}/networking/egress-rules/egress-traffic-policy
+          — Outbound traffic management; GET
+          /api/v1/clusters/{cluster_id}/networking/egress-rules/{rule_id} — Get
+          an existing egress rule; PATCH
+          /api/v1/clusters/{cluster_id}/networking/egress-rules/{rule_id} — Edit
+          an existing egress rule; DELETE
+          /api/v1/clusters/{cluster_id}/networking/egress-rules/{rule_id} —
+          Delete an existing egress rule
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: backup-management
+    title: Backup Configuration and Listing
+    description: Retrieve and update automated backup configuration for a cluster
+      (schedule, retention, storage targets) and list previously created backups
+      available for restore.
+    resource_kind: backup
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/backups — List cluster backups; GET
+          /api/v1/clusters/{cluster_id}/backups-config — Get the backup
+          configuration for a cluster; PATCH
+          /api/v1/clusters/{cluster_id}/backups-config — Update the backup
+          configuration for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: backup-restore
+    title: Cluster Restore from Backup
+    description: Initiate, monitor, and inspect restore jobs that recover cluster
+      data from a previously created backup, targeting a destination cluster.
+    resource_kind: restore-job
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{destination_cluster_id}/restores — Create a
+          restore; GET /api/v1/clusters/{cluster_id}/restores — List restore
+          jobs; GET /api/v1/clusters/{cluster_id}/restores/{restore_id} — View a
+          restore job
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: customer-managed-encryption
+    title: Customer-Managed Encryption Key (CMEK)
+    description: Enable and manage customer-managed encryption keys so data at rest
+      is encrypted with keys held and rotated by the customer, not the cloud
+      provider.
+    resource_kind: encryption-key
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/cmek — Enable CMEK for a cluster; PUT
+          /api/v1/clusters/{cluster_id}/cmek — Enable or update the CMEK spec
+          for a cluster; PATCH /api/v1/clusters/{cluster_id}/cmek — Update the
+          CMEK-related status; GET /api/v1/clusters/{cluster_id}/cmek — Get
+          CMEK-related information for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: audit-log-access
+    title: Audit Log Access
+    description: Retrieve audit log events recording administrative and access
+      actions taken within the organization, supporting compliance auditing and
+      security forensics.
+    resource_kind: audit-log
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/auditlogevents — List audit logs
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: log-export
+    title: Log Export to External Systems
+    description: Configure continuous export of cluster logs to an external logging
+      destination, integrating with centralized logging platforms for unified
+      log analysis.
+    resource_kind: log-export-config
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/logexport — Create or update the Log
+          Export configuration for a cluster; GET
+          /api/v1/clusters/{cluster_id}/logexport — Get the Log Export
+          configuration; DELETE /api/v1/clusters/{cluster_id}/logexport — Delete
+          the Log Export configuration for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: metric-export
+    title: Metric Export to Monitoring Platforms
+    description: Stream cluster metrics to CloudWatch, Datadog, or Prometheus for
+      unified observability dashboards and alerting; each platform has
+      independent configuration endpoints.
+    resource_kind: metric-export-config
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/metricexport/cloudwatch — Create or
+          update the CloudWatch Metric Export configuration; POST
+          /api/v1/clusters/{cluster_id}/metricexport/datadog — Create or update
+          the Datadog Metric Export configuration; POST
+          /api/v1/clusters/{cluster_id}/metricexport/prometheus — Enable
+          Prometheus Metric Export for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: maintenance-window-scheduling
+    title: Maintenance Window Scheduling
+    description: Get, set, and delete scheduled maintenance windows that govern when
+      CockroachDB Cloud performs automated maintenance operations on a cluster,
+      minimizing disruption to known busy periods.
+    resource_kind: maintenance-window
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: PUT /api/v1/clusters/{cluster_id}/maintenance-window — Set the
+          maintenance window for a cluster; GET
+          /api/v1/clusters/{cluster_id}/maintenance-window — Get the maintenance
+          window for a cluster; DELETE
+          /api/v1/clusters/{cluster_id}/maintenance-window — Delete the
+          maintenance window for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: blackout-window-management
+    title: Blackout Window Management
+    description: Define time windows during which automated maintenance is
+      explicitly prohibited, protecting critical business periods from database
+      disruption regardless of maintenance window settings.
+    resource_kind: blackout-window
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/clusters/{cluster_id}/blackout-windows — Create a blackout
+          window for a cluster; GET
+          /api/v1/clusters/{cluster_id}/blackout-windows — List all blackout
+          windows; PATCH
+          /api/v1/clusters/{cluster_id}/blackout-windows/{blackout_window_id} —
+          Update a blackout window; DELETE
+          /api/v1/clusters/{cluster_id}/blackout-windows/{blackout_window_id} —
+          Delete a blackout window for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: physical-cluster-replication
+    title: Physical Cluster Replication
+    description: Create and manage physical replication streams that continuously
+      replicate data between CockroachDB clusters at the storage layer, enabling
+      disaster recovery standby clusters and geographic redundancy.
+    resource_kind: replication-stream
+    operation_kind: stream
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/physical-replication-streams — Create a physical replication
+          stream; GET /api/v1/physical-replication-streams — List physical
+          replication streams; GET /api/v1/physical-replication-streams/{id} —
+          Get a physical replication stream; PATCH
+          /api/v1/physical-replication-streams/{id} — Update a physical
+          replication stream
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: folder-management
+    title: Resource Folder Organization
+    description: Create, rename, list, and delete folders to organize clusters and
+      other resources within an organization, supporting multi-team and
+      multi-project governance hierarchies.
+    resource_kind: folder
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: POST /api/v1/folders — Create a folder; GET /api/v1/folders — List
+          folders owned by an organization; GET /api/v1/folders/{folder_id} —
+          Get folder info; GET /api/v1/folders/{folder_id}/contents — List
+          contents of a folder; PATCH /api/v1/folders/{folder_id} — Update a
+          folder; DELETE /api/v1/folders/{folder_id} — Delete a folder
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: billing-invoice-access
+    title: Billing and Invoice Access
+    description: List and retrieve invoices for the organization to support cost
+      tracking, financial auditing, and chargeback workflows.
+    resource_kind: invoice
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/invoices — List invoices for a given organization; GET
+          /api/v1/invoices/{invoice_id} — Get a specific invoice for an
+          organization
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: disruption-testing
+    title: Cluster Disruption Testing
+    description: Retrieve and update disruption specifications for a cluster to
+      simulate controlled failure scenarios and validate resilience, supporting
+      chaos engineering and SRE validation workflows.
+    resource_kind: cluster
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/clusters/{cluster_id}/disrupt — Get disruption specifications
+          for a cluster; PUT /api/v1/clusters/{cluster_id}/disrupt — Update
+          disruption specifications for a cluster
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: organization-inspection
+    title: Organization Metadata Inspection
+    description: Retrieve metadata about the caller's organization including name,
+      ID, and account-level configuration, enabling org-scoped resource
+      management and multi-tenant tooling.
+    resource_kind: organization
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/organization — Get information about the caller's
+          organization
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: user-lookup
+    title: User Lookup by Email
+    description: Search for human user accounts by email address, enabling role
+      assignment and identity verification workflows without requiring a
+      separate directory system.
+    resource_kind: user
+    operation_kind: search
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+        quote: GET /api/v1/users/persons-by-email — Search person users by email address
     extraction_provenance:
       source: official-docs
       extracted_at: 2026-07-08T00:00:00.000Z
