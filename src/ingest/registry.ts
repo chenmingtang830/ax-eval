@@ -230,15 +230,29 @@ export interface RegistryMapOptions {
   category: string;
 }
 
+function titleCase(text: string): string {
+  return text.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
 function defaultVendorName(domain: string): string {
-  const label = domain.replace(/\.[a-z.]+$/i, "").replace(/[-_]+/g, " ");
-  return label.replace(/\b\w/g, (c) => c.toUpperCase());
+  return titleCase(domain.replace(/\.[a-z.]+$/i, ""));
+}
+
+/** Resolve the display name + ax-eval slug for a registry-sourced vendor.
+ *  Precedence: explicit vendorName > explicit slug (title-cased) > domain label.
+ *  Deriving the name from an explicit slug keeps the display name aligned with
+ *  the canonical slug the caller chose (e.g. mongodb-atlas → "Mongodb Atlas")
+ *  rather than the registry domain (mongodb.com → "Mongodb"). */
+function nameAndSlug(domain: string, opts: RegistryMapOptions): { vendorName: string; slug: string } {
+  if (opts.vendorName) return { vendorName: opts.vendorName, slug: opts.slug ?? slugify(opts.vendorName) };
+  if (opts.slug) return { vendorName: titleCase(opts.slug), slug: opts.slug };
+  const vendorName = defaultVendorName(domain);
+  return { vendorName, slug: slugify(vendorName) };
 }
 
 /** Build an ax-eval vendor card from a registry surface document. */
 export function registryToVendorCard(surface: RegistrySurface, opts: RegistryMapOptions): ResolveResult {
-  const vendorName = opts.vendorName ?? defaultVendorName(surface.domain);
-  const slug = opts.slug ?? slugify(vendorName);
+  const { vendorName, slug } = nameAndSlug(surface.domain, opts);
   const docsUrl =
     surface.detect?.apiCatalog?.docs?.[0] ??
     surface.surfaces.find((s) => s.docs)?.docs ??
@@ -259,8 +273,7 @@ export function registryToVendorCard(surface: RegistrySurface, opts: RegistryMap
  *  document. SDK is always null: the registry models SDKs as either the CLI or
  *  an HTTP surface, and ax-eval defers SDK as a benchmark surface anyway. */
 export function registryToSurfaceExtract(surface: RegistrySurface, opts: RegistryMapOptions): SurfaceExtractResult {
-  const vendorName = opts.vendorName ?? defaultVendorName(surface.domain);
-  const slug = opts.slug ?? slugify(vendorName);
+  const { vendorName, slug } = nameAndSlug(surface.domain, opts);
   const sharedHttpIds = httpCredentialIds(surface);
 
   const cliEntry = surfacesOfType(surface, "cli")[0];

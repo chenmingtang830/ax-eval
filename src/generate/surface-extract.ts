@@ -60,7 +60,28 @@ const SurfaceExtractResultSchema = z.object({
 });
 export type SurfaceExtractResult = z.infer<typeof SurfaceExtractResultSchema>;
 
-function buildSurfacePrompt(vendor: ResolveResult): string {
+function priorHypothesisBlock(prior: SurfaceExtractResult): string {
+  const lines = [
+    `PRIOR HYPOTHESIS (from the integrations.sh registry — treat as UNVERIFIED). Verify each field`,
+    `against the live docs and CORRECT anything wrong. Registry CLI package/binary names and auth prose`,
+    `are frequently stale or mismatched (e.g. it may name the wrong npm package or paste an unrelated`,
+    `OAuth blurb), so confirm the actual install command, binary name, and auth flow from the docs:`,
+  ];
+  if (prior.cli) {
+    lines.push(`- cli: bin="${prior.cli.bin}", install="${prior.cli.install ?? ""}", auth.kind=${prior.cli.auth.kind}`);
+  } else {
+    lines.push(`- cli: (registry found none — confirm whether one exists)`);
+  }
+  if (prior.mcp) {
+    lines.push(`- mcp: server="${prior.mcp.server}", transport=${prior.mcp.transport}, auth.kind=${prior.mcp.auth.kind}`);
+  } else {
+    lines.push(`- mcp: (registry found none — confirm whether one exists)`);
+  }
+  lines.push(``);
+  return lines.join("\n");
+}
+
+function buildSurfacePrompt(vendor: ResolveResult, prior?: SurfaceExtractResult): string {
   return [
     `${vendor.vendor} (${vendor.category}).`,
     ``,
@@ -68,6 +89,7 @@ function buildSurfacePrompt(vendor: ResolveResult): string {
     `answer in what you actually read — do not answer from memory alone (package names, binary names, and`,
     `MCP server commands change over time).`,
     ``,
+    ...(prior ? [priorHypothesisBlock(prior)] : []),
     `Find, for ${vendor.vendor}:`,
     `- cli: an official command-line tool an agent could drive instead of raw HTTP. null if none exists.`,
     `  - bin: the binary name (e.g. "supabase")`,
@@ -103,6 +125,9 @@ export interface ExtractSurfacesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  /** A prior surface extract (e.g. seeded from the integrations.sh registry) to
+   *  verify/correct rather than derive from scratch. */
+  prior?: SurfaceExtractResult;
 }
 
 const PER_CALL_TIMEOUT_MS = 8 * 60 * 1000;
@@ -113,7 +138,7 @@ export async function extractSurfaces(
   opts: ExtractSurfacesOptions = {},
 ): Promise<SurfaceExtractResult> {
   const label = `${vendor.vendor}/surfaces`;
-  const raw = await invokeGenerator(buildSurfacePrompt(vendor), {
+  const raw = await invokeGenerator(buildSurfacePrompt(vendor, opts.prior), {
     requireWebFetch: true,
     fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
     model: opts.model,

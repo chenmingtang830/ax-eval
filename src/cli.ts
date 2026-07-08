@@ -1419,7 +1419,10 @@ async function cmdImportRegistry(args: Parsed): Promise<number> {
     const surfaceExtract = registryToSurfaceExtract(surface, mapOpts);
     const cardPath = writeVendorCard(root, card);
     const surfacePath = writeSurfaceExtract(root, surfaceExtract);
-    const found = [surfaceExtract.cli && "cli", surfaceExtract.mcp && "mcp"].filter(Boolean).join(", ") || "api-only";
+    const found = [
+      surfaceExtract.cli && `cli(${surfaceExtract.cli.bin})`,
+      surfaceExtract.mcp && "mcp",
+    ].filter(Boolean).join(", ") || "api-only";
     console.log(`\n  ${card.vendor} (${target.domain}) → ${card.slug}`);
     console.log(`    vendor card    → ${cardPath}`);
     console.log(`    surface extract → ${surfacePath} (${found})`);
@@ -1434,7 +1437,13 @@ async function cmdImportRegistry(args: Parsed): Promise<number> {
   }
 
   console.log(
-    `\nNext: extract-capabilities for the imported vendor(s), then synthesize-suite → compose-pack.`,
+    `\nRegistry surface/auth structure is reliable, but CLI bin/install and auth prose are best-effort` +
+      ` (the registry sometimes names the wrong package or pastes an unrelated auth blurb). Run` +
+      ` extract-surfaces to verify + correct them against live docs before executing the CLI surface:` +
+      `\n  ax-eval extract-surfaces --vendors ${targets.map((t) => t.slug ?? t.domain).join(",")}`,
+  );
+  console.log(
+    `\nThen: extract-capabilities for the imported vendor(s), then synthesize-suite → compose-pack.`,
   );
   if (ingestHints.length) {
     console.log(`\nRegistry-known OpenAPI specs you can ingest directly:\n${ingestHints.join("\n")}`);
@@ -1600,13 +1609,20 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
 
   const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
-  console.log(`Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…`);
+  const seeded = vendors.filter((v) => loadSurfaceExtract(root, v.slug)).length;
+  console.log(
+    `Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…` +
+      (seeded ? ` (${seeded} seeded from a prior/registry surface extract — verifying + correcting)` : ""),
+  );
   const settled = await Promise.allSettled(
     vendors.map((v) =>
       extractSurfaces(v, {
         harness,
         model: args.generatorModel || undefined,
         effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+        // Feed any existing (e.g. registry-seeded) extract in as a prior to
+        // verify/correct against live docs, per the seed+override design.
+        prior: loadSurfaceExtract(root, v.slug) ?? undefined,
       }),
     ),
   );
