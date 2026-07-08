@@ -10,6 +10,7 @@ build/
 *.tsbuildinfo
 .npm/
 .npm-cache/
+.npm-global/
 .claude/
 
 # Run artifacts (created on demand by the CLI) — local only, never published
@@ -27,6 +28,17 @@ docs/
 # skill. Kept on disk locally; the product surface is the `ax-eval` CLI.
 scripts/
 run-*.cjs
+.tmp-*
+.tmp-*.mjs
+*-run.mjs
+supabase-sdk-run.*
+*.tgz
+
+# Local vendor CLI/project state from live benchmark debugging.
+.supabase/
+supabase/
+packs/
+axarena-site/
 
 # OS / editor
 .DS_Store

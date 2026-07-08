@@ -21,6 +21,20 @@ spec/docs
   -> HTML report / competitive report
 ```
 
+DAEB-1/database v1 adds one publication-grade production lane on top of the
+generic flow: `daeb-production-rerun`. It composes fresh vendor packs from the
+frozen suite and verifier extracts, runs only the benchmark-of-record `api` and
+`cli` surfaces, invokes Codex and Claude Code with pinned medium-effort models,
+and writes three isolated trials plus an aggregate normalized record per
+supported cell. Publication bundles read those aggregate records with
+`--effort-profiles medium --required-effort-profiles medium`.
+
+The boundary with the AXArena website is an explicit export step:
+`export-publication` reads a frozen publication bundle and writes website-ready
+JSON indexes. `ax-eval` owns benchmark truth and artifact generation; an
+`axarena` application should import those indexes for presentation rather than
+recompute scores from raw run directories.
+
 ## System overview
 
 The system is organized into four layers:
@@ -85,6 +99,10 @@ Important command groups:
   - `verify-generated`
   - `competitive`
   - `trace-diff`
+  - `publication-bundle`
+  - `export-publication`
+- **DAEB-1 production**
+  - `daeb-production-rerun`
 - **Maintenance**
   - `reset`
 
