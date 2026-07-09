@@ -223,7 +223,7 @@ function commandUsage(command: string | undefined): string {
         "                              --vendors <a,b,c> --category <category>",
         "                              [--harness claude-code|codex] [--effort low|medium|high]",
         "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
-        "  under targets/vendors/<slug>.discovered.yaml.",
+        "  under benchmarks/daeb/vendors/<slug>.discovered.yaml.",
       ].join("\n");
     case "import-registry":
       return [
@@ -243,15 +243,15 @@ function commandUsage(command: string | undefined): string {
         "                             [--vendor <slug>] [--vendors <a,b,c>]",
         "                             [--harness claude-code|codex] [--effort low|medium|high]",
         "  LLM-extracts ONLY the oracle read-back path + vendor auth config for each",
-        "  suite task (no prompt rewriting). Writes YAML to targets/extracts/<slug>/.",
+        "  suite task (no prompt rewriting). Writes YAML to benchmarks/daeb/v1/extracts/<slug>/.",
       ].join("\n");
     case "compose-pack":
       return [
         "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
         "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
         "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
-        "  Also folds in a surface extract (targets/extracts/<slug>/surfaces.yaml) if",
-        "  present, from extract-surfaces. No LLM call. Writes targets/packs/<slug>/<suite>.yaml.",
+        "  Also folds in a surface extract (benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml) if",
+        "  present, from extract-surfaces. No LLM call. Writes benchmarks/daeb/v1/packs/<slug>/pack.yaml.",
       ].join("\n");
     case "extract-surfaces":
       return [
@@ -260,7 +260,7 @@ function commandUsage(command: string | undefined): string {
         "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
         "  REST API is the implicit default surface and is not written to this file.",
         "  The round-trip oracle never changes per surface — this only affects how the",
-        "  agent is told to act on non-API surfaces. Writes targets/extracts/<slug>/surfaces.yaml.",
+        "  agent is told to act on non-API surfaces. Writes benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml.",
       ].join("\n");
     case "extract-capabilities":
       return [
@@ -273,7 +273,7 @@ function commandUsage(command: string | undefined): string {
         "  override) seed the candidate surface from those operations, then",
         "  WebFetch docs to gap-fill; vendors without a spec are grounded from",
         "  docs alone. Runs at concurrency 3. Writes",
-        "  targets/extracts/<slug>/capability-inventory.yaml.",
+        "  benchmarks/daeb/v1/extracts/<slug>/capability-inventory.yaml.",
       ].join("\n");
     case "audit-extracts":
       return [
@@ -282,7 +282,7 @@ function commandUsage(command: string | undefined): string {
         "  Deterministic checks: strength mislabels (METHOD /path → direct),",
         "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
         "  mismatch, incomplete headless auth. Default is report-only;",
-        "  --apply writes autofixes back to targets/extracts/<slug>/.",
+        "  --apply writes autofixes back to benchmarks/daeb/v1/extracts/<slug>/.",
       ].join("\n");
     case "synthesize-suite":
       return [
@@ -408,7 +408,7 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
-  /** audit-extracts: write autofixes back to targets/extracts/. */
+  /** audit-extracts: write autofixes back to benchmarks/daeb/v1/extracts/. */
   apply: boolean;
   ns: string;
   attempts: number;
@@ -1546,7 +1546,7 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "targets", "vendors");
+    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
@@ -1623,7 +1623,7 @@ async function cmdComposePack(args: Parsed): Promise<number> {
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "targets", "vendors");
+    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
@@ -1658,7 +1658,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "targets", "vendors");
+    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
@@ -1707,7 +1707,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "targets", "vendors");
+    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
@@ -1799,7 +1799,7 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   let vendors = resolveVendorSelection(args, root);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "targets", "vendors");
+    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
@@ -1855,7 +1855,7 @@ function cmdPublicationBundle(args: Parsed): number {
     ? args.vendors.split(",").map((s) => s.trim()).filter(Boolean)
     : discoverPublicationVendors(root, suite);
   if (!vendorSlugs.length) {
-    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under targets/packs/<vendor>/.");
+    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under benchmarks/daeb/v1/packs/<vendor>/.");
   }
   const manifest = buildPublicationBundle({
     root,
@@ -2149,7 +2149,7 @@ async function runProductionHarnessTrial(opts: {
 async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb.yaml");
+  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =
@@ -2258,7 +2258,7 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
 async function cmdDaebLowPass(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "targets", "suites", "daeb.yaml");
+  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =

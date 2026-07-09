@@ -1,0 +1,924 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+schema: ax.capability-inventory/v1
+vendor: Supabase
+slug: supabase
+category: database
+extracted_at: 2026-07-09T05:21:21.981Z
+extraction_context:
+  mode: openapi-seeded-grounded
+  harness: claude-code
+  model: claude-sonnet-5
+  spec_url: https://api.supabase.com/api/v1-json
+  notes: OpenAPI/registry seed used as candidate surface; WebFetch gap-filled
+    against live docs.
+audit_status: candidate
+audit_notes:
+  - OpenAPI-seeded + grounded candidate inventory; citations require human
+    review before publication.
+  - 7 capabilities include non-direct evidence and require reviewer confirmation
+    before publication.
+  - 1 capabilities cite summary-index evidence such as llms.txt; replace with
+    page-specific docs before publication.
+  - "Post-extract audit: 9 inventory finding(s)."
+capabilities:
+  - capability_name: table-schema-definition
+    title: Table & Column Definition
+    description: Create tables and define typed columns directly in Postgres via
+      SQL, the Dashboard, or CLI-driven migrations.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/tables
+        quote: You must define the 'data type' of each column when it is created. You
+          can add and remove columns at any time after creating a table.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/tables
+        quote: By default, Postgres will assume that you want to create the table in the
+          `public` schema.
+        note: default schema placement for new tables
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: primary-key-constraint
+    title: Primary Key Constraint
+    description: Define a unique row identifier per table, via UUID or identity columns.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/tables
+        quote: It's recommended to create a Primary Key for every table in your
+          database.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: foreign-key-constraint
+    title: Foreign Key Constraint
+    description: Reference rows in another table to enforce relational integrity,
+      with optional NOT NULL enforcement.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/tables
+        quote: alter table movies add column category_id bigint references categories;
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/tables
+        quote: movie_id bigint not null references movies
+        note: NOT NULL combined with FK in join table example
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-introspection
+    title: Schema Introspection / OpenAPI Spec
+    description: Introspect the live database schema, exposed as an auto-generated
+      PostgREST OpenAPI spec and used to keep the REST API in sync with schema
+      changes.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/api
+        quote: "Instant and auto-generated: As you update your database the changes are
+          immediately accessible through your API."
+        strength: direct
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: GET /v1/projects/{ref}/database/openapi — Get PostgREST OpenAPI spec
+        note: from seeded Management API surface
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration
+    title: Tracked Database Migrations
+    description: Track and apply schema changes as versioned SQL migration files
+      across local, staging, and production environments.
+    resource_kind: schema
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/deployment/database-migrations
+        quote: Database migrations are SQL statements that create, update, or delete
+          your existing database schemas.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/deployment/database-migrations
+        quote: Once you're using migrations, all schema changes—even small ones—should
+          go through migration files.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-diff
+    title: Schema Diffing
+    description: Diff the live database against migration history to auto-generate
+      migration files from Dashboard-made changes.
+    resource_kind: schema
+    operation_kind: diff
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/deployment/database-migrations
+        quote: You can still use the Dashboard to create tables and columns, and then
+          use the CLI to diff your changes and create migrations.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-branching
+    title: Database Branching
+    description: Spin up isolated preview or persistent database branches from a
+      project for schema/data experimentation, with automated
+      deploy-to-production on merge.
+    resource_kind: branch
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/platform/branching
+        quote: Supabase branches create separate environments that spin off from your
+          main project.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/platform/branching
+        quote: Supabase automatically runs a deployment workflow to deploy your changes
+          to production.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sql-query-execution
+    title: Ad-hoc SQL Query Execution
+    description: Run arbitrary SQL statements against the project database via the
+      SQL editor, CLI/psql, or the Management API query endpoint.
+    resource_kind: query
+    operation_kind: execute
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: POST /v1/projects/{ref}/database/query — [Beta] Run sql query
+        note: from seeded Management API surface
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/functions
+        quote: you can use the Dashboard's SQL editor or connect directly to your
+          database
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: rest-data-api-crud
+    title: Auto-generated REST CRUD API
+    description: PostgREST-based REST API auto-generated from the schema, supporting
+      create/read/update/delete on tables and views.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/api
+        quote: Basic CRUD operations (Create/Read/Update/Delete)
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/api
+        quote: The REST API resolves all requests to a single SQL statement leading to
+          fast response times and high throughput.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: relational-joins
+    title: Nested/Relational Reads
+    description: Query arbitrarily deep relationships across tables/views in a
+      single request via foreign-key-based embedding.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/api
+        quote: Arbitrarily deep relationships among tables/views.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: filtered-query
+    title: Filtered Queries
+    description: Filter rows using operators such as eq, neq, gt, lt, like, ilike,
+      in, contains, and full-text search via SDK/API query builders.
+    resource_kind: row
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/javascript/select
+        quote: eq, neq, gt, gte, lt, lte, like, ilike, in, is, contains, containedBy,
+          overlaps, textSearch
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sort-paginate-reads
+    title: Sorting & Pagination
+    description: Order result sets and paginate via range/limit modifiers.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/javascript/select
+        quote: The `range` modifier retrieves specific row ranges; the `limit` modifier
+          constrains result set size.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: count-aggregate
+    title: Row Counts
+    description: Return exact/estimated row counts alongside or instead of query results.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/javascript/select
+        quote: "const { count, error } = await supabase.from('characters').select('*', {
+          count: 'exact', head: true })"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-security
+    title: Row Level Security (RLS)
+    description: Postgres-native, policy-based per-row authorization that acts as an
+      implicit WHERE/CHECK clause on every query.
+    resource_kind: table
+    operation_kind: authorize
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
+        quote: RLS *must* always be enabled on any tables stored in an exposed schema.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
+        quote: You can just think of them as adding a `WHERE` clause to every query.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: role-based-access-control
+    title: Postgres Roles & RBAC
+    description: Create roles/groups, grant or revoke permissions, and organize role
+      hierarchies; Supabase ships default roles (postgres, anon, authenticated,
+      service_role, authenticator).
+    resource_kind: role
+    operation_kind: manage
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/postgres/roles
+        quote: roles can function as users or groups of users
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/postgres/roles
+        quote: Permissions can be revoked using the `REVOKE` command.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: api-key-management
+    title: API Key Management
+    description: Issue and rotate publishable/secret (and legacy anon/service_role)
+      API keys that scope what is accessing the project, separate from end-user
+      auth.
+    resource_kind: api-key
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/api/api-keys
+        quote: "Safe to expose online: web page, mobile or desktop app, GitHub actions,
+          CLIs, source code."
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/api/api-keys
+        quote: "Do not: Add it to web pages, public documents, source code, bundle in
+          executables or packages for mobile, desktop or CLI apps."
+        note: secret key handling guidance
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: jwt-signing-keys
+    title: JWT Issuance & Signing Key Management
+    description: Manage cryptographic signing keys used to create and verify
+      per-session JWTs, including JWKS-based asymmetric verification.
+    resource_kind: credential
+    operation_kind: manage
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/auth/jwts
+        quote: Supabase provides a comprehensive system of managing JWT Signing Keys
+          used to create and verify JSON Web Tokens.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/auth/jwts
+        quote: Supabase Auth continuously issues a new JWT for each user session, for as
+          long as the user remains signed in.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: identity-authentication
+    title: User Authentication Methods
+    description: Sign users up/in via email+password, magic link/OTP, OAuth social
+      login, or phone/SMS.
+    resource_kind: user
+    operation_kind: authenticate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/auth
+        quote: Your users can use many popular Auth methods, including password, magic
+          link, one-time password (OTP), social login, and single sign-on (SSO).
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-factor-authentication
+    title: Multi-Factor Authentication
+    description: Add a second sign-in factor via TOTP or phone.
+    resource_kind: user
+    operation_kind: authenticate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/auth
+        quote: Add a second factor to user sign-in with TOTP or phone.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sso-saml
+    title: Enterprise SSO (SAML)
+    description: Single sign-on for enterprise applications using the SAML 2.0 protocol.
+    resource_kind: user
+    operation_kind: authenticate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/auth
+        quote: Single Sign-On for enterprise applications with SAML 2.0.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: object-storage
+    title: File/Object Storage
+    description: Store and serve files (images, videos, documents) in buckets with
+      direct URL access, S3-compatible API, and resumable (TUS) uploads.
+    resource_kind: object
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/storage
+        quote: Store and serve images, videos, documents, and general-purpose files with
+          direct URL access and row-level security.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/storage
+        quote: S3 compatible Storage, RESTful API, TUS resumable uploads
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: storage-access-control
+    title: Storage Access Control
+    description: Enforce fine-grained file permissions using row-level security
+      policies on storage objects.
+    resource_kind: object
+    operation_kind: authorize
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/storage
+        quote: Fine-grained Access Control - Manage file permissions with row-level
+          security and custom policies.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: image-transformation
+    title: On-the-fly Image Transformation
+    description: Resize, compress, and transform stored media files on request.
+    resource_kind: object
+    operation_kind: transform
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/storage
+        quote: Image Optimization - Resize, compress, and transform media files on the
+          fly with built-in image processing.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: realtime-broadcast
+    title: Realtime Broadcast
+    description: Send low-latency messages between connected clients for messaging,
+      cursors, or custom notifications.
+    resource_kind: channel
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/realtime
+        quote: Send low-latency messages between clients. Perfect for real-time
+          messaging, database changes, cursor tracking, game events, and custom
+          notifications.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: realtime-presence
+    title: Realtime Presence
+    description: Track and synchronize which users/clients are currently online or active.
+    resource_kind: channel
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/realtime
+        quote: Track and synchronize user state across clients. Ideal for showing who's
+          online, or active participants.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: change-data-capture
+    title: Realtime Postgres Changes (CDC)
+    description: Subscribe to live INSERT/UPDATE/DELETE change events streamed from
+      Postgres tables.
+    resource_kind: table
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/realtime
+        quote: Listen to database changes in real-time.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-function
+    title: Database Functions (SQL/PL functions)
+    description: Create SQL/PL functions that live in the database and can be
+      invoked via SQL or client libraries, including set-returning functions.
+    resource_kind: function
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/functions
+        quote: Postgres has built-in support for SQL functions. These functions live
+          inside your database, and they can be used with the API.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/functions
+        quote: create or replace function hello_world() returns text language sql as $$
+          select 'hello world'; $$;
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-trigger
+    title: Postgres Triggers
+    description: Automatically execute trigger functions in response to
+      INSERT/UPDATE/DELETE/TRUNCATE table events, before or after, per-row or
+      per-statement.
+    resource_kind: trigger
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/postgres/triggers
+        quote: In Postgres, a trigger executes a set of actions automatically on table
+          events such as INSERTs, UPDATEs, DELETEs, or TRUNCATE operations.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-webhook
+    title: Database Webhooks
+    description: Trigger asynchronous outbound HTTP requests (POST/GET with JSON
+      payload) whenever a table INSERT/UPDATE/DELETE occurs, via pg_net-backed
+      triggers.
+    resource_kind: webhook
+    operation_kind: trigger
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/webhooks
+        quote: Database Webhooks allow you to send real-time data from your database to
+          another system whenever a table event occurs.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/webhooks
+        quote: We currently support HTTP webhooks. These can be sent as `POST` or `GET`
+          requests with a JSON payload.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scheduled-jobs
+    title: Scheduled Jobs (pg_cron)
+    description: Schedule recurring SQL snippets, database function calls, or HTTP
+      requests on a cron-like schedule, from once a second to once a year.
+    resource_kind: job
+    operation_kind: schedule
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/cron
+        quote: Supabase Cron uses the `pg_cron` Postgres database extension which is the
+          scheduling and execution engine for your Jobs.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/cron
+        quote: run SQL snippets or database functions with zero network latency or make
+          an HTTP request
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: edge-function-compute
+    title: Edge Functions
+    description: Deploy and invoke server-side TypeScript/Deno functions, globally
+      distributed, for custom backend logic outside the database.
+    resource_kind: function
+    operation_kind: deploy
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/functions
+        quote: Server-side code execution globally distributed
+        strength: direct
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: POST /v1/projects/{ref}/functions/deploy — Deploy a function
+        note: from seeded Management API surface
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search
+    title: Full Text Search
+    description: Native Postgres full text search using tsvector/tsquery, with
+      stemming, ranking, weighting, and indexable generated columns.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/full-text-search
+        quote: Converts your data into searchable tokens. `to_tsvector()` stands for 'to
+          text search vector.'
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/full-text-search
+        quote: searching for `big` includes results with the word `bigger`
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-similarity-search
+    title: Vector Embeddings & Similarity Search
+    description: Store embeddings in vector columns (pgvector) and query nearest
+      neighbors via Euclidean, inner-product, or cosine distance operators.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/ai/vector-columns
+        quote: Vectors in Supabase are enabled via pgvector, a Postgres extension for
+          storing and querying vectors in Postgres.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/ai/vector-columns
+        quote: "pgvector supports 3 new operators for computing distance: `<->`
+          (Euclidean distance), `<#>` (negative inner product), and `<=>`
+          (cosine distance)."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: postgres-extension-management
+    title: Postgres Extension Management
+    description: Enable, disable, and manage 50+ pre-installed or custom Postgres
+      extensions via SQL or Dashboard.
+    resource_kind: extension
+    operation_kind: manage
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/extensions
+        quote: Extensions are exactly as they sound - they 'extend' the database with
+          functionality which isn't part of the Postgres core.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/extensions
+        quote: Supabase has pre-installed some of the most useful open source extensions
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: bulk-data-import-export
+    title: Bulk Data Import/Export
+    description: Load or export large datasets via CSV upload, pgloader
+      (cross-engine migration), pg_dump/psql, or the Data API.
+    resource_kind: table
+    operation_kind: import
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/import-data
+        quote: pgloader … is a powerful tool for efficiently importing data into a
+          Postgres database
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/import-data
+        quote: The Supabase API allows you to programmatically import data into your
+          tables
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: automated-backups
+    title: Automated Daily Backups
+    description: Automatic daily database backups with plan-based retention windows,
+      restorable via Dashboard or Management API.
+    resource_kind: backup
+    operation_kind: backup
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/platform/backups
+        quote: Pro Plan projects can access the last 7 days of daily backups. Team Plan
+          projects can access the last 14 days of daily backups, while
+          Enterprise Plan projects can access up to 30 days of daily backups.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/platform/backups
+        quote: Users can restore their database through the Dashboard or
+          programmatically via the Management API.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: point-in-time-recovery
+    title: Point-in-Time Recovery (PITR)
+    description: Restore a database to any moment with up-to-seconds granularity via
+      WAL archiving combined with physical backups.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/platform/backups
+        quote: you to back up a project at shorter intervals, giving you the option to
+          restore to any chosen point with up to seconds of granularity.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/platform/backups
+        quote: By default, we back up WAL files at two-minute intervals.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: read-replicas
+    title: Read Replicas
+    description: Deploy additional asynchronously-synced read-only databases,
+      optionally in other regions, to offload reads and reduce latency.
+    resource_kind: database
+    operation_kind: replicate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/platform/read-replicas
+        quote: Read Replicas are additional databases kept in sync with your Primary
+          database.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/platform/read-replicas
+        quote: You can only read data from a Read Replica.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: connection-pooling
+    title: Connection Pooling
+    description: Pool Postgres connections via a shared multi-tenant pooler
+      (Supavisor) or dedicated pooler (PgBouncer) to serve many
+      concurrent/transient clients.
+    resource_kind: database
+    operation_kind: manage
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/database/connecting-to-postgres
+        quote: Connection pooling improves database performance by reusing existing
+          connections between queries.
+        strength: direct
+      - doc_url: https://supabase.com/docs/guides/database/connecting-to-postgres
+        quote: "Supabase offers two pooling solutions: Supavisor (shared, multi-tenant)
+          and PgBouncer (dedicated, paid tier)."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: typescript-type-generation
+    title: TypeScript Type Generation
+    description: Generate type-safe Row/Insert/Update TypeScript interfaces per
+      table from database introspection, via Dashboard or CLI.
+    resource_kind: schema
+    operation_kind: generate
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://supabase.com/docs/guides/api/rest/generating-types
+        quote: Supabase APIs are generated from your database, which means that we can
+          use database introspection to generate type-safe API definitions.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: project-lifecycle-management
+    title: Project Lifecycle Management
+    description: Create, pause, restart, restore, and delete Supabase projects (each
+      an isolated Postgres instance) via the Management API.
+    resource_kind: project
+    operation_kind: manage
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: POST /v1/projects/{ref}/pause — Pauses the given project
+        note: from seeded Management API surface
+        strength: direct
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: POST /v1/projects/{ref}/restore — Restores the given project
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: network-access-restriction
+    title: Network Restrictions / Bans
+    description: Restrict database network access by CIDR allow-list and view/remove
+      automatic network bans.
+    resource_kind: project
+    operation_kind: authorize
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: PATCH /v1/projects/{ref}/network-restrictions — [Alpha] Updates project's
+          network restrictions by adding or removing CIDRs
+        note: from seeded Management API surface
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-observability
+    title: Query Performance & Security Advisors
+    description: Surface project-level performance and security advisories (e.g.
+      missing indexes, RLS gaps) and query/usage logs and stats.
+    resource_kind: project
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: GET /v1/projects/{ref}/advisors/performance — Gets project performance
+          advisors.
+        note: from seeded Management API surface
+        strength: direct
+      - doc_url: https://supabase.com/docs/reference/api/introduction
+        quote: GET /v1/projects/{ref}/advisors/security — Gets project security
+          advisors.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1

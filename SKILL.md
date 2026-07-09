@@ -71,8 +71,8 @@ and vendor-specific verification extracts:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-Use `targets/suites/daeb-1-v3.yaml` as the source of truth. The files under
-`targets/packs/<vendor>/daeb-1-v3.yaml` are compiled execution artifacts, not
+Use `benchmarks/daeb/v1/suite.yaml` as the source of truth. The files under
+`benchmarks/daeb/v1/packs/<vendor>/pack.yaml` are compiled execution artifacts, not
 separate benchmark definitions. They should keep the same task ids, titles,
 intents, difficulty labels, scoring contract, surfaces, and harness matrix;
 only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
@@ -82,7 +82,7 @@ Once all vendor runs have been verified, freeze the publication bundle:
 
 ```bash
 npm run ax-eval -- publication-bundle \
-  --suite targets/suites/daeb-1-v3.yaml \
+  --suite benchmarks/daeb/v1/suite.yaml \
   --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
   --run-dir results/runs/daeb-1-v3 \
   --out results/publications/daeb-1-v3
@@ -229,7 +229,7 @@ benchmark-of-record matrix:
 
 ```bash
 ax-eval daeb-production-rerun \
-  --suite targets/suites/daeb-1-v3.yaml \
+  --suite benchmarks/daeb/v1/suite.yaml \
   --codex-model gpt-5.4 \
   --claude-model sonnet
 ```

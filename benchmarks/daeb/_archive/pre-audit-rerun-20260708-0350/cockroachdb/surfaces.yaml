@@ -1,0 +1,28 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+
+schema: ax.surface-extract/v1
+vendor: Cockroachdb
+slug: cockroachdb
+extracted_at: 2026-07-08T08:08:23.546Z
+extraction_context:
+  mode: registry-seeded-grounded
+  notes: Candidate surface extract; verify headless auth before publication.
+audit_status: candidate
+audit_notes:
+  - CLI auth is OAuth/app-login oriented; headless benchmark runs may need API or
+    SQL fallback surfaces instead.
+cli:
+  bin: ccloud
+  install: brew install cockroachdb/tap/ccloud
+  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
+  auth:
+    kind: oauth_app
+sdk: null
+mcp:
+  server: https://cockroachlabs.cloud/mcp
+  transport: http
+  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/connect-to-the-cockroachdb-cloud-mcp-server
+  auth:
+    kind: token

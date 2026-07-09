@@ -15,6 +15,12 @@ import {
   supportMatrixPath,
   traceReviewPath,
 } from "./methodology.js";
+import {
+  daebCompiledPackPath,
+  daebOraclesPath,
+  daebPacksDir,
+  daebVendorCardPath,
+} from "./benchmark-paths.js";
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
 const PUBLICATION_EFFORT_PROFILES = ["low", "high"] as const;
@@ -257,12 +263,11 @@ function addGate(gates: PublicationQualityGate[], gate: PublicationQualityGate):
   gates.push(gate);
 }
 
-export function discoverPublicationVendors(root: string, suite: Suite): string[] {
-  const packsDir = resolve(root, "targets", "packs");
-  const suiteFile = `${suite.name.toLowerCase()}.yaml`;
+export function discoverPublicationVendors(root: string, _suite: Suite): string[] {
+  const packsDir = daebPacksDir(root);
   if (!existsSync(packsDir)) return [];
   return readdirSync(packsDir)
-    .filter((slug) => existsSync(resolve(packsDir, slug, suiteFile)))
+    .filter((slug) => existsSync(daebCompiledPackPath(root, slug)))
     .sort();
 }
 
@@ -294,7 +299,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
 
   const vendors = opts.vendors.map((slug): PublicationVendor => {
     const missing: string[] = [];
-    const sourcePack = resolve(opts.root, "targets", "packs", slug, suiteFile);
+    const sourcePack = daebCompiledPackPath(opts.root, slug);
     const destVendorDir = resolve(outRoot, "vendors", slug);
     const runVendorDir = resolve(opts.root, opts.runDir, slug);
 
@@ -341,18 +346,18 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
 
     const artifacts = {
       vendor_card: copyIfExists(
-        resolve(opts.root, "targets", "vendors", `${slug}.discovered.yaml`),
+        daebVendorCardPath(opts.root, slug),
         resolve(destVendorDir, "vendor.discovered.yaml"),
         missing,
       ),
       oracle_extract: copyIfExists(
-        resolve(opts.root, "targets", "extracts", slug, suiteFile),
+        daebOraclesPath(opts.root, slug),
         resolve(destVendorDir, "oracle-extract.yaml"),
         missing,
       ),
       compiled_pack: copyIfExists(sourcePack, resolve(destVendorDir, "compiled-pack.yaml"), missing),
       approval: copyIfExists(
-        sourcePack.replace(/\.ya?ml$/i, ".approval.json"),
+        resolve(dirname(sourcePack), "pack.approval.json"),
         resolve(destVendorDir, "pack.approval.json"),
         missing,
       ),

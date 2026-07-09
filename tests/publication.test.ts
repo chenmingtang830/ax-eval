@@ -29,7 +29,7 @@ describe("publication bundle", () => {
     const runDir = freshDir("ax-pub-run-");
     const outDir = freshDir("ax-pub-out-");
     const vendorDir = resolve(runDir, "supabase");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     mkdirSync(vendorDir, { recursive: true });
 
@@ -108,7 +108,7 @@ describe("publication bundle", () => {
     const runDir = freshDir("ax-pub-prod-run-");
     const outDir = freshDir("ax-pub-prod-out-");
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     mkdirSync(aggregateDir, { recursive: true });
 
@@ -251,7 +251,7 @@ describe("publication bundle", () => {
   it.skip("ignores harness home directories when collecting publication artifacts", () => {
     const runDir = freshDir("ax-pub-ignore-home-run-");
     const outDir = freshDir("ax-pub-ignore-home-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
     const hiddenDir = resolve(runDir, "supabase", "api", "codex", "trial-1", ".invoke-home", "run-codex-medium-api");
@@ -350,7 +350,7 @@ describe("publication bundle", () => {
     const runDir = freshDir("ax-pub-export-run-");
     const bundleDir = freshDir("ax-pub-export-bundle-");
     const outDir = freshDir("ax-pub-export-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
     const trialDir = resolve(runDir, "supabase", "api", "codex", "trial-1");

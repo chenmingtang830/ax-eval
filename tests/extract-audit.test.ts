@@ -33,7 +33,7 @@ describe("extract-audit", () => {
     try {
       // Write raw YAML so we observe pre-write mislabels (writeCapabilityInventory
       // would already reclassify METHOD /path quotes).
-      const invDir = resolve(dir, "targets", "extracts", "acme");
+      const invDir = resolve(dir, "benchmarks", "daeb", "v1", "extracts", "acme");
       mkdirSync(invDir, { recursive: true });
       writeFileSync(resolve(invDir, "capability-inventory.yaml"), yamlStringify({
         schema: "ax.capability-inventory/v1",

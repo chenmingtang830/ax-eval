@@ -19,6 +19,7 @@ import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
+import { daebSurfacesPath } from "./benchmark-paths.js";
 
 const SURFACE_EXTRACT_SCHEMA_VERSION = "ax.surface-extract/v1" as const;
 
@@ -195,7 +196,7 @@ export async function extractSurfaces(
 }
 
 export function surfaceExtractPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "surfaces.yaml");
+  return daebSurfacesPath(root, slug);
 }
 
 const SURFACE_EXTRACT_HEADER = [

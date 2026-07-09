@@ -120,8 +120,8 @@ than ordinary local pack authoring:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-The canonical benchmark contract is [`targets/suites/daeb-1-v3.yaml`](./targets/suites/daeb-1-v3.yaml).
-Each database vendor has a compiled pack under `targets/packs/<vendor>/daeb-1-v3.yaml`,
+The canonical benchmark contract is [`benchmarks/daeb/v1/suite.yaml`](./benchmarks/daeb/v1/suite.yaml).
+Each database vendor has a compiled pack under `benchmarks/daeb/v1/packs/<vendor>/pack.yaml`,
 but those packs are execution artifacts, not independently authored benchmark
 definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
@@ -137,7 +137,7 @@ Run the production lane with:
 
 ```bash
 npm run ax-eval -- daeb-production-rerun \
-  --suite targets/suites/daeb-1-v3.yaml \
+  --suite benchmarks/daeb/v1/suite.yaml \
   --codex-model gpt-5.4 \
   --claude-model sonnet
 ```
@@ -148,7 +148,7 @@ running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
 npm run ax-eval -- publication-bundle \
-  --suite targets/suites/daeb-1-v3.yaml \
+  --suite benchmarks/daeb/v1/suite.yaml \
   --run-dir results/runs/daeb-1-v4-production \
   --out results/runs/daeb-1-v4-production/publication-bundle \
   --effort-profiles medium \
@@ -295,7 +295,8 @@ src/generate/       task-pack generation, review, report, normalized records
 src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
-targets/            target-pack index and example pack directories (see targets/README.md)
+targets/            tool-layer example packs (see targets/README.md)
+benchmarks/daeb/    AXArena DAEB publication contract (suite, extracts, packs)
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots

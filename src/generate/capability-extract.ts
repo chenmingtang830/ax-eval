@@ -322,7 +322,7 @@ export function writeCapabilityExtract(root: string, result: CapabilityExtractRe
 }
 
 export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = resolve(root, "targets", "extracts", slug, "capability-inventory.yaml");
+  const inventoryPath = capabilityInventoryPath(root, slug);
   const legacyPath = legacyCapabilityExtractPath(root, slug);
 
   if (existsSync(inventoryPath)) {

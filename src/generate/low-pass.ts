@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import type { GeneratedReportSnapshot } from "./snapshot.js";
 import { tasksForSurface, type SurfaceId } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export const DAEB_LOW_PASS_SCHEMA = "ax.low-coverage-pass/v1" as const;
 export const DAEB_VENDOR_ORDER = [
@@ -62,9 +63,8 @@ export function daebVendorOrder(): string[] {
   return [...DAEB_VENDOR_ORDER];
 }
 
-export function daebPackPath(root: string, vendor: string, suitePath: string): string {
-  const suiteStem = suitePath.replace(/^.*\//, "").replace(/\.yaml$/i, "");
-  return resolve(root, "targets", "packs", vendor, `${suiteStem}.yaml`);
+export function daebPackPath(root: string, vendor: string, _suitePath: string): string {
+  return daebCompiledPackPath(root, vendor);
 }
 
 export function daebFreshPackPath(runRoot: string, vendor: string, suitePath: string): string {

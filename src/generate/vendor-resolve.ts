@@ -13,6 +13,7 @@ import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
+import { daebVendorCardPath } from "./benchmark-paths.js";
 
 const ResolveResultSchema = z.object({
   vendor: z.string(),
@@ -127,7 +128,7 @@ export async function resolveVendor(
 
 /** Path where a resolved vendor card is persisted. */
 export function vendorCardPath(root: string, slug: string): string {
-  return resolve(root, "targets", "vendors", `${slug}.discovered.yaml`);
+  return daebVendorCardPath(root, slug);
 }
 
 /** Write a vendor card to disk as YAML. */

@@ -6,13 +6,13 @@ import { tmpdir } from "node:os";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DAEB1 = resolve(ROOT, "targets", "suites", "daeb-1.yaml");
+const DAEB1 = resolve(ROOT, "benchmarks", "daeb", "v1", "suite.yaml");
 
 describe("canonical task suite", () => {
   it("loads and validates the shipped DAEB-1 suite", () => {
     const suite = loadSuite(DAEB1);
-    expect(suite.name).toBe("DAEB-1");
-    expect(suite.version).toBe(1);
+    expect(suite.name).toBe("DAEB-1-V3");
+    expect(suite.version).toBe(3);
     expect(suite.category).toBe("database");
     expect(suite.tasks).toHaveLength(10);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);
@@ -37,7 +37,7 @@ describe("canonical task suite", () => {
   it("renders a prompt fragment that names every task id", () => {
     const suite = loadSuite(DAEB1);
     const fragment = suitePromptFragment(suite);
-    expect(fragment).toMatch(/DAEB-1/);
+    expect(fragment).toMatch(/DAEB-1-V3/);
     for (const task of suite.tasks) {
       expect(fragment).toContain(task.id);
       expect(fragment).toContain(task.difficulty);

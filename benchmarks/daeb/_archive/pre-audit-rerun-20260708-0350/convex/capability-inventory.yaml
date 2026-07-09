@@ -1,0 +1,334 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+
+schema: ax.capability-inventory/v1
+vendor: Convex
+slug: convex
+category: database
+extracted_at: 2026-07-08T09:12:30.196Z
+methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extraction_context:
+  mode: openapi-seeded
+  spec_url: https://api.convex.dev/v1/openapi.json
+  notes: Candidate inventory covers Convex management/control-plane APIs only; data-plane
+    schema/query/mutation/action capabilities need a grounded docs pass before publication.
+audit_status: needs-reextract
+audit_notes:
+  - Control-plane-only inventory is not comparable to SQL/document data-plane
+    inventories until Convex schema, query, mutation, and function capabilities
+    are extracted from product docs.
+capabilities:
+  - capability_name: deployment-provisioning
+    title: Database Deployment Provisioning
+    description: Create, inspect, update, delete, and list Convex database
+      deployments within a project. Each deployment is an isolated database
+      instance containing its own schema, data, and server-side functions.
+    resource_kind: deployment
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /projects/{project_id}/create_deployment — Create deployment; GET
+          /projects/{project_id}/list_deployments — List deployments; GET
+          /deployments/{deployment_name} — Get deployment; PATCH
+          /deployments/{deployment_name} — Update deployment; POST
+          /deployments/{deployment_name}/delete — Delete deployment
+        note: "Also: GET /projects/{project_id}/deployment and GET
+          /teams/{team_id_or_slug}/projects/{project_slug}/deployment for
+          slug-based lookup"
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: deployment-update
+    title: Deployment Configuration Update
+    description: Modify deployment settings and metadata post-creation via PATCH,
+      enabling configuration changes without tearing down and re-provisioning
+      the database instance.
+    resource_kind: deployment
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: PATCH /deployments/{deployment_name} — Update deployment
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: deployment-transfer
+    title: Cross-Project Deployment Transfer
+    description: Move an existing deployment (with its schema and data) from one
+      project to another, enabling reorganization without reprovisioning or data
+      loss.
+    resource_kind: deployment
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /deployments/{deployment_name}/transfer — Transfer deployment
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: preview-environment-provisioning
+    title: Preview (Ephemeral) Database Environments
+    description: Provision isolated preview deployments for feature branches or pull
+      requests via scoped preview deploy keys, enabling safe schema and data
+      experimentation before production promotion.
+    resource_kind: deployment
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /projects/{project_id}/create_preview_deploy_key — Create preview
+          deploy key; GET /projects/{project_id}/list_preview_deploy_keys — List
+          preview deploy keys; POST
+          /projects/{project_id}/delete_preview_deploy_key — Delete preview
+          deploy key
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-region-deployment
+    title: Multi-Region and Multi-Tier Deployment Placement
+    description: Select from documented geographic deployment regions and
+      compute/storage classes at provisioning time, enabling data-residency
+      control and latency optimization across regions.
+    resource_kind: deployment
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: GET /teams/{team_id}/list_deployment_regions — List deployment regions;
+          GET /teams/{team_id}/list_deployment_classes — List deployment classes
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: local-development-deployment
+    title: Local Development Deployment Mode
+    description: List and track local (developer-machine) Convex deployments
+      associated with a team, supporting offline-first development and testing
+      workflows before cloud deployment.
+    resource_kind: deployment
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: GET /teams/{team_id}/list_local_deployments — List local deployments
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: fleet-deployment-enumeration
+    title: Team-Wide Deployment Fleet Enumeration
+    description: List all deployments across an entire team regardless of project,
+      providing a unified fleet view for operational monitoring and
+      administration of all database instances.
+    resource_kind: deployment
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: GET /teams/{team_id}/list_deployments — List deployments for team
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: environment-variable-management
+    title: Deployment Environment Variable Configuration
+    description: Read and update default environment variables scoped to a project,
+      injecting secrets and runtime configuration into server-side database
+      functions without hardcoding values in source.
+    resource_kind: environment-variable
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: GET /projects/{project_id}/list_default_environment_variables — List
+          default environment variables; POST
+          /projects/{project_id}/update_default_environment_variables — Update
+          default environment variables
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: deploy-key-management
+    title: CI/CD Deploy Key Management
+    description: Create, list, and revoke scoped deploy keys for CI/CD pipelines to
+      authenticate schema and function pushes to specific deployment instances,
+      separating machine credentials from personal tokens.
+    resource_kind: key
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /deployments/{deployment_name}/create_deploy_key — Create deploy
+          key; GET /deployments/{deployment_name}/list_deploy_keys — List deploy
+          keys; POST /deployments/{deployment_name}/delete_deploy_key — Delete
+          deploy key
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: custom-domain-binding
+    title: Custom Domain Binding for Database Endpoints
+    description: Attach and remove custom DNS domains to database deployments,
+      providing branded or environment-specific HTTPS endpoints for function and
+      data API access.
+    resource_kind: domain
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /deployments/{deployment_name}/create_custom_domain — Create custom
+          domain; GET /deployments/{deployment_name}/custom_domains — List
+          custom domains; POST
+          /deployments/{deployment_name}/delete_custom_domain — Delete custom
+          domain
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: role-based-access-control
+    title: Custom Team Role Management
+    description: Create, update, list, and delete custom roles at the team level
+      that grant specific permission sets over projects and database
+      deployments, extending built-in role presets.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /teams/{team_id}/create_custom_role — Create a custom role; GET
+          /teams/{team_id}/list_custom_roles — List custom roles; POST
+          /teams/{team_id}/update_custom_role — Update a custom role; POST
+          /teams/{team_id}/delete_custom_role — Delete a custom role
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: team-member-management
+    title: Team Member Invite and Role Assignment
+    description: Invite new team members, manage pending invitations, update member
+      roles, and enumerate current members to control who can access projects
+      and database deployments.
+    resource_kind: member
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /teams/{team_id}/invite_team_member — Invite a team member; GET
+          /teams/{team_id}/list_members — List team members; GET
+          /teams/{team_id}/list_pending_invites — List pending team invitations;
+          POST /teams/{team_id}/cancel_team_member_invite — Cancel a pending
+          team invitation; POST /teams/{team_id}/update_team_member_role —
+          Update a team member's role
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: identity-token-management
+    title: Personal and Team API Token Management
+    description: Create, list, revoke, and introspect personal and team-scoped
+      access tokens used for authenticating management API calls and
+      programmatic database administration workflows.
+    resource_kind: token
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /create_personal_access_token — Create personal access token; GET
+          /list_personal_access_tokens — List personal access tokens; POST
+          /delete_personal_access_token — Delete personal access token; POST
+          /teams/{team_id}/create_access_token — Create a team access token; GET
+          /teams/{team_id}/list_access_tokens — List team access tokens; POST
+          /teams/{team_id}/delete_access_token — Delete a team access token; GET
+          /token_details — Get token details
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: audit-logging
+    title: Team-Level Audit Log
+    description: Retrieve a chronological log of administrative audit events for a
+      team, covering actions such as role changes, deployment modifications, and
+      credential operations for compliance and security forensics.
+    resource_kind: audit-event
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: GET /teams/{team_id}/list_audit_log_events — List audit log events
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: project-organization
+    title: Project Lifecycle Management
+    description: Create, list, inspect, and delete projects as the logical grouping
+      of related database deployments within a team; supports lookup by both
+      project ID and human-readable slug.
+    resource_kind: project
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /teams/{team_id}/create_project — Create project; GET
+          /teams/{team_id}/list_projects — List projects; POST
+          /projects/{project_id}/delete — Delete project; GET
+          /projects/{project_id} — Get project by ID; GET
+          /teams/{team_id_or_slug}/projects/{project_slug} — Get project by slug
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: team-provisioning
+    title: Team Provisioning
+    description: Create teams as the top-level organizational and billing boundary
+      that owns projects and database deployments, separating organizational
+      units within the Convex platform.
+    resource_kind: team
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/management-api
+        quote: POST /teams/create_team — Create a team
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

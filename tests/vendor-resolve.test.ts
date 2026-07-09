@@ -98,7 +98,7 @@ describe("vendor-resolve (v3: llm-search batch)", () => {
   });
 
   it("loadVendorCard errors on malformed YAML on disk", () => {
-    mkdirSync(resolve(tmpRoot, "targets", "vendors"), { recursive: true });
+    mkdirSync(resolve(tmpRoot, "benchmarks", "daeb", "vendors"), { recursive: true });
     writeFileSync(vendorCardPath(tmpRoot, "bad"), "vendor: Bad\ncategory: db\n");
     expect(() => loadVendorCard(tmpRoot, "bad")).toThrow(/malformed/);
   });

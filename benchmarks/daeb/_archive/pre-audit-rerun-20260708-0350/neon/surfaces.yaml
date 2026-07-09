@@ -1,0 +1,41 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+
+schema: ax.surface-extract/v1
+vendor: Neon
+slug: neon
+extracted_at: 2026-07-08T09:07:37.316Z
+extraction_context:
+  mode: manual-review
+  notes: Corrected CLI auth from MCP OAuth prose to documented NEON_API_KEY/--api-key
+    headless auth.
+audit_status: candidate
+audit_notes:
+  - MCP hosted OAuth remains candidate for headless evaluation until an automated
+    credential flow is provisioned.
+cli:
+  bin: neon
+  install: npm install -g neonctl
+  docs_url: https://neon.com/docs/cli
+  auth:
+    kind: token
+    token_env: NEON_API_KEY
+    instructions: >-
+      The Neon CLI authenticates non-interactively with the global `--api-key`
+      option or the `NEON_API_KEY` environment variable. The `neon` binary is
+      provided by the `neonctl` package; `neonctl` remains an alias.
+sdk: null
+mcp:
+  server: https://mcp.neon.tech/mcp
+  transport: http
+  docs_url: https://neon.com/docs/ai/neon-mcp-server
+  auth:
+    kind: oauth_app
+    instructions: >-
+      ## OAuth 2.0 — self-onboarding
+
+      Point your MCP client at the server URL and approve access in the browser.
+      The server supports OAuth Dynamic Client Registration (RFC 7591), so the
+      client registers itself automatically — no developer-portal app,
+      `client_id`, or `client_secret` to create.

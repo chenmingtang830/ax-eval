@@ -1,0 +1,957 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+
+schema: ax.capability-inventory/v1
+vendor: Neon
+slug: neon
+category: database
+extracted_at: 2026-07-08T09:14:45.498Z
+methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extraction_context:
+  mode: openapi-seeded
+  spec_url: https://neon.com/api_spec/release/v2.json
+  notes: Spec-seeded candidate inventory; PostgreSQL data-plane capabilities need
+    direct SQL or driver citations before publication.
+audit_status: candidate
+audit_notes:
+  - OpenAPI evidence covers Neon control-plane endpoints well, but data-plane
+    PostgreSQL claims should be reviewed against SQL/driver docs.
+capabilities:
+  - capability_name: database-provisioning
+    title: Database Create and Manage
+    description: Create, update, and delete named logical PostgreSQL databases
+      within a project branch. Multiple databases can coexist on a single
+      branch, each independently addressable.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/databases — Create
+          database; GET /projects/{project_id}/branches/{branch_id}/databases —
+          List databases; PATCH
+          /projects/{project_id}/branches/{branch_id}/databases/{database_name}
+          — Update database; DELETE
+          /projects/{project_id}/branches/{branch_id}/databases/{database_name}
+          — Delete database
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: table-definition
+    title: Table and Schema Definition (DDL)
+    description: Define tables, columns, indexes, views, and other schema objects
+      using full PostgreSQL DDL via direct Postgres connections (connection URI)
+      or the HTTP Data API SQL surface.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI; POST
+          /projects/{project_id}/branches/{branch_id}/data-api/{database_name} —
+          Create Neon Data API
+        note: Full PostgreSQL DDL available through both the direct connection URI and
+          the HTTP Data API SQL endpoint
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-insert
+    title: Row Insert and Bulk Write
+    description: Insert single rows or bulk-load data into PostgreSQL tables via SQL
+      INSERT and COPY commands, accessible through direct Postgres connections
+      or the HTTP Data API.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI; POST
+          /projects/{project_id}/branches/{branch_id}/data-api/{database_name} —
+          Create Neon Data API
+        note: PostgreSQL INSERT and COPY available via connection URI and Data API SQL
+          execution surface
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-query
+    title: Filtered Query and Paginated Read
+    description: Execute SQL SELECT statements with WHERE filters, ORDER BY,
+      LIMIT/OFFSET pagination, JOINs, and aggregations via direct Postgres
+      connections or the HTTP Data API.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI; GET
+          /projects/{project_id}/branches/{branch_id}/data-api/{database_name} —
+          Retrieve Neon Data API configuration
+        note: Full PostgreSQL SELECT surface including filtered reads, pagination,
+          counts, and aggregations
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-mutation
+    title: Row Update and Delete
+    description: Execute SQL UPDATE and DELETE statements, including conditional
+      mutations with WHERE clauses, via direct Postgres connections or the HTTP
+      Data API.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI;
+          PATCH
+          /projects/{project_id}/branches/{branch_id}/data-api/{database_name} —
+          Update Neon Data API
+        note: PostgreSQL UPDATE and DELETE available via connection URI and Data API SQL
+          execution
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: http-data-api
+    title: HTTP SQL Data API
+    description: Enable and manage a serverless HTTP REST endpoint over a named
+      database that accepts SQL queries without a persistent connection,
+      designed for edge and serverless workloads.
+    resource_kind: data-api
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/data-api/{database_name}
+          — Create Neon Data API; GET — Retrieve Neon Data API configuration;
+          PATCH — Update Neon Data API; DELETE — Delete Neon Data API
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transaction-support
+    title: ACID Transaction Support
+    description: Full PostgreSQL ACID transactions including explicit
+      BEGIN/COMMIT/ROLLBACK, savepoints, and configurable isolation levels,
+      available via connection URI and the HTTP Data API batch mode.
+    resource_kind: transaction
+    operation_kind: execute
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI; POST
+          /projects/{project_id}/branches/{branch_id}/data-api/{database_name} —
+          Create Neon Data API
+        note: PostgreSQL-native ACID semantics fully available through both connection
+          paths
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: constraint-enforcement
+    title: Schema Constraints and Data Integrity
+    description: "Enforce relational integrity via PostgreSQL constraints: primary
+      keys, foreign keys, unique constraints, check constraints, and NOT NULL,
+      all declared in DDL and enforced by the engine."
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/schema — Retrieve
+          database schema; GET /projects/{project_id}/connection_uri — Retrieve
+          connection URI
+        note: Full PostgreSQL constraint DDL enforced natively; schema introspection
+          endpoint verifies constraint presence
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-security
+    title: Row-Level Security (RLS)
+    description: PostgreSQL row-level security policies controlling per-row
+      visibility and mutation based on session role or JWT claims, enforced at
+      the engine level and composable with Neon Auth and JWKS-verified tokens.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/roles — Create role; GET
+          /projects/{project_id}/connection_uri — Retrieve connection URI; POST
+          /projects/{project_id}/jwks — Add JWKS URL
+        note: PostgreSQL native RLS combined with JWT role mapping via JWKS endpoint;
+          scoped credentials also enable per-identity RLS
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-introspection
+    title: Schema Introspection
+    description: Retrieve the full DDL schema (tables, indexes, views, functions,
+      sequences) for a database on a specific branch via the Neon control plane
+      API.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/schema — Retrieve
+          database schema
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-comparison
+    title: Cross-Branch Schema Comparison
+    description: Compare the database schema between two branches (or a branch and a
+      reference point) to surface DDL drift, enabling migration validation and
+      pre-promotion checks.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/compare_schema — Compare
+          database schema
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration
+    title: Branch-Based Schema Migration Workflow
+    description: Apply schema migrations on an isolated branch, compare DDL against
+      the source branch, then promote by setting the migrated branch as default
+      — enabling zero-downtime migrations without affecting production data.
+    resource_kind: branch
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches — Create branch; GET
+          /projects/{project_id}/branches/{branch_id}/compare_schema — Compare
+          database schema; POST
+          /projects/{project_id}/branches/{branch_id}/set_as_default — Set
+          branch as default
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: branch-create
+    title: Instant Database Branching
+    description: Instantly fork a database branch using copy-on-write semantics to
+      create isolated environments for development, testing, or staging without
+      full data duplication or provisioning delay.
+    resource_kind: branch
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches — Create branch; POST
+          /projects/{project_id}/branch_anonymized — Create anonymized branch;
+          GET /projects/{project_id}/branches/count — Retrieve number of
+          branches
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: point-in-time-restore
+    title: Point-in-Time Restore (PITR)
+    description: Restore a branch to any historical timestamp within the retention
+      window, enabling recovery from logical data errors, accidental deletes, or
+      unwanted schema changes.
+    resource_kind: branch
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/restore — Restore branch
+          to a historical state; POST
+          /projects/{project_id}/branches/{branch_id}/finalize_restore —
+          Finalize branch restore from snapshot
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: snapshot-backup
+    title: Snapshot Creation and Scheduled Backup
+    description: Create manual snapshots of a branch at arbitrary points and
+      configure automated backup schedules to maintain durable recovery
+      checkpoints beyond the rolling PITR window.
+    resource_kind: snapshot
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/snapshot — Create
+          snapshot; PUT
+          /projects/{project_id}/branches/{branch_id}/backup_schedule — Update
+          backup schedule; GET
+          /projects/{project_id}/branches/{branch_id}/backup_schedule — Retrieve
+          backup schedule; GET /projects/{project_id}/snapshots — List project
+          snapshots
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: snapshot-restore
+    title: Snapshot Restore
+    description: Restore a project or branch to a named, explicitly created
+      snapshot, providing recovery to a known-good state independent of the
+      rolling PITR history window.
+    resource_kind: snapshot
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/snapshots/{snapshot_id}/restore — Restore
+          snapshot; PATCH /projects/{project_id}/snapshots/{snapshot_id} —
+          Update snapshot; DELETE /projects/{project_id}/snapshots/{snapshot_id}
+          — Delete snapshot
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: project-recovery
+    title: Deleted Project and Branch Recovery
+    description: Recover a deleted project or branch within the recovery retention
+      window, providing a last-resort safety net against accidental destructive
+      operations.
+    resource_kind: project
+    operation_kind: restore
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/recover — Recover a deleted project; POST
+          /projects/{project_id}/branches/{branch_id}/recover — Recover a
+          deleted branch
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-anonymization
+    title: Branch Data Anonymization
+    description: Create fully anonymized copies of a production database branch by
+      applying column masking rules, enabling safe data handoff to developers
+      and testers without exposing PII.
+    resource_kind: branch
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branch_anonymized — Create anonymized branch;
+          POST /projects/{project_id}/branches/{branch_id}/anonymize — Start
+          anonymization; GET
+          /projects/{project_id}/branches/{branch_id}/anonymized_status —
+          Retrieve anonymized branch status
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-masking
+    title: Column-Level Data Masking Rules
+    description: Define and update column-level masking transformation rules that
+      govern how sensitive data is obfuscated when producing anonymized
+      branches.
+    resource_kind: masking-rule
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/masking_rules — Retrieve
+          masking rules; PATCH
+          /projects/{project_id}/branches/{branch_id}/masking_rules — Update
+          masking rules
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: role-management
+    title: Database Role Management
+    description: Create, retrieve, and delete PostgreSQL database roles with full
+      password lifecycle management (reveal, reset), enabling fine-grained
+      access control at the database level.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/roles — Create role;
+          DELETE /projects/{project_id}/branches/{branch_id}/roles/{role_name} —
+          Delete role; GET
+          /projects/{project_id}/branches/{branch_id}/roles/{role_name}/reveal_password
+          — Retrieve role password; POST
+          /projects/{project_id}/branches/{branch_id}/roles/{role_name}/reset_password
+          — Reset role password
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scoped-credential-issuance
+    title: Scoped Short-Lived Credential Issuance
+    description: Issue short-lived, scope-limited credentials for a specific branch,
+      enabling least-privilege access patterns and eliminating long-lived
+      password dependencies in application code.
+    resource_kind: credential
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/credentials — Issue a
+          scoped credential on the branch; DELETE
+          /projects/{project_id}/branches/{branch_id}/credentials/{token_id} —
+          Revoke a credential; GET
+          /projects/{project_id}/branches/{branch_id}/credentials — List
+          credentials on the branch
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: connection-string
+    title: Connection URI Retrieval
+    description: Retrieve the PostgreSQL connection string for a project/branch to
+      establish direct database connections from applications, ORMs, migration
+      tools, and database clients.
+    resource_kind: connection
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/connection_uri — Retrieve connection URI
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: compute-endpoint-management
+    title: Compute Endpoint Lifecycle Management
+    description: Create, configure, start, suspend, and restart compute endpoints
+      that provide PostgreSQL server capacity for a branch, enabling
+      programmatic autoscaling, cold-start wake, and cost control via
+      suspension.
+    resource_kind: endpoint
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/endpoints — Create compute endpoint; PATCH
+          /projects/{project_id}/endpoints/{endpoint_id} — Update compute
+          endpoint; POST /projects/{project_id}/endpoints/{endpoint_id}/start —
+          Start compute endpoint; POST
+          /projects/{project_id}/endpoints/{endpoint_id}/suspend — Suspend
+          compute endpoint; POST
+          /projects/{project_id}/endpoints/{endpoint_id}/restart — Restart
+          compute endpoint
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: serverless-functions
+    title: Serverless Function Deployment
+    description: Deploy and manage serverless functions co-located with the database
+      on a branch, with versioned deployments and slug-based addressing for
+      server-side compute close to the data.
+    resource_kind: function
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/functions — List
+          functions on the branch; GET
+          /projects/{project_id}/branches/{branch_id}/functions/{slug} — Get
+          function details; POST
+          /projects/{project_id}/branches/{branch_id}/functions/{slug}/deployments
+          — Deploy code to a function; PATCH
+          /projects/{project_id}/branches/{branch_id}/functions/{slug} — Update
+          a function; DELETE
+          /projects/{project_id}/branches/{branch_id}/functions/{slug} — Delete
+          a function on the branch
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: object-storage
+    title: Branch-Scoped Object Storage
+    description: Create S3-compatible object storage buckets co-located with a
+      database branch, with presigned URL generation for secure client-side
+      uploads and downloads.
+    resource_kind: bucket
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/buckets — Create a
+          bucket on the branch; GET
+          /projects/{project_id}/branches/{branch_id}/buckets/{bucket_name}/objects
+          — List objects in a bucket; GET
+          /projects/{project_id}/branches/{branch_id}/buckets/{bucket_name}/objects/{object_key}/download
+          — Download an object's bytes; POST
+          /projects/{project_id}/branches/{branch_id}/buckets/{bucket_name}/objects/{object_key}/presign
+          — Presign an upload or download for an object in a bucket
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: ai-gateway
+    title: AI Model Gateway
+    description: Access an AI model gateway endpoint co-located with a database
+      branch, enabling low-latency AI inference calls within the same network
+      context as the database for RAG and embedding workflows.
+    resource_kind: ai-gateway
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/ai_gateway — Get branch
+          AI Gateway endpoint
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-search
+    title: Vector Search via pgvector
+    description: Full-text and semantic vector similarity search via the pgvector
+      PostgreSQL extension, loadable through the shared preload library
+      mechanism. Enables ANN index types (IVFFlat, HNSW) and
+      cosine/L2/inner-product distance operators.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/available_preload_libraries — List available
+          shared preload libraries
+        note: pgvector available as a preload library; vector index DDL and similarity
+          operators available via connection URI and Data API
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: built-in-auth
+    title: Built-In Authentication Service
+    description: Enable and configure a per-branch managed authentication service
+      supporting email/password, magic links, phone numbers, and
+      organization-level auth, with webhook event delivery and configurable
+      localhost access.
+    resource_kind: auth
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/auth — Enable Neon Auth
+          for the branch; GET /projects/{project_id}/branches/{branch_id}/auth —
+          Retrieve Neon Auth details; DELETE
+          /projects/{project_id}/branches/{branch_id}/auth — Disable Neon Auth
+          for the branch; PATCH
+          /projects/{project_id}/branches/{branch_id}/auth/config — Update auth
+          configuration
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: auth-user-management
+    title: Auth User CRUD
+    description: Create, delete, and update roles for end-users managed by the
+      built-in Neon Auth service, enabling programmatic user lifecycle
+      management without a separate identity provider.
+    resource_kind: auth-user
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/auth/users — Create new
+          auth user; DELETE
+          /projects/{project_id}/branches/{branch_id}/auth/users/{auth_user_id}
+          — Delete auth user; PUT
+          /projects/{project_id}/branches/{branch_id}/auth/users/{auth_user_id}/role
+          — Update auth user role
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: oauth-provider-integration
+    title: OAuth Provider Integration
+    description: Configure and manage OAuth 2.0 identity providers for the built-in
+      auth service, enabling social and enterprise SSO login flows without
+      custom implementation.
+    resource_kind: oauth-provider
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/auth/oauth_providers —
+          Add an OAuth provider; PATCH
+          /projects/{project_id}/branches/{branch_id}/auth/oauth_providers/{oauth_provider_id}
+          — Update OAuth provider; DELETE
+          /projects/{project_id}/branches/{branch_id}/auth/oauth_providers/{oauth_provider_id}
+          — Delete OAuth provider; GET
+          /projects/{project_id}/branches/{branch_id}/auth/oauth_providers —
+          List OAuth providers for the branch
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: auth-webhook
+    title: Auth Event Webhooks
+    description: Configure webhook endpoints to receive auth lifecycle events
+      (sign-up, sign-in, etc.) from the built-in auth service, enabling
+      downstream event-driven workflows.
+    resource_kind: webhook
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/auth/webhooks — Retrieve
+          Neon Auth webhook configuration; PUT
+          /projects/{project_id}/branches/{branch_id}/auth/webhooks — Update
+          Neon Auth webhook configuration
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: redirect-uri-allowlist
+    title: Auth Redirect URI Domain Allowlist
+    description: Manage a whitelist of trusted redirect URI domains for the built-in
+      auth service to prevent open redirect vulnerabilities in OAuth flows.
+    resource_kind: auth-domain
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/branches/{branch_id}/auth/domains — Add
+          domain to redirect_uri whitelist; GET
+          /projects/{project_id}/branches/{branch_id}/auth/domains — List
+          domains in redirect_uri whitelist; DELETE
+          /projects/{project_id}/branches/{branch_id}/auth/domains — Delete
+          domain from redirect_uri whitelist
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: jwks-jwt-verification
+    title: JWKS URL Registration for JWT Verification
+    description: Register JWKS (JSON Web Key Set) URLs so the PostgreSQL engine can
+      verify and decode JWTs, enabling JWT claim-driven row-level security
+      policies without a separate auth sidecar.
+    resource_kind: jwks
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/jwks — Add JWKS URL; GET
+          /projects/{project_id}/jwks — List JWKS URLs; DELETE
+          /projects/{project_id}/jwks/{jwks_id} — Delete JWKS URL
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: project-access-control
+    title: Project-Level Permission Management
+    description: Grant and revoke per-project access for individual users, enabling
+      team collaboration with controlled project-level visibility and
+      operations.
+    resource_kind: project-permission
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/permissions — Grant project access; DELETE
+          /projects/{project_id}/permissions/{permission_id} — Revoke project
+          access; GET /projects/{project_id}/permissions — List project access
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: organization-management
+    title: Organization and Member Management
+    description: Create and manage multi-user organizations with member roles,
+      invitation workflows, and org-level API keys for enterprise team-based
+      database administration.
+    resource_kind: organization
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /organizations/{org_id}/members — List organization members; PATCH
+          /organizations/{org_id}/members/{member_id} — Update role for
+          organization member; DELETE
+          /organizations/{org_id}/members/{member_id} — Remove organization
+          member; POST /organizations/{org_id}/invitations — Create organization
+          invitations
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: spending-limit-controls
+    title: Spending Limit Controls
+    description: Set, retrieve, and remove per-organization monthly spending limits
+      to provide guardrails against unexpected compute and storage cost
+      overruns.
+    resource_kind: spending-limit
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: PUT /organizations/{org_id}/billing/spending_limit — Set organization
+          spending limit; GET /organizations/{org_id}/billing/spending_limit —
+          Retrieve organization spending limit; DELETE
+          /organizations/{org_id}/billing/spending_limit — Remove organization
+          spending limit
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: consumption-monitoring
+    title: Compute and Storage Consumption Metrics
+    description: Retrieve detailed time-series consumption metrics for compute
+      hours, storage, and data transfer at both project and branch granularity
+      for cost attribution and capacity planning.
+    resource_kind: consumption-metric
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /consumption_history/v2/projects — Retrieve project consumption
+          metrics; GET /consumption_history/v2/branches — Retrieve branch
+          consumption metrics; GET /consumption_history/projects — Retrieve
+          project consumption metrics (legacy plans)
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: storage-monitoring
+    title: Branch Storage State
+    description: Retrieve current storage utilization state for a database branch,
+      enabling monitoring of logical and physical storage consumption per
+      branch.
+    resource_kind: storage
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/branches/{branch_id}/storage — Get branch
+          storage state
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vpc-private-networking
+    title: VPC Private Network Endpoints
+    description: Configure VPC endpoint restrictions to route all database traffic
+      over private cloud networks (AWS PrivateLink or equivalent), preventing
+      public internet exposure of database connections.
+    resource_kind: vpc-endpoint
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST
+          /organizations/{org_id}/vpc/region/{region_id}/vpc_endpoints/{vpc_endpoint_id}
+          — Assign or update VPC endpoint; GET
+          /organizations/{org_id}/vpc/vpc_endpoints — List VPC endpoints across
+          all regions; POST
+          /projects/{project_id}/vpc_endpoints/{vpc_endpoint_id} — Set VPC
+          endpoint restriction; DELETE
+          /projects/{project_id}/vpc_endpoints/{vpc_endpoint_id} — Delete VPC
+          endpoint restriction
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: api-key-management
+    title: API Key Management
+    description: Create and revoke personal and organization-scoped API keys for
+      authenticating programmatic access to the Neon control plane.
+    resource_kind: api-key
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /api_keys — Create API key; DELETE /api_keys/{key_id} — Revoke API
+          key; GET /api_keys — List API keys; POST
+          /organizations/{org_id}/api_keys — Create organization API key; DELETE
+          /organizations/{org_id}/api_keys/{key_id} — Revoke organization API
+          key
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: async-operation-tracking
+    title: Async Operation Tracking
+    description: Poll and retrieve status of long-running asynchronous control plane
+      operations (branch creation, restore, anonymization, etc.) to implement
+      reliable, event-driven provisioning workflows.
+    resource_kind: operation
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/operations/{operation_id} — Retrieve operation
+          details; GET /projects/{project_id}/operations — List operations
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-region-deployment
+    title: Multi-Region Database Deployment
+    description: Create projects in any supported cloud region for geographic data
+      placement, latency optimization, and data residency compliance. Supported
+      regions are enumerable via API.
+    resource_kind: region
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /regions — List supported regions; POST /projects — Create project
+          (accepts region parameter)
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: project-transfer
+    title: Project Transfer Between Accounts and Orgs
+    description: Transfer projects between personal accounts and organizations via a
+      request/accept flow, supporting team handoffs and account consolidation
+      without data migration.
+    resource_kind: project
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: POST /projects/{project_id}/transfer_requests — Create a project transfer
+          request; PUT /projects/{project_id}/transfer_requests/{request_id} —
+          Accept a project transfer request; POST
+          /organizations/{source_org_id}/projects/transfer — Transfer projects
+          between organizations; POST /users/me/projects/transfer — Transfer
+          projects from personal account to organization
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: advisor-diagnostics
+    title: Database Advisor and Issue Detection
+    description: Retrieve automated advisor-detected issues and recommendations
+      (performance, configuration, schema) for a project to proactively surface
+      actionable optimizations.
+    resource_kind: advisor-issue
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/advisors — Get advisor issues
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: preload-library-configuration
+    title: Shared Preload Library Configuration
+    description: List and configure available PostgreSQL shared preload libraries
+      (e.g. pgvector, pg_stat_statements, pg_cron) for a project, enabling
+      extension-based capabilities including vector search and background jobs.
+    resource_kind: library
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: GET /projects/{project_id}/available_preload_libraries — List available
+          shared preload libraries
+        note: Enables pgvector (vector search), pg_cron (scheduled SQL jobs), and other
+          PostgreSQL extensions as first-class database capabilities
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00.000Z
+      extractor: llm-capability-inventory-v1

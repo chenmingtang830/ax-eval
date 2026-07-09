@@ -1,0 +1,28 @@
+vendor: Supabase
+slug: supabase
+extracted_at: 2026-07-08T09:07:37.685Z
+cli:
+  bin: supabase
+  install: brew install supabase/tap/supabase
+  docs_url: https://supabase.com/docs/reference/cli
+  auth:
+    kind: inherit
+    instructions: In the Supabase Dashboard, open [Access
+      Tokens](https://supabase.com/dashboard/account/tokens) and create a
+      personal access token. For CLI use, the easiest path is to run `supabase
+      login`, which prompts for a personal access token and stores it in your
+      local credential store.
+sdk: null
+mcp:
+  server: https://mcp.supabase.com/mcp
+  transport: http
+  docs_url: https://supabase.com/docs/guides/ai-tools/mcp
+  auth:
+    kind: oauth_app
+    instructions: >-
+      ## OAuth 2.0 — self-onboarding
+
+      Point your MCP client at the server URL and approve access in the browser.
+      The server supports OAuth Dynamic Client Registration (RFC 7591), so the
+      client registers itself automatically — no developer-portal app,
+      `client_id`, or `client_secret` to create.

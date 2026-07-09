@@ -2,6 +2,10 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import {
+  daebCapabilityInventoryPath,
+  daebLegacyCapabilitiesPath,
+} from "./benchmark-paths.js";
 
 export const CANONICAL_SURFACE_SCOPE = ["api", "sdk", "cli"] as const;
 export const CANONICAL_ARTIFACT_SCHEMA_VERSION = "ax.suite-methodology/v1" as const;
@@ -303,11 +307,11 @@ function writeYaml(path: string, value: unknown): string {
 }
 
 export function capabilityInventoryPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "capability-inventory.yaml");
+  return daebCapabilityInventoryPath(root, slug);
 }
 
 export function legacyCapabilityExtractPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "capabilities.yaml");
+  return daebLegacyCapabilitiesPath(root, slug);
 }
 
 export function loadCapabilityInventory(root: string, slug: string): CapabilityInventory | null {

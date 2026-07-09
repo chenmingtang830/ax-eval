@@ -22,6 +22,7 @@ import {
   writeSurfaceExtract,
   type SurfaceExtractResult,
 } from "./surface-extract.js";
+import { daebExtractsDir } from "./benchmark-paths.js";
 
 export type ExtractFindingSeverity = "error" | "warn" | "info";
 
@@ -89,7 +90,7 @@ export function reclassifyEvidenceStrength(
 }
 
 function listExtractSlugs(root: string): string[] {
-  const dir = resolve(root, "targets", "extracts");
+  const dir = daebExtractsDir(root);
   try {
     return readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("_") && !d.name.startsWith("."))

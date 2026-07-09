@@ -1,0 +1,58 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Supabase
+slug: supabase
+extracted_at: 2026-07-08T10:53:19.797Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - sdk declares token auth but no headless credential env var.
+  - "Post-extract audit: 2 surface finding(s)."
+cli:
+  bin: supabase
+  install: npm install supabase --save-dev
+  docs_url: https://supabase.com/docs/reference/cli/introduction
+  auth:
+    kind: token
+    token_env: SUPABASE_ACCESS_TOKEN
+    token_env_aliases: []
+    instructions: Generate a personal access token at
+      https://supabase.com/dashboard/account/tokens, then set
+      SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
+      database operations.
+sdk:
+  package: "@supabase/supabase-js"
+  language: node
+  reference_url: https://supabase.com/docs/reference/javascript/introduction
+  auth:
+    kind: token
+    token_env: SUPABASE_KEY
+    token_env_aliases:
+      - SUPABASE_SERVICE_ROLE_KEY
+      - SUPABASE_ANON_KEY
+    instructions: Initialize with createClient(SUPABASE_URL, SUPABASE_KEY) where
+      SUPABASE_URL is the project URL and SUPABASE_KEY is the project anon key
+      (client-side, with RLS) or service_role key (server-side, bypasses RLS).
+      Both are found in the project API settings dashboard — these are
+      project-level keys, distinct from the CLI's personal access token.
+mcp:
+  server: https://mcp.supabase.com/mcp
+  transport: http
+  docs_url: https://supabase.com/docs/guides/ai-tools/mcp
+  auth:
+    kind: token
+    token_env: SUPABASE_ACCESS_TOKEN
+    token_env_aliases: []
+    instructions: "Default interactive setup uses OAuth2 dynamic client registration
+      (browser flow — no PAT needed). For CI/headless: pass
+      SUPABASE_ACCESS_TOKEN as the Bearer token in the Authorization header.
+      Optionally scope to one project by appending ?project_ref=<id> to the URL
+      or setting SUPABASE_PROJECT_REF. A local stdio alternative is also
+      available: npx -y @supabase/mcp-server-supabase@latest (requires
+      SUPABASE_ACCESS_TOKEN env var)."

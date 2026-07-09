@@ -35,8 +35,10 @@ supabase-sdk-run.*
 *.tgz
 
 # Local vendor CLI/project state from live benchmark debugging.
+# Anchor to repo root so vendor slugs like benchmarks/daeb/v1/extracts/supabase/
+# are not swallowed by a bare `supabase/` rule.
 .supabase/
-supabase/
+/supabase/
 packs/
 axarena-site/
 

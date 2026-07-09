@@ -20,6 +20,7 @@ import type { SurfaceExtractResult } from "./surface-extract.js";
 import { CANONICAL_SURFACE_SCOPE, type SupportMatrix } from "./methodology.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
 import { applyDatabasePackPromptOverride, databaseSurfaceFallback } from "./database-pack-overrides.js";
+import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export interface ComposePackOptions {
   /** Generation provenance label recorded on the pack. */
@@ -219,9 +220,9 @@ export function composePack(
   return parsed;
 }
 
-/** Path where a composed pack is written. */
-export function composedPackPath(root: string, slug: string, suiteName: string): string {
-  return resolve(root, "targets", "packs", slug, `${suiteName.toLowerCase()}.yaml`);
+/** Path where a composed pack is written (DAEB v1 layout uses pack.yaml). */
+export function composedPackPath(root: string, slug: string, _suiteName: string): string {
+  return daebCompiledPackPath(root, slug);
 }
 
 /** Write a composed pack to disk as YAML. */

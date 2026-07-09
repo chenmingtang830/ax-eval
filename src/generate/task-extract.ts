@@ -41,6 +41,7 @@ import { mapSettledLimit } from "./concurrency.js";
 import type { SupportMatrix } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite, SuiteTask } from "./suite.js";
+import { daebOraclesPath } from "./benchmark-paths.js";
 
 // Models reliably reach for "postgresql" (the more common spelling) despite
 // the prompt/schema calling for "postgres" — normalize instead of retrying
@@ -1086,9 +1087,9 @@ export async function extractOraclesAll(
   });
 }
 
-/** Path where an oracle-extract result is persisted. */
-export function oracleExtractPath(root: string, slug: string, suiteName: string): string {
-  return resolve(root, "targets", "extracts", slug, `${suiteName.toLowerCase()}.yaml`);
+/** Path where an oracle-extract result is persisted (DAEB v1: oracles.yaml). */
+export function oracleExtractPath(root: string, slug: string, _suiteName: string): string {
+  return daebOraclesPath(root, slug);
 }
 
 /** Write an oracle-extract to disk as YAML. */

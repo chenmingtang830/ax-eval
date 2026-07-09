@@ -93,7 +93,7 @@ describe("cli arg handling", () => {
   it("generate without --from but with --suite + no --product errors", () => {
     const { code, out } = runCli([
       "generate",
-      "--suite", "targets/suites/daeb-1.yaml",
+      "--suite", "benchmarks/daeb/v1/suite.yaml",
     ]);
     expect(code).not.toBe(0);
     expect(out).toMatch(/--product is required/);
@@ -102,7 +102,7 @@ describe("cli arg handling", () => {
   it("extract-tasks infers category from the suite when --category is omitted", () => {
     const { code, out } = runCli([
       "extract-tasks",
-      "--suite", "targets/suites/daeb-1.yaml",
+      "--suite", "benchmarks/daeb/v1/suite.yaml",
       "--vendor", "definitely-not-a-real-vendor",
     ]);
     expect(code).not.toBe(0);
@@ -135,7 +135,7 @@ describe("cli arg handling", () => {
     try {
       const { code, out } = runCli([
         "publication-bundle",
-        "--suite", "targets/suites/daeb-1.yaml",
+        "--suite", "benchmarks/daeb/v1/suite.yaml",
         "--vendors", "supabase",
         "--run-dir", "results/runs/does-not-exist",
         "--out", outDir,
@@ -144,7 +144,7 @@ describe("cli arg handling", () => {
       expect(out).toContain("Saved publication bundle");
       const manifest = JSON.parse(readFileSync(resolve(outDir, "manifest.json"), "utf8"));
       expect(manifest.schema).toBe("ax.publication-bundle/v2");
-      expect(manifest.benchmark).toBe("DAEB-1");
+      expect(manifest.benchmark).toBe("DAEB-1-V3");
       expect(manifest.publication_readiness).toBe("draft");
       expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
       expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
@@ -168,7 +168,7 @@ describe("cli arg handling", () => {
   it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {
     const { code, out } = runCli([
       "daeb-low-pass",
-      "--suite", "targets/suites/daeb-1-v3.yaml",
+      "--suite", "benchmarks/daeb/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -179,7 +179,7 @@ describe("cli arg handling", () => {
   it("daeb-production-rerun rejects sdk because DAEB/database v1 scope is api+cli", () => {
     const { code, out } = runCli([
       "daeb-production-rerun",
-      "--suite", "targets/suites/daeb-1-v3.yaml",
+      "--suite", "benchmarks/daeb/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);

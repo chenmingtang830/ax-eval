@@ -60,9 +60,9 @@ describe("suite methodology artifacts", () => {
         }],
       }));
       expect(inventoryPath).toContain("capability-inventory.yaml");
-      expect(readdirSync(resolve(dir, "targets", "extracts", "acme"))).not.toContain("capabilities.yaml");
+      expect(readdirSync(resolve(dir, "benchmarks", "daeb", "v1", "extracts", "acme"))).not.toContain("capabilities.yaml");
 
-      writeSupportMatrix(dir, "targets/suites/demo.yaml", SupportMatrixSchema.parse({
+      writeSupportMatrix(dir, "benchmarks/daeb/v1/suite.yaml", SupportMatrixSchema.parse({
         schema: "ax.support-matrix/v1",
         benchmark: "DEMO",
         category: "database",
@@ -75,7 +75,7 @@ describe("suite methodology artifacts", () => {
           source_concept: "schema-migration",
         }],
       }));
-      expect(loadSupportMatrix(dir, "targets/suites/demo.yaml")?.entries).toHaveLength(1);
+      expect(loadSupportMatrix(dir, "benchmarks/daeb/v1/suite.yaml")?.entries).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -84,7 +84,7 @@ describe("suite methodology artifacts", () => {
   it("loads legacy capabilities.yaml extracts and upgrades them to inventory shape", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-legacy-"));
     try {
-      const extractDir = resolve(dir, "targets", "extracts", "acme");
+      const extractDir = resolve(dir, "benchmarks", "daeb", "v1", "extracts", "acme");
       mkdirSync(extractDir, { recursive: true });
       writeFileSync(resolve(extractDir, "capabilities.yaml"), [
         "vendor: Acme",
@@ -1055,7 +1055,7 @@ describe("suite methodology artifacts", () => {
   it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-pub-"));
     try {
-      const suitePath = "targets/suites/demo.yaml";
+      const suitePath = "benchmarks/daeb/v1/suite.yaml";
       const methodology = defaultSuiteMethodology("database");
       writeMethodology(dir, suitePath, methodology);
       writeCoverageMatrix(dir, suitePath, {
