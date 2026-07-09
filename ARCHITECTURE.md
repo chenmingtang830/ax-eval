@@ -34,6 +34,12 @@ overwrites that draft; git SHAs and content hashes distinguish exact states and
 invalidate stale approvals. Suite version numbers are not authoring iteration
 counters, and benchmark-of-record execution begins only after human freeze.
 
+DAEB synthesis keeps broad concept coverage separate from concrete
+applicability. Coverage decisions retain every ranked candidate capability and
+the capability bundle chosen to satisfy task requirements. The support matrix
+enables a vendor/task/surface cell only when every requirement is evidenced on
+that same surface; concept coverage alone is insufficient.
+
 The boundary with the AXArena website is an explicit export step:
 `export-publication` reads a frozen publication bundle and writes website-ready
 JSON indexes. `ax-eval` owns benchmark truth and artifact generation; an

@@ -62,6 +62,11 @@ shape.
   states and invalidate stale approvals. Do not increment the suite version for
   authoring iterations or publish benchmark-of-record results from an unfrozen
   draft.
+- **Concept coverage is not task applicability.** DAEB coverage artifacts retain
+  ranked capability candidates and same-surface capability bundles. A support
+  cell may be enabled only when its bundle satisfies every concrete task
+  requirement; never promote the first broad concept match directly into the
+  denominator.
 
 ## Adding a new target
 

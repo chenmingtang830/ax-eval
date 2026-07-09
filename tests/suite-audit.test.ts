@@ -9,7 +9,10 @@ import {
   writeCapabilityInventory,
   type CoverageMatrix,
 } from "../src/generate/methodology.js";
-import { findMappingFalsePositives } from "../src/generate/suite-audit.js";
+import {
+  findMappingFalsePositives,
+  findTaskFitAuditFindings,
+} from "../src/generate/suite-audit.js";
 
 function cap(
   name: string,
@@ -119,5 +122,78 @@ describe("deterministic concept mapping (suite-audit inputs)", () => {
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
+  });
+
+  it("rejects selected support decisions without concrete task-fit proof", () => {
+    const coverage: CoverageMatrix = {
+      schema: "ax.coverage-matrix/v1",
+      category: "database",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      concepts: [{
+        concept_name: "change-data-capture",
+        title: "Change Data Capture",
+        decisions: [{
+          concept_name: "change-data-capture",
+          vendor: "Acme",
+          status: "supported",
+          source: "inventory",
+          capability_name: "realtime-broadcast",
+          surfaces_documented: ["api"],
+          evidence: [],
+        }],
+      }],
+    };
+    const findings = findTaskFitAuditFindings(coverage, new Set(["change-data-capture"]));
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("task_fit_unproven");
+  });
+
+  it("rejects support cells leaked from an insufficient task fit", () => {
+    const coverage: CoverageMatrix = {
+      schema: "ax.coverage-matrix/v1",
+      category: "database",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      concepts: [{
+        concept_name: "write-records",
+        title: "Write Records",
+        decisions: [{
+          concept_name: "write-records",
+          vendor: "Acme",
+          status: "supported",
+          source: "inventory",
+          capability_name: "row-insert",
+          candidate_capabilities: [],
+          capability_bundle: [],
+          task_fit: {
+            status: "insufficient",
+            matched_requirements: ["create-record"],
+            missing_requirements: ["update-record", "delete-record"],
+            supported_surfaces: [],
+            reason: "missing lifecycle operations",
+          },
+          surfaces_documented: [],
+          evidence: [],
+        }],
+      }],
+    };
+    const findings = findTaskFitAuditFindings(
+      coverage,
+      new Set(["write-records"]),
+      {
+        schema: "ax.support-matrix/v1",
+        benchmark: "DAEB-1",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        entries: [{
+          vendor: "Acme",
+          task_id: "db-T09-write-records",
+          surface: "api",
+          status: "supported",
+          source_concept: "write-records",
+        }],
+      },
+    );
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.code).toBe("task_fit_leaked_support");
   });
 });

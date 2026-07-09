@@ -1,6 +1,6 @@
 schema: ax.failure-taxonomy/v1
 benchmark: SUITE
-generated_at: 2026-07-09T23:25:33.781Z
+generated_at: 2026-07-09T23:40:49.481Z
 categories:
   - id: generic-harness-tooling-bug
     label: Generic harness/tooling bug

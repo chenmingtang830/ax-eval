@@ -123,8 +123,27 @@ tasks:
     na_examples:
       - This vendor does not expose a documented CDC, change stream, or realtime
         feed on api/cli surfaces.
-  - id: db-T04-evolve-schema
-    title: "T04: Apply a schema evolution"
+  - id: db-T04-data-integrity-and-transactions
+    title: "T04: Enforce one integrity or atomicity rule"
+    difficulty: L4
+    skill: data-integrity-and-transactions
+    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
+      `external_id=primary_{ns}` record is durably committed. The verifier must
+      itself issue one conflicting or invalid write against the same logical key
+      and re-read to confirm a second committed row was not created — do not
+      rely solely on the agent reporting that the conflict failed.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor cannot enforce a documented integrity rule or atomic write
+        guarantee on api/cli surfaces.
+  - id: db-T05-evolve-schema
+    title: "T05: Apply a schema evolution"
     difficulty: L3
     skill: evolve-schema
     intent: Starting from a container named `axarena_migrate_{ns}` that already
@@ -140,8 +159,24 @@ tasks:
     na_examples:
       - This vendor does not support a documented schema evolution or migration
         flow on api/cli surfaces.
-  - id: db-T05-query-records
-    title: "T05: Filter and read matching records"
+  - id: db-T06-inspect-schema
+    title: "T06: Inspect container metadata"
+    difficulty: L1
+    skill: inspect-schema
+    intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+    oracle_hint: Read back schema or metadata for `axarena_schema_probe_{ns}` and
+      confirm both the `name` and `status` fields are visible through the
+      inspection surface (not only via a successful row insert).
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose schema or metadata inspection on api/cli
+        surfaces.
+  - id: db-T07-query-records
+    title: "T07: Filter and read matching records"
     difficulty: L2
     skill: query-records
     intent: Using a container named `axarena_query_items_{ns}`, create exactly three
@@ -159,8 +194,8 @@ tasks:
       - cli
     na_examples:
       - This vendor cannot perform filtered record reads on api/cli surfaces.
-  - id: db-T06-vector-search
-    title: "T06: Create a vector-enabled dataset and query it"
+  - id: db-T08-vector-search
+    title: "T08: Create a vector-enabled dataset and query it"
     difficulty: L2
     skill: vector-search
     intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
@@ -176,8 +211,8 @@ tasks:
     na_examples:
       - This vendor does not expose vector indexing or similarity search on
         api/cli surfaces.
-  - id: db-T07-write-records
-    title: "T07: Create, update, and delete one record lifecycle"
+  - id: db-T09-write-records
+    title: "T09: Create, update, and delete one record lifecycle"
     difficulty: L2
     skill: write-records
     intent: Using a container named `axarena_write_items_{ns}`, create one record
@@ -197,27 +232,8 @@ tasks:
     na_examples:
       - This vendor cannot perform create, update, and delete record operations
         on api/cli surfaces.
-  - id: db-T08-data-integrity-and-transactions
-    title: "T08: Enforce one integrity or atomicity rule"
-    difficulty: L4
-    skill: data-integrity-and-transactions
-    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
-    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
-      `external_id=primary_{ns}` record is durably committed. The verifier must
-      itself issue one conflicting or invalid write against the same logical key
-      and re-read to confirm a second committed row was not created — do not
-      rely solely on the agent reporting that the conflict failed.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor cannot enforce a documented integrity rule or atomic write
-        guarantee on api/cli surfaces.
-  - id: db-T09-full-text-search
-    title: "T09: Create a searchable text dataset and query it"
+  - id: db-T10-full-text-search
+    title: "T10: Create a searchable text dataset and query it"
     difficulty: L2
     skill: full-text-search
     intent: Create a text-searchable dataset named `axarena_search_{ns}` with at
@@ -232,22 +248,6 @@ tasks:
       - cli
     na_examples:
       - This vendor does not expose full-text search on api/cli surfaces.
-  - id: db-T10-inspect-schema
-    title: "T10: Inspect container metadata"
-    difficulty: L1
-    skill: inspect-schema
-    intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
-      `name` and `status`, then use the vendor's schema or metadata inspection
-      mechanism to confirm both fields are present.
-    oracle_hint: Read back schema or metadata for `axarena_schema_probe_{ns}` and
-      confirm both the `name` and `status` fields are visible through the
-      inspection surface (not only via a successful row insert).
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor does not expose schema or metadata inspection on api/cli
-        surfaces.
 scoring:
   per_task: pass | fail | na
   overall:

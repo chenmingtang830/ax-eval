@@ -146,6 +146,54 @@ describe("synthesize-suite helpers", () => {
     expect(byVendorSurface.get("Bravo:cli")).toBe("unsupported");
   });
 
+  it("retains ranked alternatives and selects a same-surface lifecycle bundle", () => {
+    const capabilities = ([
+      ["row-insert", "create"],
+      ["row-update", "update"],
+      ["row-delete", "delete"],
+    ] as const).map(([capability_name, operation_kind]) => ({
+      capability_name,
+      title: capability_name,
+      family: "data-write",
+      description: capability_name,
+      resource_kind: "row",
+      operation_kind,
+      surfaces_documented: ["cli"] as Array<"api" | "sdk" | "cli">,
+      support_type: "native" as const,
+      evidence: [{ doc_url: `https://docs.example/${capability_name}`, quote: capability_name, strength: "direct" as const }],
+      extraction_provenance: { source: "official-docs" as const, extracted_at: "2026-01-01T00:00:00.000Z", extractor: "test" },
+    }));
+    const extracts: CapabilityExtractResult[] = [{
+      vendor: "Cockroachdb",
+      slug: "cockroachdb",
+      category: "database",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+      capabilities,
+    }];
+    const universe: ConceptUniverse = {
+      schema: "ax.concept-universe/v1",
+      category: "database",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      clusters: [{
+        concept_name: "write-records",
+        title: "Write Records",
+        coverage: capabilities.map((capability) => ({
+          vendor: "Cockroachdb",
+          capability_name: capability.capability_name,
+        })),
+      }],
+    };
+
+    const matrix = buildCoverageMatrixArtifact("database", universe, extracts, []);
+    const decision = matrix.concepts[0]?.decisions[0];
+    expect(decision?.candidate_capabilities?.map((candidate) => candidate.capability_name).sort())
+      .toEqual(["row-delete", "row-insert", "row-update"]);
+    expect(decision?.capability_bundle).toEqual(["row-insert", "row-update", "row-delete"]);
+    expect(decision?.task_fit?.status).toBe("sufficient");
+    expect(decision?.task_fit?.supported_surfaces).toEqual(["cli"]);
+    expect(decision?.candidate_capabilities?.every((candidate) => candidate.evidence.length > 0)).toBe(true);
+  });
+
   it("preserves documented Convex CLI support instead of applying a vendor-wide denial", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),

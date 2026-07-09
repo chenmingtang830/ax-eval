@@ -1,6 +1,6 @@
 schema: ax.trace-review/v1
 benchmark: SUITE
-generated_at: 2026-07-09T23:25:33.781Z
+generated_at: 2026-07-09T23:40:49.481Z
 sample_size: 10
 summary: Methodology revisions require manual review of a fixed trace sample
   before changing task selection or grader logic.

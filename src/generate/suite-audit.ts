@@ -21,7 +21,9 @@ import { loadSuite } from "./suite.js";
 import {
   loadCoverageMatrix,
   loadSelectionLedger,
+  loadSupportMatrix,
   type CoverageMatrix,
+  type SupportMatrix,
 } from "./methodology.js";
 import { daebVendorsDir } from "./benchmark-paths.js";
 import { readdirSync } from "node:fs";
@@ -129,14 +131,16 @@ export function findMappingFalsePositives(
 
   for (const concept of coverage.concepts) {
     for (const decision of concept.decisions) {
-      if (decision.status !== "supported" || !decision.capability_name) continue;
+      const conceptCapabilityName = decision.concept_capability_name
+        ?? (decision.task_fit ? undefined : decision.capability_name);
+      if (decision.status !== "supported" || !conceptCapabilityName) continue;
       const slug = vendorToSlug.get(decision.vendor)
         ?? slugs.find((candidate) => candidate === decision.vendor.toLowerCase().replace(/\s+/g, "-"));
       if (!slug) continue;
       const inventory = loadCapabilityExtract(root, slug);
       if (!inventory) continue;
       const capability = inventory.capabilities.find((candidate) =>
-        candidate.capability_name === decision.capability_name
+        candidate.capability_name === conceptCapabilityName
       );
       if (!capability) continue;
 
@@ -171,12 +175,73 @@ export function findMappingFalsePositives(
   return findings;
 }
 
+/** Selected canonical coverage must be backed by concrete task-fit evidence,
+ * not merely broad concept membership. */
+export function findTaskFitAuditFindings(
+  coverage: CoverageMatrix,
+  selectedConcepts: Set<string>,
+  supportMatrix?: SupportMatrix | null,
+): SuiteFinding[] {
+  const findings: SuiteFinding[] = [];
+  for (const concept of coverage.concepts) {
+    if (!selectedConcepts.has(concept.concept_name)) continue;
+    for (const decision of concept.decisions) {
+      if (decision.status !== "supported") continue;
+      if (!decision.task_fit) {
+        findings.push({
+          severity: "error",
+          code: "task_fit_unproven",
+          concept_name: concept.concept_name,
+          message:
+            `${decision.vendor}/${concept.concept_name} is marked supported without task-fit evidence` +
+            `${decision.capability_name ? ` (selected ${decision.capability_name})` : ""}`,
+          auto_fixable: true,
+        });
+        continue;
+      }
+      const supportedCells = supportMatrix?.entries.filter((entry) =>
+        entry.vendor === decision.vendor
+        && entry.source_concept === concept.concept_name
+        && entry.status === "supported"
+      ) ?? [];
+      if (decision.task_fit.status === "insufficient" && supportedCells.length) {
+        findings.push({
+          severity: "error",
+          code: "task_fit_leaked_support",
+          concept_name: concept.concept_name,
+          message:
+            `${decision.vendor}/${concept.concept_name} has insufficient task fit but support matrix exposes ` +
+            `${supportedCells.map((entry) => entry.surface).join(", ")}`,
+          auto_fixable: true,
+        });
+        continue;
+      }
+      const invalidSurfaces = supportedCells
+        .map((entry) => entry.surface)
+        .filter((surface) => !decision.task_fit?.supported_surfaces.includes(surface));
+      if (invalidSurfaces.length) {
+        findings.push({
+          severity: "error",
+          code: "task_fit_surface_mismatch",
+          concept_name: concept.concept_name,
+          message:
+            `${decision.vendor}/${concept.concept_name} support matrix exposes task-fit-incompatible surfaces: ` +
+            invalidSurfaces.join(", "),
+          auto_fixable: true,
+        });
+      }
+    }
+  }
+  return findings;
+}
+
 export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
   const findings: SuiteFinding[] = [];
   const ledger = loadSelectionLedger(root, suitePath);
   const coverage = loadCoverageMatrix(root, suitePath);
+  const supportMatrix = loadSupportMatrix(root, suitePath);
   const target = suite.methodology?.target_task_count ?? 10;
   const minPct = suite.methodology?.min_vendor_coverage_pct ?? 0.75;
 
@@ -236,6 +301,11 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
 
   if (coverage) {
     const slugs = listDatabaseSlugs(root);
+    findings.push(...findTaskFitAuditFindings(
+      coverage,
+      new Set(suite.tasks.map((task) => task.skill)),
+      supportMatrix,
+    ));
     findings.push(...findMappingFalsePositives(root, coverage, slugs));
     findings.push(...findMappingMisses(root, coverage, slugs));
 

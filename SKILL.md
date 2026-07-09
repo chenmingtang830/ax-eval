@@ -244,6 +244,9 @@ research evidence unless a later suite revision says otherwise.
 Before human freeze, regenerate into the same DAEB-1 v1 contract. Do not bump
 the suite version for authoring iterations; git SHAs and content hashes identify
 exact drafts, and any content change invalidates prior pack approvals.
+When reviewing coverage, distinguish the broad 75% concept-selection bar from
+task applicability: only support-matrix cells whose ranked capability bundle
+satisfies every task requirement on that surface may be executed or scored.
 
 After freezing a publication bundle, export website data with:
 

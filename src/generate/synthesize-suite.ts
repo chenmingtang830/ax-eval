@@ -20,6 +20,7 @@ import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { CapabilityExtractResult } from "./capability-extract.js";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
 import { mapSettledLimit } from "./concurrency.js";
+import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
   CANONICAL_SURFACE_SCOPE,
   type ConceptUniverse,
@@ -367,16 +368,11 @@ export function buildCoverageMatrixArtifact(
   extracts: CapabilityExtractResult[],
   gapChecks: Awaited<ReturnType<typeof crossCheckGaps>>,
 ): CoverageMatrix {
-  const evidenceByVendorCap = new Map<string, {
-    surfaces_documented: Array<"api" | "sdk" | "cli">;
-    evidence: Array<{ doc_url: string; quote: string; note?: string }>;
-  }>();
+  const capabilityByVendorName = new Map<string, CapabilityExtractResult["capabilities"][number]>();
+  const extractByVendor = new Map(extracts.map((extract) => [extract.vendor, extract]));
   for (const extract of extracts) {
     for (const capability of extract.capabilities) {
-      evidenceByVendorCap.set(`${extract.vendor}::${capability.capability_name}`, {
-        surfaces_documented: capability.surfaces_documented,
-        evidence: capability.evidence,
-      });
+      capabilityByVendorName.set(`${extract.vendor}::${capability.capability_name}`, capability);
     }
   }
   const gapByVendorConcept = new Map(gapChecks.map((result) => [`${result.vendor}::${result.concept}`, result] as const));
@@ -389,17 +385,91 @@ export function buildCoverageMatrixArtifact(
       concept_name: cluster.concept_name,
       title: cluster.title,
       decisions: allVendors.map((vendor) => {
-        const coverage = cluster.coverage.find((item) => item.vendor === vendor);
-        if (coverage) {
-          const evidence = evidenceByVendorCap.get(`${vendor}::${coverage.capability_name}`);
+        const vendorCapabilities = extractByVendor.get(vendor)?.capabilities ?? [];
+        const coverageCandidates = cluster.coverage.filter((item) => item.vendor === vendor);
+        const conceptCapabilities = coverageCandidates
+          .map((item) => capabilityByVendorName.get(`${vendor}::${item.capability_name}`))
+          .filter((capability): capability is CapabilityExtractResult["capabilities"][number] => capability !== undefined);
+        const taskFit = category === "database"
+          ? evaluateDatabaseTaskFit(cluster.concept_name, vendorCapabilities)
+          : null;
+        if (taskFit) {
+          const bundleCapabilities = taskFit.capability_bundle
+            .map((capabilityName) => capabilityByVendorName.get(`${vendor}::${capabilityName}`))
+            .filter((capability): capability is CapabilityExtractResult["capabilities"][number] => capability !== undefined);
+          const selectedCapability = bundleCapabilities[0]
+            ?? conceptCapabilities[0]
+            ?? vendorCapabilities.find((capability) =>
+              capability.capability_name === taskFit.candidates[0]?.capability_name
+            );
+          const conceptSupported = conceptCapabilities.length > 0 || taskFit.candidates.length > 0;
+          if (!conceptSupported) {
+            return {
+              concept_name: cluster.concept_name,
+              vendor,
+              status: "inconclusive" as const,
+              source: "selection-default" as const,
+              candidate_capabilities: taskFit.candidates,
+              capability_bundle: [],
+              task_fit: {
+                status: taskFit.status,
+                requirement_path: taskFit.requirement_path,
+                matched_requirements: taskFit.matched_requirements,
+                missing_requirements: taskFit.missing_requirements,
+                supported_surfaces: taskFit.supported_surfaces,
+                reason: taskFit.reason,
+              },
+              evidence: [],
+              reason: taskFit.reason ?? "No inventory citation or task-fit candidate found.",
+            };
+          }
+          const evidenceCapabilities = bundleCapabilities.length ? bundleCapabilities : conceptCapabilities;
+          return {
+            concept_name: cluster.concept_name,
+            vendor,
+            // Concept coverage selects the broad canonical bank. Concrete
+            // task/surface applicability is enforced separately below by
+            // task_fit when building the support matrix.
+            status: "supported" as const,
+            source: "inventory" as const,
+            capability_name: selectedCapability?.capability_name,
+            concept_capability_name: conceptCapabilities[0]?.capability_name,
+            candidate_capabilities: taskFit.candidates,
+            capability_bundle: taskFit.capability_bundle,
+            task_fit: {
+              status: taskFit.status,
+              requirement_path: taskFit.requirement_path,
+              matched_requirements: taskFit.matched_requirements,
+              missing_requirements: taskFit.missing_requirements,
+              supported_surfaces: taskFit.supported_surfaces,
+              reason: taskFit.reason,
+            },
+            surfaces_documented: taskFit.supported_surfaces,
+            evidence: evidenceCapabilities.flatMap((capability) => capability.evidence),
+            reason: taskFit.status === "insufficient"
+              ? `Concept supported, but concrete task fit is insufficient: ${taskFit.reason}`
+              : undefined,
+          };
+        }
+        if (coverageCandidates.length) {
+          const selected = conceptCapabilities[0];
           return {
             concept_name: cluster.concept_name,
             vendor,
             status: "supported" as const,
             source: "inventory" as const,
-            capability_name: coverage.capability_name,
-            surfaces_documented: evidence?.surfaces_documented,
-            evidence: evidence?.evidence ?? [],
+            capability_name: selected?.capability_name ?? coverageCandidates[0]?.capability_name,
+            concept_capability_name: selected?.capability_name ?? coverageCandidates[0]?.capability_name,
+            candidate_capabilities: conceptCapabilities.map((capability) => ({
+              capability_name: capability.capability_name,
+              matched_requirements: [],
+              fit_score: 0,
+              surfaces_documented: capability.surfaces_documented,
+              evidence: capability.evidence,
+            })),
+            capability_bundle: selected ? [selected.capability_name] : [],
+            surfaces_documented: [...new Set(conceptCapabilities.flatMap((capability) => capability.surfaces_documented))],
+            evidence: conceptCapabilities.flatMap((capability) => capability.evidence),
           };
         }
         const gap = gapByVendorConcept.get(`${vendor}::${cluster.concept_name}`);
@@ -573,6 +643,29 @@ export function buildSupportMatrixArtifact(
             status: "unsupported" as const,
             source_concept: conceptName,
             reason: `${surface} excluded from task allowed_surfaces`,
+          };
+        }
+        if (decision.task_fit?.status === "insufficient") {
+          return {
+            vendor,
+            task_id: task.id,
+            surface,
+            status: "unsupported" as const,
+            source_concept: conceptName,
+            reason: decision.task_fit.reason ?? "Concept is documented, but concrete canonical task requirements are not satisfied.",
+          };
+        }
+        if (
+          decision.task_fit?.status === "sufficient"
+          && !decision.task_fit.supported_surfaces.includes(surface)
+        ) {
+          return {
+            vendor,
+            task_id: task.id,
+            surface,
+            status: "unsupported" as const,
+            source_concept: conceptName,
+            reason: `${surface} does not satisfy all task-fit requirements on one documented surface`,
           };
         }
         const compatibilityOverride = databaseTaskSupportOverride(category, vendor, task, decision, surface);
@@ -870,13 +963,21 @@ export async function synthesizeSuite(
     .filter((entry) => entry.selected)
     .slice(0, methodology.target_task_count)
     .map((entry) => {
-      const concept = conceptUniverse.clusters.find((cluster) => cluster.concept_name === entry.concept_name);
+      const concept = coverageMatrix.concepts.find((candidate) => candidate.concept_name === entry.concept_name);
+      const fittedCoverage = concept?.decisions
+        .filter((decision) => decision.status === "supported")
+        .flatMap((decision) => {
+          const names = decision.capability_bundle?.length
+            ? decision.capability_bundle
+            : decision.capability_name ? [decision.capability_name] : [];
+          return names.map((capability_name) => ({ vendor: decision.vendor, capability_name }));
+        }) ?? [];
       return {
         cluster_name: entry.concept_name,
         title: entry.title,
         difficulty: entry.proposed_difficulty ?? resolveConceptDifficulty(entry.concept_name),
         rationale: entry.rationale,
-        coverage: concept?.coverage ?? [],
+        coverage: fittedCoverage,
       };
     });
   const drafted = await mapSettledLimit(
