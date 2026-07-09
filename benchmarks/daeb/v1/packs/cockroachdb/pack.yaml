@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-09-cm3hin
-name: supabase
+# run_id: 2026-07-09-kvjlk2
+name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-09-cm3hin
+run_id: 2026-07-09-kvjlk2
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -13,42 +13,41 @@ generator:
   effort: high
   prompt_version: compose-pack-v1
   source_docs:
-    - https://supabase.com/docs
+    - https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
 auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: SUPABASE_API_KEY
+  env: COCKROACH_API_KEY
   env_aliases: []
   verify_env_aliases: []
-  extra_header: apikey
 sandbox_scope: []
 sql_conn:
   dialect: postgres
-  connection_string_env: SUPABASE_DB_URL
+  connection_string_env: COCKROACH_CONNECTION_STRING
 surfaces:
   cli:
-    bin: supabase
-    install: npm install supabase --save-dev
-    docs_url: https://supabase.com/docs/reference/cli/introduction
+    bin: ccloud
+    install: brew install cockroachdb/tap/ccloud
+    docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
     auth:
       kind: token
-      token_env: SUPABASE_ACCESS_TOKEN
+      token_env: COCKROACH_API_KEY
       token_env_aliases: []
-      instructions: Generate a personal access token at
-        https://supabase.com/dashboard/account/tokens, then set
-        SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-        database operations.
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+      instructions: "ccloud interactive login is browser/device-code based. For
+        headless/CI automation prefer the Cloud REST API with a service-account
+        API key (COCKROACH_API_KEY / Authorization: Bearer). The CLI itself is
+        not a fully non-interactive surface."
+base_url: https://cockroachlabs.cloud/api/v1
 headers: {}
-site_url: https://supabase.com
+site_url: https://cockroachlabs.com
 openapi_url: ""
 docs_urls:
-  - https://supabase.com/docs
+  - https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
 static:
-  site_url: https://supabase.com
+  site_url: https://cockroachlabs.com
   docs_urls:
-    - https://supabase.com/docs
+    - https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
   checks: []
 tasks:
   - id: db-T01-access-control
@@ -116,6 +115,7 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -149,6 +149,7 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -211,6 +212,7 @@ tasks:
           column_name = 'status'
     difficulty: L3
     allowed_surfaces:
+      - api
       - cli
     na: false
     depends_on: []
@@ -282,6 +284,7 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []

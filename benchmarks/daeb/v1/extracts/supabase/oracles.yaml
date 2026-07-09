@@ -1,0 +1,137 @@
+vendor: Supabase
+category: database
+slug: supabase
+suite_name: DAEB-1-V3
+extracted_at: '2026-07-09T11:03:37.000Z'
+vendor_config:
+  base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+  auth_type: bearer
+  auth_env: SUPABASE_API_KEY
+  extra_auth_header: apikey
+  sql_dialect: postgres
+  sql_connection_env: SUPABASE_DB_URL
+tasks:
+- task_id: db-T01-access-control
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.count
+    expected: 1
+    description: protected container axarena_acl_{ns} exists
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+      table_schema = 'public' AND table_name = 'axarena_acl_{ns}'
+  - assert_field: 0.count
+    expected: 1
+    description: one allowed record exists under the protected container
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+- task_id: db-T02-backup-and-restore
+  na: false
+  na_surfaces:
+  - cli
+  checks:
+  - assert_field: 0.count
+    expected: 1
+    description: active database contains the backup marker row after the backup/export
+      task
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_backup_{ns}" WHERE label
+      = 'marker_{ns}'
+- task_id: db-T03-change-data-capture
+  na: false
+  na_surfaces:
+  - cli
+  checks:
+  - assert_field: 0.count
+    expected: 1
+    description: agent-reported durable capture table contains the inserted CDC marker
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
+      = 'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+- task_id: db-T04-define-data-container
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.count
+    expected: 2
+    description: container exists with id and label fields
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+      table_schema = 'public' AND table_name = 'axarena_items_{ns}' AND column_name
+      IN ('id', 'label')
+- task_id: db-T05-evolve-schema
+  na: false
+  na_surfaces:
+  - api
+  checks:
+  - assert_field: 0.count
+    expected: 1
+    description: status field exists after schema evolution
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+      table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND column_name
+      = 'status'
+- task_id: db-T06-inspect-schema
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.count
+    expected: 2
+    description: schema inspection target exposes name and status fields
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+      table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}' AND column_name
+      IN ('name', 'status')
+- task_id: db-T07-query-records
+  na: false
+  na_surfaces:
+  - cli
+  checks:
+  - assert_field: 0.count
+    expected: 2
+    description: filtered read returns exactly two active records
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+      status = 'active'
+  - assert_field: 0.count
+    expected: 2
+    description: the active set is alpha and gamma
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+      status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+- task_id: db-T08-server-side-execution
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.result
+    expected: axarena_ok_{ns}
+    description: server-side routine returns the expected marker
+    sql_dialect: postgres
+    sql_query: SELECT "axarena_echo_{ns}"() AS result
+- task_id: db-T09-vector-search
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.label
+    expected: alpha_{ns}
+    description: nearest vector search ranks alpha first
+    sql_dialect: postgres
+    sql_query: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <-> '[1,0,0]'
+      LIMIT 1
+- task_id: db-T10-write-records
+  na: false
+  na_surfaces: []
+  checks:
+  - assert_field: 0.count
+    expected: 1
+    description: updated surviving record is final
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+      label = 'final_{ns}'
+  - assert_field: 0.count
+    expected: 0
+    description: throwaway record was deleted
+    sql_dialect: postgres
+    sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+      label = 'delete_me_{ns}'

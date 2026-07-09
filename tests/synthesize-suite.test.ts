@@ -3,9 +3,12 @@ import {
   buildCoverageMatrixArtifact,
   buildSelectionLedgerArtifact,
   buildSupportMatrixArtifact,
+  calibrateDifficultyFromTrials,
   draftTask,
+  inferDifficultyFromConcept,
   inferSuiteVersionFromStem,
   proposeClustersFromUniverse,
+  resolveConceptDifficulty,
   synthesizeSuite,
   type SynthesizedTask,
 } from "../src/generate/synthesize-suite.js";
@@ -17,6 +20,16 @@ describe("synthesize-suite helpers", () => {
     expect(inferSuiteVersionFromStem("daeb-1")).toBe(1);
     expect(inferSuiteVersionFromStem("daeb-1-v3")).toBe(3);
     expect(inferSuiteVersionFromStem("demo-suite-v12")).toBe(12);
+  });
+
+  it("calibrates difficulty from trial pass rate and tool-call volume", () => {
+    expect(inferDifficultyFromConcept("backup-and-restore")).toBe("L4");
+    expect(calibrateDifficultyFromTrials({ meanPassRate: 0.95, meanToolCalls: 3 })).toBe("L1");
+    expect(calibrateDifficultyFromTrials({ meanPassRate: 0.7, meanToolCalls: 10 })).toBe("L2");
+    expect(calibrateDifficultyFromTrials({ meanPassRate: 0.7, meanToolCalls: 25 })).toBe("L3");
+    expect(calibrateDifficultyFromTrials({ meanPassRate: 0.2 })).toBe("L4");
+    expect(resolveConceptDifficulty("access-control")).toBe("L2");
+    expect(resolveConceptDifficulty("access-control", { meanPassRate: 0.9, meanToolCalls: 2 })).toBe("L1");
   });
 
   it("derives supported surfaces from capability inventories instead of assuming all surfaces", () => {

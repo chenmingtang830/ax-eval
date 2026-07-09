@@ -285,9 +285,9 @@ const TASK_DRAFT_TIMEOUT_MS = 6 * 60 * 1000;
 const TASK_DRAFT_CONCURRENCY = 3;
 
 /** Infer difficulty from the canonical concept name. This is the deterministic
- *  fallback used after the family taxonomy is removed; the final authority is
- *  the human pipeline-review gate (which may override it). */
-function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] {
+ *  prior used when no empirical trial calibration is available; the final
+ *  authority remains the human pipeline-review gate. */
+export function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] {
   const l4 = new Set(["backup-and-restore", "change-data-capture", "data-integrity-and-transactions"]);
   const l3 = new Set(["server-side-execution", "evolve-schema", "migration"]);
   const l2 = new Set(["access-control", "vector-search", "full-text-search", "data-integrity"]);
@@ -297,6 +297,33 @@ function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] 
   return "L1";
 }
 
+/**
+ * Map observed trial difficulty signals onto the L1–L4 rubric.
+ * Prefer mean pass rate; when rates are mid-band, tool-call volume breaks ties
+ * toward harder labels (more orchestration cost).
+ */
+export function calibrateDifficultyFromTrials(opts: {
+  meanPassRate: number;
+  meanToolCalls?: number | null;
+}): Cluster["difficulty"] {
+  const rate = opts.meanPassRate;
+  const tools = opts.meanToolCalls ?? null;
+  if (rate >= 0.85 && (tools === null || tools <= 8)) return "L1";
+  if (rate >= 0.65) return tools !== null && tools >= 20 ? "L3" : "L2";
+  if (rate >= 0.35) return tools !== null && tools >= 30 ? "L4" : "L3";
+  return "L4";
+}
+
+export function resolveConceptDifficulty(
+  conceptName: string,
+  empirical?: { meanPassRate: number; meanToolCalls?: number | null } | null,
+): Cluster["difficulty"] {
+  if (empirical && Number.isFinite(empirical.meanPassRate)) {
+    return calibrateDifficultyFromTrials(empirical);
+  }
+  return inferDifficultyFromConcept(conceptName);
+}
+
 function inventoryCoverageForConcept(universe: ConceptUniverse, conceptName: string): z.infer<typeof CoverageSchema>[] {
   return universe.clusters.find((cluster) => cluster.concept_name === conceptName)?.coverage ?? [];
 }
@@ -304,14 +331,22 @@ function inventoryCoverageForConcept(universe: ConceptUniverse, conceptName: str
 export function proposeClustersFromUniverse(
   universe: ConceptUniverse,
   coverageMatrix: CoverageMatrix,
+  empiricalByConcept: Record<string, { meanPassRate: number; meanToolCalls?: number | null }> = {},
 ): Cluster[] {
-  return coverageMatrix.concepts.map((concept) => ({
-    cluster_name: concept.concept_name,
-    title: concept.title,
-    difficulty: inferDifficultyFromConcept(concept.concept_name),
-    rationale: "Deterministic proposal from concept universe and coverage closure.",
-    coverage: inventoryCoverageForConcept(universe, concept.concept_name),
-  }));
+  return coverageMatrix.concepts.map((concept) => {
+    const empirical = empiricalByConcept[concept.concept_name];
+    const difficulty = resolveConceptDifficulty(concept.concept_name, empirical);
+    const rationale = empirical
+      ? `Empirical calibration from trials (pass=${empirical.meanPassRate.toFixed(2)}${empirical.meanToolCalls != null ? `, tools=${empirical.meanToolCalls.toFixed(1)}` : ""}); prior was ${inferDifficultyFromConcept(concept.concept_name)}.`
+      : "Deterministic proposal from concept universe and coverage closure.";
+    return {
+      cluster_name: concept.concept_name,
+      title: concept.title,
+      difficulty,
+      rationale,
+      coverage: inventoryCoverageForConcept(universe, concept.concept_name),
+    };
+  });
 }
 
 export function buildCoverageMatrixArtifact(
@@ -392,7 +427,7 @@ export function buildSelectionLedgerArtifact(
     const supported = concept.decisions.filter((decision) => decision.status === "supported");
     const coveragePct = concept.decisions.length === 0 ? 0 : supported.length / concept.decisions.length;
     const proposal = proposedByConcept.get(concept.concept_name);
-    const proposedDifficulty = proposal?.difficulty ?? inferDifficultyFromConcept(concept.concept_name);
+    const proposedDifficulty = proposal?.difficulty ?? resolveConceptDifficulty(concept.concept_name);
     const selectedByModel = Boolean(proposal);
     const coveredVendors = supported.map((decision) => decision.vendor);
     let selected = false;
@@ -823,7 +858,7 @@ export async function synthesizeSuite(
       return {
         cluster_name: entry.concept_name,
         title: entry.title,
-        difficulty: entry.proposed_difficulty ?? inferDifficultyFromConcept(entry.concept_name),
+        difficulty: entry.proposed_difficulty ?? resolveConceptDifficulty(entry.concept_name),
         rationale: entry.rationale,
         coverage: concept?.coverage ?? [],
       };

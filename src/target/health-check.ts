@@ -12,8 +12,27 @@
 import type { TargetPack } from "../schemas.js";
 import { resetPack, type ResetClient, type ResetResult } from "./reset.js";
 
+export interface HealthCheckSignals {
+  /** Leftover probe resources suggest a prior trial did not clean up. */
+  namespace_pollution_risk: boolean;
+  /** Error text looks like rate-limit / quota exhaustion rather than empty scope. */
+  quota_pressure_hint: boolean;
+  leftover_candidates: number;
+}
+
 export interface HealthCheckResult extends ResetResult {
   kind: "health-check";
+  signals: HealthCheckSignals;
+}
+
+/** Classify resetter listing/errors into actionable hygiene signals. */
+export function classifyHealthCheckSignals(result: Pick<ResetResult, "candidates" | "errors" | "message">): HealthCheckSignals {
+  const joined = [...result.errors, result.message ?? ""].join(" ").toLowerCase();
+  return {
+    namespace_pollution_risk: result.candidates > 0,
+    quota_pressure_hint: /(quota|rate.?limit|too many requests|429|resource.?exhausted|billing)/i.test(joined),
+    leftover_candidates: result.candidates,
+  };
 }
 
 export async function healthCheckPack(
@@ -23,11 +42,18 @@ export async function healthCheckPack(
   opts: { reclaim?: boolean } = {},
 ): Promise<HealthCheckResult> {
   const result = await resetPack(pack, client, scope, { dryRun: !opts.reclaim });
+  const signals = classifyHealthCheckSignals(result);
+  const baseMessage = opts.reclaim
+    ? `reclaimed ${result.deleted.length}/${result.candidates} probe resource(s) in sandbox scope`
+    : `health-check: ${result.candidates} probe resource(s) present in sandbox scope`;
+  const signalNotes = [
+    signals.namespace_pollution_risk ? "namespace-pollution-risk" : null,
+    signals.quota_pressure_hint ? "quota-pressure-hint" : null,
+  ].filter(Boolean);
   return {
     ...result,
     kind: "health-check",
-    message: opts.reclaim
-      ? `reclaimed ${result.deleted.length}/${result.candidates} probe resource(s) in sandbox scope`
-      : `health-check: ${result.candidates} probe resource(s) present in sandbox scope`,
+    signals,
+    message: signalNotes.length ? `${baseMessage} [${signalNotes.join(", ")}]` : baseMessage,
   };
 }

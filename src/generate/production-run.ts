@@ -47,8 +47,18 @@ export function daebProductionVendorOrder(): string[] {
   return [...DAEB_VENDOR_ORDER];
 }
 
-export function defaultProductionRunRoot(root: string, runDir?: string): string {
-  if (!runDir || runDir === "results") return resolve(root, "results", "runs", "daeb-production");
+/** Dated production run root: results/runs/daeb-v1-YYYYMMDD (UTC). */
+export function datedDaebProductionRunStem(now: Date = new Date()): string {
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  return `daeb-v1-${yyyy}${mm}${dd}`;
+}
+
+export function defaultProductionRunRoot(root: string, runDir?: string, now: Date = new Date()): string {
+  if (!runDir || runDir === "results") {
+    return resolve(root, "results", "runs", datedDaebProductionRunStem(now));
+  }
   return resolve(root, runDir);
 }
 

@@ -585,6 +585,7 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
         trial_count: record.trial_count ?? null,
         trial_values: record.trial_values ?? null,
         pass_all_3: record.pass_all_3 ?? null,
+        trial_stability_at_3: record.trial_stability_at_3 ?? null,
         latency_ms: record.latency_ms ?? null,
         first_action_latency_ms: record.first_action_latency_ms ?? null,
         tool_call_count: record.tool_call_count ?? null,

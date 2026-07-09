@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-09-cm3hin
-name: supabase
+# run_id: 2026-07-09-7gith1
+name: turso
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-09-cm3hin
+run_id: 2026-07-09-7gith1
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -13,42 +13,39 @@ generator:
   effort: high
   prompt_version: compose-pack-v1
   source_docs:
-    - https://supabase.com/docs
+    - https://docs.turso.tech/api-reference/introduction
 auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: SUPABASE_API_KEY
+  env: TURSO_DATABASE_AUTH_TOKEN
   env_aliases: []
   verify_env_aliases: []
-  extra_header: apikey
 sandbox_scope: []
-sql_conn:
-  dialect: postgres
-  connection_string_env: SUPABASE_DB_URL
 surfaces:
   cli:
-    bin: supabase
-    install: npm install supabase --save-dev
-    docs_url: https://supabase.com/docs/reference/cli/introduction
+    bin: turso
+    install: curl -sSfL https://get.tur.so/install.sh | bash
+    docs_url: https://docs.turso.tech/cli/introduction
     auth:
       kind: token
-      token_env: SUPABASE_ACCESS_TOKEN
+      token_env: TURSO_API_TOKEN
       token_env_aliases: []
-      instructions: Generate a personal access token at
-        https://supabase.com/dashboard/account/tokens, then set
-        SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-        database operations.
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+      instructions: Mint a platform API token with `turso auth api-tokens mint
+        <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
+        unavailable, use `turso auth login --headless` to complete auth via a
+        printed URL. The token printed by `turso auth token` is the same
+        credential.
+base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
 headers: {}
-site_url: https://supabase.com
+site_url: https://turso.tech
 openapi_url: ""
 docs_urls:
-  - https://supabase.com/docs
+  - https://docs.turso.tech/api-reference/introduction
 static:
-  site_url: https://supabase.com
+  site_url: https://turso.tech
   docs_urls:
-    - https://supabase.com/docs
+    - https://docs.turso.tech/api-reference/introduction
   checks: []
 tasks:
   - id: db-T01-access-control
@@ -70,18 +67,28 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 1
-        description: protected container axarena_acl_{ns} exists
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
-          table_schema = 'public' AND table_name = 'axarena_acl_{ns}'
+        expected: axarena_acl_{ns}
+        description: protected table axarena_acl_{ns} exists
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT name FROM sqlite_master WHERE type='table' AND
+                  name='axarena_acl_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
       - type: roundtrip
-        expected: 1
-        description: one allowed record exists under the protected container
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+        expected: "1"
+        description: one allowed record exists under the protected table
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_acl_{ns}"
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L2
     allowed_surfaces:
       - api
@@ -106,16 +113,20 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 1
-        description: active database contains the backup marker row after the
-          backup/export task
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_backup_{ns}" WHERE label =
-          'marker_{ns}'
+        expected: "1"
+        description: the active/restored Turso database contains the backup marker row
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_backup_{ns}" WHERE label = 'marker_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -140,15 +151,21 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 1
+        expected: "1"
         description: agent-reported durable capture table contains the inserted CDC marker
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label =
-          'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
+                  OR payload LIKE '%cdc_probe_{ns}%'
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -170,13 +187,17 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 2
+        expected: "2"
         description: container exists with id and label fields
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_items_{ns}' AND
-          column_name IN ('id', 'label')
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_items_{ns}') WHERE name IN
+                  ('id','label')
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L1
     allowed_surfaces:
       - api
@@ -202,15 +223,20 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 1
+        expected: "1"
         description: status field exists after schema evolution
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND
-          column_name = 'status'
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name =
+                  'status'
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L3
     allowed_surfaces:
+      - api
       - cli
     na: false
     depends_on: []
@@ -232,13 +258,17 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 2
+        expected: "2"
         description: schema inspection target exposes name and status fields
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
-          table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}'
-          AND column_name IN ('name', 'status')
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE
+                  name IN ('name','status')
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L1
     allowed_surfaces:
       - api
@@ -266,22 +296,32 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
       - type: roundtrip
-        expected: 2
+        expected: "2"
         description: filtered read returns exactly two active records
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active'
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active'
+        assertField: results.0.response.result.rows.0.0.value
       - type: roundtrip
-        expected: 2
+        expected: "2"
         description: the active set is alpha and gamma
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active' AND
+                  label IN ('alpha_{ns}', 'gamma_{ns}')
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L1
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -311,11 +351,17 @@ tasks:
       `value` and report that table as `result_table` for verification.
     oracles:
       - type: roundtrip
-        expected: axarena_ok_{ns}
-        description: server-side routine returns the expected marker
-        assertField: 0.result
-        sqlDialect: postgres
-        sqlQuery: SELECT "axarena_echo_{ns}"() AS result
+        expected: "1"
+        description: agent-reported trigger result table contains the expected marker in
+          value
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "{result_table}" WHERE value = 'axarena_ok_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L3
     allowed_surfaces:
       - api
@@ -344,10 +390,15 @@ tasks:
       - type: roundtrip
         expected: alpha_{ns}
         description: nearest vector search ranks alpha first
-        assertField: 0.label
-        sqlDialect: postgres
-        sqlQuery: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
-          '[1,0,0]' LIMIT 1
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT label FROM "axarena_vectors_{ns}" ORDER BY
+                  vector_distance_cos(embedding, '[1,0,0]') LIMIT 1
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L2
     allowed_surfaces:
       - api
@@ -381,19 +432,28 @@ tasks:
       fix only this run-scoped table before reporting the gid.
     oracles:
       - type: roundtrip
-        expected: 1
+        expected: "1"
         description: updated surviving record is final
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
-          label = 'final_{ns}'
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label = 'final_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
       - type: roundtrip
-        expected: 0
+        expected: "0"
         description: throwaway record was deleted
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
-          label = 'delete_me_{ns}'
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label =
+                  'delete_me_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
     difficulty: L1
     allowed_surfaces:
       - api

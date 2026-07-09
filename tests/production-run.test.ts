@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { aggregateNormalizedResults, type NormalizedResult } from "../src/generate/record.js";
 import {
   archiveDaebDebugArtifacts,
+  datedDaebProductionRunStem,
   daebProductionVendorOrder,
   defaultProductionRunRoot,
   productionAggregateDir,
@@ -67,11 +68,13 @@ describe("production rerun helpers", () => {
       "mongodb-atlas",
       "insforge",
     ]);
-    expect(defaultProductionRunRoot("/repo")).toBe("/repo/results/runs/daeb-production");
-    expect(productionTrialDir("/repo/results/runs/daeb-production", "neon", "api", "codex", 2))
-      .toBe("/repo/results/runs/daeb-production/neon/api/codex/trial-2");
-    expect(productionAggregateDir("/repo/results/runs/daeb-production", "neon", "api", "codex"))
-      .toBe("/repo/results/runs/daeb-production/neon/api/codex/aggregate");
+    const frozen = new Date("2026-07-09T12:00:00.000Z");
+    expect(datedDaebProductionRunStem(frozen)).toBe("daeb-v1-20260709");
+    expect(defaultProductionRunRoot("/repo", undefined, frozen)).toBe("/repo/results/runs/daeb-v1-20260709");
+    expect(productionTrialDir("/repo/results/runs/daeb-v1-20260709", "neon", "api", "codex", 2))
+      .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/trial-2");
+    expect(productionAggregateDir("/repo/results/runs/daeb-v1-20260709", "neon", "api", "codex"))
+      .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/aggregate");
   });
 
   it("aggregates three trial records into mean/range/reliability output", () => {
@@ -87,7 +90,19 @@ describe("production rerun helpers", () => {
     expect(aggregate.pass_hat_3).toBeCloseTo(0.8 ** 3);
     expect(aggregate.task_consistency_at_3).toBeNull();
     expect(aggregate.pass_all_3).toBe(0);
+    expect(aggregate.trial_stability_at_3).toBe("inconsistent");
     expect(aggregate.source_records).toEqual(["trial-1.json", "trial-2.json", "trial-3.json"]);
+
+    expect(aggregateNormalizedResults([
+      makeRecord({ pass_at_1: 1 }),
+      makeRecord({ pass_at_1: 1 }),
+      makeRecord({ pass_at_1: 1 }),
+    ]).trial_stability_at_3).toBe("all_pass");
+    expect(aggregateNormalizedResults([
+      makeRecord({ pass_at_1: 0 }),
+      makeRecord({ pass_at_1: 0 }),
+      makeRecord({ pass_at_1: 0 }),
+    ]).trial_stability_at_3).toBe("all_fail");
   });
 
   it("writes aggregate artifacts for one production cell", () => {

@@ -43,3 +43,5 @@ from the live web.
 - Do not nest ad-hoc archives under live `extracts/`; use `_archive/`.
 - `audit_status: reviewed` is a content gate before publication freeze.
 - Runtime run artifacts stay in `results/` (gitignored), never here.
+- Clean production reruns use dated roots: `results/runs/daeb-v1-YYYYMMDD/`
+  (see [`v1/run-matrix.yaml`](./v1/run-matrix.yaml)).

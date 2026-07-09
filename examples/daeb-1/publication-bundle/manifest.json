@@ -1,0 +1,271 @@
+{
+  "schema": "ax.publication-bundle/v2",
+  "benchmark": "DAEB-1-V3",
+  "category": "database",
+  "suite": "suite/suite.yaml",
+  "suite_version": 3,
+  "generated_at": "2026-07-09T11:13:59.700Z",
+  "publication_readiness": "draft",
+  "expected_matrix": {
+    "surfaces": [
+      "api",
+      "cli"
+    ],
+    "harnesses": [
+      "codex",
+      "claude-code"
+    ],
+    "effort_profiles": [
+      "low",
+      "high"
+    ],
+    "required_effort_profiles": [
+      "low"
+    ],
+    "expected_cells": 28
+  },
+  "quality_gates": [
+    {
+      "id": "required-artifacts",
+      "label": "Required publication artifacts are present",
+      "status": "fail",
+      "detail": "37 required artifact(s) missing."
+    },
+    {
+      "id": "pack-validation",
+      "label": "Compiled packs validate against the frozen suite",
+      "status": "pass",
+      "detail": "All compiled vendor packs match the frozen suite and executable tasks have graders."
+    },
+    {
+      "id": "matrix-completeness",
+      "label": "Expected usability matrix cells are present",
+      "status": "fail",
+      "detail": "28/28 cell(s) missing; 0 cell(s) lack required profile coverage (low)."
+    },
+    {
+      "id": "optional-profile-coverage",
+      "label": "Optional research profiles are tracked separately",
+      "status": "pass",
+      "detail": "Optional research-profile evidence is present for every expected cell."
+    },
+    {
+      "id": "efficiency-metrics",
+      "label": "Efficiency metrics are present in normalized records",
+      "status": "fail",
+      "detail": "No normalized records are available, so latency/token/tool-call metrics cannot be audited."
+    },
+    {
+      "id": "trace-attribution",
+      "label": "Trace coverage supports process attribution",
+      "status": "pass",
+      "detail": "Recorded traces are sufficiently task-scoped for process diagnostics."
+    },
+    {
+      "id": "competitive-report",
+      "label": "Cross-vendor competitive report is present",
+      "status": "fail",
+      "detail": "competitive.html is missing from the run directory."
+    }
+  ],
+  "layers": {
+    "static_ax": {
+      "description": "Discoverability & Readiness is the publication/audit layer for discoverability, content quality, and capability exposure.",
+      "methodology_artifacts": []
+    },
+    "behavioral": {
+      "description": "Usability Canonical Suite is the benchmark of record and is scored only from verified outcomes on api/cli.",
+      "methodology_artifacts": []
+    }
+  },
+  "vendors": [
+    {
+      "slug": "cockroachdb",
+      "pack": "benchmarks/daeb/v1/packs/cockroachdb/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/cockroachdb/*.normalized.json",
+        "results/runs/does-not-exist/cockroachdb/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/cockroachdb/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/cockroachdb/vendor.discovered.yaml",
+        "oracle_extract": "vendors/cockroachdb/oracle-extract.yaml",
+        "compiled_pack": "vendors/cockroachdb/compiled-pack.yaml",
+        "approval": "vendors/cockroachdb/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "convex",
+      "pack": "benchmarks/daeb/v1/packs/convex/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/convex/*.normalized.json",
+        "results/runs/does-not-exist/convex/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/convex/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/convex/vendor.discovered.yaml",
+        "oracle_extract": "vendors/convex/oracle-extract.yaml",
+        "compiled_pack": "vendors/convex/compiled-pack.yaml",
+        "approval": "vendors/convex/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "insforge",
+      "pack": "benchmarks/daeb/v1/packs/insforge/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/insforge/*.normalized.json",
+        "results/runs/does-not-exist/insforge/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/insforge/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/insforge/vendor.discovered.yaml",
+        "oracle_extract": "vendors/insforge/oracle-extract.yaml",
+        "compiled_pack": "vendors/insforge/compiled-pack.yaml",
+        "approval": "vendors/insforge/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "mongodb-atlas",
+      "pack": "benchmarks/daeb/v1/packs/mongodb-atlas/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/mongodb-atlas/*.normalized.json",
+        "results/runs/does-not-exist/mongodb-atlas/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/mongodb-atlas/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/mongodb-atlas/vendor.discovered.yaml",
+        "oracle_extract": "vendors/mongodb-atlas/oracle-extract.yaml",
+        "compiled_pack": "vendors/mongodb-atlas/compiled-pack.yaml",
+        "approval": "vendors/mongodb-atlas/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "neon",
+      "pack": "benchmarks/daeb/v1/packs/neon/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/neon/*.normalized.json",
+        "results/runs/does-not-exist/neon/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/neon/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/neon/vendor.discovered.yaml",
+        "oracle_extract": "vendors/neon/oracle-extract.yaml",
+        "compiled_pack": "vendors/neon/compiled-pack.yaml",
+        "approval": "vendors/neon/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "supabase",
+      "pack": "benchmarks/daeb/v1/packs/supabase/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/supabase/*.normalized.json",
+        "results/runs/does-not-exist/supabase/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/supabase/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/supabase/vendor.discovered.yaml",
+        "oracle_extract": "vendors/supabase/oracle-extract.yaml",
+        "compiled_pack": "vendors/supabase/compiled-pack.yaml",
+        "approval": "vendors/supabase/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    },
+    {
+      "slug": "turso",
+      "pack": "benchmarks/daeb/v1/packs/turso/pack.yaml",
+      "expected_surfaces": [
+        "api",
+        "cli"
+      ],
+      "missing": [
+        "results/runs/does-not-exist/turso/*.normalized.json",
+        "results/runs/does-not-exist/turso/**/generated-eval.snapshot.json",
+        "results/runs/does-not-exist/turso/**/generated-eval.html",
+        "benchmarks/daeb/v1/suite.support-matrix.yaml"
+      ],
+      "validation_errors": [],
+      "artifacts": {
+        "vendor_card": "vendors/turso/vendor.discovered.yaml",
+        "oracle_extract": "vendors/turso/oracle-extract.yaml",
+        "compiled_pack": "vendors/turso/compiled-pack.yaml",
+        "approval": "vendors/turso/pack.approval.json",
+        "snapshots": [],
+        "report_htmls": [],
+        "normalized_records": []
+      }
+    }
+  ],
+  "missing": [
+    "benchmarks/daeb/v1/suite.methodology.yaml",
+    "benchmarks/daeb/v1/suite.concept-universe.yaml",
+    "benchmarks/daeb/v1/suite.coverage-matrix.yaml",
+    "benchmarks/daeb/v1/suite.selection-ledger.yaml",
+    "benchmarks/daeb/v1/suite.support-matrix.yaml",
+    "benchmarks/daeb/v1/suite.grader-ledger.yaml",
+    "benchmarks/daeb/v1/suite.failure-taxonomy.yaml",
+    "benchmarks/daeb/v1/suite.trace-review.yaml",
+    "results/runs/does-not-exist/competitive.html"
+  ],
+  "notes": [
+    "Compiled TargetPacks are executable vendor adapters produced from the canonical suite plus vendor-specific verification extraction.",
+    "Discoverability & Readiness artifacts and usability-suite artifacts are published side by side but remain separate scoring layers.",
+    "Publication-grade bundles require both Discoverability & Readiness artifacts and usability-suite artifacts; missing methodology files are recorded explicitly.",
+    "publication_readiness is draft until required artifacts, required profile matrix coverage (low), efficiency metrics, and competitive report gates pass.",
+    "Optional profile artifacts remain valuable execution-learning and publication evidence, but missing optional coverage does not block a publication-ready bundle when required profile coverage is complete.",
+    "Missing artifacts are recorded so draft bundles can be created before every live run finishes.",
+    "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle."
+  ]
+}

@@ -2842,6 +2842,12 @@ async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<void>
     if (!result.supported && result.candidates > 0) {
       console.warn(`  health-check not supported for ${pack.name}; manual cleanup may be needed.`);
     }
+    if (result.signals.namespace_pollution_risk) {
+      console.warn(`  health-check signal: leftover probe resources may pollute the next trial namespace`);
+    }
+    if (result.signals.quota_pressure_hint) {
+      console.warn(`  health-check signal: quota/rate-limit pressure detected — pause or reclaim before continuing`);
+    }
   } catch (e) {
     console.warn(`  health-check skipped: ${e instanceof Error ? e.message : String(e)}`);
   }

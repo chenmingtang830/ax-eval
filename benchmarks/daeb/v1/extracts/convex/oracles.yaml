@@ -1,0 +1,158 @@
+vendor: Convex
+category: database
+slug: convex
+suite_name: DAEB-1-V3
+extracted_at: 2026-07-09T11:09:29.089Z
+vendor_config:
+  base_url: ${CONVEX_URL}
+  auth_type: bearer
+  auth_header: Authorization
+  auth_env: CONVEX_DEPLOY_KEY
+tasks:
+  - task_id: db-T01-access-control
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assert_field: value.allowedRecordCount
+        expected: 1
+        description: verifier query confirms one allowed owned record is visible under
+          the configured guard
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assert_field: value.deniedRecordCount
+        expected: 0
+        description: verifier query confirms the guard hides disallowed records
+  - task_id: db-T02-backup-and-restore
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{backup_probe_query_path}"
+          args: {}
+        assert_field: value.markerCount
+        expected: 1
+        description: verifier query confirms the active/restored deployment contains the
+          backup marker
+  - task_id: db-T03-change-data-capture
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{cdc_probe_query_path}"
+          args: {}
+        assert_field: value.eventCount
+        expected: 1
+        description: verifier query confirms a durable captured event exists for the CDC
+          marker
+  - task_id: db-T04-define-data-container
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{items_schema_query_path}"
+          args: {}
+        assert_field: value.hasLabelField
+        expected: true
+        description: verifier query confirms axarena_items_{ns} can store/read label values
+  - task_id: db-T05-evolve-schema
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{migration_probe_query_path}"
+          args: {}
+        assert_field: value.statusFieldCount
+        expected: 1
+        description: verifier query confirms status is visible after schema evolution
+  - task_id: db-T06-inspect-schema
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{schema_probe_query_path}"
+          args: {}
+        assert_field: value.hasNameAndStatus
+        expected: true
+        description: verifier query confirms name and status fields are visible
+  - task_id: db-T07-query-records
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{query_items_probe_path}"
+          args: {}
+        assert_field: value.activeCount
+        expected: 2
+        description: filtered read returns exactly two active records
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{query_items_probe_path}"
+          args: {}
+        assert_field: value.expectedLabelsCount
+        expected: 2
+        description: the active set is alpha and gamma
+  - task_id: db-T08-server-side-execution
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/action
+        read_body_template:
+          path: "{server_execution_probe_path}"
+          args: {}
+        assert_field: value
+        expected: axarena_ok_{ns}
+        description: server-side function produces the expected marker
+  - task_id: db-T09-vector-search
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/action
+        read_body_template:
+          path: "{vector_probe_query_path}"
+          args: {}
+        assert_field: value.topLabel
+        expected: alpha_{ns}
+        description: vector query ranks alpha first
+  - task_id: db-T10-write-records
+    na: false
+    na_surfaces: []
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{write_probe_query_path}"
+          args: {}
+        assert_field: value.finalCount
+        expected: 1
+        description: updated surviving record is final
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{write_probe_query_path}"
+          args: {}
+        assert_field: value.deletedCount
+        expected: 0
+        description: throwaway record was deleted

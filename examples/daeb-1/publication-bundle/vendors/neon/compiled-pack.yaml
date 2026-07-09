@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v3-v3
-# run_id: 2026-07-09-cm3hin
-name: supabase
+# run_id: 2026-07-09-4m02pr
+name: neon
 version: "1"
 standard_set_version: daeb-1-v3-v3
-run_id: 2026-07-09-cm3hin
+run_id: 2026-07-09-4m02pr
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -13,42 +13,49 @@ generator:
   effort: high
   prompt_version: compose-pack-v1
   source_docs:
-    - https://supabase.com/docs
+    - https://neon.com/docs/reference/api-reference
 auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: SUPABASE_API_KEY
+  env: NEON_API_KEY
   env_aliases: []
   verify_env_aliases: []
-  extra_header: apikey
-sandbox_scope: []
+  header: Authorization
+sandbox_scope:
+  - name: project_id
+    env: NEON_PROJECT_ID
+    required: true
+    instructions: existing Neon sandbox project id; use this instead of creating a
+      new project
+  - name: branch_id
+    env: NEON_BRANCH_ID
+    required: false
+    instructions: optional existing Neon sandbox branch id connected to
+      NEON_DATABASE_URL; if unset, discover the branch from the project via the
+      Neon API
 sql_conn:
   dialect: postgres
-  connection_string_env: SUPABASE_DB_URL
+  connection_string_env: NEON_DATABASE_URL
 surfaces:
   cli:
-    bin: supabase
-    install: npm install supabase --save-dev
-    docs_url: https://supabase.com/docs/reference/cli/introduction
+    bin: neon
+    install: npm i -g neon
+    docs_url: https://neon.com/docs/reference/neon-cli
     auth:
       kind: token
-      token_env: SUPABASE_ACCESS_TOKEN
+      token_env: NEON_API_KEY
       token_env_aliases: []
-      instructions: Generate a personal access token at
-        https://supabase.com/dashboard/account/tokens, then set
-        SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-        database operations.
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+base_url: https://console.neon.tech/api/v2
 headers: {}
-site_url: https://supabase.com
+site_url: https://neon.com
 openapi_url: ""
 docs_urls:
-  - https://supabase.com/docs
+  - https://neon.com/docs/reference/api-reference
 static:
-  site_url: https://supabase.com
+  site_url: https://neon.com
   docs_urls:
-    - https://supabase.com/docs
+    - https://neon.com/docs/reference/api-reference
   checks: []
 tasks:
   - id: db-T01-access-control
@@ -68,6 +75,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 1
@@ -104,6 +122,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 1
@@ -116,6 +145,7 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -138,6 +168,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 1
@@ -149,6 +190,7 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -168,6 +210,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 2
@@ -200,6 +253,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 1
@@ -211,6 +275,7 @@ tasks:
           column_name = 'status'
     difficulty: L3
     allowed_surfaces:
+      - api
       - cli
     na: false
     depends_on: []
@@ -230,6 +295,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 2
@@ -264,6 +340,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 2
@@ -282,6 +369,7 @@ tasks:
     difficulty: L1
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -309,6 +397,17 @@ tasks:
       bodies. If the vendor surface requires modeling the invocation through a
       trigger or helper table, persist the marker in a result table column named
       `value` and report that table as `result_table` for verification.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: axarena_ok_{ns}
@@ -340,6 +439,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -379,6 +489,17 @@ tasks:
       `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
       `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
       fix only this run-scoped table before reporting the gid.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
     oracles:
       - type: roundtrip
         expected: 1
