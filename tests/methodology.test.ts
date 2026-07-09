@@ -31,11 +31,14 @@ import { TargetPackSchema } from "../src/schemas.js";
 import type { Suite } from "../src/generate/suite.js";
 
 describe("suite methodology artifacts", () => {
-  it("defaults canonical suite scope to api/sdk/cli", () => {
-    const methodology = defaultSuiteMethodology("database");
-    expect(methodology.surface_scope).toEqual(["api", "sdk", "cli"]);
-    expect(methodology.static_ax.dimensions).toContain("discoverability");
-    expect(methodology.behavioral.source_of_truth).toMatch(/world state/i);
+  it("defaults database suite scope to api/cli (DAEB v1); other categories keep api/sdk/cli", () => {
+    const database = defaultSuiteMethodology("database");
+    expect(database.surface_scope).toEqual(["api", "cli"]);
+    expect(database.static_ax.dimensions).toContain("discoverability");
+    expect(database.behavioral.source_of_truth).toMatch(/world state/i);
+
+    const generic = defaultSuiteMethodology("crm");
+    expect(generic.surface_scope).toEqual(["api", "sdk", "cli"]);
   });
 
   it("writes capability inventory and support matrix artifacts", () => {
@@ -483,7 +486,11 @@ describe("suite methodology artifacts", () => {
       name: "DEMO",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
+      // Exercise SDK wire fallback even though DAEB/database v1 publication scope is api+cli.
+      methodology: {
+        ...defaultSuiteMethodology("database"),
+        surface_scope: ["api", "sdk", "cli"],
+      },
       tasks: [{
         id: "db-T04-define-data-container",
         title: "T04: create container",

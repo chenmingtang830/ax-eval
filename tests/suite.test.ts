@@ -11,8 +11,8 @@ const DAEB1 = resolve(ROOT, "benchmarks", "daeb", "v1", "suite.yaml");
 describe("canonical task suite", () => {
   it("loads and validates the shipped DAEB-1 suite", () => {
     const suite = loadSuite(DAEB1);
-    expect(suite.name).toBe("DAEB-1-V3");
-    expect(suite.version).toBe(3);
+    expect(suite.name).toBe("DAEB-1");
+    expect(suite.version).toBe(4);
     expect(suite.category).toBe("database");
     expect(suite.tasks).toHaveLength(10);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);
@@ -37,7 +37,7 @@ describe("canonical task suite", () => {
   it("renders a prompt fragment that names every task id", () => {
     const suite = loadSuite(DAEB1);
     const fragment = suitePromptFragment(suite);
-    expect(fragment).toMatch(/DAEB-1-V3/);
+    expect(fragment).toMatch(/DAEB-1/);
     for (const task of suite.tasks) {
       expect(fragment).toContain(task.id);
       expect(fragment).toContain(task.difficulty);
@@ -56,9 +56,11 @@ describe("canonical task suite", () => {
 
   it("validation catches missing, extra, and divergent tasks", () => {
     const suite = loadSuite(DAEB1);
+    const first = suite.tasks[0]!;
+    const altDifficulty = (["L1", "L2", "L3", "L4"] as const).find((d) => d !== first.difficulty) ?? "L4";
     const broken = [
       // first task with wrong difficulty
-      { ...suite.tasks[0]!, difficulty: "L4" as const },
+      { id: first.id, title: first.title, difficulty: altDifficulty },
       // extra task not in the suite
       { id: "db-T99-bogus", title: "bogus", difficulty: "L1" as const },
       // all other tasks except the last one (so the last is missing)

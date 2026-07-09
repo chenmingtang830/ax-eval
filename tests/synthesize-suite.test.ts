@@ -35,6 +35,8 @@ describe("synthesize-suite helpers", () => {
   it("derives supported surfaces from capability inventories instead of assuming all surfaces", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),
+      // Include sdk so the matrix still adjudicates research surfaces beyond DAEB v1 scope.
+      surface_scope: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
       target_task_count: 1,
       min_vendor_coverage_pct: 0.5,
     };
@@ -167,6 +169,7 @@ describe("synthesize-suite helpers", () => {
   it("keeps MongoDB Atlas $function out of the named routine task support decision", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),
+      surface_scope: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
       target_task_count: 1,
       min_vendor_coverage_pct: 0.5,
     };
@@ -248,6 +251,7 @@ describe("synthesize-suite helpers", () => {
   it("adjudicates database SDK support per task instead of inheriting API support", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),
+      surface_scope: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
       target_task_count: 4,
       min_vendor_coverage_pct: 0.5,
     };

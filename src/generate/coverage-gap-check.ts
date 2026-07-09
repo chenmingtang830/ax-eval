@@ -63,7 +63,10 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bcreate-collection\b/,
       /\bdocument-data-model\b/,
       /\btable-and-schema-definition\b/,
+      /\btable-schema-definition\b/,
+      /\bschema-definition\b/,
       /\bcreate-schema\b/,
+      /\bcreate-logical-database\b/,
     ],
   },
   {
@@ -83,6 +86,12 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bbulk-import\b/,
       /\bbulk-copy\b/,
       /\bpgloader-import\b/,
+      // Vendor-idiomatic CRUD / SQL row ops that seed previously left as singletons.
+      /\brest-data-api-crud\b/,
+      /\bbaseline-sql-table-and-row-operations\b/,
+      /\bsql-table-and-row-operations\b/,
+      /\binsert-update-delete\b/,
+      /\bcrud\b/,
     ],
   },
   {
@@ -106,6 +115,8 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bgraphql-query\b/,
       /\brest-api-crud\b/,
       /\bsorted-query\b/,
+      /\bquery-sorting-pagination\b/,
+      /\btime-travel-historical-query\b/,
     ],
   },
   {
@@ -133,6 +144,12 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bschema-diff-migration-review\b/,
       /\bfile-based-migrations\b/,
       /\bad-hoc-migration-execution\b/,
+      /\bschema-migration\b/,
+      /\bschema-alteration\b/,
+      /\brelational-schema-migration\b/,
+      /\bschema-migration-orm-tooling\b/,
+      /\bschema-migration-tracked\b/,
+      /\bmigration-execution-api\b/,
     ],
   },
   {
@@ -156,14 +173,20 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
     title: "Access Control",
     patterns: [
       /\brow-level-security\b/,
+      /\brow-level-access-control\b/,
       /\brole-based-access-control\b/,
       /\bcolumn-level-security\b/,
       /\boidc-jwt-authentication\b/,
       /\bfunction-level-auth-checks\b/,
       /\bmultiple-authentication-methods\b/,
       /\bfine-grained-access-control\b/,
+      /\bfine-grained-permissions\b/,
+      /\bscoped-auth-tokens\b/,
+      /\bcustom-roles\b/,
       /\bnetwork-access-allow-rules\b/,
+      /\bnetwork-access-restriction\b/,
       /\bip-allowlisting-and-private-networking\b/,
+      /\bip-access-list\b/,
       /\bjwt-auth-integration\b/,
     ],
   },
@@ -188,6 +211,9 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bserver-side-javascript-function\b/,
       /\bserver-side-triggers\b/,
       /\bserver-side-actions\b/,
+      /\bserver-side-mutation-functions\b/,
+      /\bserver-side-function\b/,
+      /\bserver-side-functions-triggers\b/,
       /\bscheduled-functions\b/,
       /\bscheduled-sql-jobs\b/,
       /\bscheduled-job\b/,
@@ -196,7 +222,10 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bdatabase-webhook\b/,
       /\bdatabase-rpc\b/,
       /\badmin-raw-sql\b/,
+      /\braw-sql-execution\b/,
       /\bsql-over-http\b/,
+      /\bsql-query-execution\b/,
+      /\bhttp-api-query-execution\b/,
       /\bmanagement-api-and-sdk\b/,
     ],
   },
@@ -204,6 +233,17 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
     concept_name: "vector-search",
     title: "Vector Search",
     patterns: [/\bvector\b/],
+  },
+  {
+    concept_name: "full-text-search",
+    title: "Full-Text Search",
+    patterns: [
+      /\bfull-text-search\b/,
+      /\bfull-text\b/,
+      /\btsvector\b/,
+      /\bbm25\b/,
+      /\btext-search\b/,
+    ],
   },
   {
     concept_name: "change-data-capture",
@@ -215,6 +255,8 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\breactive-query-subscriptions\b/,
       /\brealtime-postgres-changes\b/,
       /\brealtime-change-feeds\b/,
+      /\brealtime-change-feed\b/,
+      /\brealtime-subscriptions\b/,
       /\brealtime-broadcast\b/,
       /\brealtime-presence\b/,
       /\bmanaged-cdc-pipeline\b/,
@@ -238,14 +280,24 @@ function normalizeFallbackConceptName(capabilityName: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function deterministicDatabaseConcept(capability: CapabilityRecord): { concept_name: string; title: string } {
+/** Exported for suite-audit mapping-miss detection / tests. */
+export const DATABASE_DETERMINISTIC_RULES_FOR_AUDIT = DATABASE_DETERMINISTIC_RULES;
+
+/** Match a capability to a canonical concept via deterministic rules, or null. */
+export function matchDeterministicDatabaseConcept(
+  capability: CapabilityRecord,
+): { concept_name: string; title: string } | null {
   const haystack = `${capability.capability_name} ${capability.title} ${capability.description}`.toLowerCase();
   for (const rule of DATABASE_DETERMINISTIC_RULES) {
     if (rule.patterns.some((pattern) => pattern.test(haystack))) {
       return { concept_name: rule.concept_name, title: rule.title };
     }
   }
-  return {
+  return null;
+}
+
+function deterministicDatabaseConcept(capability: CapabilityRecord): { concept_name: string; title: string } {
+  return matchDeterministicDatabaseConcept(capability) ?? {
     concept_name: normalizeFallbackConceptName(capability.capability_name),
     title: fallbackConceptTitle(capability),
   };
@@ -285,7 +337,12 @@ export interface GapCheckGeneratorOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  /** When true, seed-only: skip LLM concept-refine and gap-check assist. */
   deterministic?: boolean;
+  /** Opt-in grounded LLM gap adjudication (expensive: one WebFetch call per
+   *  partial-coverage cell). Default off — inventory evidence alone closes the
+   *  coverage matrix; enable for a deeper assist pass after human review. */
+  gapCheckAssist?: boolean;
 }
 
 const GAP_CHECK_CONCURRENCY = 6;
@@ -328,12 +385,14 @@ export async function refineConceptUniverse(
   extracts: CapabilityExtractResult[],
   opts: GapCheckGeneratorOptions = {},
 ): Promise<ConceptCluster[]> {
+  // Assist step only — keep wall-clock short so a hung harness falls back to seed.
+  const timeoutMs = 4 * 60 * 1000;
   const raw = await invokeGenerator(buildConceptRefinePrompt(seedClusters, extracts), {
     fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     heartbeat: { everyMs: 30_000, label: "refine-concept-universe" },
-    timeoutMs: 8 * 60 * 1000,
+    timeoutMs,
   });
   const json = await extractJsonObjectWithRepair(raw, {
     fallbackHarness: opts.harness ?? "claude-code",
@@ -349,15 +408,39 @@ export async function refineConceptUniverse(
 }
 
 /** Cluster the full union of every vendor's cited capabilities — no selection,
- *  no coverage filtering, just an exhaustive concept map to cross-check against. */
+ *  no coverage filtering, just an exhaustive concept map to cross-check against.
+ *
+ * Default (database): deterministic seed + optional LLM refine assist, with
+ * seed fallback on timeout/parse failure — same pattern as registry-seeded
+ * surface extract. Pass `deterministic: true` for seed-only (CI / offline). */
 export async function deriveCandidateUniverse(
   extracts: CapabilityExtractResult[],
   opts: GapCheckGeneratorOptions = {},
 ): Promise<ConceptCluster[]> {
   if (extracts[0]?.category === "database") {
     const seed = deriveCandidateUniverseDeterministic(extracts);
-    if (opts.deterministic) return seed;
-    return refineConceptUniverse(seed, extracts, opts);
+    if (opts.deterministic) {
+      process.stderr.write(`  [concept-universe] seed-only (${seed.length} concepts)\n`);
+      return seed;
+    }
+    try {
+      process.stderr.write(`  [concept-universe] refining ${seed.length} seed concepts with LLM assist…\n`);
+      const refined = await refineConceptUniverse(seed, extracts, {
+        ...opts,
+        // Keep assist bounded; hung refine previously blocked the whole pipeline.
+        // Caller can still pass a lower/higher timeout via future opts if needed.
+      });
+      if (!refined.length) {
+        process.stderr.write(`  [concept-universe] refine returned empty — keeping seed\n`);
+        return seed;
+      }
+      process.stderr.write(`  [concept-universe] refine ok (${refined.length} concepts)\n`);
+      return refined;
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      process.stderr.write(`  [concept-universe] refine failed (${msg}); keeping deterministic seed\n`);
+      return seed;
+    }
   }
   const raw = await invokeGenerator(buildUniverseClusterPrompt(extracts), {
     fallbackHarness: opts.harness ?? "claude-code",
@@ -410,6 +493,17 @@ export async function crossCheckGaps(
   clusters: ConceptCluster[],
   opts: GapCheckGeneratorOptions = {},
 ): Promise<GapCheckResult[]> {
+  // Default: inventory-only coverage. Grounded per-cell gap LLM is opt-in
+  // (--gap-check-assist) because 50–100 WebFetch calls routinely stall the
+  // authoring pipeline. Seed-only (--deterministic) also skips.
+  if (opts.deterministic || !opts.gapCheckAssist) {
+    process.stderr.write(
+      opts.deterministic
+        ? `  [gap-check] seed-only — skipping LLM gap adjudication\n`
+        : `  [gap-check] inventory-only (pass --gap-check-assist for grounded LLM adjudication)\n`,
+    );
+    return [];
+  }
   const allVendors = extracts.map((e) => e.vendor);
   const gapChecks: Array<{ vendor: string; concept: ConceptCluster }> = [];
   for (const cluster of clusters) {
@@ -419,6 +513,11 @@ export async function crossCheckGaps(
       if (!citingVendors.has(vendor)) gapChecks.push({ vendor, concept: cluster });
     }
   }
+  if (!gapChecks.length) {
+    process.stderr.write(`  [gap-check] no partial-coverage concepts to adjudicate\n`);
+    return [];
+  }
+  process.stderr.write(`  [gap-check] LLM-assist adjudicating ${gapChecks.length} gap cell(s)…\n`);
   const settled = await mapSettledLimit(
     gapChecks,
     GAP_CHECK_CONCURRENCY,
@@ -429,6 +528,7 @@ export async function crossCheckGaps(
         model: opts.model,
         effort: opts.effort,
         timeoutMs: 3 * 60 * 1000,
+        heartbeat: { everyMs: 30_000, label: `gap-check/${vendor}/${concept.concept_name}` },
       });
       const json = await extractJsonObjectWithRepair(raw, {
         fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
@@ -446,5 +546,7 @@ export async function crossCheckGaps(
       process.stderr.write(`  [gap-check] ${label} failed: ${s.reason instanceof Error ? s.reason.message : s.reason}\n`);
     }
   }
-  return settled.filter((s): s is PromiseFulfilledResult<GapCheckResult> => s.status === "fulfilled").map((s) => s.value);
+  const ok = settled.filter((s): s is PromiseFulfilledResult<GapCheckResult> => s.status === "fulfilled").map((s) => s.value);
+  process.stderr.write(`  [gap-check] ${ok.length}/${gapChecks.length} cell(s) adjudicated (failures keep inventory-only coverage)\n`);
+  return ok;
 }

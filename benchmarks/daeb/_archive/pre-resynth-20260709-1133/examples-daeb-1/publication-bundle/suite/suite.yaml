@@ -1,9 +1,9 @@
-name: DAEB-1
-version: 4
+name: DAEB-1-V3
+version: 3
 category: database
 description: Bottom-up-derived canonical task suite for the "database" category,
-  synthesized from 7 vendors' cited documentation (see daeb-1.synthesis.md for
-  the full audit trail).
+  synthesized from 7 vendors' cited documentation (see daeb-1-v3.synthesis.md
+  for the full audit trail).
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -34,30 +34,42 @@ methodology:
     source_of_truth: Verified world state read back from the live product
     notes:
       - Usability-suite scoring is governed only by verified task outcomes on
-        the suite-declared benchmark surfaces.
+        api/cli surfaces for DAEB-1/database v1. SDK remains a deferred future
+        surface and any existing SDK runs are research artifacts, not
+        benchmark-of-record cells.
+  capability_families:
+    - data-definition
+    - data-write
+    - data-read
+    - access-control
+    - integrity
+    - migration
+    - search
+    - compute
+    - change-data-capture
+    - backup-and-recovery
   extraction_requirements:
     - Use only official vendor documentation as evidence.
     - Persist every extracted capability with structured evidence objects.
-    - Document supported benchmark surfaces where evidence exists; deferred
-      surfaces may still be retained as research metadata.
+    - Document supported api/cli surfaces where evidence exists for the
+      benchmark-of-record. SDK evidence may still be retained as research
+      metadata.
   surface_scope:
     - api
     - cli
   min_vendor_coverage_pct: 0.75
   target_task_count: 10
+  family_diversity_cap: 2
   verifiability_requirement: Selected tasks must have deterministic read-back
     verification against world state.
   difficulty_rubric:
-    L1: "Single action: one create/read/update/check call with minimal setup."
-    L2: "Single capability with configuration or composition: ACL, vector search
-      index, etc."
-    L3: "Multi-step workflow within one domain: schema evolution, server-side
-      routine."
-    L4: "Full lifecycle or cross-cutting operational workflow: backup/restore, CDC,
-      integrity constraints."
+    L1: Single-step create/read/check operation with minimal setup.
+    L2: Composed workflow or constrained multi-step task with deterministic state.
+    L3: Ambiguous or multi-step workflow requiring discovery and orchestration.
+    L4: Operational, recovery, policy, or reliability-sensitive workflow with higher
+      coordination cost.
   human_review_checkpoints:
-    - "bottom-up pipeline review: capability inventory → concept universe →
-      coverage matrix → selection ledger → task drafts"
+    - suite methodology revision
     - final suite freeze
     - publication bundle release
 tasks:
@@ -95,94 +107,8 @@ tasks:
     na_examples:
       - This vendor does not expose a recoverable backup, snapshot, or export
         flow on api/cli surfaces.
-  - id: db-T03-data-integrity-and-transactions
-    title: "T03: Enforce one integrity or atomicity rule"
-    difficulty: L4
-    skill: data-integrity-and-transactions
-    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
-    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
-      `external_id=primary_{ns}` record is durably committed after the
-      conflicting or invalid attempt.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor cannot enforce a documented integrity rule or atomic write
-        guarantee on api/cli surfaces.
-  - id: db-T04-evolve-schema
-    title: "T04: Apply a schema evolution"
-    difficulty: L3
-    skill: evolve-schema
-    intent: Starting from a container named `axarena_migrate_{ns}` that already
-      contains a `title` field, apply an idiomatic schema change that adds a new
-      `status` field. Confirm the evolved shape is visible through the vendor's
-      schema or metadata surface.
-    oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
-      `status` field is now present.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor does not support a documented schema evolution or migration
-        flow on api/cli surfaces.
-  - id: db-T05-query-records
-    title: "T05: Filter and read matching records"
-    difficulty: L1
-    skill: query-records
-    intent: Using a container named `axarena_query_items_{ns}`, create exactly three
-      records with a text field named `label` and values `alpha_{ns}`,
-      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
-      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
-      that returns only the active records and report the container name plus
-      the matching count.
-    oracle_hint: Verify the container exists and that a filtered read for
-      `status=active` returns exactly two records with labels `alpha_{ns}` and
-      `gamma_{ns}`.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor cannot perform filtered record reads on api/cli surfaces.
-  - id: db-T06-vector-search
-    title: "T06: Create a vector-enabled dataset and query it"
-    difficulty: L2
-    skill: vector-search
-    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
-      field named `label` and at least three items labeled `alpha_{ns}`,
-      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
-      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
-      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
-    oracle_hint: Read back the vector dataset and verify a similarity query for
-      `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor does not expose vector indexing or similarity search on
-        api/cli surfaces.
-  - id: db-T07-write-records
-    title: "T07: Create, update, and delete one record lifecycle"
-    difficulty: L1
-    skill: write-records
-    intent: Using a container named `axarena_write_items_{ns}`, create one record
-      labeled `draft_{ns}`, update that same record so its label becomes
-      `final_{ns}`, then delete one separate throwaway record labeled
-      `delete_me_{ns}`. Report the externally addressable container name and the
-      surviving record identity.
-    oracle_hint: Read back `axarena_write_items_{ns}` and confirm the surviving
-      record label is `final_{ns}` while no record labeled `delete_me_{ns}`
-      remains.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor cannot perform create, update, and delete record operations
-        on api/cli surfaces.
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
+  - id: db-T03-change-data-capture
+    title: "T03: Emit one observable change event"
     difficulty: L4
     skill: change-data-capture
     intent: Enable a change stream, realtime subscription, or CDC feed for a
@@ -200,23 +126,40 @@ tasks:
     na_examples:
       - This vendor does not expose a documented CDC, change stream, or realtime
         feed on api/cli surfaces.
-  - id: db-T09-full-text-search
-    title: "T09: Create a searchable text dataset and query it"
-    difficulty: L2
-    skill: full-text-search
-    intent: Create a text-searchable dataset named `axarena_search_{ns}` with at
-      least three items whose content includes `orchard_{ns}`, `mountain_{ns}`,
-      and `harbor_{ns}`. Run one full-text search query that matches only the
-      `orchard_{ns}` item and report the top matching result.
-    oracle_hint: Read back the searchable dataset and verify a documented full-text
-      search query returns `orchard_{ns}` as a top match.
+  - id: db-T04-define-data-container
+    title: "T04: Create a logical data container"
+    difficulty: L1
+    skill: define-data-container
+    intent: Create a logical data container named `axarena_items_{ns}` using the
+      vendor's idiomatic mechanism (table, collection, or equivalent). The
+      resulting container must support an externally addressable id/key and a
+      text field named `label`.
+    oracle_hint: Read back metadata for `axarena_items_{ns}` and confirm the
+      container exists with an id/key field plus a `label` field.
     allowed_surfaces:
       - api
       - cli
     na_examples:
-      - This vendor does not expose full-text search on api/cli surfaces.
-  - id: db-T10-inspect-schema
-    title: "T10: Inspect container metadata"
+      - This vendor cannot create or persist a named data container on
+        api/cli surfaces.
+  - id: db-T05-evolve-schema
+    title: "T05: Apply a schema evolution"
+    difficulty: L3
+    skill: evolve-schema
+    intent: Starting from a container named `axarena_migrate_{ns}` that already
+      contains a `title` field, apply an idiomatic schema change that adds a new
+      `status` field. Confirm the evolved shape is visible through the vendor's
+      schema or metadata surface.
+    oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
+      `status` field is now present.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not support a documented schema evolution or migration
+        flow on api/cli surfaces.
+  - id: db-T06-inspect-schema
+    title: "T06: Inspect container metadata"
     difficulty: L1
     skill: inspect-schema
     intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
@@ -230,6 +173,74 @@ tasks:
     na_examples:
       - This vendor does not expose schema or metadata inspection on api/cli
         surfaces.
+  - id: db-T07-query-records
+    title: "T07: Filter and read matching records"
+    difficulty: L1
+    skill: query-records
+    intent: Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+    oracle_hint: Verify the container exists and that a filtered read for
+      `status=active` returns exactly two records with labels `alpha_{ns}` and
+      `gamma_{ns}`.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor cannot perform filtered record reads on api/cli surfaces.
+  - id: db-T08-server-side-execution
+    title: "T08: Create and invoke a server-side routine"
+    difficulty: L3
+    skill: server-side-execution
+    intent: Create a server-side routine named `axarena_echo_{ns}` that returns or
+      writes the literal string `axarena_ok_{ns}` when invoked, then invoke it
+      exactly once using the vendor's idiomatic execution surface.
+    oracle_hint: Read back the routine metadata and the observable output or
+      persisted result showing the literal `axarena_ok_{ns}`.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose server-side routine execution on api/cli
+        surfaces.
+  - id: db-T09-vector-search
+    title: "T09: Create a vector-enabled dataset and query it"
+    difficulty: L2
+    skill: vector-search
+    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+    oracle_hint: Read back the vector dataset and verify a similarity query for
+      `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose vector indexing or similarity search on
+        api/cli surfaces.
+  - id: db-T10-write-records
+    title: "T10: Create, update, and delete one record lifecycle"
+    difficulty: L1
+    skill: write-records
+    intent: Using a container named `axarena_write_items_{ns}`, create one record
+      labeled `draft_{ns}`, update that same record so its label becomes
+      `final_{ns}`, then delete one separate throwaway record labeled
+      `delete_me_{ns}`. Report the externally addressable container name and the
+      surviving record identity.
+    oracle_hint: Read back `axarena_write_items_{ns}` and confirm the surviving
+      record label is `final_{ns}` while no record labeled `delete_me_{ns}`
+      remains.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor cannot perform create, update, and delete record operations
+        on api/cli surfaces.
 scoring:
   per_task: pass | fail | na
   overall:
@@ -241,6 +252,5 @@ scoring:
     static_ax: Discoverability & Readiness is published separately and never alters
       usability-suite pass rates.
     behavioral: Usability Canonical Suite is scored only from verified outcomes on
-      api/cli for DAEB/database v1; SDK remains a deferred future surface and
-      any existing SDK runs are research artifacts, not benchmark-of-record
-      cells.
+      api/cli for DAEB-1/database v1; SDK remains published only as research
+      evidence when available.

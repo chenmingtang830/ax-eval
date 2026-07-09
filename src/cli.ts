@@ -89,6 +89,7 @@ import {
 } from "./generate/extract-audit.js";
 import { fetchSpecSummary } from "./ingest/spec-summary.js";
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
+import { auditSuite, applySuiteAudit, formatSuiteAuditReport } from "./generate/suite-audit.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import {
@@ -170,6 +171,7 @@ const COMMANDS = [
   "extract-surfaces",
   "extract-capabilities",
   "audit-extracts",
+  "audit-suite",
   "synthesize-suite",
   "publication-bundle",
   "export-publication",
@@ -284,13 +286,27 @@ function commandUsage(command: string | undefined): string {
         "  mismatch, incomplete headless auth. Default is report-only;",
         "  --apply writes autofixes back to benchmarks/daeb/v1/extracts/<slug>/.",
       ].join("\n");
+    case "audit-suite":
+      return [
+        "usage: ax-eval audit-suite --suite <suite.yaml> [--apply]",
+        "  Post-synthesize gate after synthesize-suite. Deterministic checks:",
+        "  underfilled task bank, generic suite name, difficulty gaps, near-miss",
+        "  coverage, concept-mapping misses vs inventories. Default report-only;",
+        "  --apply rewrites suite name/version + writes *.audit-notes.md, then",
+        "  re-run synthesize-suite --deterministic to refresh selection.",
+      ].join("\n");
     case "synthesize-suite":
       return [
         "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
-        "                                [--task-count N] [--harness claude-code|codex] [--deterministic]",
+        "                                [--task-count N] [--harness claude-code|codex]",
+        "                                [--deterministic] [--gap-check-assist]",
         "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
         "  universe, closes coverage gaps, selects the canonical suite, and drafts",
-        "  suite tasks. NOT grounded (reasons over already-cited input, no WebFetch).",
+        "  suite tasks. Default = deterministic seed + LLM concept-refine assist",
+        "  (seed fallback on timeout/failure), inventory-only coverage, then human",
+        "  review — same pattern as extract-surfaces (registry seed + LLM assist).",
+        "  --deterministic = seed-only (skip LLM assist; for CI/offline).",
+        "  --gap-check-assist = optional grounded LLM gap adjudication (slow).",
         "  Writes <suite.yaml> + sibling methodology/support artifacts + synthesis.md.",
       ].join("\n");
     case "publication-bundle":
@@ -359,6 +375,8 @@ interface Parsed {
    *  (codex → model_reasoning_effort; claude-code → prompt-level). */
   effort: string;
   deterministic: boolean;
+  /** synthesize-suite: opt-in grounded LLM gap adjudication. */
+  gapCheckAssist: boolean;
   generatorHarness: string;
   generatorModel: string;
   generatorEffort: string;
@@ -456,6 +474,7 @@ function parseArgs(argv: string[]): Parsed {
     model: "",
     effort: "",
     deterministic: false,
+    gapCheckAssist: false,
     generatorHarness: "",
     generatorModel: "",
     generatorEffort: "",
@@ -540,6 +559,7 @@ function parseArgs(argv: string[]): Parsed {
       p.effort = v;
     }
     else if (a === "--deterministic") p.deterministic = true;
+    else if (a === "--gap-check-assist") p.gapCheckAssist = true;
     else if (a === "--generator-harness") {
       const v = value(++i, "--generator-harness");
       if (!["codex", "claude-code", "host-agent"].includes(v)) {
@@ -1790,6 +1810,24 @@ function cmdAuditExtracts(args: Parsed): number {
   return report.summary.errors ? 1 : 0;
 }
 
+function cmdAuditSuite(args: Parsed): number {
+  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
+  const root = process.cwd();
+  const report = auditSuite(root, args.suite);
+  console.log(formatSuiteAuditReport(report));
+  if (args.apply) {
+    console.log(`\nApplying autofixes…`);
+    const written = applySuiteAudit(root, args.suite, report);
+    for (const path of written) console.log(`  wrote ${path}`);
+    if (report.findings.some((f) => f.code === "underfilled_task_bank" || f.code === "mapping_would_cover" || f.code === "seed_eligible_ok")) {
+      console.log(`\nNext: re-run synthesize-suite --deterministic to refresh selection from fixed mappings.`);
+    }
+  } else {
+    console.log(`\nReport-only. Re-run with --apply to write metadata autofixes + audit notes.`);
+  }
+  return report.summary.errors ? 1 : 0;
+}
+
 async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
@@ -1817,19 +1855,29 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
     });
   if (extracts.length < 2) throw new Error("Need at least 2 vendors' capability inventories to synthesize a suite.");
 
-  console.log(`Synthesizing suite from ${extracts.length} vendor(s)' capability extracts…`);
   const harness = generatorHarness(args);
+  console.log(
+    `Synthesizing suite from ${extracts.length} vendor(s)' capability extracts` +
+      (args.deterministic
+        ? " (seed-only / --deterministic)…"
+        : args.gapCheckAssist
+          ? " (seed + LLM refine + gap-check assist)…"
+          : " (deterministic seed + LLM concept-refine assist, seed fallback)…"),
+  );
   const result = await synthesizeSuite(args.category, extracts, {
     harness,
     model: generatorModel(args, harness),
     effort: generatorEffort(args),
     deterministic: args.deterministic,
+    gapCheckAssist: args.gapCheckAssist,
     targetTaskCount: args.taskCount,
   });
 
   const suiteStem = args.out.split("/").pop()!.replace(/\.yaml$/, "");
-  const suiteName = suiteStem.toUpperCase();
-  const suiteYaml = renderSuiteYaml(suiteName, inferSuiteVersionFromStem(suiteStem), args.category, result);
+  // Bare "suite.yaml" is the active DAEB contract path — don't name the suite "SUITE".
+  const suiteName = /^suite$/i.test(suiteStem) ? "DAEB-1" : suiteStem.toUpperCase();
+  const suiteVersion = /^suite$/i.test(suiteStem) ? 4 : inferSuiteVersionFromStem(suiteStem);
+  const suiteYaml = renderSuiteYaml(suiteName, suiteVersion, args.category, result);
   const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
   const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
   const artifactPaths = writeSuiteArtifacts(root, args.out, result);
@@ -2909,7 +2957,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
-interface InvokeJob {
+  interface InvokeJob {
     groupKey: string;
     harness: InvokeHarnessId;
     profileName: string;
@@ -2920,8 +2968,8 @@ interface InvokeJob {
     combinedPaths: ReturnType<typeof defaultInvokePaths>;
     taskId?: string;
     runOpts: InvokeRunOptions;
-  label: string;
-}
+    label: string;
+  }
 interface InvokeGroup {
   label: string;
   combinedPaths: ReturnType<typeof defaultInvokePaths>;
@@ -3150,24 +3198,24 @@ interface InvokeGroup {
                 invokeGroups.get(groupKey)?.taskJobs?.push(job);
               }
             } else {
-              const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
-              writeFileSync(paths.promptPath, prompt);
-              invokeJobs.push({
+            const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
+            writeFileSync(paths.promptPath, prompt);
+            invokeJobs.push({
                 groupKey,
-                harness,
-                profileName: name,
-                surfaceId,
-                attempt,
-                ns,
-                paths,
+              harness,
+              profileName: name,
+              surfaceId,
+              attempt,
+              ns,
+              paths,
                 combinedPaths: paths,
                 label: baseLabel,
-                runOpts: {
-                  pack,
-                  paths,
+              runOpts: {
+                pack,
+                paths,
                   ...sharedRunOpts,
-                },
-              });
+              },
+            });
             }
           }
         } else {
@@ -3192,16 +3240,16 @@ interface InvokeGroup {
               console.log(`  task=${task.id} → ${out} (results→${resultsPath}, trace→${tracePath})`);
             }
           } else {
-            const resultsPath = `${dir}/run-${stem}.json`;
-            const tracePath = `${dir}/run-${stem}.trace.json`;
-            const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
-            const out = `${dir}/prompt-${stem}.txt`;
-            writeFileSync(out, prompt);
-            resultPaths.push(resultsPath);
-            console.log(
-              `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
-                `(results→${resultsPath}, trace→${tracePath})`,
-            );
+          const resultsPath = `${dir}/run-${stem}.json`;
+          const tracePath = `${dir}/run-${stem}.trace.json`;
+          const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
+          const out = `${dir}/prompt-${stem}.txt`;
+          writeFileSync(out, prompt);
+          resultPaths.push(resultsPath);
+          console.log(
+            `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
+              `(results→${resultsPath}, trace→${tracePath})`,
+          );
           }
           if (attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${ns}`);
         }
@@ -3287,19 +3335,19 @@ interface InvokeGroup {
         });
       }
     } else {
-      await runPool(invokeJobs, conc, async (job) => {
-        console.log(`  ▶ start  ${job.label}`);
-        const invoke = await runInvokeHarness(job.runOpts);
-        const note = [
-          invoke.timedOut ? "timed out" : null,
+    await runPool(invokeJobs, conc, async (job) => {
+      console.log(`  ▶ start  ${job.label}`);
+      const invoke = await runInvokeHarness(job.runOpts);
+      const note = [
+        invoke.timedOut ? "timed out" : null,
           invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
-          (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
-        ].filter(Boolean).join(", ");
-        console.log(
-          `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
-            `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
-        );
-      });
+        (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
+      ].filter(Boolean).join(", ");
+      console.log(
+        `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
+          `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
+      );
+    });
     }
     const emittedResultPaths = args.executionMode === "task"
       ? [...invokeGroups.values()].map((group) => group.combinedPaths.resultsPath)
@@ -3347,14 +3395,14 @@ interface InvokeGroup {
         `\nTask-level prompt generation currently requires ax-eval-managed invocation for aggregation. ` +
           `Re-run with --invoke --execution-mode task to produce combined run artifacts for verify-generated.`,
       );
-    } else {
-      console.log(
-        `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
-          `  ax-eval verify-generated --pack ${args.pack} ` +
-          resultPaths.map((p) => `--results ${p}`).join(" ") +
-          ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
-      );
-    }
+  } else {
+    console.log(
+      `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
+        `  ax-eval verify-generated --pack ${args.pack} ` +
+        resultPaths.map((p) => `--results ${p}`).join(" ") +
+        ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
+    );
+  }
   }
   if (args.invoke && !args.skipReset && (invokeJobs.length || invokeGroups.size)) {
     console.log("\nResetting sandbox namespaces after verification…");
@@ -4092,6 +4140,8 @@ async function main(): Promise<number> {
       return cmdExtractCapabilities(args);
     case "audit-extracts":
       return cmdAuditExtracts(args);
+    case "audit-suite":
+      return cmdAuditSuite(args);
     case "synthesize-suite":
       return cmdSynthesizeSuite(args);
     case "publication-bundle":

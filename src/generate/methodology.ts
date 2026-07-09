@@ -242,6 +242,9 @@ export const TraceReviewMemoSchema = z.object({
 export type TraceReviewMemo = z.infer<typeof TraceReviewMemoSchema>;
 
 export function defaultSuiteMethodology(category: string): SuiteMethodology {
+  // DAEB/database v1 benchmark-of-record is api+cli; SDK stays in the generic
+  // engine but out of the publication scoring denominator.
+  const surfaceScope = category === "database" ? (["api", "cli"] as const) : CANONICAL_SURFACE_SCOPE;
   return SuiteMethodologySchema.parse({
     ontology: {
       task: "A single benchmark problem with fixed intent and success criteria.",
@@ -273,6 +276,7 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
       "Persist every extracted capability with structured evidence objects.",
       "Document supported benchmark surfaces where evidence exists; deferred surfaces may still be retained as research metadata.",
     ],
+    surface_scope: [...surfaceScope],
     min_vendor_coverage_pct: 0.75,
     target_task_count: 10,
     verifiability_requirement: "Selected tasks must have deterministic read-back verification against world state.",
@@ -508,4 +512,12 @@ export function writeTraceReview(root: string, suitePath: string, artifact: Trac
 
 export function loadSupportMatrix(root: string, suitePath: string): SupportMatrix | null {
   return readYaml(supportMatrixPath(root, suitePath), SupportMatrixSchema);
+}
+
+export function loadCoverageMatrix(root: string, suitePath: string): CoverageMatrix | null {
+  return readYaml(coverageMatrixPath(root, suitePath), CoverageMatrixSchema);
+}
+
+export function loadSelectionLedger(root: string, suitePath: string): SelectionLedger | null {
+  return readYaml(selectionLedgerPath(root, suitePath), SelectionLedgerSchema);
 }

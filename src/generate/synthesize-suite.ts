@@ -276,8 +276,12 @@ export interface SynthesizeSuiteOptions {
   harness?: string;
   model?: string;
   effort?: string;
-  /** When true, skip the LLM concept-refine step and use the deterministic seed universe directly. */
+  /** When true, seed-only: skip LLM concept-refine and gap-check assist.
+   *  Default is deterministic seed + LLM concept-refine assist with seed
+   *  fallback (same pattern as registry-seeded surface extract). */
   deterministic?: boolean;
+  /** Opt-in grounded LLM gap adjudication (expensive). Default off. */
+  gapCheckAssist?: boolean;
   targetTaskCount?: number;
 }
 
@@ -432,8 +436,16 @@ export function buildSelectionLedgerArtifact(
     const coveredVendors = supported.map((decision) => decision.vendor);
     let selected = false;
     let rejectionReason: string | undefined;
-    if (coveragePct < methodology.min_vendor_coverage_pct) {
-      rejectionReason = `coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}%`;
+    // Integer vendor threshold: for 7 vendors and 75%, require ceil(0.75*7)=6
+    // supported vendors. Comparing raw ratios alone rejects 5/7 (≈0.714) even
+    // though methodology text is "75% of vendors".
+    const minVendors = Math.max(
+      1,
+      Math.ceil(methodology.min_vendor_coverage_pct * Math.max(concept.decisions.length, 1)),
+    );
+    const meetsCoverage = supported.length >= minVendors;
+    if (!meetsCoverage) {
+      rejectionReason = `coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}% (${supported.length}/${concept.decisions.length} vendors; need ≥${minVendors})`;
     } else if (!selectedByModel) {
       rejectionReason = "not proposed by clustering stage";
     } else {
@@ -461,11 +473,15 @@ export function buildSelectionLedgerArtifact(
     }
   }
 
+  const vendorCount = coverageMatrix.concepts[0]?.decisions.length
+    ?? new Set(coverageMatrix.concepts.flatMap((c) => c.decisions.map((d) => d.vendor))).size
+    ?? 0;
+  const minVendors = Math.max(1, Math.ceil(methodology.min_vendor_coverage_pct * Math.max(vendorCount, 1)));
   const selectedCount = entries.filter((entry) => entry.selected).length;
   if (selectedCount < methodology.target_task_count) {
     for (const entry of entries) {
       if (entry.selected) continue;
-      if (entry.coverage_pct < methodology.min_vendor_coverage_pct) continue;
+      if ((entry.covered_vendors?.length ?? 0) < minVendors) continue;
       entry.selected = true;
       entry.rejection_reason = undefined;
       entry.rationale = `${entry.rationale} Promoted by deterministic coverage fallback to hit target task count.`;
@@ -474,7 +490,11 @@ export function buildSelectionLedgerArtifact(
   }
 
   if (!entries.some((entry) => entry.selected && entry.proposed_difficulty === "L4")) {
-    const l4Candidate = entries.find((entry) => !entry.selected && entry.proposed_difficulty === "L4" && entry.coverage_pct >= methodology.min_vendor_coverage_pct);
+    const l4Candidate = entries.find((entry) =>
+      !entry.selected
+      && entry.proposed_difficulty === "L4"
+      && (entry.covered_vendors?.length ?? 0) >= minVendors,
+    );
     if (l4Candidate) {
       const demotionCandidate = [...entries]
         .reverse()
@@ -846,6 +866,8 @@ export async function synthesizeSuite(
     harness: opts.harness as "claude-code" | "codex" | undefined,
     model: opts.model,
     effort: opts.effort as "low" | "medium" | "high" | undefined,
+    deterministic: opts.deterministic,
+    gapCheckAssist: opts.gapCheckAssist,
   });
   const coverageMatrix = buildCoverageMatrixArtifact(category, conceptUniverse, extracts, gapChecks);
   const proposed = proposeClustersFromUniverse(conceptUniverse, coverageMatrix);
