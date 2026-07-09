@@ -2,7 +2,7 @@ vendor: Mongodb Atlas
 category: database
 slug: mongodb-atlas
 suite_name: DAEB-1
-extracted_at: 2026-07-09T22:56:09.686Z
+extracted_at: 2026-07-09T23:25:37.045Z
 vendor_config:
   base_url: https://cloud.mongodb.com
   auth_type: none

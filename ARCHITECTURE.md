@@ -29,6 +29,11 @@ and writes three isolated trials plus an aggregate normalized record per
 supported cell. Publication bundles read those aggregate records with
 `--effort-profiles medium --required-effort-profiles medium`.
 
+DAEB-1 has one mutable v1 authoring contract before freeze. Re-synthesis
+overwrites that draft; git SHAs and content hashes distinguish exact states and
+invalidate stale approvals. Suite version numbers are not authoring iteration
+counters, and benchmark-of-record execution begins only after human freeze.
+
 The boundary with the AXArena website is an explicit export step:
 `export-publication` reads a frozen publication bundle and writes website-ready
 JSON indexes. `ax-eval` owns benchmark truth and artifact generation; an

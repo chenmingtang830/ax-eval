@@ -4,7 +4,7 @@
 schema: ax.daeb-run-matrix/v1
 suite: benchmarks/daeb/v1/suite.yaml
 benchmark: DAEB-1
-suite_version: 4
+suite_version: 1
 surface_scope:
   - api
   - cli

@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-09T22:55:07.651Z
+generated_at: 2026-07-09T23:25:33.778Z
 clusters:
   - concept_name: access-control
     title: Access Control

@@ -2,7 +2,7 @@ vendor: Convex
 category: database
 slug: convex
 suite_name: DAEB-1
-extracted_at: 2026-07-09T22:56:09.685Z
+extracted_at: 2026-07-09T23:25:37.044Z
 vendor_config:
   base_url: ${CONVEX_URL}
   auth_type: bearer

@@ -57,6 +57,11 @@ shape.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
   paths must produce schema-valid packs, and neither path replaces human review.
+- **DAEB-1 draft iterations stay v1.** Before human freeze, re-synthesis
+  overwrites the same v1 suite; git SHAs and content hashes identify exact draft
+  states and invalidate stale approvals. Do not increment the suite version for
+  authoring iterations or publish benchmark-of-record results from an unfrozen
+  draft.
 
 ## Adding a new target
 

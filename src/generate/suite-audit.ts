@@ -280,7 +280,7 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
       autoFixable: findings.filter((f) => f.auto_fixable).length,
     },
     suggestedName: "DAEB-1",
-    suggestedVersion: 4,
+    suggestedVersion: 1,
   };
 }
 
@@ -309,8 +309,7 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
   let changed = false;
   if (report.findings.some((f) => f.code === "generic_suite_name")) {
     raw.name = report.suggestedName ?? "DAEB-1";
-    if (typeof raw.version !== "number" || raw.version < 1) raw.version = report.suggestedVersion ?? 4;
-    else if (raw.name === "DAEB-1" && raw.version === 1) raw.version = report.suggestedVersion ?? 4;
+    if (typeof raw.version !== "number" || raw.version < 1) raw.version = report.suggestedVersion ?? 1;
     changed = true;
   }
   if (changed) {

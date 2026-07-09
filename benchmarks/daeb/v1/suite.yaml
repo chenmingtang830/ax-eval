@@ -1,5 +1,5 @@
 name: DAEB-1
-version: 4
+version: 1
 category: database
 description: Bottom-up-derived canonical task suite for the "database" category,
   synthesized from 7 vendors' cited documentation (see daeb-1.synthesis.md for

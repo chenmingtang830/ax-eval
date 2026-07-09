@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
-# standard_set_version: daeb-1-v4
-# run_id: 2026-07-09-l0mu80
+# standard_set_version: daeb-1-v1
+# run_id: 2026-07-09-qdta3r
 name: neon
 version: "1"
-standard_set_version: daeb-1-v4
-run_id: 2026-07-09-l0mu80
+standard_set_version: daeb-1-v1
+run_id: 2026-07-09-qdta3r
 generated_by: suite-composed
 generator:
   harness: claude-code

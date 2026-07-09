@@ -12,7 +12,7 @@ describe("canonical task suite", () => {
   it("loads and validates the shipped DAEB-1 suite", () => {
     const suite = loadSuite(DAEB1);
     expect(suite.name).toBe("DAEB-1");
-    expect(suite.version).toBe(4);
+    expect(suite.version).toBe(1);
     expect(suite.category).toBe("database");
     expect(suite.tasks).toHaveLength(10);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);

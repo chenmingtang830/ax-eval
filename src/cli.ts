@@ -1876,7 +1876,9 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   const suiteStem = args.out.split("/").pop()!.replace(/\.yaml$/, "");
   // Bare "suite.yaml" is the active DAEB contract path — don't name the suite "SUITE".
   const suiteName = /^suite$/i.test(suiteStem) ? "DAEB-1" : suiteStem.toUpperCase();
-  const suiteVersion = /^suite$/i.test(suiteStem) ? 4 : inferSuiteVersionFromStem(suiteStem);
+  // DAEB-1 remains one mutable draft until human freeze. Draft regenerations
+  // overwrite v1; git SHA/content hashes identify exact pre-freeze states.
+  const suiteVersion = /^suite$/i.test(suiteStem) ? 1 : inferSuiteVersionFromStem(suiteStem);
   const suiteYaml = renderSuiteYaml(suiteName, suiteVersion, args.category, result);
   const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
   const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);

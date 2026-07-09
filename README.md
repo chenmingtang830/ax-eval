@@ -127,6 +127,11 @@ definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
 
+Until human freeze, DAEB-1 is one mutable v1 draft: re-synthesis overwrites the
+same suite and invalidates content-hash approvals. Git SHAs and artifact content
+hashes identify exact draft states; draft iterations do not increment the suite
+version. Benchmark-of-record results are produced only after freeze.
+
 For DAEB-1/database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
 medium-effort model per harness, and three trials per supported
@@ -149,8 +154,8 @@ running and verifying the vendor matrix, freeze a publication bundle:
 ```bash
 npm run ax-eval -- publication-bundle \
   --suite benchmarks/daeb/v1/suite.yaml \
-  --run-dir results/runs/daeb-1-v4-production \
-  --out results/runs/daeb-1-v4-production/publication-bundle \
+  --run-dir results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle \
   --effort-profiles medium \
   --required-effort-profiles medium
 ```
@@ -166,8 +171,8 @@ exported dataset instead of learning runner internals or recomputing scores:
 
 ```bash
 npm run ax-eval -- export-publication \
-  --from results/runs/daeb-1-v4-production/publication-bundle-final \
-  --out results/runs/daeb-1-v4-production/axarena-export
+  --from results/runs/daeb-1-v1-production/publication-bundle-final \
+  --out results/runs/daeb-1-v1-production/axarena-export
 ```
 
 This writes website-ready JSON indexes for leaderboard rows, cells, task

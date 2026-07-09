@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
-# standard_set_version: daeb-1-v4
-# run_id: 2026-07-09-xeti65
+# standard_set_version: daeb-1-v1
+# run_id: 2026-07-09-cgn8cw
 name: turso
 version: "1"
-standard_set_version: daeb-1-v4
-run_id: 2026-07-09-xeti65
+standard_set_version: daeb-1-v1
+run_id: 2026-07-09-cgn8cw
 generated_by: suite-composed
 generator:
   harness: claude-code

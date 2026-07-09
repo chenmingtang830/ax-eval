@@ -1,6 +1,6 @@
 schema: ax.coverage-matrix/v1
 category: database
-generated_at: 2026-07-09T22:55:07.652Z
+generated_at: 2026-07-09T23:25:33.780Z
 concepts:
   - concept_name: access-control
     title: Access Control

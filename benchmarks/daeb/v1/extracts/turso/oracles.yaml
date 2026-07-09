@@ -2,7 +2,7 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-09T22:56:09.685Z
+extracted_at: 2026-07-09T23:25:37.044Z
 vendor_config:
   base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
   auth_type: bearer

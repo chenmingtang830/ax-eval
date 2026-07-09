@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: SUITE
 category: database
-generated_at: 2026-07-09T22:55:07.654Z
+generated_at: 2026-07-09T23:25:33.781Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control

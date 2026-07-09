@@ -18,7 +18,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
@@ -67,7 +67,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
@@ -115,7 +115,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
@@ -153,7 +153,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
@@ -201,7 +201,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
@@ -236,7 +236,7 @@ describe("task extraction seeds", () => {
     };
     const suite: Suite = {
       name: "DAEB-1",
-      version: 4,
+      version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
