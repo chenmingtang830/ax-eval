@@ -1,6 +1,6 @@
 schema: ax.grader-ledger/v1
 benchmark: SUITE
-generated_at: 2026-07-09T13:15:37.988Z
+generated_at: 2026-07-09T22:55:07.654Z
 tasks:
   - task_id: db-T01-access-control
     outcome_graders:
@@ -31,7 +31,7 @@ tasks:
     human_calibration:
       - manual-spot-check
       - grader-fairness-review
-  - task_id: db-T03-data-integrity-and-transactions
+  - task_id: db-T03-change-data-capture
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -102,7 +102,7 @@ tasks:
       - token_cost_usd
     human_calibration:
       - grader-fairness-review
-  - task_id: db-T08-change-data-capture
+  - task_id: db-T08-data-integrity-and-transactions
     outcome_graders:
       - read-back-world-state
     trajectory_graders:

@@ -38,23 +38,23 @@ const CONVEX_DEPLOYMENT_FLOW_NOTE = [
 ].join(" ");
 
 const CONVEX_VERIFIER_CONTRACTS: Record<string, string> = {
-  "db-T01-access-control":
+  "access-control":
     "Convex verifier contract: report `acl_probe_query_path` as a public query path that accepts `{}` and returns `{allowedRecordCount:number, deniedRecordCount:number}`.",
-  "db-T03-data-integrity-and-transactions":
+  "data-integrity-and-transactions":
     "Convex verifier contract: report `integrity_probe_query_path` as a public query path that accepts `{}` and returns `{primaryCount:number, conflictingCount:number}`.",
-  "db-T04-evolve-schema":
+  "evolve-schema":
     "Convex verifier contract: report `migration_probe_query_path` as a public query path that accepts `{}` and returns `{statusFieldCount:number}`.",
-  "db-T05-query-records":
+  "query-records":
     "Convex verifier contract: report `query_items_probe_path` as a public query path that accepts `{}` and returns `{totalCount:number, activeCount:number, expectedLabelsCount:number}`.",
-  "db-T06-vector-search":
+  "vector-search":
     "Convex verifier contract: report `vector_probe_query_path` as a public action path that accepts `{}` and returns `{topLabel:string}`.",
-  "db-T07-write-records":
+  "write-records":
     "Convex verifier contract: report `write_probe_query_path` as a public query path that accepts `{}` and returns `{draftCount:number, finalCount:number, deletedCount:number}`.",
-  "db-T08-change-data-capture":
+  "change-data-capture":
     "Convex verifier contract: report `cdc_probe_query_path` as a public query path that accepts `{}` and returns `{eventCount:number}`.",
-  "db-T09-full-text-search":
+  "full-text-search":
     "Convex verifier contract: report `text_search_probe_path` as a public action path that accepts `{}` and returns `{topContent:string, unexpectedMatchCount:number}`.",
-  "db-T10-inspect-schema":
+  "inspect-schema":
     "Convex verifier contract: report `schema_probe_query_path` as a public query path that accepts `{}` and returns `{hasNameAndStatus:boolean}`.",
 };
 
@@ -122,18 +122,18 @@ const NEON_CLI_ROLE_CONTRACT_NOTE = [
 ].join(" ");
 
 const MONGODB_ATLAS_TASK_CONTRACTS: Record<string, string> = {
-  "db-T06-vector-search": [
+  "vector-search": [
     "MongoDB Atlas vector-search contract: when creating Atlas Search/vector indexes through the Node",
     "driver, do not enable Stable API strict mode (`apiStrict: true`), because `createSearchIndexes`",
     "is not part of API Version 1. Use the official driver path without strict API mode, create the",
     "vector index, wait until it is queryable if necessary, and report `vector_index_name`.",
   ].join(" "),
-  "db-T08-change-data-capture": [
+  "change-data-capture": [
     "MongoDB Atlas change-stream contract: open the change stream before inserting the probe document,",
     "then persist the observed insert event into a durable capture collection and report that",
     "`capture_collection` value for verification. A stream opened after the insert may miss the event.",
   ].join(" "),
-  "db-T09-full-text-search": [
+  "full-text-search": [
     "MongoDB Atlas full-text-search contract: create an Atlas Search text index for `content`, wait",
     "until it is queryable, and report its concrete name as `text_index_name` for verification.",
   ].join(" "),
@@ -147,12 +147,12 @@ export function applyDatabasePackPromptOverride(
   if (vendor.category !== "database") return prompt;
   if (SQL_IDENTIFIER_CONTRACT_VENDORS.has(vendor.slug) && task.id.startsWith("db-")) {
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
-    if (task.id === "db-T07-write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
+    if (task.skill === "write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
   if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
   if (vendor.slug === "mongodb-atlas" && task.id.startsWith("db-")) {
-    const contract = MONGODB_ATLAS_TASK_CONTRACTS[task.id];
+    const contract = MONGODB_ATLAS_TASK_CONTRACTS[task.skill];
     if (contract) prompt = `${prompt}\n\n${contract}`;
   }
   if (vendor.slug !== "convex") return prompt;
@@ -162,7 +162,7 @@ export function applyDatabasePackPromptOverride(
     "",
     CONVEX_IDENTIFIER_NOTE,
     CONVEX_DEPLOYMENT_FLOW_NOTE,
-    CONVEX_VERIFIER_CONTRACTS[task.id],
+    CONVEX_VERIFIER_CONTRACTS[task.skill],
   ].filter(Boolean).join("\n\n");
 }
 

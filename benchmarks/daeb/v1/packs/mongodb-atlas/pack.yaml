@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v4
-# run_id: 2026-07-09-4encns
+# run_id: 2026-07-09-xmj8px
 name: mongodb-atlas
 version: "1"
 standard_set_version: daeb-1-v4
-run_id: 2026-07-09-4encns
+run_id: 2026-07-09-xmj8px
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -96,15 +96,26 @@ tasks:
     difficulty: L4
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
-  - id: db-T03-data-integrity-and-transactions
-    title: "T03: Enforce one integrity or atomicity rule"
-    prompt: Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
+  - id: db-T03-change-data-capture
+    title: "T03: Emit one observable change event"
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+
+
+      MongoDB Atlas change-stream contract: open the change stream before
+      inserting the probe document, then persist the observed insert event into
+      a durable capture collection and report that `capture_collection` value
+      for verification. A stream opened after the insert may miss the event.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -211,22 +222,12 @@ tasks:
     na: true
     depends_on: []
     trace: []
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
-    prompt: >-
-      Enable a change stream, realtime subscription, or CDC feed for a container
-      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
-      so the resulting insert becomes observable in the stream or feed. Persist
-      the observed event into a durable capture container that is distinct from
-      `axarena_cdc_{ns}`, with either a `row_label` field equal to
-      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
-
-
-      MongoDB Atlas change-stream contract: open the change stream before
-      inserting the probe document, then persist the observed insert event into
-      a durable capture collection and report that `capture_collection` value
-      for verification. A stream opened after the insert may miss the event.
+  - id: db-T08-data-integrity-and-transactions
+    title: "T08: Enforce one integrity or atomicity rule"
+    prompt: Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix

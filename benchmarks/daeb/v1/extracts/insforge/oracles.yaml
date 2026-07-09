@@ -2,7 +2,7 @@ vendor: Insforge
 category: database
 slug: insforge
 suite_name: DAEB-1
-extracted_at: 2026-07-09T21:33:59.776Z
+extracted_at: 2026-07-09T22:56:09.687Z
 vendor_config:
   base_url: ${INSFORGE_PROJECT_URL}
   auth_type: bearer
@@ -42,19 +42,19 @@ tasks:
         expected: 1
         description: active database contains the backup marker row after the
           backup/export task
-  - task_id: db-T03-data-integrity-and-transactions
+  - task_id: db-T03-change-data-capture
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: insforge:db-T03-change-data-capture:change-data-capture
     checks:
       - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
-          external_id = 'primary_{ns}'
+        sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
+          = 'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
         assert_field: 0.count
         expected: 1
-        description: exactly one committed record has the protected logical key
+        description: agent-reported durable capture table contains the inserted CDC marker
   - task_id: db-T04-evolve-schema
     na: false
     na_surfaces:
@@ -131,19 +131,19 @@ tasks:
         assert_field: 0.count
         expected: 0
         description: throwaway record was deleted
-  - task_id: db-T08-change-data-capture
+  - task_id: db-T08-data-integrity-and-transactions
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T08-change-data-capture:change-data-capture
+    support_reference: insforge:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
-          = 'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
+          external_id = 'primary_{ns}'
         assert_field: 0.count
         expected: 1
-        description: agent-reported durable capture table contains the inserted CDC marker
+        description: exactly one committed record has the protected logical key
   - task_id: db-T09-full-text-search
     na: true
     na_reason: unsupported for this vendor in support matrix

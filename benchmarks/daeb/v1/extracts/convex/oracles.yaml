@@ -2,7 +2,7 @@ vendor: Convex
 category: database
 slug: convex
 suite_name: DAEB-1
-extracted_at: 2026-07-09T21:33:59.774Z
+extracted_at: 2026-07-09T22:56:09.685Z
 vendor_config:
   base_url: ${CONVEX_URL}
   auth_type: bearer
@@ -34,9 +34,9 @@ tasks:
         expected: 0
         description: verifier query confirms the guard hides disallowed records
   - task_id: db-T02-backup-and-restore
-    na: true
-    na_reason: unsupported for this vendor in support matrix
-    na_surfaces: []
+    na: false
+    na_surfaces:
+      - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: convex:db-T02-backup-and-restore:backup-and-restore
     checks:
@@ -49,34 +49,26 @@ tasks:
         expected: 1
         description: verifier query confirms the active/restored deployment contains the
           backup marker
-  - task_id: db-T03-data-integrity-and-transactions
+  - task_id: db-T03-change-data-capture
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: convex:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: convex:db-T03-change-data-capture:change-data-capture
     checks:
       - read_method: POST
         read_path_template: /api/query
         read_body_template:
-          path: "{integrity_probe_query_path}"
+          path: "{cdc_probe_query_path}"
           args: {}
-        assert_field: value.primaryCount
+        assert_field: value.eventCount
         expected: 1
-        description: verifier query confirms exactly one committed record has the
-          protected logical key
-      - read_method: POST
-        read_path_template: /api/query
-        read_body_template:
-          path: "{integrity_probe_query_path}"
-          args: {}
-        assert_field: value.conflictingCount
-        expected: 0
-        description: verifier query confirms no conflicting record was committed
+        description: verifier query confirms a durable captured event exists for the CDC
+          marker
   - task_id: db-T04-evolve-schema
-    na: true
-    na_reason: unsupported for this vendor in support matrix
-    na_surfaces: []
+    na: false
+    na_surfaces:
+      - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: convex:db-T04-evolve-schema:evolve-schema
     checks:
@@ -165,22 +157,30 @@ tasks:
         assert_field: value.deletedCount
         expected: 0
         description: throwaway record was deleted
-  - task_id: db-T08-change-data-capture
+  - task_id: db-T08-data-integrity-and-transactions
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: convex:db-T08-change-data-capture:change-data-capture
+    support_reference: convex:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - read_method: POST
         read_path_template: /api/query
         read_body_template:
-          path: "{cdc_probe_query_path}"
+          path: "{integrity_probe_query_path}"
           args: {}
-        assert_field: value.eventCount
+        assert_field: value.primaryCount
         expected: 1
-        description: verifier query confirms a durable captured event exists for the CDC
-          marker
+        description: verifier query confirms exactly one committed record has the
+          protected logical key
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{integrity_probe_query_path}"
+          args: {}
+        assert_field: value.conflictingCount
+        expected: 0
+        description: verifier query confirms no conflicting record was committed
   - task_id: db-T09-full-text-search
     na: true
     na_reason: unsupported for this vendor in support matrix

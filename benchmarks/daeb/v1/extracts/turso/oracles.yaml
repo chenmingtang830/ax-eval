@@ -2,7 +2,7 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-09T21:33:59.774Z
+extracted_at: 2026-07-09T22:56:09.685Z
 vendor_config:
   base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
   auth_type: bearer
@@ -36,9 +36,7 @@ tasks:
         description: one allowed record exists under the protected table
   - task_id: db-T02-backup-and-restore
     na: false
-    na_surfaces:
-      - api
-    na_surfaces_reason: unsupported for these surfaces in support matrix
+    na_surfaces: []
     support_reference: turso:db-T02-backup-and-restore:backup-and-restore
     checks:
       - read_method: POST
@@ -51,10 +49,12 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
         description: the active/restored Turso database contains the backup marker row
-  - task_id: db-T03-data-integrity-and-transactions
+  - task_id: db-T03-change-data-capture
     na: false
-    na_surfaces: []
-    support_reference: turso:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: turso:db-T03-change-data-capture:change-data-capture
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -62,11 +62,11 @@ tasks:
           requests:
             - type: execute
               stmt:
-                sql: SELECT COUNT(*) FROM "axarena_integrity_{ns}" WHERE external_id =
-                  'primary_{ns}'
+                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
+                  OR payload LIKE '%cdc_probe_{ns}%'
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: exactly one committed record has the protected logical key
+        description: agent-reported durable capture table contains the inserted CDC marker
   - task_id: db-T04-evolve-schema
     na: false
     na_surfaces: []
@@ -171,12 +171,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "0"
         description: throwaway record was deleted
-  - task_id: db-T08-change-data-capture
-    na: true
-    na_reason: unsupported for this vendor in support matrix
+  - task_id: db-T08-data-integrity-and-transactions
+    na: false
     na_surfaces: []
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: turso:db-T08-change-data-capture:change-data-capture
+    support_reference: turso:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -184,11 +182,11 @@ tasks:
           requests:
             - type: execute
               stmt:
-                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
-                  OR payload LIKE '%cdc_probe_{ns}%'
+                sql: SELECT COUNT(*) FROM "axarena_integrity_{ns}" WHERE external_id =
+                  'primary_{ns}'
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: agent-reported durable capture table contains the inserted CDC marker
+        description: exactly one committed record has the protected logical key
   - task_id: db-T09-full-text-search
     na: false
     na_surfaces: []

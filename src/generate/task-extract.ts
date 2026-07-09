@@ -380,8 +380,8 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
       na: false,
       checks,
     });
-  switch (task.id) {
-    case "db-T01-access-control":
+  switch (task.skill) {
+    case "access-control":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_name = 'axarena_acl_{ns}'",
@@ -396,14 +396,14 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "one allowed record exists under the protected container",
         ),
       ]);
-    case "db-T02-backup-and-restore":
+    case "backup-and-restore":
       return item([pgCheck(
         "SELECT COUNT(*)::int AS count FROM \"axarena_backup_{ns}\" WHERE label = 'marker_{ns}'",
         "0.count",
         1,
         "active database contains the backup marker row after the backup/export task",
       )]);
-    case "db-T08-change-data-capture":
+    case "change-data-capture":
       return OracleExtractItemSchema.parse({
         task_id: task.id,
         na: false,
@@ -417,7 +417,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           },
         ],
       });
-    case "db-T03-data-integrity-and-transactions":
+    case "data-integrity-and-transactions":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_integrity_{ns}\" WHERE external_id = 'primary_{ns}'",
@@ -426,7 +426,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "exactly one committed record has the protected logical key",
         ),
       ]);
-    case "db-T04-evolve-schema":
+    case "evolve-schema":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND column_name IN ('title', 'status')",
@@ -435,7 +435,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "title remains visible and status exists after schema evolution",
         ),
       ]);
-    case "db-T10-inspect-schema":
+    case "inspect-schema":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}' AND column_name IN ('name', 'status')",
@@ -444,7 +444,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "schema inspection target exposes name and status fields",
         ),
       ]);
-    case "db-T05-query-records":
+    case "query-records":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_query_items_{ns}\"",
@@ -465,7 +465,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T09-full-text-search":
+    case "full-text-search":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_search_{ns}\" WHERE to_tsvector('simple', content) @@ plainto_tsquery('simple', 'orchard_{ns}')",
@@ -480,7 +480,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T06-vector-search":
+    case "vector-search":
       return item([
         pgCheck(
           "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY embedding <-> '[1,0,0]' LIMIT 1",
@@ -489,7 +489,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "nearest vector search ranks alpha first",
         ),
       ]);
-    case "db-T07-write-records":
+    case "write-records":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
@@ -522,8 +522,8 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
       na: false,
       checks,
     });
-  switch (task.id) {
-    case "db-T01-access-control":
+  switch (task.skill) {
+    case "access-control":
       return item([
         tursoSqlCheck(
           "SELECT name FROM sqlite_master WHERE type='table' AND name='axarena_acl_{ns}'",
@@ -538,7 +538,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "one allowed record exists under the protected table",
         ),
       ]);
-    case "db-T02-backup-and-restore":
+    case "backup-and-restore":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_backup_{ns}\" WHERE label = 'marker_{ns}'",
@@ -547,7 +547,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active/restored Turso database contains the backup marker row",
         ),
       ]);
-    case "db-T08-change-data-capture":
+    case "change-data-capture":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"{capture_table}\" WHERE row_label = 'cdc_probe_{ns}' OR payload LIKE '%cdc_probe_{ns}%'",
@@ -556,7 +556,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "agent-reported durable capture table contains the inserted CDC marker",
         ),
       ]);
-    case "db-T03-data-integrity-and-transactions":
+    case "data-integrity-and-transactions":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_integrity_{ns}\" WHERE external_id = 'primary_{ns}'",
@@ -565,7 +565,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "exactly one committed record has the protected logical key",
         ),
       ]);
-    case "db-T04-evolve-schema":
+    case "evolve-schema":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name IN ('title','status')",
@@ -574,7 +574,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "title remains visible and status exists after schema evolution",
         ),
       ]);
-    case "db-T10-inspect-schema":
+    case "inspect-schema":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE name IN ('name','status')",
@@ -583,7 +583,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "schema inspection target exposes name and status fields",
         ),
       ]);
-    case "db-T05-query-records":
+    case "query-records":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_query_items_{ns}\"",
@@ -604,7 +604,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T09-full-text-search":
+    case "full-text-search":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_search_{ns}\" WHERE content MATCH 'orchard_{ns}'",
@@ -619,7 +619,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T06-vector-search":
+    case "vector-search":
       return item([
         tursoSqlCheck(
           "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY vector_distance_cos(embedding, '[1,0,0]') LIMIT 1",
@@ -628,7 +628,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "nearest vector search ranks alpha first",
         ),
       ]);
-    case "db-T07-write-records":
+    case "write-records":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
@@ -661,8 +661,8 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
       na: false,
       checks,
     });
-  switch (task.id) {
-    case "db-T01-access-control":
+  switch (task.skill) {
+    case "access-control":
       return item([
         mongoCheck(
           "axarena_acl_{ns}",
@@ -673,7 +673,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "one authorized interaction left an allowed record in the protected collection",
         ),
       ]);
-    case "db-T02-backup-and-restore":
+    case "backup-and-restore":
       return item([
         mongoCheck(
           "axarena_backup_{ns}",
@@ -684,7 +684,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "restored/recovered MongoDB target contains the backup marker document",
         ),
       ]);
-    case "db-T08-change-data-capture":
+    case "change-data-capture":
       return item([
         mongoCheck(
           "{capture_collection}",
@@ -695,7 +695,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "agent-reported durable capture collection contains the inserted change event",
         ),
       ]);
-    case "db-T03-data-integrity-and-transactions":
+    case "data-integrity-and-transactions":
       return item([
         mongoCheck(
           "axarena_integrity_{ns}",
@@ -706,7 +706,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "exactly one committed document has the protected logical key",
         ),
       ]);
-    case "db-T04-evolve-schema":
+    case "evolve-schema":
       return item([
         mongoCheck(
           "axarena_migrate_{ns}",
@@ -717,7 +717,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "collection metadata exposes the evolved status field",
         ),
       ]);
-    case "db-T10-inspect-schema":
+    case "inspect-schema":
       return item([
         mongoCheck(
           "axarena_schema_probe_{ns}",
@@ -736,7 +736,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "collection metadata exposes the status field",
         ),
       ]);
-    case "db-T05-query-records":
+    case "query-records":
       return item([
         mongoCheck(
           "axarena_query_items_{ns}",
@@ -763,7 +763,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T09-full-text-search":
+    case "full-text-search":
       return item([
         mongoCheck(
           "axarena_search_{ns}",
@@ -785,7 +785,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "Atlas full-text search returns orchard as the sole top match",
         ),
       ]);
-    case "db-T06-vector-search":
+    case "vector-search":
       return item([
         mongoCheck(
           "axarena_vectors_{ns}",
@@ -809,7 +809,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "Atlas vector search ranks alpha first",
         ),
       ]);
-    case "db-T07-write-records":
+    case "write-records":
       return item([
         mongoCheck(
           "axarena_write_items_{ns}",
@@ -848,8 +848,8 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
       na: false,
       checks,
     });
-  switch (task.id) {
-    case "db-T01-access-control":
+  switch (task.skill) {
+    case "access-control":
       return item([
         convexQueryCheck(
           "acl_probe_query_path",
@@ -864,7 +864,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms the guard hides disallowed records",
         ),
       ]);
-    case "db-T02-backup-and-restore":
+    case "backup-and-restore":
       return item([
         convexQueryCheck(
           "backup_probe_query_path",
@@ -873,7 +873,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms the active/restored deployment contains the backup marker",
         ),
       ]);
-    case "db-T08-change-data-capture":
+    case "change-data-capture":
       return item([
         convexQueryCheck(
           "cdc_probe_query_path",
@@ -882,7 +882,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms a durable captured event exists for the CDC marker",
         ),
       ]);
-    case "db-T03-data-integrity-and-transactions":
+    case "data-integrity-and-transactions":
       return item([
         convexQueryCheck(
           "integrity_probe_query_path",
@@ -897,7 +897,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms no conflicting record was committed",
         ),
       ]);
-    case "db-T04-evolve-schema":
+    case "evolve-schema":
       return item([
         convexQueryCheck(
           "migration_probe_query_path",
@@ -906,7 +906,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms status is visible after schema evolution",
         ),
       ]);
-    case "db-T10-inspect-schema":
+    case "inspect-schema":
       return item([
         convexQueryCheck(
           "schema_probe_query_path",
@@ -915,7 +915,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms name and status fields are visible",
         ),
       ]);
-    case "db-T05-query-records":
+    case "query-records":
       return item([
         convexQueryCheck(
           "query_items_probe_path",
@@ -936,7 +936,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T09-full-text-search":
+    case "full-text-search":
       return item([
         convexActionCheck(
           "text_search_probe_path",
@@ -951,7 +951,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T06-vector-search":
+    case "vector-search":
       return item([
         convexActionCheck(
           "vector_probe_query_path",
@@ -960,7 +960,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "vector query ranks alpha first",
         ),
       ]);
-    case "db-T07-write-records":
+    case "write-records":
       return item([
         convexQueryCheck(
           "write_probe_query_path",

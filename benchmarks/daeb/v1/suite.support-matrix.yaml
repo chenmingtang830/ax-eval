@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: SUITE
 category: database
-generated_at: 2026-07-09T13:15:37.988Z
+generated_at: 2026-07-09T22:55:07.654Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control
@@ -24,8 +24,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: access-control
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T01-access-control
     surface: api
@@ -36,8 +35,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: access-control
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T01-access-control
     surface: api
@@ -99,33 +97,29 @@ entries:
   - vendor: Convex
     task_id: db-T02-backup-and-restore
     surface: cli
-    status: unsupported
+    status: supported
     source_concept: backup-and-restore
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
   - vendor: Insforge
     task_id: db-T02-backup-and-restore
     surface: api
     status: supported
     source_concept: backup-and-restore
   - vendor: Insforge
-    task_id: db-T02-backup-and-restore
-    surface: cli
-    status: unsupported
-    source_concept: backup-and-restore
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
-  - vendor: Mongodb Atlas
-    task_id: db-T02-backup-and-restore
-    surface: api
-    status: supported
-    source_concept: backup-and-restore
-  - vendor: Mongodb Atlas
     task_id: db-T02-backup-and-restore
     surface: cli
     status: unsupported
     source_concept: backup-and-restore
     reason: cli not documented for supported concept
+  - vendor: Mongodb Atlas
+    task_id: db-T02-backup-and-restore
+    surface: api
+    status: supported
+    source_concept: backup-and-restore
+  - vendor: Mongodb Atlas
+    task_id: db-T02-backup-and-restore
+    surface: cli
+    status: supported
+    source_concept: backup-and-restore
   - vendor: Neon
     task_id: db-T02-backup-and-restore
     surface: api
@@ -150,94 +144,91 @@ entries:
   - vendor: Turso
     task_id: db-T02-backup-and-restore
     surface: api
-    status: unsupported
+    status: supported
     source_concept: backup-and-restore
-    reason: api not documented for supported concept
   - vendor: Turso
     task_id: db-T02-backup-and-restore
     surface: cli
     status: supported
     source_concept: backup-and-restore
   - vendor: Cockroachdb
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: api
     status: unsupported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
     reason: api not documented for supported concept
   - vendor: Cockroachdb
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: cli
     status: supported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
   - vendor: Convex
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: api
     status: unsupported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
     reason: api not documented for supported concept
   - vendor: Convex
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: cli
     status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    source_concept: change-data-capture
+    reason: cli not documented for supported concept
   - vendor: Insforge
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: api
     status: supported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
   - vendor: Insforge
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: cli
     status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    source_concept: change-data-capture
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: api
     status: unsupported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
     reason: api not documented for supported concept
   - vendor: Mongodb Atlas
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: cli
     status: unsupported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
     reason: cli not documented for supported concept
   - vendor: Neon
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
+    surface: api
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Neon
+    task_id: db-T03-change-data-capture
+    surface: cli
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Supabase
+    task_id: db-T03-change-data-capture
+    surface: api
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Supabase
+    task_id: db-T03-change-data-capture
+    surface: cli
+    status: unsupported
+    source_concept: change-data-capture
+    reason: cli not documented for supported concept
+  - vendor: Turso
+    task_id: db-T03-change-data-capture
     surface: api
     status: unsupported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
     reason: api not documented for supported concept
-  - vendor: Neon
-    task_id: db-T03-data-integrity-and-transactions
-    surface: cli
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: cli not documented for supported concept
-  - vendor: Supabase
-    task_id: db-T03-data-integrity-and-transactions
-    surface: api
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Supabase
-    task_id: db-T03-data-integrity-and-transactions
-    surface: cli
-    status: supported
-    source_concept: data-integrity-and-transactions
   - vendor: Turso
-    task_id: db-T03-data-integrity-and-transactions
-    surface: api
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Turso
-    task_id: db-T03-data-integrity-and-transactions
+    task_id: db-T03-change-data-capture
     surface: cli
     status: supported
-    source_concept: data-integrity-and-transactions
+    source_concept: change-data-capture
   - vendor: Cockroachdb
     task_id: db-T04-evolve-schema
     surface: api
@@ -258,10 +249,8 @@ entries:
   - vendor: Convex
     task_id: db-T04-evolve-schema
     surface: cli
-    status: unsupported
+    status: supported
     source_concept: evolve-schema
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
   - vendor: Insforge
     task_id: db-T04-evolve-schema
     surface: api
@@ -272,8 +261,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: evolve-schema
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T04-evolve-schema
     surface: api
@@ -337,8 +325,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: query-records
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T05-query-records
     surface: api
@@ -349,8 +336,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: query-records
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T05-query-records
     surface: api
@@ -417,8 +403,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: vector-search
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T06-vector-search
     surface: api
@@ -429,8 +414,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: vector-search
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T06-vector-search
     surface: api
@@ -477,14 +461,14 @@ entries:
   - vendor: Cockroachdb
     task_id: db-T07-write-records
     surface: api
-    status: supported
+    status: unsupported
     source_concept: write-records
+    reason: api not documented for supported concept
   - vendor: Cockroachdb
     task_id: db-T07-write-records
     surface: cli
-    status: unsupported
+    status: supported
     source_concept: write-records
-    reason: cli not documented for supported concept
   - vendor: Convex
     task_id: db-T07-write-records
     surface: api
@@ -496,8 +480,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: write-records
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T07-write-records
     surface: api
@@ -508,8 +491,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: write-records
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T07-write-records
     surface: api
@@ -555,86 +537,83 @@ entries:
     status: supported
     source_concept: write-records
   - vendor: Cockroachdb
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: api
     status: unsupported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: api not documented for supported concept
   - vendor: Cockroachdb
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: cli
     status: supported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
   - vendor: Convex
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: api
     status: unsupported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: api not documented for supported concept
   - vendor: Convex
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: cli
     status: unsupported
-    source_concept: change-data-capture
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    source_concept: data-integrity-and-transactions
+    reason: cli not documented for supported concept
   - vendor: Insforge
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: api
     status: supported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
   - vendor: Insforge
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: cli
     status: unsupported
-    source_concept: change-data-capture
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    source_concept: data-integrity-and-transactions
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: api
     status: unsupported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: api not documented for supported concept
   - vendor: Mongodb Atlas
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: cli
     status: unsupported
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: cli not documented for supported concept
   - vendor: Neon
-    task_id: db-T08-change-data-capture
-    surface: api
-    status: supported
-    source_concept: change-data-capture
-  - vendor: Neon
-    task_id: db-T08-change-data-capture
-    surface: cli
-    status: supported
-    source_concept: change-data-capture
-  - vendor: Supabase
-    task_id: db-T08-change-data-capture
-    surface: api
-    status: supported
-    source_concept: change-data-capture
-  - vendor: Supabase
-    task_id: db-T08-change-data-capture
-    surface: cli
-    status: unsupported
-    source_concept: change-data-capture
-    reason: cli not documented for supported concept
-  - vendor: Turso
-    task_id: db-T08-change-data-capture
+    task_id: db-T08-data-integrity-and-transactions
     surface: api
     status: inconclusive
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: No inventory citation or gap-check confirmation found.
-  - vendor: Turso
-    task_id: db-T08-change-data-capture
+  - vendor: Neon
+    task_id: db-T08-data-integrity-and-transactions
     surface: cli
     status: inconclusive
-    source_concept: change-data-capture
+    source_concept: data-integrity-and-transactions
     reason: No inventory citation or gap-check confirmation found.
+  - vendor: Supabase
+    task_id: db-T08-data-integrity-and-transactions
+    surface: api
+    status: supported
+    source_concept: data-integrity-and-transactions
+  - vendor: Supabase
+    task_id: db-T08-data-integrity-and-transactions
+    surface: cli
+    status: supported
+    source_concept: data-integrity-and-transactions
+  - vendor: Turso
+    task_id: db-T08-data-integrity-and-transactions
+    surface: api
+    status: supported
+    source_concept: data-integrity-and-transactions
+  - vendor: Turso
+    task_id: db-T08-data-integrity-and-transactions
+    surface: cli
+    status: supported
+    source_concept: data-integrity-and-transactions
   - vendor: Cockroachdb
     task_id: db-T09-full-text-search
     surface: api
@@ -657,8 +636,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: full-text-search
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T09-full-text-search
     surface: api
@@ -736,8 +714,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: inspect-schema
-    reason: Convex has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API or project-code support.
+    reason: cli not documented for supported concept
   - vendor: Insforge
     task_id: db-T10-inspect-schema
     surface: api
@@ -748,8 +725,7 @@ entries:
     surface: cli
     status: unsupported
     source_concept: inspect-schema
-    reason: Insforge has no benchmark-declared CLI surface for DAEB; CLI support is
-      not inferred from API support.
+    reason: cli not documented for supported concept
   - vendor: Mongodb Atlas
     task_id: db-T10-inspect-schema
     surface: api

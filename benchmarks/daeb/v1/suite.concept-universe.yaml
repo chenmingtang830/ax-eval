@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-09T13:15:37.985Z
+generated_at: 2026-07-09T22:55:07.651Z
 clusters:
   - concept_name: access-control
     title: Access Control
@@ -40,6 +40,8 @@ clusters:
         capability_name: backup
       - vendor: Cockroachdb
         capability_name: restore
+      - vendor: Cockroachdb
+        capability_name: bulk-data-export
       - vendor: Convex
         capability_name: bulk-export
       - vendor: Convex
@@ -50,6 +52,8 @@ clusters:
         capability_name: database-export
       - vendor: Insforge
         capability_name: database-import
+      - vendor: Mongodb Atlas
+        capability_name: data-export
       - vendor: Mongodb Atlas
         capability_name: cloud-backup-snapshots
       - vendor: Mongodb Atlas
@@ -62,57 +66,37 @@ clusters:
         capability_name: mongodump-mongorestore
       - vendor: Mongodb Atlas
         capability_name: legacy-backup-restore
-      - vendor: Mongodb Atlas
-        capability_name: encryption-at-rest-cmk
-      - vendor: Neon
-        capability_name: database-branching
       - vendor: Neon
         capability_name: branch-point-in-time-restore
       - vendor: Neon
-        capability_name: branch-reset-to-parent
-      - vendor: Neon
-        capability_name: logical-replication-cdc
+        capability_name: data-export-import-pgdump
       - vendor: Supabase
         capability_name: point-in-time-recovery
-      - vendor: Supabase
-        capability_name: project-lifecycle-management
-      - vendor: Turso
-        capability_name: concurrent-writes
       - vendor: Turso
         capability_name: point-in-time-recovery
       - vendor: Turso
         capability_name: database-export
-  - concept_name: data-integrity-and-transactions
-    title: Data Integrity And Transactions
+  - concept_name: change-data-capture
+    title: Change Data Capture
     coverage:
       - vendor: Cockroachdb
-        capability_name: transactions
-      - vendor: Cockroachdb
-        capability_name: transaction-savepoints
+        capability_name: change-data-capture
       - vendor: Convex
-        capability_name: transactional-writes
-      - vendor: Convex
-        capability_name: server-side-mutation-functions
-      - vendor: Convex
-        capability_name: server-side-actions
+        capability_name: realtime-subscriptions
       - vendor: Insforge
-        capability_name: database-trigger
+        capability_name: realtime-change-feed
+      - vendor: Insforge
+        capability_name: realtime-presence
       - vendor: Mongodb Atlas
-        capability_name: schema-validation
-      - vendor: Mongodb Atlas
-        capability_name: transactions
+        capability_name: change-streams-cdc
       - vendor: Neon
-        capability_name: serverless-http-websocket-driver
+        capability_name: logical-replication-cdc
       - vendor: Supabase
-        capability_name: primary-key-constraint
+        capability_name: realtime-broadcast
       - vendor: Supabase
-        capability_name: foreign-key-constraint
+        capability_name: realtime-presence
       - vendor: Supabase
-        capability_name: database-trigger
-      - vendor: Turso
-        capability_name: trigger-based-automation
-      - vendor: Turso
-        capability_name: transactional-consistency
+        capability_name: change-data-capture
       - vendor: Turso
         capability_name: change-data-capture
   - concept_name: evolve-schema
@@ -155,8 +139,6 @@ clusters:
         capability_name: filtered-query
       - vendor: Mongodb Atlas
         capability_name: aggregation-pipeline
-      - vendor: Mongodb Atlas
-        capability_name: atlas-stream-processing
       - vendor: Neon
         capability_name: time-travel-historical-query
       - vendor: Supabase
@@ -190,10 +172,6 @@ clusters:
     title: Write Records
     coverage:
       - vendor: Cockroachdb
-        capability_name: backup-blackout-windows
-      - vendor: Cockroachdb
-        capability_name: cluster-disruption-testing
-      - vendor: Cockroachdb
         capability_name: row-insert
       - vendor: Cockroachdb
         capability_name: row-update
@@ -213,8 +191,6 @@ clusters:
         capability_name: bulk-upsert-import
       - vendor: Mongodb Atlas
         capability_name: document-insert
-      - vendor: Mongodb Atlas
-        capability_name: data-import
       - vendor: Neon
         capability_name: baseline-sql-table-and-row-operations
       - vendor: Supabase
@@ -227,36 +203,34 @@ clusters:
         capability_name: row-update
       - vendor: Turso
         capability_name: row-delete
-  - concept_name: change-data-capture
-    title: Change Data Capture
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
     coverage:
       - vendor: Cockroachdb
-        capability_name: change-data-capture
+        capability_name: transactions
+      - vendor: Cockroachdb
+        capability_name: transaction-savepoints
       - vendor: Convex
-        capability_name: realtime-subscriptions
+        capability_name: transactional-writes
       - vendor: Insforge
-        capability_name: realtime-change-feed
-      - vendor: Insforge
-        capability_name: realtime-presence
+        capability_name: database-trigger
       - vendor: Mongodb Atlas
-        capability_name: change-streams-cdc
-      - vendor: Neon
-        capability_name: read-replica
+        capability_name: schema-validation
+      - vendor: Mongodb Atlas
+        capability_name: transactions
       - vendor: Supabase
-        capability_name: realtime-broadcast
+        capability_name: primary-key-constraint
       - vendor: Supabase
-        capability_name: realtime-presence
+        capability_name: foreign-key-constraint
       - vendor: Supabase
-        capability_name: change-data-capture
-      - vendor: Supabase
-        capability_name: read-replicas
+        capability_name: database-trigger
+      - vendor: Turso
+        capability_name: transactional-consistency
   - concept_name: full-text-search
     title: Full-Text Search
     coverage:
       - vendor: Cockroachdb
         capability_name: full-text-search
-      - vendor: Cockroachdb
-        capability_name: inverted-index
       - vendor: Convex
         capability_name: full-text-search
       - vendor: Mongodb Atlas
@@ -284,20 +258,13 @@ clusters:
         capability_name: schema-introspection
       - vendor: Turso
         capability_name: schema-introspection
-  - concept_name: define-data-container
-    title: Define Data Container
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: table-schema-definition
-      - vendor: Convex
-        capability_name: schema-definition
-      - vendor: Supabase
-        capability_name: table-schema-definition
-      - vendor: Turso
-        capability_name: table-schema-definition
   - concept_name: server-side-execution
     title: Server-Side Execution
     coverage:
+      - vendor: Convex
+        capability_name: server-side-mutation-functions
+      - vendor: Convex
+        capability_name: server-side-actions
       - vendor: Insforge
         capability_name: raw-sql-execution
       - vendor: Insforge
@@ -318,6 +285,28 @@ clusters:
         capability_name: edge-function-compute
       - vendor: Turso
         capability_name: http-api-query-execution
+  - concept_name: database-branching
+    title: Database/Backend Branching
+    coverage:
+      - vendor: Insforge
+        capability_name: database-branching
+      - vendor: Neon
+        capability_name: database-branching
+      - vendor: Supabase
+        capability_name: database-branching
+      - vendor: Turso
+        capability_name: database-branching
+  - concept_name: define-data-container
+    title: Define Data Container
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: table-schema-definition
+      - vendor: Convex
+        capability_name: schema-definition
+      - vendor: Supabase
+        capability_name: table-schema-definition
+      - vendor: Turso
+        capability_name: table-schema-definition
   - concept_name: audit-logging
     title: Organization Audit Log Export
     coverage:
@@ -327,15 +316,6 @@ clusters:
         capability_name: audit-logging
       - vendor: Mongodb Atlas
         capability_name: audit-logging
-  - concept_name: database-branching
-    title: Database/Backend Branching
-    coverage:
-      - vendor: Insforge
-        capability_name: database-branching
-      - vendor: Supabase
-        capability_name: database-branching
-      - vendor: Turso
-        capability_name: database-branching
   - concept_name: api-key-management
     title: API Key Management
     coverage:
@@ -357,6 +337,13 @@ clusters:
         capability_name: connection-pooling
       - vendor: Supabase
         capability_name: connection-pooling
+  - concept_name: project-lifecycle-management
+    title: Project Create/Read/Update/Delete
+    coverage:
+      - vendor: Neon
+        capability_name: project-lifecycle-management
+      - vendor: Supabase
+        capability_name: project-lifecycle-management
   - concept_name: scheduled-jobs
     title: Scheduled (Deferred) Function Execution
     coverage:
@@ -401,6 +388,11 @@ clusters:
     coverage:
       - vendor: Mongodb Atlas
         capability_name: atlas-data-api
+  - concept_name: atlas-stream-processing
+    title: Atlas Stream Processing
+    coverage:
+      - vendor: Mongodb Atlas
+        capability_name: atlas-stream-processing
   - concept_name: authentication-integration
     title: Third-Party and Built-in Authentication
     coverage:
@@ -416,6 +408,11 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: autoscaling-compute
+  - concept_name: backup-blackout-windows
+    title: Backup Blackout Windows
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: backup-blackout-windows
   - concept_name: billing-invoices
     title: Billing & Invoice Retrieval
     coverage:
@@ -426,16 +423,16 @@ clusters:
     coverage:
       - vendor: Convex
         capability_name: blob-file-storage
+  - concept_name: branch-reset-to-parent
+    title: Reset Branch to Parent State
+    coverage:
+      - vendor: Neon
+        capability_name: branch-reset-to-parent
   - concept_name: bulk-data-copy
     title: Bulk Data Copy (COPY)
     coverage:
       - vendor: Cockroachdb
         capability_name: bulk-data-copy
-  - concept_name: bulk-data-export
-    title: Bulk Data Export (EXPORT)
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: bulk-data-export
   - concept_name: bulk-data-import
     title: Bulk Data Import (IMPORT INTO)
     coverage:
@@ -481,6 +478,11 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: cluster-deletion
+  - concept_name: cluster-disruption-testing
+    title: Cluster Disruption Specification Management
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: cluster-disruption-testing
   - concept_name: cluster-outage-simulation
     title: Cluster Outage / Failover Simulation
     coverage:
@@ -521,6 +523,11 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: compute-endpoint-lifecycle
+  - concept_name: concurrent-writes
+    title: MVCC Concurrent Writes
+    coverage:
+      - vendor: Turso
+        capability_name: concurrent-writes
   - concept_name: count-aggregate
     title: Row Counts
     coverage:
@@ -566,21 +573,16 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: data-api-rest
-  - concept_name: data-export
-    title: Bulk Data Export
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: data-export
-  - concept_name: data-export-import-pgdump
-    title: Data Export/Import via pg_dump / pg_restore
-    coverage:
-      - vendor: Neon
-        capability_name: data-export-import-pgdump
   - concept_name: data-federation-query
     title: Federated Query Across Data Sources
     coverage:
       - vendor: Mongodb Atlas
         capability_name: data-federation-query
+  - concept_name: data-import
+    title: Bulk Data Import (mongoimport)
+    coverage:
+      - vendor: Mongodb Atlas
+        capability_name: data-import
   - concept_name: data-migration-jobs
     title: Batched Data Migration Component
     coverage:
@@ -656,6 +658,11 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: encryption-at-rest
+  - concept_name: encryption-at-rest-cmk
+    title: Encryption at Rest with Customer-Managed Keys
+    coverage:
+      - vendor: Mongodb Atlas
+        capability_name: encryption-at-rest-cmk
   - concept_name: environment-variable-management
     title: Environment Variables
     coverage:
@@ -751,6 +758,11 @@ clusters:
     coverage:
       - vendor: Convex
         capability_name: internal-function-boundary
+  - concept_name: inverted-index
+    title: Inverted (GIN) Indexes
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: inverted-index
   - concept_name: ip-allowlisting
     title: IP Allowlisting
     coverage:
@@ -946,11 +958,6 @@ clusters:
     coverage:
       - vendor: Mongodb Atlas
         capability_name: programmatic-api-keys
-  - concept_name: project-lifecycle-management
-    title: Project Create/Read/Update/Delete
-    coverage:
-      - vendor: Neon
-        capability_name: project-lifecycle-management
   - concept_name: project-management
     title: Project Lifecycle Management
     coverage:
@@ -971,6 +978,16 @@ clusters:
     coverage:
       - vendor: Mongodb Atlas
         capability_name: query-shape-insights
+  - concept_name: read-replica
+    title: Read Replica Compute
+    coverage:
+      - vendor: Neon
+        capability_name: read-replica
+  - concept_name: read-replicas
+    title: Read Replicas
+    coverage:
+      - vendor: Supabase
+        capability_name: read-replicas
   - concept_name: realtime-pubsub-channels
     title: Realtime Pub/Sub Channels
     coverage:
@@ -1036,6 +1053,11 @@ clusters:
     coverage:
       - vendor: Convex
         capability_name: server-side-query-functions
+  - concept_name: serverless-http-websocket-driver
+    title: Neon Serverless Driver (HTTP/WebSocket)
+    coverage:
+      - vendor: Neon
+        capability_name: serverless-http-websocket-driver
   - concept_name: service-account-management
     title: Service Account Management
     coverage:
@@ -1121,6 +1143,11 @@ clusters:
     coverage:
       - vendor: Convex
         capability_name: team-management
+  - concept_name: trigger-based-automation
+    title: Triggers (Server-Side Row Automation)
+    coverage:
+      - vendor: Turso
+        capability_name: trigger-based-automation
   - concept_name: triggers
     title: Table Triggers
     coverage:

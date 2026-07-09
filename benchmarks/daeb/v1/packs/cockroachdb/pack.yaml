@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v4
-# run_id: 2026-07-09-bukpry
+# run_id: 2026-07-09-czemnx
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v4
-run_id: 2026-07-09-bukpry
+run_id: 2026-07-09-czemnx
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -119,13 +119,16 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T03-data-integrity-and-transactions
-    title: "T03: Enforce one integrity or atomicity rule"
+  - id: db-T03-change-data-capture
+    title: "T03: Emit one observable change event"
     prompt: >-
-      Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
 
 
       Database SQL identifier contract: DAEB namespaces may contain hyphens.
@@ -138,11 +141,11 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: exactly one committed record has the protected logical key
+        description: agent-reported durable capture table contains the inserted CDC marker
         assertField: 0.count
         sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
-          external_id = 'primary_{ns}'
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label =
+          'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
     difficulty: L4
     allowed_surfaces:
       - cli
@@ -304,20 +307,17 @@ tasks:
           label = 'delete_me_{ns}'
     difficulty: L2
     allowed_surfaces:
-      - api
+      - cli
     na: false
     depends_on: []
     trace: []
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
+  - id: db-T08-data-integrity-and-transactions
+    title: "T08: Enforce one integrity or atomicity rule"
     prompt: >-
-      Enable a change stream, realtime subscription, or CDC feed for a container
-      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
-      so the resulting insert becomes observable in the stream or feed. Persist
-      the observed event into a durable capture container that is distinct from
-      `axarena_cdc_{ns}`, with either a `row_label` field equal to
-      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
+      Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
 
 
       Database SQL identifier contract: DAEB namespaces may contain hyphens.
@@ -330,11 +330,11 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: agent-reported durable capture table contains the inserted CDC marker
+        description: exactly one committed record has the protected logical key
         assertField: 0.count
         sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label =
-          'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
+          external_id = 'primary_{ns}'
     difficulty: L4
     allowed_surfaces:
       - cli

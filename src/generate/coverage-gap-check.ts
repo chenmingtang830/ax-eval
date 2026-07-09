@@ -52,6 +52,7 @@ interface DeterministicConceptRule {
   concept_name: string;
   title: string;
   patterns: RegExp[];
+  excludePatterns?: RegExp[];
 }
 
 const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
@@ -163,6 +164,7 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bacid\b/,
       /\bintegrity-controls\b/,
       /\bsnapshot-consistent-query-reads\b/,
+      /\btransactional-writes\b/,
       /\btransactional-bulk-writes\b/,
       /\bdatabase-trigger\b/,
       /\bconcurrent-write-transactions\b/,
@@ -198,7 +200,13 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\brestore\b/,
       /\bpoint-in-time\b/,
       /\bsnapshot\b/,
+      /\bbulk-export\b/,
+      /\bdatabase-export\b/,
+      /\bdata-export\b/,
     ],
+    // Scheduling a period where backups are suppressed is not itself a
+    // backup/export artifact that can satisfy the canonical task.
+    excludePatterns: [/\bblackout\b/],
   },
   {
     concept_name: "server-side-execution",
@@ -261,8 +269,6 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\brealtime-presence\b/,
       /\bmanaged-cdc-pipeline\b/,
       /\bchange-listen-endpoint\b/,
-      /\bread-replica\b/,
-      /\bread-replicas\b/,
     ],
   },
 ];
@@ -283,13 +289,40 @@ function normalizeFallbackConceptName(capabilityName: string): string {
 /** Exported for suite-audit mapping-miss detection / tests. */
 export const DATABASE_DETERMINISTIC_RULES_FOR_AUDIT = DATABASE_DETERMINISTIC_RULES;
 
+/** Return why a nominal rule match cannot perform the canonical concept.
+ * Keep this narrow and evidence-shaped: unmatched capabilities remain
+ * singleton concepts rather than being silently dropped. */
+export function databaseConceptCompatibilityIssue(
+  capability: CapabilityRecord,
+  conceptName: string,
+): string | null {
+  const name = normalizeFallbackConceptName(capability.capability_name);
+  if (conceptName === "write-records" && (name.includes("blackout") || name.includes("disruption"))) {
+    return `${capability.capability_name} manages operations/control-plane scheduling, not row/document writes`;
+  }
+  if (conceptName === "backup-and-restore" && name.includes("blackout")) {
+    return `${capability.capability_name} suppresses scheduled backups and does not produce a backup/export artifact`;
+  }
+  if (conceptName === "change-data-capture" && /\bread-replicas?\b/.test(name)) {
+    return `${capability.capability_name} exposes a read topology, not a change-event stream`;
+  }
+  return null;
+}
+
 /** Match a capability to a canonical concept via deterministic rules, or null. */
 export function matchDeterministicDatabaseConcept(
   capability: CapabilityRecord,
 ): { concept_name: string; title: string } | null {
-  const haystack = `${capability.capability_name} ${capability.title} ${capability.description}`.toLowerCase();
+  // Inventory capability names/titles are curated identifiers. Descriptions
+  // frequently mention unrelated transport verbs ("CRUD API resource") and
+  // caused false positives such as backup-blackout-windows → write-records.
+  const identity = `${capability.capability_name} ${capability.title}`.toLowerCase();
   for (const rule of DATABASE_DETERMINISTIC_RULES) {
-    if (rule.patterns.some((pattern) => pattern.test(haystack))) {
+    if (rule.excludePatterns?.some((pattern) => pattern.test(identity))) continue;
+    if (
+      rule.patterns.some((pattern) => pattern.test(identity))
+      && !databaseConceptCompatibilityIssue(capability, rule.concept_name)
+    ) {
       return { concept_name: rule.concept_name, title: rule.title };
     }
   }

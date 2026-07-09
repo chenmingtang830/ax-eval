@@ -12,6 +12,7 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import {
+  databaseConceptCompatibilityIssue,
   deriveCandidateUniverseDeterministic,
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
@@ -109,6 +110,67 @@ export function findMappingMisses(
   return findings;
 }
 
+/** Find stale/false-positive coverage decisions whose cited capability no
+ * longer maps to the claimed concept under the current semantic rules. */
+export function findMappingFalsePositives(
+  root: string,
+  coverage: CoverageMatrix,
+  slugs: string[],
+): SuiteFinding[] {
+  const findings: SuiteFinding[] = [];
+  const vendorToSlug = new Map<string, string>();
+  for (const slug of slugs) {
+    const card = loadVendorCard(root, slug);
+    const inv = loadCapabilityExtract(root, slug);
+    if (card?.vendor) vendorToSlug.set(card.vendor, slug);
+    if (inv?.vendor) vendorToSlug.set(inv.vendor, slug);
+    vendorToSlug.set(slug, slug);
+  }
+
+  for (const concept of coverage.concepts) {
+    for (const decision of concept.decisions) {
+      if (decision.status !== "supported" || !decision.capability_name) continue;
+      const slug = vendorToSlug.get(decision.vendor)
+        ?? slugs.find((candidate) => candidate === decision.vendor.toLowerCase().replace(/\s+/g, "-"));
+      if (!slug) continue;
+      const inventory = loadCapabilityExtract(root, slug);
+      if (!inventory) continue;
+      const capability = inventory.capabilities.find((candidate) =>
+        candidate.capability_name === decision.capability_name
+      );
+      if (!capability) continue;
+
+      const currentMatch = matchDeterministicDatabaseConcept(capability);
+      const compatibilityIssue = databaseConceptCompatibilityIssue(capability, concept.concept_name);
+      const fallbackConceptName = capability.capability_name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "");
+      const effectiveConceptName = currentMatch?.concept_name ?? fallbackConceptName;
+      if (effectiveConceptName === concept.concept_name && !compatibilityIssue) continue;
+
+      const directAlternatives = inventory.capabilities
+        .filter((candidate) =>
+          matchDeterministicDatabaseConcept(candidate)?.concept_name === concept.concept_name
+        )
+        .map((candidate) => candidate.capability_name)
+        .slice(0, 4);
+      findings.push({
+        severity: "error",
+        code: "mapping_false_positive",
+        concept_name: concept.concept_name,
+        message:
+          `${decision.vendor}/${concept.concept_name} cites ${capability.capability_name}, but current semantic mapping ` +
+          `${compatibilityIssue ?? `assigns it to ${effectiveConceptName}`}` +
+          `${directAlternatives.length ? `; direct inventory alternatives: ${directAlternatives.join(", ")}` : ""} ` +
+          `(re-synthesize to refresh coverage)`,
+        auto_fixable: true,
+      });
+    }
+  }
+  return findings;
+}
+
 export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
@@ -174,6 +236,7 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
 
   if (coverage) {
     const slugs = listDatabaseSlugs(root);
+    findings.push(...findMappingFalsePositives(root, coverage, slugs));
     findings.push(...findMappingMisses(root, coverage, slugs));
 
     // Preview: with current deterministic rules, how many concepts hit ≥75%?

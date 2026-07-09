@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v4
-# run_id: 2026-07-09-sug1rx
+# run_id: 2026-07-09-t8cu3w
 name: convex
 version: "1"
 standard_set_version: daeb-1-v4
-run_id: 2026-07-09-sug1rx
+run_id: 2026-07-09-t8cu3w
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -23,7 +23,19 @@ auth:
   verify_env_aliases: []
   header: Authorization
 sandbox_scope: []
-surfaces: {}
+surfaces:
+  cli:
+    bin: convex
+    install: npm install convex
+    docs_url: https://docs.convex.dev/cli/overview
+    auth:
+      kind: token
+      token_env: CONVEX_DEPLOY_KEY
+      token_env_aliases: []
+      instructions: "Set CONVEX_DEPLOY_KEY to a deploy key scoped to your deployment.
+        Generate one with: npx convex deployment token create <name> --save-env.
+        In non-interactive shells the CLI will never prompt for login when this
+        env var is set."
 base_url: ${CONVEX_URL}
 headers: {}
 site_url: https://convex.dev
@@ -153,20 +165,32 @@ tasks:
       created and smoke-check them on the preview deployment before finalizing
       the reported `*_probe_path` fields.
     oracles:
-      - type: na
-        description: unsupported for this vendor in support matrix
+      - type: roundtrip
+        expected: 1
+        description: verifier query confirms the active/restored deployment contains the
+          backup marker
+        readMethod: POST
+        readPathTemplate: /api/query
+        readBodyTemplate:
+          path: "{backup_probe_query_path}"
+          args: {}
+        assertField: value.markerCount
     difficulty: L4
-    allowed_surfaces: []
-    na: true
+    allowed_surfaces:
+      - cli
+    na: false
     depends_on: []
     trace: []
-  - id: db-T03-data-integrity-and-transactions
-    title: "T03: Enforce one integrity or atomicity rule"
+  - id: db-T03-change-data-capture
+    title: "T03: Emit one observable change event"
     prompt: >-
-      Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
 
@@ -204,9 +228,8 @@ tasks:
       the reported `*_probe_path` fields.
 
 
-      Convex verifier contract: report `integrity_probe_query_path` as a public
-      query path that accepts `{}` and returns `{primaryCount:number,
-      conflictingCount:number}`.
+      Convex verifier contract: report `cdc_probe_query_path` as a public query
+      path that accepts `{}` and returns `{eventCount:number}`.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -262,11 +285,19 @@ tasks:
       Convex verifier contract: report `migration_probe_query_path` as a public
       query path that accepts `{}` and returns `{statusFieldCount:number}`.
     oracles:
-      - type: na
-        description: unsupported for this vendor in support matrix
+      - type: roundtrip
+        expected: 1
+        description: verifier query confirms status is visible after schema evolution
+        readMethod: POST
+        readPathTemplate: /api/query
+        readBodyTemplate:
+          path: "{migration_probe_query_path}"
+          args: {}
+        assertField: value.statusFieldCount
     difficulty: L3
-    allowed_surfaces: []
-    na: true
+    allowed_surfaces:
+      - cli
+    na: false
     depends_on: []
     trace: []
   - id: db-T05-query-records
@@ -437,16 +468,13 @@ tasks:
     na: true
     depends_on: []
     trace: []
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
+  - id: db-T08-data-integrity-and-transactions
+    title: "T08: Enforce one integrity or atomicity rule"
     prompt: >-
-      Enable a change stream, realtime subscription, or CDC feed for a container
-      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
-      so the resulting insert becomes observable in the stream or feed. Persist
-      the observed event into a durable capture container that is distinct from
-      `axarena_cdc_{ns}`, with either a `row_label` field equal to
-      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
+      Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
 
        Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
 
@@ -484,8 +512,9 @@ tasks:
       the reported `*_probe_path` fields.
 
 
-      Convex verifier contract: report `cdc_probe_query_path` as a public query
-      path that accepts `{}` and returns `{eventCount:number}`.
+      Convex verifier contract: report `integrity_probe_query_path` as a public
+      query path that accepts `{}` and returns `{primaryCount:number,
+      conflictingCount:number}`.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix

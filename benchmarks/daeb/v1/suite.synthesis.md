@@ -22,7 +22,7 @@ Every task below traces to specific, cited vendor documentation.
 
 ## Selected tasks (10)
 
-### db-T01-access-control — T01: Configure access control for owned records
+### db-T01-access-control — T01: Configure an idiomatic access-control mechanism
 
 Difficulty: L2 · Skill: access-control
 
@@ -46,65 +46,57 @@ Difficulty: L2 · Skill: access-control
 | Turso | scoped-auth-tokens |
 | Turso | fine-grained-permissions |
 
-### db-T02-backup-and-restore — T02: Produce a recoverable backup artifact
+### db-T02-backup-and-restore — T02: Produce a backup, snapshot, or export artifact
 
 Difficulty: L4 · Skill: backup-and-restore
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (24 vendor capabilities clustered into this task):
+**Coverage** (21 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | backup-restore |
 | Cockroachdb | backup |
 | Cockroachdb | restore |
+| Cockroachdb | bulk-data-export |
 | Convex | bulk-export |
 | Convex | backup-snapshot |
 | Convex | restore-from-backup |
 | Insforge | database-export |
 | Insforge | database-import |
+| Mongodb Atlas | data-export |
 | Mongodb Atlas | cloud-backup-snapshots |
 | Mongodb Atlas | point-in-time-restore |
 | Mongodb Atlas | collection-level-restore |
 | Mongodb Atlas | backup-export-to-cloud-storage |
 | Mongodb Atlas | mongodump-mongorestore |
 | Mongodb Atlas | legacy-backup-restore |
-| Mongodb Atlas | encryption-at-rest-cmk |
-| Neon | database-branching |
 | Neon | branch-point-in-time-restore |
-| Neon | branch-reset-to-parent |
-| Neon | logical-replication-cdc |
+| Neon | data-export-import-pgdump |
 | Supabase | point-in-time-recovery |
-| Supabase | project-lifecycle-management |
-| Turso | concurrent-writes |
 | Turso | point-in-time-recovery |
 | Turso | database-export |
 
-### db-T03-data-integrity-and-transactions — T03: Enforce one integrity or atomicity rule
+### db-T03-change-data-capture — T03: Emit one observable change event
 
-Difficulty: L4 · Skill: data-integrity-and-transactions
+Difficulty: L4 · Skill: change-data-capture
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (15 vendor capabilities clustered into this task):
+**Coverage** (10 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
-| Cockroachdb | transactions |
-| Cockroachdb | transaction-savepoints |
-| Convex | transactional-writes |
-| Convex | server-side-mutation-functions |
-| Convex | server-side-actions |
-| Insforge | database-trigger |
-| Mongodb Atlas | schema-validation |
-| Mongodb Atlas | transactions |
-| Neon | serverless-http-websocket-driver |
-| Supabase | primary-key-constraint |
-| Supabase | foreign-key-constraint |
-| Supabase | database-trigger |
-| Turso | trigger-based-automation |
-| Turso | transactional-consistency |
+| Cockroachdb | change-data-capture |
+| Convex | realtime-subscriptions |
+| Insforge | realtime-change-feed |
+| Insforge | realtime-presence |
+| Mongodb Atlas | change-streams-cdc |
+| Neon | logical-replication-cdc |
+| Supabase | realtime-broadcast |
+| Supabase | realtime-presence |
+| Supabase | change-data-capture |
 | Turso | change-data-capture |
 
 ### db-T04-evolve-schema — T04: Apply a schema evolution
@@ -132,11 +124,11 @@ Difficulty: L3 · Skill: evolve-schema
 
 ### db-T05-query-records — T05: Filter and read matching records
 
-Difficulty: L1 · Skill: query-records
+Difficulty: L2 · Skill: query-records
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (10 vendor capabilities clustered into this task):
+**Coverage** (9 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
@@ -145,7 +137,6 @@ Difficulty: L1 · Skill: query-records
 | Insforge | filtered-query |
 | Mongodb Atlas | filtered-query |
 | Mongodb Atlas | aggregation-pipeline |
-| Mongodb Atlas | atlas-stream-processing |
 | Neon | time-travel-historical-query |
 | Supabase | filtered-query |
 | Turso | filtered-query |
@@ -173,16 +164,14 @@ Difficulty: L2 · Skill: vector-search
 
 ### db-T07-write-records — T07: Create, update, and delete one record lifecycle
 
-Difficulty: L1 · Skill: write-records
+Difficulty: L2 · Skill: write-records
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (19 vendor capabilities clustered into this task):
+**Coverage** (16 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
-| Cockroachdb | backup-blackout-windows |
-| Cockroachdb | cluster-disruption-testing |
 | Cockroachdb | row-insert |
 | Cockroachdb | row-update |
 | Cockroachdb | row-delete |
@@ -193,7 +182,6 @@ Difficulty: L1 · Skill: write-records
 | Convex | bulk-import |
 | Insforge | bulk-upsert-import |
 | Mongodb Atlas | document-insert |
-| Mongodb Atlas | data-import |
 | Neon | baseline-sql-table-and-row-operations |
 | Supabase | rest-data-api-crud |
 | Turso | row-insert |
@@ -201,9 +189,9 @@ Difficulty: L1 · Skill: write-records
 | Turso | row-update |
 | Turso | row-delete |
 
-### db-T08-change-data-capture — T08: Emit one observable change event
+### db-T08-data-integrity-and-transactions — T08: Enforce one integrity or atomicity rule
 
-Difficulty: L4 · Skill: change-data-capture
+Difficulty: L4 · Skill: data-integrity-and-transactions
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
@@ -211,16 +199,16 @@ Difficulty: L4 · Skill: change-data-capture
 
 | Vendor | Capability |
 |---|---|
-| Cockroachdb | change-data-capture |
-| Convex | realtime-subscriptions |
-| Insforge | realtime-change-feed |
-| Insforge | realtime-presence |
-| Mongodb Atlas | change-streams-cdc |
-| Neon | read-replica |
-| Supabase | realtime-broadcast |
-| Supabase | realtime-presence |
-| Supabase | change-data-capture |
-| Supabase | read-replicas |
+| Cockroachdb | transactions |
+| Cockroachdb | transaction-savepoints |
+| Convex | transactional-writes |
+| Insforge | database-trigger |
+| Mongodb Atlas | schema-validation |
+| Mongodb Atlas | transactions |
+| Supabase | primary-key-constraint |
+| Supabase | foreign-key-constraint |
+| Supabase | database-trigger |
+| Turso | transactional-consistency |
 
 ### db-T09-full-text-search — T09: Create a searchable text dataset and query it
 
@@ -228,12 +216,11 @@ Difficulty: L2 · Skill: full-text-search
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (8 vendor capabilities clustered into this task):
+**Coverage** (7 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | full-text-search |
-| Cockroachdb | inverted-index |
 | Convex | full-text-search |
 | Mongodb Atlas | full-text-search |
 | Neon | full-text-search-tsvector |

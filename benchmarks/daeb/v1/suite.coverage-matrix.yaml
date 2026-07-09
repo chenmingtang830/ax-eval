@@ -1,6 +1,6 @@
 schema: ax.coverage-matrix/v1
 category: database
-generated_at: 2026-07-09T13:15:37.987Z
+generated_at: 2026-07-09T22:55:07.652Z
 concepts:
   - concept_name: access-control
     title: Access Control
@@ -171,30 +171,27 @@ concepts:
         vendor: Mongodb Atlas
         status: supported
         source: inventory
-        capability_name: cloud-backup-snapshots
+        capability_name: data-export
         surfaces_documented:
+          - cli
           - api
         evidence:
-          - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-cloud-backups
-            quote: The Cloud Backups endpoint manages Cloud Backup snapshots, snapshot
-              export buckets, restore jobs, and schedules... Listing backup
-              exports, restore jobs, sharded cluster snapshots, and taking
-              on-demand snapshots.
+          - doc_url: https://www.mongodb.com/docs/atlas/data-federation/overview/
+            quote: Export data - Copy Atlas cluster data into Parquet or CSV files written
+              to AWS S3 buckets or Azure Blob Storage
             strength: direct
       - concept_name: backup-and-restore
         vendor: Neon
         status: supported
         source: inventory
-        capability_name: database-branching
+        capability_name: branch-point-in-time-restore
         surfaces_documented:
           - api
           - cli
-          - sdk
         evidence:
-          - doc_url: https://neon.com/docs/guides/branching-intro
-            quote: Neon branching lets you instantly create copy-on-write database branches
-              for development, testing, preview deployments, and point-in-time
-              data recovery.
+          - doc_url: https://neon.com/docs/reference/cli-branches
+            quote: neon branches restore <target-id|name> <source>[@(timestamp|lsn)] ...
+              supports ^self, ^parent, or another branch as source
             strength: direct
       - concept_name: backup-and-restore
         vendor: Supabase
@@ -215,132 +212,130 @@ concepts:
         vendor: Turso
         status: supported
         source: inventory
-        capability_name: concurrent-writes
+        capability_name: point-in-time-recovery
         surfaces_documented:
-          - sdk
+          - api
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
-            quote: With MVCC (Multi-Version Concurrency Control), multiple connections can
-              write simultaneously.
+          - doc_url: https://docs.turso.tech/features/point-in-time-recovery.md
+            quote: PITR allows you to restore a database to a specific point in time. This
+              is useful for recovering from user errors, such as dropping a
+              table by mistake.
             strength: direct
-          - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
-            quote: Use BEGIN CONCURRENT instead of BEGIN to start a transaction that allows
-              other writers to proceed in parallel. ... If two transactions
-              modify the same data, one will receive a conflict error and must
-              roll back and retry.
+          - doc_url: https://docs.turso.tech/features/point-in-time-recovery.md
+            quote: turso db create my-new-database --from-db my-existing-database
+              --timestamp 2024-01-01T00:00:00Z
             strength: direct
-  - concept_name: data-integrity-and-transactions
-    title: Data Integrity And Transactions
+  - concept_name: change-data-capture
+    title: Change Data Capture
     decisions:
-      - concept_name: data-integrity-and-transactions
+      - concept_name: change-data-capture
         vendor: Cockroachdb
         status: supported
         source: inventory
-        capability_name: transactions
+        capability_name: change-data-capture
         surfaces_documented:
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
-            quote: If a transaction succeeds, all mutations are applied together with
-              virtual simultaneity. If any part of a transaction fails, the
-              entire transaction is aborted, and the database is left unchanged.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/changefeed-messages.html
+            quote: Changefeeds generate and emit messages (on a per-key basis) to sinks as
+              change events (INSERT, UPDATE, DELETE) happen to the rows in
+              watched tables.
             strength: direct
-          - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
-            quote: By default, CockroachDB guarantees that while a transaction is pending,
-              it is isolated from other concurrent transactions with
-              SERIALIZABLE isolation.
-            strength: direct
-      - concept_name: data-integrity-and-transactions
+      - concept_name: change-data-capture
         vendor: Convex
         status: supported
         source: inventory
-        capability_name: transactional-writes
+        capability_name: realtime-subscriptions
         surfaces_documented:
           - sdk
         evidence:
-          - doc_url: https://docs.convex.dev/functions/mutation-functions
-            quote: All database writes get committed together. If the mutation writes some
-              data to the database, but later throws an error, no data is
-              actually written to the database.
+          - doc_url: https://docs.convex.dev/realtime
+            quote: Convex tracks the dependencies to your query functions, including
+              database changes, and triggers the subscription in the client
+              libraries.
             strength: direct
-      - concept_name: data-integrity-and-transactions
+          - doc_url: https://docs.convex.dev/client/react
+            quote: This allows Convex to push new query results reactively to the client
+              without the client needing to poll for updates.
+            strength: direct
+      - concept_name: change-data-capture
         vendor: Insforge
         status: supported
         source: inventory
-        capability_name: database-trigger
+        capability_name: realtime-change-feed
         surfaces_documented:
           - api
+          - sdk
         evidence:
-          - doc_url: https://docs.insforge.dev/core-concepts/database/overview
-            quote: Stored functions and database triggers
-            strength: direct
-          - doc_url: https://docs.insforge.dev/sdks/rest/database.md
-            quote: GET /api/database/triggers - List all database triggers
-            strength: direct
           - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
-            quote: '"Create a trigger on the table you want to watch" and use it to "decide
-              which channel receives the message, which event name clients
-              handle, and what payload they receive."'
+            quote: The platform monitors table modifications via database triggers. When
+              changes occur, triggers invoke `realtime.publish()` to broadcast
+              events to subscribed clients.
             strength: direct
-      - concept_name: data-integrity-and-transactions
+      - concept_name: change-data-capture
         vendor: Mongodb Atlas
         status: supported
         source: inventory
-        capability_name: schema-validation
+        capability_name: change-streams-cdc
         surfaces_documented:
           - sdk
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
-            quote: Schema validation lets you create validation rules for your fields, such
-              as allowed data types and value ranges... By default, MongoDB
-              rejects any insert or update operation that would produce an
-              invalid document.
+          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+            quote: Change streams allow applications to access real-time data changes
+              without the prior complexity and risk of manually tailing the
+              oplog. Applications can use change streams to subscribe to all
+              data changes on a single collection, a database, or an entire
+              deployment.
             strength: direct
-      - concept_name: data-integrity-and-transactions
+      - concept_name: change-data-capture
         vendor: Neon
         status: supported
         source: inventory
-        capability_name: serverless-http-websocket-driver
+        capability_name: logical-replication-cdc
         surfaces_documented:
-          - sdk
+          - cli
+          - api
         evidence:
-          - doc_url: https://neon.com/docs/serverless/serverless-driver
-            quote: HTTP is faster for single, non-interactive transactions ('one-shot
-              queries'); WebSockets needed if you require session or interactive
-              transaction support or compatibility with node-postgres.
+          - doc_url: https://neon.com/docs/guides/logical-replication-guide
+            quote: Logical replication in Neon works like it does on any standard Postgres
+              installation. It uses a publisher-subscriber model to replicate
+              data from the source database to the destination database.
             strength: direct
-      - concept_name: data-integrity-and-transactions
+          - doc_url: https://neon.com/docs/guides/logical-replication-guide
+            quote: Replication starts by copying a snapshot of the data ... subsequent
+              changes are sent to the subscriber as they occur in real-time.
+            strength: direct
+      - concept_name: change-data-capture
         vendor: Supabase
         status: supported
         source: inventory
-        capability_name: primary-key-constraint
+        capability_name: realtime-broadcast
         surfaces_documented:
+          - sdk
           - api
-          - cli
         evidence:
-          - doc_url: https://supabase.com/docs/guides/database/tables
-            quote: It's recommended to create a Primary Key for every table in your
-              database.
+          - doc_url: https://supabase.com/docs/guides/realtime
+            quote: Send low-latency messages between clients. Perfect for real-time
+              messaging, database changes, cursor tracking, game events, and
+              custom notifications.
             strength: direct
-      - concept_name: data-integrity-and-transactions
+      - concept_name: change-data-capture
         vendor: Turso
         status: supported
         source: inventory
-        capability_name: trigger-based-automation
+        capability_name: change-data-capture
         surfaces_documented:
-          - api
           - sdk
           - cli
         evidence:
-          - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
-            quote: Create a trigger that automatically executes one or more SQL statements
-              when a row is inserted into, updated in, or deleted from a table.
+          - doc_url: https://docs.turso.tech/tursodb/cdc.md
+            quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
+              deletes) made to your database tables.
             strength: direct
-          - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
-            quote: Triggers execute within the same transaction as the statement that fired
-              them -- if the transaction is rolled back, the trigger's effects
-              are also rolled back.
+          - doc_url: https://docs.turso.tech/tursodb/cdc.md
+            quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE INDEX,
+              etc.) ... Changes are only recorded when a transaction commits.
             strength: direct
   - concept_name: evolve-schema
     title: Evolve Schema
@@ -679,14 +674,12 @@ concepts:
         vendor: Cockroachdb
         status: supported
         source: inventory
-        capability_name: backup-blackout-windows
+        capability_name: row-insert
         surfaces_documented:
-          - api
+          - cli
         evidence:
-          - doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/BlackoutWindowsApi.md
-            quote: Blackout windows are supported for ADVANCED clusters only. ...
-              CreateBlackoutWindow – POST request to establish a new blackout
-              window for a specified cluster
+          - doc_url: https://www.cockroachlabs.com/docs/stable/insert.html
+            quote: The INSERT statement inserts one or more rows into a table.
             strength: direct
       - concept_name: write-records
         vendor: Convex
@@ -776,103 +769,111 @@ concepts:
             quote: Inserts the result of a SELECT statement. The number of columns returned
               by the SELECT must match the number of target columns
             strength: direct
-  - concept_name: change-data-capture
-    title: Change Data Capture
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
     decisions:
-      - concept_name: change-data-capture
+      - concept_name: data-integrity-and-transactions
         vendor: Cockroachdb
         status: supported
         source: inventory
-        capability_name: change-data-capture
+        capability_name: transactions
         surfaces_documented:
           - cli
         evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/changefeed-messages.html
-            quote: Changefeeds generate and emit messages (on a per-key basis) to sinks as
-              change events (INSERT, UPDATE, DELETE) happen to the rows in
-              watched tables.
+          - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
+            quote: If a transaction succeeds, all mutations are applied together with
+              virtual simultaneity. If any part of a transaction fails, the
+              entire transaction is aborted, and the database is left unchanged.
             strength: direct
-      - concept_name: change-data-capture
+          - doc_url: https://www.cockroachlabs.com/docs/stable/transactions.html
+            quote: By default, CockroachDB guarantees that while a transaction is pending,
+              it is isolated from other concurrent transactions with
+              SERIALIZABLE isolation.
+            strength: direct
+      - concept_name: data-integrity-and-transactions
         vendor: Convex
         status: supported
         source: inventory
-        capability_name: realtime-subscriptions
+        capability_name: transactional-writes
         surfaces_documented:
           - sdk
         evidence:
-          - doc_url: https://docs.convex.dev/realtime
-            quote: Convex tracks the dependencies to your query functions, including
-              database changes, and triggers the subscription in the client
-              libraries.
+          - doc_url: https://docs.convex.dev/functions/mutation-functions
+            quote: All database writes get committed together. If the mutation writes some
+              data to the database, but later throws an error, no data is
+              actually written to the database.
             strength: direct
-          - doc_url: https://docs.convex.dev/client/react
-            quote: This allows Convex to push new query results reactively to the client
-              without the client needing to poll for updates.
-            strength: direct
-      - concept_name: change-data-capture
+      - concept_name: data-integrity-and-transactions
         vendor: Insforge
         status: supported
         source: inventory
-        capability_name: realtime-change-feed
+        capability_name: database-trigger
         surfaces_documented:
           - api
-          - sdk
         evidence:
-          - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
-            quote: The platform monitors table modifications via database triggers. When
-              changes occur, triggers invoke `realtime.publish()` to broadcast
-              events to subscribed clients.
+          - doc_url: https://docs.insforge.dev/core-concepts/database/overview
+            quote: Stored functions and database triggers
             strength: direct
-      - concept_name: change-data-capture
+          - doc_url: https://docs.insforge.dev/sdks/rest/database.md
+            quote: GET /api/database/triggers - List all database triggers
+            strength: direct
+          - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
+            quote: '"Create a trigger on the table you want to watch" and use it to "decide
+              which channel receives the message, which event name clients
+              handle, and what payload they receive."'
+            strength: direct
+      - concept_name: data-integrity-and-transactions
         vendor: Mongodb Atlas
         status: supported
         source: inventory
-        capability_name: change-streams-cdc
+        capability_name: schema-validation
         surfaces_documented:
           - sdk
         evidence:
-          - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
-            quote: Change streams allow applications to access real-time data changes
-              without the prior complexity and risk of manually tailing the
-              oplog. Applications can use change streams to subscribe to all
-              data changes on a single collection, a database, or an entire
-              deployment.
+          - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
+            quote: Schema validation lets you create validation rules for your fields, such
+              as allowed data types and value ranges... By default, MongoDB
+              rejects any insert or update operation that would produce an
+              invalid document.
             strength: direct
-      - concept_name: change-data-capture
+      - concept_name: data-integrity-and-transactions
         vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: read-replica
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://neon.com/docs/introduction/read-replicas
-            quote: Neon read replicas are independent computes designed to perform read
-              operations on the same data as your primary read-write compute ...
-              You can create read replicas using the Neon Console, Neon CLI, or
-              Neon API.
-            strength: direct
-      - concept_name: change-data-capture
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: realtime-broadcast
-        surfaces_documented:
-          - sdk
-          - api
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/realtime
-            quote: Send low-latency messages between clients. Perfect for real-time
-              messaging, database changes, cursor tracking, game events, and
-              custom notifications.
-            strength: direct
-      - concept_name: change-data-capture
-        vendor: Turso
         status: inconclusive
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-integrity-and-transactions
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: primary-key-constraint
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/database/tables
+            quote: It's recommended to create a Primary Key for every table in your
+              database.
+            strength: direct
+      - concept_name: data-integrity-and-transactions
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: transactional-consistency
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions.md
+            quote: Transactions group multiple SQL statements into a single atomic unit of
+              work. Either all statements in a transaction succeed and are
+              committed, or the entire transaction is rolled back.
+            strength: direct
+          - doc_url: https://docs.turso.tech/sql-reference/statements/transactions.md
+            quote: Turso does not support SAVEPOINT or nested transactions. Each connection
+              can have at most one active transaction at a time.
+            strength: direct
   - concept_name: full-text-search
     title: Full-Text Search
     decisions:
@@ -1070,6 +1071,176 @@ concepts:
           - doc_url: https://docs.turso.tech/sql-reference/pragmas
             quote: "PRAGMA table_info: Returns one row for each column in the named table."
             strength: direct
+  - concept_name: server-side-execution
+    title: Server-Side Execution
+    decisions:
+      - concept_name: server-side-execution
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: server-side-execution
+        vendor: Convex
+        status: supported
+        source: inventory
+        capability_name: server-side-mutation-functions
+        surfaces_documented:
+          - sdk
+          - api
+        evidence:
+          - doc_url: https://docs.convex.dev/functions/mutation-functions
+            quote: When mutations are called from the React or Rust clients, they are
+              executed one at a time in a single, ordered queue.
+            strength: direct
+      - concept_name: server-side-execution
+        vendor: Insforge
+        status: supported
+        source: inventory
+        capability_name: raw-sql-execution
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://docs.insforge.dev/sdks/rest/database
+            quote: POST /api/database/advance/rawsql - Execute SQL with strict sanitization
+              (blocks system tables); POST
+              /api/database/advance/rawsql/unrestricted - Execute SQL with
+              relaxed sanitization (allows system table access)
+            strength: direct
+      - concept_name: server-side-execution
+        vendor: Mongodb Atlas
+        status: supported
+        source: inventory
+        capability_name: server-side-functions-triggers
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-ui/triggers/
+            quote: Atlas Triggers execute application and database logic. Triggers can
+              respond to events or use pre-defined schedules... Each Trigger
+              links to a specific Atlas Function.
+            strength: direct
+      - concept_name: server-side-execution
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: server-side-execution
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: sql-query-execution
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/reference/api/introduction
+            quote: POST /v1/projects/{ref}/database/query — [Beta] Run sql query
+            note: from seeded Management API surface
+            strength: direct
+          - doc_url: https://supabase.com/docs/guides/database/functions
+            quote: you can use the Dashboard's SQL editor or connect directly to your
+              database
+            strength: direct
+      - concept_name: server-side-execution
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: http-api-query-execution
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://docs.turso.tech/sdk/http/reference
+            quote: The /v2/pipeline endpoint to query a database ... Turso uses Bearer
+              authentication, and requires your API token to be passed with all
+              protected requests in the Authorization header
+            strength: direct
+  - concept_name: database-branching
+    title: Database/Backend Branching
+    decisions:
+      - concept_name: database-branching
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: database-branching
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: database-branching
+        vendor: Insforge
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        surfaces_documented:
+          - cli
+        evidence:
+          - doc_url: https://docs.insforge.dev/agent-native/branching.md
+            quote: "\"Create a branch with 'full' (schema + data) or 'schema-only' (faster,
+              empty user tables).\"... \"Each branch runs on its own EC2
+              instance, restored from the parent at create time.\"... \"Preview
+              the merge SQL before applying\"... \"Merges block on conflicts.
+              Resolve on the branch or reset and retry.\""
+            strength: direct
+      - concept_name: database-branching
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: database-branching
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        surfaces_documented:
+          - api
+          - cli
+          - sdk
+        evidence:
+          - doc_url: https://neon.com/docs/guides/branching-intro
+            quote: Neon branching lets you instantly create copy-on-write database branches
+              for development, testing, preview deployments, and point-in-time
+              data recovery.
+            strength: direct
+      - concept_name: database-branching
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/platform/branching
+            quote: Supabase branches create separate environments that spin off from your
+              main project.
+            strength: direct
+          - doc_url: https://supabase.com/docs/guides/platform/branching
+            quote: Supabase automatically runs a deployment workflow to deploy your changes
+              to production.
+            strength: direct
+      - concept_name: database-branching
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: database-branching
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/features/branching.md
+            quote: A branch is a separate database instance that is created from an existing
+              database [enabling users to] make changes to the database without
+              affecting the original database.
+            strength: direct
+          - doc_url: https://docs.turso.tech/features/branching.md
+            quote: turso db create my-new-database-branch --from-db my-existing-database
+            strength: direct
   - concept_name: define-data-container
     title: Define Data Container
     decisions:
@@ -1152,84 +1323,6 @@ concepts:
               STRICT column must match the declared column type or be losslessly
               convertible
             strength: direct
-  - concept_name: server-side-execution
-    title: Server-Side Execution
-    decisions:
-      - concept_name: server-side-execution
-        vendor: Cockroachdb
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: server-side-execution
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: server-side-execution
-        vendor: Insforge
-        status: supported
-        source: inventory
-        capability_name: raw-sql-execution
-        surfaces_documented:
-          - api
-        evidence:
-          - doc_url: https://docs.insforge.dev/sdks/rest/database
-            quote: POST /api/database/advance/rawsql - Execute SQL with strict sanitization
-              (blocks system tables); POST
-              /api/database/advance/rawsql/unrestricted - Execute SQL with
-              relaxed sanitization (allows system table access)
-            strength: direct
-      - concept_name: server-side-execution
-        vendor: Mongodb Atlas
-        status: supported
-        source: inventory
-        capability_name: server-side-functions-triggers
-        surfaces_documented:
-          - api
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/atlas-ui/triggers/
-            quote: Atlas Triggers execute application and database logic. Triggers can
-              respond to events or use pre-defined schedules... Each Trigger
-              links to a specific Atlas Function.
-            strength: direct
-      - concept_name: server-side-execution
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: server-side-execution
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: sql-query-execution
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/reference/api/introduction
-            quote: POST /v1/projects/{ref}/database/query — [Beta] Run sql query
-            note: from seeded Management API surface
-            strength: direct
-          - doc_url: https://supabase.com/docs/guides/database/functions
-            quote: you can use the Dashboard's SQL editor or connect directly to your
-              database
-            strength: direct
-      - concept_name: server-side-execution
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: http-api-query-execution
-        surfaces_documented:
-          - api
-        evidence:
-          - doc_url: https://docs.turso.tech/sdk/http/reference
-            quote: The /v2/pipeline endpoint to query a database ... Turso uses Bearer
-              authentication, and requires your API token to be passed with all
-              protected requests in the Authorization header
-            strength: direct
   - concept_name: audit-logging
     title: Organization Audit Log Export
     decisions:
@@ -1299,82 +1392,6 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: database-branching
-    title: Database/Backend Branching
-    decisions:
-      - concept_name: database-branching
-        vendor: Cockroachdb
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: database-branching
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: database-branching
-        vendor: Insforge
-        status: supported
-        source: inventory
-        capability_name: database-branching
-        surfaces_documented:
-          - cli
-        evidence:
-          - doc_url: https://docs.insforge.dev/agent-native/branching.md
-            quote: "\"Create a branch with 'full' (schema + data) or 'schema-only' (faster,
-              empty user tables).\"... \"Each branch runs on its own EC2
-              instance, restored from the parent at create time.\"... \"Preview
-              the merge SQL before applying\"... \"Merges block on conflicts.
-              Resolve on the branch or reset and retry.\""
-            strength: direct
-      - concept_name: database-branching
-        vendor: Mongodb Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: database-branching
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: database-branching
-        vendor: Supabase
-        status: supported
-        source: inventory
-        capability_name: database-branching
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://supabase.com/docs/guides/platform/branching
-            quote: Supabase branches create separate environments that spin off from your
-              main project.
-            strength: direct
-          - doc_url: https://supabase.com/docs/guides/platform/branching
-            quote: Supabase automatically runs a deployment workflow to deploy your changes
-              to production.
-            strength: direct
-      - concept_name: database-branching
-        vendor: Turso
-        status: supported
-        source: inventory
-        capability_name: database-branching
-        surfaces_documented:
-          - api
-          - cli
-        evidence:
-          - doc_url: https://docs.turso.tech/features/branching.md
-            quote: A branch is a separate database instance that is created from an existing
-              database [enabling users to] make changes to the database without
-              affecting the original database.
-            strength: direct
-          - doc_url: https://docs.turso.tech/features/branching.md
-            quote: turso db create my-new-database-branch --from-db my-existing-database
-            strength: direct
   - concept_name: api-key-management
     title: API Key Management
     decisions:
@@ -1566,6 +1583,68 @@ concepts:
               and PgBouncer (dedicated, paid tier)."
             strength: direct
       - concept_name: connection-pooling
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: project-lifecycle-management
+    title: Project Create/Read/Update/Delete
+    decisions:
+      - concept_name: project-lifecycle-management
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: project-lifecycle-management
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: project-lifecycle-management
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: project-lifecycle-management
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: project-lifecycle-management
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: project-lifecycle-management
+        surfaces_documented:
+          - api
+          - cli
+          - sdk
+        evidence:
+          - doc_url: https://neon.com/docs/reference/api-reference
+            quote: create and manage projects, branches, databases, roles, compute
+              endpoints, and more
+            strength: direct
+      - concept_name: project-lifecycle-management
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: project-lifecycle-management
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://supabase.com/docs/reference/api/introduction
+            quote: POST /v1/projects/{ref}/pause — Pauses the given project
+            note: from seeded Management API surface
+            strength: direct
+          - doc_url: https://supabase.com/docs/reference/api/introduction
+            quote: POST /v1/projects/{ref}/restore — Restores the given project
+            strength: direct
+      - concept_name: project-lifecycle-management
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -2005,6 +2084,59 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: atlas-stream-processing
+    title: Atlas Stream Processing
+    decisions:
+      - concept_name: atlas-stream-processing
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: atlas-stream-processing
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: atlas-stream-processing
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: atlas-stream-processing
+        vendor: Mongodb Atlas
+        status: supported
+        source: inventory
+        capability_name: atlas-stream-processing
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/atlas/atlas-stream-processing/overview/
+            quote: Stream processors take the form of a pipeline conceptually divided into
+              three phases, beginning by ingesting documents from sources of
+              streaming data such as broker systems like Apache Kafka, or
+              database change streams.
+            strength: direct
+      - concept_name: atlas-stream-processing
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: atlas-stream-processing
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: atlas-stream-processing
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: authentication-integration
     title: Third-Party and Built-in Authentication
     decisions:
@@ -2168,6 +2300,58 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: backup-blackout-windows
+    title: Backup Blackout Windows
+    decisions:
+      - concept_name: backup-blackout-windows
+        vendor: Cockroachdb
+        status: supported
+        source: inventory
+        capability_name: backup-blackout-windows
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/BlackoutWindowsApi.md
+            quote: Blackout windows are supported for ADVANCED clusters only. ...
+              CreateBlackoutWindow – POST request to establish a new blackout
+              window for a specified cluster
+            strength: direct
+      - concept_name: backup-blackout-windows
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: backup-blackout-windows
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: backup-blackout-windows
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: backup-blackout-windows
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: backup-blackout-windows
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: backup-blackout-windows
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: billing-invoices
     title: Billing & Invoice Retrieval
     decisions:
@@ -2278,6 +2462,57 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: branch-reset-to-parent
+    title: Reset Branch to Parent State
+    decisions:
+      - concept_name: branch-reset-to-parent
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: branch-reset-to-parent
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: branch-reset-to-parent
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: branch-reset-to-parent
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: branch-reset-to-parent
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: branch-reset-to-parent
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/guides/reset-from-parent
+            quote: Root branches ... cannot be reset because they have no parent branch.
+            strength: direct
+      - concept_name: branch-reset-to-parent
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: branch-reset-to-parent
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: bulk-data-copy
     title: Bulk Data Copy (COPY)
     decisions:
@@ -2324,58 +2559,6 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: bulk-data-copy
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-  - concept_name: bulk-data-export
-    title: Bulk Data Export (EXPORT)
-    decisions:
-      - concept_name: bulk-data-export
-        vendor: Cockroachdb
-        status: supported
-        source: inventory
-        capability_name: bulk-data-export
-        surfaces_documented:
-          - cli
-        evidence:
-          - doc_url: https://www.cockroachlabs.com/docs/stable/export.html
-            quote: Using the CockroachDB distributed execution engine, EXPORT parallelizes
-              file creation across all nodes in the cluster, making it possible
-              to quickly get large sets of data out of CockroachDB.
-            strength: direct
-      - concept_name: bulk-data-export
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: bulk-data-export
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: bulk-data-export
-        vendor: Mongodb Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: bulk-data-export
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: bulk-data-export
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: bulk-data-export
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -2858,6 +3041,58 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: cluster-disruption-testing
+    title: Cluster Disruption Specification Management
+    decisions:
+      - concept_name: cluster-disruption-testing
+        vendor: Cockroachdb
+        status: supported
+        source: inventory
+        capability_name: cluster-disruption-testing
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClusterDisruptionApi.md
+            quote: GetClusterDisruptionInfo (GET) - Retrieves current disruption
+              specifications for a specified cluster ... UpdateClusterDisruption
+              (PUT) - Modifies disruption specifications for a cluster
+            strength: direct
+      - concept_name: cluster-disruption-testing
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cluster-disruption-testing
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cluster-disruption-testing
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cluster-disruption-testing
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cluster-disruption-testing
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: cluster-disruption-testing
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: cluster-outage-simulation
     title: Cluster Outage / Failover Simulation
     decisions:
@@ -3287,6 +3522,64 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: concurrent-writes
+    title: MVCC Concurrent Writes
+    decisions:
+      - concept_name: concurrent-writes
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: concurrent-writes
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: concurrent-writes
+        surfaces_documented:
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
+            quote: With MVCC (Multi-Version Concurrency Control), multiple connections can
+              write simultaneously.
+            strength: direct
+          - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
+            quote: Use BEGIN CONCURRENT instead of BEGIN to start a transaction that allows
+              other writers to proceed in parallel. ... If two transactions
+              modify the same data, one will receive a conflict error and must
+              roll back and retry.
+            strength: direct
   - concept_name: count-aggregate
     title: Row Counts
     decisions:
@@ -3768,113 +4061,6 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: data-export
-    title: Bulk Data Export
-    decisions:
-      - concept_name: data-export
-        vendor: Cockroachdb
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export
-        vendor: Mongodb Atlas
-        status: supported
-        source: inventory
-        capability_name: data-export
-        surfaces_documented:
-          - cli
-          - api
-        evidence:
-          - doc_url: https://www.mongodb.com/docs/atlas/data-federation/overview/
-            quote: Export data - Copy Atlas cluster data into Parquet or CSV files written
-              to AWS S3 buckets or Azure Blob Storage
-            strength: direct
-      - concept_name: data-export
-        vendor: Neon
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-  - concept_name: data-export-import-pgdump
-    title: Data Export/Import via pg_dump / pg_restore
-    decisions:
-      - concept_name: data-export-import-pgdump
-        vendor: Cockroachdb
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export-import-pgdump
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export-import-pgdump
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export-import-pgdump
-        vendor: Mongodb Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export-import-pgdump
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: data-export-import-pgdump
-        surfaces_documented:
-          - cli
-        evidence:
-          - doc_url: https://neon.com/docs/import/migrate-from-postgres
-            quote: Migrating data from one Postgres database to another using the pg_dump
-              and pg_restore ... Avoid using pg_dump over a pooled connection
-              string
-            strength: direct
-          - doc_url: https://neon.com/docs/import/import-data-assistant
-            quote: Import a database under 10 GB to Neon using our automated import tool.
-            strength: direct
-      - concept_name: data-export-import-pgdump
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: data-export-import-pgdump
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
   - concept_name: data-federation-query
     title: Federated Query Across Data Sources
     decisions:
@@ -3922,6 +4108,58 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: data-federation-query
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: data-import
+    title: Bulk Data Import (mongoimport)
+    decisions:
+      - concept_name: data-import
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-import
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-import
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-import
+        vendor: Mongodb Atlas
+        status: supported
+        source: inventory
+        capability_name: data-import
+        surfaces_documented:
+          - cli
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/database-tools/mongoimport/
+            quote: mongoimport imports content from an Extended JSON, CSV, or TSV export
+              created by mongoexport, or potentially, another third-party export
+              tool.
+            strength: direct
+      - concept_name: data-import
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-import
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: data-import
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -4740,6 +4978,59 @@ concepts:
             quote: "AEGIS (recommended): Modern, high-performance cipher family ... AES-GCM:
               A NIST-approved standard for compliance requirements"
             strength: direct
+  - concept_name: encryption-at-rest-cmk
+    title: Encryption at Rest with Customer-Managed Keys
+    decisions:
+      - concept_name: encryption-at-rest-cmk
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-cmk
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-cmk
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-cmk
+        vendor: Mongodb Atlas
+        status: supported
+        source: inventory
+        capability_name: encryption-at-rest-cmk
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://www.mongodb.com/docs/atlas/security-kms-encryption/
+            quote: By default, Atlas encrypts all cluster storage and snapshot volumes at
+              rest using Advanced Encryption Standard (AES)-256... You can add
+              another layer of security by enabling database-level Encryption at
+              Rest with Customer-Managed Keys.
+            strength: direct
+      - concept_name: encryption-at-rest-cmk
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-cmk
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: encryption-at-rest-cmk
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
   - concept_name: environment-variable-management
     title: Environment Variables
     decisions:
@@ -5741,6 +6032,56 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: internal-function-boundary
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: inverted-index
+    title: Inverted (GIN) Indexes
+    decisions:
+      - concept_name: inverted-index
+        vendor: Cockroachdb
+        status: supported
+        source: inventory
+        capability_name: inverted-index
+        surfaces_documented:
+          - cli
+        evidence:
+          - doc_url: https://www.cockroachlabs.com/docs/stable/jsonb.html
+            quote: JSONB supports GIN indexes.
+            strength: direct
+      - concept_name: inverted-index
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: inverted-index
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: inverted-index
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: inverted-index
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: inverted-index
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: inverted-index
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -7859,59 +8200,6 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
-  - concept_name: project-lifecycle-management
-    title: Project Create/Read/Update/Delete
-    decisions:
-      - concept_name: project-lifecycle-management
-        vendor: Cockroachdb
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: project-lifecycle-management
-        vendor: Convex
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: project-lifecycle-management
-        vendor: Insforge
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: project-lifecycle-management
-        vendor: Mongodb Atlas
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: project-lifecycle-management
-        vendor: Neon
-        status: supported
-        source: inventory
-        capability_name: project-lifecycle-management
-        surfaces_documented:
-          - api
-          - cli
-          - sdk
-        evidence:
-          - doc_url: https://neon.com/docs/reference/api-reference
-            quote: create and manage projects, branches, databases, roles, compute
-              endpoints, and more
-            strength: direct
-      - concept_name: project-lifecycle-management
-        vendor: Supabase
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
-      - concept_name: project-lifecycle-management
-        vendor: Turso
-        status: inconclusive
-        source: selection-default
-        evidence: []
-        reason: No inventory citation or gap-check confirmation found.
   - concept_name: project-management
     title: Project Lifecycle Management
     decisions:
@@ -8114,6 +8402,114 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: query-shape-insights
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: read-replica
+    title: Read Replica Compute
+    decisions:
+      - concept_name: read-replica
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replica
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replica
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replica
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replica
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: read-replica
+        surfaces_documented:
+          - api
+          - cli
+        evidence:
+          - doc_url: https://neon.com/docs/introduction/read-replicas
+            quote: Neon read replicas are independent computes designed to perform read
+              operations on the same data as your primary read-write compute ...
+              You can create read replicas using the Neon Console, Neon CLI, or
+              Neon API.
+            strength: direct
+      - concept_name: read-replica
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replica
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: read-replicas
+    title: Read Replicas
+    decisions:
+      - concept_name: read-replicas
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: read-replicas
+        vendor: Supabase
+        status: supported
+        source: inventory
+        capability_name: read-replicas
+        surfaces_documented:
+          - api
+        evidence:
+          - doc_url: https://supabase.com/docs/guides/platform/read-replicas
+            quote: Read Replicas are additional databases kept in sync with your Primary
+              database.
+            strength: direct
+          - doc_url: https://supabase.com/docs/guides/platform/read-replicas
+            quote: You can only read data from a Read Replica.
+            strength: direct
+      - concept_name: read-replicas
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -8810,6 +9206,58 @@ concepts:
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
       - concept_name: server-side-query-functions
+        vendor: Turso
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+  - concept_name: serverless-http-websocket-driver
+    title: Neon Serverless Driver (HTTP/WebSocket)
+    decisions:
+      - concept_name: serverless-http-websocket-driver
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-http-websocket-driver
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-http-websocket-driver
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-http-websocket-driver
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-http-websocket-driver
+        vendor: Neon
+        status: supported
+        source: inventory
+        capability_name: serverless-http-websocket-driver
+        surfaces_documented:
+          - sdk
+        evidence:
+          - doc_url: https://neon.com/docs/serverless/serverless-driver
+            quote: HTTP is faster for single, non-interactive transactions ('one-shot
+              queries'); WebSockets needed if you require session or interactive
+              transaction support or compatibility with node-postgres.
+            strength: direct
+      - concept_name: serverless-http-websocket-driver
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: serverless-http-websocket-driver
         vendor: Turso
         status: inconclusive
         source: selection-default
@@ -9710,6 +10158,64 @@ concepts:
         source: selection-default
         evidence: []
         reason: No inventory citation or gap-check confirmation found.
+  - concept_name: trigger-based-automation
+    title: Triggers (Server-Side Row Automation)
+    decisions:
+      - concept_name: trigger-based-automation
+        vendor: Cockroachdb
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Convex
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Insforge
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Mongodb Atlas
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Neon
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Supabase
+        status: inconclusive
+        source: selection-default
+        evidence: []
+        reason: No inventory citation or gap-check confirmation found.
+      - concept_name: trigger-based-automation
+        vendor: Turso
+        status: supported
+        source: inventory
+        capability_name: trigger-based-automation
+        surfaces_documented:
+          - api
+          - sdk
+          - cli
+        evidence:
+          - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
+            quote: Create a trigger that automatically executes one or more SQL statements
+              when a row is inserted into, updated in, or deleted from a table.
+            strength: direct
+          - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
+            quote: Triggers execute within the same transaction as the statement that fired
+              them -- if the transaction is rolled back, the trigger's effects
+              are also rolled back.
+            strength: direct
   - concept_name: triggers
     title: Table Triggers
     decisions:

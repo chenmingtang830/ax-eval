@@ -146,6 +146,61 @@ describe("synthesize-suite helpers", () => {
     expect(byVendorSurface.get("Bravo:cli")).toBe("unsupported");
   });
 
+  it("preserves documented Convex CLI support instead of applying a vendor-wide denial", () => {
+    const methodology = {
+      ...defaultSuiteMethodology("database"),
+      target_task_count: 1,
+      min_vendor_coverage_pct: 0.5,
+    };
+    const coverageMatrix = {
+      schema: "ax.coverage-matrix/v1" as const,
+      category: "database",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      concepts: [{
+        concept_name: "backup-and-restore",
+        title: "Backup And Restore",
+        decisions: [{
+          concept_name: "backup-and-restore",
+          vendor: "Convex",
+          status: "supported" as const,
+          source: "inventory" as const,
+          capability_name: "bulk-export",
+          surfaces_documented: ["cli"] as Array<"api" | "sdk" | "cli">,
+          evidence: [{ doc_url: "https://docs.convex.dev/database/import-export/export", quote: "npx convex export" }],
+        }],
+      }],
+    };
+    const task: SynthesizedTask = {
+      id: "db-T02-backup-and-restore",
+      title: "T02: Produce an export artifact",
+      difficulty: "L4",
+      skill: "backup-and-restore",
+      intent: "Produce an export.",
+      oracle_hint: "Read it back.",
+      allowed_surfaces: ["api", "cli"],
+      na_examples: [],
+      rationale: "Selected.",
+      coverage: [{ vendor: "Convex", capability_name: "bulk-export" }],
+    };
+    const support = buildSupportMatrixArtifact(
+      "DAEB-1",
+      "database",
+      methodology,
+      coverageMatrix,
+      [task],
+      [{
+        cluster_name: "backup-and-restore",
+        title: "Backup And Restore",
+        difficulty: "L4",
+        rationale: "Selected.",
+        coverage: task.coverage,
+      }],
+    );
+
+    expect(support.entries.find((entry) => entry.surface === "cli")?.status).toBe("supported");
+    expect(support.entries.find((entry) => entry.surface === "api")?.status).toBe("unsupported");
+  });
+
   it("uses deterministic database task templates for selected concepts", async () => {
     const task = await draftTask(
       "database",
@@ -261,14 +316,14 @@ describe("synthesize-suite helpers", () => {
       generated_at: "2026-01-01T00:00:00.000Z",
       concepts: [
         {
-          concept_name: "define-data-container",
-          title: "Define Data Container",
+          concept_name: "evolve-schema",
+          title: "Evolve Schema",
           decisions: ["Supabase", "Neon", "MongoDB Atlas"].map((vendor) => ({
-            concept_name: "define-data-container",
+            concept_name: "evolve-schema",
             vendor,
             status: "supported" as const,
             source: "inventory" as const,
-            capability_name: "create-container",
+            capability_name: "schema-migration",
             family: "data-definition",
             surfaces_documented: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
             evidence: [{ doc_url: "https://docs.example", quote: "Supported." }],
@@ -292,11 +347,11 @@ describe("synthesize-suite helpers", () => {
     };
     const tasks: SynthesizedTask[] = [
       {
-        id: "db-T04-define-data-container",
-        title: "T04: Create a logical data container",
-        difficulty: "L1",
-        skill: "define-data-container",
-        intent: "Create a container.",
+        id: "db-T04-evolve-schema",
+        title: "T04: Apply a schema evolution",
+        difficulty: "L3",
+        skill: "evolve-schema",
+        intent: "Evolve a container.",
         oracle_hint: "Read it back.",
         allowed_surfaces: ["api", "sdk", "cli"],
         na_examples: [],
@@ -317,7 +372,7 @@ describe("synthesize-suite helpers", () => {
       },
     ];
     const selectedClusters = [
-      { cluster_name: "define-data-container", title: "Define Data Container", difficulty: "L1", rationale: "Selected.", coverage: [] },
+      { cluster_name: "evolve-schema", title: "Evolve Schema", difficulty: "L3", rationale: "Selected.", coverage: [] },
       { cluster_name: "backup-and-restore", title: "Backup And Restore", difficulty: "L4", rationale: "Selected.", coverage: [] },
     ];
 
@@ -332,12 +387,12 @@ describe("synthesize-suite helpers", () => {
     const status = (vendor: string, taskId: string, surface: "api" | "sdk" | "cli") =>
       supportMatrix.entries.find((entry) => entry.vendor === vendor && entry.task_id === taskId && entry.surface === surface);
 
-    expect(status("Supabase", "db-T04-define-data-container", "api")?.status).toBe("supported");
-    expect(status("Supabase", "db-T04-define-data-container", "sdk")?.status).toBe("unsupported");
-    expect(status("Supabase", "db-T04-define-data-container", "sdk")?.reason).toContain("does not expose the DDL/control-plane path");
-    expect(status("Neon", "db-T04-define-data-container", "sdk")?.status).toBe("supported");
+    expect(status("Supabase", "db-T04-evolve-schema", "api")?.status).toBe("supported");
+    expect(status("Supabase", "db-T04-evolve-schema", "sdk")?.status).toBe("unsupported");
+    expect(status("Supabase", "db-T04-evolve-schema", "sdk")?.reason).toContain("does not expose the DDL/control-plane path");
+    expect(status("Neon", "db-T04-evolve-schema", "sdk")?.status).toBe("supported");
     expect(status("Neon", "db-T02-backup-and-restore", "sdk")?.status).toBe("unsupported");
-    expect(status("MongoDB Atlas", "db-T04-define-data-container", "sdk")?.status).toBe("supported");
+    expect(status("MongoDB Atlas", "db-T04-evolve-schema", "sdk")?.status).toBe("supported");
     expect(status("MongoDB Atlas", "db-T02-backup-and-restore", "sdk")?.status).toBe("unsupported");
   });
 

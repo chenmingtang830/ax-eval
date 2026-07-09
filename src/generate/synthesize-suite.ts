@@ -632,89 +632,85 @@ function databaseTaskSupportOverride(
         "MongoDB Atlas evidence is inline aggregation `$function`; DAEB T08 requires a named server-side routine with observable invocation output, so this concrete task is unsupported for the current database benchmark template.",
     };
   }
-  const cliUnsupportedReason = databaseCliUnsupportedReason(vendor);
-  if (surface === "cli" && cliUnsupportedReason) return { status: "unsupported", reason: cliUnsupportedReason };
   if (surface !== "sdk") return null;
   const sdkUnsupportedReason =
-    databaseSdkUnsupportedReason(vendor, task.id) ??
+    databaseSdkUnsupportedReason(vendor, task.skill) ??
     databaseSdkFamilyUnsupportedReason(vendor, task.skill);
   return sdkUnsupportedReason ? { status: "unsupported", reason: sdkUnsupportedReason } : null;
 }
 
 const SUPABASE_SDK_UNSUPPORTED = new Set([
-  "db-T01-access-control",
-  "db-T02-backup-and-restore",
-  "db-T03-change-data-capture",
-  "db-T04-define-data-container",
-  "db-T05-evolve-schema",
-  "db-T06-inspect-schema",
-  "db-T07-query-records",
-  "db-T08-server-side-execution",
-  "db-T09-vector-search",
-  "db-T10-write-records",
+  "access-control",
+  "backup-and-restore",
+  "data-integrity-and-transactions",
+  "evolve-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "change-data-capture",
+  "full-text-search",
+  "inspect-schema",
 ]);
 
 const NEON_SDK_UNSUPPORTED = new Set([
-  "db-T02-backup-and-restore",
-  "db-T03-change-data-capture",
+  "backup-and-restore",
+  "change-data-capture",
 ]);
 
 const MONGODB_ATLAS_SDK_UNSUPPORTED = new Set([
-  "db-T01-access-control",
-  "db-T02-backup-and-restore",
-  "db-T08-server-side-execution",
+  "access-control",
+  "backup-and-restore",
 ]);
 
 const TURSO_SDK_UNSUPPORTED = new Set([
-  "db-T01-access-control",
-  "db-T02-backup-and-restore",
-  "db-T03-change-data-capture",
-  "db-T08-server-side-execution",
+  "access-control",
+  "backup-and-restore",
+  "change-data-capture",
 ]);
 
 const CONVEX_SDK_UNSUPPORTED = new Set([
-  "db-T01-access-control",
-  "db-T02-backup-and-restore",
-  "db-T03-change-data-capture",
-  "db-T04-define-data-container",
-  "db-T05-evolve-schema",
-  "db-T06-inspect-schema",
-  "db-T07-query-records",
-  "db-T08-server-side-execution",
-  "db-T09-vector-search",
-  "db-T10-write-records",
+  "access-control",
+  "backup-and-restore",
+  "data-integrity-and-transactions",
+  "evolve-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "change-data-capture",
+  "full-text-search",
+  "inspect-schema",
 ]);
 
 const INSFORGE_SDK_UNSUPPORTED = new Set([
-  "db-T01-access-control",
-  "db-T02-backup-and-restore",
-  "db-T03-change-data-capture",
-  "db-T04-define-data-container",
-  "db-T05-evolve-schema",
-  "db-T06-inspect-schema",
-  "db-T07-query-records",
-  "db-T08-server-side-execution",
-  "db-T09-vector-search",
-  "db-T10-write-records",
+  "access-control",
+  "backup-and-restore",
+  "data-integrity-and-transactions",
+  "evolve-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "change-data-capture",
+  "full-text-search",
+  "inspect-schema",
 ]);
 
-function databaseSdkUnsupportedReason(vendor: string, taskId: string): string | null {
-  if (vendor === "Supabase" && SUPABASE_SDK_UNSUPPORTED.has(taskId)) {
+function databaseSdkUnsupportedReason(vendor: string, skill: string): string | null {
+  if (vendor === "Supabase" && SUPABASE_SDK_UNSUPPORTED.has(skill)) {
     return "Supabase JS is a data-plane client and does not expose the DDL/control-plane path this DAEB task requires from a blank sandbox; unsupported SDK cells are excluded from the denominator.";
   }
-  if (vendor === "Neon" && NEON_SDK_UNSUPPORTED.has(taskId)) {
+  if (vendor === "Neon" && NEON_SDK_UNSUPPORTED.has(skill)) {
     return "Neon's serverless driver is a SQL data-plane driver; this task requires backup/CDC/control-plane behavior not evidenced through that SDK path.";
   }
-  if (vendor === "MongoDB Atlas" && MONGODB_ATLAS_SDK_UNSUPPORTED.has(taskId)) {
+  if (vendor === "MongoDB Atlas" && MONGODB_ATLAS_SDK_UNSUPPORTED.has(skill)) {
     return "MongoDB's Node driver supports data-plane operations, but this DAEB task requires Atlas Admin/control-plane or named-routine behavior not evidenced through the driver.";
   }
-  if (vendor === "Turso" && TURSO_SDK_UNSUPPORTED.has(taskId)) {
+  if (vendor === "Turso" && TURSO_SDK_UNSUPPORTED.has(skill)) {
     return "Turso's libSQL client supports SQL data-plane operations, but this DAEB task requires access-control, backup, CDC, or server-side routine behavior not evidenced through the SDK.";
   }
-  if (vendor === "Convex" && CONVEX_SDK_UNSUPPORTED.has(taskId)) {
+  if (vendor === "Convex" && CONVEX_SDK_UNSUPPORTED.has(skill)) {
     return "Convex DAEB tasks require project code/schema/function deployment; no standalone official SDK path is evidenced for completing this canonical task from the benchmark runner.";
   }
-  if (vendor === "Insforge" && INSFORGE_SDK_UNSUPPORTED.has(taskId)) {
+  if (vendor === "Insforge" && INSFORGE_SDK_UNSUPPORTED.has(skill)) {
     return "Insforge has no benchmark-declared official SDK/client-library path for completing this DAEB task; API support is not inherited by SDK.";
   }
   return null;
@@ -724,16 +720,6 @@ function databaseSdkFamilyUnsupportedReason(vendor: string, skill: string): stri
   if (vendor === "CockroachDB") return null;
   if (["backup-and-restore", "change-data-capture"].includes(skill) && ["Neon", "Turso"].includes(vendor)) {
     return `${vendor}'s SDK path is treated as data-plane only for DAEB; ${skill} requires explicit SDK evidence before it can enter the denominator.`;
-  }
-  return null;
-}
-
-function databaseCliUnsupportedReason(vendor: string): string | null {
-  if (vendor === "Convex") {
-    return "Convex has no benchmark-declared CLI surface for DAEB; CLI support is not inferred from API or project-code support.";
-  }
-  if (vendor === "Insforge") {
-    return "Insforge has no benchmark-declared CLI surface for DAEB; CLI support is not inferred from API support.";
   }
   return null;
 }

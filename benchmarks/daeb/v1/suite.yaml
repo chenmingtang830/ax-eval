@@ -1,12 +1,9 @@
 name: DAEB-1
 version: 4
 category: database
-description: >
-  Bottom-up-derived canonical task suite for the "database" category
-  (draft pending human freeze). Synthesized from 7 vendors' cited
-  documentation. Task intents use idiomatic cross-vendor semantics;
-  vendor×task×surface applicability is enforced by suite.support-matrix.yaml
-  at compose/extract time (not merely advisory).
+description: Bottom-up-derived canonical task suite for the "database" category,
+  synthesized from 7 vendors' cited documentation (see daeb-1.synthesis.md for
+  the full audit trail).
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -38,9 +35,6 @@ methodology:
     notes:
       - Usability-suite scoring is governed only by verified task outcomes on
         the suite-declared benchmark surfaces.
-      - Task allowed_surfaces declare the benchmark scope (api/cli). Per-vendor
-        applicability is the support matrix - unsupported surfaces are composed
-        as N/A and excluded from execution and scoring.
   extraction_requirements:
     - Use only official vendor documentation as evidence.
     - Persist every extracted capability with structured evidence objects.
@@ -51,10 +45,8 @@ methodology:
     - cli
   min_vendor_coverage_pct: 0.75
   target_task_count: 10
-  verifiability_requirement: >
-    Selected tasks must have deterministic read-back verification against world
-    state. Where the success criteria require a negative or conflicting effect,
-    the verifier (not the agent self-report) must perform that probe.
+  verifiability_requirement: Selected tasks must have deterministic read-back
+    verification against world state.
   difficulty_rubric:
     L1: "Single action: one create/read/update/check call with minimal setup."
     L2: "Single capability with configuration or composition: ACL, vector search
@@ -73,19 +65,18 @@ tasks:
     title: "T01: Configure an idiomatic access-control mechanism"
     difficulty: L2
     skill: access-control
-    intent: >
-      Configure a documented access-control mechanism for a container named
+    intent: Configure a documented access-control mechanism for a container named
       `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
       ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
       equivalent). Create one authorized interaction against that protected
       container and leave the control configuration discoverable on a documented
       control surface.
-    oracle_hint: >
-      Read back the access-control configuration protecting `axarena_acl_{ns}`
-      and confirm it is active. Confirm one authorized read or write against the
-      protected container succeeds. When the vendor documents a negative path for
-      the same control (unauthorized principal, denied role, or blocked client),
-      the verifier must also perform that deny probe and observe rejection.
+    oracle_hint: Read back the access-control configuration protecting
+      `axarena_acl_{ns}` and confirm it is active. Confirm one authorized read
+      or write against the protected container succeeds. When the vendor
+      documents a negative path for the same control (unauthorized principal,
+      denied role, or blocked client), the verifier must also perform that deny
+      probe and observe rejection.
     allowed_surfaces:
       - api
       - cli
@@ -96,53 +87,51 @@ tasks:
     title: "T02: Produce a backup, snapshot, or export artifact"
     difficulty: L4
     skill: backup-and-restore
-    intent: >
-      Create or use a container named `axarena_backup_{ns}` with one marker
+    intent: Create or use a container named `axarena_backup_{ns}` with one marker
       record labeled `marker_{ns}`, then produce a backup, snapshot, or export
       artifact using the vendor's idiomatic recovery or export mechanism.
-    oracle_hint: >
-      Read back the backup, snapshot, or export artifact and confirm (1) its
-      metadata references `axarena_backup_{ns}` or the producing job, and (2) the
-      artifact payload, listing, or restore-preview includes the marker record
-      labeled `marker_{ns}` — metadata-only existence is not enough.
+    oracle_hint: Read back the backup, snapshot, or export artifact and confirm (1)
+      its metadata references `axarena_backup_{ns}` or the producing job, and
+      (2) the artifact payload, listing, or restore-preview includes the marker
+      record labeled `marker_{ns}` — metadata-only existence is not enough.
     allowed_surfaces:
       - api
       - cli
     na_examples:
-      - This vendor does not expose a backup, snapshot, or export flow on api/cli
-        surfaces.
-  - id: db-T03-data-integrity-and-transactions
-    title: "T03: Enforce one integrity or atomicity rule"
+      - This vendor does not expose a backup, snapshot, or export flow on
+        api/cli surfaces.
+  - id: db-T03-change-data-capture
+    title: "T03: Emit one observable change event"
     difficulty: L4
-    skill: data-integrity-and-transactions
-    intent: >
-      Create a container named `axarena_integrity_{ns}` with an integrity rule or
-      atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
-    oracle_hint: >
-      Read back `axarena_integrity_{ns}` and confirm only the valid
-      `external_id=primary_{ns}` record is durably committed. The verifier must
-      itself issue one conflicting or invalid write against the same logical key
-      and re-read to confirm a second committed row was not created — do not rely
-      solely on the agent reporting that the conflict failed.
+    skill: change-data-capture
+    intent: Enable a change stream, realtime subscription, or CDC feed for a
+      container named `axarena_cdc_{ns}`, then create one record labeled
+      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
+      or feed. Persist the observed event into a durable capture container that
+      is distinct from `axarena_cdc_{ns}`, with either a `row_label` field equal
+      to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+    oracle_hint: Read back the reported capture container (must not be
+      `axarena_cdc_{ns}` itself) and confirm at least one stored event
+      corresponds to `cdc_probe_{ns}` and carries insert/change evidence from
+      the feed (event type, commit watermark, or vendor-equivalent CDC fields).
+      A hand-written row that merely copies the label without feed provenance
+      does not pass.
     allowed_surfaces:
       - api
       - cli
     na_examples:
-      - This vendor cannot enforce a documented integrity rule or atomic write
-        guarantee on api/cli surfaces.
+      - This vendor does not expose a documented CDC, change stream, or realtime
+        feed on api/cli surfaces.
   - id: db-T04-evolve-schema
     title: "T04: Apply a schema evolution"
     difficulty: L3
     skill: evolve-schema
-    intent: >
-      Starting from a container named `axarena_migrate_{ns}` that already
+    intent: Starting from a container named `axarena_migrate_{ns}` that already
       contains a `title` field, apply an idiomatic schema change that adds a new
       `status` field. Confirm the evolved shape is visible through the vendor's
       schema or metadata surface.
-    oracle_hint: >
-      Read back metadata for `axarena_migrate_{ns}` and confirm the added
+    oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
       `status` field is now present and the pre-existing `title` field remains
       visible.
     allowed_surfaces:
@@ -155,16 +144,14 @@ tasks:
     title: "T05: Filter and read matching records"
     difficulty: L2
     skill: query-records
-    intent: >
-      Using a container named `axarena_query_items_{ns}`, create exactly three
+    intent: Using a container named `axarena_query_items_{ns}`, create exactly three
       records with a text field named `label` and values `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
       `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
       that returns only the active records and report the container name plus
       the matching count.
-    oracle_hint: >
-      Verify the container exists with exactly three records total (labels
-      `alpha_{ns}`, `beta_{ns}`, `gamma_{ns}`). A filtered read for
+    oracle_hint: Verify the container exists with exactly three records total
+      (labels `alpha_{ns}`, `beta_{ns}`, `gamma_{ns}`). A filtered read for
       `status=active` must return exactly two records with labels `alpha_{ns}`
       and `gamma_{ns}` and must not include `beta_{ns}`.
     allowed_surfaces:
@@ -176,16 +163,13 @@ tasks:
     title: "T06: Create a vector-enabled dataset and query it"
     difficulty: L2
     skill: vector-search
-    intent: >
-      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
       field named `label` and at least three items labeled `alpha_{ns}`,
       `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
       `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
-    oracle_hint: >
-      Read back the vector dataset and verify a similarity query for `[1,0,0]`
-      against the stored index returns `alpha_{ns}` as the top result ahead of
-      `beta_{ns}` and `gamma_{ns}`.
+    oracle_hint: Read back the vector dataset and verify a similarity query for
+      `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
     allowed_surfaces:
       - api
       - cli
@@ -196,61 +180,52 @@ tasks:
     title: "T07: Create, update, and delete one record lifecycle"
     difficulty: L2
     skill: write-records
-    intent: >
-      Using a container named `axarena_write_items_{ns}`, create one record
+    intent: Using a container named `axarena_write_items_{ns}`, create one record
       labeled `draft_{ns}`, update that same record so its label becomes
       `final_{ns}`, then delete one separate throwaway record labeled
       `delete_me_{ns}`. Report the externally addressable container name and the
       surviving record identity.
-    oracle_hint: >
-      Read back `axarena_write_items_{ns}` and confirm: (1) a surviving record
-      labeled `final_{ns}` exists; (2) no record labeled `draft_{ns}` or
+    oracle_hint: "Read back `axarena_write_items_{ns}` and confirm: (1) a surviving
+      record labeled `final_{ns}` exists; (2) no record labeled `draft_{ns}` or
       `delete_me_{ns}` remains; (3) the surviving `final_{ns}` record is the
       updated identity of the created draft (same durable id/key reported by the
       agent, or an equivalent vendor update marker) — creating `final_{ns}`
-      directly without an update does not satisfy the task.
+      directly without an update does not satisfy the task."
     allowed_surfaces:
       - api
       - cli
     na_examples:
       - This vendor cannot perform create, update, and delete record operations
         on api/cli surfaces.
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
+  - id: db-T08-data-integrity-and-transactions
+    title: "T08: Enforce one integrity or atomicity rule"
     difficulty: L4
-    skill: change-data-capture
-    intent: >
-      Enable a change stream, realtime subscription, or CDC feed for a
-      container named `axarena_cdc_{ns}`, then create one record labeled
-      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
-      or feed. Persist the observed event into a durable capture container that
-      is distinct from `axarena_cdc_{ns}`, with either a `row_label` field equal
-      to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
-    oracle_hint: >
-      Read back the reported capture container (must not be `axarena_cdc_{ns}`
-      itself) and confirm at least one stored event corresponds to
-      `cdc_probe_{ns}` and carries insert/change evidence from the feed (event
-      type, commit watermark, or vendor-equivalent CDC fields). A hand-written
-      row that merely copies the label without feed provenance does not pass.
+    skill: data-integrity-and-transactions
+    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
+      `external_id=primary_{ns}` record is durably committed. The verifier must
+      itself issue one conflicting or invalid write against the same logical key
+      and re-read to confirm a second committed row was not created — do not
+      rely solely on the agent reporting that the conflict failed.
     allowed_surfaces:
       - api
       - cli
     na_examples:
-      - This vendor does not expose a documented CDC, change stream, or realtime
-        feed on api/cli surfaces.
+      - This vendor cannot enforce a documented integrity rule or atomic write
+        guarantee on api/cli surfaces.
   - id: db-T09-full-text-search
     title: "T09: Create a searchable text dataset and query it"
     difficulty: L2
     skill: full-text-search
-    intent: >
-      Create a text-searchable dataset named `axarena_search_{ns}` with at
+    intent: Create a text-searchable dataset named `axarena_search_{ns}` with at
       least three items whose content includes `orchard_{ns}`, `mountain_{ns}`,
       and `harbor_{ns}`. Run one full-text search query that matches only the
       `orchard_{ns}` item and report the top matching result.
-    oracle_hint: >
-      Read back the searchable dataset and verify a documented full-text search
-      query returns `orchard_{ns}` as the top match and does not return
+    oracle_hint: Read back the searchable dataset and verify a documented full-text
+      search query returns `orchard_{ns}` as the top match and does not return
       `mountain_{ns}` or `harbor_{ns}` in the result set for that query.
     allowed_surfaces:
       - api
@@ -261,14 +236,12 @@ tasks:
     title: "T10: Inspect container metadata"
     difficulty: L1
     skill: inspect-schema
-    intent: >
-      Create or use a container named `axarena_schema_probe_{ns}` with fields
+    intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
       `name` and `status`, then use the vendor's schema or metadata inspection
       mechanism to confirm both fields are present.
-    oracle_hint: >
-      Read back schema or metadata for `axarena_schema_probe_{ns}` and confirm
-      both the `name` and `status` fields are visible through the inspection
-      surface (not only via a successful row insert).
+    oracle_hint: Read back schema or metadata for `axarena_schema_probe_{ns}` and
+      confirm both the `name` and `status` fields are visible through the
+      inspection surface (not only via a successful row insert).
     allowed_surfaces:
       - api
       - cli
@@ -279,13 +252,12 @@ scoring:
   per_task: pass | fail | na
   overall:
     formula: score = sum(passes) / sum(non_na_tasks)
-    notes: >
-      N/A tasks (and N/A surfaces within a task) are excluded from both numerator
-      and denominator. Support-matrix unsupported cells are N/A, not fail.
-      Cross-vendor comparisons are valid only across tasks/surfaces both vendors
-      actually run. Publication should also report intersection/core score,
-      applicability coverage, and the full task×surface matrix — do not treat
-      applicable pass rate as the sole leaderboard number.
+    notes: N/A tasks (and N/A surfaces within a task) are excluded from both
+      numerator and denominator. Support-matrix unsupported cells are N/A, not
+      fail. Cross-vendor comparisons are valid only across tasks/surfaces both
+      vendors actually run. Publication should also report intersection/core
+      score, applicability coverage, and the full task×surface matrix — do not
+      treat applicable pass rate as the sole leaderboard number.
   layers:
     static_ax: Discoverability & Readiness is published separately and never alters
       usability-suite pass rates.

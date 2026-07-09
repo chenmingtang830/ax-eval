@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
 benchmark: SUITE
 category: database
-generated_at: 2026-07-09T13:15:37.988Z
+generated_at: 2026-07-09T22:55:07.654Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -91,8 +91,8 @@ entries:
     selected_by_model: true
     selected: true
     rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: data-integrity-and-transactions
-    title: Data Integrity And Transactions
+  - concept_name: change-data-capture
+    title: Change Data Capture
     proposed_difficulty: L4
     coverage_pct: 1
     covered_vendors:
@@ -125,7 +125,7 @@ entries:
     rationale: Deterministic proposal from concept universe and coverage closure.
   - concept_name: query-records
     title: Query Records
-    proposed_difficulty: L1
+    proposed_difficulty: L2
     coverage_pct: 1
     covered_vendors:
       - Cockroachdb
@@ -157,7 +157,7 @@ entries:
     rationale: Deterministic proposal from concept universe and coverage closure.
   - concept_name: write-records
     title: Write Records
-    proposed_difficulty: L1
+    proposed_difficulty: L2
     coverage_pct: 1
     covered_vendors:
       - Cockroachdb
@@ -171,8 +171,8 @@ entries:
     selected_by_model: true
     selected: true
     rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: change-data-capture
-    title: Change Data Capture
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
     proposed_difficulty: L4
     coverage_pct: 0.8571428571428571
     covered_vendors:
@@ -180,8 +180,8 @@ entries:
       - Convex
       - Insforge
       - Mongodb Atlas
-      - Neon
       - Supabase
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: true
@@ -216,13 +216,28 @@ entries:
     selected_by_model: true
     selected: true
     rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: define-data-container
-    title: Define Data Container
+  - concept_name: server-side-execution
+    title: Server-Side Execution
+    proposed_difficulty: L3
+    coverage_pct: 0.7142857142857143
+    covered_vendors:
+      - Convex
+      - Insforge
+      - Mongodb Atlas
+      - Supabase
+      - Turso
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (5/7 vendors; need ≥6)
+  - concept_name: database-branching
+    title: Database/Backend Branching
     proposed_difficulty: L1
     coverage_pct: 0.5714285714285714
     covered_vendors:
-      - Cockroachdb
-      - Convex
+      - Insforge
+      - Neon
       - Supabase
       - Turso
     verifiable: true
@@ -230,13 +245,13 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (4/7 vendors; need ≥6)
-  - concept_name: server-side-execution
-    title: Server-Side Execution
-    proposed_difficulty: L3
+  - concept_name: define-data-container
+    title: Define Data Container
+    proposed_difficulty: L1
     coverage_pct: 0.5714285714285714
     covered_vendors:
-      - Insforge
-      - Mongodb Atlas
+      - Cockroachdb
+      - Convex
       - Supabase
       - Turso
     verifiable: true
@@ -252,19 +267,6 @@ entries:
       - Cockroachdb
       - Convex
       - Mongodb Atlas
-    verifiable: true
-    selected_by_model: true
-    selected: false
-    rationale: Deterministic proposal from concept universe and coverage closure.
-    rejection_reason: coverage below 75% (3/7 vendors; need ≥6)
-  - concept_name: database-branching
-    title: Database/Backend Branching
-    proposed_difficulty: L1
-    coverage_pct: 0.42857142857142855
-    covered_vendors:
-      - Insforge
-      - Supabase
-      - Turso
     verifiable: true
     selected_by_model: true
     selected: false
@@ -296,6 +298,18 @@ entries:
     rejection_reason: coverage below 75% (2/7 vendors; need ≥6)
   - concept_name: connection-pooling
     title: PgBouncer Connection Pooling
+    proposed_difficulty: L1
+    coverage_pct: 0.2857142857142857
+    covered_vendors:
+      - Neon
+      - Supabase
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (2/7 vendors; need ≥6)
+  - concept_name: project-lifecycle-management
+    title: Project Create/Read/Update/Delete
     proposed_difficulty: L1
     coverage_pct: 0.2857142857142857
     covered_vendors:
@@ -396,6 +410,17 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: atlas-stream-processing
+    title: Atlas Stream Processing
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Mongodb Atlas
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
   - concept_name: authentication-integration
     title: Third-Party and Built-in Authentication
     proposed_difficulty: L1
@@ -429,6 +454,17 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: backup-blackout-windows
+    title: Backup Blackout Windows
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Cockroachdb
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
   - concept_name: billing-invoices
     title: Billing & Invoice Retrieval
     proposed_difficulty: L1
@@ -451,19 +487,19 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: bulk-data-copy
-    title: Bulk Data Copy (COPY)
+  - concept_name: branch-reset-to-parent
+    title: Reset Branch to Parent State
     proposed_difficulty: L1
     coverage_pct: 0.14285714285714285
     covered_vendors:
-      - Cockroachdb
+      - Neon
     verifiable: true
     selected_by_model: true
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: bulk-data-export
-    title: Bulk Data Export (EXPORT)
+  - concept_name: bulk-data-copy
+    title: Bulk Data Copy (COPY)
     proposed_difficulty: L1
     coverage_pct: 0.14285714285714285
     covered_vendors:
@@ -572,6 +608,17 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: cluster-disruption-testing
+    title: Cluster Disruption Specification Management
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Cockroachdb
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
   - concept_name: cluster-outage-simulation
     title: Cluster Outage / Failover Simulation
     proposed_difficulty: L1
@@ -655,6 +702,17 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Neon
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: concurrent-writes
+    title: MVCC Concurrent Writes
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false
@@ -759,8 +817,8 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: data-export
-    title: Bulk Data Export
+  - concept_name: data-federation-query
+    title: Federated Query Across Data Sources
     proposed_difficulty: L1
     coverage_pct: 0.14285714285714285
     covered_vendors:
@@ -770,19 +828,8 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: data-export-import-pgdump
-    title: Data Export/Import via pg_dump / pg_restore
-    proposed_difficulty: L1
-    coverage_pct: 0.14285714285714285
-    covered_vendors:
-      - Neon
-    verifiable: true
-    selected_by_model: true
-    selected: false
-    rationale: Deterministic proposal from concept universe and coverage closure.
-    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: data-federation-query
-    title: Federated Query Across Data Sources
+  - concept_name: data-import
+    title: Bulk Data Import (mongoimport)
     proposed_difficulty: L1
     coverage_pct: 0.14285714285714285
     covered_vendors:
@@ -952,6 +999,17 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Turso
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: encryption-at-rest-cmk
+    title: Encryption at Rest with Customer-Managed Keys
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Mongodb Atlas
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1161,6 +1219,17 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Convex
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: inverted-index
+    title: Inverted (GIN) Indexes
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Cockroachdb
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1595,17 +1664,6 @@ entries:
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
-  - concept_name: project-lifecycle-management
-    title: Project Create/Read/Update/Delete
-    proposed_difficulty: L1
-    coverage_pct: 0.14285714285714285
-    covered_vendors:
-      - Neon
-    verifiable: true
-    selected_by_model: true
-    selected: false
-    rationale: Deterministic proposal from concept universe and coverage closure.
-    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
   - concept_name: project-management
     title: Project Lifecycle Management
     proposed_difficulty: L1
@@ -1645,6 +1703,28 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Mongodb Atlas
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: read-replica
+    title: Read Replica Compute
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Neon
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: read-replicas
+    title: Read Replicas
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Supabase
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1788,6 +1868,17 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Convex
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: serverless-http-websocket-driver
+    title: Neon Serverless Driver (HTTP/WebSocket)
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Neon
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1975,6 +2066,17 @@ entries:
     coverage_pct: 0.14285714285714285
     covered_vendors:
       - Convex
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: coverage below 75% (1/7 vendors; need ≥6)
+  - concept_name: trigger-based-automation
+    title: Triggers (Server-Side Row Automation)
+    proposed_difficulty: L1
+    coverage_pct: 0.14285714285714285
+    covered_vendors:
+      - Turso
     verifiable: true
     selected_by_model: true
     selected: false

@@ -2,7 +2,7 @@ vendor: Mongodb Atlas
 category: database
 slug: mongodb-atlas
 suite_name: DAEB-1
-extracted_at: 2026-07-09T21:33:59.775Z
+extracted_at: 2026-07-09T22:56:09.686Z
 vendor_config:
   base_url: https://cloud.mongodb.com
   auth_type: none
@@ -27,9 +27,7 @@ tasks:
           collection
   - task_id: db-T02-backup-and-restore
     na: false
-    na_surfaces:
-      - cli
-    na_surfaces_reason: unsupported for these surfaces in support matrix
+    na_surfaces: []
     support_reference: mongodb-atlas:db-T02-backup-and-restore:backup-and-restore
     checks:
       - mongo_query:
@@ -41,22 +39,25 @@ tasks:
         assert_field: count
         expected: 1
         description: restored/recovered MongoDB target contains the backup marker document
-  - task_id: db-T03-data-integrity-and-transactions
+  - task_id: db-T03-change-data-capture
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: mongodb-atlas:db-T03-change-data-capture:change-data-capture
     checks:
       - mongo_query:
           database: ""
-          collection: axarena_integrity_{ns}
+          collection: "{capture_collection}"
           operation: count
           filter:
-            external_id: primary_{ns}
+            $or:
+              - row_label: cdc_probe_{ns}
+              - fullDocument.label: cdc_probe_{ns}
         assert_field: count
         expected: 1
-        description: exactly one committed document has the protected logical key
+        description: agent-reported durable capture collection contains the inserted
+          change event
   - task_id: db-T04-evolve-schema
     na: false
     na_surfaces:
@@ -170,25 +171,22 @@ tasks:
         assert_field: count
         expected: 0
         description: throwaway record was deleted
-  - task_id: db-T08-change-data-capture
+  - task_id: db-T08-data-integrity-and-transactions
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T08-change-data-capture:change-data-capture
+    support_reference: mongodb-atlas:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - mongo_query:
           database: ""
-          collection: "{capture_collection}"
+          collection: axarena_integrity_{ns}
           operation: count
           filter:
-            $or:
-              - row_label: cdc_probe_{ns}
-              - fullDocument.label: cdc_probe_{ns}
+            external_id: primary_{ns}
         assert_field: count
         expected: 1
-        description: agent-reported durable capture collection contains the inserted
-          change event
+        description: exactly one committed document has the protected logical key
   - task_id: db-T09-full-text-search
     na: false
     na_surfaces:
