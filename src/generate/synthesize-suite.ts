@@ -149,7 +149,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Using a container named `axarena_query_items_{ns}`, create exactly three records with a text field named `label` and values `alpha_{ns}`, `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read that returns only the active records and report the container name plus the matching count.",
     oracle_hint:
-      "Verify the container exists and that a filtered read for `status=active` returns exactly two records with labels `alpha_{ns}` and `gamma_{ns}`.",
+      "Verify the container exists with exactly three records total (labels `alpha_{ns}`, `beta_{ns}`, `gamma_{ns}`). A filtered read for `status=active` must return exactly two records with labels `alpha_{ns}` and `gamma_{ns}` and must not include `beta_{ns}`.",
     na_examples: ["This vendor cannot perform filtered record reads on api/cli surfaces."],
   },
   "write-records": {
@@ -158,7 +158,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Using a container named `axarena_write_items_{ns}`, create one record labeled `draft_{ns}`, update that same record so its label becomes `final_{ns}`, then delete one separate throwaway record labeled `delete_me_{ns}`. Report the externally addressable container name and the surviving record identity.",
     oracle_hint:
-      "Read back `axarena_write_items_{ns}` and confirm the surviving record label is `final_{ns}` while no record labeled `delete_me_{ns}` remains.",
+      "Read back `axarena_write_items_{ns}` and confirm: (1) a surviving record labeled `final_{ns}` exists; (2) no record labeled `draft_{ns}` or `delete_me_{ns}` remains; (3) the surviving `final_{ns}` record is the updated identity of the created draft (same durable id/key reported by the agent, or an equivalent vendor update marker) — creating `final_{ns}` directly without an update does not satisfy the task.",
     na_examples: ["This vendor cannot perform create, update, and delete record operations on api/cli surfaces."],
   },
   "inspect-schema": {
@@ -167,7 +167,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Create or use a container named `axarena_schema_probe_{ns}` with fields `name` and `status`, then use the vendor's schema or metadata inspection mechanism to confirm both fields are present.",
     oracle_hint:
-      "Read back schema or metadata for `axarena_schema_probe_{ns}` and confirm the `name` and `status` fields are visible.",
+      "Read back schema or metadata for `axarena_schema_probe_{ns}` and confirm both the `name` and `status` fields are visible through the inspection surface (not only via a successful row insert).",
     na_examples: ["This vendor does not expose schema or metadata inspection on api/cli surfaces."],
   },
   "evolve-schema": {
@@ -176,7 +176,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Starting from a container named `axarena_migrate_{ns}` that already contains a `title` field, apply an idiomatic schema change that adds a new `status` field. Confirm the evolved shape is visible through the vendor's schema or metadata surface.",
     oracle_hint:
-      "Read back metadata for `axarena_migrate_{ns}` and confirm the added `status` field is now present.",
+      "Read back metadata for `axarena_migrate_{ns}` and confirm the added `status` field is now present and the pre-existing `title` field remains visible.",
     na_examples: ["This vendor does not support a documented schema evolution or migration flow on api/cli surfaces."],
   },
   "data-integrity-and-transactions": {
@@ -185,26 +185,26 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Create a container named `axarena_integrity_{ns}` with an integrity rule or atomic write guarantee on `external_id`. Commit one valid record using `external_id=primary_{ns}`. Then perform one conflicting or invalid write that should not leave a second committed record with the same logical key.",
     oracle_hint:
-      "Read back `axarena_integrity_{ns}` and confirm only the valid `external_id=primary_{ns}` record is durably committed after the conflicting or invalid attempt.",
+      "Read back `axarena_integrity_{ns}` and confirm only the valid `external_id=primary_{ns}` record is durably committed. The verifier must itself issue one conflicting or invalid write against the same logical key and re-read to confirm a second committed row was not created — do not rely solely on the agent reporting that the conflict failed.",
     na_examples: ["This vendor cannot enforce a documented integrity rule or atomic write guarantee on api/cli surfaces."],
   },
   "access-control": {
     skill: "access-control",
-    title: "Configure access control for owned records",
+    title: "Configure an idiomatic access-control mechanism",
     intent:
-      "Configure an access-control rule for a container named `axarena_acl_{ns}` so records are scoped to the caller's ownership or explicit allowance using the vendor's idiomatic access-control mechanism. Create one allowed record owned by the active principal and make the rule configuration discoverable through a documented control surface.",
+      "Configure a documented access-control mechanism for a container named `axarena_acl_{ns}` using the vendor's idiomatic control (row/document ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or equivalent). Create one authorized interaction against that protected container and leave the control configuration discoverable on a documented control surface.",
     oracle_hint:
-      "Read back the access-control configuration protecting `axarena_acl_{ns}` and confirm an allowed owned record exists under that protected container.",
+      "Read back the access-control configuration protecting `axarena_acl_{ns}` and confirm it is active. Confirm one authorized read or write against the protected container succeeds. When the vendor documents a negative path for the same control (unauthorized principal, denied role, or blocked client), the verifier must also perform that deny probe and observe rejection.",
     na_examples: ["This vendor does not expose a configurable access-control mechanism on api/cli surfaces."],
   },
   "backup-and-restore": {
     skill: "backup-and-restore",
-    title: "Produce a recoverable backup artifact",
+    title: "Produce a backup, snapshot, or export artifact",
     intent:
-      "Create or use a container named `axarena_backup_{ns}` with one marker record labeled `marker_{ns}`, then produce a recoverable backup, snapshot, or export artifact using the vendor's idiomatic recovery mechanism.",
+      "Create or use a container named `axarena_backup_{ns}` with one marker record labeled `marker_{ns}`, then produce a backup, snapshot, or export artifact using the vendor's idiomatic recovery or export mechanism.",
     oracle_hint:
-      "Read back the backup or export artifact metadata and confirm it corresponds to `axarena_backup_{ns}` with the marker record labeled `marker_{ns}`.",
-    na_examples: ["This vendor does not expose a recoverable backup, snapshot, or export flow on api/cli surfaces."],
+      "Read back the backup, snapshot, or export artifact and confirm (1) its metadata references `axarena_backup_{ns}` or the producing job, and (2) the artifact payload, listing, or restore-preview includes the marker record labeled `marker_{ns}` — metadata-only existence is not enough.",
+    na_examples: ["This vendor does not expose a backup, snapshot, or export flow on api/cli surfaces."],
   },
   "server-side-execution": {
     skill: "server-side-execution",
@@ -230,7 +230,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     intent:
       "Create a text-searchable dataset named `axarena_search_{ns}` with at least three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and `harbor_{ns}`. Run one full-text search query that matches only the `orchard_{ns}` item and report the top matching result.",
     oracle_hint:
-      "Read back the searchable dataset and verify a documented full-text search query returns `orchard_{ns}` as a top match.",
+      "Read back the searchable dataset and verify a documented full-text search query returns `orchard_{ns}` as the top match and does not return `mountain_{ns}` or `harbor_{ns}` in the result set for that query.",
     na_examples: ["This vendor does not expose full-text search on api/cli surfaces."],
   },
   "query-pagination": {
@@ -246,9 +246,9 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     skill: "change-data-capture",
     title: "Emit one observable change event",
     intent:
-      "Enable a change stream, realtime subscription, or CDC feed for a container named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}` so the resulting insert becomes observable in the stream or feed. Persist the observed event into a durable capture container with either a `row_label` field equal to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and report that capture container name for verification.",
+      "Enable a change stream, realtime subscription, or CDC feed for a container named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}` so the resulting insert becomes observable in the stream or feed. Persist the observed event into a durable capture container that is distinct from `axarena_cdc_{ns}`, with either a `row_label` field equal to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and report that capture container name for verification.",
     oracle_hint:
-      "Read back the durable capture container and confirm at least one emitted event corresponds to `cdc_probe_{ns}`.",
+      "Read back the reported capture container (must not be `axarena_cdc_{ns}` itself) and confirm at least one stored event corresponds to `cdc_probe_{ns}` and carries insert/change evidence from the feed (event type, commit watermark, or vendor-equivalent CDC fields). A hand-written row that merely copies the label without feed provenance does not pass.",
     na_examples: ["This vendor does not expose a documented CDC, change stream, or realtime feed on api/cli surfaces."],
   },
 };
@@ -294,7 +294,15 @@ const TASK_DRAFT_CONCURRENCY = 3;
 export function inferDifficultyFromConcept(conceptName: string): Cluster["difficulty"] {
   const l4 = new Set(["backup-and-restore", "change-data-capture", "data-integrity-and-transactions"]);
   const l3 = new Set(["server-side-execution", "evolve-schema", "migration"]);
-  const l2 = new Set(["access-control", "vector-search", "full-text-search", "data-integrity"]);
+  // query/write are multi-step record workflows (not single-action L1).
+  const l2 = new Set([
+    "access-control",
+    "vector-search",
+    "full-text-search",
+    "data-integrity",
+    "query-records",
+    "write-records",
+  ]);
   if (l4.has(conceptName)) return "L4";
   if (l3.has(conceptName)) return "L3";
   if (l2.has(conceptName)) return "L2";
@@ -941,7 +949,7 @@ export function renderSuiteYaml(name: string, version: number, category: string,
       overall: {
         formula: "score = sum(passes) / sum(non_na_tasks)",
         notes:
-          "N/A tasks (and N/A surfaces within a task) are excluded from both numerator and denominator. Cross-vendor comparisons are valid only across tasks/surfaces both vendors actually run.",
+          "N/A tasks (and N/A surfaces within a task) are excluded from both numerator and denominator. Support-matrix unsupported cells are N/A, not fail. Cross-vendor comparisons are valid only across tasks/surfaces both vendors actually run. Publication should also report intersection/core score, applicability coverage, and the full task×surface matrix — do not treat applicable pass rate as the sole leaderboard number.",
       },
       layers: {
         static_ax: "Discoverability & Readiness is published separately and never alters usability-suite pass rates.",
