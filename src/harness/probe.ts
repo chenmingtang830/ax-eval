@@ -85,7 +85,7 @@ const RULES: HostRule[] = [
     strong: ["CLAUDECODE", "CLAUDE_CODE_", "CLAUDE_"],
     weak: ["ANTHROPIC_"],
     modelEnv: ["ANTHROPIC_MODEL", "CLAUDE_MODEL"],
-    defaultModel: "claude-4.6-sonnet",
+    defaultModel: "sonnet",
     profiles: ["sonnet"],
     reason: "Claude Code host: run the Claude (sonnet) model profile",
   },

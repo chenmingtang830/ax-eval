@@ -27,6 +27,7 @@ const DISCOVERY_SOURCE: Record<SurfaceId, string> = {
 
 export interface DiscoveryResult {
   ns?: string;
+  base_url_found?: string;
   completed_gid?: string | null;
   searches?: string[];
   urls_visited?: string[];

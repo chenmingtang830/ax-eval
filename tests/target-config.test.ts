@@ -16,6 +16,9 @@ const ENV_KEYS = [
   "TARGET_KEY",
   "TARGET_VERIFY",
   "TARGET_REPO",
+  "TARGET_HOST",
+  "TARGET_DATABASE_URL",
+  "TARGET_MONGO_URL",
   "STRIPE_API_KEY",
   "STRIPE_TOKEN",
 ];
@@ -105,6 +108,45 @@ describe("target config (generic auth + sandbox_scope)", () => {
     expect(reqs.find((r) => r.env === "TARGET_REPO")?.set).toBe(false);
     expect(hasRequiredEnv(p)).toBe(false);
     process.env.TARGET_REPO = "x/y";
+    expect(hasRequiredEnv(p)).toBe(true);
+  });
+
+  it("includes URL template variables in required env", () => {
+    process.env.TARGET_KEY = "k";
+    const p = pack({
+      base_url: "https://${TARGET_HOST}.example.test",
+      auth: { type: "bearer", env: "TARGET_KEY" },
+    });
+    const reqs = describeRequiredEnv(p);
+    expect(reqs.find((r) => r.env === "TARGET_HOST")?.role).toBe("env_template");
+    expect(hasRequiredEnv(p)).toBe(false);
+    process.env.TARGET_HOST = "sandbox";
+    expect(hasRequiredEnv(p)).toBe(true);
+  });
+
+  it("includes SQL verifier connection strings in required env", () => {
+    process.env.TARGET_KEY = "k";
+    const p = pack({
+      auth: { type: "bearer", env: "TARGET_KEY" },
+      sql_conn: { dialect: "postgres", connection_string_env: "TARGET_DATABASE_URL" },
+    });
+    const reqs = describeRequiredEnv(p);
+    expect(reqs.find((r) => r.env === "TARGET_DATABASE_URL")?.role).toBe("sql_conn");
+    expect(hasRequiredEnv(p)).toBe(false);
+    process.env.TARGET_DATABASE_URL = "postgres://example";
+    expect(hasRequiredEnv(p)).toBe(true);
+  });
+
+  it("includes Mongo verifier connection strings in required env", () => {
+    process.env.TARGET_KEY = "k";
+    const p = pack({
+      auth: { type: "none", env: "TARGET_KEY" },
+      mongo_conn: { connection_string_env: "TARGET_MONGO_URL" },
+    });
+    const reqs = describeRequiredEnv(p);
+    expect(reqs.find((r) => r.env === "TARGET_MONGO_URL")?.role).toBe("mongo_conn");
+    expect(hasRequiredEnv(p)).toBe(false);
+    process.env.TARGET_MONGO_URL = "mongodb+srv://example";
     expect(hasRequiredEnv(p)).toBe(true);
   });
 });

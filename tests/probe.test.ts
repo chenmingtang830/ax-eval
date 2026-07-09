@@ -26,7 +26,7 @@ describe("probeHarness", () => {
   it("falls back to the default model when Claude Code declares no model env", () => {
     const p = probeHarness({ CLAUDE_CODE_ENTRYPOINT: "cli" });
     expect(p.host).toBe("claude-code");
-    expect(p.model).toBe("claude-4.6-sonnet");
+    expect(p.model).toBe("sonnet");
   });
 
   it("detects OpenAI Codex and suggests the gpt5 profile", () => {

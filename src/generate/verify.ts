@@ -13,6 +13,9 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
+import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
+import { resolveEnvTemplate } from "../target/config.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -39,16 +42,87 @@ export interface RoundtripOutcome {
   success: boolean;
   oracleResults: OracleResult[];
   error: string | null;
+  /** True when the pack marks this task N/A for the vendor (its only
+   *  oracle is type "na") — per DAEB-1 methodology, N/A tasks are excluded
+   *  from both the numerator and denominator of the pass rate, not
+   *  counted as failures. */
+  na: boolean;
+}
+
+function retryWithShellQuoteRecovery(text: string): string {
+  // Some agent-authored result files accidentally include shell-style escaping
+  // like '\'' inside JSON strings. JSON does not allow \' escapes, so strip
+  // only the invalid backslash before retrying parse.
+  return text.replace(/\\'/g, "'");
+}
+
+function repairBareInnerQuotes(text: string): string {
+  let out = "";
+  let inString = false;
+  let escaping = false;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i]!;
+    if (!inString) {
+      out += ch;
+      if (ch === '"') {
+        inString = true;
+        escaping = false;
+      }
+      continue;
+    }
+    if (escaping) {
+      out += ch;
+      escaping = false;
+      continue;
+    }
+    if (ch === "\\") {
+      out += ch;
+      escaping = true;
+      continue;
+    }
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < text.length && /\s/.test(text[j]!)) j += 1;
+      const next = text[j];
+      if (next === "," || next === "}" || next === "]" || next === ":") {
+        out += ch;
+        inString = false;
+      } else {
+        out += '\\"';
+      }
+      continue;
+    }
+    out += ch;
+  }
+  return out;
+}
+
+export function parseJsonWithRecovery<T = unknown>(text: string): T {
+  try {
+    return JSON.parse(text) as T;
+  } catch (error) {
+    const shellRecovered = retryWithShellQuoteRecovery(text);
+    if (shellRecovered !== text) {
+      try {
+        return JSON.parse(shellRecovered) as T;
+      } catch {
+        /* fall through to inner-quote recovery */
+      }
+    }
+    const quoteRecovered = repairBareInnerQuotes(shellRecovered);
+    if (quoteRecovered === text) throw error;
+    return JSON.parse(quoteRecovered) as T;
+  }
 }
 
 export function loadResults(path: string): ExecutorResults {
-  return JSON.parse(readFileSync(path, "utf8")) as ExecutorResults;
+  return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
 }
 
 /** Load a sibling *.trace.json if present (observability); empty if missing. */
 export function loadTrace(path: string): TraceStep[] {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8"));
     return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
   } catch {
     return [];
@@ -86,18 +160,47 @@ function normalizeUrl(value: unknown): string | null {
   }
 }
 
+function isAbsoluteHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function valuesMatch(actual: unknown, expectedValues: unknown[], mode: OracleSpec["matchMode"]): boolean {
   if (mode === "url") {
     const normalizedActual = normalizeUrl(actual);
     return expectedValues.some((expected) => normalizedActual !== null && normalizedActual === normalizeUrl(expected));
   }
-  return expectedValues.some((expected) => actual === expected);
+  return expectedValues.some((expected) => {
+    if (actual === expected) return true;
+    // node-postgres returns BIGINT/NUMERIC columns (e.g. COUNT(*)) as strings
+    // to avoid JS precision loss — a check comparing that column against a
+    // literal number (the natural, readable way to author `expected: 5`)
+    // would otherwise always fail on a strict type mismatch alone.
+    if (typeof actual === "string" && typeof expected === "number" && actual.trim() !== "" && Number(actual) === expected) return true;
+    if (typeof expected === "string" && typeof actual === "number" && expected.trim() !== "" && Number(expected) === actual) return true;
+    return false;
+  });
 }
 
 function expectedDetail(expectedValues: unknown[]): string {
   return expectedValues.length === 1
     ? JSON.stringify(expectedValues[0])
     : `[${expectedValues.map((v) => JSON.stringify(v)).join(" | ")}]`;
+}
+
+function errorMessageFromResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as { code?: unknown; message?: unknown; errno?: unknown; sqlState?: unknown };
+  if (typeof record.message !== "string" || !record.message.trim()) return undefined;
+  const prefix = [record.code, record.errno, record.sqlState]
+    .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
+    .join("/");
+  return prefix ? `${prefix}: ${record.message}` : record.message;
 }
 
 function applyGidTemplate(value: unknown, gid: string): unknown {
@@ -113,22 +216,152 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
   return value;
 }
 
+function applyStringTemplates(
+  value: string,
+  ns: string | undefined,
+  gid: string | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  encodeGid = true,
+): string {
+  const withNs = resolveEnvTemplate(ns ? value.split(NS_PLACEHOLDER).join(ns) : value);
+  return withNs.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+    if (name === "ns") return ns ?? match;
+    if (name === "gid") return gid ? (encodeGid ? encodeURIComponent(gid) : gid) : match;
+    const reportedValue = reported?.[name];
+    return typeof reportedValue === "string" ? reportedValue : match;
+  });
+}
+
+function applyOracleTemplate(
+  value: unknown,
+  ns: string | undefined,
+  gid: string | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+): unknown {
+  if (typeof value === "string") return applyStringTemplates(value, ns, gid, reported, false);
+  if (Array.isArray(value)) return value.map((entry) => applyOracleTemplate(entry, ns, gid, reported));
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = applyOracleTemplate(entry, ns, gid, reported);
+    }
+    return out;
+  }
+  return value;
+}
+
 async function verifyRoundtrip(
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
   ns: string | undefined,
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
+  sqlConn: SqlConn | null,
+  mongoConn: MongoConn | null,
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
+  // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
+  // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
+  const applyNsTemplate = (template: string): string =>
+    applyStringTemplates(template, ns, undefined, undefined);
+  // Named placeholders beyond {ns}/{gid}: a check can reference a value only
+  // the executor knows once it performs the task (e.g. {test_row_id} for an
+  // RLS visibility check, or {duplicate_email} for a unique-constraint
+  // check) — the executor reports it as an extra key alongside `gid`, the
+  // same mechanism used for authField tokens. Left untouched if unreported
+  // (so a genuinely missing value surfaces as a 404/not-found rather than a
+  // silently broken literal "{name}" in the URL).
+  const applyReportedFields = (template: string): string =>
+    template.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+      if (name === "ns" || name === "gid") return match;
+      const value = reported?.[name];
+      return typeof value === "string" ? value : match;
+    });
+
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
-    const gid = reported?.gid;
-    if (!gid) {
-      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+
+    if (oracle.mongoQuery) {
+      if (!mongoConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has mongoQuery but pack declares no mongo_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported) as MongoQuery;
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const result = await runMongoCheck(mongoConn, query);
+        const actual = resolveDotted(result, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: [
+            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+            actual === undefined ? errorMessageFromResult(result) : undefined,
+          ].filter(Boolean).join("; "),
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
       continue;
     }
+
+    // SQL wire-protocol targets (CockroachDB/PlanetScale): no {gid}
+    // substitution — these checks address state by {ns}, not a
+    // per-resource id, since a "row count" query has no single resource.
+    if (oracle.sqlQuery) {
+      // sqlConnField: the resource under test lives behind a DIFFERENT
+      // credential than the pack's default (e.g. a new branch created
+      // during a restore, or a scoped role created for RBAC testing) —
+      // the executor already had this connection string in hand to do
+      // the work, so this just asks it to also report it.
+      let effectiveSqlConn = sqlConn;
+      if (oracle.sqlConnField) {
+        const reportedConn = reported?.[oracle.sqlConnField];
+        if (typeof reportedConn !== "string" || !reportedConn) {
+          out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.sqlConnField}" reported by executor` });
+          continue;
+        }
+        effectiveSqlConn = { dialect: oracle.sqlDialect ?? sqlConn?.dialect ?? "postgres", connectionString: reportedConn };
+      }
+      if (!effectiveSqlConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has sqlQuery but pack declares no sql_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = applyReportedFields(applyNsTemplate(oracle.sqlQuery));
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const row = await runSqlCheck(effectiveSqlConn, query);
+        const actual = resolveDotted(row, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: [
+            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+            actual === undefined ? errorMessageFromResult(row) : undefined,
+          ].filter(Boolean).join("; "),
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
+      continue;
+    }
+
+    const gid = reported?.gid;
+    // Only DAEB-1-style count/state checks that reference {gid} need one —
+    // a "does this table have 100 rows" query addresses state by {ns}, not
+    // a single resource. Templates that don't mention {gid} skip the check.
+    const needsGid = (t: string | undefined) => Boolean(t?.includes("{gid}"));
 
     // GraphQL targets (Linear/Monday): substitute {gid} into the hand-authored
     // read-back query, POST it, and assert the dotted field against `data`.
@@ -137,7 +370,11 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing readQuery/assertField" });
         continue;
       }
-      const query = oracle.readQueryTemplate.split("{gid}").join(gid);
+      if (needsGid(oracle.readQueryTemplate) && !gid) {
+        out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+        continue;
+      }
+      const query = applyReportedFields(applyNsTemplate(oracle.readQueryTemplate)).split("{gid}").join(gid ?? "");
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const data = await client.graphql<Record<string, unknown>>(query);
@@ -158,19 +395,44 @@ async function verifyRoundtrip(
       continue;
     }
 
-    // REST targets (Asana/Notion/Exa): read back the path and assert the field.
+    // REST targets (Asana/Notion/Exa/DAEB-1 vendors): read back the path and assert the field.
     if (!oracle.readPathTemplate || !oracle.assertField) {
       out.push({ type: "roundtrip", passed: false, detail: "oracle missing readPath/assertField" });
       continue;
     }
-    const path = oracle.readPathTemplate.replace("{gid}", encodeURIComponent(gid));
+    if (needsGid(oracle.readPathTemplate) && !gid) {
+      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+      continue;
+    }
+    // Identity-scoped (e.g. RLS) check: authenticate as the token the
+    // executor self-reported under this name, instead of the pack's
+    // admin-level default (which typically bypasses row-level security).
+    let requestClient = client;
+    if (oracle.authField) {
+      const token = reported?.[oracle.authField];
+      if (typeof token !== "string" || !token) {
+        out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.authField}" reported by executor` });
+        continue;
+      }
+      requestClient = client.withToken(token);
+    }
+    const taskBaseUrl = typeof reported?.__task_base_url === "string"
+      ? reported.__task_base_url.trim()
+      : "";
+    if (isAbsoluteHttpUrl(taskBaseUrl)) {
+      requestClient = requestClient.withBaseUrl(taskBaseUrl);
+    }
+    const path = applyReportedFields(applyNsTemplate(oracle.readPathTemplate)).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
       const method = oracle.readMethod ?? "GET";
       const body =
         method === "POST"
-          ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid))
-          : await client.get<Record<string, unknown>>(
+          ? await requestClient.post<Record<string, unknown>>(
+              path,
+              applyGidTemplate(applyOracleTemplate(oracle.readBodyTemplate, ns, gid, reported), gid ?? ""),
+            )
+          : await requestClient.get<Record<string, unknown>>(
               path,
               fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
             );
@@ -200,6 +462,8 @@ export async function verifyGeneratedPack(
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
+  const sqlConn = resolveSqlConn(pack);
+  const mongoConn = resolveMongoConn(pack);
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -212,11 +476,14 @@ export async function verifyGeneratedPack(
         executor.ns,
         pack.field_select_param,
         pack.api_style,
+        sqlConn,
+        mongoConn,
       );
     } catch (err) {
       oracleResults = [];
       error = err instanceof Error ? err.message : String(err);
     }
+    const na = task.oracles.length > 0 && task.oracles.every((o) => o.type === "na");
     const success = oracleResults.length > 0 && oracleResults.every((r) => r.passed);
     outcomes.push({
       taskId: task.id,
@@ -225,6 +492,7 @@ export async function verifyGeneratedPack(
       success,
       oracleResults,
       error,
+      na,
     });
   }
   return outcomes;

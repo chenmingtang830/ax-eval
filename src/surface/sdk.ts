@@ -30,7 +30,7 @@ export const sdkSurface: Surface = {
       `Before doing ANY task, work out how to use ${product}'s official ${s?.language ?? ""} SDK (\`${pkg}\`).`,
       `You are NOT given the client class, the method names, or how to authenticate the client.`,
       `- Read the SDK reference / README / type definitions, and/or WEB SEARCH the official docs.`,
-      `- Determine: how to construct + authenticate the client from the credential in .env, and the`,
+      `- Determine: how to construct + authenticate the client from the declared process.env credential, and the`,
       `  exact methods to create each resource.`,
       `- Do NOT guess from memory; open the SDK reference and confirm the real method signatures.`,
       `- Everything you do in Phase 1 MUST use what you discover here.`,

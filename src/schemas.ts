@@ -43,6 +43,38 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
+   *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
+   *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
+   *  the dotted `assertField` against the first result row. */
+  sqlDialect: z.enum(["postgres", "mysql"]).optional(),
+  sqlQuery: z.string().optional(),
+  /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
+   *  runs a small declarative read operation against a collection. */
+  mongoQuery: z.object({
+    database: z.string(),
+    collection: z.string(),
+    operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
+    filter: z.unknown().optional(),
+    projection: z.unknown().optional(),
+    sort: z.unknown().optional(),
+    pipeline: z.array(z.unknown()).optional(),
+  }).optional(),
+  /** Identity-scoped (e.g. row-level security) round-trip: the key the
+   *  executor reports THIS check's Bearer credential under (alongside
+   *  `gid`), e.g. "user_a_token". The verifier authenticates as that
+   *  identity instead of the pack's default — needed because the pack's
+   *  admin-level credential typically bypasses row-level security. */
+  authField: z.string().optional(),
+  /** Identity-scoped (SQL variant): the key the executor reports THIS
+   *  check's full alternate connection string under (alongside `gid`),
+   *  e.g. "restored_connection_string" or "reader_connection_string" —
+   *  needed when the resource to verify lives behind a DIFFERENT
+   *  credential than the pack's default sql_conn (e.g. a new branch
+   *  created during restore, or a scoped role created for RBAC testing).
+   *  The executor already has this connection string in hand (it's what
+   *  it just used to do the work); this only asks it to also report it. */
+  sqlConnField: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -76,6 +108,12 @@ export const TaskSchema = z
     /** Surfaces the executor is allowed to use this task (e.g. ["docs"] hides
      *  the OpenAPI spec to force discovery). Empty = unrestricted. */
     allowed_surfaces: z.array(z.string()).default([]),
+    /** True when this task is structurally impossible for the vendor on ANY
+     *  surface (e.g. no backup API at all) — excluded from execution (the
+     *  executor is never asked to attempt it) and from scoring's denominator.
+     *  Distinct from allowed_surfaces=[] which means "unrestricted" for
+     *  ordinary tasks, not "never runs" — this flag is unambiguous. */
+    na: z.boolean().optional().transform((v) => v ?? false),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
@@ -224,6 +262,11 @@ export const AuthSchema = z.object({
   verify_env_aliases: z.array(z.string()).default([]),
   /** Header name for the credential (default by type: bearer/api-key → Authorization). */
   header: z.string().optional(),
+  /** Some APIs require the SAME credential sent under a second header name in
+   *  addition to the primary auth header — e.g. Supabase's PostgREST rejects
+   *  `Authorization: Bearer <key>` alone with "No API key found in request"
+   *  unless `apikey: <key>` is also present. */
+  extra_header: z.string().optional(),
 });
 export type Auth = z.infer<typeof AuthSchema>;
 
@@ -284,6 +327,25 @@ export const TargetPackSchema = z.object({
   /** Sandbox-isolation parameters the developer provisions (level varies by
    *  product). Empty = a single account/key is the whole sandbox (e.g. Stripe). */
   sandbox_scope: z.array(ScopeParamSchema).default([]),
+  /** Connection info for `OracleSpec.sqlQuery` checks — vendors whose data
+   *  plane is only reachable over the raw Postgres/MySQL wire protocol (no
+   *  REST query endpoint), e.g. CockroachDB, PlanetScale. Absent when the
+   *  pack has no SQL-form oracles. */
+  sql_conn: z
+    .object({
+      dialect: z.enum(["postgres", "mysql"]),
+      /** Env var holding a full connection string/DSN. */
+      connection_string_env: z.string(),
+    })
+    .optional(),
+  mongo_conn: z
+    .object({
+      /** Env var holding a full MongoDB connection string. */
+      connection_string_env: z.string(),
+      /** Default database used by MongoDB oracle checks. */
+      database: z.string().optional(),
+    })
+    .optional(),
   /** Non-API surfaces this target exposes (cli/sdk/mcp). The API surface is
    *  always available via `base_url`/`auth`. Drives `--surface` fan-out. */
   surfaces: SurfaceConfigSchema.optional(),

@@ -13,6 +13,7 @@ import type { RoundtripOutcome } from "../src/generate/verify.js";
 import type { DiscoveryReport, DiscoveryMetric } from "../src/generate/discovery.js";
 import type { TraceStep } from "../src/harness/executor.js";
 import { auditSpecQuality } from "../src/static/smells.js";
+import { buildNormalizedResult } from "../src/generate/record.js";
 
 /** A small OpenAPI doc that trips several smells, for content-quality tests. */
 function smellyAudit() {
@@ -557,6 +558,68 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("attempts per task");
     expect(html).toContain("turn budget");
     expect(html).not.toContain("Run cost");
+  });
+
+  it("does not call process quality clean when trace coverage is too coarse", () => {
+    const pack = makePack([
+      { id: "t1", difficulty: "L1", prompt: "alpha" },
+      { id: "t2", difficulty: "L2", prompt: "beta" },
+      { id: "t3", difficulty: "L3", prompt: "gamma" },
+    ]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "low",
+        harness: "codex",
+        surface: "api",
+        outcomes: [
+          outcome("t1", "L1", "low", false),
+          outcome("t2", "L2", "low", true),
+          outcome("t3", "L3", "low", false),
+        ],
+        trace: [
+          { step: 1, taskId: "all", action: "run coarse batch", method: "POST", path: "/query", status: 200 },
+          { step: 2, taskId: "t2", action: "read t2", method: "GET", path: "/t2", status: 200 },
+        ],
+      },
+    ];
+    const html = renderGeneratedReport(pack, runs);
+    expect(html).toContain("Process trace coverage was insufficient");
+    expect(html).toContain("1/3");
+    expect(html).not.toContain("Process quality was clean");
+  });
+
+  it("carries best-profile efficiency metrics into normalized records without changing correctness", () => {
+    const pack = makePack([{ id: "t1", difficulty: "L1", prompt: "alpha" }]);
+    const runs: ProfileRun[] = [
+      {
+        profile: "low",
+        harness: "codex",
+        surface: "api",
+        model: "gpt-5.5",
+        outcomes: [outcome("t1", "L1", "low", true)],
+        efficiency: {
+          latency_ms: 1234,
+          tool_call_count: 5,
+          token_usage: { input_tokens: 100, output_tokens: 25 },
+          token_cost: null,
+          validity_status: "valid",
+          first_action_latency_ms: 321,
+          transcript_event_count: 9,
+          action_occurred: true,
+        },
+      },
+    ];
+
+    const record = buildNormalizedResult(pack, "api", "codex", runs);
+    expect(record.pass_at_1).toBe(1);
+    expect(record.latency_ms).toBe(1234);
+    expect(record.tool_call_count).toBe(5);
+    expect(record.token_usage).toEqual({ input_tokens: 100, output_tokens: 25 });
+    expect(record.token_cost).toBeNull();
+    expect(record.validity_status).toBe("valid");
+    expect(record.first_action_latency_ms).toBe(321);
+    expect(record.transcript_event_count).toBe(9);
+    expect(record.action_occurred).toBe(true);
   });
 
   it("methodology note explains the effort-only spread without surfacing matrix/paid framing", () => {
