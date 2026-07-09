@@ -1,0 +1,477 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v4
+# run_id: 2026-07-09-vgp9sd
+name: turso
+version: "1"
+standard_set_version: daeb-1-v4
+run_id: 2026-07-09-vgp9sd
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://docs.turso.tech/api-reference/introduction
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: TURSO_DATABASE_AUTH_TOKEN
+  env_aliases: []
+  verify_env_aliases: []
+sandbox_scope: []
+surfaces:
+  cli:
+    bin: turso
+    install: curl -sSfL https://get.tur.so/install.sh | bash
+    docs_url: https://docs.turso.tech/cli/introduction
+    auth:
+      kind: token
+      token_env: TURSO_API_TOKEN
+      token_env_aliases: []
+      instructions: Mint a platform API token with `turso auth api-tokens mint
+        <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
+        unavailable, use `turso auth login --headless` to complete auth via a
+        printed URL. The token printed by `turso auth token` is the same
+        credential.
+base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
+headers: {}
+site_url: https://turso.tech
+openapi_url: ""
+docs_urls:
+  - https://docs.turso.tech/api-reference/introduction
+static:
+  site_url: https://turso.tech
+  docs_urls:
+    - https://docs.turso.tech/api-reference/introduction
+  checks: []
+tasks:
+  - id: db-T01-access-control
+    title: "T01: Configure an idiomatic access-control mechanism"
+    prompt: >-
+      Configure a documented access-control mechanism for a container named
+      `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
+      ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
+      equivalent). Create one authorized interaction against that protected
+      container and leave the control configuration discoverable on a documented
+      control surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: axarena_acl_{ns}
+        description: protected table axarena_acl_{ns} exists
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT name FROM sqlite_master WHERE type='table' AND
+                  name='axarena_acl_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "1"
+        description: one allowed record exists under the protected table
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_acl_{ns}"
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T02-backup-and-restore
+    title: "T02: Produce a backup, snapshot, or export artifact"
+    prompt: >-
+      Create or use a container named `axarena_backup_{ns}` with one marker
+      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
+      artifact using the vendor's idiomatic recovery or export mechanism.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "1"
+        description: the active/restored Turso database contains the backup marker row
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_backup_{ns}" WHERE label = 'marker_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L4
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T03-data-integrity-and-transactions
+    title: "T03: Enforce one integrity or atomicity rule"
+    prompt: >-
+      Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "1"
+        description: exactly one committed record has the protected logical key
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_integrity_{ns}" WHERE external_id =
+                  'primary_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T04-evolve-schema
+    title: "T04: Apply a schema evolution"
+    prompt: >-
+      Starting from a container named `axarena_migrate_{ns}` that already
+      contains a `title` field, apply an idiomatic schema change that adds a new
+      `status` field. Confirm the evolved shape is visible through the vendor's
+      schema or metadata surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "2"
+        description: title remains visible and status exists after schema evolution
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name
+                  IN ('title','status')
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T05-query-records
+    title: "T05: Filter and read matching records"
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "3"
+        description: query container contains exactly the three requested records
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}"
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "2"
+        description: filtered read returns exactly two active records
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active'
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "2"
+        description: the active set is alpha and gamma
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active' AND
+                  label IN ('alpha_{ns}', 'gamma_{ns}')
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T06-vector-search
+    title: "T06: Create a vector-enabled dataset and query it"
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT label FROM "axarena_vectors_{ns}" ORDER BY
+                  vector_distance_cos(embedding, '[1,0,0]') LIMIT 1
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T07-write-records
+    title: "T07: Create, update, and delete one record lifecycle"
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record
+      labeled `draft_{ns}`, update that same record so its label becomes
+      `final_{ns}`, then delete one separate throwaway record labeled
+      `delete_me_{ns}`. Report the externally addressable container name and the
+      surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      SQL write lifecycle contract: before reporting this task, read back the
+      target table and ensure the postcondition is exact: one row labeled
+      `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
+      `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
+      fix only this run-scoped table before reporting the gid.
+    oracles:
+      - type: roundtrip
+        expected: "1"
+        description: updated surviving record is final
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label = 'final_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "0"
+        description: draft label no longer remains after update
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label = 'draft_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "0"
+        description: throwaway record was deleted
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label =
+                  'delete_me_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T08-change-data-capture
+    title: "T08: Emit one observable change event"
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T09-full-text-search
+    title: "T09: Create a searchable text dataset and query it"
+    prompt: >-
+      Create a text-searchable dataset named `axarena_search_{ns}` with at least
+      three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and
+      `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "1"
+        description: full-text query returns exactly one orchard match
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_search_{ns}" WHERE content MATCH
+                  'orchard_{ns}'
+        assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: "0"
+        description: orchard search excludes mountain and harbor records
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_search_{ns}" WHERE content MATCH
+                  'orchard_{ns}' AND (content LIKE '%mountain_{ns}%' OR content
+                  LIKE '%harbor_{ns}%')
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T10-inspect-schema
+    title: "T10: Inspect container metadata"
+    prompt: >-
+      Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+    oracles:
+      - type: roundtrip
+        expected: "2"
+        description: schema inspection target exposes name and status fields
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE
+                  name IN ('name','status')
+        assertField: results.0.response.result.rows.0.0.value
+    difficulty: L1
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []

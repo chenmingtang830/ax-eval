@@ -1,0 +1,180 @@
+vendor: Cockroachdb
+category: database
+slug: cockroachdb
+suite_name: DAEB-1
+extracted_at: 2026-07-09T21:33:59.773Z
+vendor_config:
+  base_url: https://cockroachlabs.cloud/api/v1
+  auth_type: bearer
+  auth_env: COCKROACH_API_KEY
+  sql_dialect: postgres
+  sql_connection_env: COCKROACH_CONNECTION_STRING
+tasks:
+  - task_id: db-T01-access-control
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T01-access-control:access-control
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+          table_schema = 'public' AND table_name = 'axarena_acl_{ns}'
+        assert_field: 0.count
+        expected: 1
+        description: protected container axarena_acl_{ns} exists
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+        assert_field: 0.count
+        expected: 1
+        description: one allowed record exists under the protected container
+  - task_id: db-T02-backup-and-restore
+    na: false
+    na_surfaces: []
+    support_reference: cockroachdb:db-T02-backup-and-restore:backup-and-restore
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_backup_{ns}" WHERE label
+          = 'marker_{ns}'
+        assert_field: 0.count
+        expected: 1
+        description: active database contains the backup marker row after the
+          backup/export task
+  - task_id: db-T03-data-integrity-and-transactions
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
+          external_id = 'primary_{ns}'
+        assert_field: 0.count
+        expected: 1
+        description: exactly one committed record has the protected logical key
+  - task_id: db-T04-evolve-schema
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T04-evolve-schema:evolve-schema
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND
+          column_name IN ('title', 'status')
+        assert_field: 0.count
+        expected: 2
+        description: title remains visible and status exists after schema evolution
+  - task_id: db-T05-query-records
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T05-query-records:query-records
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
+        assert_field: 0.count
+        expected: 3
+        description: query container contains exactly the three requested records
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active'
+        assert_field: 0.count
+        expected: 2
+        description: filtered read returns exactly two active records
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+        assert_field: 0.count
+        expected: 2
+        description: the active set is alpha and gamma
+  - task_id: db-T06-vector-search
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T06-vector-search:vector-search
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
+          '[1,0,0]' LIMIT 1
+        assert_field: 0.label
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+  - task_id: db-T07-write-records
+    na: false
+    na_surfaces:
+      - cli
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T07-write-records:write-records
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'final_{ns}'
+        assert_field: 0.count
+        expected: 1
+        description: updated surviving record is final
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'draft_{ns}'
+        assert_field: 0.count
+        expected: 0
+        description: draft label no longer remains after update
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'delete_me_{ns}'
+        assert_field: 0.count
+        expected: 0
+        description: throwaway record was deleted
+  - task_id: db-T08-change-data-capture
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T08-change-data-capture:change-data-capture
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
+          = 'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+        assert_field: 0.count
+        expected: 1
+        description: agent-reported durable capture table contains the inserted CDC marker
+  - task_id: db-T09-full-text-search
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T09-full-text-search:full-text-search
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}')
+        assert_field: 0.count
+        expected: 1
+        description: full-text query returns exactly one orchard match
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}') AND (content ILIKE '%mountain_{ns}%' OR content ILIKE
+          '%harbor_{ns}%')
+        assert_field: 0.count
+        expected: 0
+        description: orchard search excludes mountain and harbor records
+  - task_id: db-T10-inspect-schema
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: cockroachdb:db-T10-inspect-schema:inspect-schema
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}'
+          AND column_name IN ('name', 'status')
+        assert_field: 0.count
+        expected: 2
+        description: schema inspection target exposes name and status fields

@@ -403,7 +403,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
         1,
         "active database contains the backup marker row after the backup/export task",
       )]);
-    case "db-T03-change-data-capture":
+    case "db-T08-change-data-capture":
       return OracleExtractItemSchema.parse({
         task_id: task.id,
         na: false,
@@ -417,25 +417,25 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           },
         ],
       });
-    case "db-T04-define-data-container":
+    case "db-T03-data-integrity-and-transactions":
       return item([
         pgCheck(
-          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_items_{ns}' AND column_name IN ('id', 'label')",
-          "0.count",
-          2,
-          "container exists with id and label fields",
-        ),
-      ]);
-    case "db-T05-evolve-schema":
-      return item([
-        pgCheck(
-          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND column_name = 'status'",
+          "SELECT COUNT(*)::int AS count FROM \"axarena_integrity_{ns}\" WHERE external_id = 'primary_{ns}'",
           "0.count",
           1,
-          "status field exists after schema evolution",
+          "exactly one committed record has the protected logical key",
         ),
       ]);
-    case "db-T06-inspect-schema":
+    case "db-T04-evolve-schema":
+      return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND column_name IN ('title', 'status')",
+          "0.count",
+          2,
+          "title remains visible and status exists after schema evolution",
+        ),
+      ]);
+    case "db-T10-inspect-schema":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}' AND column_name IN ('name', 'status')",
@@ -444,8 +444,14 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "schema inspection target exposes name and status fields",
         ),
       ]);
-    case "db-T07-query-records":
+    case "db-T05-query-records":
       return item([
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_query_items_{ns}\"",
+          "0.count",
+          3,
+          "query container contains exactly the three requested records",
+        ),
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_query_items_{ns}\" WHERE status = 'active'",
           "0.count",
@@ -459,16 +465,22 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T08-server-side-execution":
+    case "db-T09-full-text-search":
       return item([
         pgCheck(
-          "SELECT \"axarena_echo_{ns}\"() AS result",
-          "0.result",
-          "axarena_ok_{ns}",
-          "server-side routine returns the expected marker",
+          "SELECT COUNT(*)::int AS count FROM \"axarena_search_{ns}\" WHERE to_tsvector('simple', content) @@ plainto_tsquery('simple', 'orchard_{ns}')",
+          "0.count",
+          1,
+          "full-text query returns exactly one orchard match",
+        ),
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_search_{ns}\" WHERE to_tsvector('simple', content) @@ plainto_tsquery('simple', 'orchard_{ns}') AND (content ILIKE '%mountain_{ns}%' OR content ILIKE '%harbor_{ns}%')",
+          "0.count",
+          0,
+          "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T09-vector-search":
+    case "db-T06-vector-search":
       return item([
         pgCheck(
           "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY embedding <-> '[1,0,0]' LIMIT 1",
@@ -477,13 +489,19 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           "nearest vector search ranks alpha first",
         ),
       ]);
-    case "db-T10-write-records":
+    case "db-T07-write-records":
       return item([
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
           "0.count",
           1,
           "updated surviving record is final",
+        ),
+        pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'draft_{ns}'",
+          "0.count",
+          0,
+          "draft label no longer remains after update",
         ),
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'delete_me_{ns}'",
@@ -529,7 +547,7 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active/restored Turso database contains the backup marker row",
         ),
       ]);
-    case "db-T03-change-data-capture":
+    case "db-T08-change-data-capture":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"{capture_table}\" WHERE row_label = 'cdc_probe_{ns}' OR payload LIKE '%cdc_probe_{ns}%'",
@@ -538,25 +556,25 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "agent-reported durable capture table contains the inserted CDC marker",
         ),
       ]);
-    case "db-T04-define-data-container":
+    case "db-T03-data-integrity-and-transactions":
       return item([
         tursoSqlCheck(
-          "SELECT COUNT(*) FROM pragma_table_info('axarena_items_{ns}') WHERE name IN ('id','label')",
-          "results.0.response.result.rows.0.0.value",
-          "2",
-          "container exists with id and label fields",
-        ),
-      ]);
-    case "db-T05-evolve-schema":
-      return item([
-        tursoSqlCheck(
-          "SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name = 'status'",
+          "SELECT COUNT(*) FROM \"axarena_integrity_{ns}\" WHERE external_id = 'primary_{ns}'",
           "results.0.response.result.rows.0.0.value",
           "1",
-          "status field exists after schema evolution",
+          "exactly one committed record has the protected logical key",
         ),
       ]);
-    case "db-T06-inspect-schema":
+    case "db-T04-evolve-schema":
+      return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM pragma_table_info('axarena_migrate_{ns}') WHERE name IN ('title','status')",
+          "results.0.response.result.rows.0.0.value",
+          "2",
+          "title remains visible and status exists after schema evolution",
+        ),
+      ]);
+    case "db-T10-inspect-schema":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM pragma_table_info('axarena_schema_probe_{ns}') WHERE name IN ('name','status')",
@@ -565,8 +583,14 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "schema inspection target exposes name and status fields",
         ),
       ]);
-    case "db-T07-query-records":
+    case "db-T05-query-records":
       return item([
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_query_items_{ns}\"",
+          "results.0.response.result.rows.0.0.value",
+          "3",
+          "query container contains exactly the three requested records",
+        ),
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_query_items_{ns}\" WHERE status = 'active'",
           "results.0.response.result.rows.0.0.value",
@@ -580,16 +604,22 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T08-server-side-execution":
+    case "db-T09-full-text-search":
       return item([
         tursoSqlCheck(
-          "SELECT COUNT(*) FROM \"{result_table}\" WHERE value = 'axarena_ok_{ns}'",
+          "SELECT COUNT(*) FROM \"axarena_search_{ns}\" WHERE content MATCH 'orchard_{ns}'",
           "results.0.response.result.rows.0.0.value",
           "1",
-          "agent-reported trigger result table contains the expected marker in value",
+          "full-text query returns exactly one orchard match",
+        ),
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_search_{ns}\" WHERE content MATCH 'orchard_{ns}' AND (content LIKE '%mountain_{ns}%' OR content LIKE '%harbor_{ns}%')",
+          "results.0.response.result.rows.0.0.value",
+          "0",
+          "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T09-vector-search":
+    case "db-T06-vector-search":
       return item([
         tursoSqlCheck(
           "SELECT label FROM \"axarena_vectors_{ns}\" ORDER BY vector_distance_cos(embedding, '[1,0,0]') LIMIT 1",
@@ -598,13 +628,19 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "nearest vector search ranks alpha first",
         ),
       ]);
-    case "db-T10-write-records":
+    case "db-T07-write-records":
       return item([
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
           "results.0.response.result.rows.0.0.value",
           "1",
           "updated surviving record is final",
+        ),
+        tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'draft_{ns}'",
+          "results.0.response.result.rows.0.0.value",
+          "0",
+          "draft label no longer remains after update",
         ),
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'delete_me_{ns}'",
@@ -627,12 +663,16 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
     });
   switch (task.id) {
     case "db-T01-access-control":
-      return OracleExtractItemSchema.parse({
-        task_id: task.id,
-        na: true,
-        na_reason: "MongoDB Atlas database and collection privileges do not provide the owned-record access-control outcome required by this task wording.",
-        checks: [],
-      });
+      return item([
+        mongoCheck(
+          "axarena_acl_{ns}",
+          "count",
+          {},
+          "count",
+          1,
+          "one authorized interaction left an allowed record in the protected collection",
+        ),
+      ]);
     case "db-T02-backup-and-restore":
       return item([
         mongoCheck(
@@ -644,7 +684,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "restored/recovered MongoDB target contains the backup marker document",
         ),
       ]);
-    case "db-T03-change-data-capture":
+    case "db-T08-change-data-capture":
       return item([
         mongoCheck(
           "{capture_collection}",
@@ -655,18 +695,18 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "agent-reported durable capture collection contains the inserted change event",
         ),
       ]);
-    case "db-T04-define-data-container":
+    case "db-T03-data-integrity-and-transactions":
       return item([
         mongoCheck(
-          "axarena_items_{ns}",
-          "listCollections",
-          { filter: { name: "axarena_items_{ns}" } },
-          "0.name",
-          "axarena_items_{ns}",
-          "collection axarena_items_{ns} exists",
+          "axarena_integrity_{ns}",
+          "count",
+          { filter: { external_id: "primary_{ns}" } },
+          "count",
+          1,
+          "exactly one committed document has the protected logical key",
         ),
       ]);
-    case "db-T05-evolve-schema":
+    case "db-T04-evolve-schema":
       return item([
         mongoCheck(
           "axarena_migrate_{ns}",
@@ -677,7 +717,7 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "collection metadata exposes the evolved status field",
         ),
       ]);
-    case "db-T06-inspect-schema":
+    case "db-T10-inspect-schema":
       return item([
         mongoCheck(
           "axarena_schema_probe_{ns}",
@@ -696,8 +736,16 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "collection metadata exposes the status field",
         ),
       ]);
-    case "db-T07-query-records":
+    case "db-T05-query-records":
       return item([
+        mongoCheck(
+          "axarena_query_items_{ns}",
+          "count",
+          {},
+          "count",
+          3,
+          "query collection contains exactly the three requested documents",
+        ),
         mongoCheck(
           "axarena_query_items_{ns}",
           "count",
@@ -715,18 +763,29 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T08-server-side-execution":
+    case "db-T09-full-text-search":
       return item([
         mongoCheck(
-          "axarena_server_results_{ns}",
-          "findOne",
-          { filter: { routine: "axarena_echo_{ns}" } },
-          "result",
-          "axarena_ok_{ns}",
-          "server-side routine writes the expected marker result",
+          "axarena_search_{ns}",
+          "aggregate",
+          {
+            pipeline: [
+              {
+                $search: {
+                  index: "{text_index_name}",
+                  text: { query: "orchard_{ns}", path: "content" },
+                },
+              },
+              { $limit: 1 },
+              { $project: { content: 1, _id: 0 } },
+            ],
+          },
+          "0.content",
+          "orchard_{ns}",
+          "Atlas full-text search returns orchard as the sole top match",
         ),
       ]);
-    case "db-T09-vector-search":
+    case "db-T06-vector-search":
       return item([
         mongoCheck(
           "axarena_vectors_{ns}",
@@ -750,8 +809,16 @@ function mongoAtlasSeededTask(task: SuiteTask): OracleExtractItem | null {
           "Atlas vector search ranks alpha first",
         ),
       ]);
-    case "db-T10-write-records":
+    case "db-T07-write-records":
       return item([
+        mongoCheck(
+          "axarena_write_items_{ns}",
+          "count",
+          { filter: { label: "draft_{ns}" } },
+          "count",
+          0,
+          "draft label no longer remains after update",
+        ),
         mongoCheck(
           "axarena_write_items_{ns}",
           "count",
@@ -806,7 +873,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms the active/restored deployment contains the backup marker",
         ),
       ]);
-    case "db-T03-change-data-capture":
+    case "db-T08-change-data-capture":
       return item([
         convexQueryCheck(
           "cdc_probe_query_path",
@@ -815,16 +882,22 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms a durable captured event exists for the CDC marker",
         ),
       ]);
-    case "db-T04-define-data-container":
+    case "db-T03-data-integrity-and-transactions":
       return item([
         convexQueryCheck(
-          "items_schema_query_path",
-          "value.hasLabelField",
-          true,
-          "verifier query confirms axarena_items_{ns} can store/read label values",
+          "integrity_probe_query_path",
+          "value.primaryCount",
+          1,
+          "verifier query confirms exactly one committed record has the protected logical key",
+        ),
+        convexQueryCheck(
+          "integrity_probe_query_path",
+          "value.conflictingCount",
+          0,
+          "verifier query confirms no conflicting record was committed",
         ),
       ]);
-    case "db-T05-evolve-schema":
+    case "db-T04-evolve-schema":
       return item([
         convexQueryCheck(
           "migration_probe_query_path",
@@ -833,7 +906,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms status is visible after schema evolution",
         ),
       ]);
-    case "db-T06-inspect-schema":
+    case "db-T10-inspect-schema":
       return item([
         convexQueryCheck(
           "schema_probe_query_path",
@@ -842,8 +915,14 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "verifier query confirms name and status fields are visible",
         ),
       ]);
-    case "db-T07-query-records":
+    case "db-T05-query-records":
       return item([
+        convexQueryCheck(
+          "query_items_probe_path",
+          "value.totalCount",
+          3,
+          "query container contains exactly the three requested records",
+        ),
         convexQueryCheck(
           "query_items_probe_path",
           "value.activeCount",
@@ -857,16 +936,22 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "the active set is alpha and gamma",
         ),
       ]);
-    case "db-T08-server-side-execution":
+    case "db-T09-full-text-search":
       return item([
         convexActionCheck(
-          "server_execution_probe_path",
-          "value",
-          "axarena_ok_{ns}",
-          "server-side function produces the expected marker",
+          "text_search_probe_path",
+          "value.topContent",
+          "orchard_{ns}",
+          "full-text search returns orchard as the top match",
+        ),
+        convexActionCheck(
+          "text_search_probe_path",
+          "value.unexpectedMatchCount",
+          0,
+          "orchard search excludes mountain and harbor records",
         ),
       ]);
-    case "db-T09-vector-search":
+    case "db-T06-vector-search":
       return item([
         convexActionCheck(
           "vector_probe_query_path",
@@ -875,8 +960,14 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
           "vector query ranks alpha first",
         ),
       ]);
-    case "db-T10-write-records":
+    case "db-T07-write-records":
       return item([
+        convexQueryCheck(
+          "write_probe_query_path",
+          "value.draftCount",
+          0,
+          "draft label no longer remains after update",
+        ),
         convexQueryCheck(
           "write_probe_query_path",
           "value.finalCount",

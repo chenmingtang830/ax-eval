@@ -1,0 +1,221 @@
+vendor: Convex
+category: database
+slug: convex
+suite_name: DAEB-1
+extracted_at: 2026-07-09T21:33:59.774Z
+vendor_config:
+  base_url: ${CONVEX_URL}
+  auth_type: bearer
+  auth_header: Authorization
+  auth_env: CONVEX_DEPLOY_KEY
+tasks:
+  - task_id: db-T01-access-control
+    na: false
+    na_surfaces:
+      - cli
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T01-access-control:access-control
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assert_field: value.allowedRecordCount
+        expected: 1
+        description: verifier query confirms one allowed owned record is visible under
+          the configured guard
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assert_field: value.deniedRecordCount
+        expected: 0
+        description: verifier query confirms the guard hides disallowed records
+  - task_id: db-T02-backup-and-restore
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T02-backup-and-restore:backup-and-restore
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{backup_probe_query_path}"
+          args: {}
+        assert_field: value.markerCount
+        expected: 1
+        description: verifier query confirms the active/restored deployment contains the
+          backup marker
+  - task_id: db-T03-data-integrity-and-transactions
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T03-data-integrity-and-transactions:data-integrity-and-transactions
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{integrity_probe_query_path}"
+          args: {}
+        assert_field: value.primaryCount
+        expected: 1
+        description: verifier query confirms exactly one committed record has the
+          protected logical key
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{integrity_probe_query_path}"
+          args: {}
+        assert_field: value.conflictingCount
+        expected: 0
+        description: verifier query confirms no conflicting record was committed
+  - task_id: db-T04-evolve-schema
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T04-evolve-schema:evolve-schema
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{migration_probe_query_path}"
+          args: {}
+        assert_field: value.statusFieldCount
+        expected: 1
+        description: verifier query confirms status is visible after schema evolution
+  - task_id: db-T05-query-records
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T05-query-records:query-records
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{query_items_probe_path}"
+          args: {}
+        assert_field: value.totalCount
+        expected: 3
+        description: query container contains exactly the three requested records
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{query_items_probe_path}"
+          args: {}
+        assert_field: value.activeCount
+        expected: 2
+        description: filtered read returns exactly two active records
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{query_items_probe_path}"
+          args: {}
+        assert_field: value.expectedLabelsCount
+        expected: 2
+        description: the active set is alpha and gamma
+  - task_id: db-T06-vector-search
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T06-vector-search:vector-search
+    checks:
+      - read_method: POST
+        read_path_template: /api/action
+        read_body_template:
+          path: "{vector_probe_query_path}"
+          args: {}
+        assert_field: value.topLabel
+        expected: alpha_{ns}
+        description: vector query ranks alpha first
+  - task_id: db-T07-write-records
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T07-write-records:write-records
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{write_probe_query_path}"
+          args: {}
+        assert_field: value.draftCount
+        expected: 0
+        description: draft label no longer remains after update
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{write_probe_query_path}"
+          args: {}
+        assert_field: value.finalCount
+        expected: 1
+        description: updated surviving record is final
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{write_probe_query_path}"
+          args: {}
+        assert_field: value.deletedCount
+        expected: 0
+        description: throwaway record was deleted
+  - task_id: db-T08-change-data-capture
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T08-change-data-capture:change-data-capture
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{cdc_probe_query_path}"
+          args: {}
+        assert_field: value.eventCount
+        expected: 1
+        description: verifier query confirms a durable captured event exists for the CDC
+          marker
+  - task_id: db-T09-full-text-search
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T09-full-text-search:full-text-search
+    checks:
+      - read_method: POST
+        read_path_template: /api/action
+        read_body_template:
+          path: "{text_search_probe_path}"
+          args: {}
+        assert_field: value.topContent
+        expected: orchard_{ns}
+        description: full-text search returns orchard as the top match
+      - read_method: POST
+        read_path_template: /api/action
+        read_body_template:
+          path: "{text_search_probe_path}"
+          args: {}
+        assert_field: value.unexpectedMatchCount
+        expected: 0
+        description: orchard search excludes mountain and harbor records
+  - task_id: db-T10-inspect-schema
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: convex:db-T10-inspect-schema:inspect-schema
+    checks:
+      - read_method: POST
+        read_path_template: /api/query
+        read_body_template:
+          path: "{schema_probe_query_path}"
+          args: {}
+        assert_field: value.hasNameAndStatus
+        expected: true
+        description: verifier query confirms name and status fields are visible

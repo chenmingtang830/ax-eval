@@ -1,0 +1,520 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v4
+# run_id: 2026-07-09-vdbvf5
+name: neon
+version: "1"
+standard_set_version: daeb-1-v4
+run_id: 2026-07-09-vdbvf5
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://neon.com/docs/reference/api-reference
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: NEON_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  header: Authorization
+sandbox_scope:
+  - name: project_id
+    env: NEON_PROJECT_ID
+    required: true
+    instructions: existing Neon sandbox project id; use this instead of creating a
+      new project
+  - name: branch_id
+    env: NEON_BRANCH_ID
+    required: false
+    instructions: optional existing Neon sandbox branch id connected to
+      NEON_DATABASE_URL; if unset, discover the branch from the project via the
+      Neon API
+sql_conn:
+  dialect: postgres
+  connection_string_env: NEON_DATABASE_URL
+surfaces:
+  cli:
+    bin: neon
+    install: npm i -g neon
+    docs_url: https://neon.com/docs/reference/neon-cli
+    auth:
+      kind: token
+      token_env: NEON_API_KEY
+      token_env_aliases: []
+base_url: https://console.neon.tech/api/v2
+headers: {}
+site_url: https://neon.com
+openapi_url: ""
+docs_urls:
+  - https://neon.com/docs/reference/api-reference
+static:
+  site_url: https://neon.com
+  docs_urls:
+    - https://neon.com/docs/reference/api-reference
+  checks: []
+tasks:
+  - id: db-T01-access-control
+    title: "T01: Configure an idiomatic access-control mechanism"
+    prompt: >-
+      Configure a documented access-control mechanism for a container named
+      `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
+      ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
+      equivalent). Create one authorized interaction against that protected
+      container and leave the control configuration discoverable on a documented
+      control surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: protected container axarena_acl_{ns} exists
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+          table_schema = 'public' AND table_name = 'axarena_acl_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: one allowed record exists under the protected container
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T02-backup-and-restore
+    title: "T02: Produce a backup, snapshot, or export artifact"
+    prompt: >-
+      Create or use a container named `axarena_backup_{ns}` with one marker
+      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
+      artifact using the vendor's idiomatic recovery or export mechanism.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: active database contains the backup marker row after the
+          backup/export task
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_backup_{ns}" WHERE label =
+          'marker_{ns}'
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T03-data-integrity-and-transactions
+    title: "T03: Enforce one integrity or atomicity rule"
+    prompt: >-
+      Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T04-evolve-schema
+    title: "T04: Apply a schema evolution"
+    prompt: >-
+      Starting from a container named `axarena_migrate_{ns}` that already
+      contains a `title` field, apply an idiomatic schema change that adds a new
+      `status` field. Confirm the evolved shape is visible through the vendor's
+      schema or metadata surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: title remains visible and status exists after schema evolution
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND
+          column_name IN ('title', 'status')
+    difficulty: L3
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T05-query-records
+    title: "T05: Filter and read matching records"
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: query container contains exactly the three requested records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
+      - type: roundtrip
+        expected: 2
+        description: filtered read returns exactly two active records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active'
+      - type: roundtrip
+        expected: 2
+        description: the active set is alpha and gamma
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T06-vector-search
+    title: "T06: Create a vector-enabled dataset and query it"
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+        assertField: 0.label
+        sqlDialect: postgres
+        sqlQuery: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
+          '[1,0,0]' LIMIT 1
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T07-write-records
+    title: "T07: Create, update, and delete one record lifecycle"
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record
+      labeled `draft_{ns}`, update that same record so its label becomes
+      `final_{ns}`, then delete one separate throwaway record labeled
+      `delete_me_{ns}`. Report the externally addressable container name and the
+      surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      SQL write lifecycle contract: before reporting this task, read back the
+      target table and ensure the postcondition is exact: one row labeled
+      `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
+      `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
+      fix only this run-scoped table before reporting the gid.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: updated surviving record is final
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'final_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: draft label no longer remains after update
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'draft_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: throwaway record was deleted
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'delete_me_{ns}'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T08-change-data-capture
+    title: "T08: Emit one observable change event"
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: agent-reported durable capture table contains the inserted CDC marker
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label =
+          'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+    difficulty: L4
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T09-full-text-search
+    title: "T09: Create a searchable text dataset and query it"
+    prompt: >-
+      Create a text-searchable dataset named `axarena_search_{ns}` with at least
+      three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and
+      `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: full-text query returns exactly one orchard match
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}')
+      - type: roundtrip
+        expected: 0
+        description: orchard search excludes mountain and harbor records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}') AND (content ILIKE '%mountain_{ns}%' OR content ILIKE
+          '%harbor_{ns}%')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T10-inspect-schema
+    title: "T10: Inspect container metadata"
+    prompt: >-
+      Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Neon CLI contract: when operating through `neonctl psql` or `neonctl
+      connection-string`, do not rely on Neon CLI's default role/database
+      inference. In shared benchmark branches, multiple roles may exist.
+      Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as
+      the role name and the path database as the database name, then pass
+      `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and
+      `--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID`
+      is set, use it as the branch argument. Never print the connection string
+      or token values.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L1
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []

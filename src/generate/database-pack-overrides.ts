@@ -40,22 +40,22 @@ const CONVEX_DEPLOYMENT_FLOW_NOTE = [
 const CONVEX_VERIFIER_CONTRACTS: Record<string, string> = {
   "db-T01-access-control":
     "Convex verifier contract: report `acl_probe_query_path` as a public query path that accepts `{}` and returns `{allowedRecordCount:number, deniedRecordCount:number}`.",
-  "db-T03-change-data-capture":
-    "Convex verifier contract: report `cdc_probe_query_path` as a public query path that accepts `{}` and returns `{eventCount:number}`.",
-  "db-T04-define-data-container":
-    "Convex verifier contract: report `items_schema_query_path` as a public query path that accepts `{}` and returns `{hasLabelField:boolean}`.",
-  "db-T05-evolve-schema":
+  "db-T03-data-integrity-and-transactions":
+    "Convex verifier contract: report `integrity_probe_query_path` as a public query path that accepts `{}` and returns `{primaryCount:number, conflictingCount:number}`.",
+  "db-T04-evolve-schema":
     "Convex verifier contract: report `migration_probe_query_path` as a public query path that accepts `{}` and returns `{statusFieldCount:number}`.",
-  "db-T06-inspect-schema":
-    "Convex verifier contract: report `schema_probe_query_path` as a public query path that accepts `{}` and returns `{hasNameAndStatus:boolean}`.",
-  "db-T07-query-records":
-    "Convex verifier contract: report `query_items_probe_path` as a public query path that accepts `{}` and returns `{activeCount:number, expectedLabelsCount:number}`.",
-  "db-T08-server-side-execution":
-    "Convex verifier contract: report `server_execution_probe_path` as a public action path that accepts `{}` and returns the string `axarena_ok_{ns}`.",
-  "db-T09-vector-search":
+  "db-T05-query-records":
+    "Convex verifier contract: report `query_items_probe_path` as a public query path that accepts `{}` and returns `{totalCount:number, activeCount:number, expectedLabelsCount:number}`.",
+  "db-T06-vector-search":
     "Convex verifier contract: report `vector_probe_query_path` as a public action path that accepts `{}` and returns `{topLabel:string}`.",
-  "db-T10-write-records":
-    "Convex verifier contract: report `write_probe_query_path` as a public query path that accepts `{}` and returns `{finalCount:number, deletedCount:number}`.",
+  "db-T07-write-records":
+    "Convex verifier contract: report `write_probe_query_path` as a public query path that accepts `{}` and returns `{draftCount:number, finalCount:number, deletedCount:number}`.",
+  "db-T08-change-data-capture":
+    "Convex verifier contract: report `cdc_probe_query_path` as a public query path that accepts `{}` and returns `{eventCount:number}`.",
+  "db-T09-full-text-search":
+    "Convex verifier contract: report `text_search_probe_path` as a public action path that accepts `{}` and returns `{topContent:string, unexpectedMatchCount:number}`.",
+  "db-T10-inspect-schema":
+    "Convex verifier contract: report `schema_probe_query_path` as a public query path that accepts `{}` and returns `{hasNameAndStatus:boolean}`.",
 };
 
 const INSFORGE_API_SCHEMA_NOTE = [
@@ -105,14 +105,6 @@ const SQL_IDENTIFIER_CONTRACT_VENDORS = new Set([
   "turso",
 ]);
 
-const SQL_SERVER_ROUTINE_CONTRACT_NOTE = [
-  "SQL server-side routine contract: for this task, create a zero-argument routine whose body returns",
-  "the literal marker value directly. Do not rely on bind parameters inside `CREATE FUNCTION` or",
-  "`CREATE PROCEDURE`; bind parameters are for the outer query execution, not for static routine bodies.",
-  "If the vendor surface requires modeling the invocation through a trigger or helper table, persist the",
-  "marker in a result table column named `value` and report that table as `result_table` for verification.",
-].join(" ");
-
 const SQL_WRITE_LIFECYCLE_CONTRACT_NOTE = [
   "SQL write lifecycle contract: before reporting this task, read back the target table and ensure the",
   "postcondition is exact: one row labeled `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows",
@@ -130,16 +122,20 @@ const NEON_CLI_ROLE_CONTRACT_NOTE = [
 ].join(" ");
 
 const MONGODB_ATLAS_TASK_CONTRACTS: Record<string, string> = {
-  "db-T03-change-data-capture": [
-    "MongoDB Atlas change-stream contract: open the change stream before inserting the probe document,",
-    "then persist the observed insert event into a durable capture collection and report that",
-    "`capture_collection` value for verification. A stream opened after the insert may miss the event.",
-  ].join(" "),
-  "db-T09-vector-search": [
+  "db-T06-vector-search": [
     "MongoDB Atlas vector-search contract: when creating Atlas Search/vector indexes through the Node",
     "driver, do not enable Stable API strict mode (`apiStrict: true`), because `createSearchIndexes`",
     "is not part of API Version 1. Use the official driver path without strict API mode, create the",
     "vector index, wait until it is queryable if necessary, and report `vector_index_name`.",
+  ].join(" "),
+  "db-T08-change-data-capture": [
+    "MongoDB Atlas change-stream contract: open the change stream before inserting the probe document,",
+    "then persist the observed insert event into a durable capture collection and report that",
+    "`capture_collection` value for verification. A stream opened after the insert may miss the event.",
+  ].join(" "),
+  "db-T09-full-text-search": [
+    "MongoDB Atlas full-text-search contract: create an Atlas Search text index for `content`, wait",
+    "until it is queryable, and report its concrete name as `text_index_name` for verification.",
   ].join(" "),
 };
 
@@ -151,8 +147,7 @@ export function applyDatabasePackPromptOverride(
   if (vendor.category !== "database") return prompt;
   if (SQL_IDENTIFIER_CONTRACT_VENDORS.has(vendor.slug) && task.id.startsWith("db-")) {
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
-    if (task.id === "db-T08-server-side-execution") prompt = `${prompt}\n\n${SQL_SERVER_ROUTINE_CONTRACT_NOTE}`;
-    if (task.id === "db-T10-write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
+    if (task.id === "db-T07-write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
   if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;

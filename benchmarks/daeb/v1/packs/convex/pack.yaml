@@ -1,0 +1,604 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v4
+# run_id: 2026-07-09-sug1rx
+name: convex
+version: "1"
+standard_set_version: daeb-1-v4
+run_id: 2026-07-09-sug1rx
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://docs.convex.dev/management-api
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: CONVEX_DEPLOY_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  header: Authorization
+sandbox_scope: []
+surfaces: {}
+base_url: ${CONVEX_URL}
+headers: {}
+site_url: https://convex.dev
+openapi_url: ""
+docs_urls:
+  - https://docs.convex.dev/management-api
+static:
+  site_url: https://convex.dev
+  docs_urls:
+    - https://docs.convex.dev/management-api
+  checks: []
+tasks:
+  - id: db-T01-access-control
+    title: "T01: Configure an idiomatic access-control mechanism"
+    prompt: >-
+      Configure a documented access-control mechanism for a container named
+      `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
+      ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
+      equivalent). Create one authorized interaction against that protected
+      container and leave the control configuration discoverable on a documented
+      control surface.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `acl_probe_query_path` as a public query
+      path that accepts `{}` and returns `{allowedRecordCount:number,
+      deniedRecordCount:number}`.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: verifier query confirms one allowed owned record is visible under
+          the configured guard
+        readMethod: POST
+        readPathTemplate: /api/query
+        readBodyTemplate:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assertField: value.allowedRecordCount
+      - type: roundtrip
+        expected: 0
+        description: verifier query confirms the guard hides disallowed records
+        readMethod: POST
+        readPathTemplate: /api/query
+        readBodyTemplate:
+          path: "{acl_probe_query_path}"
+          args: {}
+        assertField: value.deniedRecordCount
+    difficulty: L2
+    allowed_surfaces:
+      - api
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T02-backup-and-restore
+    title: "T02: Produce a backup, snapshot, or export artifact"
+    prompt: >-
+      Create or use a container named `axarena_backup_{ns}` with one marker
+      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
+      artifact using the vendor's idiomatic recovery or export mechanism.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T03-data-integrity-and-transactions
+    title: "T03: Enforce one integrity or atomicity rule"
+    prompt: >-
+      Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `integrity_probe_query_path` as a public
+      query path that accepts `{}` and returns `{primaryCount:number,
+      conflictingCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T04-evolve-schema
+    title: "T04: Apply a schema evolution"
+    prompt: >-
+      Starting from a container named `axarena_migrate_{ns}` that already
+      contains a `title` field, apply an idiomatic schema change that adds a new
+      `status` field. Confirm the evolved shape is visible through the vendor's
+      schema or metadata surface.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `migration_probe_query_path` as a public
+      query path that accepts `{}` and returns `{statusFieldCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L3
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T05-query-records
+    title: "T05: Filter and read matching records"
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `query_items_probe_path` as a public
+      query path that accepts `{}` and returns `{totalCount:number,
+      activeCount:number, expectedLabelsCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L2
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T06-vector-search
+    title: "T06: Create a vector-enabled dataset and query it"
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `vector_probe_query_path` as a public
+      action path that accepts `{}` and returns `{topLabel:string}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L2
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T07-write-records
+    title: "T07: Create, update, and delete one record lifecycle"
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record
+      labeled `draft_{ns}`, update that same record so its label becomes
+      `final_{ns}`, then delete one separate throwaway record labeled
+      `delete_me_{ns}`. Report the externally addressable container name and the
+      surviving record identity.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `write_probe_query_path` as a public
+      query path that accepts `{}` and returns `{draftCount:number,
+      finalCount:number, deletedCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L2
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T08-change-data-capture
+    title: "T08: Emit one observable change event"
+    prompt: >-
+      Enable a change stream, realtime subscription, or CDC feed for a container
+      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
+      so the resulting insert becomes observable in the stream or feed. Persist
+      the observed event into a durable capture container that is distinct from
+      `axarena_cdc_{ns}`, with either a `row_label` field equal to
+      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `cdc_probe_query_path` as a public query
+      path that accepts `{}` and returns `{eventCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L4
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T09-full-text-search
+    title: "T09: Create a searchable text dataset and query it"
+    prompt: >-
+      Create a text-searchable dataset named `axarena_search_{ns}` with at least
+      three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and
+      `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `text_search_probe_path` as a public
+      action path that accepts `{}` and returns `{topContent:string,
+      unexpectedMatchCount:number}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L2
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []
+  - id: db-T10-inspect-schema
+    title: "T10: Inspect container metadata"
+    prompt: >-
+      Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+
+       Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits, and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in record values or verifier query results, and report the requested verifier query path for read-back. This exception only changes Convex code identifiers; it does not change the canonical outcome marker.
+
+      Convex deployment/admin contract: `CONVEX_DEPLOY_KEY` is the
+      deployment-admin credential, not an end-user Bearer token. If the provided
+      `CONVEX_URL` rejects the deploy key for the public HTTP endpoints, treat
+      that as a deployment-selection issue, not a task failure: create or reuse
+      the preview deployment associated with this run (for example via `convex
+      deploy --preview-name <run-scoped-name>`), then use that preview
+      deployment URL as the API base for the task. After deployment, call
+      `/api/mutation`, `/api/query`, and `/api/action` against that deployment
+      URL with `Authorization: Convex <CONVEX_DEPLOY_KEY>`. Report concrete
+      public function paths such as `arena:probeQuery` in the task result
+      fields; never leave `{probe_path}` placeholders or null when the task
+      actually succeeded. If an authenticated call on the original `CONVEX_URL`
+      returns `403 Unauthorized`, stop guessing pre-existing mutation/action
+      names on that deployment. For tasks that require creating data containers,
+      probe queries, or server-side routines, immediately switch to the
+      preview-deployment flow and deploy task-local public functions for that
+      task instead of retrying guessed function paths on the unauthorized base
+      deployment. Within the same vendor/surface lane, prefer reusing the
+      existing local Convex project scaffold, preview-deployment workflow, and
+      any already-available `convex` binary or `node_modules/convex` install
+      that proved successful on an earlier task. Do not restart from a fresh
+      package-install remediation path unless you have concrete evidence that
+      the previous scaffold is missing or broken. In particular, if one task has
+      already deployed successfully, treat later tasks as edits to that working
+      local scaffold first, not as a reason to run `npm install` or other
+      package bootstrap steps again. For DAEB Convex database tasks, prefer that
+      preview-deployment path by default whenever the task needs task-local
+      tables, queries, actions, or verifier functions. Do not assume the base
+      deployment already exposes benchmark helper functions for this namespace.
+      After deploying, invoke the exact exported public function paths you just
+      created and smoke-check them on the preview deployment before finalizing
+      the reported `*_probe_path` fields.
+
+
+      Convex verifier contract: report `schema_probe_query_path` as a public
+      query path that accepts `{}` and returns `{hasNameAndStatus:boolean}`.
+    oracles:
+      - type: na
+        description: unsupported for this vendor in support matrix
+    difficulty: L1
+    allowed_surfaces: []
+    na: true
+    depends_on: []
+    trace: []

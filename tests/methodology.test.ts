@@ -597,11 +597,11 @@ describe("suite methodology artifacts", () => {
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T04-define-data-container",
-        title: "T04: create container",
+        id: "db-T10-inspect-schema",
+        title: "T10: inspect schema",
         difficulty: "L1",
-        skill: "define-data-container",
-        intent: "Create `axarena_items_{ns}`.",
+        skill: "inspect-schema",
+        intent: "Inspect `axarena_schema_probe_{ns}`.",
         oracle_hint: "Read it back.",
         allowed_surfaces: ["api"],
         na_examples: [],
@@ -615,13 +615,13 @@ describe("suite methodology artifacts", () => {
       extracted_at: "2026-01-01T00:00:00.000Z",
       vendor_config: { base_url: "${CONVEX_URL}", auth_type: "bearer" as const, auth_env: "CONVEX_DEPLOY_KEY" },
       tasks: [{
-        task_id: "db-T04-define-data-container",
+        task_id: "db-T10-inspect-schema",
         na: false,
         checks: [{
           read_method: "POST" as const,
           read_path_template: "/api/query",
-          read_body_template: { path: "{items_schema_query_path}", args: {} },
-          assert_field: "value.hasLabelField",
+          read_body_template: { path: "{schema_probe_query_path}", args: {} },
+          assert_field: "value.hasNameAndStatus",
           expected: true,
           description: "",
         }],
@@ -647,7 +647,7 @@ describe("suite methodology artifacts", () => {
     expect(convexPack.tasks[0]?.prompt).toContain("prefer reusing the existing local Convex project scaffold");
     expect(convexPack.tasks[0]?.prompt).toContain("not as a reason to run `npm install`");
     expect(convexPack.tasks[0]?.prompt).toContain("prefer that preview-deployment path by default");
-    expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasLabelField:boolean}`");
+    expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasNameAndStatus:boolean}`");
     expect(acmePack.tasks[0]?.prompt).not.toContain("Convex-specific database adapter note");
   });
 
@@ -742,71 +742,16 @@ describe("suite methodology artifacts", () => {
     expect(convexPack.tasks[0]?.prompt).toContain("smoke-check them on the preview deployment");
   });
 
-  it("adds zero-argument SQL routine guidance for SQL-backed server-side execution tasks", () => {
+  it("adds exact SQL write-lifecycle postcondition guidance for SQL-backed T07 tasks", () => {
     const suite: Suite = {
       name: "DEMO",
       version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T08-server-side-execution",
-        title: "T08: routine",
-        difficulty: "L3",
-        skill: "server-side-execution",
-        intent: "Create `axarena_echo_{ns}`.",
-        oracle_hint: "Read it back.",
-        allowed_surfaces: ["api"],
-        na_examples: [],
-      }],
-    };
-    const extract = {
-      vendor: "Neon",
-      category: "database",
-      slug: "neon",
-      suite_name: "DEMO",
-      extracted_at: "2026-01-01T00:00:00.000Z",
-      vendor_config: {
-        base_url: "https://console.neon.tech/api/v2",
-        auth_type: "bearer" as const,
-        auth_env: "NEON_API_KEY",
-        sql_dialect: "postgres" as const,
-        sql_connection_env: "NEON_DATABASE_URL",
-      },
-      tasks: [{
-        task_id: "db-T08-server-side-execution",
-        na: false,
-        checks: [{
-          sql_dialect: "postgres" as const,
-          sql_query: "SELECT \"axarena_echo_{ns}\"() AS result",
-          assert_field: "0.result",
-          expected: "axarena_ok_{ns}",
-          description: "",
-        }],
-      }],
-    };
-
-    const pack = composePack(
-      suite,
-      { vendor: "Neon", slug: "neon", category: "database", docs_url: "https://neon.com/docs", site_url: "https://neon.com" },
-      extract,
-    );
-
-    expect(pack.tasks[0]?.prompt).toContain("SQL server-side routine contract");
-    expect(pack.tasks[0]?.prompt).toContain("zero-argument routine");
-    expect(pack.tasks[0]?.prompt).toContain("Do not rely on bind parameters inside `CREATE FUNCTION`");
-    expect(pack.tasks[0]?.prompt).toContain("result table column named `value`");
-  });
-
-  it("adds exact SQL write-lifecycle postcondition guidance for SQL-backed T10 tasks", () => {
-    const suite: Suite = {
-      name: "DEMO",
-      version: 1,
-      category: "database",
-      methodology: defaultSuiteMethodology("database"),
-      tasks: [{
-        id: "db-T10-write-records",
-        title: "T10: write lifecycle",
-        difficulty: "L1",
+        id: "db-T07-write-records",
+        title: "T07: write lifecycle",
+        difficulty: "L2",
         skill: "write-records",
         intent: "Create, update, and delete marker records in `axarena_write_items_{ns}`.",
         oracle_hint: "Read it back.",
@@ -828,7 +773,7 @@ describe("suite methodology artifacts", () => {
         sql_connection_env: "SUPABASE_DB_URL",
       },
       tasks: [{
-        task_id: "db-T10-write-records",
+        task_id: "db-T07-write-records",
         na: false,
         checks: [{
           sql_dialect: "postgres" as const,
@@ -876,8 +821,8 @@ describe("suite methodology artifacts", () => {
       methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
-          id: "db-T03-change-data-capture",
-          title: "T03: CDC",
+          id: "db-T08-change-data-capture",
+          title: "T08: CDC",
           difficulty: "L4",
           skill: "change-data-capture",
           intent: "Capture one insert event.",
@@ -886,8 +831,8 @@ describe("suite methodology artifacts", () => {
           na_examples: [],
         },
         {
-          id: "db-T09-vector-search",
-          title: "T09: vector",
+          id: "db-T06-vector-search",
+          title: "T06: vector",
           difficulty: "L2",
           skill: "vector-search",
           intent: "Run vector search.",
@@ -911,7 +856,7 @@ describe("suite methodology artifacts", () => {
       },
       tasks: [
         {
-          task_id: "db-T03-change-data-capture",
+          task_id: "db-T08-change-data-capture",
           na: false,
           checks: [{
             mongo_query: {
@@ -926,7 +871,7 @@ describe("suite methodology artifacts", () => {
           }],
         },
         {
-          task_id: "db-T09-vector-search",
+          task_id: "db-T06-vector-search",
           na: false,
           checks: [{
             mongo_query: {

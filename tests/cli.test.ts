@@ -163,8 +163,7 @@ describe("cli arg handling", () => {
         expect(manifest.vendors[0].missing.some((m: string) => m.includes("pack.yaml"))).toBe(true);
       }
       expect(manifest.missing.some((m: string) => m.endsWith("competitive.html"))).toBe(true);
-      // Methodology artifacts are written by synthesize-suite; mid-authoring gaps are packs/runs.
-      expect(manifest.vendors[0].missing.some((m: string) => m.includes("pack.yaml"))).toBe(true);
+      // Methodology and compiled packs may exist while run artifacts remain absent.
       expect(manifest.vendors[0].missing.some((m: string) => m.includes("*.normalized.json"))).toBe(true);
     } finally {
       rmSync(outDir, { recursive: true, force: true });

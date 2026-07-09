@@ -17,18 +17,18 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T04-define-data-container",
-        title: "T04: Create a logical data container",
+        id: "db-T10-inspect-schema",
+        title: "T10: Inspect container metadata",
         difficulty: "L1",
-        skill: "define-data-container",
-        intent: "Create `axarena_items_{ns}` with id and label.",
+        skill: "inspect-schema",
+        intent: "Inspect `axarena_schema_probe_{ns}` for name and status.",
         oracle_hint: "Read back metadata.",
-        allowed_surfaces: ["api", "sdk", "cli"],
+        allowed_surfaces: ["api", "cli"],
         na_examples: [],
       }],
     };
@@ -38,13 +38,12 @@ describe("task extraction seeds", () => {
       effort: "low",
       supportMatrix: {
         schema: "ax.support-matrix/v1",
-        benchmark: "DAEB-1-V3",
+        benchmark: "DAEB-1",
         category: "database",
         generated_at: "2026-01-01T00:00:00.000Z",
         entries: [
-          { vendor: "Supabase", task_id: "db-T04-define-data-container", surface: "api", status: "supported", source_concept: "define-data-container" },
-          { vendor: "Supabase", task_id: "db-T04-define-data-container", surface: "sdk", status: "supported", source_concept: "define-data-container" },
-          { vendor: "Supabase", task_id: "db-T04-define-data-container", surface: "cli", status: "supported", source_concept: "define-data-container" },
+          { vendor: "Supabase", task_id: "db-T10-inspect-schema", surface: "api", status: "supported", source_concept: "inspect-schema" },
+          { vendor: "Supabase", task_id: "db-T10-inspect-schema", surface: "cli", status: "supported", source_concept: "inspect-schema" },
         ],
       },
     });
@@ -52,7 +51,7 @@ describe("task extraction seeds", () => {
     expect(result.vendor_config.sql_connection_env).toBe("SUPABASE_DB_URL");
     expect(result.tasks).toHaveLength(1);
     expect(result.tasks[0]?.checks[0]?.sql_query).toContain("information_schema.columns");
-    expect(result.tasks[0]?.support_reference).toBe("supabase:db-T04-define-data-container:define-data-container");
+    expect(result.tasks[0]?.support_reference).toBe("supabase:db-T10-inspect-schema:inspect-schema");
   });
 
   it("quotes Postgres seeded identifiers that include the execution namespace", async () => {
@@ -67,8 +66,8 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
@@ -83,9 +82,9 @@ describe("task extraction seeds", () => {
           na_examples: [],
         },
         {
-          id: "db-T07-query-records",
-          title: "T07: Filter records",
-          difficulty: "L1",
+          id: "db-T05-query-records",
+          title: "T05: Filter records",
+          difficulty: "L2",
           skill: "query-records",
           intent: "Create `axarena_query_items_{ns}`.",
           oracle_hint: "Read back active rows.",
@@ -103,7 +102,7 @@ describe("task extraction seeds", () => {
     expect(sql).not.toContain("FROM axarena_query_items_{ns}");
   });
 
-  it("uses a trigger-result table verifier for Turso server-side execution", async () => {
+  it("uses deterministic Turso full-text search checks", async () => {
     const vendor: ResolveResult = {
       vendor: "Turso",
       category: "database",
@@ -115,18 +114,18 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T08-server-side-execution",
-        title: "T08: Create and invoke a server-side routine",
-        difficulty: "L3",
-        skill: "server-side-execution",
-        intent: "Create `axarena_echo_{ns}` that writes `axarena_ok_{ns}`.",
-        oracle_hint: "Read back marker output.",
-        allowed_surfaces: ["api", "sdk", "cli"],
+        id: "db-T09-full-text-search",
+        title: "T09: Full-text search",
+        difficulty: "L2",
+        skill: "full-text-search",
+        intent: "Search `axarena_search_{ns}` for `orchard_{ns}`.",
+        oracle_hint: "Read back only the orchard match.",
+        allowed_surfaces: ["api", "cli"],
         na_examples: [],
       }],
     };
@@ -136,10 +135,8 @@ describe("task extraction seeds", () => {
     const sql = (check?.read_body_template as { requests?: Array<{ stmt?: { sql?: string } }> } | undefined)
       ?.requests?.[0]?.stmt?.sql;
 
-    expect(sql).toContain('"{result_table}"');
-    expect(sql).not.toContain("axarena_echo_{ns}\"()");
-    expect(sql).toContain("WHERE value = 'axarena_ok_{ns}'");
-    expect(sql).not.toContain(" OR ");
+    expect(sql).toContain('"axarena_search_{ns}"');
+    expect(sql).toContain("content MATCH 'orchard_{ns}'");
     expect(check?.expected).toBe("1");
   });
 
@@ -155,29 +152,29 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
-          id: "db-T08-server-side-execution",
-          title: "T08: Create and invoke a server-side routine",
-          difficulty: "L3",
-          skill: "server-side-execution",
-          intent: "Create `axarena_echo_{ns}`.",
-          oracle_hint: "Read back marker output.",
-          allowed_surfaces: ["api", "sdk", "cli"],
+          id: "db-T09-full-text-search",
+          title: "T09: Full-text search",
+          difficulty: "L2",
+          skill: "full-text-search",
+          intent: "Search for `orchard_{ns}`.",
+          oracle_hint: "Read back top content.",
+          allowed_surfaces: ["api", "cli"],
           na_examples: [],
         },
         {
-          id: "db-T09-vector-search",
-          title: "T09: Vector search",
+          id: "db-T06-vector-search",
+          title: "T06: Vector search",
           difficulty: "L2",
           skill: "vector-search",
           intent: "Rank `alpha_{ns}` first.",
           oracle_hint: "Read back top label.",
-          allowed_surfaces: ["api", "sdk", "cli"],
+          allowed_surfaces: ["api", "cli"],
           na_examples: [],
         },
       ],
@@ -187,7 +184,7 @@ describe("task extraction seeds", () => {
     const checks = result.tasks.map((task) => task.checks[0]);
 
     expect(checks.map((check) => check?.read_path_template)).toEqual(["/api/action", "/api/action"]);
-    expect(checks[0]?.assert_field).toBe("value");
+    expect(checks[0]?.assert_field).toBe("value.topContent");
     expect(checks[1]?.assert_field).toBe("value.topLabel");
   });
 
@@ -203,18 +200,18 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T04-define-data-container",
-        title: "T04: Create a logical data container",
-        difficulty: "L1",
-        skill: "define-data-container",
-        intent: "Create `axarena_items_{ns}`.",
-        oracle_hint: "Read back collection metadata.",
-        allowed_surfaces: ["api", "sdk", "cli"],
+        id: "db-T03-data-integrity-and-transactions",
+        title: "T03: Integrity",
+        difficulty: "L4",
+        skill: "data-integrity-and-transactions",
+        intent: "Protect `external_id` in `axarena_integrity_{ns}`.",
+        oracle_hint: "Read back one primary record.",
+        allowed_surfaces: ["api", "cli"],
         na_examples: [],
       }],
     };
@@ -238,29 +235,29 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "DAEB-1-V3",
-      version: 3,
+      name: "DAEB-1",
+      version: 4,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
-          id: "db-T05-evolve-schema",
-          title: "T05: Apply a schema evolution",
+          id: "db-T04-evolve-schema",
+          title: "T04: Apply a schema evolution",
           difficulty: "L3",
           skill: "evolve-schema",
           intent: "Add `status`.",
           oracle_hint: "Read back schema metadata.",
-          allowed_surfaces: ["api", "sdk", "cli"],
+          allowed_surfaces: ["api", "cli"],
           na_examples: [],
         },
         {
-          id: "db-T06-inspect-schema",
-          title: "T06: Inspect schema",
+          id: "db-T10-inspect-schema",
+          title: "T10: Inspect schema",
           difficulty: "L1",
           skill: "inspect-schema",
           intent: "Inspect `name` and `status`.",
           oracle_hint: "Read back schema metadata.",
-          allowed_surfaces: ["api", "sdk", "cli"],
+          allowed_surfaces: ["api", "cli"],
           na_examples: [],
         },
       ],
