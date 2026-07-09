@@ -17,7 +17,7 @@
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
  *                    [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N]
  *                    [--l4-limit N] [--base-url url] [--out yaml] [--deterministic]
- *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort high]
+ *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort medium]
  *                    REST: L1 create · L2 chain · L3 goal · L4 lifecycle; GraphQL: L1 create + read-back oracles
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   round-trip oracles → HTML report
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
@@ -82,6 +82,11 @@ import {
 import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import {
+  auditAllExtracts,
+  applyExtractAudit,
+  formatExtractAuditReport,
+} from "./generate/extract-audit.js";
 import { fetchSpecSummary } from "./ingest/spec-summary.js";
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
@@ -164,6 +169,7 @@ const COMMANDS = [
   "compose-pack",
   "extract-surfaces",
   "extract-capabilities",
+  "audit-extracts",
   "synthesize-suite",
   "publication-bundle",
   "export-publication",
@@ -264,9 +270,19 @@ function commandUsage(command: string | undefined): string {
         "  Layer 0a of suite authoring: per-vendor benchmark-grade capability",
         "  inventory with structured evidence. Vendors with a known OpenAPI spec",
         "  (the vendor card's openapi_url from import-registry, or a --specs",
-        "  override) are seeded from the spec's operations (fast, no blind crawl);",
-        "  the rest are grounded by reading the docs. Runs at concurrency 3. Writes",
+        "  override) seed the candidate surface from those operations, then",
+        "  WebFetch docs to gap-fill; vendors without a spec are grounded from",
+        "  docs alone. Runs at concurrency 3. Writes",
         "  targets/extracts/<slug>/capability-inventory.yaml.",
+      ].join("\n");
+    case "audit-extracts":
+      return [
+        "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply]",
+        "  Post-extract gate after extract-capabilities / extract-surfaces.",
+        "  Deterministic checks: strength mislabels (METHOD /path → direct),",
+        "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
+        "  mismatch, incomplete headless auth. Default is report-only;",
+        "  --apply writes autofixes back to targets/extracts/<slug>/.",
       ].join("\n");
     case "synthesize-suite":
       return [
@@ -392,6 +408,8 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
+  /** audit-extracts: write autofixes back to targets/extracts/. */
+  apply: boolean;
   ns: string;
   attempts: number;
   trial: number | undefined;
@@ -440,7 +458,7 @@ function parseArgs(argv: string[]): Parsed {
     deterministic: false,
     generatorHarness: "",
     generatorModel: "",
-    generatorEffort: "high",
+    generatorEffort: "",
     concurrency: 4,
     invokeTimeout: 900,
     firstActionTimeout: 0,
@@ -475,6 +493,7 @@ function parseArgs(argv: string[]): Parsed {
     skipReview: false,
     invoke: false,
     dryRun: false,
+    apply: false,
     ns: "",
     attempts: 1,
     trial: undefined,
@@ -604,6 +623,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--reclaim") p.reclaim = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
+    else if (a === "--apply") p.apply = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
     else if (a === "--trial") {
@@ -1222,9 +1242,44 @@ const LINEAR_GRAPHQL_PRESET: Partial<GenerateGraphqlPackOptions> = {
   },
 };
 
+function envGeneratorHarness(): "claude-code" | "codex" | undefined {
+  const value = process.env.AX_EVAL_GENERATOR_HARNESS;
+  if (value === "claude-code" || value === "codex") return value;
+  if (value) console.warn(`Ignoring AX_EVAL_GENERATOR_HARNESS=${value}; expected claude-code or codex.`);
+  return undefined;
+}
+
+function defaultGeneratorHarness(): "claude-code" | "codex" {
+  return envGeneratorHarness() ?? (probeHarness().host === "codex" ? "codex" : "claude-code");
+}
+
+function generatorHarness(args: Parsed): "claude-code" | "codex" {
+  if (args.generatorHarness === "claude-code" || args.generatorHarness === "codex") return args.generatorHarness;
+  if (args.generatorHarness) console.warn(`Ignoring --generator-harness ${args.generatorHarness}; generation uses claude-code or codex.`);
+  return defaultGeneratorHarness();
+}
+
+function generatorEffort(args: Parsed): "low" | "medium" | "high" {
+  const value = args.generatorEffort || process.env.AX_EVAL_GENERATOR_EFFORT || "medium";
+  if (value === "low" || value === "medium" || value === "high") return value;
+  console.warn(`Ignoring AX_EVAL_GENERATOR_EFFORT=${value}; expected low, medium, or high.`);
+  return "medium";
+}
+
+function generatorModel(args: Parsed, harness: "claude-code" | "codex"): string | undefined {
+  return args.generatorModel
+    || process.env.AX_EVAL_GENERATOR_MODEL
+    || (harness === "codex"
+      ? process.env.AX_EVAL_GENERATOR_CODEX_MODEL || "gpt-5.4"
+      : process.env.AX_EVAL_GENERATOR_CLAUDE_MODEL || "sonnet");
+}
+
 function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specSource: unknown): NonNullable<TargetPack["generator"]> {
   const detected = probeHarness().host;
-  const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
+  const harness: "claude-code" | "codex" =
+    args.generatorHarness === "claude-code" || args.generatorHarness === "codex"
+      ? args.generatorHarness
+      : envGeneratorHarness() ?? (detected === "codex" || detected === "claude-code" ? detected : "codex");
   const sourceDocs = docsUrls && docsUrls.length
     ? docsUrls
     : typeof specSource === "string" && /^https?:\/\//.test(specSource)
@@ -1232,15 +1287,11 @@ function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specS
       : [];
   return {
     harness,
-    model: args.generatorModel || "host-default",
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    model: generatorModel(args, harness) || "host-default",
+    effort: generatorEffort(args),
     prompt_version: "ax-eval-generator-v1",
     source_docs: sourceDocs,
   };
-}
-
-function defaultGeneratorHarness(): "claude-code" | "codex" {
-  return probeHarness().host === "codex" ? "codex" : "claude-code";
 }
 
 function taskSummary(pack: TargetPack): unknown {
@@ -1304,7 +1355,7 @@ async function runGeneratorHarness(prompt: string, args: Parsed, provenance: Non
   }
   return invokeHarness(prompt, {
     harness: provenance.harness,
-    model: args.generatorModel || undefined,
+    model: provenance.model === "host-default" ? undefined : provenance.model,
     effort: provenance.effort,
   });
 }
@@ -1367,10 +1418,7 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
 async function cmdResolveVendor(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
-  if (harness !== "claude-code" && harness !== "codex") {
-    throw new Error(`--harness must be one of claude-code|codex (got ${harness})`);
-  }
+  const harness = generatorHarness(args);
   const vendorList = args.vendors
     ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
     : args.vendor
@@ -1382,8 +1430,8 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
   console.log(`Resolving ${vendorList.length} vendor(s) via ${harness}…`);
   const results = await resolveVendors(vendorList, args.category, {
     harness,
-    model: args.generatorModel || undefined,
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    model: generatorModel(args, harness),
+    effort: generatorEffort(args),
   });
   for (const result of results) {
     const path = writeVendorCard(process.cwd(), result);
@@ -1487,7 +1535,7 @@ function resolveVendorSelection(args: Parsed, root: string) {
 async function cmdExtractTasks(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.suite) throw new Error("--suite <path> is required");
-  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
+  const harness = generatorHarness(args);
 
   const { loadSuite } = await import("./generate/suite.js");
   const suite = loadSuite(args.suite);
@@ -1516,8 +1564,8 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
 
   const outcomes = await extractOraclesAll(vendors, suite, {
     harness,
-    model: args.generatorModel || undefined,
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    model: generatorModel(args, harness),
+    effort: generatorEffort(args),
     supportMatrix: loadSupportMatrix(process.cwd(), args.suite) ?? undefined,
   });
 
@@ -1619,7 +1667,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   }
   if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
 
-  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
+  const harness = generatorHarness(args);
   const seeded = vendors.filter((v) => loadSurfaceExtract(root, v.slug)).length;
   console.log(
     `Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…` +
@@ -1629,8 +1677,8 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
     vendors.map((v) =>
       extractSurfaces(v, {
         harness,
-        model: args.generatorModel || undefined,
-        effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+        model: generatorModel(args, harness),
+        effort: generatorEffort(args),
         // Feed any existing (e.g. registry-seeded) extract in as a prior to
         // verify/correct against live docs, per the seed+override design.
         prior: loadSurfaceExtract(root, v.slug) ?? undefined,
@@ -1668,10 +1716,11 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   }
   if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
 
-  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
+  const harness = generatorHarness(args);
   // Per-vendor OpenAPI spec URLs: --specs override wins, else the vendor card's
-  // openapi_url (seeded by import-registry). Vendors with a spec are seeded from
-  // it (fast, no grounding retry); the rest fall back to the grounded doc crawl.
+  // openapi_url (seeded by import-registry). Spec ops seed the candidate surface;
+  // every vendor still WebFetches docs to gap-fill (seed alone is usually
+  // control-plane heavy).
   const specOverrides = new Map<string, string>();
   for (const raw of args.specs.split(",").map((s) => s.trim()).filter(Boolean)) {
     const eq = raw.indexOf("=");
@@ -1682,11 +1731,11 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   const seededCount = vendors.filter((v) => specUrlFor(v)).length;
   console.log(
     `Extracting capabilities for ${vendors.length} vendor(s) via ${harness}` +
-      ` (${seededCount} spec-seeded, ${vendors.length - seededCount} grounded)…`,
+      ` (${seededCount} openapi-seeded+grounded, ${vendors.length - seededCount} grounded-only)…`,
   );
 
   // Bounded concurrency: heavy grounded crawls all-at-once previously starved
-  // each other and timed out. Spec-seeded calls are fast, but cap anyway.
+  // each other and timed out.
   const CONCURRENCY = 3;
   let failures = 0;
   await runPool(vendors, CONCURRENCY, async (vendor) => {
@@ -1704,8 +1753,8 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
       }
       const result = await extractCapabilities(vendor, {
         harness,
-        model: args.generatorModel || undefined,
-        effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+        model: generatorModel(args, harness),
+        effort: generatorEffort(args),
         specSummary,
         specUrl: specSummary ? specUrl : undefined,
       });
@@ -1718,6 +1767,27 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   });
   if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
   return failures ? 1 : 0;
+}
+
+function cmdAuditExtracts(args: Parsed): number {
+  const root = process.cwd();
+  const slugs = [
+    ...(args.vendor ? [args.vendor] : []),
+    ...args.vendors.split(",").map((s) => s.trim()).filter(Boolean),
+  ];
+  const report = auditAllExtracts(root, slugs.length ? slugs : undefined);
+  console.log(formatExtractAuditReport(report));
+  if (args.apply) {
+    console.log(`\nApplying autofixes…`);
+    for (const v of report.vendors) {
+      const paths = applyExtractAudit(root, v);
+      const wrote = [paths.inventoryPath, paths.surfacesPath].filter(Boolean);
+      if (wrote.length) console.log(`  ${v.slug} → ${wrote.join(", ")}`);
+    }
+  } else {
+    console.log(`\nReport-only. Re-run with --apply to write autofixes.`);
+  }
+  return report.summary.errors ? 1 : 0;
 }
 
 async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
@@ -1748,11 +1818,11 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   if (extracts.length < 2) throw new Error("Need at least 2 vendors' capability inventories to synthesize a suite.");
 
   console.log(`Synthesizing suite from ${extracts.length} vendor(s)' capability extracts…`);
-  const harness = (args.generatorHarness || defaultGeneratorHarness()) as "claude-code" | "codex";
+  const harness = generatorHarness(args);
   const result = await synthesizeSuite(args.category, extracts, {
     harness,
-    model: args.generatorModel || undefined,
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    model: generatorModel(args, harness),
+    effort: generatorEffort(args),
     deterministic: args.deterministic,
     targetTaskCount: args.taskCount,
   });
@@ -4014,6 +4084,8 @@ async function main(): Promise<number> {
       return cmdExtractSurfaces(args);
     case "extract-capabilities":
       return cmdExtractCapabilities(args);
+    case "audit-extracts":
+      return cmdAuditExtracts(args);
     case "synthesize-suite":
       return cmdSynthesizeSuite(args);
     case "publication-bundle":

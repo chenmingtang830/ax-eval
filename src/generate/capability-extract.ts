@@ -27,6 +27,23 @@ import {
 } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
+const CanonicalSurfaceSchema = z.enum(["api", "sdk", "cli"]);
+
+/** Map model-invented surface labels onto the canonical api/sdk/cli set.
+ *  SQL/wire/console are not first-class surfaces in this inventory schema. */
+export function normalizeSurfacesDocumented(raw: unknown): Array<"api" | "sdk" | "cli"> {
+  if (!Array.isArray(raw)) return ["api", "sdk", "cli"];
+  const out = new Set<"api" | "sdk" | "cli">();
+  for (const item of raw) {
+    const s = String(item).trim().toLowerCase();
+    if (s === "api" || s === "rest" || s === "http" || s === "graphql") out.add("api");
+    else if (s === "sdk" || s === "client" || s === "library" || s === "driver") out.add("sdk");
+    else if (s === "cli" || s === "command-line" || s === "shell") out.add("cli");
+    // sql / wire / psql / console / ui → drop; evidence still carries the detail
+  }
+  return out.size ? [...out] : ["api"];
+}
+
 const CapabilitySchema = z.object({
   capability_name: z.string(),
   title: z.string(),
@@ -34,7 +51,7 @@ const CapabilitySchema = z.object({
   description: z.string(),
   resource_kind: z.string(),
   operation_kind: z.string(),
-  surfaces_documented: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "sdk", "cli"]),
+  surfaces_documented: z.preprocess(normalizeSurfacesDocumented, z.array(CanonicalSurfaceSchema)).default(["api", "sdk", "cli"]),
   support_type: z.enum(["native", "idiomatic-pattern", "managed-surface", "unknown"]).default("native"),
   evidence: z.array(CapabilityEvidenceSchema).min(1),
   extraction_provenance: ExtractionProvenanceSchema.optional(),
@@ -129,15 +146,21 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: strin
   const checklist = categoryCoverageChecklist(vendor.category);
   const groundingBlock = specSummary
     ? [
-        `The DOCUMENTED API OPERATIONS below (from ${vendor.vendor}'s OpenAPI spec) are the authoritative`,
-        `surface — treat them as the candidate set. Derive the capability inventory from these operations;`,
-        `you do NOT need to web-search. Cite the operation (METHOD /path) and ${vendor.docs_url} as evidence.`,
-        `Group related operations into one capability (e.g. many table endpoints → a "define-data-container"`,
-        `capability). Include benchmark-relevant capabilities the operations imply even if not marketed as features.`,
+        `You have a SEED of documented API operations from ${vendor.vendor}'s OpenAPI / registry surface.`,
+        `Treat them as the candidate surface area — start from this set, group related ops into capabilities,`,
+        `and include benchmark-relevant capabilities the operations imply even if not marketed as features.`,
         ``,
-        `=== DOCUMENTED API OPERATIONS ===`,
+        `Then WebFetch ${vendor.docs_url} and follow linked guides / API / SDK / CLI pages to gap-fill.`,
+        `The seed is usually control-plane / Management API heavy: you MUST also inventory data-plane and`,
+        `docs-only capabilities the seed misses when the docs support them (SQL/table APIs, SDK client ops,`,
+        `RLS/auth, realtime, migrations, backups, etc.). Do not stop at the seed alone.`,
+        `Ground every capability in what you actually read — cite a specific doc URL and, where practical, a`,
+        `short supporting quote. Prefer page-specific docs over the OpenAPI root when both exist.`,
+        `Do not list capabilities from memory/training knowledge alone.`,
+        ``,
+        `=== SEEDED API OPERATIONS (candidate surface) ===`,
         specSummary,
-        `=== END OPERATIONS ===`,
+        `=== END SEEDED OPERATIONS ===`,
         ``,
       ]
     : [
@@ -175,7 +198,9 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: strin
     `- description: 1-2 sentences, what it actually does`,
     `- resource_kind: the primary resource type touched (table, row, collection, role, function, snapshot, etc.)`,
     `- operation_kind: the primary operation type (create, read, update, search, migrate, restore, stream, etc.)`,
-    `- surfaces_documented: subset of ["api","sdk","cli"] directly evidenced in the docs`,
+    `- surfaces_documented: subset of ["api","sdk","cli"] ONLY — never invent values like "sql", "http",`,
+    `  "wire", or "console". SQL/wire access evidenced via an official SDK or CLI counts as "sdk"/"cli";`,
+    `  a documented REST/HTTP API counts as "api". Omit the surface if none of those three apply.`,
     `- support_type: native | idiomatic-pattern | managed-surface | unknown`,
     `- evidence: one or more objects with {doc_url, quote, note?, strength?}; doc_url must be a specific page, not only the docs root`,
     `  strength is "direct" when the quote directly documents the capability,`,
@@ -197,15 +222,17 @@ export interface ExtractCapabilitiesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
-  /** A compact OpenAPI operation inventory (see ingest/spec-summary.ts) to seed
-   *  the capability judgment from the documented surface instead of a blind,
-   *  slow doc crawl. When set, the call is NOT grounded (the spec is the
-   *  authoritative surface), which also avoids the WebFetch grounding retry. */
+  /** Compact OpenAPI operation inventory (see ingest/spec-summary.ts). When set,
+   *  it seeds the candidate surface so the model does not blind-crawl from
+   *  scratch; WebFetch is still required to gap-fill docs-only / data-plane
+   *  capabilities the seed misses. */
   specSummary?: string;
   specUrl?: string;
 }
 
-const TIMEOUT_MS = 12 * 60 * 1000;
+/** Seed+grounded inventories (large OpenAPI + docs gap-fill) routinely need
+ *  more than a blind 12m crawl; keep headroom without unbounded hangs. */
+const TIMEOUT_MS = 18 * 60 * 1000;
 
 /** Extract raw, cited capabilities for a single vendor. */
 export async function extractCapabilities(
@@ -213,19 +240,18 @@ export async function extractCapabilities(
   opts: ExtractCapabilitiesOptions = {},
 ): Promise<CapabilityExtractResult> {
   const label = `${vendor.vendor}/capabilities`;
-  // Spec-seeded runs are grounded by the inlined operations, so we don't force
-  // (and pay for) a WebFetch — this is what makes them fast and avoids the
-  // grounding retry that made blind doc-crawl runs time out.
+  // Always require WebFetch: OpenAPI seed narrows the search space, it does not
+  // replace grounded docs review (Management APIs routinely omit data-plane).
   const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary), {
-    requireWebFetch: !opts.specSummary,
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    requireWebFetch: true,
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     heartbeat: { everyMs: 30_000, label },
     timeoutMs: TIMEOUT_MS,
   });
   const json = await extractJsonObjectWithRepair(raw, {
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     label,
@@ -245,14 +271,17 @@ export async function extractCapabilities(
     category: vendor.category,
     extracted_at: new Date().toISOString(),
     extraction_context: {
-      mode: opts.specSummary ? "openapi-seeded" : "grounded-doc-crawl",
+      mode: opts.specSummary ? "openapi-seeded-grounded" : "grounded-doc-crawl",
       harness: opts.harness,
       model: opts.model,
       spec_url: opts.specUrl,
+      notes: opts.specSummary
+        ? "OpenAPI/registry seed used as candidate surface; WebFetch gap-filled against live docs."
+        : "Grounded doc-crawl with no OpenAPI seed.",
     },
     audit_status: "candidate",
     audit_notes: opts.specSummary
-      ? ["Spec-seeded candidate inventory; data-plane capabilities require direct docs review before publication."]
+      ? ["OpenAPI-seeded + grounded candidate inventory; citations require human review before publication."]
       : ["Grounded doc-crawl candidate inventory; citations require human review before publication."],
     capabilities: parsed.data.capabilities.map((cap) => ({
       ...cap,

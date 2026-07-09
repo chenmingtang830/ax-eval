@@ -6,6 +6,6 @@ resolver:
   method: registry
   registry_domain: supabase.com
 site_url: https://supabase.com
-docs_url: https://api.supabase.com/api/v1
+docs_url: https://supabase.com/docs
 http_status: null
 openapi_url: https://api.supabase.com/api/v1-json

@@ -69,7 +69,13 @@ export const ExtractionProvenanceSchema = z.object({
 });
 
 export const ExtractionContextSchema = z.object({
-  mode: z.enum(["openapi-seeded", "grounded-doc-crawl", "manual-review"]),
+  mode: z.enum([
+    "openapi-seeded-grounded",
+    /** @deprecated Prefer openapi-seeded-grounded; kept for reading older inventories. */
+    "openapi-seeded",
+    "grounded-doc-crawl",
+    "manual-review",
+  ]),
   harness: z.string().optional(),
   model: z.string().optional(),
   spec_url: z.string().optional(),
@@ -317,19 +323,28 @@ function evidenceText(evidence: z.infer<typeof CapabilityEvidenceSchema>): strin
   return `${evidence.doc_url} ${evidence.quote} ${evidence.note ?? ""}`.toLowerCase();
 }
 
-function inferEvidenceStrength(evidence: z.infer<typeof CapabilityEvidenceSchema>): NonNullable<z.infer<typeof CapabilityEvidenceSchema>["strength"]> {
-  if (evidence.strength) return evidence.strength;
-  const url = evidence.doc_url.toLowerCase();
+function looksConnectionDerived(evidence: z.infer<typeof CapabilityEvidenceSchema>): boolean {
   const text = evidenceText(evidence);
-  if (url.endsWith("/llms.txt") || url.includes("/llms.txt")) return "summary_index";
-  if (/\/(products?|pricing|features?)\/?$/.test(new URL(evidence.doc_url, "https://example.invalid").pathname)) return "marketing_claim";
-  if (
+  return (
     /(connection[-_\s]?string|connection uri|wire protocol|sql surface|postgresql-compatible|mongodb driver|any mongodb driver)/i.test(text)
     && /(cluster|connection|deployment|project)/i.test(evidence.quote)
-  ) {
-    return "derived_from_connection_surface";
+  );
+}
+
+function inferEvidenceStrength(evidence: z.infer<typeof CapabilityEvidenceSchema>): NonNullable<z.infer<typeof CapabilityEvidenceSchema>["strength"]> {
+  const hasMethodPath = /\b(GET|POST|PUT|PATCH|DELETE)\s+\//.test(evidence.quote);
+  // Models sometimes stamp Management-API METHOD /path quotes as
+  // derived_from_connection_surface. Upgrade those unless the cite really is
+  // about exposing a wire/driver connection.
+  if (evidence.strength === "derived_from_connection_surface" && hasMethodPath && !looksConnectionDerived(evidence)) {
+    return "direct";
   }
-  if (/\b(GET|POST|PUT|PATCH|DELETE)\s+\//.test(evidence.quote)) return "direct";
+  if (evidence.strength) return evidence.strength;
+  const url = evidence.doc_url.toLowerCase();
+  if (url.endsWith("/llms.txt") || url.includes("/llms.txt")) return "summary_index";
+  if (/\/(products?|pricing|features?)\/?$/.test(new URL(evidence.doc_url, "https://example.invalid").pathname)) return "marketing_claim";
+  if (looksConnectionDerived(evidence)) return "derived_from_connection_surface";
+  if (hasMethodPath) return "direct";
   if (/\b(CREATE|ALTER|DROP|SELECT|INSERT|UPDATE|DELETE|UPSERT|BEGIN|COMMIT|ROLLBACK)\b/i.test(evidence.quote)) return "direct";
   if (/\b(insertOne|insertMany|findOne|find|updateOne|updateMany|deleteOne|deleteMany|bulkWrite|aggregate|watch|createCollection)\b/.test(evidence.quote)) {
     return "direct";

@@ -157,14 +157,14 @@ export async function extractSurfaces(
   const label = `${vendor.vendor}/surfaces`;
   const raw = await invokeGenerator(buildSurfacePrompt(vendor, opts.prior), {
     requireWebFetch: true,
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     heartbeat: { everyMs: 30_000, label },
     timeoutMs: PER_CALL_TIMEOUT_MS,
   });
   const json = await extractJsonObjectWithRepair(raw, {
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     label,

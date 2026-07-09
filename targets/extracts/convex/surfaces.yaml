@@ -1,27 +1,51 @@
 # Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
 # REST API is always the implicit default surface and is intentionally omitted here;
 # API auth and base URL come from the vendor oracle extract, not this file.
-
 schema: ax.surface-extract/v1
 vendor: Convex
 slug: convex
-extracted_at: 2026-07-08T09:07:37.502Z
+extracted_at: 2026-07-08T10:53:04.535Z
 extraction_context:
-  mode: manual-review
-  notes: Corrected CLI binary and headless deploy-key auth.
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
 audit_status: candidate
 audit_notes:
-  - Surface only covers Convex CLI; capability inventory still needs a data-plane
-    docs pass before publication.
+  - Verify headless auth fields against vendor docs before publication.
+  - "Post-extract audit: 0 surface finding(s)."
 cli:
   bin: convex
-  install: npm install -g convex
+  install: npm install convex
   docs_url: https://docs.convex.dev/cli/overview
   auth:
     kind: token
     token_env: CONVEX_DEPLOY_KEY
-    instructions: Convex CLI commands can run non-interactively with a deployment
-      key in CONVEX_DEPLOY_KEY. Without that env var, the CLI falls back to an
-      interactive login/config-file flow.
-sdk: null
-mcp: null
+    token_env_aliases: []
+    instructions: "Set CONVEX_DEPLOY_KEY to a deploy key scoped to your deployment.
+      Generate one with: npx convex deployment token create <name> --save-env.
+      In non-interactive shells the CLI will never prompt for login when this
+      env var is set."
+sdk:
+  package: convex
+  language: node
+  reference_url: https://docs.convex.dev/client/javascript/node
+  auth:
+    kind: token
+    token_env: CONVEX_URL
+    token_env_aliases: []
+    instructions: Set CONVEX_URL to your deployment URL (e.g.
+      https://happy-capybara-849.convex.cloud). The client connects to this URL;
+      load it from .env.local in development or set it directly in
+      CI/production.
+mcp:
+  server: npx -y convex@latest mcp start
+  transport: stdio
+  docs_url: https://docs.convex.dev/ai/convex-mcp-server
+  auth:
+    kind: token
+    token_env: CONVEX_DEPLOY_KEY
+    token_env_aliases: []
+    instructions: 'Set CONVEX_DEPLOY_KEY to a scoped deploy key for the target
+      deployment. Example: CONVEX_DEPLOY_KEY="dev:happy-capybara-849|..." npx -y
+      convex@latest mcp start. Without this env var the server falls back to
+      global login credentials from npx convex login.'

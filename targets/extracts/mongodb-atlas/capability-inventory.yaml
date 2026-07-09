@@ -2,50 +2,55 @@
 # Each entry's surfaces_documented records which surfaces the official docs say can
 # perform that capability - per-capability documentation attribution for coverage
 # synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
-
 schema: ax.capability-inventory/v1
 vendor: Mongodb Atlas
 slug: mongodb-atlas
 category: database
-extracted_at: 2026-07-08T09:39:46.655Z
-methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extracted_at: 2026-07-09T05:19:10.858Z
 extraction_context:
-  mode: openapi-seeded
-  notes: Candidate inventory seeded from Atlas Admin API evidence; MongoDB
-    wire-protocol and driver capabilities require direct MongoDB driver/manual
-    citations before publication.
+  mode: openapi-seeded-grounded
+  harness: claude-code
+  model: claude-sonnet-5
+  spec_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2.json
+  notes: OpenAPI/registry seed used as candidate surface; WebFetch gap-filled
+    against live docs.
 audit_status: candidate
 audit_notes:
-  - Admin API evidence should not be treated as direct proof for document
-    data-plane operations without companion driver/manual citations.
+  - OpenAPI-seeded + grounded candidate inventory; citations require human
+    review before publication.
+  - 4 capabilities include non-direct evidence and require reviewer confirmation
+    before publication.
+  - "Post-extract audit: 4 inventory finding(s)."
 capabilities:
   - capability_name: cluster-provisioning
-    title: Cluster Provisioning and Lifecycle Management
-    description: Create, retrieve, update, and delete MongoDB Atlas clusters
+    title: Cluster Provisioning
+    description: Create, configure, scale, and delete MongoDB Atlas clusters
       (replica sets and sharded clusters) across cloud providers and regions.
-      Supports listing all clusters across projects and querying available
-      provider regions.
     resource_kind: cluster
     operation_kind: create
     surfaces_documented:
       - api
+      - cli
     support_type: native
     evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/cli/current/command/atlas-clusters-create/
+        quote: To get started quickly, specify a name for your cluster, a cloud
+          provider, and a region to deploy a three-member replica set with the
+          latest MongoDB server version.
+        strength: direct
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
           Project
-        note: "Also: GET /api/atlas/v2/clusters (all projects), GET/PATCH/DELETE
-          /groups/{groupId}/clusters/{clusterName}, GET
-          /groups/{groupId}/clusters/provider/regions"
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: cluster-autoscaling
-    title: Cluster Auto-Scaling Configuration
-    description: Retrieve and apply automatic scaling policies for sharded cluster
-      compute tiers and storage, enabling clusters to scale up or down based on
-      workload without manual intervention.
+  - capability_name: cluster-scaling-configuration
+    title: Cluster Scaling and Advanced Configuration
+    description: Configure auto-scaling for sharded clusters and tune advanced
+      server process arguments (e.g. read/write concern defaults) for a running
+      cluster.
     resource_kind: cluster
     operation_kind: update
     surfaces_documented:
@@ -55,73 +60,343 @@ capabilities:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: GET
           /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/autoScalingConfiguration
-          — Return Auto Scaling Configuration for One Sharded Cluster
+          — Return Auto Scaling Configuration for One Sharded Cluster; PATCH
+          .../processArgs — Update Advanced Configuration Options for One
+          Cluster
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: cluster-advanced-configuration
-    title: Advanced MongoDB Engine Configuration
-    description: Read and update fine-grained MongoDB engine settings for a cluster
-      (e.g., oplog size, connection pool, TLS modes, JavaScript execution)
-      through the processArgs API.
-    resource_kind: cluster
-    operation_kind: update
+  - capability_name: collection-management
+    title: Collection / Database Creation and Introspection
+    description: Create databases and collections (optionally with time-series or
+      capped options) and list/drop them; MongoDB collections are schemaless by
+      default.
+    resource_kind: collection
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/timeseries-collections/
+        quote: You can create a new time series collection with the createCollection()
+          command. When you want to create a time series collection, you must
+          include the timeField option.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-validation
+    title: Document Schema Validation
+    description: Enforce structural and data-type rules on a collection's documents
+      using JSON Schema or query-operator validation rules, checked on
+      insert/update.
+    resource_kind: collection
+    operation_kind: validate
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/schema-validation/
+        quote: Schema validation lets you create validation rules for your fields, such
+          as allowed data types and value ranges... By default, MongoDB rejects
+          any insert or update operation that would produce an invalid document.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: index-management
+    title: Secondary Index Creation and Management
+    description: Create, list, hide, and drop indexes (ascending/descending,
+      compound, text, geospatial, hashed, wildcard, TTL) to improve query
+      performance.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.createIndex/
+        quote: Creates indexes on collections.
+        strength: direct
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
+        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/index — Create
+          One Rolling Index
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: unique-index-constraints
+    title: Unique Index Constraints
+    description: Enforce uniqueness of field values across documents in a collection
+      via the unique index option, rejecting duplicate-key writes.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.createIndex/
+        quote: "Unique Indexes: Prevent duplicate values"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: rolling-index-builds
+    title: Rolling/Zero-Downtime Index Builds
+    description: Build new indexes on a live Atlas cluster via a rolling procedure
+      across replica set members without taking the database offline, exposed as
+      an admin API operation.
+    resource_kind: index
+    operation_kind: migrate
     surfaces_documented:
       - api
     support_type: native
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/processArgs —
-          Return Advanced Configuration Options for One Cluster; PATCH
-          ...processArgs — Update Advanced Configuration Options for One Cluster
+        quote: >-
+          ## Rolling Index
+
+          - POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/index —
+          Create One Rolling Index
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: cluster-config-validation
-    title: Cluster Configuration Validation
-    description: Validate a proposed cluster configuration payload against Atlas
-      constraints before submitting a create or update request, catching errors
-      without causing side effects.
-    resource_kind: cluster
+  - capability_name: document-insert
+    title: Document Insert
+    description: Insert one or more documents into a collection via driver/SDK CRUD
+      operations (insertOne/insertMany), auto-creating the collection if it does
+      not exist.
+    resource_kind: document
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-data-api-v1/operation/operation-insertone
+        quote: Insert One Document | (Deprecated) MongoDB Atlas Data API v1
+          documentation
+        note: Data API v1 is deprecated, but insertOne/insertMany driver operations are
+          the current, supported CRUD surface.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-import
+    title: Bulk Data Import (mongoimport)
+    description: Import CSV, TSV, or Extended JSON files into a collection with
+      insert, upsert, merge, or delete modes.
+    resource_kind: collection
+    operation_kind: import
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/database-tools/mongoimport/
+        quote: mongoimport imports content from an Extended JSON, CSV, or TSV export
+          created by mongoexport, or potentially, another third-party export
+          tool.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-export
+    title: Bulk Data Export
+    description: Export collection data to JSON/CSV via mongoexport, or to
+      Parquet/CSV files in cloud object storage via Atlas Data Federation.
+    resource_kind: collection
+    operation_kind: export
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/data-federation/overview/
+        quote: Export data - Copy Atlas cluster data into Parquet or CSV files written
+          to AWS S3 buckets or Azure Blob Storage
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: filtered-query
+    title: Filtered Query, Sort, and Pagination
+    description: Query documents with a filter expression, project fields, sort
+      results, and paginate via cursor limit/skip.
+    resource_kind: document
     operation_kind: read
     surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/reference/method/db.collection.find/
+        quote: Selects documents in a collection or view and returns a cursor to the
+          selected documents.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: aggregation-pipeline
+    title: Aggregation Pipeline
+    description: Run multi-stage pipelines ($match, $group, $sort, $skip/$limit,
+      $lookup, $merge, $out) to filter, transform, join, and materialize query
+      results.
+    resource_kind: collection
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/aggregation-pipeline/
+        quote: An aggregation pipeline consists of one or more stages that process
+          documents. Each stage performs an operation on the input documents.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-introspection
+    title: Schema Introspection / Analysis
+    description: Sample a collection's documents to infer and visualize field types,
+      value ranges, and shape, and export the inferred schema.
+    resource_kind: collection
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/compass/schema/
+        quote: The Schema tab in MongoDB Compass provides an overview of the data type
+          and shape of the fields in a particular collection. The overview is
+          based on sampling the documents in the collection.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: relational-schema-migration
+    title: Relational-to-MongoDB Schema Migration
+    description: Map an existing relational schema to a MongoDB document schema,
+      translate SQL to aggregation pipelines, and run snapshot/continuous
+      migration jobs into Atlas.
+    resource_kind: database
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/relational-migrator/
+        quote: Relational Migrator makes it easy to migrate data from relational
+          databases like Oracle, SQL Server, MySQL, and PostgreSQL... Relational
+          Migrator translates SQL queries to the MongoDB Aggregation Pipeline.
+          Integrate Relational Migrator into your existing workflows with a
+          full-featured REST API.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transactions
+    title: Multi-Document ACID Transactions
+    description: Group multiple read/write operations across documents, collections,
+      and databases into an atomic transaction that commits or rolls back as a
+      unit.
+    resource_kind: document
+    operation_kind: update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/transactions/
+        quote: For situations that require atomicity of operations on multiple
+          documents, MongoDB supports transactions. You can use transactions
+          across multiple operations, collections, databases, documents, and
+          shards.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-users-rbac
+    title: Database Users and Role-Based Access Control
+    description: Create database users and grant them built-in or custom roles that
+      scope privileges to specific databases, collections, or the whole cluster.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - sdk
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusterConfigurations:validate —
-          Validate One Cluster Configuration
+      - doc_url: https://www.mongodb.com/docs/manual/core/security-users/
+        quote: You can grant a user privileges by assigning roles to the user when you
+          create the user.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: cluster-tier-upgrade
-    title: Cluster Tier Upgrade (Shared to Dedicated/Serverless)
-    description: Upgrade a shared-tier (free/flex) cluster to a dedicated cluster or
-      to a serverless instance, enabling a graduated path from development to
-      production workloads.
-    resource_kind: cluster
+  - capability_name: custom-database-roles
+    title: Custom Database Roles
+    description: Define custom sets of privilege actions at the project level,
+      beyond built-in roles, and assign them to database users via the Admin API
+      or UI.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-custom-database-roles
+        quote: The Custom Database Roles API returns, adds, edits, and removes custom
+          database user privilege roles. Custom roles are used to specify custom
+          sets of actions that the MongoDB Cloud built-in roles can't describe,
+          and are defined at the project level for all clusters in the project.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-security
+    title: Document- and Field-Level Access Rules
+    description: Define dynamic, per-application-user permission rules that scope
+      read/write access down to individual documents or specific fields within a
+      linked collection.
+    resource_kind: role
     operation_kind: update
     surfaces_documented:
       - api
-    support_type: native
+    support_type: managed-surface
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/tenantUpgrade — Upgrade One
-          Shared-Tier Cluster; POST
-          /api/atlas/v2/groups/{groupId}/clusters/tenantUpgradeToServerless —
-          Upgrade One Shared-Tier Cluster to One Serverless Instance
+      - doc_url: https://www.mongodb.com/docs/atlas/app-services/rules/
+        quote: You can set roles to have document-level or field-level access, and you
+          can give roles read or read and write access. Permissions are defined
+          for entire collections in a linked MongoDB Atlas cluster and apply to
+          individual documents in the collection dynamically based on the
+          application user that issues a query.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: failover-testing
-    title: Cluster Failover Testing
-    description: Trigger a primary election on a cluster to test application
-      resilience to primary failover, simulating an unplanned outage on demand.
-    resource_kind: cluster
+  - capability_name: federated-authentication
+    title: Federated Authentication (SAML/OIDC)
+    description: Configure SAML- or OIDC-based identity providers, connected
+      organizations, and role mappings so external identity providers can
+      authenticate MongoDB Cloud users.
+    resource_kind: role
     operation_kind: create
     surfaces_documented:
       - api
@@ -129,129 +404,119 @@ capabilities:
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/restartPrimaries
-          — Test Failover for One Cluster
+          /api/atlas/v2/federationSettings/{federationSettingsId}/identityProviders
+          — Create One Identity Provider; .../roleMappings — Create One Role
+          Mapping in One Organization Configuration
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: outage-simulation
-    title: Regional Outage Simulation
-    description: Start, monitor, and stop simulated regional outages on a cluster to
-      test multi-region failover and application behavior under partial
-      infrastructure failure.
-    resource_kind: cluster
+  - capability_name: x509-certificate-authentication
+    title: X.509 Certificate Authentication
+    description: Authenticate database clients using X.509 certificates instead of
+      username/password, with each unique certificate subject mapped to a
+      database user.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/core/security-x.509/
+        quote: MongoDB supports X.509 certificate authentication for client
+          authentication and internal authentication of the members of replica
+          sets and sharded clusters.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: programmatic-api-keys
+    title: Programmatic API Keys
+    description: Create organization/project-scoped API keys with assigned roles for
+      programmatic access to the Atlas Admin API, independent of user login
+      credentials.
+    resource_kind: role
     operation_kind: create
     surfaces_documented:
       - api
     support_type: native
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/outageSimulation
-          — Start One Outage Simulation; GET ...outageSimulation — Return One
-          Outage Simulation; DELETE ...outageSimulation — End One Outage
-          Simulation
+        quote: POST /api/atlas/v2/groups/{groupId}/apiKeys — Create and Assign One
+          Organization API Key to One Project; PATCH .../apiKeys/{apiUserId} —
+          Update Organization API Key Roles for One Project
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: full-text-search-index
-    title: Full-Text Search Index Management
-    description: Create, read, update, and delete Atlas Search indexes on
-      collections. Indexes can be configured for full-text search including
-      analyzers, mappings, and field weights via both ID-based and name-based
-      endpoints.
-    resource_kind: index
+  - capability_name: ip-access-list
+    title: Project IP Access List
+    description: Add, remove, and query network IP/CIDR allowlist entries that gate
+      which client addresses may connect to a project's clusters.
+    resource_kind: role
     operation_kind: create
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/search/indexes
-          — Create One Atlas Search Index; GET
-          .../search/indexes/{databaseName}/{collectionName} — Return All Atlas
-          Search Indexes for One Collection
-        note: "Also available via legacy /fts/indexes/* endpoints and by index name:
-          GET/PATCH/DELETE
-          .../search/indexes/{databaseName}/{collectionName}/{indexName}"
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-project-ip-access-list
+        quote: This endpoint returns, adds, edits, and removes network access limits to
+          database deployments in Atlas.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: vector-search-index
-    title: Vector Search Index Management
-    description: Define and manage vector search indexes on Atlas clusters using the
-      same Atlas Search index API with vector index type configuration, enabling
-      ANN (approximate nearest neighbor) semantic search over embedded fields.
-    resource_kind: index
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/search/indexes
-          — Create One Atlas Search Index
-        note: Atlas Search index creation supports both lucene (full-text) and
-          vectorSearch index types via the same endpoint; vector queries run via
-          $vectorSearch aggregation stage
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: dedicated-search-nodes
-    title: Dedicated Search Node Deployment
-    description: Provision, update, and remove a dedicated search-tier node pool
-      separate from the database tier, isolating Atlas Search workloads from
-      OLTP operations for independent scaling.
-    resource_kind: search-node
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/search/deployment
-          — Create Search Nodes; PATCH ...search/deployment — Update Search
-          Nodes; DELETE ...search/deployment — Delete Search Nodes; GET
-          ...search/deployment — Return All Search Nodes
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: cloud-backup-snapshot
-    title: Cloud Backup Snapshot Management
-    description: List, retrieve, update expiration dates for, and delete cloud
-      backup snapshots for both replica sets and sharded clusters. Supports
-      on-demand snapshot creation to capture state at any point.
+  - capability_name: cloud-backup-snapshots
+    title: Cloud Backup Snapshots
+    description: Take on-demand or scheduled snapshots of a cluster's data (replica
+      set or sharded), list them, and manage their retention/expiration.
     resource_kind: snapshot
     operation_kind: create
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/snapshots
-          — Take One On-Demand Snapshot; GET .../backup/snapshots — Return All
-          Replica Set Cloud Backups; PATCH .../backup/snapshots/{snapshotId} —
-          Update Expiration Date for One Cloud Backup
-        note: Sharded cluster snapshots via GET/DELETE
-          .../backup/snapshots/shardedClusters and
-          .../backup/snapshots/shardedCluster/{snapshotId}
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-cloud-backups
+        quote: The Cloud Backups endpoint manages Cloud Backup snapshots, snapshot
+          export buckets, restore jobs, and schedules... Listing backup exports,
+          restore jobs, sharded cluster snapshots, and taking on-demand
+          snapshots.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: backup-restore
-    title: Cloud Backup Restore Jobs
-    description: Create, list, retrieve, and cancel restore jobs that restore a
-      cluster to a prior snapshot, supporting both in-place and download-based
-      restore modes.
-    resource_kind: restore-job
+  - capability_name: point-in-time-restore
+    title: Point-in-Time Restore
+    description: Restore a cluster to a specific timestamp or oplog entry within the
+      continuous backup retention window by replaying the oplog.
+    resource_kind: snapshot
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/recover-pit-continuous-cloud-backup/
+        quote: If you select the Date & Time option, you can specify the time of restore
+          with one minute of granularity. If you select the Oplog Timestamp
+          option, you can specify the time of restore with one second of
+          granularity.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: collection-level-restore
+    title: Collection-Level Restore Jobs
+    description: Restore an individual collection (rather than an entire cluster)
+      from a snapshot into a target cluster, and track per-collection restore
+      state.
+    resource_kind: snapshot
     operation_kind: restore
     surfaces_documented:
       - api
@@ -259,146 +524,281 @@ capabilities:
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/restoreJobs
-          — Create One Restore Job of One Cluster; GET .../backup/restoreJobs —
-          Return All Restore Jobs for One Cluster; DELETE
-          .../backup/restoreJobs/{restoreJobId} — Cancel One Restore Job for One
-          Cluster
+          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/collectionRestoreJobs
+          — Create One Collection Restore Job
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: backup-schedule
-    title: Cloud Backup Schedule Configuration
-    description: Retrieve, update, and remove the automated backup schedule for a
-      cluster, controlling snapshot frequency, retention windows, and
-      point-in-time recovery granularity.
-    resource_kind: backup-schedule
-    operation_kind: update
+  - capability_name: backup-export-to-cloud-storage
+    title: Snapshot Export to Cloud Object Storage
+    description: Export a cloud backup snapshot to a customer-owned S3/Azure Blob
+      bucket for long-term retention or external processing.
+    resource_kind: snapshot
+    operation_kind: export
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/schedule
-          — Return One Cloud Backup Schedule; PATCH .../backup/schedule — Update
-          Cloud Backup Schedule for One Cluster; DELETE .../backup/schedule —
-          Remove All Cloud Backup Schedules
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/operation/operation-createbackupexportjob
+        quote: Create One Snapshot Export Job | Atlas Admin API v2 documentation
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: snapshot-export
-    title: Snapshot Export to Object Storage
-    description: Configure snapshot export buckets (S3, GCS, Azure Blob) and create
-      export jobs that copy cluster snapshots to customer-owned cloud storage
-      for long-term retention or external processing.
-    resource_kind: snapshot-export
-    operation_kind: create
+  - capability_name: mongodump-mongorestore
+    title: Binary Backup/Restore (mongodump/mongorestore)
+    description: Create a binary export of a database's documents, metadata, and
+      indexes, and restore it back into a MongoDB deployment of a compatible
+      version.
+    resource_kind: database
+    operation_kind: backup
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/backup/exportBuckets — Create One
-          Snapshot Export Bucket; POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backup/exports —
-          Create One Snapshot Export Job; GET .../backup/exports/{exportId} —
-          Return One Snapshot Export Job
+      - doc_url: https://www.mongodb.com/docs/database-tools/mongodump/
+        quote: mongodump is a utility that creates a binary export of a database's
+          contents.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: backup-compliance-policy
-    title: Backup Compliance Policy (Immutable Retention)
-    description: Define and enforce an organization-level backup compliance policy
-      that prevents anyone, including project owners, from reducing retention
-      periods or deleting snapshots, satisfying regulatory retention
-      requirements.
-    resource_kind: backup-policy
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/backupCompliancePolicy — Return Backup
-          Compliance Policy Settings; PUT .../backupCompliancePolicy — Update
-          Backup Compliance Policy Settings; DELETE .../backupCompliancePolicy —
-          Disable Backup Compliance Policy Settings
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: backup-private-networking
-    title: Object Storage Private Endpoints for Backups
-    description: Create and manage private endpoints (AWS PrivateLink, Azure Private
-      Link) between Atlas backup infrastructure and customer object storage,
-      keeping backup data off the public internet.
-    resource_kind: private-endpoint
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/groups/{groupId}/backup/{cloudProvider}/privateEndpoints
-          — Create One Object Storage Private Endpoint for Cloud Backups for One
-          Cloud Provider in One Project; PATCH
-          /api/atlas/v2/groups/{groupId}/backup/exportBuckets/{exportBucketId} —
-          Update One Export Bucket Private Networking Settings
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: legacy-backup
-    title: Legacy Backup Checkpoints and Restore
-    description: List and retrieve legacy backup checkpoints and create or retrieve
-      legacy restore jobs, supporting clusters still using the older
-      continuous-backup system.
-    resource_kind: backup-checkpoint
+  - capability_name: legacy-backup-restore
+    title: Legacy Backup Restore
+    description: Access legacy (pre-Cloud-Backup) checkpoints and file-system
+      snapshots for older clusters, and create restore jobs from them.
+    resource_kind: snapshot
     operation_kind: restore
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/backupCheckpoints
-          — Return All Legacy Backup Checkpoints; POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/restoreJobs —
-          Create One Legacy Backup Restore Job
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/operation/operation-listlegacybackuprestorejobs
+        quote: Return All Legacy Backup Restore Jobs | Atlas Admin API v2 documentation
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
   - capability_name: online-archive
-    title: Online Archive (Tiered Cold Data Archiving)
-    description: Create and manage online archives that automatically tier aged data
-      from a live cluster to low-cost object storage while preserving
-      queryability through the same Atlas connection string. Includes archive
-      query log download.
-    resource_kind: archive
-    operation_kind: create
+    title: Online Archive (Tiered Cold Storage)
+    description: Automatically archive infrequently-accessed documents from a live
+      cluster to lower-cost storage while remaining queryable through a
+      federated view.
+    resource_kind: collection
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/online-archive/overview/
+        quote: When you configure an Online Archive for a collection, Atlas uses Atlas
+          Data Federation to create a read-only Federated Database Instance.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-federation-query
+    title: Federated Query Across Data Sources
+    description: Run MQL or SQL queries that join and transform data spanning Atlas
+      clusters, online archives, and cloud object storage (S3, Azure Blob, GCS,
+      HTTP) without moving the data first.
+    resource_kind: database
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/data-federation/overview/
+        quote: Atlas Data Federation is a distributed query engine that allows you to
+          natively query, transform, and move data across various sources inside
+          and outside of MongoDB Atlas.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: audit-logging
+    title: Database Audit Logging
+    description: Enable and configure auditing of database access and administrative
+      actions for a project's clusters.
+    resource_kind: database
+    operation_kind: read
     surfaces_documented:
       - api
     support_type: native
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/onlineArchives
-          — Create One Online Archive; PATCH .../onlineArchives/{archiveId} —
-          Update One Online Archive; GET .../onlineArchives/queryLogs.gz —
-          Download Online Archive Query Logs
+        quote: GET /api/atlas/v2/groups/{groupId}/auditLog — Return Auditing
+          Configuration for One Project; PATCH .../auditLog — Update Auditing
+          Configuration for One Project
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: index-recommendation
-    title: "Performance Advisor: Suggested Index Creation"
-    description: Retrieve AI-generated index recommendations based on slow query
-      analysis, including the candidate index definition, query shapes covered,
-      and estimated performance improvement.
+  - capability_name: encryption-at-rest-cmk
+    title: Encryption at Rest with Customer-Managed Keys
+    description: Layer customer-owned KMS keys (AWS KMS, Azure Key Vault, GCP KMS)
+      on top of Atlas's default AES-256 disk encryption for cluster storage and
+      snapshot volumes.
+    resource_kind: cluster
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/security-kms-encryption/
+        quote: By default, Atlas encrypts all cluster storage and snapshot volumes at
+          rest using Advanced Encryption Standard (AES)-256... You can add
+          another layer of security by enabling database-level Encryption at
+          Rest with Customer-Managed Keys.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-functions-triggers
+    title: Server-Side Functions and Triggers
+    description: Run arbitrary JavaScript Functions in response to database change
+      events or on a cron-like schedule (Scheduled Triggers) without managing
+      separate compute.
+    resource_kind: function
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-ui/triggers/
+        quote: Atlas Triggers execute application and database logic. Triggers can
+          respond to events or use pre-defined schedules... Each Trigger links
+          to a specific Atlas Function.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: atlas-data-api
+    title: REST Data API (Deprecated)
+    description: Create, read, update, delete, or aggregate documents over a plain
+      REST/HTTP endpoint without a language-specific driver; the v1 Data API is
+      deprecated as of the App Services EOL.
+    resource_kind: document
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-data-api-v1/operation/operation-insertmany
+        quote: Insert Documents | (Deprecated) MongoDB Atlas Data API v1 documentation
+        note: Marked deprecated in the official docs title; kept in inventory since REST
+          CRUD-over-HTTP is a documented, benchmark-relevant capability shape
+          even though the specific product is sunset.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: atlas-stream-processing
+    title: Atlas Stream Processing
+    description: Define stream processors that ingest continuous data from Kafka or
+      change streams, apply aggregation-pipeline transforms and windowed
+      operations, and write results to a sink ($emit/$merge).
+    resource_kind: collection
+    operation_kind: stream
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-stream-processing/overview/
+        quote: Stream processors take the form of a pipeline conceptually divided into
+          three phases, beginning by ingesting documents from sources of
+          streaming data such as broker systems like Apache Kafka, or database
+          change streams.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: change-streams-cdc
+    title: Change Streams (Real-Time CDC)
+    description: Subscribe to a real-time, resumable stream of
+      insert/update/delete/drop events on a collection, database, or deployment,
+      with optional pre/post document images.
+    resource_kind: collection
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/manual/changeStreams/
+        quote: Change streams allow applications to access real-time data changes
+          without the prior complexity and risk of manually tailing the oplog.
+          Applications can use change streams to subscribe to all data changes
+          on a single collection, a database, or an entire deployment.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search
+    title: Full-Text Search (Atlas/MongoDB Search)
+    description: Create embedded full-text search indexes over collection fields and
+      run rich relevance-ranked queries (autocomplete, facets, pagination) via
+      the $search aggregation stage.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-search/atlas-search-overview/
+        quote: MongoDB Search is an embedded full-text search that gives you a seamless,
+          scalable experience for building relevance-based app features and
+          eliminates the need to run a separate search system alongside your
+          database.
+        strength: direct
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
+        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/fts/indexes —
+          Create One Atlas Search Index
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-search
+    title: Vector Search
+    description: Index high-dimensional embedding vectors and run Approximate/Exact
+      Nearest Neighbor queries with MQL pre-filtering via the $vectorSearch
+      aggregation stage.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/atlas/atlas-vector-search/vector-search-overview/
+        quote: $vectorSearch is an aggregation stage in MongoDB that lets you execute an
+          Approximate Nearest Neighbor (ANN) or Exact Nearest Neighbor (ENN)
+          query with MongoDB Query API filtering (e.g., "$eq" or "$gte").
+          MongoDB Vector Search supports embeddings that are less than and equal
+          to 8192 dimensions in length.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: performance-advisor
+    title: Performance Advisor
+    description: Analyze slow query patterns on a cluster to surface suggested
+      indexes to add, redundant/unused indexes to drop, and schema design
+      advice.
     resource_kind: index
     operation_kind: read
     surfaces_documented:
@@ -408,203 +808,74 @@ capabilities:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: GET
           /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/performanceAdvisor/suggestedIndexes
-          — Return All Suggested Indexes
+          — Return All Suggested Indexes; .../dropIndexSuggestions — Return All
+          Suggested Indexes to Drop; .../schemaAdvice — Return Schema Advice
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: drop-index-suggestion
-    title: "Performance Advisor: Drop-Index Suggestions"
-    description: Identify indexes that are redundant, unused, or hidden, enabling
-      cleanup that reduces write overhead and storage consumption.
-    resource_kind: index
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/performanceAdvisor/dropIndexSuggestions
-          — Return All Suggested Indexes to Drop
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: schema-advice
-    title: "Performance Advisor: Schema Design Advice"
-    description: Retrieve schema-level design recommendations for collections (e.g.,
-      unbounded array antipatterns, large document warnings) to help optimize
-      data models for MongoDB performance.
-    resource_kind: schema
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/performanceAdvisor/schemaAdvice
-          — Return Schema Advice
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: query-shape-analysis
-    title: Query Shape Insights and Rejection
-    description: List, retrieve detailed statistics on, and update the rejection
-      status of query shapes observed on a cluster; allows blocking specific
-      slow or harmful query patterns at the database level.
-    resource_kind: query-shape
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/queryShapes —
-          Return All Query Shapes; GET .../queryShapeInsights/summaries — Return
-          Query Statistic Summaries; PATCH .../queryShapes/{queryShapeHash} —
-          Update Query Shape Rejection Status
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: collection-metrics-pinning
-    title: Collection-Level Metrics Namespace Pinning
-    description: Pin specific database.collection namespaces to enable fine-grained
-      collection-level metrics collection, and unpin them when no longer needed;
-      enables monitoring cardinality control.
+  - capability_name: query-shape-insights
+    title: Query Shape Insights
+    description: Aggregate executed queries into normalized query shapes and surface
+      per-shape performance statistics for monitoring and optimization.
     resource_kind: collection
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-query-shape-insights
+        quote: Query Shape Insights | Atlas Admin API v2 documentation
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: global-clusters-geo-sharding
+    title: Global Clusters / Geo-Sharding
+    description: Define managed namespaces and custom shard-zone mappings so a
+      Global Cluster locates data in specific geographic zones for data-locality
+      and compliance requirements.
+    resource_kind: cluster
     operation_kind: update
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/collStats/pinned
-          — Return Pinned Namespaces; PUT .../collStats/pinned — Pin Namespaces;
-          PATCH .../collStats/unpin — Unpin Namespaces
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/group/endpoint-global-clusters
+        quote: This endpoint returns, adds, and removes Global Cluster managed
+          namespaces and custom zone mappings. Each collection in a Global
+          Cluster is associated with a managed namespace.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: ip-access-list
-    title: Project IP Access List
-    description: Add, list, retrieve, delete, and check propagation status of IP
-      address and CIDR block allowlist entries that control which clients can
-      connect to Atlas clusters in a project.
-    resource_kind: access-list-entry
-    operation_kind: create
+  - capability_name: cluster-outage-simulation
+    title: Cluster Outage / Failover Simulation
+    description: Trigger a simulated regional outage against a live cluster to
+      validate application failover and resilience behavior, then end the
+      simulation to recover.
+    resource_kind: cluster
+    operation_kind: update
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/accessList — Add Entries to Project
-          IP Access List; GET .../accessList/{entryValue}/status — Return Status
-          of One Project IP Access List Entry; DELETE
-          .../accessList/{entryValue} — Remove One Entry from One Project IP
-          Access List
+      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/2024-11-13/group/endpoint-cluster-outage-simulation
+        quote: This endpoint returns, starts, or ends a cluster outage simulation...
+          REGION simulates a cluster outage for a region.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: federated-sso
-    title: Federated Authentication (SAML/OIDC SSO)
-    description: Configure and manage federation settings, connected organization
-      configurations, and identity providers (SAML and OIDC) to enable single
-      sign-on for Atlas users via an enterprise identity store.
-    resource_kind: identity-provider
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/federationSettings/{federationSettingsId}/identityProviders
-          — Create One Identity Provider; PATCH
-          .../identityProviders/{identityProviderId} — Update One Identity
-          Provider; GET .../identityProviders/{identityProviderId}/metadata.xml
-          — Return Metadata of One Identity Provider
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: federation-role-mapping
-    title: Federated Auth Role Mapping
-    description: Create, update, and delete role mappings that translate identity
-      provider group memberships into Atlas organization roles, controlling what
-      federated users can do after SSO login.
-    resource_kind: role-mapping
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/federationSettings/{federationSettingsId}/connectedOrgConfigs/{orgId}/roleMappings
-          — Create One Role Mapping in One Organization Configuration; PUT
-          .../roleMappings/{id} — Update One Role Mapping in One Organization;
-          DELETE .../roleMappings/{id} — Remove One Role Mapping from One
-          Organization
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: cloud-provider-iam
-    title: Cloud Provider IAM Role Access
-    description: Create, authorize, list, and deauthorize cloud provider IAM roles
-      (AWS, GCP, Azure) that allow Atlas features such as encryption at rest and
-      data lake to assume roles in a customer's cloud account without storing
-      long-lived credentials.
-    resource_kind: iam-role
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/cloudProviderAccess — Create One
-          Cloud Provider Access Role; PATCH .../cloudProviderAccess/{roleId} —
-          Authorize One Cloud Provider Access Role; DELETE
-          .../cloudProviderAccess/{cloudProvider}/{roleId} — Deauthorize One
-          Cloud Provider Access Role
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: programmatic-api-keys
-    title: Programmatic API Key Management
-    description: Create, assign, update roles for, and remove organization-scoped
-      API keys scoped to a project, enabling CI/CD pipelines and automation to
-      authenticate to the Atlas Admin API without user credentials.
-    resource_kind: api-key
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/apiKeys — Create and Assign One
-          Organization API Key to One Project; PATCH .../apiKeys/{apiUserId} —
-          Update Organization API Key Roles for One Project; DELETE
-          .../apiKeys/{apiUserId} — Unassign One Organization API Key from One
-          Project
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: alert-configuration
-    title: Alert Configuration Management
-    description: Create, read, update, toggle, and delete alert configurations that
-      define conditions (metric thresholds, system events, replica set state
-      changes) and notification channels (email, Slack, PagerDuty, webhook) for
-      a project.
-    resource_kind: alert-config
+  - capability_name: alerting-monitoring
+    title: Alert Configurations and Alerts
+    description: Define alert conditions (metric thresholds, event types) with
+      notification channels, and list/acknowledge fired alerts for a project.
+    resource_kind: alert
     operation_kind: create
     surfaces_documented:
       - api
@@ -612,471 +883,11 @@ capabilities:
     evidence:
       - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
         quote: POST /api/atlas/v2/groups/{groupId}/alertConfigs — Create One Alert
-          Configuration in One Project; PATCH .../alertConfigs/{alertConfigId} —
-          Toggle State of One Alert Configuration in One Project; GET
-          /api/atlas/v2/alertConfigs/matchers/fieldNames — Return All Alert
-          Configuration Matchers Field Names
+          Configuration in One Project; PATCH
+          /api/atlas/v2/groups/{groupId}/alerts/{alertId} — Acknowledge One
+          Alert from One Project
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: alert-management
-    title: Alert Viewing and Acknowledgment
-    description: List all open alerts for a project or a specific alert
-      configuration, retrieve individual alert details, and acknowledge alerts
-      to suppress notifications during a known maintenance window.
-    resource_kind: alert
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/alerts — Return All Alerts from One
-          Project; PATCH .../alerts/{alertId} — Acknowledge One Alert from One
-          Project; GET .../alertConfigs/{alertConfigId}/alerts — Return All Open
-          Alerts for One Alert Configuration
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: audit-logging
-    title: Database Audit Log Configuration
-    description: Retrieve and update the audit logging configuration for a project,
-      controlling which database operations (auth, reads, writes, admin) are
-      captured in the audit trail and where logs are delivered.
-    resource_kind: audit-log
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/auditLog — Return Auditing
-          Configuration for One Project; PATCH .../auditLog — Update Auditing
-          Configuration for One Project
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: activity-feed
-    title: Project Activity Feed
-    description: Access a pre-filtered activity feed of events for a project,
-      providing an audit trail of administrative actions such as cluster
-      modifications, user changes, and alert triggers.
-    resource_kind: activity-event
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/activityFeed — Return Pre-Filtered
-          Activity Feed Link for One Project
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: event-monitoring
-    title: Event Type Catalog
-    description: Retrieve the full enumeration of Atlas system event types, enabling
-      programmatic construction of alert rules and activity feed filters using
-      canonical event identifiers.
-    resource_kind: event-type
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/eventTypes — Return All Event Types
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: global-cluster-distribution
-    title: Global Cluster Zone Mapping and Managed Namespaces
-    description: Configure globally distributed Atlas clusters with custom
-      zone-to-region mappings and managed namespaces that pin specific
-      collections to geographic zones for low-latency local reads and compliance
-      with data residency requirements.
-    resource_kind: global-cluster
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST
-          /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/globalWrites/customZoneMapping
-          — Add One Custom Zone Mapping to One Global Cluster; POST
-          .../globalWrites/managedNamespaces — Create One Managed Namespace in
-          One Global Cluster; GET .../globalWrites — Return One Managed
-          Namespace in One Global Cluster
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: rolling-index-build
-    title: Rolling Index Creation
-    description: Create a new index on a cluster using a rolling build strategy that
-      brings up one replica set member at a time, avoiding the replication lag
-      and performance impact of a simultaneous index build across all nodes.
-    resource_kind: index
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/index — Create
-          One Rolling Index
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: custom-dns
-    title: Custom DNS Configuration for AWS Clusters
-    description: Read and toggle the custom DNS configuration for Atlas clusters
-      hosted on AWS, enabling split-horizon DNS so that private endpoint-aware
-      hostnames resolve correctly within customer VPCs.
-    resource_kind: dns-config
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/awsCustomDNS — Return One Custom DNS
-          Configuration for Atlas Clusters on AWS; PATCH .../awsCustomDNS —
-          Update State of One Custom DNS Configuration for Atlas Clusters on AWS
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: project-management
-    title: Atlas Project Lifecycle Management
-    description: Create, retrieve by ID or name, update, delete, and add users to
-      Atlas projects (groups), which are the top-level organizational boundary
-      for clusters, users, and security settings.
-    resource_kind: project
-    operation_kind: create
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups — Create One Project; GET
-          /api/atlas/v2/groups/byName/{groupName} — Return One Project by Name;
-          DELETE /api/atlas/v2/groups/{groupId} — Remove One Project; POST
-          .../groups/{groupId}/access — Add One MongoDB Cloud User to One
-          Project
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: document-insert
-    title: Document Insert (Single and Bulk)
-    description: Insert one or many BSON documents into a MongoDB collection via the
-      MongoDB wire protocol. Atlas clusters expose this through the standard
-      driver insertOne/insertMany operations over the connection string.
-    resource_kind: document
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: Cluster provisioning exposes a standard MongoDB connection string;
-          insertOne/insertMany are native MongoDB wire protocol operations
-          available to all Atlas clusters via any MongoDB driver
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: document-query
-    title: Document Query with Filter, Sort, and Projection
-    description: Query a MongoDB collection using the MQL query language with
-      arbitrary filter predicates, field projections, sort orders, and
-      skip/limit pagination over the MongoDB wire protocol.
-    resource_kind: document
-    operation_kind: read
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: GET /api/atlas/v2/groups/{groupId}/clusters/{clusterName} — Return One
-          Cluster from One Project
-        note: Atlas clusters expose the full MongoDB query API (find, findOne, MQL
-          filters, $sort/$limit/$skip/$project) to drivers connecting via the
-          provisioned connection string
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: document-update
-    title: Document Update (Partial and Replace)
-    description: Apply update operators ($set, $unset, $inc, $push, $pull, etc.) to
-      one or many matching documents, or replace a document entirely, including
-      upsert semantics, via the MongoDB wire protocol.
-    resource_kind: document
-    operation_kind: update
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: updateOne/updateMany/replaceOne are core MongoDB operations available on
-          all Atlas clusters; update operators (e.g. $set, $inc) and upsert are
-          part of the MongoDB wire protocol
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: document-delete
-    title: Document Delete
-    description: Remove one or many documents matching a filter from a MongoDB
-      collection; Atlas clusters expose deleteOne and deleteMany through the
-      standard MongoDB driver interface.
-    resource_kind: document
-    operation_kind: delete
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: deleteOne/deleteMany are native MongoDB wire protocol operations available
-          on all Atlas clusters via any MongoDB driver
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: bulk-write
-    title: Bulk Write Operations
-    description: Execute a mixed batch of insert, update, and delete operations in a
-      single round-trip using the MongoDB bulkWrite command, enabling
-      high-throughput data ingestion and mutation with ordered or unordered
-      semantics.
-    resource_kind: document
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: bulkWrite is a native MongoDB wire protocol command exposed on all Atlas
-          clusters, supporting ordered/unordered batches of insertOne,
-          updateOne, updateMany, replaceOne, deleteOne, deleteMany
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: aggregation-pipeline
-    title: Server-Side Aggregation Pipeline
-    description: Execute multi-stage server-side data transformation pipelines using
-      MongoDB's aggregation framework ($match, $group, $lookup, $unwind,
-      $project, $facet, $bucket, $graphLookup, etc.), enabling complex
-      analytics, joins, and reshaping without client-side processing.
-    resource_kind: collection
-    operation_kind: read
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: The MongoDB aggregation pipeline ($match, $group, $lookup, $unwind,
-          $facet, $graphLookup, $vectorSearch, $search, etc.) is a core wire
-          protocol feature available on all Atlas clusters
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: index-management
-    title: Standard Index Creation and Management
-    description: Create single-field, compound, multikey, geospatial, hashed,
-      wildcard, and partial indexes on collections. Atlas also supports a
-      rolling index build path (via Admin API) to minimize impact on live
-      clusters.
-    resource_kind: index
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/index — Create
-          One Rolling Index
-        note: Standard createIndex operations (single-field, compound, multikey,
-          geospatial, hashed, wildcard, partial, sparse) are available via
-          MongoDB drivers on all Atlas clusters; the Admin API adds a
-          rolling-build variant
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: collection-management
-    title: Collection and Database Lifecycle Management
-    description: Create, list, and drop collections and databases in a MongoDB Atlas
-      cluster via the MongoDB driver or shell; collection creation supports
-      options such as capped size, clustered collections, and time-series
-      configuration.
-    resource_kind: collection
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: createCollection/dropCollection/listCollections are core MongoDB wire
-          protocol commands available on all Atlas clusters via any driver;
-          collection options include capped, timeseries, clusteredIndex,
-          changeStreamPreAndPostImages
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: schema-validation
-    title: Collection Schema Validation
-    description: Enforce document-level schema rules on a collection using JSON
-      Schema validators or query expression validators, controlling which
-      documents are accepted on insert or update with configurable validation
-      actions (error or warn).
-    resource_kind: collection
-    operation_kind: update
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: MongoDB schema validation (validator option with $jsonSchema or query
-          expressions, validationAction error|warn, validationLevel
-          strict|moderate) is available via createCollection/collMod on all
-          Atlas clusters
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: multi-document-transactions
-    title: Multi-Document ACID Transactions
-    description: Execute multiple read and write operations across one or more
-      collections within a single ACID transaction with snapshot isolation,
-      automatic retry on transient errors, and configurable read/write concerns.
-    resource_kind: transaction
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: Multi-document distributed ACID transactions (startSession,
-          startTransaction, commitTransaction, abortTransaction) are supported
-          on all Atlas replica set and sharded clusters running MongoDB 4.0+
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: change-streams
-    title: Change Streams (Real-Time CDC)
-    description: Open a tailable cursor on a collection, database, or deployment
-      that emits ordered change events (insert, update, replace, delete,
-      invalidate) in real time, enabling event-driven architectures and
-      downstream replication without polling.
-    resource_kind: collection
-    operation_kind: stream
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: Change streams (collection.watch(), db.watch(), client.watch()) are
-          available on all Atlas replica set and sharded clusters; they support
-          pre/post-image capture, resumeAfter, startAfter, and pipeline
-          filtering
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: count-and-pagination
-    title: Document Count and Cursor-Based Pagination
-    description: Count documents matching a filter (countDocuments,
-      estimatedDocumentCount) and paginate result sets using skip/limit or
-      cursor-based patterns; also supports the $facet stage for combined
-      count+results in one pipeline.
-    resource_kind: collection
-    operation_kind: read
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: countDocuments, estimatedDocumentCount, and cursor skip/limit are native
-          MongoDB driver operations; $facet with $count enables count+page in a
-          single aggregation pipeline on all Atlas clusters
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: time-series-collections
-    title: Time-Series Collection Storage
-    description: Create native time-series collections optimized for
-      sequentially-written measurement data with configurable time field,
-      metadata field, and granularity; Atlas clusters store time-series data in
-      a compressed, bucketed internal format.
-    resource_kind: collection
-    operation_kind: create
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters — Create One Cluster in One
-          Project
-        note: Time-series collections (createCollection with timeseries option
-          specifying timeField, metaField, granularity) are a native MongoDB
-          5.0+ feature available on all Atlas dedicated clusters
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: geospatial-queries
-    title: Geospatial Indexing and Queries
-    description: Create 2dsphere or 2d geospatial indexes on collections and execute
-      proximity, containment, and intersection queries ($near, $geoWithin,
-      $geoIntersects) against GeoJSON or legacy coordinate pair fields.
-    resource_kind: index
-    operation_kind: search
-    surfaces_documented:
-      - sdk
-    support_type: idiomatic-pattern
-    evidence:
-      - doc_url: https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/
-        quote: POST /api/atlas/v2/groups/{groupId}/clusters/{clusterName}/index — Create
-          One Rolling Index
-        note: 2dsphere and 2d geospatial indexes are native MongoDB index types; $near,
-          $geoWithin, $geoIntersects, and $geoNear aggregation stage are
-          available on all Atlas clusters
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1

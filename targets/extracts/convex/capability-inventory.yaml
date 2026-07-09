@@ -2,333 +2,1168 @@
 # Each entry's surfaces_documented records which surfaces the official docs say can
 # perform that capability - per-capability documentation attribution for coverage
 # synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
-
 schema: ax.capability-inventory/v1
 vendor: Convex
 slug: convex
 category: database
-extracted_at: 2026-07-08T09:12:30.196Z
-methodology_ref: targets/suites/daeb-1-v3.methodology.yaml
+extracted_at: 2026-07-09T05:12:41.485Z
 extraction_context:
-  mode: openapi-seeded
+  mode: openapi-seeded-grounded
+  harness: claude-code
+  model: claude-sonnet-5
   spec_url: https://api.convex.dev/v1/openapi.json
-  notes: Candidate inventory covers Convex management/control-plane APIs only; data-plane
-    schema/query/mutation/action capabilities need a grounded docs pass before publication.
-audit_status: needs-reextract
+  notes: OpenAPI/registry seed used as candidate surface; WebFetch gap-filled
+    against live docs.
+audit_status: candidate
 audit_notes:
-  - Control-plane-only inventory is not comparable to SQL/document data-plane
-    inventories until Convex schema, query, mutation, and function capabilities
-    are extracted from product docs.
+  - OpenAPI-seeded + grounded candidate inventory; citations require human
+    review before publication.
+  - "Post-extract audit: 0 inventory finding(s)."
 capabilities:
-  - capability_name: deployment-provisioning
-    title: Database Deployment Provisioning
-    description: Create, inspect, update, delete, and list Convex database
-      deployments within a project. Each deployment is an isolated database
-      instance containing its own schema, data, and server-side functions.
-    resource_kind: deployment
-    operation_kind: create
+  - capability_name: project-management
+    title: Project Lifecycle Management
+    description: Create, list, retrieve (by id or team/slug), and delete Convex
+      projects, which are the top-level container for a codebase's deployments.
+    resource_kind: project
+    operation_kind: create, read, delete
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /projects/{project_id}/create_deployment — Create deployment; GET
-          /projects/{project_id}/list_deployments — List deployments; GET
-          /deployments/{deployment_name} — Get deployment; PATCH
-          /deployments/{deployment_name} — Update deployment; POST
-          /deployments/{deployment_name}/delete — Delete deployment
-        note: "Also: GET /projects/{project_id}/deployment and GET
-          /teams/{team_id_or_slug}/projects/{project_slug}/deployment for
-          slug-based lookup"
+      - doc_url: https://api.convex.dev/v1/openapi.json
+        quote: POST /teams/{team_id}/create_project; GET /teams/{team_id}/list_projects;
+          GET /projects/{project_id}; GET
+          /teams/{team_id_or_slug}/projects/{project_slug}; POST
+          /projects/{project_id}/delete
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: deployment-update
-    title: Deployment Configuration Update
-    description: Modify deployment settings and metadata post-creation via PATCH,
-      enabling configuration changes without tearing down and re-provisioning
-      the database instance.
-    resource_kind: deployment
-    operation_kind: update
+  - capability_name: team-management
+    title: Team and Member Management
+    description: Create teams, list members, invite new members by email,
+      list/cancel pending invitations, and update a member's built-in or custom
+      role.
+    resource_kind: team_member
+    operation_kind: create, read, update, delete
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: PATCH /deployments/{deployment_name} — Update deployment
+      - doc_url: https://docs.convex.dev/dashboard/teams
+        quote: GET /teams/{team_id}/list_members; POST /teams/create_team; POST
+          /teams/{team_id}/invite_team_member — Invite a member by email; GET
+          /teams/{team_id}/list_pending_invites; POST
+          /teams/{team_id}/cancel_team_member_invite; POST
+          /teams/{team_id}/update_team_member_role
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: deployment-transfer
-    title: Cross-Project Deployment Transfer
-    description: Move an existing deployment (with its schema and data) from one
-      project to another, enabling reorganization without reprovisioning or data
-      loss.
-    resource_kind: deployment
-    operation_kind: update
+  - capability_name: custom-roles
+    title: Custom RBAC Roles
+    description: Define, list, update, and delete fine-grained custom roles for team
+      members beyond the built-in Admin/Developer roles.
+    resource_kind: role
+    operation_kind: create, read, update, delete
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /deployments/{deployment_name}/transfer — Transfer deployment
+      - doc_url: https://docs.convex.dev/dashboard/teams
+        quote: POST /teams/{team_id}/create_custom_role; GET
+          /teams/{team_id}/list_custom_roles; POST
+          /teams/{team_id}/update_custom_role; POST
+          /teams/{team_id}/delete_custom_role — Deletes a custom role (if not
+          attached to members)
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: preview-environment-provisioning
-    title: Preview (Ephemeral) Database Environments
-    description: Provision isolated preview deployments for feature branches or pull
-      requests via scoped preview deploy keys, enabling safe schema and data
-      experimentation before production promotion.
-    resource_kind: deployment
-    operation_kind: create
+  - capability_name: identity-scoped-access-tokens
+    title: Personal and Team Access Tokens
+    description: Create, list, and delete personal or team-scoped bearer access
+      tokens used to authenticate against the Management API on behalf of a user
+      or team.
+    resource_kind: access_token
+    operation_kind: create, read, delete
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /projects/{project_id}/create_preview_deploy_key — Create preview
-          deploy key; GET /projects/{project_id}/list_preview_deploy_keys — List
-          preview deploy keys; POST
-          /projects/{project_id}/delete_preview_deploy_key — Delete preview
-          deploy key
+      - doc_url: https://docs.convex.dev/platform-apis/overview.md
+        quote: GET /list_personal_access_tokens; POST /create_personal_access_token;
+          POST /delete_personal_access_token; GET
+          /teams/{team_id}/list_access_tokens; POST
+          /teams/{team_id}/create_access_token; POST
+          /teams/{team_id}/delete_access_token; GET /token_details
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: multi-region-deployment
-    title: Multi-Region and Multi-Tier Deployment Placement
-    description: Select from documented geographic deployment regions and
-      compute/storage classes at provisioning time, enabling data-residency
-      control and latency optimization across regions.
-    resource_kind: deployment
-    operation_kind: read
+  - capability_name: oauth-application-tokens
+    title: OAuth Application Authorization
+    description: Third-party applications obtain team- or project-scoped OAuth
+      tokens via an Authorization Code Grant flow (with optional PKCE) to manage
+      a user's projects/deployments on their behalf.
+    resource_kind: oauth_token
+    operation_kind: authorize
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: GET /teams/{team_id}/list_deployment_regions — List deployment regions;
-          GET /teams/{team_id}/list_deployment_classes — List deployment classes
+      - doc_url: https://docs.convex.dev/platform-apis/oauth-applications.md
+        quote: third-party app developers to manage a user's projects on their behalf
+          through Application Tokens
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: local-development-deployment
-    title: Local Development Deployment Mode
-    description: List and track local (developer-machine) Convex deployments
-      associated with a team, supporting offline-first development and testing
-      workflows before cloud deployment.
-    resource_kind: deployment
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: GET /teams/{team_id}/list_local_deployments — List local deployments
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: fleet-deployment-enumeration
-    title: Team-Wide Deployment Fleet Enumeration
-    description: List all deployments across an entire team regardless of project,
-      providing a unified fleet view for operational monitoring and
-      administration of all database instances.
-    resource_kind: deployment
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: GET /teams/{team_id}/list_deployments — List deployments for team
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
-      extractor: llm-capability-inventory-v1
-  - capability_name: environment-variable-management
-    title: Deployment Environment Variable Configuration
-    description: Read and update default environment variables scoped to a project,
-      injecting secrets and runtime configuration into server-side database
-      functions without hardcoding values in source.
-    resource_kind: environment-variable
-    operation_kind: update
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: GET /projects/{project_id}/list_default_environment_variables — List
-          default environment variables; POST
-          /projects/{project_id}/update_default_environment_variables — Update
-          default environment variables
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
   - capability_name: deploy-key-management
-    title: CI/CD Deploy Key Management
-    description: Create, list, and revoke scoped deploy keys for CI/CD pipelines to
-      authenticate schema and function pushes to specific deployment instances,
-      separating machine credentials from personal tokens.
-    resource_kind: key
-    operation_kind: create
+    title: Deploy Keys and Preview Deploy Keys
+    description: Create, list, and delete deployment-scoped or
+      preview-deployment-scoped credentials used for CI/CD deploys instead of
+      personal credentials.
+    resource_kind: deploy_key
+    operation_kind: create, read, delete
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production/hosting/preview-deployments
+        quote: POST /deployments/{deployment_name}/create_deploy_key — Create a deploy
+          key for CLI access; POST
+          /projects/{project_id}/create_preview_deploy_key
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: deployment-management
+    title: Deployment Lifecycle and Metadata
+    description: Create, get, update, delete, and transfer deployments, and list
+      deployments, deployment classes, regions, and local deployments for a
+      team/project.
+    resource_kind: deployment
+    operation_kind: create, read, update, delete
     surfaces_documented:
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /deployments/{deployment_name}/create_deploy_key — Create deploy
-          key; GET /deployments/{deployment_name}/list_deploy_keys — List deploy
-          keys; POST /deployments/{deployment_name}/delete_deploy_key — Delete
-          deploy key
+      - doc_url: https://api.convex.dev/v1/openapi.json
+        quote: POST /projects/{project_id}/create_deployment; GET
+          /deployments/{deployment_name}; PATCH /deployments/{deployment_name};
+          POST /deployments/{deployment_name}/delete; POST
+          /deployments/{deployment_name}/transfer; GET
+          /teams/{team_id}/list_deployment_classes; GET
+          /teams/{team_id}/list_deployment_regions
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: custom-domain-binding
-    title: Custom Domain Binding for Database Endpoints
-    description: Attach and remove custom DNS domains to database deployments,
-      providing branded or environment-specific HTTPS endpoints for function and
-      data API access.
-    resource_kind: domain
+  - capability_name: preview-deployments
+    title: Ephemeral Preview Deployments
+    description: Per-branch ephemeral deployments created via CLI deploy, optionally
+      seeded with data, and auto-cleaned up after 5 (or 14 on paid plans) days.
+    resource_kind: deployment
+    operation_kind: create, delete
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production/multiple-deployments
+        quote: automatically cleaned up 5 days after they are created (14 days on the
+          Professional, Business and Enterprise plans)
+        strength: direct
+      - doc_url: https://docs.convex.dev/production/multiple-deployments
+        quote: npx convex deploy --preview-create="name" --preview-run=<functionName>
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: custom-domain-management
+    title: Custom Domains
+    description: Attach, list, and remove custom domains for a deployment, with DNS
+      verification and automatic SSL provisioning, to serve HTTP
+      actions/functions.
+    resource_kind: custom_domain
+    operation_kind: create, read, delete
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production/custom-domains
+        quote: GET /deployments/{deployment_name}/custom_domains — Get all custom
+          domains configured for a deployment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: environment-variable-management
+    title: Environment Variables
+    description: List/update project-level default environment variables via the
+      Management API and CLI, and set/get/remove per-deployment environment
+      variables (up to 512 vars, 512KiB total) read at runtime via process.env.
+    resource_kind: environment_variable
+    operation_kind: create, read, update, delete
+    surfaces_documented:
+      - api
+      - cli
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production/environment-variables
+        quote: npx convex env set NAME 'value'; Up to 512 variables allowed; total size
+          capped at 512KiB
+        strength: direct
+      - doc_url: https://docs.convex.dev/production/environment-variables
+        quote: You can access environment variables in Convex functions using
+          process.env.KEY.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: audit-logging
+    title: Team Audit Log
+    description: List a team's audit log of member actions (project/deployment
+      changes, role changes, etc.) within a time range.
+    resource_kind: audit_log_event
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/dashboard/teams
+        quote: GET /teams/{team_id}/list_audit_log_events — List a team's audit log
+          events within a time range
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: implicit-table-creation
+    title: Implicit Table Creation
+    description: Tables come into existence automatically on the first document
+      insert; there is no explicit CREATE TABLE step required.
+    resource_kind: table
     operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database
+        quote: Each table springs into existence as soon as you add the first document
+          to it.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-definition
+    title: Typed Schema Definition
+    description: Define tables and document field shapes in schema.ts using
+      defineSchema/defineTable and a validator builder (v) supporting optional
+      fields, unions, literals, and records.
+    resource_kind: schema
+    operation_kind: create, update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: A schema is a description of the tables in your Convex project... The
+          validator builder, v is used to define the type of documents in each
+          table
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration
+    title: Deploy-Time Schema Validation as Migration Gate
+    description: Pushing a modified schema.ts validates all existing documents
+      against the new schema before the deploy is accepted, and future writes
+      are checked continuously; enforcement can be disabled per table.
+    resource_kind: schema
+    operation_kind: migrate, update
+    surfaces_documented:
+      - cli
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: The first push after a schema is added or modified will validate that all
+          existing documents match the schema. If there are documents that fail
+          validation, the push will fail.
+        strength: direct
+      - doc_url: https://docs.convex.dev/database/schemas
+        quote: "Developers can disable this enforcement by setting schemaValidation:
+          false in schema options."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-migration-jobs
+    title: Batched Data Migration Component
+    description: The @convex-dev/migrations component defines, runs, and tracks
+      resumable, batched, zero-downtime data backfills/transformations across a
+      table, with progress tracking and reversible forward/backward functions.
+    resource_kind: table
+    operation_kind: migrate, update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://www.convex.dev/components/migrations
+        quote: Define, run, and track your database migrations... automatically saves
+          progress after each batch and resumes from the last checkpoint
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-insert
+    title: Insert Documents
+    description: Create new documents in a table via db.insert, which also
+      auto-generates the document's _id and _creationTime.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: create new documents in the database with the db.insert method
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-update
+    title: Patch and Replace Documents
+    description: Update existing documents either via a shallow-merge partial patch
+      (db.patch) or a full overwrite (db.replace).
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: patch an existing document, shallow merging it with the given partial
+          document; ... replace the existing document entirely, potentially
+          removing existing fields
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-delete
+    title: Delete Documents
+    description: Remove a document from a table via db.delete.
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/writing-data
+        quote: remove from the table with the db.delete method
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transactional-writes
+    title: Transactional Mutations
+    description: A mutation function's reads and writes execute as a single atomic
+      transaction; a thrown error rolls back all writes in that mutation.
+    resource_kind: transaction
+    operation_kind: update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/mutation-functions
+        quote: All database writes get committed together. If the mutation writes some
+          data to the database, but later throws an error, no data is actually
+          written to the database.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: point-lookup-by-id
+    title: Get Document by ID
+    description: Efficiently read a single document given its globally unique
+      document ID via db.get.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/document-ids
+        quote: You can use this ID to efficiently read a single document using the get
+          method
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: filtered-query
+    title: Filtered Table Queries
+    description: Query a table with index-based filtering (preferred, efficient) or
+      a full-table-scan .filter() mechanism for arbitrary predicates.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data/
+        quote: The best way to filter in Convex is to use indexes... Convex also
+          supports a slower filtering mechanism that effectively loops through
+          the table
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: secondary-index
+    title: Single-Field and Compound Indexes
+    description: Define named indexes on one or more fields via .index() in the
+      schema, enabling range queries whose cost scales with the matched range
+      rather than the whole table.
+    resource_kind: index
+    operation_kind: create, read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data/indexes/indexes-and-query-perf
+        quote: Compound indexes are indexes on an ordered list of fields... The
+          performance of this query is based on the number of documents where
+          doc.author === "Jane Austen"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: query-ordering-and-limiting
+    title: Ordering, Take, First, and Unique
+    description: Control query result shape via default/custom ordering by
+      _creationTime, .take(n) limiting, .first(), and .unique() (throws if more
+      than one match).
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/reading-data/
+        quote: By default Convex always returns documents ordered by _creationTime...
+          .take(n) selects only the first n results... .unique() selects the
+          single document from your query or returns null
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cursor-pagination
+    title: Cursor-Based Reactive Pagination
+    description: Paginate query results with a string cursor via .paginate(),
+      exposed to React via usePaginatedQuery; pages are reactive and can
+      shrink/grow as underlying data changes.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/pagination
+        quote: paginated queries return a string called a Cursor that represents the
+          point in the results that the current page ended
+        strength: direct
+      - doc_url: https://docs.convex.dev/database/pagination
+        quote: paginated queries are completely reactive. Your React components will
+          automatically rerender if items in your paginated list are added,
+          removed or changed
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: typed-value-system
+    title: Document Value Type System and Limits
+    description: Documents support typed values (Id, string, int64/BigInt, float64,
+      bytes, array up to 8192 elements, object up to 1024 entries, null) with a
+      1MB per-value size cap and 16-level nesting limit.
+    resource_kind: field
+    operation_kind: create, update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/types
+        quote: Convex values must be less than 1MB in total size... Convex types can
+          have at most 16 levels of nesting.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: document-id-references
+    title: Document ID References and Validation
+    description: Model relationships by embedding another document's Id in a
+      document, and validate/normalize untrusted ID strings against an expected
+      table via normalizeId.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/document-ids
+        quote: In Convex, you can reference a document simply by embedding its Id in
+          another document... use an argument validator or ctx.db.normalizeId to
+          confirm that the ID belongs to the expected table
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: system-table-introspection
+    title: Read-Only System Table Introspection
+    description: Query built-in read-only system tables (e.g. _scheduled_functions,
+      _storage) for platform metadata using the same reactive, paginated query
+      interface as regular tables.
+    resource_kind: system_table
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/advanced/system-tables
+        quote: System tables enable read-only access to metadata for built-in Convex
+          features... Queries reading from system tables are reactive and
+          realtime just like queries reading from all other tables
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: bulk-import
+    title: Bulk Table Import
+    description: Import CSV, JSON, or JSONLines files (or a full backup ZIP) into a
+      table via the CLI, in append or replace mode, preserving _id/_creationTime
+      for cross-table references.
+    resource_kind: table
+    operation_kind: create, update
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/import-export/import
+        quote: npx convex import --table <tableName> <path>; you can specify --append to
+          append the imported rows to the table... --replace to replace existing
+          data
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: bulk-export
+    title: Bulk Deployment Export
+    description: Export all deployment data to a local ZIP (JSONL per table) via the
+      CLI or by downloading a dashboard backup.
+    resource_kind: table
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/import-export/export
+        quote: npx convex export --path ~/Downloads
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: backup-snapshot
+    title: Manual and Periodic Backups
+    description: Take on-demand or scheduled (daily/weekly) snapshot backups of a
+      deployment, including file storage, retained for a configurable number of
+      days and downloadable as a ZIP.
+    resource_kind: snapshot
+    operation_kind: create, read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/backup-restore
+        quote: Take a manual backup by pressing the 'Backup Now' button... Schedule a
+          periodic daily or weekly backup by checking the 'Backup automatically'
+          box.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: restore-from-backup
+    title: Restore from Backup
+    description: Restore a deployment's data from a manual/periodic backup or an
+      imported backup ZIP, a destructive operation that wipes existing data and
+      can target the same or a different deployment.
+    resource_kind: snapshot
+    operation_kind: restore
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/database/backup-restore
+        quote: restoring is a destructive operation that wipes your existing data and
+          replaces it with that from the backup.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-query-functions
+    title: Query Functions
+    description: Deterministic, cacheable server-side read functions that fetch data
+      from the database and return it to clients, with all reads at one
+      consistent logical timestamp.
+    resource_kind: function
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/query-functions
+        quote: All database reads inside a single query call are performed at the same
+          logical timestamp. Concurrent writes do not affect the query results.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-mutation-functions
+    title: Mutation Functions
+    description: Server-side functions that read and write the database as a single
+      atomic transaction, executed serially in order when called from a client.
+    resource_kind: function
+    operation_kind: create, update, delete
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/mutation-functions
+        quote: When mutations are called from the React or Rust clients, they are
+          executed one at a time in a single, ordered queue.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: server-side-actions
+    title: Actions (External Side Effects)
+    description: Server-side functions that can call third-party APIs/services (e.g.
+      OpenAI, Stripe, Twilio), optionally in a Node.js runtime, without the
+      determinism/transaction guarantees of mutations.
+    resource_kind: function
+    operation_kind: execute
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/actions
+        quote: can call OpenAI, Stripe, Twilio, or any other service or API
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: http-endpoints
+    title: HTTP Actions (Webhooks / Public API)
+    description: Define HTTP endpoints on a distinct convex.site domain, following
+      the Fetch API request/response model, for receiving webhooks or exposing a
+      public HTTP API.
+    resource_kind: function
+    operation_kind: read, create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/http-actions
+        quote: might be used for receiving webhooks from external applications or
+          defining a public HTTP API
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scheduled-jobs
+    title: Scheduled (Deferred) Function Execution
+    description: Schedule a function to run after a delay (runAfter) or at a
+      specific timestamp (runAt), durably persisted and cancelable, with status
+      tracked in a system table.
+    resource_kind: job
+    operation_kind: create, delete
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/scheduled-functions
+        quote: scheduled functions are stored in the database. This means you can
+          schedule functions minutes, days, and even months in the future.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cron-jobs
+    title: Recurring Cron Jobs
+    description: Define recurring function execution via fixed intervals, crontab
+      syntax, or named helpers (hourly/daily/weekly/monthly), with at most one
+      concurrent run per job.
+    resource_kind: job
+    operation_kind: create
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/scheduling/cron-jobs
+        quote: At most one run of each cron job can be executing at any moment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: internal-function-boundary
+    title: Internal Function Access Boundary
+    description: internalQuery/internalMutation/internalAction restrict a function
+      to only be callable by other server functions, never directly by a client,
+      forming a security boundary for sensitive logic.
+    resource_kind: function
+    operation_kind: read, update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/internal-functions
+        quote: Internal functions can only be called by other functions and cannot be
+          called directly from a Convex client.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: input-output-validation
+    title: Argument and Return Value Validation
+    description: Runtime validators (via the v builder) enforce the shape of
+      function arguments and, optionally, return values, rejecting objects with
+      undeclared properties and protecting public functions from malicious
+      input.
+    resource_kind: function
+    operation_kind: create, update
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/validation
+        quote: Without argument validation, a malicious user can call your public
+          functions with unexpected arguments and cause surprising results.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: structured-application-errors
+    title: Structured Application Errors (ConvexError)
+    description: ConvexError carries structured data (strings or typed objects) from
+      a backend function to the client, distinguishable from unexpected internal
+      errors and causing mutation rollback when thrown.
+    resource_kind: function
+    operation_kind: execute
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/functions/error-handling/application-errors
+        quote: throwing an error will prevent the mutation transaction from committing
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: realtime-subscriptions
+    title: Realtime Reactive Query Subscriptions
+    description: Clients subscribe to query functions over a WebSocket; Convex
+      tracks each query's data dependencies and automatically pushes updated,
+      consistently-snapshotted results without polling.
+    resource_kind: subscription
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/realtime
+        quote: Convex tracks the dependencies to your query functions, including
+          database changes, and triggers the subscription in the client
+          libraries.
+        strength: direct
+      - doc_url: https://docs.convex.dev/client/react
+        quote: This allows Convex to push new query results reactively to the client
+          without the client needing to poll for updates.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search
+    title: Full-Text Search Index and Query
+    description: Define a search index on a text field with up to 16 equality filter
+      fields, and run relevance-ranked (BM25-style) full-text queries with
+      prefix matching on the final term; reactive and transactional like other
+      queries.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/search/text-search
+        quote: the final search term has prefix search enabled, matching any term that
+          is a prefix of the original term
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-search
+    title: Vector Similarity Search
+    description: Define a vector index on a fixed-dimension float array field (up to
+      4 per table) and run nearest-neighbor similarity search from actions, with
+      optional equality filtering, returning _id/_score pairs.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/search/vector-search
+        quote: ctx.vectorSearch() executes only within Convex actions
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: authentication-integration
+    title: Third-Party and Built-in Authentication
+    description: Integrate Clerk, WorkOS AuthKit, Auth0, any OIDC-compatible
+      provider, or Convex's own built-in auth library; requests are
+      authenticated via OpenID Connect JWTs on WebSocket connections and RPCs.
+    resource_kind: identity
+    operation_kind: authenticate
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/auth
+        quote: OpenID Connect (based on OAuth) ID tokens in the form of JWTs to
+          authenticate WebSocket connections or RPCs
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-access-control
+    title: Identity-Scoped Per-Row Access Control
+    description: Convex has no native RLS; access control is implemented
+      idiomatically inside query/mutation code by reading
+      ctx.auth.getUserIdentity() and filtering/authorizing by an indexed
+      tokenIdentifier on a users table, throwing on unauthorized access.
+    resource_kind: row
+    operation_kind: read, update
+    surfaces_documented:
+      - sdk
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://docs.convex.dev/auth/functions-auth
+        quote: if (identity === null) { throw new Error("Unauthenticated call to
+          mutation"); }
+        strength: direct
+      - doc_url: https://docs.convex.dev/auth/database-auth
+        quote: .index("by_token", ["tokenIdentifier"]) used with
+          ctx.db.query("users").withIndex("by_token", (q) =>
+          q.eq("tokenIdentifier", identity.tokenIdentifier)).unique()
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: blob-file-storage
+    title: File Storage (Blob Storage)
+    description: Upload, download/serve, and delete files in Convex storage,
+      referencing them from documents via storage IDs; supports client-direct
+      upload via generated upload URLs and HTTP-action-based upload/serve with
+      access control.
+    resource_kind: file
+    operation_kind: create, read, delete
+    surfaces_documented:
+      - sdk
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/file-storage/upload-files
+        quote: Arbitrarily large files can be uploaded directly to your backend using a
+          generated upload URL.
+        strength: direct
+      - doc_url: https://docs.convex.dev/file-storage/serve-files
+        quote: The HTTP action should authenticate the request and check that the caller
+          can access the file before returning bytes.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-environment-deployments
+    title: Dev/Prod/Preview Deployment Types
+    description: Distinct deployment types — a per-developer dev deployment, a
+      single shared prod deployment, and ephemeral preview deployments —
+      created, selected, and token-scoped via the CLI.
+    resource_kind: deployment
+    operation_kind: create, read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production/multiple-deployments
+        quote: each developer working on the project has their own dev deployment...
+          each project has a single shared prod deployment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cicd-deployment
+    title: CI/CD Production Deployment
+    description: Deploy to production automatically on merge to a designated branch,
+      or manually via `npx convex deploy` using a CONVEX_DEPLOY_KEY, with
+      production safety checks for schema/function/scheduler compatibility.
+    resource_kind: deployment
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/production
+        quote: Deployment to production can happen automatically when changes get merged
+          to the designated branch (say main).
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: dashboard-data-browser
+    title: Dashboard Data Browsing and Editing
+    description: Browse, filter (via Convex query syntax), write arbitrary ad hoc
+      queries, and inline create/edit/bulk-edit/delete documents and tables
+      through the web dashboard.
+    resource_kind: row
+    operation_kind: read, update, delete
     surfaces_documented:
       - api
     support_type: managed-surface
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /deployments/{deployment_name}/create_custom_domain — Create custom
-          domain; GET /deployments/{deployment_name}/custom_domains — List
-          custom domains; POST
-          /deployments/{deployment_name}/delete_custom_domain — Delete custom
-          domain
+      - doc_url: https://docs.convex.dev/dashboard/deployments/data
+        quote: arbitrary filtering and transformation of the data, including sorting,
+          joins, grouping and aggregations
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: role-based-access-control
-    title: Custom Team Role Management
-    description: Create, update, list, and delete custom roles at the team level
-      that grant specific permission sets over projects and database
-      deployments, extending built-in role presets.
-    resource_kind: role
-    operation_kind: create
+  - capability_name: dashboard-function-runner
+    title: Dashboard Manual Function Execution
+    description: Select a deployed function, fill in arguments, and run
+      queries/mutations/actions directly from the dashboard, including mocking
+      an authenticated user identity via 'Act as a user'.
+    resource_kind: function
+    operation_kind: execute
     surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.convex.dev/dashboard/deployments/functions
+        quote: select a function from the list on the left-hand side of the page, and
+          click the 'Run Function' button
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: log-streaming
+    title: Realtime Log Streaming
+    description: View a realtime stream of function execution logs via the CLI
+      (`convex logs`) or dashboard, filterable by function/type/severity and
+      correlatable by shared Request ID.
+    resource_kind: log
+    operation_kind: read, stream
+    surfaces_documented:
+      - cli
       - api
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /teams/{team_id}/create_custom_role — Create a custom role; GET
-          /teams/{team_id}/list_custom_roles — List custom roles; POST
-          /teams/{team_id}/update_custom_role — Update a custom role; POST
-          /teams/{team_id}/delete_custom_role — Delete a custom role
+      - doc_url: https://docs.convex.dev/dashboard/deployments/logs
+        quote: a realtime view of all activity that occurs within your deployment...
+          Clicking on log will open a view for all logs associated with the same
+          Request ID.
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: team-member-management
-    title: Team Member Invite and Role Assignment
-    description: Invite new team members, manage pending invitations, update member
-      roles, and enumerate current members to control who can access projects
-      and database deployments.
-    resource_kind: member
+  - capability_name: local-dev-sync
+    title: Local Dev Watch and Sync
+    description: "`convex dev` watches the local convex/ folder and continuously
+      pushes function/schema changes to a dev deployment."
+    resource_kind: deployment
     operation_kind: update
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /teams/{team_id}/invite_team_member — Invite a team member; GET
-          /teams/{team_id}/list_members — List team members; GET
-          /teams/{team_id}/list_pending_invites — List pending team invitations;
-          POST /teams/{team_id}/cancel_team_member_invite — Cancel a pending
-          team invitation; POST /teams/{team_id}/update_team_member_role —
-          Update a team member's role
+      - doc_url: https://docs.convex.dev/cli
+        quote: Develop against a dev deployment, watching for changes
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: identity-token-management
-    title: Personal and Team API Token Management
-    description: Create, list, revoke, and introspect personal and team-scoped
-      access tokens used for authenticating management API calls and
-      programmatic database administration workflows.
-    resource_kind: token
+  - capability_name: ad-hoc-function-invocation
+    title: CLI Ad Hoc Function Run
+    description: "`convex run` invokes a deployed function or evaluates an inline
+      readonly query directly from the command line."
+    resource_kind: function
+    operation_kind: execute
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/cli
+        quote: Run a function or evaluate an inline readonly query on your deployment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: type-code-generation
+    title: Backend Type Code Generation
+    description: "`convex codegen` generates typed client bindings/backend type
+      definitions from a project's schema and functions."
+    resource_kind: function
     operation_kind: create
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /create_personal_access_token — Create personal access token; GET
-          /list_personal_access_tokens — List personal access tokens; POST
-          /delete_personal_access_token — Delete personal access token; POST
-          /teams/{team_id}/create_access_token — Create a team access token; GET
-          /teams/{team_id}/list_access_tokens — List team access tokens; POST
-          /teams/{team_id}/delete_access_token — Delete a team access token; GET
-          /token_details — Get token details
+      - doc_url: https://docs.convex.dev/cli
+        quote: Generate backend type definitions
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: audit-logging
-    title: Team-Level Audit Log
-    description: Retrieve a chronological log of administrative audit events for a
-      team, covering actions such as role changes, deployment modifications, and
-      credential operations for compliance and security forensics.
-    resource_kind: audit-event
+  - capability_name: function-introspection
+    title: Function Metadata Listing
+    description: "`convex function-spec` lists metadata (names, argument/return
+      validators) for all functions deployed on a deployment."
+    resource_kind: function
     operation_kind: read
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: GET /teams/{team_id}/list_audit_log_events — List audit log events
+      - doc_url: https://docs.convex.dev/cli
+        quote: List function metadata from your deployment
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: project-organization
-    title: Project Lifecycle Management
-    description: Create, list, inspect, and delete projects as the logical grouping
-      of related database deployments within a team; supports lookup by both
-      project ID and human-readable slug.
-    resource_kind: project
+  - capability_name: deployment-health-insights
+    title: Deployment Health Insights
+    description: "`convex insights` surfaces health diagnostics for a deployment
+      from the CLI."
+    resource_kind: deployment
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.convex.dev/cli
+        quote: Show health insights for your deployment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-08T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: function-bundling
+    title: Automatic Function Bundling
+    description: Convex bundles the convex/ folder and its dependencies (via
+      esbuild) into a deployable source bundle at dev/deploy time, supporting
+      WASM imports, with a 32MiB bundle size cap and Node-runtime package
+      externalization.
+    resource_kind: function
     operation_kind: create
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /teams/{team_id}/create_project — Create project; GET
-          /teams/{team_id}/list_projects — List projects; POST
-          /projects/{project_id}/delete — Delete project; GET
-          /projects/{project_id} — Get project by ID; GET
-          /teams/{team_id_or_slug}/projects/{project_slug} — Get project by slug
+      - doc_url: https://docs.convex.dev/functions/bundling
+        quote: traverse your convex/ folder and bundle your functions and all of their
+          used dependencies into a source code bundle
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: team-provisioning
-    title: Team Provisioning
-    description: Create teams as the top-level organizational and billing boundary
-      that owns projects and database deployments, separating organizational
-      units within the Convex platform.
-    resource_kind: team
-    operation_kind: create
+  - capability_name: local-testing-framework
+    title: Local and CI Function Testing
+    description: Test functions without a live backend using the convex-test Vitest
+      library, or against a real local Convex backend, runnable in CI (e.g.
+      GitHub Actions).
+    resource_kind: function
+    operation_kind: read, update
     surfaces_documented:
-      - api
+      - sdk
+      - cli
     support_type: native
     evidence:
-      - doc_url: https://docs.convex.dev/management-api
-        quote: POST /teams/create_team — Create a team
+      - doc_url: https://docs.convex.dev/testing
+        quote: test your functions in JS via the excellent Vitest testing framework
+        strength: direct
     extraction_provenance:
       source: official-docs
-      extracted_at: 2026-07-08T00:00:00.000Z
+      extracted_at: 2026-07-08T00:00:00Z
       extractor: llm-capability-inventory-v1
