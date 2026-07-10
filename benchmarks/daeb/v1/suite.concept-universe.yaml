@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-10T00:49:21.890Z
+generated_at: 2026-07-10T04:12:35.971Z
 clusters:
   - concept_name: access-control
     title: Access Control
@@ -81,6 +81,23 @@ clusters:
         capability_name: schema-diff
       - vendor: Turso
         capability_name: schema-alteration
+  - concept_name: query-records
+    title: Query Records
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: filtered-query
+      - vendor: Insforge
+        capability_name: filtered-query
+      - vendor: Neon
+        capability_name: time-travel-historical-query
+      - vendor: Nile
+        capability_name: standard-postgres-tool-connectivity
+      - vendor: Supabase
+        capability_name: filtered-query
+      - vendor: Turso
+        capability_name: filtered-query
+      - vendor: Turso
+        capability_name: query-sorting-pagination
   - concept_name: vector-search
     title: Vector Search
     coverage:
@@ -203,21 +220,6 @@ clusters:
         capability_name: schema-introspection
       - vendor: Turso
         capability_name: schema-introspection
-  - concept_name: query-records
-    title: Query Records
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: filtered-query
-      - vendor: Insforge
-        capability_name: filtered-query
-      - vendor: Neon
-        capability_name: time-travel-historical-query
-      - vendor: Supabase
-        capability_name: filtered-query
-      - vendor: Turso
-        capability_name: filtered-query
-      - vendor: Turso
-        capability_name: query-sorting-pagination
   - concept_name: database-branching
     title: Database/Backend Branching
     coverage:
@@ -944,11 +946,6 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: sso-saml
-  - concept_name: standard-postgres-tool-connectivity
-    title: Standard Postgres Tool Connectivity
-    coverage:
-      - vendor: Nile
-        capability_name: standard-postgres-tool-connectivity
   - concept_name: storage-access-control
     title: Storage Access Control
     coverage:

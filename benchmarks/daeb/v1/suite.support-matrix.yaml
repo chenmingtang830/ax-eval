@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T00:49:21.900Z
+generated_at: 2026-07-10T04:12:35.982Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control
@@ -101,13 +101,15 @@ entries:
   - vendor: Nile
     task_id: db-T02-backup-and-restore
     surface: api
-    status: supported
+    status: unsupported
     source_concept: backup-and-restore
+    reason: "missing task requirements: artifact"
   - vendor: Nile
     task_id: db-T02-backup-and-restore
     surface: cli
-    status: supported
+    status: unsupported
     source_concept: backup-and-restore
+    reason: "missing task requirements: artifact"
   - vendor: Supabase
     task_id: db-T02-backup-and-restore
     surface: api
@@ -257,397 +259,396 @@ entries:
     status: supported
     source_concept: inspect-schema
   - vendor: Cockroachdb
-    task_id: db-T05-vector-search
+    task_id: db-T05-query-records
+    surface: api
+    status: unsupported
+    source_concept: query-records
+    reason: api does not satisfy all task-fit requirements on one documented surface
+  - vendor: Cockroachdb
+    task_id: db-T05-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Insforge
+    task_id: db-T05-query-records
+    surface: api
+    status: supported
+    source_concept: query-records
+  - vendor: Insforge
+    task_id: db-T05-query-records
+    surface: cli
+    status: unsupported
+    source_concept: query-records
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Neon
+    task_id: db-T05-query-records
+    surface: api
+    status: supported
+    source_concept: query-records
+  - vendor: Neon
+    task_id: db-T05-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Nile
+    task_id: db-T05-query-records
+    surface: api
+    status: unsupported
+    source_concept: query-records
+    reason: api does not satisfy all task-fit requirements on one documented surface
+  - vendor: Nile
+    task_id: db-T05-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Supabase
+    task_id: db-T05-query-records
+    surface: api
+    status: supported
+    source_concept: query-records
+  - vendor: Supabase
+    task_id: db-T05-query-records
+    surface: cli
+    status: unsupported
+    source_concept: query-records
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Turso
+    task_id: db-T05-query-records
+    surface: api
+    status: supported
+    source_concept: query-records
+  - vendor: Turso
+    task_id: db-T05-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Cockroachdb
+    task_id: db-T06-vector-search
     surface: api
     status: unsupported
     source_concept: vector-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: supported
     source_concept: vector-search
   - vendor: Insforge
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: api
     status: supported
     source_concept: vector-search
   - vendor: Insforge
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: unsupported
     source_concept: vector-search
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: api
     status: unsupported
     source_concept: vector-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: supported
     source_concept: vector-search
   - vendor: Nile
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: api
     status: unsupported
     source_concept: vector-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Nile
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: supported
     source_concept: vector-search
   - vendor: Supabase
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: api
     status: supported
     source_concept: vector-search
   - vendor: Supabase
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: unsupported
     source_concept: vector-search
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: api
     status: supported
     source_concept: vector-search
   - vendor: Turso
-    task_id: db-T05-vector-search
+    task_id: db-T06-vector-search
     surface: cli
     status: supported
     source_concept: vector-search
   - vendor: Cockroachdb
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: unsupported
     source_concept: write-records
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: supported
     source_concept: write-records
   - vendor: Insforge
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: unsupported
     source_concept: write-records
     reason: "missing task requirements: create-record, delete-record"
   - vendor: Insforge
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: unsupported
     source_concept: write-records
     reason: "missing task requirements: create-record, delete-record"
   - vendor: Neon
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: unsupported
     source_concept: write-records
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: supported
     source_concept: write-records
   - vendor: Nile
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: supported
     source_concept: write-records
   - vendor: Nile
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: supported
     source_concept: write-records
   - vendor: Supabase
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: supported
     source_concept: write-records
   - vendor: Supabase
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: unsupported
     source_concept: write-records
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: api
     status: supported
     source_concept: write-records
   - vendor: Turso
-    task_id: db-T06-write-records
+    task_id: db-T07-write-records
     surface: cli
     status: supported
     source_concept: write-records
   - vendor: Cockroachdb
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: unsupported
     source_concept: change-data-capture
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: supported
     source_concept: change-data-capture
   - vendor: Insforge
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: supported
     source_concept: change-data-capture
   - vendor: Insforge
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: unsupported
     source_concept: change-data-capture
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: supported
     source_concept: change-data-capture
   - vendor: Neon
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: supported
     source_concept: change-data-capture
   - vendor: Nile
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: inconclusive
     source_concept: change-data-capture
     reason: "missing task requirements: database-change-feed"
   - vendor: Nile
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: inconclusive
     source_concept: change-data-capture
     reason: "missing task requirements: database-change-feed"
   - vendor: Supabase
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: supported
     source_concept: change-data-capture
   - vendor: Supabase
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: unsupported
     source_concept: change-data-capture
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: api
     status: unsupported
     source_concept: change-data-capture
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T07-change-data-capture
+    task_id: db-T08-change-data-capture
     surface: cli
     status: supported
     source_concept: change-data-capture
   - vendor: Cockroachdb
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: supported
     source_concept: data-integrity-and-transactions
   - vendor: Insforge
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: supported
     source_concept: data-integrity-and-transactions
   - vendor: Insforge
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: inconclusive
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: duplicate-rejection"
   - vendor: Neon
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: inconclusive
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: duplicate-rejection"
   - vendor: Nile
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: duplicate-rejection"
   - vendor: Nile
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: duplicate-rejection"
   - vendor: Supabase
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: atomic-write"
   - vendor: Supabase
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: unsupported
     source_concept: data-integrity-and-transactions
     reason: "missing task requirements: atomic-write"
   - vendor: Turso
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: api
     status: supported
     source_concept: data-integrity-and-transactions
   - vendor: Turso
-    task_id: db-T08-data-integrity-and-transactions
+    task_id: db-T09-data-integrity-and-transactions
     surface: cli
     status: supported
     source_concept: data-integrity-and-transactions
   - vendor: Cockroachdb
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Insforge
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: inconclusive
     source_concept: full-text-search
     reason: "missing task requirements: full-text-query"
   - vendor: Insforge
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: inconclusive
     source_concept: full-text-search
     reason: "missing task requirements: full-text-query"
   - vendor: Neon
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Nile
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Nile
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Supabase
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: supported
     source_concept: full-text-search
   - vendor: Supabase
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: unsupported
     source_concept: full-text-search
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: api
     status: supported
     source_concept: full-text-search
   - vendor: Turso
-    task_id: db-T09-full-text-search
+    task_id: db-T10-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
-  - vendor: Cockroachdb
-    task_id: db-T10-query-records
-    surface: api
-    status: unsupported
-    source_concept: query-records
-    reason: api does not satisfy all task-fit requirements on one documented surface
-  - vendor: Cockroachdb
-    task_id: db-T10-query-records
-    surface: cli
-    status: supported
-    source_concept: query-records
-  - vendor: Insforge
-    task_id: db-T10-query-records
-    surface: api
-    status: supported
-    source_concept: query-records
-  - vendor: Insforge
-    task_id: db-T10-query-records
-    surface: cli
-    status: unsupported
-    source_concept: query-records
-    reason: cli does not satisfy all task-fit requirements on one documented surface
-  - vendor: Neon
-    task_id: db-T10-query-records
-    surface: api
-    status: supported
-    source_concept: query-records
-  - vendor: Neon
-    task_id: db-T10-query-records
-    surface: cli
-    status: supported
-    source_concept: query-records
-  - vendor: Nile
-    task_id: db-T10-query-records
-    surface: api
-    status: inconclusive
-    source_concept: query-records
-    reason: "missing task requirements: filtered-read"
-  - vendor: Nile
-    task_id: db-T10-query-records
-    surface: cli
-    status: inconclusive
-    source_concept: query-records
-    reason: "missing task requirements: filtered-read"
-  - vendor: Supabase
-    task_id: db-T10-query-records
-    surface: api
-    status: supported
-    source_concept: query-records
-  - vendor: Supabase
-    task_id: db-T10-query-records
-    surface: cli
-    status: unsupported
-    source_concept: query-records
-    reason: cli does not satisfy all task-fit requirements on one documented surface
-  - vendor: Turso
-    task_id: db-T10-query-records
-    surface: api
-    status: supported
-    source_concept: query-records
-  - vendor: Turso
-    task_id: db-T10-query-records
-    surface: cli
-    status: supported
-    source_concept: query-records

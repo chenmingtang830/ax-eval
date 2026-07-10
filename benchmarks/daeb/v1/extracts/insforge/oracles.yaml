@@ -2,7 +2,7 @@ vendor: Insforge
 category: database
 slug: insforge
 suite_name: DAEB-1
-extracted_at: 2026-07-10T00:49:41.432Z
+extracted_at: 2026-07-10T04:12:36.746Z
 vendor_config:
   base_url: ${INSFORGE_PROJECT_URL}
   auth_type: bearer
@@ -68,12 +68,36 @@ tasks:
         assert_field: 0.count
         expected: 2
         description: schema inspection target exposes name and status fields
-  - task_id: db-T05-vector-search
+  - task_id: db-T05-query-records
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T05-vector-search:vector-search
+    support_reference: insforge:db-T05-query-records:query-records
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
+        assert_field: 0.count
+        expected: 3
+        description: query container contains exactly the three requested records
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active'
+        assert_field: 0.count
+        expected: 2
+        description: filtered read returns exactly two active records
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+        assert_field: 0.count
+        expected: 2
+        description: the active set is alpha and gamma
+  - task_id: db-T06-vector-search
+    na: false
+    na_surfaces:
+      - cli
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: insforge:db-T06-vector-search:vector-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
@@ -81,12 +105,12 @@ tasks:
         assert_field: 0.label
         expected: alpha_{ns}
         description: nearest vector search ranks alpha first
-  - task_id: db-T06-write-records
+  - task_id: db-T07-write-records
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T06-write-records:write-records
+    support_reference: insforge:db-T07-write-records:write-records
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
@@ -106,12 +130,12 @@ tasks:
         assert_field: 0.count
         expected: 0
         description: throwaway record was deleted
-  - task_id: db-T07-change-data-capture
+  - task_id: db-T08-change-data-capture
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T07-change-data-capture:change-data-capture
+    support_reference: insforge:db-T08-change-data-capture:change-data-capture
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
@@ -119,12 +143,12 @@ tasks:
         assert_field: 0.count
         expected: 1
         description: agent-reported durable capture table contains the inserted CDC marker
-  - task_id: db-T08-data-integrity-and-transactions
+  - task_id: db-T09-data-integrity-and-transactions
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: insforge:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
@@ -132,12 +156,12 @@ tasks:
         assert_field: 0.count
         expected: 1
         description: exactly one committed record has the protected logical key
-  - task_id: db-T09-full-text-search
+  - task_id: db-T10-full-text-search
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T09-full-text-search:full-text-search
+    support_reference: insforge:db-T10-full-text-search:full-text-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
@@ -154,27 +178,3 @@ tasks:
         assert_field: 0.count
         expected: 0
         description: orchard search excludes mountain and harbor records
-  - task_id: db-T10-query-records
-    na: false
-    na_surfaces:
-      - cli
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T10-query-records:query-records
-    checks:
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
-        assert_field: 0.count
-        expected: 3
-        description: query container contains exactly the three requested records
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active'
-        assert_field: 0.count
-        expected: 2
-        description: filtered read returns exactly two active records
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
-        assert_field: 0.count
-        expected: 2
-        description: the active set is alpha and gamma

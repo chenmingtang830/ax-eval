@@ -1,6 +1,6 @@
 schema: ax.grader-ledger/v1
 benchmark: DAEB-1
-generated_at: 2026-07-10T00:49:21.900Z
+generated_at: 2026-07-10T04:12:35.983Z
 tasks:
   - task_id: db-T01-access-control
     outcome_graders:
@@ -59,7 +59,7 @@ tasks:
       - token_cost_usd
     human_calibration:
       - grader-fairness-review
-  - task_id: db-T05-vector-search
+  - task_id: db-T05-query-records
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -73,7 +73,7 @@ tasks:
       - token_cost_usd
     human_calibration:
       - grader-fairness-review
-  - task_id: db-T06-write-records
+  - task_id: db-T06-vector-search
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -87,7 +87,21 @@ tasks:
       - token_cost_usd
     human_calibration:
       - grader-fairness-review
-  - task_id: db-T07-change-data-capture
+  - task_id: db-T07-write-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T08-change-data-capture
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -102,7 +116,7 @@ tasks:
     human_calibration:
       - manual-spot-check
       - grader-fairness-review
-  - task_id: db-T08-data-integrity-and-transactions
+  - task_id: db-T09-data-integrity-and-transactions
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -117,21 +131,7 @@ tasks:
     human_calibration:
       - manual-spot-check
       - grader-fairness-review
-  - task_id: db-T09-full-text-search
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - grader-fairness-review
-  - task_id: db-T10-query-records
+  - task_id: db-T10-full-text-search
     outcome_graders:
       - read-back-world-state
     trajectory_graders:

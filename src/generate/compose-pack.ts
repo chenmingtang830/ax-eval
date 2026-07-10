@@ -59,9 +59,9 @@ function vendorSandboxScope(vendor: ResolveResult): TargetPack["sandbox_scope"] 
       },
       {
         name: "database",
-        env: "NILE_DATABASE",
+        env: "NILE_DB",
         required: true,
-        instructions: "disposable Nile database dedicated to DAEB namespaced resources",
+        instructions: "disposable Nile database dedicated to DAEB namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
       },
     ];
   }

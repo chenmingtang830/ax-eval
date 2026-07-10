@@ -114,7 +114,7 @@ entries:
       managed_service: true
       persistent_free_sandbox: true
       headless_auth: yes
-      benchmark_surface: no
+      benchmark_surface: limited
       reset_feasibility: yes
     sources:
       - https://www.mongodb.com/pricing
@@ -128,7 +128,7 @@ entries:
       managed_service: true
       persistent_free_sandbox: true
       headless_auth: yes
-      benchmark_surface: no
+      benchmark_surface: limited
       reset_feasibility: yes
     sources:
       - https://www.convex.dev/pricing

@@ -178,6 +178,23 @@ function auditInventoryFindings(
   }
   caps = kept;
 
+  if (slug === "nile") {
+    for (const cap of caps) {
+      if (!["automated-backup", "point-in-time-restore"].includes(cap.capability_name)) continue;
+      if (cap.support_type !== "managed-surface") continue;
+      findings.push({
+        vendor,
+        artifact: "capability-inventory",
+        severity: "warn",
+        code: "manual_backup_workflow",
+        message:
+          "Backup/restore is documented as a managed or support-mediated workflow; do not expose it as a self-service DAEB API/CLI task without direct automation evidence.",
+        capability_name: cap.capability_name,
+        auto_fixable: false,
+      });
+    }
+  }
+
   if (surfaces && !surfaces.sdk) {
     let stripped = 0;
     caps = caps.map((cap) => {

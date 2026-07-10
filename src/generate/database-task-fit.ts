@@ -9,6 +9,7 @@ interface Requirement {
   exclude?: RegExp[];
   evidencePatterns?: RegExp[];
   excludeEvidence?: RegExp[];
+  excludeSupportTypes?: Capability["support_type"][];
 }
 
 interface RequirementPath {
@@ -47,12 +48,14 @@ const r = (
   exclude: RegExp[] = [],
   evidencePatterns: RegExp[] = [],
   excludeEvidence: RegExp[] = [],
+  excludeSupportTypes: Capability["support_type"][] = [],
 ): Requirement => ({
   id,
   patterns,
   exclude,
   evidencePatterns,
   excludeEvidence,
+  excludeSupportTypes,
 });
 
 const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
@@ -83,7 +86,7 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         /\bpoint-in-time\b/,
         /\bsnapshot\b/,
         /\bexport\b/,
-      ], [/\bblackout\b/])],
+      ], [/\bblackout\b/], [], [], ["managed-surface"])],
     }],
   },
   {
@@ -133,6 +136,7 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         /\bjsonb-path-query\b/,
         /\bsql-table-and-row-operations\b/,
         /\bbaseline-sql-table-and-row-operations\b/,
+        /\bstandard-postgres-tool-connectivity\b/,
       ], [/\btime-travel\b/, /\bhistorical\b/])],
     }],
   },
@@ -233,6 +237,7 @@ function identity(capability: Capability): string {
 
 function matchScore(capability: Capability, requirement: Requirement): number {
   const haystack = identity(capability);
+  if (requirement.excludeSupportTypes?.includes(capability.support_type)) return 0;
   if (requirement.exclude?.some((pattern) => pattern.test(haystack))) return 0;
   const capabilityName = capability.capability_name.toLowerCase();
   const nameHit = requirement.patterns.some((pattern) => pattern.test(capabilityName));

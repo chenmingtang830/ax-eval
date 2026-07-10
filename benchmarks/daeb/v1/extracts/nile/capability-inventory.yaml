@@ -20,7 +20,7 @@ audit_notes:
     review before publication.
   - 1 capabilities include non-direct evidence and require reviewer confirmation
     before publication.
-  - "Post-extract audit: 0 inventory finding(s)."
+  - "Post-extract audit: 3 inventory finding(s)."
 capabilities:
   - capability_name: table-creation
     title: Table Creation
@@ -30,8 +30,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/createtable.md
         quote: A PostgreSQL table is a structured storage object that organizes data
@@ -49,8 +48,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/createtable.md
         quote: To add a new column to an existing table, you use the ALTER TABLE
@@ -68,8 +66,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/createtable.md
         quote: A primary key is a column or a set of columns that uniquely identifies
@@ -86,8 +83,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/createtable.md
         quote: A foreign key is a column or a set of columns that establishes a link
@@ -105,8 +101,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/views.md
         quote: Views in PostgreSQL are virtual tables that are generated based on the
@@ -148,8 +143,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
         quote: To create a shared table, you must create a standard table without a
@@ -168,8 +162,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
         quote: A simplified version will have a 'candidates' table that tracks all
@@ -192,8 +185,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/datatype/json.md
         quote: "Better Performance: `jsonb` allows indexing, making it faster for
@@ -215,8 +207,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/datatype/arrays.md
         quote: Adding a new value to an existing integer array [using] pay_by_quarter ||
@@ -234,8 +225,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/datatype/numeric.md
         quote: "NUMERIC (or DECIMAL): Stores exact numbers with an arbitrary precision."
@@ -255,8 +245,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/datatype/date.md
         quote: "Range: 4713 BC to 5874897 AD"
@@ -276,8 +265,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/datatype/character.md
         quote: Variable-length character type. Can store strings up to `n` characters
@@ -295,8 +283,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/indexes.md
         quote: They excel in handling equality and range queries. Common operators
@@ -317,8 +304,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/joins.md
         quote: Returns records with matching values in both tables.
@@ -335,8 +321,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
         quote: Tenant aware tables can be joined with shared tables to provide relevant
@@ -355,8 +340,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
         quote: Setting a session context to a specific tenant is equivalent to pointing
@@ -397,8 +381,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
         quote: Inserting a new customer or tenant could use SQL, one of our SDKs or REST
@@ -432,8 +415,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
         quote: It is possible to do writes to multiple shared tables in the same
@@ -451,7 +433,7 @@ capabilities:
     resource_kind: schema
     operation_kind: migrate
     surfaces_documented:
-      - sdk
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/getting-started/schema_migrations/prisma.md
@@ -474,8 +456,7 @@ capabilities:
     operation_kind: migrate
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/getting-started/architecture.md
         quote: A central schema store employs distributed transactions to apply schemas
@@ -494,7 +475,6 @@ capabilities:
     operation_kind: filter
     surfaces_documented:
       - cli
-      - sdk
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
@@ -518,8 +498,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/concepts/jwt.md
         quote: The server can verify the JWT without having to maintain a session on the
@@ -537,8 +516,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/concepts/oauth.md
         quote: Your backend service proxy's Nile auth's API, you can intercept errors
@@ -556,8 +534,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/concepts/multifactor.md
         quote: "For Authenticator: An `otpauthUrl` (for QR code generation), a `secret`,
@@ -576,8 +553,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/magiclink.md
         quote: Clicking the link automatically exchanges the token for a session, logs
@@ -596,8 +572,7 @@ capabilities:
     operation_kind: delete
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/concepts/sessions.md
         quote: You can revoke a database session by deleting it from the database. This
@@ -616,8 +591,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/concepts/users.md
         quote: To add a user to a tenant, use `linkUser`
@@ -638,9 +612,8 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/api-reference/tenants/delete-a-tenant.md
         quote: sets a tenant for delete in the database
@@ -661,8 +634,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
         quote: locate a tenant in any location globally while creating the tenant
@@ -679,8 +651,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
         quote: support the ability to move tenants from one location to another with a
@@ -773,7 +744,6 @@ capabilities:
     operation_kind: backup
     surfaces_documented:
       - api
-      - sdk
       - cli
     support_type: managed-surface
     evidence:
@@ -793,7 +763,6 @@ capabilities:
     operation_kind: restore
     surfaces_documented:
       - api
-      - sdk
       - cli
     support_type: managed-surface
     evidence:
@@ -875,9 +844,8 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/getting-started/architecture.md
         quote: serves as a connection pooling layer, eliminating the need for a separate
@@ -978,8 +946,8 @@ capabilities:
     resource_kind: connection
     operation_kind: read
     surfaces_documented:
-      - sdk
-    support_type: native
+      - cli
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/server/db.md
         quote: When `nile.tenantId` is set, the `db` object will use the correct
@@ -997,8 +965,8 @@ capabilities:
     resource_kind: connection
     operation_kind: read
     surfaces_documented:
-      - sdk
-    support_type: native
+      - cli
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/overview.md
         quote: The SDK will try its hardest to use context whenever possible. Under the
@@ -1015,8 +983,8 @@ capabilities:
     resource_kind: session
     operation_kind: create
     surfaces_documented:
-      - sdk
-    support_type: native
+      - cli
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/auth/frameworks/nextjs.md
         quote: SignOutButton, SignUpForm, SignedIn, SignedOut, TenantSelector, UserInfo
@@ -1037,8 +1005,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/ai-embeddings/vectors/pg_vector.md
         quote: Exact and approximate nearest neighbor search (with optional HNSW and
@@ -1062,8 +1029,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/pgvectorscale.md
         quote: The `pgvectorscale` extension adds diskANN index support for pgvector
@@ -1081,8 +1047,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/ai-embeddings/vectors/diskann.md
         quote: Execute ANN queries scoped to individual tenants using `SET
@@ -1100,7 +1065,7 @@ capabilities:
     resource_kind: vector
     operation_kind: create
     surfaces_documented:
-      - sdk
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/ai-embeddings/embedding_models/overview.md
@@ -1120,7 +1085,6 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/ai-embeddings/rag.md
@@ -1139,8 +1103,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/pg_trgm.md
         quote: The `pg_trgm` extension provides trigram matching capabilities for fast
@@ -1158,8 +1121,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/citext.md
         quote: queries automatically become case-insensitive
@@ -1176,8 +1138,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/hstore.md
         quote: The `hstore` extension provides a data type for storing sets of key-value
@@ -1195,8 +1156,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/uuid-ossp.md
         quote: Nile includes `public.uuid_generate_v7()` which generates UUIDs with
@@ -1214,8 +1174,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/postgis.md
         quote: PostGIS extension adds support for geographic objects to PostgreSQL,
@@ -1234,8 +1193,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/pgrouting.md
         quote: It enables you to perform shortest path calculations, traveling
@@ -1254,8 +1212,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://thenile.dev/docs/extensions/rdkit.md
         quote: Substructure and similarity searching enables finding molecules with

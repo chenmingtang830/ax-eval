@@ -7,7 +7,7 @@ const EligibilitySchema = z.object({
   managed_service: z.boolean(),
   persistent_free_sandbox: z.boolean(),
   headless_auth: z.enum(["yes", "no", "unknown"]),
-  benchmark_surface: z.enum(["yes", "no", "unknown"]),
+  benchmark_surface: z.enum(["yes", "limited", "no", "unknown"]),
   reset_feasibility: z.enum(["yes", "no", "unknown"]),
 });
 

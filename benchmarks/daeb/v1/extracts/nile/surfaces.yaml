@@ -23,12 +23,5 @@ cli:
     token_env: NILE_API_KEY
     token_env_aliases: []
     instructions: Set NILE_API_KEY for non-interactive CLI and CI use.
-sdk:
-  package: "@niledatabase/server"
-  language: node
-  reference_url: https://www.thenile.dev/docs/auth/sdk-reference/javascript/overview
-  auth:
-    kind: inherit
-    token_env_aliases: []
-    instructions: Inherit Nile database connection settings from NILE_DATABASE_URL.
+sdk: null
 mcp: null

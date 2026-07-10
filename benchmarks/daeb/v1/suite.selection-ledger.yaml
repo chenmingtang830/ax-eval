@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T00:49:21.899Z
+generated_at: 2026-07-10T04:12:35.982Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -119,6 +119,21 @@ entries:
     selected_by_model: true
     selected: true
     rationale: Deterministic proposal from concept universe and coverage closure.
+  - concept_name: query-records
+    title: Query Records
+    proposed_difficulty: L2
+    coverage_pct: 1
+    covered_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    verifiable: true
+    selected_by_model: true
+    selected: true
+    rationale: Deterministic proposal from concept universe and coverage closure.
   - concept_name: vector-search
     title: Vector Search
     proposed_difficulty: L2
@@ -185,20 +200,6 @@ entries:
       - Cockroachdb
       - Neon
       - Nile
-      - Supabase
-      - Turso
-    verifiable: true
-    selected_by_model: true
-    selected: true
-    rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: query-records
-    title: Query Records
-    proposed_difficulty: L2
-    coverage_pct: 0.8333333333333334
-    covered_vendors:
-      - Cockroachdb
-      - Insforge
-      - Neon
       - Supabase
       - Turso
     verifiable: true
@@ -1713,17 +1714,6 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
-    verifiable: true
-    selected_by_model: true
-    selected: false
-    rationale: Deterministic proposal from concept universe and coverage closure.
-    rejection_reason: coverage below 75% (1/6 vendors; need ≥5)
-  - concept_name: standard-postgres-tool-connectivity
-    title: Standard Postgres Tool Connectivity
-    proposed_difficulty: L1
-    coverage_pct: 0.16666666666666666
-    covered_vendors:
-      - Nile
     verifiable: true
     selected_by_model: true
     selected: false
