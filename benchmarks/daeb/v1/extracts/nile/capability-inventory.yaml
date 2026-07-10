@@ -928,7 +928,7 @@ capabilities:
     resource_kind: connection
     operation_kind: read
     surfaces_documented:
-      - cli
+      - api
     support_type: native
     evidence:
       - doc_url: https://thenile.dev/docs/postgres/tools/dbeaver.md

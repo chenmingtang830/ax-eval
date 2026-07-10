@@ -116,6 +116,7 @@ const DATABASE_DETERMINISTIC_RULES: DeterministicConceptRule[] = [
       /\bgraphql-query\b/,
       /\brest-api-crud\b/,
       /\bstandard-postgres-tool-connectivity\b/,
+      /\bpostgres-protocol-compatibility\b/,
       /\bsorted-query\b/,
       /\bquery-sorting-pagination\b/,
       /\btime-travel-historical-query\b/,

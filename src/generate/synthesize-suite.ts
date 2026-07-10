@@ -719,10 +719,10 @@ function databaseTaskSupportOverride(
   surface: "api" | "sdk" | "cli",
 ): { status: "unsupported"; reason: string } | null {
   if (category !== "database") return null;
-  if (vendor === "Nile" && task.skill === "write-records" && surface === "api") {
+  if (vendor === "Nile" && surface === "api") {
     return {
       status: "unsupported",
-      reason: "Nile record lifecycle evidence is SQL/CLI data-plane DML; tenant control-plane APIs do not establish generic table row CRUD for DAEB.",
+      reason: "Nile DAEB v1 data-plane tasks use documented PostgreSQL command-line connectivity; the Nile API is control-plane only for this cohort.",
     };
   }
   if (vendor === "MongoDB Atlas" && task.skill === "server-side-execution" && decision.capability_name === "server-side-javascript-function") {

@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T04:15:33.894Z
+generated_at: 2026-07-10T21:16:52.371Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -1417,17 +1417,6 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
-    verifiable: true
-    selected_by_model: true
-    selected: false
-    rationale: Deterministic proposal from concept universe and coverage closure.
-    rejection_reason: coverage below 75% (1/6 vendors; need ≥5)
-  - concept_name: postgres-protocol-compatibility
-    title: Postgres Protocol/SQL Compatibility
-    proposed_difficulty: L1
-    coverage_pct: 0.16666666666666666
-    covered_vendors:
-      - Nile
     verifiable: true
     selected_by_model: true
     selected: false

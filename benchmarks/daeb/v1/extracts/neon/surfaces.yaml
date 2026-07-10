@@ -14,21 +14,16 @@ audit_notes:
   - Verify headless auth fields against vendor docs before publication.
   - "Post-extract audit: 0 surface finding(s)."
 cli:
-  bin: neon
-  install: npm i -g neon
-  docs_url: https://neon.com/docs/reference/neon-cli
-  auth:
-    kind: token
-    token_env: NEON_API_KEY
-    token_env_aliases: []
-sdk:
-  package: "@neondatabase/api-client"
-  language: node
-  reference_url: https://api-docs.neon.tech/reference/getting-started-with-neon-api
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://neon.com/docs/connect/connect-intro
   auth:
     kind: inherit
-    token_env: NEON_API_KEY
     token_env_aliases: []
+    instructions: Use NEON_DATABASE_URL with psql for PostgreSQL data-plane
+      operations. NEON_API_KEY is reserved for Neon control-plane API or CLI
+      operations.
+sdk: null
 mcp:
   server: https://mcp.neon.tech/mcp
   transport: http

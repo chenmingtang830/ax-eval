@@ -99,12 +99,16 @@ export function auditVendorSelectionAgainstExtracts(root: string): VendorSelecti
         });
         continue;
       }
-      if (entry.eligibility.headless_auth === "yes" && (!surfaces.cli || surfaces.cli.auth.kind !== "token" || !surfaces.cli.auth.token_env)) {
+      const headlessCli = surfaces.cli && (
+        (surfaces.cli.auth.kind === "token" && Boolean(surfaces.cli.auth.token_env))
+        || surfaces.cli.auth.kind === "inherit"
+      );
+      if (entry.eligibility.headless_auth === "yes" && !headlessCli) {
         findings.push({
           slug: entry.slug,
           severity: "error",
           code: "core_headless_cli_missing",
-          message: `Core vendor ${entry.slug} claims headless auth but has no token-authenticated CLI surface`,
+          message: `Core vendor ${entry.slug} claims headless auth but has no token or inherited-credential CLI surface`,
         });
       }
   }

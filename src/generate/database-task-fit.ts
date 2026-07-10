@@ -73,7 +73,7 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         /\bnetwork-access-(?:allow-rules|restriction)\b/,
         /\bip-allowlisting-and-private-networking\b/,
         /\bfunction-level-auth-checks\b/,
-      ], [/\bcustom-roles\b/, /\bteam\b/, /\bidentity-scoped-access-tokens\b/])],
+      ], [/\bcustom-roles\b/, /\bteam\b/, /\bidentity-scoped-access-tokens\b/], [], [/\bnot supported yet\b/])],
     }],
   },
   {
@@ -137,6 +137,7 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         /\bsql-table-and-row-operations\b/,
         /\bbaseline-sql-table-and-row-operations\b/,
         /\bstandard-postgres-tool-connectivity\b/,
+        /\bpostgres-protocol-compatibility\b/,
       ], [/\btime-travel\b/, /\bhistorical\b/])],
     }],
   },
@@ -239,6 +240,10 @@ function matchScore(capability: Capability, requirement: Requirement): number {
   const haystack = identity(capability);
   if (requirement.excludeSupportTypes?.includes(capability.support_type)) return 0;
   if (requirement.exclude?.some((pattern) => pattern.test(haystack))) return 0;
+  if (requirement.excludeEvidence?.length && capability.evidence.some((item) => {
+    const evidenceText = `${item.quote} ${item.note ?? ""}`.toLowerCase();
+    return requirement.excludeEvidence!.some((pattern) => pattern.test(evidenceText));
+  })) return 0;
   const capabilityName = capability.capability_name.toLowerCase();
   const nameHit = requirement.patterns.some((pattern) => pattern.test(capabilityName));
   const identityHit = requirement.patterns.some((pattern) => pattern.test(haystack));

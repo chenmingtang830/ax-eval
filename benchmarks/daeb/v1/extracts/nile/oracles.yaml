@@ -2,7 +2,7 @@ vendor: Nile
 category: database
 slug: nile
 suite_name: DAEB-1
-extracted_at: 2026-07-10T04:15:34.575Z
+extracted_at: 2026-07-10T21:16:53.154Z
 vendor_config:
   base_url: https://global.thenile.dev
   auth_type: bearer
@@ -12,9 +12,9 @@ vendor_config:
   sql_connection_env: NILE_DATABASE_URL
 tasks:
   - task_id: db-T01-access-control
-    na: false
-    na_surfaces:
-      - api
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: nile:db-T01-access-control:access-control
     checks:

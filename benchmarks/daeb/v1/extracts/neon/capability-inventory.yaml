@@ -24,9 +24,9 @@ audit_notes:
     attribution and downgraded unless directly cited.
   - 5 capabilities cite summary-index evidence such as llms.txt; replace with
     page-specific docs before publication.
-  - "Post-extract audit: 15 inventory finding(s)."
   - 2 capabilities include non-direct evidence and require reviewer confirmation
     before publication.
+  - "Post-extract audit: 1 inventory finding(s)."
 capabilities:
   - capability_name: project-lifecycle-management
     title: Project Create/Read/Update/Delete
@@ -38,8 +38,7 @@ capabilities:
     surfaces_documented:
       - api
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/reference/api-reference
         quote: create and manage projects, branches, databases, roles, compute
@@ -59,8 +58,7 @@ capabilities:
     surfaces_documented:
       - api
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/guides/branching-intro
         quote: Neon branching lets you instantly create copy-on-write database branches
@@ -140,8 +138,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/reference/neon-cli
         quote: the terminal tool for managing Neon projects, branches, databases, roles,
@@ -160,8 +157,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/reference/neon-cli
         quote: the terminal tool for managing Neon projects, branches, databases, roles,
@@ -182,8 +178,7 @@ capabilities:
     surfaces_documented:
       - api
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/introduction/autoscaling
         quote: Neon's Autoscaling feature dynamically adjusts the amount of compute
@@ -244,8 +239,8 @@ capabilities:
     resource_kind: connection
     operation_kind: connect
     surfaces_documented:
-      - sdk
-    support_type: native
+      - cli
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/connect/connection-pooling
         quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
@@ -266,8 +261,7 @@ capabilities:
     operation_kind: connect
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/connect/connect-intro
         quote: psql, JDBC, pgAdmin, DBeaver, TablePlus, VS Code Extension
@@ -330,8 +324,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/reference/compatibility
         quote: Neon is Postgres.
@@ -442,8 +435,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/guides/row-level-security
         quote: Row-Level Security (RLS) is a Postgres feature that controls access to
@@ -490,9 +482,8 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/neon-auth/overview
         quote: All authentication data is stored in the neon_auth schema. It's queryable
@@ -515,9 +506,8 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/data-api/get-started
         quote: exposes your Postgres database as a REST endpoint secured by JWT
@@ -540,8 +530,8 @@ capabilities:
     resource_kind: connection
     operation_kind: connect
     surfaces_documented:
-      - sdk
-    support_type: native
+      - cli
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/serverless/serverless-driver
         quote: HTTP is faster for single, non-interactive transactions ('one-shot
@@ -560,9 +550,8 @@ capabilities:
     resource_kind: project
     operation_kind: update
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/reference/typescript-sdk
         quote: "a typed wrapper around the Neon REST API ... Branches: Manage branches,
@@ -585,7 +574,7 @@ capabilities:
     resource_kind: connection
     operation_kind: connect
     surfaces_documented:
-      - sdk
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/guides/prisma
@@ -655,8 +644,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/data-types/tsvector
         quote: tsvector is a specialized Postgres data type designed for full-text
@@ -705,8 +693,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/extensions/pgvector
         quote: The pgvector extension enables you to store vector embeddings and perform
@@ -731,8 +718,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - cli
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://neon.com/docs/extensions/pg-extensions
         quote: Unless otherwise noted, supported extensions can be installed using

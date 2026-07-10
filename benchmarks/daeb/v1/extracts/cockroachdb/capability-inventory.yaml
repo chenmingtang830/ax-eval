@@ -26,9 +26,9 @@ audit_notes:
     before publication.
   - 1 capabilities cite summary-index evidence such as llms.txt; replace with
     page-specific docs before publication.
-  - "Post-extract audit: 3 inventory finding(s)."
   - 1 capabilities include non-direct evidence and require reviewer confirmation
     before publication.
+  - "Post-extract audit: 0 inventory finding(s)."
 capabilities:
   - capability_name: cluster-provisioning
     title: Cluster Creation & Provisioning

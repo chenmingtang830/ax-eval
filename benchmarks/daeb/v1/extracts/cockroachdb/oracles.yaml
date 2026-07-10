@@ -2,7 +2,7 @@ vendor: Cockroachdb
 category: database
 slug: cockroachdb
 suite_name: DAEB-1
-extracted_at: 2026-07-10T04:15:34.573Z
+extracted_at: 2026-07-10T21:16:53.152Z
 vendor_config:
   base_url: https://cockroachlabs.cloud/api/v1
   auth_type: bearer

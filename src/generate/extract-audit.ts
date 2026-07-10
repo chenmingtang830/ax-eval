@@ -50,6 +50,8 @@ export interface ExtractAuditReport {
 }
 
 const METHOD_PATH_RE = /\b(GET|POST|PUT|PATCH|DELETE)\s+\//;
+const GUI_ONLY_RE = /\b(pgadmin|dbeaver|mongodb compass|compass schema|tableplus|datagrip|ui editor|dashboard table editor)\b/i;
+const COMMAND_LINE_RE = /\b(psql|mongosh|cockroach sql|turso\b|--api-key|command[- ]line)\b/i;
 
 function looksConnectionDerivedEvidence(
   evidence: CapabilityInventoryEntry["evidence"][number],
@@ -178,10 +180,30 @@ function auditInventoryFindings(
   }
   caps = kept;
 
-  if (slug === "nile") {
-    for (const cap of caps) {
-      if (!["automated-backup", "point-in-time-restore"].includes(cap.capability_name)) continue;
-      if (cap.support_type !== "managed-surface") continue;
+  caps = caps.map((cap) => {
+    if (!cap.surfaces_documented.includes("cli")) return cap;
+    const evidenceText = cap.evidence.map((item) => `${item.doc_url} ${item.quote}`).join("\n");
+    if (!GUI_ONLY_RE.test(evidenceText) || COMMAND_LINE_RE.test(evidenceText)) return cap;
+    findings.push({
+      vendor,
+      artifact: "capability-inventory",
+      severity: "error",
+      code: "gui_mislabeled_cli",
+      message: "CLI attribution relies only on GUI/desktop evidence; stripped cli surface",
+      capability_name: cap.capability_name,
+      auto_fixable: true,
+    });
+    return {
+      ...cap,
+      surfaces_documented: cap.surfaces_documented.filter((surface) => surface !== "cli"),
+    };
+  });
+
+  for (const cap of caps) {
+      const backupLike = /\b(backup|restore|point-in-time)\b/i.test(`${cap.capability_name} ${cap.title}`);
+      const supportMediated = cap.support_type === "managed-surface"
+        || cap.evidence.some((item) => /\b(upon your request|contact support|support-mediated|support ticket|paid tiers only)\b/i.test(`${item.quote} ${item.note ?? ""}`));
+      if (backupLike && supportMediated) {
       findings.push({
         vendor,
         artifact: "capability-inventory",
@@ -192,7 +214,7 @@ function auditInventoryFindings(
         capability_name: cap.capability_name,
         auto_fixable: false,
       });
-    }
+      }
   }
 
   if (surfaces && !surfaces.sdk) {

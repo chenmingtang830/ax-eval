@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-l4utd2
+# run_id: 2026-07-10-c3bmqk
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-l4utd2
+run_id: 2026-07-10-c3bmqk
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -27,17 +27,15 @@ sql_conn:
   connection_string_env: COCKROACH_CONNECTION_STRING
 surfaces:
   cli:
-    bin: ccloud
-    install: brew install cockroachdb/tap/ccloud
-    docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
+    bin: cockroach
+    install: brew install cockroachdb/tap/cockroach
+    docs_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql
     auth:
-      kind: token
-      token_env: COCKROACH_API_KEY
+      kind: inherit
       token_env_aliases: []
-      instructions: "ccloud interactive login is browser/device-code based. For
-        headless/CI automation prefer the Cloud REST API with a service-account
-        API key (COCKROACH_API_KEY / Authorization: Bearer). The CLI itself is
-        not a fully non-interactive surface."
+      instructions: Use cockroach sql with COCKROACH_CONNECTION_STRING for SQL
+        data-plane operations. COCKROACH_API_KEY is reserved for the Cloud REST
+        API.
 base_url: https://cockroachlabs.cloud/api/v1
 headers: {}
 site_url: https://cockroachlabs.com
@@ -68,6 +66,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -103,6 +106,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -135,6 +143,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 2
@@ -165,6 +178,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 2
@@ -198,6 +216,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 3
@@ -242,6 +265,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -273,6 +301,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       SQL write lifecycle contract: before reporting this task, read back the
@@ -327,6 +360,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -357,6 +395,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -387,6 +430,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1

@@ -22,7 +22,7 @@ audit_notes:
     before publication.
   - 1 capabilities cite summary-index evidence such as llms.txt; replace with
     page-specific docs before publication.
-  - "Post-extract audit: 9 inventory finding(s)."
+  - "Post-extract audit: 1 inventory finding(s)."
 capabilities:
   - capability_name: table-schema-definition
     title: Table & Column Definition
@@ -207,8 +207,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/api
         quote: Basic CRUD operations (Create/Read/Update/Delete)
@@ -229,8 +228,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/api
         quote: Arbitrarily deep relationships among tables/views.
@@ -246,9 +244,8 @@ capabilities:
     resource_kind: row
     operation_kind: search
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/reference/javascript/select
         quote: eq, neq, gt, gte, lt, lte, like, ilike, in, is, contains, containedBy,
@@ -264,9 +261,8 @@ capabilities:
     resource_kind: row
     operation_kind: read
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/reference/javascript/select
         quote: The `range` modifier retrieves specific row ranges; the `limit` modifier
@@ -282,9 +278,8 @@ capabilities:
     resource_kind: row
     operation_kind: read
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/reference/javascript/select
         quote: "const { count, error } = await supabase.from('characters').select('*', {
@@ -302,9 +297,8 @@ capabilities:
     operation_kind: authorize
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
         quote: RLS *must* always be enabled on any tables stored in an exposed schema.
@@ -392,8 +386,7 @@ capabilities:
     operation_kind: authenticate
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/auth
         quote: Your users can use many popular Auth methods, including password, magic
@@ -410,8 +403,7 @@ capabilities:
     operation_kind: authenticate
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/auth
         quote: Add a second factor to user sign-in with TOTP or phone.
@@ -444,8 +436,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/storage
         quote: Store and serve images, videos, documents, and general-purpose files with
@@ -500,9 +491,8 @@ capabilities:
     resource_kind: channel
     operation_kind: stream
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/realtime
         quote: Send low-latency messages between clients. Perfect for real-time
@@ -519,9 +509,8 @@ capabilities:
     resource_kind: channel
     operation_kind: stream
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/realtime
         quote: Track and synchronize user state across clients. Ideal for showing who's
@@ -538,9 +527,8 @@ capabilities:
     resource_kind: table
     operation_kind: stream
     surfaces_documented:
-      - sdk
       - api
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/realtime
         quote: Listen to database changes in real-time.
@@ -557,9 +545,8 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/database/functions
         quote: Postgres has built-in support for SQL functions. These functions live
@@ -669,8 +656,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/database/full-text-search
         quote: Converts your data into searchable tokens. `to_tsvector()` stands for 'to
@@ -691,8 +677,7 @@ capabilities:
     operation_kind: search
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://supabase.com/docs/guides/ai/vector-columns
         quote: Vectors in Supabase are enabled via pgvector, a Postgres extension for

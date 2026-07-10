@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-j43u9i
+# run_id: 2026-07-10-916au3
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-j43u9i
+run_id: 2026-07-10-916au3
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -27,17 +27,15 @@ sql_conn:
   connection_string_env: INSFORGE_CONNECTION_STRING
 surfaces:
   cli:
-    bin: insforge
-    install: npm install @insforge/cli --save-dev
-    docs_url: https://docs.insforge.dev/agent-native/cli-harness
+    bin: psql
+    install: Install PostgreSQL client tools (psql).
+    docs_url: https://docs.insforge.dev/sdks/rest/database
     auth:
-      kind: token
-      token_env: INSFORGE_API_KEY
+      kind: inherit
       token_env_aliases: []
-      instructions: Obtain API_KEY from InsForge Settings → Connect tab. The docs show
-        interactive linking via `npx @insforge/cli link --project-id <id>`; a
-        dedicated headless/CI env var name is not explicitly documented — use
-        the API_KEY from the Connect tab.
+      instructions: Use INSFORGE_CONNECTION_STRING with psql for PostgreSQL data-plane
+        operations. INSFORGE_API_KEY is reserved for InsForge API control-plane
+        operations.
 base_url: ${INSFORGE_PROJECT_URL}
 headers: {}
 site_url: https://insforge.dev
@@ -68,6 +66,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -145,6 +148,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
@@ -214,6 +222,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -287,6 +300,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
@@ -358,6 +376,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       Insforge-specific database adapter note: when operating through the API
@@ -444,6 +467,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
@@ -513,6 +541,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       SQL write lifecycle contract: before reporting this task, read back the
@@ -589,6 +622,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
@@ -659,6 +697,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
+
+
       Insforge-specific database adapter note: when operating through the API
       surface, use the documented admin table/schema endpoints as the first path
       for schema setup: `POST /api/database/tables` with `tableName`, `columns`,
@@ -727,6 +770,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.INSFORGE_CONNECTION_STRING for DDL/DML/query operations. Do
+      not assume the vendor control-plane CLI executes arbitrary SQL.
 
 
       Insforge-specific database adapter note: when operating through the API

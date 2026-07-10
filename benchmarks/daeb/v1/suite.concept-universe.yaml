@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-10T04:15:33.884Z
+generated_at: 2026-07-10T21:16:52.358Z
 clusters:
   - concept_name: access-control
     title: Access Control
@@ -90,6 +90,8 @@ clusters:
         capability_name: filtered-query
       - vendor: Neon
         capability_name: time-travel-historical-query
+      - vendor: Nile
+        capability_name: postgres-protocol-compatibility
       - vendor: Nile
         capability_name: standard-postgres-tool-connectivity
       - vendor: Supabase
@@ -811,11 +813,6 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: postgres-extension-management
-  - concept_name: postgres-protocol-compatibility
-    title: Postgres Protocol/SQL Compatibility
-    coverage:
-      - vendor: Nile
-        capability_name: postgres-protocol-compatibility
   - concept_name: private-connectivity
     title: Private Endpoint Connectivity (PrivateLink / Private Service Connect)
     coverage:

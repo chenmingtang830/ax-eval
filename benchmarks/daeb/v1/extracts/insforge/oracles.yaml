@@ -2,7 +2,7 @@ vendor: Insforge
 category: database
 slug: insforge
 suite_name: DAEB-1
-extracted_at: 2026-07-10T04:15:34.575Z
+extracted_at: 2026-07-10T21:16:53.154Z
 vendor_config:
   base_url: ${INSFORGE_PROJECT_URL}
   auth_type: bearer

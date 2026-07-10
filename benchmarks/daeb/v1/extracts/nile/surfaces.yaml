@@ -15,13 +15,13 @@ audit_notes:
   - Verify SDK database env aliases before enabling SDK benchmark cells.
   - "Post-extract audit: 0 surface finding(s)."
 cli:
-  bin: nile
-  install: npm install -g niledatabase
-  docs_url: https://www.thenile.dev/docs/cli/introduction
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://www.thenile.dev/docs/postgres/postgres-compatibility
   auth:
-    kind: token
-    token_env: NILE_API_KEY
+    kind: inherit
     token_env_aliases: []
-    instructions: Set NILE_API_KEY for non-interactive CLI and CI use.
+    instructions: Use NILE_DATABASE_URL with psql for Nile PostgreSQL SQL data-plane
+      operations. NILE_API_KEY is reserved for Nile control-plane commands.
 sdk: null
 mcp: null

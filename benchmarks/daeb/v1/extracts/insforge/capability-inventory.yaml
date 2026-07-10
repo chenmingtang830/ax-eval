@@ -16,7 +16,7 @@ audit_status: candidate
 audit_notes:
   - Grounded doc-crawl candidate inventory; citations require human review
     before publication.
-  - "Post-extract audit: 0 inventory finding(s)."
+  - "Post-extract audit: 1 inventory finding(s)."
 capabilities:
   - capability_name: table-creation
     title: Create Table
@@ -179,8 +179,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/create-records.md
         quote: "Create one or more records. Request body MUST be an array... type:
@@ -200,8 +199,7 @@ capabilities:
     operation_kind: update
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/update-records.md
         quote: Modify existing data using `PATCH /api/database/records/{tableName}`.
@@ -219,8 +217,7 @@ capabilities:
     operation_kind: delete
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/delete-records.md
         quote: "Remove data via `DELETE /api/database/records/{tableName}`. The `Prefer:
@@ -240,8 +237,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
         quote: you can filter "by field value (e.g., "?status=eq.active", "?age=gt.18")"
@@ -262,8 +258,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
         quote: Results can be ordered using the `order` parameter with the format
@@ -281,8 +276,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
         quote: 'Limit: "Maximum number of records to return" with a default of 100 and
@@ -303,8 +297,7 @@ capabilities:
     operation_kind: read
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
         quote: 'The `select` parameter accepts a "Comma-separated list of columns to
@@ -533,8 +526,7 @@ capabilities:
     operation_kind: create
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
         quote: '"New users sign up with an email and password, get a confirmation email,
@@ -554,8 +546,7 @@ capabilities:
     operation_kind: authenticate
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
         quote: '"First-class support for Google, GitHub, Apple, Microsoft, GitLab,
@@ -685,8 +676,7 @@ capabilities:
     operation_kind: stream
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
         quote: The platform monitors table modifications via database triggers. When
@@ -706,8 +696,7 @@ capabilities:
     operation_kind: stream
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
         quote: '"exact names for shared rooms, or patterns like `order:%` when every
@@ -726,8 +715,7 @@ capabilities:
     operation_kind: stream
     surfaces_documented:
       - api
-      - sdk
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
         quote: The presence feature "tracks who is online in a channel." Subscribers
@@ -747,9 +735,8 @@ capabilities:
     operation_kind: execute
     surfaces_documented:
       - api
-      - sdk
       - cli
-    support_type: native
+    support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/functions/overview
         quote: Edge functions are TypeScript applications running on Deno, deployed as

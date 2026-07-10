@@ -2,7 +2,7 @@ vendor: Supabase
 category: database
 slug: supabase
 suite_name: DAEB-1
-extracted_at: 2026-07-10T04:15:34.574Z
+extracted_at: 2026-07-10T21:16:53.153Z
 vendor_config:
   base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
   auth_type: bearer

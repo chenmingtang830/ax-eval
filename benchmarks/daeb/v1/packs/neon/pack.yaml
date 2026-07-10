@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-mv8342
+# run_id: 2026-07-10-f6uerk
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-mv8342
+run_id: 2026-07-10-f6uerk
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -39,13 +39,15 @@ sql_conn:
   connection_string_env: NEON_DATABASE_URL
 surfaces:
   cli:
-    bin: neon
-    install: npm i -g neon
-    docs_url: https://neon.com/docs/reference/neon-cli
+    bin: psql
+    install: Install PostgreSQL client tools (psql).
+    docs_url: https://neon.com/docs/connect/connect-intro
     auth:
-      kind: token
-      token_env: NEON_API_KEY
+      kind: inherit
       token_env_aliases: []
+      instructions: Use NEON_DATABASE_URL with psql for PostgreSQL data-plane
+        operations. NEON_API_KEY is reserved for Neon control-plane API or CLI
+        operations.
 base_url: https://console.neon.tech/api/v2
 headers: {}
 site_url: https://neon.com
@@ -76,6 +78,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
@@ -124,6 +131,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
       connection-string`, do not rely on Neon CLI's default role/database
       inference. In shared benchmark branches, multiple roles may exist.
@@ -167,6 +179,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
       connection-string`, do not rely on Neon CLI's default role/database
       inference. In shared benchmark branches, multiple roles may exist.
@@ -206,6 +223,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
@@ -251,6 +273,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
@@ -309,6 +336,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
       connection-string`, do not rely on Neon CLI's default role/database
       inference. In shared benchmark branches, multiple roles may exist.
@@ -349,6 +381,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       SQL write lifecycle contract: before reporting this task, read back the
@@ -416,6 +453,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
       connection-string`, do not rely on Neon CLI's default role/database
       inference. In shared benchmark branches, multiple roles may exist.
@@ -458,6 +500,11 @@ tasks:
       marker strings and row data; only SQL identifiers need identifier quoting.
 
 
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
       Neon CLI contract: when operating through `neonctl psql` or `neonctl
       connection-string`, do not rely on Neon CLI's default role/database
       inference. In shared benchmark branches, multiple roles may exist.
@@ -491,6 +538,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       Neon CLI contract: when operating through `neonctl psql` or `neonctl

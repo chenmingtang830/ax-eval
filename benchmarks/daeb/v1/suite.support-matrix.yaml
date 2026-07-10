@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T04:15:33.895Z
+generated_at: 2026-07-10T21:16:52.371Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control
@@ -41,12 +41,13 @@ entries:
     surface: api
     status: unsupported
     source_concept: access-control
-    reason: api does not satisfy all task-fit requirements on one documented surface
+    reason: "missing task requirements: data-access-control"
   - vendor: Nile
     task_id: db-T01-access-control
     surface: cli
-    status: supported
+    status: unsupported
     source_concept: access-control
+    reason: "missing task requirements: data-access-control"
   - vendor: Supabase
     task_id: db-T01-access-control
     surface: api
@@ -295,7 +296,8 @@ entries:
     surface: api
     status: unsupported
     source_concept: query-records
-    reason: api does not satisfy all task-fit requirements on one documented surface
+    reason: Nile DAEB v1 data-plane tasks use documented PostgreSQL command-line
+      connectivity; the Nile API is control-plane only for this cohort.
   - vendor: Nile
     task_id: db-T05-query-records
     surface: cli
@@ -426,8 +428,8 @@ entries:
     surface: api
     status: unsupported
     source_concept: write-records
-    reason: Nile record lifecycle evidence is SQL/CLI data-plane DML; tenant
-      control-plane APIs do not establish generic table row CRUD for DAEB.
+    reason: Nile DAEB v1 data-plane tasks use documented PostgreSQL command-line
+      connectivity; the Nile API is control-plane only for this cohort.
   - vendor: Nile
     task_id: db-T07-write-records
     surface: cli

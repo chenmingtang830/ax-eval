@@ -12,19 +12,17 @@ extraction_context:
 audit_status: candidate
 audit_notes:
   - Verify headless auth fields against vendor docs before publication.
-  - "Post-extract audit: 2 surface finding(s)."
+  - "Post-extract audit: 0 surface finding(s)."
 cli:
-  bin: ccloud
-  install: brew install cockroachdb/tap/ccloud
-  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
+  bin: cockroach
+  install: brew install cockroachdb/tap/cockroach
+  docs_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql
   auth:
-    kind: token
-    token_env: COCKROACH_API_KEY
+    kind: inherit
     token_env_aliases: []
-    instructions: "ccloud interactive login is browser/device-code based. For
-      headless/CI automation prefer the Cloud REST API with a service-account
-      API key (COCKROACH_API_KEY / Authorization: Bearer). The CLI itself is not
-      a fully non-interactive surface."
+    instructions: Use cockroach sql with COCKROACH_CONNECTION_STRING for SQL
+      data-plane operations. COCKROACH_API_KEY is reserved for the Cloud REST
+      API.
 sdk: null
 mcp:
   server: https://cockroachlabs.cloud/mcp

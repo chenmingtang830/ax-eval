@@ -106,6 +106,14 @@ const SQL_IDENTIFIER_CONTRACT_VENDORS = new Set([
   "turso",
 ]);
 
+const SQL_DATA_PLANE_ENV: Record<string, string> = {
+  neon: "NEON_DATABASE_URL",
+  cockroachdb: "COCKROACH_CONNECTION_STRING",
+  supabase: "SUPABASE_DB_URL",
+  insforge: "INSFORGE_CONNECTION_STRING",
+  nile: "NILE_DATABASE_URL",
+};
+
 const SQL_WRITE_LIFECYCLE_CONTRACT_NOTE = [
   "SQL write lifecycle contract: before reporting this task, read back the target table and ensure the",
   "postcondition is exact: one row labeled `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows",
@@ -123,10 +131,10 @@ const NEON_CLI_ROLE_CONTRACT_NOTE = [
 ].join(" ");
 
 const NILE_CLI_CONTRACT_NOTE = [
-  "Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands and set the target",
-  "database explicitly with `NILE_WORKSPACE` plus `NILE_DB` (or the equivalent `--workspace` and",
-  "`--db` flags). Before executing SQL, confirm the database name in `NILE_DATABASE_URL` matches",
-  "`NILE_DB`; use that PostgreSQL connection only for the declared disposable sandbox database.",
+  "Nile SQL CLI contract: run data-plane SQL through `psql` with `NILE_DATABASE_URL`, not through",
+  "the Nile control-plane CLI. Before executing SQL, confirm the database name in `NILE_DATABASE_URL`",
+  "matches `NILE_DB`; use that connection only for the declared disposable sandbox database.",
+  "Use `NILE_API_KEY` and `NILE_WORKSPACE` only for explicit Nile control-plane operations.",
   "Never print the API key or connection string.",
 ].join(" ");
 
@@ -156,6 +164,10 @@ export function applyDatabasePackPromptOverride(
   if (vendor.category !== "database") return prompt;
   if (SQL_IDENTIFIER_CONTRACT_VENDORS.has(vendor.slug) && task.id.startsWith("db-")) {
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
+    const sqlEnv = SQL_DATA_PLANE_ENV[vendor.slug];
+    if (sqlEnv) {
+      prompt = `${prompt}\n\nUse the documented SQL command-line data plane (for example, psql) with process.env.${sqlEnv} for DDL/DML/query operations. Do not assume the vendor control-plane CLI executes arbitrary SQL.`;
+    }
     if (task.skill === "write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
   if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;

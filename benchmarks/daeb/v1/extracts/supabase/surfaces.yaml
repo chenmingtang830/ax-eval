@@ -13,34 +13,18 @@ audit_status: candidate
 audit_notes:
   - Verify headless auth fields against vendor docs before publication.
   - sdk declares token auth but no headless credential env var.
-  - "Post-extract audit: 2 surface finding(s)."
+  - "Post-extract audit: 0 surface finding(s)."
 cli:
-  bin: supabase
-  install: npm install supabase --save-dev
-  docs_url: https://supabase.com/docs/reference/cli/introduction
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://supabase.com/docs/guides/database/connecting-to-postgres
   auth:
-    kind: token
-    token_env: SUPABASE_ACCESS_TOKEN
+    kind: inherit
     token_env_aliases: []
-    instructions: Generate a personal access token at
-      https://supabase.com/dashboard/account/tokens, then set
-      SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-      database operations.
-sdk:
-  package: "@supabase/supabase-js"
-  language: node
-  reference_url: https://supabase.com/docs/reference/javascript/introduction
-  auth:
-    kind: token
-    token_env: SUPABASE_KEY
-    token_env_aliases:
-      - SUPABASE_SERVICE_ROLE_KEY
-      - SUPABASE_ANON_KEY
-    instructions: Initialize with createClient(SUPABASE_URL, SUPABASE_KEY) where
-      SUPABASE_URL is the project URL and SUPABASE_KEY is the project anon key
-      (client-side, with RLS) or service_role key (server-side, bypasses RLS).
-      Both are found in the project API settings dashboard — these are
-      project-level keys, distinct from the CLI's personal access token.
+    instructions: Use SUPABASE_DB_URL with psql for PostgreSQL data-plane
+      operations. SUPABASE_ACCESS_TOKEN is reserved for Supabase control-plane
+      CLI operations.
+sdk: null
 mcp:
   server: https://mcp.supabase.com/mcp
   transport: http

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-e8uuvg
+# run_id: 2026-07-10-epigls
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-e8uuvg
+run_id: 2026-07-10-epigls
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -28,17 +28,15 @@ sql_conn:
   connection_string_env: SUPABASE_DB_URL
 surfaces:
   cli:
-    bin: supabase
-    install: npm install supabase --save-dev
-    docs_url: https://supabase.com/docs/reference/cli/introduction
+    bin: psql
+    install: Install PostgreSQL client tools (psql).
+    docs_url: https://supabase.com/docs/guides/database/connecting-to-postgres
     auth:
-      kind: token
-      token_env: SUPABASE_ACCESS_TOKEN
+      kind: inherit
       token_env_aliases: []
-      instructions: Generate a personal access token at
-        https://supabase.com/dashboard/account/tokens, then set
-        SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-        database operations.
+      instructions: Use SUPABASE_DB_URL with psql for PostgreSQL data-plane
+        operations. SUPABASE_ACCESS_TOKEN is reserved for Supabase control-plane
+        CLI operations.
 base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
 headers: {}
 site_url: https://supabase.com
@@ -69,6 +67,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -105,6 +108,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -137,6 +145,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 2
@@ -168,6 +181,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 2
@@ -201,6 +219,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 3
@@ -245,6 +268,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -276,6 +304,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
 
 
       SQL write lifecycle contract: before reporting this task, read back the
@@ -330,6 +363,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
@@ -360,6 +398,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -384,6 +427,11 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.SUPABASE_DB_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
     oracles:
       - type: roundtrip
         expected: 1
