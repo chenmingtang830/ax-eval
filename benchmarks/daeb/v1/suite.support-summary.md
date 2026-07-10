@@ -3,18 +3,17 @@
 Human review table derived from `suite.support-matrix.yaml`.
 **✓** supported · **—** unsupported / N/A · **?** inconclusive.
 
-| Task | Cockroachdb API / CLI | Insforge API / CLI | Neon API / CLI | Nile API / CLI | Supabase API / CLI | Turso API / CLI |
-|---|---|---|---|---|---|---|
-| db-T01-access-control access-control | — / ✓ | ✓ / — | — / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
-| db-T02-backup-and-restore backup-and-restore | ✓ / ✓ | ✓ / — | ✓ / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
-| db-T03-evolve-schema evolve-schema | — / ✓ | ✓ / ✓ | — / ✓ | — / ✓ | ✓ / ✓ | ✓ / ✓ |
-| db-T04-inspect-schema inspect-schema | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | — / ✓ |
-| db-T05-query-records query-records | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T06-vector-search vector-search | — / ✓ | ✓ / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T07-write-records write-records | — / ✓ | — / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T08-change-data-capture change-data-capture | — / ✓ | ✓ / — | ✓ / ✓ | ? / ? | ✓ / — | — / ✓ |
-| db-T09-data-integrity-and-transactions data-integrity-and-transactions | — / ✓ | ✓ / — | ? / ? | — / — | — / — | ✓ / ✓ |
-| db-T10-full-text-search full-text-search | — / ✓ | ? / ? | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| Task | Broad / task-fit vendors | Cockroachdb API / CLI | Insforge API / CLI | Neon API / CLI | Nile API / CLI | Supabase API / CLI | Turso API / CLI |
+|---|---|---|---|---|---|---|---|
+| db-T01-access-control access-control | 6/6 / 5/6 | — / ✓ | ✓ / — | — / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
+| db-T02-backup-and-restore backup-and-restore | 6/6 / 5/6 | ✓ / ✓ | ✓ / — | ✓ / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
+| db-T03-evolve-schema evolve-schema | 6/6 / 6/6 | — / ✓ | ✓ / ✓ | — / ✓ | — / ✓ | ✓ / ✓ | ✓ / ✓ |
+| db-T04-inspect-schema inspect-schema | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | — / ✓ |
+| db-T05-query-records query-records | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T06-vector-search vector-search | 6/6 / 6/6 | — / ✓ | ✓ / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T07-write-records write-records | 6/6 / 5/6 | — / ✓ | — / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T08-change-data-capture change-data-capture | 5/6 / 5/6 | — / ✓ | ✓ / — | ✓ / ✓ | ? / ? | ✓ / — | — / ✓ |
+| db-T09-full-text-search full-text-search | 5/6 / 5/6 | — / ✓ | ? / ? | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
 
 ## Unsupported / inconclusive cell reasons
 
@@ -57,17 +56,15 @@ Human review table derived from `suite.support-matrix.yaml`.
 | db-T08-change-data-capture | Nile | cli | inconclusive | missing task requirements: database-change-feed |
 | db-T08-change-data-capture | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
 | db-T08-change-data-capture | Turso | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-data-integrity-and-transactions | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-data-integrity-and-transactions | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T09-data-integrity-and-transactions | Neon | api | inconclusive | missing task requirements: duplicate-rejection |
-| db-T09-data-integrity-and-transactions | Neon | cli | inconclusive | missing task requirements: duplicate-rejection |
-| db-T09-data-integrity-and-transactions | Nile | api | unsupported | missing task requirements: duplicate-rejection |
-| db-T09-data-integrity-and-transactions | Nile | cli | unsupported | missing task requirements: duplicate-rejection |
-| db-T09-data-integrity-and-transactions | Supabase | api | unsupported | missing task requirements: atomic-write |
-| db-T09-data-integrity-and-transactions | Supabase | cli | unsupported | missing task requirements: atomic-write |
-| db-T10-full-text-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T10-full-text-search | Insforge | api | inconclusive | missing task requirements: full-text-query |
-| db-T10-full-text-search | Insforge | cli | inconclusive | missing task requirements: full-text-query |
-| db-T10-full-text-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T10-full-text-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T10-full-text-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T09-full-text-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T09-full-text-search | Insforge | api | inconclusive | missing task requirements: full-text-query |
+| db-T09-full-text-search | Insforge | cli | inconclusive | missing task requirements: full-text-query |
+| db-T09-full-text-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T09-full-text-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T09-full-text-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+
+## Research tasks (excluded from core scoring)
+
+| Concept | Broad vendors | Task-fit vendors | Reason |
+|---|---|---|---|
+| data-integrity-and-transactions | 5 | 3 | task-fit coverage below 75% (3/6 vendors; need ≥5) |

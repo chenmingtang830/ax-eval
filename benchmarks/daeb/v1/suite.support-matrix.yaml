@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T22:25:54.256Z
+generated_at: 2026-07-10T22:37:53.604Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control
@@ -521,136 +521,68 @@ entries:
     status: supported
     source_concept: change-data-capture
   - vendor: Cockroachdb
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: api does not satisfy all task-fit requirements on one documented surface
-  - vendor: Cockroachdb
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Insforge
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Insforge
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: cli does not satisfy all task-fit requirements on one documented surface
-  - vendor: Neon
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: inconclusive
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: duplicate-rejection"
-  - vendor: Neon
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: inconclusive
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: duplicate-rejection"
-  - vendor: Nile
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: duplicate-rejection"
-  - vendor: Nile
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: duplicate-rejection"
-  - vendor: Supabase
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: atomic-write"
-  - vendor: Supabase
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: unsupported
-    source_concept: data-integrity-and-transactions
-    reason: "missing task requirements: atomic-write"
-  - vendor: Turso
-    task_id: db-T09-data-integrity-and-transactions
-    surface: api
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Turso
-    task_id: db-T09-data-integrity-and-transactions
-    surface: cli
-    status: supported
-    source_concept: data-integrity-and-transactions
-  - vendor: Cockroachdb
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Cockroachdb
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Insforge
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: inconclusive
     source_concept: full-text-search
     reason: "missing task requirements: full-text-query"
   - vendor: Insforge
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: inconclusive
     source_concept: full-text-search
     reason: "missing task requirements: full-text-query"
   - vendor: Neon
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Neon
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Nile
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: unsupported
     source_concept: full-text-search
     reason: api does not satisfy all task-fit requirements on one documented surface
   - vendor: Nile
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search
   - vendor: Supabase
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: supported
     source_concept: full-text-search
   - vendor: Supabase
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: unsupported
     source_concept: full-text-search
     reason: cli does not satisfy all task-fit requirements on one documented surface
   - vendor: Turso
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: api
     status: supported
     source_concept: full-text-search
   - vendor: Turso
-    task_id: db-T10-full-text-search
+    task_id: db-T09-full-text-search
     surface: cli
     status: supported
     source_concept: full-text-search

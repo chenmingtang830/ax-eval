@@ -14,7 +14,7 @@ describe("canonical task suite", () => {
     expect(suite.name).toBe("DAEB-1");
     expect(suite.version).toBe(1);
     expect(suite.category).toBe("database");
-    expect(suite.tasks).toHaveLength(10);
+    expect(suite.tasks).toHaveLength(9);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);
     for (const task of suite.tasks) {
       expect(task.id).toMatch(/^db-T\d{2}-/);
@@ -49,6 +49,8 @@ describe("canonical task suite", () => {
     expect(summary).toContain("Cockroachdb API / CLI");
     expect(summary).toContain("db-T01-access-control");
     expect(summary).toContain("Unsupported / inconclusive cell reasons");
+    expect(summary).toContain("Broad / task-fit vendors");
+    expect(summary).toContain("Research tasks (excluded from core scoring)");
   });
 
   it("rejects a malformed suite", () => {

@@ -2,7 +2,7 @@ vendor: Nile
 category: database
 slug: nile
 suite_name: DAEB-1
-extracted_at: 2026-07-10T21:29:43.272Z
+extracted_at: 2026-07-10T22:37:54.368Z
 vendor_config:
   base_url: https://global.thenile.dev
   auth_type: bearer
@@ -146,25 +146,12 @@ tasks:
         assert_field: 0.count
         expected: 1
         description: agent-reported durable capture table contains the inserted CDC marker
-  - task_id: db-T09-data-integrity-and-transactions
-    na: true
-    na_reason: unsupported for this vendor in support matrix
-    na_surfaces: []
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: nile:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
-    checks:
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
-          external_id = 'primary_{ns}'
-        assert_field: 0.count
-        expected: 1
-        description: exactly one committed record has the protected logical key
-  - task_id: db-T10-full-text-search
+  - task_id: db-T09-full-text-search
     na: false
     na_surfaces:
       - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: nile:db-T10-full-text-search:full-text-search
+    support_reference: nile:db-T09-full-text-search:full-text-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE

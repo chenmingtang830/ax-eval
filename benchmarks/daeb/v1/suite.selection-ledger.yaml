@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T22:25:54.256Z
+generated_at: 2026-07-10T22:37:53.603Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -42,7 +42,7 @@ methodology:
     - api
     - cli
   min_vendor_coverage_pct: 0.75
-  target_task_count: 10
+  target_task_count: 9
   verifiability_requirement: Selected tasks must have deterministic read-back
     verification against world state.
   difficulty_rubric:
@@ -59,36 +59,6 @@ methodology:
     - final suite freeze
     - publication bundle release
 entries:
-  - concept_name: access-control
-    title: Access Control
-    proposed_difficulty: L2
-    coverage_pct: 1
-    covered_vendors:
-      - Cockroachdb
-      - Insforge
-      - Neon
-      - Nile
-      - Supabase
-      - Turso
-    verifiable: true
-    selected_by_model: true
-    selected: true
-    rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: backup-and-restore
-    title: Backup And Restore
-    proposed_difficulty: L4
-    coverage_pct: 1
-    covered_vendors:
-      - Cockroachdb
-      - Insforge
-      - Neon
-      - Nile
-      - Supabase
-      - Turso
-    verifiable: true
-    selected_by_model: true
-    selected: true
-    rationale: Deterministic proposal from concept universe and coverage closure.
   - concept_name: evolve-schema
     title: Evolve Schema
     proposed_difficulty: L3
@@ -100,6 +70,15 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 1
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -115,6 +94,15 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 1
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -130,6 +118,15 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 1
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -145,6 +142,61 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 1
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
+    verifiable: true
+    selected_by_model: true
+    selected: true
+    rationale: Deterministic proposal from concept universe and coverage closure.
+  - concept_name: access-control
+    title: Access Control
+    proposed_difficulty: L2
+    coverage_pct: 1
+    covered_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_coverage_pct: 0.8333333333333334
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    tier: core
+    verifiable: true
+    selected_by_model: true
+    selected: true
+    rationale: Deterministic proposal from concept universe and coverage closure.
+  - concept_name: backup-and-restore
+    title: Backup And Restore
+    proposed_difficulty: L4
+    coverage_pct: 1
+    covered_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_coverage_pct: 0.8333333333333334
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -160,6 +212,14 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 0.8333333333333334
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -174,20 +234,14 @@ entries:
       - Neon
       - Supabase
       - Turso
-    verifiable: true
-    selected_by_model: true
-    selected: true
-    rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: data-integrity-and-transactions
-    title: Data Integrity And Transactions
-    proposed_difficulty: L4
-    coverage_pct: 0.8333333333333334
-    covered_vendors:
+    task_fit_coverage_pct: 0.8333333333333334
+    task_fit_vendors:
       - Cockroachdb
       - Insforge
-      - Nile
+      - Neon
       - Supabase
       - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -202,6 +256,14 @@ entries:
       - Nile
       - Supabase
       - Turso
+    task_fit_coverage_pct: 0.8333333333333334
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    tier: core
     verifiable: true
     selected_by_model: true
     selected: true
@@ -215,11 +277,39 @@ entries:
       - Neon
       - Supabase
       - Turso
+    task_fit_coverage_pct: 0.6666666666666666
+    task_fit_vendors:
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
     rationale: Deterministic proposal from concept universe and coverage closure.
     rejection_reason: coverage below 75% (4/6 vendors; need ≥5)
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
+    proposed_difficulty: L4
+    coverage_pct: 0.8333333333333334
+    covered_vendors:
+      - Cockroachdb
+      - Insforge
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_coverage_pct: 0.5
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Turso
+    tier: research
+    verifiable: true
+    selected_by_model: true
+    selected: false
+    rationale: Deterministic proposal from concept universe and coverage closure.
+    rejection_reason: task-fit coverage below 75% (3/6 vendors; need ≥5)
   - concept_name: connection-pooling
     title: PgBouncer Connection Pooling
     proposed_difficulty: L1
@@ -228,6 +318,12 @@ entries:
       - Neon
       - Nile
       - Supabase
+    task_fit_coverage_pct: 0.5
+    task_fit_vendors:
+      - Neon
+      - Nile
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -241,6 +337,12 @@ entries:
       - Cockroachdb
       - Supabase
       - Turso
+    task_fit_coverage_pct: 0.5
+    task_fit_vendors:
+      - Cockroachdb
+      - Supabase
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -254,6 +356,12 @@ entries:
       - Insforge
       - Supabase
       - Turso
+    task_fit_coverage_pct: 0.5
+    task_fit_vendors:
+      - Insforge
+      - Supabase
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -266,6 +374,11 @@ entries:
     covered_vendors:
       - Insforge
       - Nile
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Insforge
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -278,6 +391,11 @@ entries:
     covered_vendors:
       - Cockroachdb
       - Supabase
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Cockroachdb
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -290,6 +408,11 @@ entries:
     covered_vendors:
       - Cockroachdb
       - Nile
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Cockroachdb
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -302,6 +425,11 @@ entries:
     covered_vendors:
       - Nile
       - Supabase
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Nile
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -314,6 +442,11 @@ entries:
     covered_vendors:
       - Neon
       - Supabase
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Neon
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -326,6 +459,11 @@ entries:
     covered_vendors:
       - Nile
       - Supabase
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Nile
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -338,6 +476,11 @@ entries:
     covered_vendors:
       - Cockroachdb
       - Nile
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Cockroachdb
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -350,6 +493,11 @@ entries:
     covered_vendors:
       - Insforge
       - Nile
+    task_fit_coverage_pct: 0.3333333333333333
+    task_fit_vendors:
+      - Insforge
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -361,6 +509,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -372,6 +524,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -383,6 +539,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -394,6 +554,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -405,6 +569,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -416,6 +584,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -427,6 +599,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -438,6 +614,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -449,6 +629,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -460,6 +644,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -471,6 +659,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -482,6 +674,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -493,6 +689,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -504,6 +704,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -515,6 +719,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -526,6 +734,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -537,6 +749,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -548,6 +764,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -559,6 +779,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -570,6 +794,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -581,6 +809,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -592,6 +824,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -603,6 +839,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -614,6 +854,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -625,6 +869,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -636,6 +884,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -647,6 +899,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -658,6 +914,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -669,6 +929,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -680,6 +944,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -691,6 +959,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -702,6 +974,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -713,6 +989,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -724,6 +1004,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -735,6 +1019,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -746,6 +1034,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -757,6 +1049,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -768,6 +1064,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -779,6 +1079,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -790,6 +1094,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -801,6 +1109,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -812,6 +1124,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -823,6 +1139,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -834,6 +1154,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -845,6 +1169,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -856,6 +1184,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -867,6 +1199,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -878,6 +1214,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -889,6 +1229,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -900,6 +1244,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -911,6 +1259,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -922,6 +1274,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -933,6 +1289,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -944,6 +1304,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -955,6 +1319,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -966,6 +1334,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -977,6 +1349,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -988,6 +1364,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -999,6 +1379,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1010,6 +1394,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1021,6 +1409,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1032,6 +1424,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1043,6 +1439,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1054,6 +1454,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1065,6 +1469,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1076,6 +1484,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1087,6 +1499,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1098,6 +1514,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1109,6 +1529,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1120,6 +1544,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1131,6 +1559,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1142,6 +1574,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1153,6 +1589,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1164,6 +1604,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1175,6 +1619,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1186,6 +1634,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1197,6 +1649,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1208,6 +1664,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1219,6 +1679,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1230,6 +1694,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1241,6 +1709,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1252,6 +1724,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1263,6 +1739,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1274,6 +1754,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1285,6 +1769,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1296,6 +1784,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1307,6 +1799,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1318,6 +1814,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1329,6 +1829,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1340,6 +1844,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1351,6 +1859,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1362,6 +1874,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1373,6 +1889,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1384,6 +1904,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1395,6 +1919,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1406,6 +1934,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1417,6 +1949,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1428,6 +1964,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1439,6 +1979,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1450,6 +1994,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1461,6 +2009,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1472,6 +2024,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1483,6 +2039,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1494,6 +2054,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1505,6 +2069,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1516,6 +2084,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1527,6 +2099,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1538,6 +2114,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1549,6 +2129,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1560,6 +2144,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1571,6 +2159,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1582,6 +2174,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1593,6 +2189,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1604,6 +2204,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1615,6 +2219,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1626,6 +2234,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1637,6 +2249,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1648,6 +2264,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1659,6 +2279,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Neon
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Neon
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1670,6 +2294,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1681,6 +2309,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1692,6 +2324,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1703,6 +2339,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1714,6 +2354,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1725,6 +2369,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1736,6 +2384,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1747,6 +2399,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1758,6 +2414,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1769,6 +2429,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1780,6 +2444,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1791,6 +2459,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1802,6 +2474,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1813,6 +2489,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1824,6 +2504,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1835,6 +2519,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1846,6 +2534,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1857,6 +2549,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1868,6 +2564,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1879,6 +2579,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1890,6 +2594,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1901,6 +2609,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Supabase
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Supabase
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1912,6 +2624,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Insforge
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Insforge
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1923,6 +2639,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1934,6 +2654,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1945,6 +2669,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1956,6 +2684,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Cockroachdb
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Cockroachdb
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1967,6 +2699,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Turso
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Turso
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false
@@ -1978,6 +2714,10 @@ entries:
     coverage_pct: 0.16666666666666666
     covered_vendors:
       - Nile
+    task_fit_coverage_pct: 0.16666666666666666
+    task_fit_vendors:
+      - Nile
+    tier: excluded
     verifiable: true
     selected_by_model: true
     selected: false

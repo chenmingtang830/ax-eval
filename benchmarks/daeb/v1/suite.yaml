@@ -44,7 +44,7 @@ methodology:
     - api
     - cli
   min_vendor_coverage_pct: 0.75
-  target_task_count: 10
+  target_task_count: 9
   verifiability_requirement: Selected tasks must have deterministic read-back
     verification against world state.
   difficulty_rubric:
@@ -213,27 +213,8 @@ tasks:
     na_examples:
       - This vendor does not expose a documented CDC, change stream, or realtime
         feed on api/cli surfaces.
-  - id: db-T09-data-integrity-and-transactions
-    title: "T09: Enforce one integrity or atomicity rule"
-    difficulty: L4
-    skill: data-integrity-and-transactions
-    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
-    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
-      `external_id=primary_{ns}` record is durably committed. The verifier must
-      itself issue one conflicting or invalid write against the same logical key
-      and re-read to confirm a second committed row was not created — do not
-      rely solely on the agent reporting that the conflict failed.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor cannot enforce a documented integrity rule or atomic write
-        guarantee on api/cli surfaces.
-  - id: db-T10-full-text-search
-    title: "T10: Create a searchable text dataset and query it"
+  - id: db-T09-full-text-search
+    title: "T09: Create a searchable text dataset and query it"
     difficulty: L2
     skill: full-text-search
     intent: Create a text-searchable dataset named `axarena_search_{ns}` with at

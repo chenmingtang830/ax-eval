@@ -20,7 +20,7 @@ Every task below traces to specific, cited vendor documentation.
 - **suite**: The frozen canonical task bank for a category.
 - **publication_bundle**: The artifact bundle tying methodology, adapters, evidence, and results together.
 
-## Selected tasks (10)
+## Selected tasks (9)
 
 ### db-T01-access-control — T01: Configure an idiomatic access-control mechanism
 
@@ -161,23 +161,7 @@ Difficulty: L4 · Skill: change-data-capture
 | Supabase | change-data-capture |
 | Turso | change-data-capture |
 
-### db-T09-data-integrity-and-transactions — T09: Enforce one integrity or atomicity rule
-
-Difficulty: L4 · Skill: data-integrity-and-transactions
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (5 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | row-upsert |
-| Insforge | column-level-constraints |
-| Nile | primary-key-constraint |
-| Supabase | primary-key-constraint |
-| Turso | upsert-conflict-resolution |
-
-### db-T10-full-text-search — T10: Create a searchable text dataset and query it
+### db-T09-full-text-search — T09: Create a searchable text dataset and query it
 
 Difficulty: L2 · Skill: full-text-search
 

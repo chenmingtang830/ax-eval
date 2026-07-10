@@ -2,7 +2,7 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-10T21:29:43.272Z
+extracted_at: 2026-07-10T22:37:54.366Z
 vendor_config:
   base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
   auth_type: bearer
@@ -189,26 +189,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
         description: agent-reported durable capture table contains the inserted CDC marker
-  - task_id: db-T09-data-integrity-and-transactions
+  - task_id: db-T09-full-text-search
     na: false
     na_surfaces: []
-    support_reference: turso:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
-    checks:
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        read_body_template:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "axarena_integrity_{ns}" WHERE external_id =
-                  'primary_{ns}'
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "1"
-        description: exactly one committed record has the protected logical key
-  - task_id: db-T10-full-text-search
-    na: false
-    na_surfaces: []
-    support_reference: turso:db-T10-full-text-search:full-text-search
+    support_reference: turso:db-T09-full-text-search:full-text-search
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline

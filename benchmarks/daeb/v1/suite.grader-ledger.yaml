@@ -1,6 +1,6 @@
 schema: ax.grader-ledger/v1
 benchmark: DAEB-1
-generated_at: 2026-07-10T22:25:54.256Z
+generated_at: 2026-07-10T22:37:53.604Z
 tasks:
   - task_id: db-T01-access-control
     outcome_graders:
@@ -116,22 +116,7 @@ tasks:
     human_calibration:
       - manual-spot-check
       - grader-fairness-review
-  - task_id: db-T09-data-integrity-and-transactions
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - manual-spot-check
-      - grader-fairness-review
-  - task_id: db-T10-full-text-search
+  - task_id: db-T09-full-text-search
     outcome_graders:
       - read-back-world-state
     trajectory_graders:

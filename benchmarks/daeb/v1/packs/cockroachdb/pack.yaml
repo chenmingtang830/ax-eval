@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-8w5r3h
+# run_id: 2026-07-10-41q7z0
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-8w5r3h
+run_id: 2026-07-10-41q7z0
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -379,43 +379,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T09-data-integrity-and-transactions
-    title: "T09: Enforce one integrity or atomicity rule"
-    prompt: >-
-      Create a container named `axarena_integrity_{ns}` with an integrity rule
-      or atomic write guarantee on `external_id`. Commit one valid record using
-      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
-      that should not leave a second committed record with the same logical key.
-
-
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
-      double-quote table, function, policy, index, trigger, schema, and other
-      SQL identifiers that include canonical task names or `{ns}`. Preserve the
-      exact canonical names expected by the verifier; do not replace hyphens
-      with underscores for SQL-backed vendors. Use parameterized values for
-      marker strings and row data; only SQL identifiers need identifier quoting.
-
-
-      Use the documented SQL command-line data plane (for example, psql) with
-      process.env.COCKROACH_CONNECTION_STRING for DDL/DML/query operations. Do
-      not assume the vendor control-plane CLI executes arbitrary SQL.
-    oracles:
-      - type: roundtrip
-        expected: 1
-        description: exactly one committed record has the protected logical key
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
-          external_id = 'primary_{ns}'
-    difficulty: L4
-    allowed_surfaces:
-      - cli
-    na: false
-    depends_on: []
-    trace: []
-  - id: db-T10-full-text-search
-    title: "T10: Create a searchable text dataset and query it"
+  - id: db-T09-full-text-search
+    title: "T09: Create a searchable text dataset and query it"
     prompt: >-
       Create a text-searchable dataset named `axarena_search_{ns}` with at least
       three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and

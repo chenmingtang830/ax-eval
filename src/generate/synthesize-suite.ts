@@ -288,6 +288,17 @@ export interface SynthesizeSuiteOptions {
 
 const TASK_DRAFT_TIMEOUT_MS = 6 * 60 * 1000;
 const TASK_DRAFT_CONCURRENCY = 3;
+const DATABASE_CORE_TASK_ORDER = [
+  "access-control",
+  "backup-and-restore",
+  "evolve-schema",
+  "inspect-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "change-data-capture",
+  "full-text-search",
+] as const;
 
 /** Infer difficulty from the canonical concept name. This is the deterministic
  *  prior used when no empirical trial calibration is available; the final
@@ -508,12 +519,19 @@ export function buildSelectionLedgerArtifact(
   const proposedByConcept = new Map(proposed.map((cluster) => [cluster.cluster_name, cluster]));
   const entries = coverageMatrix.concepts.map((concept) => {
     const supported = concept.decisions.filter((decision) => decision.status === "supported");
+    const taskFitAware = category === "database" && supported.some((decision) => decision.task_fit);
+    const taskFitSupported = taskFitAware
+      ? supported.filter((decision) => decision.task_fit?.status === "sufficient")
+      : supported;
     const coveragePct = concept.decisions.length === 0 ? 0 : supported.length / concept.decisions.length;
+    const taskFitCoveragePct = concept.decisions.length === 0 ? 0 : taskFitSupported.length / concept.decisions.length;
     const proposal = proposedByConcept.get(concept.concept_name);
     const proposedDifficulty = proposal?.difficulty ?? resolveConceptDifficulty(concept.concept_name);
     const selectedByModel = Boolean(proposal);
     const coveredVendors = supported.map((decision) => decision.vendor);
+    const taskFitVendors = taskFitSupported.map((decision) => decision.vendor);
     let selected = false;
+    let tier: "core" | "research" | "excluded" = "excluded";
     let rejectionReason: string | undefined;
     // Integer vendor threshold: for 7 vendors and 75%, require ceil(0.75*7)=6
     // supported vendors. Comparing raw ratios alone rejects 5/7 (≈0.714) even
@@ -522,13 +540,18 @@ export function buildSelectionLedgerArtifact(
       1,
       Math.ceil(methodology.min_vendor_coverage_pct * Math.max(concept.decisions.length, 1)),
     );
-    const meetsCoverage = supported.length >= minVendors;
-    if (!meetsCoverage) {
+    const meetsBroadCoverage = supported.length >= minVendors;
+    const meetsTaskFitCoverage = taskFitSupported.length >= minVendors;
+    if (!meetsBroadCoverage) {
       rejectionReason = `coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}% (${supported.length}/${concept.decisions.length} vendors; need ≥${minVendors})`;
     } else if (!selectedByModel) {
       rejectionReason = "not proposed by clustering stage";
+    } else if (!meetsTaskFitCoverage) {
+      tier = "research";
+      rejectionReason = `task-fit coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}% (${taskFitSupported.length}/${concept.decisions.length} vendors; need ≥${minVendors})`;
     } else {
       selected = true;
+      tier = "core";
     }
     return {
       concept_name: concept.concept_name,
@@ -536,18 +559,27 @@ export function buildSelectionLedgerArtifact(
       proposed_difficulty: proposedDifficulty,
       coverage_pct: coveragePct,
       covered_vendors: coveredVendors,
+      task_fit_coverage_pct: taskFitCoveragePct,
+      task_fit_vendors: taskFitVendors,
+      tier,
       verifiable: true,
       selected_by_model: selectedByModel,
       selected,
       rationale: proposal?.rationale ?? "Deterministic coverage candidate from concept universe.",
       rejection_reason: rejectionReason,
     };
-  }).sort((a, b) => Number(b.selected) - Number(a.selected) || b.coverage_pct - a.coverage_pct || a.concept_name.localeCompare(b.concept_name));
+  }).sort((a, b) =>
+    Number(b.selected) - Number(a.selected)
+    || b.task_fit_coverage_pct - a.task_fit_coverage_pct
+    || b.coverage_pct - a.coverage_pct
+    || a.concept_name.localeCompare(b.concept_name)
+  );
 
   const selectedEntries = entries.filter((entry) => entry.selected);
   if (selectedEntries.length > methodology.target_task_count) {
     for (const entry of selectedEntries.slice(methodology.target_task_count)) {
       entry.selected = false;
+      entry.tier = "research";
       entry.rejection_reason = "trimmed to target task count after deterministic ranking";
     }
   }
@@ -560,8 +592,9 @@ export function buildSelectionLedgerArtifact(
   if (selectedCount < methodology.target_task_count) {
     for (const entry of entries) {
       if (entry.selected) continue;
-      if ((entry.covered_vendors?.length ?? 0) < minVendors) continue;
+      if ((entry.task_fit_vendors?.length ?? 0) < minVendors) continue;
       entry.selected = true;
+      entry.tier = "core";
       entry.rejection_reason = undefined;
       entry.rationale = `${entry.rationale} Promoted by deterministic coverage fallback to hit target task count.`;
       if (entries.filter((candidate) => candidate.selected).length >= methodology.target_task_count) break;
@@ -572,7 +605,7 @@ export function buildSelectionLedgerArtifact(
     const l4Candidate = entries.find((entry) =>
       !entry.selected
       && entry.proposed_difficulty === "L4"
-      && (entry.covered_vendors?.length ?? 0) >= minVendors,
+      && (entry.task_fit_vendors?.length ?? 0) >= minVendors,
     );
     if (l4Candidate) {
       const demotionCandidate = [...entries]
@@ -580,9 +613,11 @@ export function buildSelectionLedgerArtifact(
         .find((entry) => entry.selected && entry.proposed_difficulty !== "L4");
       if (demotionCandidate) {
         demotionCandidate.selected = false;
+        demotionCandidate.tier = "research";
         demotionCandidate.rejection_reason = "replaced to preserve L4 difficulty coverage";
       }
       l4Candidate.selected = true;
+      l4Candidate.tier = "core";
       l4Candidate.rejection_reason = undefined;
       l4Candidate.rationale = `${l4Candidate.rationale} Promoted to satisfy minimum L4 coverage.`;
     }
@@ -1004,6 +1039,13 @@ export async function synthesizeSuite(
         rationale: entry.rationale,
         coverage: fittedCoverage,
       };
+    })
+    .sort((left, right) => {
+      if (category !== "database") return 0;
+      const leftIndex = DATABASE_CORE_TASK_ORDER.indexOf(left.cluster_name as typeof DATABASE_CORE_TASK_ORDER[number]);
+      const rightIndex = DATABASE_CORE_TASK_ORDER.indexOf(right.cluster_name as typeof DATABASE_CORE_TASK_ORDER[number]);
+      return (leftIndex === -1 ? Number.MAX_SAFE_INTEGER : leftIndex)
+        - (rightIndex === -1 ? Number.MAX_SAFE_INTEGER : rightIndex);
     });
   const drafted = await mapSettledLimit(
     selectedClusters,
@@ -1122,6 +1164,7 @@ export function renderSupportSummaryMarkdown(
   benchmark: string,
   tasks: SynthesizedTask[],
   supportMatrix: SupportMatrix,
+  selectionLedger?: SelectionLedger,
 ): string {
   const vendors = [...new Set(supportMatrix.entries.map((entry) => entry.vendor))].sort();
   const status = (taskId: string, vendor: string, surface: "api" | "cli") =>
@@ -1140,12 +1183,19 @@ export function renderSupportSummaryMarkdown(
     `Human review table derived from \`suite.support-matrix.yaml\`.`,
     `**✓** supported · **—** unsupported / N/A · **?** inconclusive.`,
     ``,
-    `| Task | ${vendors.map((vendor) => `${vendor} API / CLI`).join(" | ")} |`,
-    `|---|${vendors.map(() => "---|").join("")}`,
+    `| Task | Broad / task-fit vendors | ${vendors.map((vendor) => `${vendor} API / CLI`).join(" | ")} |`,
+    `|---|---|${vendors.map(() => "---|").join("")}`,
   ];
   for (const task of tasks) {
+    const ledger = selectionLedger?.entries.find((entry) => entry.concept_name === task.skill);
+    const vendorTotal = new Set(
+      supportMatrix.entries.filter((entry) => entry.task_id === task.id).map((entry) => entry.vendor),
+    ).size;
+    const coverage = ledger
+      ? `${ledger.covered_vendors.length}/${vendorTotal} / ${ledger.task_fit_vendors.length}/${vendorTotal}`
+      : "—";
     lines.push(
-      `| ${task.id} ${task.skill} | ${vendors.map((vendor) => {
+      `| ${task.id} ${task.skill} | ${coverage} | ${vendors.map((vendor) => {
         const api = cell(status(task.id, vendor, "api"));
         const cli = cell(status(task.id, vendor, "cli"));
         return `${api} / ${cli}`;
@@ -1162,6 +1212,16 @@ export function renderSupportSummaryMarkdown(
       lines.push(`| ${entry.task_id} | ${entry.vendor} | ${entry.surface} | ${entry.status} | ${entry.reason} |`);
     }
   }
+  const research = selectionLedger?.entries.filter((entry) => entry.tier === "research") ?? [];
+  if (research.length) {
+    lines.push(``, `## Research tasks (excluded from core scoring)`, ``);
+    lines.push(`| Concept | Broad vendors | Task-fit vendors | Reason |`, `|---|---|---|---|`);
+    for (const entry of research) {
+      lines.push(
+        `| ${entry.concept_name} | ${entry.covered_vendors.length} | ${entry.task_fit_vendors.length} | ${entry.rejection_reason ?? "research tier"} |`,
+      );
+    }
+  }
   return `${lines.join("\n")}\n`;
 }
 
@@ -1169,10 +1229,12 @@ export function writeSuiteArtifacts(root: string, suitePath: string, result: Syn
   const stem = suitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
   const benchmark = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
   const supportSummaryPath = resolve(root, suitePath).replace(/\.yaml$/i, ".support-summary.md");
-  writeFileSync(supportSummaryPath, renderSupportSummaryMarkdown(benchmark, result.tasks, {
-    ...result.supportMatrix,
+  writeFileSync(supportSummaryPath, renderSupportSummaryMarkdown(
     benchmark,
-  }));
+    result.tasks,
+    { ...result.supportMatrix, benchmark },
+    result.selectionLedger,
+  ));
   return [
     writeMethodology(root, suitePath, result.methodology),
     writeConceptUniverse(root, suitePath, result.conceptUniverse),

@@ -184,6 +184,9 @@ export const SelectionLedgerEntrySchema = z.object({
   proposed_difficulty: z.enum(["L1", "L2", "L3", "L4"]).optional(),
   coverage_pct: z.number().min(0).max(1),
   covered_vendors: z.array(z.string().min(1)).min(1),
+  task_fit_coverage_pct: z.number().min(0).max(1).default(0),
+  task_fit_vendors: z.array(z.string().min(1)).default([]),
+  tier: z.enum(["core", "research", "excluded"]).default("excluded"),
   verifiable: z.boolean(),
   selected_by_model: z.boolean().default(false),
   selected: z.boolean(),
@@ -313,7 +316,7 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
     ],
     surface_scope: [...surfaceScope],
     min_vendor_coverage_pct: 0.75,
-    target_task_count: 10,
+    target_task_count: category === "database" ? 9 : 10,
     verifiability_requirement: "Selected tasks must have deterministic read-back verification against world state.",
     difficulty_rubric: {
       L1: "Single action: one create/read/update/check call with minimal setup.",
