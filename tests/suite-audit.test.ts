@@ -11,6 +11,7 @@ import {
 } from "../src/generate/methodology.js";
 import {
   findMappingFalsePositives,
+  findStaleTaskFitFindings,
   findTaskFitAuditFindings,
 } from "../src/generate/suite-audit.js";
 
@@ -195,5 +196,52 @@ describe("deterministic concept mapping (suite-audit inputs)", () => {
     );
     expect(findings).toHaveLength(1);
     expect(findings[0]?.code).toBe("task_fit_leaked_support");
+  });
+
+  it("recomputes stale task fit from the current inventory", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-stale-task-fit-"));
+    try {
+      writeCapabilityInventory(root, CapabilityInventorySchema.parse({
+        vendor: "Nile",
+        slug: "nile",
+        category: "database",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        capabilities: [{
+          ...cap("automated-backup"),
+          support_type: "managed-surface",
+          surfaces_documented: ["api", "cli"],
+        }],
+      }));
+      const coverage: CoverageMatrix = {
+        schema: "ax.coverage-matrix/v1",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        concepts: [{
+          concept_name: "backup-and-restore",
+          title: "Backup",
+          decisions: [{
+            concept_name: "backup-and-restore",
+            vendor: "Nile",
+            status: "supported",
+            source: "inventory",
+            capability_name: "automated-backup",
+            capability_bundle: ["automated-backup"],
+            task_fit: {
+              status: "sufficient",
+              matched_requirements: ["artifact"],
+              missing_requirements: [],
+              supported_surfaces: ["api", "cli"],
+            },
+            surfaces_documented: ["api", "cli"],
+            evidence: [],
+          }],
+        }],
+      };
+      const findings = findStaleTaskFitFindings(root, coverage, new Set(["backup-and-restore"]), ["nile"]);
+      expect(findings).toHaveLength(1);
+      expect(findings[0]?.code).toBe("task_fit_stale");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

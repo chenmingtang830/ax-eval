@@ -88,6 +88,7 @@ import {
   applyExtractAudit,
   formatExtractAuditReport,
 } from "./generate/extract-audit.js";
+import { adviseVendorExtract, writeExtractAdvisory } from "./generate/extract-advisory.js";
 import { fetchSpecSummary } from "./ingest/spec-summary.js";
 import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
 import { auditSuite, applySuiteAudit, formatSuiteAuditReport } from "./generate/suite-audit.js";
@@ -280,12 +281,13 @@ function commandUsage(command: string | undefined): string {
       ].join("\n");
     case "audit-extracts":
       return [
-        "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply]",
+        "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply] [--advisory]",
         "  Post-extract gate after extract-capabilities / extract-surfaces.",
         "  Deterministic checks: strength mislabels (METHOD /path → direct),",
         "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
         "  mismatch, incomplete headless auth. Default is report-only;",
-        "  --apply writes autofixes back to benchmarks/daeb/v1/extracts/<slug>/.",
+        "  --apply writes deterministic autofixes. --advisory runs an opt-in WebFetch-grounded",
+        "  LLM review and writes advisory.yaml; it never changes artifacts or blocks the default gate.",
       ].join("\n");
     case "audit-suite":
       return [
@@ -429,6 +431,8 @@ interface Parsed {
   dryRun: boolean;
   /** audit-extracts: write autofixes back to benchmarks/daeb/v1/extracts/. */
   apply: boolean;
+  /** audit-extracts: WebFetch-grounded advisory review; never mutates source artifacts. */
+  advisory: boolean;
   ns: string;
   attempts: number;
   trial: number | undefined;
@@ -514,6 +518,7 @@ function parseArgs(argv: string[]): Parsed {
     invoke: false,
     dryRun: false,
     apply: false,
+    advisory: false,
     ns: "",
     attempts: 1,
     trial: undefined,
@@ -645,6 +650,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
     else if (a === "--apply") p.apply = true;
+    else if (a === "--advisory") p.advisory = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
     else if (a === "--trial") {
@@ -1808,7 +1814,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   return failures ? 1 : 0;
 }
 
-function cmdAuditExtracts(args: Parsed): number {
+async function cmdAuditExtracts(args: Parsed): Promise<number> {
   const root = process.cwd();
   const slugs = [
     ...(args.vendor ? [args.vendor] : []),
@@ -1825,6 +1831,28 @@ function cmdAuditExtracts(args: Parsed): number {
     }
   } else {
     console.log(`\nReport-only. Re-run with --apply to write autofixes.`);
+  }
+  if (args.advisory) {
+    const advisorySlugs = slugs.length
+      ? slugs
+      : report.vendors.map((vendor) => vendor.slug);
+    console.log(`\nRunning ${advisorySlugs.length} WebFetch-grounded advisory audit(s)…`);
+    let advisoryFailures = 0;
+    for (const slug of advisorySlugs) {
+      try {
+        const advisory = await adviseVendorExtract(root, slug, {
+          harness: generatorHarness(args),
+          model: generatorModel(args, generatorHarness(args)),
+          effort: generatorEffort(args),
+        });
+        const path = writeExtractAdvisory(root, advisory);
+        console.log(`  ${slug} → ${path} (${advisory.findings.length} advisory finding(s))`);
+      } catch (error) {
+        advisoryFailures++;
+        console.warn(`  ${slug} → advisory failed: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+    if (advisoryFailures) console.warn(`${advisoryFailures} advisory audit(s) failed; deterministic audit result is unchanged.`);
   }
   return report.summary.errors ? 1 : 0;
 }
@@ -4167,7 +4195,7 @@ async function main(): Promise<number> {
     case "extract-capabilities":
       return cmdExtractCapabilities(args);
     case "audit-extracts":
-      return cmdAuditExtracts(args);
+      return await cmdAuditExtracts(args);
     case "audit-suite":
       return cmdAuditSuite(args);
     case "synthesize-suite":

@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { parse as yamlParse } from "yaml";
 import { z } from "zod";
 import { daebVendorSelectionLedgerPath } from "./benchmark-paths.js";
+import { loadCapabilityExtract } from "./capability-extract.js";
+import { loadSurfaceExtract } from "./surface-extract.js";
 
 const EligibilitySchema = z.object({
   managed_service: z.boolean(),
@@ -71,4 +73,40 @@ export function coreVendorSlugs(root: string): string[] | null {
   return ledger
     ? ledger.entries.filter((entry) => entry.status === "core").map((entry) => entry.slug)
     : null;
+}
+
+export interface VendorSelectionFinding {
+  slug: string;
+  severity: "error" | "warn";
+  code: "core_extract_missing" | "core_headless_cli_missing";
+  message: string;
+}
+
+/** Verify that a ledger's core claims remain backed by authoring artifacts. */
+export function auditVendorSelectionAgainstExtracts(root: string): VendorSelectionFinding[] {
+  const ledger = loadVendorSelectionLedger(root);
+  if (!ledger) return [];
+  const findings: VendorSelectionFinding[] = [];
+  for (const entry of ledger.entries.filter((candidate) => candidate.status === "core")) {
+      const inventory = loadCapabilityExtract(root, entry.slug);
+      const surfaces = loadSurfaceExtract(root, entry.slug);
+      if (!inventory || !surfaces) {
+        findings.push({
+          slug: entry.slug,
+          severity: "error",
+          code: "core_extract_missing",
+          message: `Core vendor ${entry.slug} requires capability inventory and surface extract`,
+        });
+        continue;
+      }
+      if (entry.eligibility.headless_auth === "yes" && (!surfaces.cli || surfaces.cli.auth.kind !== "token" || !surfaces.cli.auth.token_env)) {
+        findings.push({
+          slug: entry.slug,
+          severity: "error",
+          code: "core_headless_cli_missing",
+          message: `Core vendor ${entry.slug} claims headless auth but has no token-authenticated CLI surface`,
+        });
+      }
+  }
+  return findings;
 }

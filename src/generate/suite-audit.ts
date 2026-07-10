@@ -29,7 +29,10 @@ import {
 import { daebVendorsDir } from "./benchmark-paths.js";
 import { readdirSync } from "node:fs";
 import { loadVendorCard } from "./vendor-resolve.js";
-import { coreVendorSlugs } from "./vendor-selection.js";
+import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
+import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
+import { loadOracleExtract } from "./task-extract.js";
+import { auditCorePacks } from "./pack-audit.js";
 
 export type SuiteFindingSeverity = "error" | "warn" | "info";
 
@@ -239,6 +242,71 @@ export function findTaskFitAuditFindings(
   return findings;
 }
 
+/** Re-evaluate persisted task-fit decisions against current inventories. This
+ * catches artifacts generated before a task-fit rule or inventory correction
+ * landed, even when their stored matrix is internally self-consistent. */
+export function findStaleTaskFitFindings(
+  root: string,
+  coverage: CoverageMatrix,
+  selectedConcepts: Set<string>,
+  slugs: string[],
+): SuiteFinding[] {
+  const findings: SuiteFinding[] = [];
+  const vendorToSlug = new Map<string, string>();
+  for (const slug of slugs) {
+    const card = loadVendorCard(root, slug);
+    const inventory = loadCapabilityExtract(root, slug);
+    if (card?.vendor) vendorToSlug.set(card.vendor, slug);
+    if (inventory?.vendor) vendorToSlug.set(inventory.vendor, slug);
+  }
+  for (const concept of coverage.concepts) {
+    if (!selectedConcepts.has(concept.concept_name)) continue;
+    for (const decision of concept.decisions) {
+      const slug = vendorToSlug.get(decision.vendor);
+      if (!slug) continue;
+      const inventory = loadCapabilityExtract(root, slug);
+      if (!inventory) continue;
+      const recomputed = evaluateDatabaseTaskFit(concept.concept_name, inventory.capabilities);
+      if (!recomputed) continue;
+      const stored = decision.task_fit;
+      if (!stored) {
+        findings.push({
+          severity: "error",
+          code: "task_fit_stale",
+          concept_name: concept.concept_name,
+          message: `${decision.vendor}/${concept.concept_name} has no persisted task-fit result; re-synthesize`,
+          auto_fixable: true,
+        });
+        continue;
+      }
+      if (stored.status !== recomputed.status) {
+        findings.push({
+          severity: "error",
+          code: "task_fit_stale",
+          concept_name: concept.concept_name,
+          message: `${decision.vendor}/${concept.concept_name} persisted task fit is ${stored.status}, but current inventory rules recompute ${recomputed.status}; re-synthesize`,
+          auto_fixable: true,
+        });
+        continue;
+      }
+      if (stored.status === "sufficient") {
+        const storedBundle = [...(decision.capability_bundle ?? [])].sort().join(",");
+        const recomputedBundle = [...recomputed.capability_bundle].sort().join(",");
+        if (storedBundle !== recomputedBundle) {
+          findings.push({
+            severity: "error",
+            code: "task_fit_bundle_mismatch",
+            concept_name: concept.concept_name,
+            message: `${decision.vendor}/${concept.concept_name} persisted bundle (${storedBundle || "none"}) differs from current bundle (${recomputedBundle || "none"}); re-synthesize`,
+            auto_fixable: true,
+          });
+        }
+      }
+    }
+  }
+  return findings;
+}
+
 export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
@@ -322,6 +390,12 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
       new Set(suite.tasks.map((task) => task.skill)),
       supportMatrix,
     ));
+    findings.push(...findStaleTaskFitFindings(
+      root,
+      coverage,
+      new Set(suite.tasks.map((task) => task.skill)),
+      slugs,
+    ));
     findings.push(...findMappingFalsePositives(root, coverage, slugs));
     findings.push(...findMappingMisses(root, coverage, slugs));
 
@@ -354,6 +428,29 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
         });
       }
     }
+  }
+  if (supportMatrix) {
+    const extracts = new Map(
+      listDatabaseSlugs(root)
+        .map((slug) => [slug, loadOracleExtract(root, slug, suite.name)] as const)
+        .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+    );
+    for (const finding of auditCorePacks(root, listDatabaseSlugs(root), extracts, supportMatrix)) {
+      findings.push({
+        severity: finding.severity,
+        code: finding.code,
+        message: finding.message,
+        auto_fixable: true,
+      });
+    }
+  }
+  for (const finding of auditVendorSelectionAgainstExtracts(root)) {
+    findings.push({
+      severity: finding.severity,
+      code: finding.code,
+      message: finding.message,
+      auto_fixable: false,
+    });
   }
 
   return {

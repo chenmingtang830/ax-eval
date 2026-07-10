@@ -30,7 +30,9 @@ import-registry / resolve-vendor
   → extract-surfaces
   → extract-capabilities
   → audit-extracts --apply
+  → audit-extracts --advisory       # optional WebFetch-grounded human aid
   → synthesize-suite --out benchmarks/daeb/v1/suite.yaml
+  → audit-suite                     # task-fit, pack, cohort, trace gates
   → extract-tasks / compose-pack
   → review --approve
 ```
@@ -44,6 +46,12 @@ the 75% concept-selection cohort and production run order; research vendors
 remain available for methodology work without affecting the canonical bank.
 Exclusions record dated eligibility reasons (for example, no persistent free
 managed sandbox) so the cohort is not chosen from benchmark outcomes.
+
+Audits have two layers: deterministic gates block stale task fit, unsupported
+surfaces, pack/sandbox drift, and cohort-contract violations. The optional
+`audit-extracts --advisory` layer uses WebFetch-grounded LLM review only to
+surface cited semantic questions; it writes `advisory.yaml`, never rewrites
+artifacts or changes a blocking result.
 
 ## Hygiene
 
