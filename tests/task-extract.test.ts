@@ -5,6 +5,41 @@ import type { Suite } from "../src/generate/suite.js";
 import type { ResolveResult } from "../src/generate/vendor-resolve.js";
 
 describe("task extraction seeds", () => {
+  it("uses deterministic Postgres seeds and headless env names for Nile", async () => {
+    const vendor: ResolveResult = {
+      vendor: "Nile",
+      category: "database",
+      slug: "nile",
+      discovered_at: "2026-01-01T00:00:00.000Z",
+      resolver: { method: "llm-search", harness: "codex", model: "test", prompt_version: "test" },
+      site_url: "https://www.thenile.dev",
+      docs_url: "https://www.thenile.dev/docs",
+      http_status: null,
+    };
+    const suite: Suite = {
+      name: "DAEB-1",
+      version: 1,
+      category: "database",
+      methodology: defaultSuiteMethodology("database"),
+      tasks: [{
+        id: "db-T09-write-records",
+        title: "T09: Record lifecycle",
+        difficulty: "L2",
+        skill: "write-records",
+        intent: "Create, update, and delete records.",
+        oracle_hint: "Read back exact lifecycle state.",
+        allowed_surfaces: ["api", "cli"],
+        na_examples: [],
+      }],
+    };
+
+    const result = await extractOracles(vendor, suite, { harness: "codex", effort: "low" });
+    expect(result.vendor_config.base_url).toBe("https://global.thenile.dev");
+    expect(result.vendor_config.auth_env).toBe("NILE_API_KEY");
+    expect(result.vendor_config.sql_connection_env).toBe("NILE_DATABASE_URL");
+    expect(result.tasks[0]?.checks).toHaveLength(3);
+  });
+
   it("uses deterministic database seeds before invoking generator authoring", async () => {
     const vendor: ResolveResult = {
       vendor: "Supabase",

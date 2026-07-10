@@ -1,0 +1,34 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Nile
+slug: nile
+extracted_at: 2026-07-10T00:41:00.000Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Official Nile CLI and SDK docs; SDK database credentials inherit from
+    pack env.
+audit_status: candidate
+audit_notes:
+  - Verify SDK database env aliases before enabling SDK benchmark cells.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: nile
+  install: npm install -g niledatabase
+  docs_url: https://www.thenile.dev/docs/cli/introduction
+  auth:
+    kind: token
+    token_env: NILE_API_KEY
+    token_env_aliases: []
+    instructions: Set NILE_API_KEY for non-interactive CLI and CI use.
+sdk:
+  package: "@niledatabase/server"
+  language: node
+  reference_url: https://www.thenile.dev/docs/auth/sdk-reference/javascript/overview
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Inherit Nile database connection settings from NILE_DATABASE_URL.
+mcp: null

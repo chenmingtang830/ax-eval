@@ -17,10 +17,9 @@ vendors:
   - neon
   - cockroachdb
   - turso
-  - convex
   - supabase
-  - mongodb-atlas
   - insforge
+  - nile
 notes:
   - Runtime artifacts stay under results/ (gitignored).
   - Prefer daeb-production-rerun --suite benchmarks/daeb/v1/suite.yaml --run-dir results/runs/daeb-v1-YYYYMMDD.

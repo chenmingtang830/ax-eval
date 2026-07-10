@@ -270,6 +270,15 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_dialect: "postgres",
         sql_connection_env: "INSFORGE_CONNECTION_STRING",
       });
+    case "nile":
+      return VendorConfigSchema.parse({
+        base_url: "https://global.thenile.dev",
+        auth_type: "bearer",
+        auth_header: "Authorization",
+        auth_env: "NILE_API_KEY",
+        sql_dialect: "postgres",
+        sql_connection_env: "NILE_DATABASE_URL",
+      });
     case "turso":
       return VendorConfigSchema.parse({
         base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
@@ -988,7 +997,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
 
 function seedTaskCheck(vendor: ResolveResult, task: SuiteTask): OracleExtractItem | null {
   if (vendor.category !== "database") return null;
-  if (["supabase", "neon", "cockroachdb", "insforge"].includes(vendor.slug)) return postgresSeededTask(task);
+  if (["supabase", "neon", "cockroachdb", "insforge", "nile"].includes(vendor.slug)) return postgresSeededTask(task);
   if (vendor.slug === "turso") return tursoSeededTask(task);
   if (vendor.slug === "mongodb-atlas") return mongoAtlasSeededTask(task);
   if (vendor.slug === "convex") return convexSeededTask(task);

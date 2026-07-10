@@ -21,7 +21,7 @@ const ResolveResultSchema = z.object({
   slug: z.string(),
   discovered_at: z.string(),
   resolver: z.object({
-    method: z.enum(["llm-search", "registry"]),
+    method: z.enum(["llm-search", "registry", "official-docs"]),
     harness: z.string().optional(),
     model: z.string().optional(),
     prompt_version: z.string().optional(),

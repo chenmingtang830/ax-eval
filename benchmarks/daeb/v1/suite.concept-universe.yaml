@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-10T00:07:32.063Z
+generated_at: 2026-07-10T00:49:21.890Z
 clusters:
   - concept_name: access-control
     title: Access Control
@@ -9,17 +9,11 @@ clusters:
         capability_name: role-based-access-control
       - vendor: Cockroachdb
         capability_name: row-level-security
-      - vendor: Convex
-        capability_name: custom-roles
-      - vendor: Convex
-        capability_name: row-level-access-control
       - vendor: Insforge
         capability_name: row-level-security
-      - vendor: Mongodb Atlas
-        capability_name: row-level-security
-      - vendor: Mongodb Atlas
-        capability_name: ip-access-list
       - vendor: Neon
+        capability_name: row-level-security
+      - vendor: Nile
         capability_name: row-level-security
       - vendor: Supabase
         capability_name: row-level-security
@@ -42,63 +36,24 @@ clusters:
         capability_name: restore
       - vendor: Cockroachdb
         capability_name: bulk-data-export
-      - vendor: Convex
-        capability_name: bulk-export
-      - vendor: Convex
-        capability_name: backup-snapshot
-      - vendor: Convex
-        capability_name: restore-from-backup
       - vendor: Insforge
         capability_name: database-export
       - vendor: Insforge
         capability_name: database-import
-      - vendor: Mongodb Atlas
-        capability_name: data-export
-      - vendor: Mongodb Atlas
-        capability_name: cloud-backup-snapshots
-      - vendor: Mongodb Atlas
-        capability_name: point-in-time-restore
-      - vendor: Mongodb Atlas
-        capability_name: collection-level-restore
-      - vendor: Mongodb Atlas
-        capability_name: backup-export-to-cloud-storage
-      - vendor: Mongodb Atlas
-        capability_name: mongodump-mongorestore
-      - vendor: Mongodb Atlas
-        capability_name: legacy-backup-restore
       - vendor: Neon
         capability_name: branch-point-in-time-restore
       - vendor: Neon
         capability_name: data-export-import-pgdump
+      - vendor: Nile
+        capability_name: automated-backup
+      - vendor: Nile
+        capability_name: point-in-time-restore
       - vendor: Supabase
         capability_name: point-in-time-recovery
       - vendor: Turso
         capability_name: point-in-time-recovery
       - vendor: Turso
         capability_name: database-export
-  - concept_name: change-data-capture
-    title: Change Data Capture
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: change-data-capture
-      - vendor: Convex
-        capability_name: realtime-subscriptions
-      - vendor: Insforge
-        capability_name: realtime-change-feed
-      - vendor: Insforge
-        capability_name: realtime-presence
-      - vendor: Mongodb Atlas
-        capability_name: change-streams-cdc
-      - vendor: Neon
-        capability_name: logical-replication-cdc
-      - vendor: Supabase
-        capability_name: realtime-broadcast
-      - vendor: Supabase
-        capability_name: realtime-presence
-      - vendor: Supabase
-        capability_name: change-data-capture
-      - vendor: Turso
-        capability_name: change-data-capture
   - concept_name: evolve-schema
     title: Evolve Schema
     coverage:
@@ -106,62 +61,43 @@ clusters:
         capability_name: schema-migration
       - vendor: Cockroachdb
         capability_name: schema-migration-tooling
-      - vendor: Convex
-        capability_name: schema-migration
       - vendor: Insforge
         capability_name: schema-alteration
       - vendor: Insforge
         capability_name: schema-migration-tracked
       - vendor: Insforge
         capability_name: migration-execution-api
-      - vendor: Mongodb Atlas
-        capability_name: relational-schema-migration
       - vendor: Neon
         capability_name: schema-diff-and-introspection
       - vendor: Neon
         capability_name: schema-migration-orm-tooling
+      - vendor: Nile
+        capability_name: schema-alteration
+      - vendor: Nile
+        capability_name: schema-migration
       - vendor: Supabase
         capability_name: schema-migration
       - vendor: Supabase
         capability_name: schema-diff
       - vendor: Turso
         capability_name: schema-alteration
-  - concept_name: query-records
-    title: Query Records
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: filtered-query
-      - vendor: Convex
-        capability_name: filtered-query
-      - vendor: Insforge
-        capability_name: filtered-query
-      - vendor: Mongodb Atlas
-        capability_name: filtered-query
-      - vendor: Mongodb Atlas
-        capability_name: aggregation-pipeline
-      - vendor: Neon
-        capability_name: time-travel-historical-query
-      - vendor: Supabase
-        capability_name: filtered-query
-      - vendor: Turso
-        capability_name: filtered-query
-      - vendor: Turso
-        capability_name: query-sorting-pagination
   - concept_name: vector-search
     title: Vector Search
     coverage:
       - vendor: Cockroachdb
         capability_name: vector-search
-      - vendor: Convex
-        capability_name: vector-search
       - vendor: Insforge
         capability_name: index-management
       - vendor: Insforge
         capability_name: vector-search
-      - vendor: Mongodb Atlas
-        capability_name: vector-search
       - vendor: Neon
         capability_name: vector-search-pgvector
+      - vendor: Nile
+        capability_name: vector-similarity-search
+      - vendor: Nile
+        capability_name: diskann-vector-indexing
+      - vendor: Nile
+        capability_name: tenant-scoped-vector-search
       - vendor: Supabase
         capability_name: vector-similarity-search
       - vendor: Turso
@@ -179,20 +115,14 @@ clusters:
         capability_name: row-delete
       - vendor: Cockroachdb
         capability_name: row-upsert
-      - vendor: Convex
-        capability_name: document-insert
-      - vendor: Convex
-        capability_name: document-update
-      - vendor: Convex
-        capability_name: document-delete
-      - vendor: Convex
-        capability_name: bulk-import
       - vendor: Insforge
         capability_name: bulk-upsert-import
-      - vendor: Mongodb Atlas
-        capability_name: document-insert
       - vendor: Neon
         capability_name: baseline-sql-table-and-row-operations
+      - vendor: Nile
+        capability_name: row-insert-update-delete
+      - vendor: Nile
+        capability_name: tenant-lifecycle-management
       - vendor: Supabase
         capability_name: rest-data-api-crud
       - vendor: Turso
@@ -203,6 +133,25 @@ clusters:
         capability_name: row-update
       - vendor: Turso
         capability_name: row-delete
+  - concept_name: change-data-capture
+    title: Change Data Capture
+    coverage:
+      - vendor: Cockroachdb
+        capability_name: change-data-capture
+      - vendor: Insforge
+        capability_name: realtime-change-feed
+      - vendor: Insforge
+        capability_name: realtime-presence
+      - vendor: Neon
+        capability_name: logical-replication-cdc
+      - vendor: Supabase
+        capability_name: realtime-broadcast
+      - vendor: Supabase
+        capability_name: realtime-presence
+      - vendor: Supabase
+        capability_name: change-data-capture
+      - vendor: Turso
+        capability_name: change-data-capture
   - concept_name: data-integrity-and-transactions
     title: Data Integrity And Transactions
     coverage:
@@ -210,14 +159,14 @@ clusters:
         capability_name: transactions
       - vendor: Cockroachdb
         capability_name: transaction-savepoints
-      - vendor: Convex
-        capability_name: transactional-writes
       - vendor: Insforge
         capability_name: database-trigger
-      - vendor: Mongodb Atlas
-        capability_name: schema-validation
-      - vendor: Mongodb Atlas
-        capability_name: transactions
+      - vendor: Nile
+        capability_name: primary-key-constraint
+      - vendor: Nile
+        capability_name: foreign-key-constraint
+      - vendor: Nile
+        capability_name: multi-statement-transaction
       - vendor: Supabase
         capability_name: primary-key-constraint
       - vendor: Supabase
@@ -231,14 +180,12 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: full-text-search
-      - vendor: Convex
-        capability_name: full-text-search
-      - vendor: Mongodb Atlas
-        capability_name: full-text-search
       - vendor: Neon
         capability_name: full-text-search-tsvector
       - vendor: Neon
         capability_name: full-text-search-bm25
+      - vendor: Nile
+        capability_name: full-text-search-tsvector
       - vendor: Supabase
         capability_name: full-text-search
       - vendor: Turso
@@ -248,43 +195,29 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: schema-introspection
-      - vendor: Convex
-        capability_name: system-table-introspection
       - vendor: Insforge
         capability_name: schema-introspection
-      - vendor: Mongodb Atlas
+      - vendor: Nile
         capability_name: schema-introspection
       - vendor: Supabase
         capability_name: schema-introspection
       - vendor: Turso
         capability_name: schema-introspection
-  - concept_name: server-side-execution
-    title: Server-Side Execution
+  - concept_name: query-records
+    title: Query Records
     coverage:
-      - vendor: Convex
-        capability_name: server-side-mutation-functions
-      - vendor: Convex
-        capability_name: server-side-actions
+      - vendor: Cockroachdb
+        capability_name: filtered-query
       - vendor: Insforge
-        capability_name: raw-sql-execution
-      - vendor: Insforge
-        capability_name: stored-function-rpc
-      - vendor: Insforge
-        capability_name: edge-functions-compute
-      - vendor: Insforge
-        capability_name: scheduled-functions
-      - vendor: Mongodb Atlas
-        capability_name: server-side-functions-triggers
+        capability_name: filtered-query
+      - vendor: Neon
+        capability_name: time-travel-historical-query
       - vendor: Supabase
-        capability_name: sql-query-execution
-      - vendor: Supabase
-        capability_name: server-side-function
-      - vendor: Supabase
-        capability_name: database-webhook
-      - vendor: Supabase
-        capability_name: edge-function-compute
+        capability_name: filtered-query
       - vendor: Turso
-        capability_name: http-api-query-execution
+        capability_name: filtered-query
+      - vendor: Turso
+        capability_name: query-sorting-pagination
   - concept_name: database-branching
     title: Database/Backend Branching
     coverage:
@@ -296,26 +229,52 @@ clusters:
         capability_name: database-branching
       - vendor: Turso
         capability_name: database-branching
+  - concept_name: connection-pooling
+    title: PgBouncer Connection Pooling
+    coverage:
+      - vendor: Neon
+        capability_name: connection-pooling
+      - vendor: Nile
+        capability_name: connection-pooling
+      - vendor: Supabase
+        capability_name: connection-pooling
   - concept_name: define-data-container
     title: Define Data Container
     coverage:
       - vendor: Cockroachdb
         capability_name: table-schema-definition
-      - vendor: Convex
-        capability_name: schema-definition
       - vendor: Supabase
         capability_name: table-schema-definition
       - vendor: Turso
         capability_name: table-schema-definition
-  - concept_name: audit-logging
-    title: Organization Audit Log Export
+  - concept_name: server-side-execution
+    title: Server-Side Execution
     coverage:
-      - vendor: Cockroachdb
-        capability_name: audit-logging
-      - vendor: Convex
-        capability_name: audit-logging
-      - vendor: Mongodb Atlas
-        capability_name: audit-logging
+      - vendor: Insforge
+        capability_name: raw-sql-execution
+      - vendor: Insforge
+        capability_name: stored-function-rpc
+      - vendor: Insforge
+        capability_name: edge-functions-compute
+      - vendor: Insforge
+        capability_name: scheduled-functions
+      - vendor: Supabase
+        capability_name: sql-query-execution
+      - vendor: Supabase
+        capability_name: server-side-function
+      - vendor: Supabase
+        capability_name: database-webhook
+      - vendor: Supabase
+        capability_name: edge-function-compute
+      - vendor: Turso
+        capability_name: http-api-query-execution
+  - concept_name: api-key-authentication
+    title: API Key Authentication for Admin/Data APIs
+    coverage:
+      - vendor: Insforge
+        capability_name: api-key-authentication
+      - vendor: Nile
+        capability_name: api-key-authentication
   - concept_name: api-key-management
     title: API Key Management
     coverage:
@@ -323,20 +282,20 @@ clusters:
         capability_name: api-key-management
       - vendor: Supabase
         capability_name: api-key-management
-  - concept_name: cluster-provisioning
-    title: Cluster Creation & Provisioning
+  - concept_name: bulk-data-import
+    title: Bulk Data Import (IMPORT INTO)
     coverage:
       - vendor: Cockroachdb
-        capability_name: cluster-provisioning
-      - vendor: Mongodb Atlas
-        capability_name: cluster-provisioning
-  - concept_name: connection-pooling
-    title: PgBouncer Connection Pooling
+        capability_name: bulk-data-import
+      - vendor: Nile
+        capability_name: bulk-data-import
+  - concept_name: multi-factor-authentication
+    title: Multi-Factor Authentication
     coverage:
-      - vendor: Neon
-        capability_name: connection-pooling
+      - vendor: Nile
+        capability_name: multi-factor-authentication
       - vendor: Supabase
-        capability_name: connection-pooling
+        capability_name: multi-factor-authentication
   - concept_name: project-lifecycle-management
     title: Project Create/Read/Update/Delete
     coverage:
@@ -344,25 +303,27 @@ clusters:
         capability_name: project-lifecycle-management
       - vendor: Supabase
         capability_name: project-lifecycle-management
-  - concept_name: scheduled-jobs
-    title: Scheduled (Deferred) Function Execution
+  - concept_name: relational-joins
+    title: Relational Joins
     coverage:
-      - vendor: Convex
-        capability_name: scheduled-jobs
+      - vendor: Nile
+        capability_name: relational-joins
       - vendor: Supabase
-        capability_name: scheduled-jobs
+        capability_name: relational-joins
   - concept_name: secondary-index
     title: Secondary Indexes
     coverage:
       - vendor: Cockroachdb
         capability_name: secondary-index
-      - vendor: Convex
+      - vendor: Nile
         capability_name: secondary-index
-  - concept_name: ad-hoc-function-invocation
-    title: CLI Ad Hoc Function Run
+  - concept_name: table-creation
+    title: Create Table
     coverage:
-      - vendor: Convex
-        capability_name: ad-hoc-function-invocation
+      - vendor: Insforge
+        capability_name: table-creation
+      - vendor: Nile
+        capability_name: table-creation
   - concept_name: aggregate-functions
     title: Aggregate Functions (COUNT/SUM/AVG/MIN/MAX)
     coverage:
@@ -373,31 +334,21 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: aggregate-query
-  - concept_name: alerting-monitoring
-    title: Alert Configurations and Alerts
+  - concept_name: array-data-type
+    title: Array Data Type
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: alerting-monitoring
-  - concept_name: api-key-authentication
-    title: API Key Authentication for Admin/Data APIs
+      - vendor: Nile
+        capability_name: array-data-type
+  - concept_name: async-request-context
+    title: Async Request Context Propagation
     coverage:
-      - vendor: Insforge
-        capability_name: api-key-authentication
-  - concept_name: atlas-data-api
-    title: REST Data API (Deprecated)
+      - vendor: Nile
+        capability_name: async-request-context
+  - concept_name: audit-logging
+    title: Organization Audit Log Export
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: atlas-data-api
-  - concept_name: atlas-stream-processing
-    title: Atlas Stream Processing
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: atlas-stream-processing
-  - concept_name: authentication-integration
-    title: Third-Party and Built-in Authentication
-    coverage:
-      - vendor: Convex
-        capability_name: authentication-integration
+      - vendor: Cockroachdb
+        capability_name: audit-logging
   - concept_name: automated-backups
     title: Automated Daily Backups
     coverage:
@@ -418,11 +369,6 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: billing-invoices
-  - concept_name: blob-file-storage
-    title: File Storage (Blob Storage)
-    coverage:
-      - vendor: Convex
-        capability_name: blob-file-storage
   - concept_name: branch-reset-to-parent
     title: Reset Branch to Parent State
     coverage:
@@ -433,26 +379,31 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: bulk-data-copy
-  - concept_name: bulk-data-import
-    title: Bulk Data Import (IMPORT INTO)
-    coverage:
-      - vendor: Cockroachdb
-        capability_name: bulk-data-import
   - concept_name: bulk-data-import-export
     title: Bulk Data Import/Export
     coverage:
       - vendor: Supabase
         capability_name: bulk-data-import-export
+  - concept_name: case-insensitive-text
+    title: Case-Insensitive Text Type
+    coverage:
+      - vendor: Nile
+        capability_name: case-insensitive-text
+  - concept_name: character-string-types
+    title: Character/String Types
+    coverage:
+      - vendor: Nile
+        capability_name: character-string-types
+  - concept_name: chemical-structure-search
+    title: Cheminformatics Structure Search
+    coverage:
+      - vendor: Nile
+        capability_name: chemical-structure-search
   - concept_name: ci-cd-preview-branching
     title: CI/CD Preview Branch per Pull Request
     coverage:
       - vendor: Neon
         capability_name: ci-cd-preview-branching
-  - concept_name: cicd-deployment
-    title: CI/CD Production Deployment
-    coverage:
-      - vendor: Convex
-        capability_name: cicd-deployment
   - concept_name: cli-installation-and-demo
     title: CLI Installation and Local Demo Cluster
     coverage:
@@ -483,31 +434,21 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: cluster-disruption-testing
-  - concept_name: cluster-outage-simulation
-    title: Cluster Outage / Failover Simulation
+  - concept_name: cluster-provisioning
+    title: Cluster Creation & Provisioning
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: cluster-outage-simulation
+      - vendor: Cockroachdb
+        capability_name: cluster-provisioning
   - concept_name: cluster-scaling
     title: Cluster Scaling & Resource Configuration
     coverage:
       - vendor: Cockroachdb
         capability_name: cluster-scaling
-  - concept_name: cluster-scaling-configuration
-    title: Cluster Scaling and Advanced Configuration
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: cluster-scaling-configuration
   - concept_name: cmek-encryption
     title: Customer-Managed Encryption Keys (CMEK)
     coverage:
       - vendor: Cockroachdb
         capability_name: cmek-encryption
-  - concept_name: collection-management
-    title: Collection / Database Creation and Introspection
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: collection-management
   - concept_name: column-level-constraints
     title: Column Constraints (Nullable, Unique, Default)
     coverage:
@@ -523,6 +464,11 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: compute-endpoint-lifecycle
+  - concept_name: compute-scaling
+    title: Compute Instance Resize
+    coverage:
+      - vendor: Nile
+        capability_name: compute-scaling
   - concept_name: concurrent-writes
     title: MVCC Concurrent Writes
     coverage:
@@ -533,66 +479,31 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: count-aggregate
-  - concept_name: cron-jobs
-    title: Recurring Cron Jobs
-    coverage:
-      - vendor: Convex
-        capability_name: cron-jobs
   - concept_name: cross-region-replication
     title: Physical Cluster Replication (Disaster Recovery)
     coverage:
       - vendor: Cockroachdb
         capability_name: cross-region-replication
-  - concept_name: cursor-pagination
-    title: Cursor-Based Reactive Pagination
-    coverage:
-      - vendor: Convex
-        capability_name: cursor-pagination
-  - concept_name: custom-database-roles
-    title: Custom Database Roles
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: custom-database-roles
-  - concept_name: custom-domain-management
-    title: Custom Domains
-    coverage:
-      - vendor: Convex
-        capability_name: custom-domain-management
-  - concept_name: dashboard-data-browser
-    title: Dashboard Data Browsing and Editing
-    coverage:
-      - vendor: Convex
-        capability_name: dashboard-data-browser
-  - concept_name: dashboard-function-runner
-    title: Dashboard Manual Function Execution
-    coverage:
-      - vendor: Convex
-        capability_name: dashboard-function-runner
   - concept_name: data-api-rest
     title: "Neon Data API: PostgREST-style REST over Tables"
     coverage:
       - vendor: Neon
         capability_name: data-api-rest
-  - concept_name: data-federation-query
-    title: Federated Query Across Data Sources
+  - concept_name: database-credential-management
+    title: Database Credential Management
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: data-federation-query
-  - concept_name: data-import
-    title: Bulk Data Import (mongoimport)
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: data-import
-  - concept_name: data-migration-jobs
-    title: Batched Data Migration Component
-    coverage:
-      - vendor: Convex
-        capability_name: data-migration-jobs
+      - vendor: Nile
+        capability_name: database-credential-management
   - concept_name: database-file-upload-api
     title: Direct Database File Upload (Platform API)
     coverage:
       - vendor: Turso
         capability_name: database-file-upload-api
+  - concept_name: database-lifecycle-management
+    title: Database Lifecycle Management
+    coverage:
+      - vendor: Nile
+        capability_name: database-lifecycle-management
   - concept_name: database-management
     title: Database Create/Read/Update/Delete
     coverage:
@@ -608,36 +519,26 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: database-observability
-  - concept_name: database-users-rbac
-    title: Database Users and Role-Based Access Control
+  - concept_name: database-view
+    title: View Creation
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: database-users-rbac
-  - concept_name: deploy-key-management
-    title: Deploy Keys and Preview Deploy Keys
+      - vendor: Nile
+        capability_name: database-view
+  - concept_name: dedicated-compute-provisioning
+    title: Dedicated Compute Provisioning
     coverage:
-      - vendor: Convex
-        capability_name: deploy-key-management
-  - concept_name: deployment-health-insights
-    title: Deployment Health Insights
-    coverage:
-      - vendor: Convex
-        capability_name: deployment-health-insights
-  - concept_name: deployment-management
-    title: Deployment Lifecycle and Metadata
-    coverage:
-      - vendor: Convex
-        capability_name: deployment-management
+      - vendor: Nile
+        capability_name: dedicated-compute-provisioning
   - concept_name: direct-postgres-connectivity
     title: Standard Postgres Wire-Protocol Connectivity
     coverage:
       - vendor: Neon
         capability_name: direct-postgres-connectivity
-  - concept_name: document-id-references
-    title: Document ID References and Validation
+  - concept_name: distributed-schema-propagation
+    title: Distributed DDL Propagation
     coverage:
-      - vendor: Convex
-        capability_name: document-id-references
+      - vendor: Nile
+        capability_name: distributed-schema-propagation
   - concept_name: driver-sdk-support
     title: Officially Documented Client Drivers/SDKs
     coverage:
@@ -653,31 +554,21 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: embedded-replica-sync
+  - concept_name: embedding-generation
+    title: Text Embedding Generation
+    coverage:
+      - vendor: Nile
+        capability_name: embedding-generation
   - concept_name: encryption-at-rest
     title: Page-Level Encryption at Rest
     coverage:
       - vendor: Turso
         capability_name: encryption-at-rest
-  - concept_name: encryption-at-rest-cmk
-    title: Encryption at Rest with Customer-Managed Keys
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: encryption-at-rest-cmk
-  - concept_name: environment-variable-management
-    title: Environment Variables
-    coverage:
-      - vendor: Convex
-        capability_name: environment-variable-management
   - concept_name: external-identity-provider-auth
     title: External Identity Provider Auth (JWKS/OIDC)
     coverage:
       - vendor: Turso
         capability_name: external-identity-provider-auth
-  - concept_name: federated-authentication
-    title: Federated Authentication (SAML/OIDC)
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: federated-authentication
   - concept_name: folder-organization
     title: Folder-Based Resource Organization
     coverage:
@@ -688,76 +579,56 @@ clusters:
     coverage:
       - vendor: Insforge
         capability_name: foreign-key-constraints
-  - concept_name: function-bundling
-    title: Automatic Function Bundling
+  - concept_name: framework-auth-integration
+    title: Framework Auth Integration
     coverage:
-      - vendor: Convex
-        capability_name: function-bundling
+      - vendor: Nile
+        capability_name: framework-auth-integration
   - concept_name: function-db-triggers
     title: Function Invocation on Database Table Operations
     coverage:
       - vendor: Insforge
         capability_name: function-db-triggers
-  - concept_name: function-introspection
-    title: Function Metadata Listing
-    coverage:
-      - vendor: Convex
-        capability_name: function-introspection
   - concept_name: geospatial-query
     title: Geospatial Data and Queries
     coverage:
       - vendor: Cockroachdb
         capability_name: geospatial-query
-  - concept_name: global-clusters-geo-sharding
-    title: Global Clusters / Geo-Sharding
+  - concept_name: geospatial-support
+    title: Geospatial Data Support
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: global-clusters-geo-sharding
-  - concept_name: http-endpoints
-    title: HTTP Actions (Webhooks / Public API)
+      - vendor: Nile
+        capability_name: geospatial-support
+  - concept_name: graph-routing-analysis
+    title: Network Routing Analysis
     coverage:
-      - vendor: Convex
-        capability_name: http-endpoints
+      - vendor: Nile
+        capability_name: graph-routing-analysis
+  - concept_name: hybrid-search-rag
+    title: Hybrid Search / RAG
+    coverage:
+      - vendor: Nile
+        capability_name: hybrid-search-rag
   - concept_name: identity-authentication
     title: User Authentication Methods
     coverage:
       - vendor: Supabase
         capability_name: identity-authentication
-  - concept_name: identity-scoped-access-tokens
-    title: Personal and Team Access Tokens
-    coverage:
-      - vendor: Convex
-        capability_name: identity-scoped-access-tokens
   - concept_name: image-transformation
     title: On-the-fly Image Transformation
     coverage:
       - vendor: Supabase
         capability_name: image-transformation
-  - concept_name: implicit-table-creation
-    title: Implicit Table Creation
-    coverage:
-      - vendor: Convex
-        capability_name: implicit-table-creation
-  - concept_name: index-management
-    title: Secondary Index Creation and Management
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: index-management
-  - concept_name: input-output-validation
-    title: Argument and Return Value Validation
-    coverage:
-      - vendor: Convex
-        capability_name: input-output-validation
   - concept_name: integrity-constraints
     title: Primary Key / Unique / Check / Foreign Key Constraints
     coverage:
       - vendor: Cockroachdb
         capability_name: integrity-constraints
-  - concept_name: internal-function-boundary
-    title: Internal Function Access Boundary
+  - concept_name: interactive-cli-login
+    title: Interactive CLI OAuth Login
     coverage:
-      - vendor: Convex
-        capability_name: internal-function-boundary
+      - vendor: Nile
+        capability_name: interactive-cli-login
   - concept_name: inverted-index
     title: Inverted (GIN) Indexes
     coverage:
@@ -773,6 +644,11 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: json-document-functions
+  - concept_name: json-document-type
+    title: JSON/JSONB Document Storage
+    coverage:
+      - vendor: Nile
+        capability_name: json-document-type
   - concept_name: jsonb-document-storage
     title: JSONB Document Storage
     coverage:
@@ -788,36 +664,36 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: jwt-rls-integration
+  - concept_name: jwt-session-auth
+    title: JWT Session Authentication
+    coverage:
+      - vendor: Nile
+        capability_name: jwt-session-auth
   - concept_name: jwt-signing-keys
     title: JWT Issuance & Signing Key Management
     coverage:
       - vendor: Supabase
         capability_name: jwt-signing-keys
+  - concept_name: key-value-storage
+    title: Key-Value Column Storage
+    coverage:
+      - vendor: Nile
+        capability_name: key-value-storage
   - concept_name: local-dev-proxy
     title: "Neon Local: Local Development Proxy"
     coverage:
       - vendor: Neon
         capability_name: local-dev-proxy
-  - concept_name: local-dev-sync
-    title: Local Dev Watch and Sync
+  - concept_name: local-development-environment
+    title: Local Development Environment
     coverage:
-      - vendor: Convex
-        capability_name: local-dev-sync
-  - concept_name: local-testing-framework
-    title: Local and CI Function Testing
-    coverage:
-      - vendor: Convex
-        capability_name: local-testing-framework
+      - vendor: Nile
+        capability_name: local-development-environment
   - concept_name: log-export
     title: Log Export to External Sinks
     coverage:
       - vendor: Cockroachdb
         capability_name: log-export
-  - concept_name: log-streaming
-    title: Realtime Log Streaming
-    coverage:
-      - vendor: Convex
-        capability_name: log-streaming
   - concept_name: maintenance-windows
     title: Maintenance Window Scheduling
     coverage:
@@ -843,21 +719,16 @@ clusters:
     coverage:
       - vendor: Insforge
         capability_name: migration-history-tracking
-  - concept_name: multi-environment-deployments
-    title: Dev/Prod/Preview Deployment Types
-    coverage:
-      - vendor: Convex
-        capability_name: multi-environment-deployments
-  - concept_name: multi-factor-authentication
-    title: Multi-Factor Authentication
-    coverage:
-      - vendor: Supabase
-        capability_name: multi-factor-authentication
   - concept_name: multi-process-file-access
     title: Multi-Process Shared File Access
     coverage:
       - vendor: Turso
         capability_name: multi-process-file-access
+  - concept_name: multi-region-deployment
+    title: Multi-Region Database Deployment
+    coverage:
+      - vendor: Nile
+        capability_name: multi-region-deployment
   - concept_name: multi-region-table-locality
     title: Multi-Region Table Locality
     coverage:
@@ -868,16 +739,21 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: node-region-management
-  - concept_name: oauth-application-tokens
-    title: OAuth Application Authorization
+  - concept_name: numeric-precision-types
+    title: Numeric & Auto-Increment Types
     coverage:
-      - vendor: Convex
-        capability_name: oauth-application-tokens
+      - vendor: Nile
+        capability_name: numeric-precision-types
   - concept_name: oauth-authentication
     title: OAuth / OIDC Federated Authentication
     coverage:
       - vendor: Insforge
         capability_name: oauth-authentication
+  - concept_name: oauth-sso-login
+    title: OAuth / SSO Login
+    coverage:
+      - vendor: Nile
+        capability_name: oauth-sso-login
   - concept_name: object-storage
     title: File/Object Storage
     coverage:
@@ -893,11 +769,6 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: offline-first-sync
-  - concept_name: online-archive
-    title: Online Archive (Tiered Cold Storage)
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: online-archive
   - concept_name: online-schema-change
     title: Online (Non-Blocking) Schema Changes
     coverage:
@@ -918,21 +789,16 @@ clusters:
     coverage:
       - vendor: Insforge
         capability_name: pagination-and-count
-  - concept_name: performance-advisor
-    title: Performance Advisor
+  - concept_name: passwordless-magic-link-auth
+    title: Passwordless Magic Link Auth
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: performance-advisor
+      - vendor: Nile
+        capability_name: passwordless-magic-link-auth
   - concept_name: platform-database-provisioning
     title: Programmatic Database Provisioning
     coverage:
       - vendor: Turso
         capability_name: platform-database-provisioning
-  - concept_name: point-lookup-by-id
-    title: Get Document by ID
-    coverage:
-      - vendor: Convex
-        capability_name: point-lookup-by-id
   - concept_name: postgres-extension-ecosystem
     title: Postgres Extension Catalog (PostGIS, pg_trgm, etc.)
     coverage:
@@ -943,41 +809,21 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: postgres-extension-management
-  - concept_name: preview-deployments
-    title: Ephemeral Preview Deployments
+  - concept_name: postgres-protocol-compatibility
+    title: Postgres Protocol/SQL Compatibility
     coverage:
-      - vendor: Convex
-        capability_name: preview-deployments
+      - vendor: Nile
+        capability_name: postgres-protocol-compatibility
   - concept_name: private-connectivity
     title: Private Endpoint Connectivity (PrivateLink / Private Service Connect)
     coverage:
       - vendor: Cockroachdb
         capability_name: private-connectivity
-  - concept_name: programmatic-api-keys
-    title: Programmatic API Keys
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: programmatic-api-keys
-  - concept_name: project-management
-    title: Project Lifecycle Management
-    coverage:
-      - vendor: Convex
-        capability_name: project-management
-  - concept_name: query-ordering-and-limiting
-    title: Ordering, Take, First, and Unique
-    coverage:
-      - vendor: Convex
-        capability_name: query-ordering-and-limiting
   - concept_name: query-plan-explain
     title: Query Plan Inspection (EXPLAIN)
     coverage:
       - vendor: Cockroachdb
         capability_name: query-plan-explain
-  - concept_name: query-shape-insights
-    title: Query Shape Insights
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: query-shape-insights
   - concept_name: read-replica
     title: Read Replica Compute
     coverage:
@@ -1008,11 +854,6 @@ clusters:
     coverage:
       - vendor: Insforge
         capability_name: record-update
-  - concept_name: relational-joins
-    title: Nested/Relational Reads
-    coverage:
-      - vendor: Supabase
-        capability_name: relational-joins
   - concept_name: rls-policy-introspection-api
     title: RLS Policy Introspection API
     coverage:
@@ -1023,16 +864,16 @@ clusters:
     coverage:
       - vendor: Neon
         capability_name: role-management
-  - concept_name: rolling-index-builds
-    title: Rolling/Zero-Downtime Index Builds
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: rolling-index-builds
   - concept_name: row-level-ttl
     title: Row-Level Time-To-Live (TTL)
     coverage:
       - vendor: Cockroachdb
         capability_name: row-level-ttl
+  - concept_name: scheduled-jobs
+    title: Scheduled Jobs (pg_cron)
+    coverage:
+      - vendor: Supabase
+        capability_name: scheduled-jobs
   - concept_name: schema-diagnostics-advisor
     title: Diagnostics & Advisor for DB Health/Security/Performance
     coverage:
@@ -1048,11 +889,6 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: secondary-indexing
-  - concept_name: server-side-query-functions
-    title: Query Functions
-    coverage:
-      - vendor: Convex
-        capability_name: server-side-query-functions
   - concept_name: serverless-http-websocket-driver
     title: Neon Serverless Driver (HTTP/WebSocket)
     coverage:
@@ -1063,6 +899,16 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: service-account-management
+  - concept_name: session-management
+    title: Session Lifecycle Management
+    coverage:
+      - vendor: Nile
+        capability_name: session-management
+  - concept_name: shared-table
+    title: Shared (Cross-Tenant) Table
+    coverage:
+      - vendor: Nile
+        capability_name: shared-table
   - concept_name: sort-paginate-reads
     title: Sorting & Pagination
     coverage:
@@ -1098,6 +944,11 @@ clusters:
     coverage:
       - vendor: Supabase
         capability_name: sso-saml
+  - concept_name: standard-postgres-tool-connectivity
+    title: Standard Postgres Tool Connectivity
+    coverage:
+      - vendor: Nile
+        capability_name: standard-postgres-tool-connectivity
   - concept_name: storage-access-control
     title: Storage Access Control
     coverage:
@@ -1108,21 +959,11 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: stored-procedures
-  - concept_name: structured-application-errors
-    title: Structured Application Errors (ConvexError)
-    coverage:
-      - vendor: Convex
-        capability_name: structured-application-errors
   - concept_name: sync-conflict-resolution
     title: Sync Conflict Resolution (Last-Push-Wins)
     coverage:
       - vendor: Turso
         capability_name: sync-conflict-resolution
-  - concept_name: table-creation
-    title: Create Table
-    coverage:
-      - vendor: Insforge
-        capability_name: table-creation
   - concept_name: table-deletion
     title: Delete Table
     coverage:
@@ -1138,11 +979,46 @@ clusters:
     coverage:
       - vendor: Insforge
         capability_name: table-listing
-  - concept_name: team-management
-    title: Team and Member Management
+  - concept_name: temporal-data-types
+    title: Date/Time Types
     coverage:
-      - vendor: Convex
-        capability_name: team-management
+      - vendor: Nile
+        capability_name: temporal-data-types
+  - concept_name: tenant-aware-orm-client
+    title: Tenant-Aware SDK Client
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-aware-orm-client
+  - concept_name: tenant-context-scoping
+    title: Tenant Context Scoping
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-context-scoping
+  - concept_name: tenant-infrastructure-isolation
+    title: Tenant Dedicated Infrastructure Placement
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-infrastructure-isolation
+  - concept_name: tenant-migration
+    title: Tenant Region Migration
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-migration
+  - concept_name: tenant-partitioned-table
+    title: Tenant-Partitioned Table
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-partitioned-table
+  - concept_name: tenant-region-placement
+    title: Tenant Geographic Placement
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-region-placement
+  - concept_name: tenant-shared-join
+    title: Tenant-to-Shared-Table Join
+    coverage:
+      - vendor: Nile
+        capability_name: tenant-shared-join
   - concept_name: trigger-based-automation
     title: Triggers (Server-Side Row Automation)
     coverage:
@@ -1153,26 +1029,16 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: triggers
-  - concept_name: type-code-generation
-    title: Backend Type Code Generation
+  - concept_name: trigram-fuzzy-search
+    title: Trigram Fuzzy Text Search
     coverage:
-      - vendor: Convex
-        capability_name: type-code-generation
-  - concept_name: typed-value-system
-    title: Document Value Type System and Limits
-    coverage:
-      - vendor: Convex
-        capability_name: typed-value-system
+      - vendor: Nile
+        capability_name: trigram-fuzzy-search
   - concept_name: typescript-type-generation
     title: TypeScript Type Generation
     coverage:
       - vendor: Supabase
         capability_name: typescript-type-generation
-  - concept_name: unique-index-constraints
-    title: Unique Index Constraints
-    coverage:
-      - vendor: Mongodb Atlas
-        capability_name: unique-index-constraints
   - concept_name: user-authentication
     title: Email/Password User Authentication with Sessions
     coverage:
@@ -1183,6 +1049,16 @@ clusters:
     coverage:
       - vendor: Cockroachdb
         capability_name: user-defined-functions
+  - concept_name: user-tenant-membership
+    title: User-Tenant Membership Management
+    coverage:
+      - vendor: Nile
+        capability_name: user-tenant-membership
+  - concept_name: uuid-generation
+    title: UUID Generation
+    coverage:
+      - vendor: Nile
+        capability_name: uuid-generation
   - concept_name: version-deferral
     title: Patch Version Deferral
     coverage:
@@ -1193,8 +1069,8 @@ clusters:
     coverage:
       - vendor: Turso
         capability_name: view-definition
-  - concept_name: x509-certificate-authentication
-    title: X.509 Certificate Authentication
+  - concept_name: workspace-management
+    title: Workspace Management
     coverage:
-      - vendor: Mongodb Atlas
-        capability_name: x509-certificate-authentication
+      - vendor: Nile
+        capability_name: workspace-management

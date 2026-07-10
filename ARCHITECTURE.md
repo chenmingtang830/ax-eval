@@ -33,6 +33,9 @@ DAEB-1 has one mutable v1 authoring contract before freeze. Re-synthesis
 overwrites that draft; git SHAs and content hashes distinguish exact states and
 invalidate stale approvals. Suite version numbers are not authoring iteration
 counters, and benchmark-of-record execution begins only after human freeze.
+The vendor-selection ledger precedes synthesis: its core cohort alone defines
+concept coverage and production run order, while research vendors stay
+available for methodology work without changing the canonical bank.
 
 DAEB synthesis keeps broad concept coverage separate from concrete
 applicability. Coverage decisions retain every ranked candidate capability and

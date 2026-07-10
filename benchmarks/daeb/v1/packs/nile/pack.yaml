@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-c3hf5t
-name: supabase
+# run_id: 2026-07-10-ghz6cd
+name: nile
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-c3hf5t
+run_id: 2026-07-10-ghz6cd
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -13,42 +13,47 @@ generator:
   effort: high
   prompt_version: compose-pack-v1
   source_docs:
-    - https://supabase.com/docs
+    - https://www.thenile.dev/docs
 auth_method: pat
 api_style: rest
 auth:
   type: bearer
-  env: SUPABASE_API_KEY
+  env: NILE_API_KEY
   env_aliases: []
   verify_env_aliases: []
-  extra_header: apikey
-sandbox_scope: []
+  header: Authorization
+sandbox_scope:
+  - name: workspace
+    env: NILE_WORKSPACE
+    required: true
+    instructions: existing free-tier Nile workspace; do not create or mutate other workspaces
+  - name: database
+    env: NILE_DATABASE
+    required: true
+    instructions: disposable Nile database dedicated to DAEB namespaced resources
 sql_conn:
   dialect: postgres
-  connection_string_env: SUPABASE_DB_URL
+  connection_string_env: NILE_DATABASE_URL
 surfaces:
   cli:
-    bin: supabase
-    install: npm install supabase --save-dev
-    docs_url: https://supabase.com/docs/reference/cli/introduction
+    bin: nile
+    install: npm install -g niledatabase
+    docs_url: https://www.thenile.dev/docs/cli/introduction
     auth:
       kind: token
-      token_env: SUPABASE_ACCESS_TOKEN
+      token_env: NILE_API_KEY
       token_env_aliases: []
-      instructions: Generate a personal access token at
-        https://supabase.com/dashboard/account/tokens, then set
-        SUPABASE_ACCESS_TOKEN. The CLI also reads SUPABASE_DB_PASSWORD for
-        database operations.
-base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+      instructions: Set NILE_API_KEY for non-interactive CLI and CI use.
+base_url: https://global.thenile.dev
 headers: {}
-site_url: https://supabase.com
+site_url: https://www.thenile.dev
 openapi_url: ""
 docs_urls:
-  - https://supabase.com/docs
+  - https://www.thenile.dev/docs
 static:
-  site_url: https://supabase.com
+  site_url: https://www.thenile.dev
   docs_urls:
-    - https://supabase.com/docs
+    - https://www.thenile.dev/docs
   checks: []
 tasks:
   - id: db-T01-access-control
@@ -85,7 +90,6 @@ tasks:
         sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
     difficulty: L2
     allowed_surfaces:
-      - api
       - cli
     na: false
     depends_on: []
@@ -148,7 +152,6 @@ tasks:
           column_name IN ('title', 'status')
     difficulty: L3
     allowed_surfaces:
-      - api
       - cli
     na: false
     depends_on: []
@@ -179,7 +182,7 @@ tasks:
           AND column_name IN ('name', 'status')
     difficulty: L1
     allowed_surfaces:
-      - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -210,7 +213,7 @@ tasks:
           '[1,0,0]' LIMIT 1
     difficulty: L2
     allowed_surfaces:
-      - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -263,6 +266,7 @@ tasks:
     difficulty: L2
     allowed_surfaces:
       - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -286,17 +290,11 @@ tasks:
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
-      - type: roundtrip
-        expected: 1
-        description: agent-reported durable capture table contains the inserted CDC marker
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label =
-          'cdc_probe_{ns}' OR payload::text LIKE '%cdc_probe_{ns}%'
+      - type: na
+        description: unsupported for this vendor in support matrix
     difficulty: L4
-    allowed_surfaces:
-      - api
-    na: false
+    allowed_surfaces: []
+    na: true
     depends_on: []
     trace: []
   - id: db-T08-data-integrity-and-transactions
@@ -359,7 +357,7 @@ tasks:
           '%harbor_{ns}%')
     difficulty: L2
     allowed_surfaces:
-      - api
+      - cli
     na: false
     depends_on: []
     trace: []
@@ -382,29 +380,10 @@ tasks:
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
     oracles:
-      - type: roundtrip
-        expected: 3
-        description: query container contains exactly the three requested records
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
-      - type: roundtrip
-        expected: 2
-        description: filtered read returns exactly two active records
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active'
-      - type: roundtrip
-        expected: 2
-        description: the active set is alpha and gamma
-        assertField: 0.count
-        sqlDialect: postgres
-        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
-          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+      - type: na
+        description: unsupported for this vendor in support matrix
     difficulty: L2
-    allowed_surfaces:
-      - api
-    na: false
+    allowed_surfaces: []
+    na: true
     depends_on: []
     trace: []

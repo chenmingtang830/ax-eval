@@ -10,10 +10,9 @@ export const DAEB_VENDOR_ORDER = [
   "neon",
   "cockroachdb",
   "turso",
-  "convex",
   "supabase",
-  "mongodb-atlas",
   "insforge",
+  "nile",
 ] as const;
 export const DAEB_V1_EXECUTION_SURFACES = ["api", "cli"] as const;
 

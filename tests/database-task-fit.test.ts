@@ -37,6 +37,12 @@ describe("database task-fit adjudication", () => {
     expect(result?.status).toBe("sufficient");
     expect(result?.supported_surfaces).toEqual(["cli"]);
     expect(result?.capability_bundle).toEqual(["row-insert", "row-update", "row-delete"]);
+
+    const compound = evaluateDatabaseTaskFit("write-records", [
+      cap("row-insert-update-delete", ["api", "cli"], "create, update, delete"),
+    ]);
+    expect(compound?.status).toBe("sufficient");
+    expect(compound?.capability_bundle).toEqual(["row-insert-update-delete"]);
   });
 
   it("ranks direct database-change evidence above client broadcast", () => {

@@ -73,6 +73,7 @@ import { checkApproval, reviewSummary, writeApproval } from "./generate/review.j
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
+import { coreVendorSlugs } from "./generate/vendor-selection.js";
 import {
   fetchRegistrySurface,
   registryToVendorCard,
@@ -1844,6 +1845,13 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
       .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
       .filter((v): v is NonNullable<typeof v> => v !== null)
       .filter((v) => v.category === args.category);
+    if (args.category === "database") {
+      const coreSlugs = coreVendorSlugs(root);
+      if (coreSlugs) {
+        const core = new Set(coreSlugs);
+        vendors = vendors.filter((vendor) => core.has(vendor.slug));
+      }
+    }
   }
   if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
 

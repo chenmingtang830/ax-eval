@@ -2,7 +2,7 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-10T00:08:11.703Z
+extracted_at: 2026-07-10T00:49:41.431Z
 vendor_config:
   base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
   auth_type: bearer
@@ -49,28 +49,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
         description: the active/restored Turso database contains the backup marker row
-  - task_id: db-T03-change-data-capture
-    na: false
-    na_surfaces:
-      - api
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: turso:db-T03-change-data-capture:change-data-capture
-    checks:
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        read_body_template:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
-                  OR payload LIKE '%cdc_probe_{ns}%'
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "1"
-        description: agent-reported durable capture table contains the inserted CDC marker
-  - task_id: db-T04-evolve-schema
+  - task_id: db-T03-evolve-schema
     na: false
     na_surfaces: []
-    support_reference: turso:db-T04-evolve-schema:evolve-schema
+    support_reference: turso:db-T03-evolve-schema:evolve-schema
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -83,12 +65,12 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "2"
         description: title remains visible and status exists after schema evolution
-  - task_id: db-T05-inspect-schema
+  - task_id: db-T04-inspect-schema
     na: false
     na_surfaces:
       - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: turso:db-T05-inspect-schema:inspect-schema
+    support_reference: turso:db-T04-inspect-schema:inspect-schema
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -101,46 +83,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "2"
         description: schema inspection target exposes name and status fields
-  - task_id: db-T06-query-records
+  - task_id: db-T05-vector-search
     na: false
     na_surfaces: []
-    support_reference: turso:db-T06-query-records:query-records
-    checks:
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        read_body_template:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}"
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "3"
-        description: query container contains exactly the three requested records
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        read_body_template:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active'
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "2"
-        description: filtered read returns exactly two active records
-      - read_method: POST
-        read_path_template: /v2/pipeline
-        read_body_template:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active' AND
-                  label IN ('alpha_{ns}', 'gamma_{ns}')
-        assert_field: results.0.response.result.rows.0.0.value
-        expected: "2"
-        description: the active set is alpha and gamma
-  - task_id: db-T07-vector-search
-    na: false
-    na_surfaces: []
-    support_reference: turso:db-T07-vector-search:vector-search
+    support_reference: turso:db-T05-vector-search:vector-search
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -153,10 +99,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: alpha_{ns}
         description: nearest vector search ranks alpha first
-  - task_id: db-T08-write-records
+  - task_id: db-T06-write-records
     na: false
     na_surfaces: []
-    support_reference: turso:db-T08-write-records:write-records
+    support_reference: turso:db-T06-write-records:write-records
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -189,10 +135,28 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "0"
         description: throwaway record was deleted
-  - task_id: db-T09-data-integrity-and-transactions
+  - task_id: db-T07-change-data-capture
+    na: false
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: turso:db-T07-change-data-capture:change-data-capture
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
+                  OR payload LIKE '%cdc_probe_{ns}%'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "1"
+        description: agent-reported durable capture table contains the inserted CDC marker
+  - task_id: db-T08-data-integrity-and-transactions
     na: false
     na_surfaces: []
-    support_reference: turso:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: turso:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -205,10 +169,10 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
         description: exactly one committed record has the protected logical key
-  - task_id: db-T10-full-text-search
+  - task_id: db-T09-full-text-search
     na: false
     na_surfaces: []
-    support_reference: turso:db-T10-full-text-search:full-text-search
+    support_reference: turso:db-T09-full-text-search:full-text-search
     checks:
       - read_method: POST
         read_path_template: /v2/pipeline
@@ -233,3 +197,39 @@ tasks:
         assert_field: results.0.response.result.rows.0.0.value
         expected: "0"
         description: orchard search excludes mountain and harbor records
+  - task_id: db-T10-query-records
+    na: false
+    na_surfaces: []
+    support_reference: turso:db-T10-query-records:query-records
+    checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}"
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "3"
+        description: query container contains exactly the three requested records
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: filtered read returns exactly two active records
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_query_items_{ns}" WHERE status = 'active' AND
+                  label IN ('alpha_{ns}', 'gamma_{ns}')
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "2"
+        description: the active set is alpha and gamma

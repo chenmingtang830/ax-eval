@@ -1,0 +1,164 @@
+schema: ax.vendor-selection-ledger/v1
+benchmark: DAEB-1
+generated_at: 2026-07-10T00:30:00.000Z
+methodology:
+  sampling: purposive-stratified
+  population: >-
+    Developer-facing managed database and backend data platforms that an agent
+    can operate in a repeatable non-production sandbox.
+  core_rule: >-
+    Core vendors must offer a persistent free managed sandbox, documented
+    headless authentication, and at least one DAEB-1 benchmark surface
+    (API or CLI). Product strata are selected for architectural diversity;
+    task outcomes are never used to choose vendors.
+  research_rule: >-
+    Research vendors represent an important database stratum but do not align
+    with the current API/CLI execution contract strongly enough for headline
+    ranking. They remain visible in methodology work without affecting core
+    task selection or production runs.
+  exclusion_rule: >-
+    Exclude products without a persistent free managed sandbox or without
+    documented headless access. Reconsider when eligibility changes.
+entries:
+  - slug: neon
+    vendor: Neon
+    status: core
+    stratum: serverless-postgres
+    rationale: Serverless Postgres with API, CLI, branching, and direct SQL access.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: yes
+    sources:
+      - https://neon.com/pricing
+      - https://neon.com/docs/reference/cli-reference
+  - slug: cockroachdb
+    vendor: CockroachDB
+    status: core
+    stratum: distributed-sql
+    rationale: Distributed SQL representative with cloud API and SQL CLI access.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: yes
+    sources:
+      - https://www.cockroachlabs.com/pricing/
+      - https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+  - slug: turso
+    vendor: Turso
+    status: core
+    stratum: edge-sql
+    rationale: Edge/libSQL representative with HTTP API and CLI access.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: unknown
+    sources:
+      - https://turso.tech/pricing
+      - https://docs.turso.tech/cli/introduction
+  - slug: supabase
+    vendor: Supabase
+    status: core
+    stratum: postgres-baas
+    rationale: Widely adopted Postgres BaaS with management API, data API, and CLI.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: yes
+    sources:
+      - https://supabase.com/pricing
+      - https://supabase.com/docs/reference/cli/introduction
+  - slug: insforge
+    vendor: Insforge
+    status: core
+    stratum: agent-native-baas
+    rationale: Agent-native backend/database platform with API, CLI, SDK, and MCP surfaces.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: unknown
+    sources:
+      - https://insforge.dev
+      - https://docs.insforge.dev/agent-native/cli-harness
+  - slug: nile
+    vendor: Nile
+    status: core
+    stratum: multi-tenant-serverless-postgres
+    rationale: Multi-tenant serverless Postgres with a persistent free tier, API, CLI, and API-key auth.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: unknown
+    sources:
+      - https://www.thenile.dev/pricing
+      - https://www.thenile.dev/docs/cli/introduction
+      - https://www.thenile.dev/docs/api-reference/databases/create-a-database
+  - slug: mongodb-atlas
+    vendor: MongoDB Atlas
+    status: research
+    stratum: document-database
+    rationale: Important document-database representative, but most concrete DAEB tasks rely on SDK/GUI paths excluded from v1 API/CLI ranking.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: no
+      reset_feasibility: yes
+    sources:
+      - https://www.mongodb.com/pricing
+      - https://www.mongodb.com/docs/atlas/cli/stable/
+  - slug: convex
+    vendor: Convex
+    status: research
+    stratum: reactive-application-backend
+    rationale: Strong agent-native SDK/CLI/MCP platform, but its code-first data model has limited fit with DAEB-1 API/CLI task execution.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: true
+      headless_auth: yes
+      benchmark_surface: no
+      reset_feasibility: yes
+    sources:
+      - https://www.convex.dev/pricing
+      - https://docs.convex.dev/cli/overview
+  - slug: planetscale
+    vendor: PlanetScale
+    status: excluded
+    stratum: serverless-mysql
+    rationale: Relevant managed database, but does not meet the persistent-free-managed-sandbox rule.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: false
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: unknown
+    exclusion_reason: No persistent free managed sandbox.
+    sources:
+      - https://planetscale.com/pricing
+  - slug: xata
+    vendor: Xata
+    status: excluded
+    stratum: serverless-postgres
+    rationale: Strong API/CLI product, but current free usage is self-hosted and managed cloud is paid/trial-based.
+    eligibility:
+      managed_service: true
+      persistent_free_sandbox: false
+      headless_auth: yes
+      benchmark_surface: yes
+      reset_feasibility: unknown
+    exclusion_reason: No persistent free managed cloud sandbox; self-hosting is outside the managed-service cohort.
+    sources:
+      - https://xata.io/pricing/
+      - https://xata.io/docs/cli

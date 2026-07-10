@@ -11,6 +11,7 @@ example packs) lives under [`targets/examples/`](../../targets/examples/).
 benchmarks/daeb/
   vendors/<slug>.discovered.yaml     # shared vendor cards (docs/site/openapi)
   v1/                                # active frozen version
+    vendor-selection-ledger.yaml     # core/research/excluded cohort contract
     suite.yaml                       # canonical task suite
     extracts/<vendor>/
       capability-inventory.yaml      # Layer 0a cited capabilities
@@ -37,6 +38,12 @@ import-registry / resolve-vendor
 Extracts under `v1/extracts/` are a **reproducibility contract**: they ship in
 git and the npm package so suite synthesis can be audited without regenerating
 from the live web.
+
+The vendor-selection ledger is upstream of suite synthesis. Core vendors define
+the 75% concept-selection cohort and production run order; research vendors
+remain available for methodology work without affecting the canonical bank.
+Exclusions record dated eligibility reasons (for example, no persistent free
+managed sandbox) so the cohort is not chosen from benchmark outcomes.
 
 ## Hygiene
 

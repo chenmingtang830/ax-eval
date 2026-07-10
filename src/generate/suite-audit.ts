@@ -29,6 +29,7 @@ import {
 import { daebVendorsDir } from "./benchmark-paths.js";
 import { readdirSync } from "node:fs";
 import { loadVendorCard } from "./vendor-resolve.js";
+import { coreVendorSlugs } from "./vendor-selection.js";
 
 export type SuiteFindingSeverity = "error" | "warn" | "info";
 
@@ -50,6 +51,8 @@ export interface SuiteAuditReport {
 }
 
 function listDatabaseSlugs(root: string): string[] {
+  const selected = coreVendorSlugs(root);
+  if (selected) return [...selected].sort();
   const dir = daebVendorsDir(root);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)

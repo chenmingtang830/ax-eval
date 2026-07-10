@@ -1,20 +1,22 @@
-vendor: Supabase
+vendor: Nile
 category: database
-slug: supabase
+slug: nile
 suite_name: DAEB-1
-extracted_at: 2026-07-10T00:49:41.431Z
+extracted_at: 2026-07-10T00:49:41.432Z
 vendor_config:
-  base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
+  base_url: https://global.thenile.dev
   auth_type: bearer
-  auth_env: SUPABASE_API_KEY
-  extra_auth_header: apikey
+  auth_header: Authorization
+  auth_env: NILE_API_KEY
   sql_dialect: postgres
-  sql_connection_env: SUPABASE_DB_URL
+  sql_connection_env: NILE_DATABASE_URL
 tasks:
   - task_id: db-T01-access-control
     na: false
-    na_surfaces: []
-    support_reference: supabase:db-T01-access-control:access-control
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: nile:db-T01-access-control:access-control
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
@@ -30,7 +32,7 @@ tasks:
   - task_id: db-T02-backup-and-restore
     na: false
     na_surfaces: []
-    support_reference: supabase:db-T02-backup-and-restore:backup-and-restore
+    support_reference: nile:db-T02-backup-and-restore:backup-and-restore
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_backup_{ns}" WHERE label
@@ -41,8 +43,10 @@ tasks:
           backup/export task
   - task_id: db-T03-evolve-schema
     na: false
-    na_surfaces: []
-    support_reference: supabase:db-T03-evolve-schema:evolve-schema
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: nile:db-T03-evolve-schema:evolve-schema
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
@@ -54,9 +58,9 @@ tasks:
   - task_id: db-T04-inspect-schema
     na: false
     na_surfaces:
-      - cli
+      - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T04-inspect-schema:inspect-schema
+    support_reference: nile:db-T04-inspect-schema:inspect-schema
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
@@ -68,9 +72,9 @@ tasks:
   - task_id: db-T05-vector-search
     na: false
     na_surfaces:
-      - cli
+      - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T05-vector-search:vector-search
+    support_reference: nile:db-T05-vector-search:vector-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
@@ -80,10 +84,8 @@ tasks:
         description: nearest vector search ranks alpha first
   - task_id: db-T06-write-records
     na: false
-    na_surfaces:
-      - cli
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T06-write-records:write-records
+    na_surfaces: []
+    support_reference: nile:db-T06-write-records:write-records
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
@@ -104,11 +106,11 @@ tasks:
         expected: 0
         description: throwaway record was deleted
   - task_id: db-T07-change-data-capture
-    na: false
-    na_surfaces:
-      - cli
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T07-change-data-capture:change-data-capture
+    support_reference: nile:db-T07-change-data-capture:change-data-capture
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "{capture_table}" WHERE row_label
@@ -121,7 +123,7 @@ tasks:
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
+    support_reference: nile:db-T08-data-integrity-and-transactions:data-integrity-and-transactions
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
@@ -132,9 +134,9 @@ tasks:
   - task_id: db-T09-full-text-search
     na: false
     na_surfaces:
-      - cli
+      - api
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T09-full-text-search:full-text-search
+    support_reference: nile:db-T09-full-text-search:full-text-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
@@ -152,11 +154,11 @@ tasks:
         expected: 0
         description: orchard search excludes mountain and harbor records
   - task_id: db-T10-query-records
-    na: false
-    na_surfaces:
-      - cli
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: supabase:db-T10-query-records:query-records
+    support_reference: nile:db-T10-query-records:query-records
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"

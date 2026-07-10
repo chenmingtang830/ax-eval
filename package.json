@@ -42,6 +42,7 @@
     "benchmarks/daeb/vendors/*.discovered.yaml",
     "benchmarks/daeb/v1/suite.yaml",
     "benchmarks/daeb/v1/run-matrix.yaml",
+    "benchmarks/daeb/v1/vendor-selection-ledger.yaml",
     "benchmarks/daeb/v1/extracts/*/*.yaml",
     "benchmarks/daeb/v1/packs/*/pack.yaml",
     "benchmarks/daeb/v1/packs/*/pack.approval.json",

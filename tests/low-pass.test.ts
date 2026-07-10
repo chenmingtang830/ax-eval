@@ -32,10 +32,9 @@ describe("daeb low-pass helpers", () => {
       "neon",
       "cockroachdb",
       "turso",
-      "convex",
       "supabase",
-      "mongodb-atlas",
       "insforge",
+      "nile",
     ]);
   });
 

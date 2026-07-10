@@ -28,15 +28,14 @@ Difficulty: L2 · Skill: access-control
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (7 vendor capabilities clustered into this task):
+**Coverage** (6 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | row-level-security |
-| Convex | custom-roles |
 | Insforge | row-level-security |
-| Mongodb Atlas | ip-access-list |
 | Neon | row-level-security |
+| Nile | row-level-security |
 | Supabase | network-access-restriction |
 | Turso | fine-grained-permissions |
 
@@ -46,160 +45,149 @@ Difficulty: L4 · Skill: backup-and-restore
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (7 vendor capabilities clustered into this task):
+**Coverage** (6 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | backup-restore |
-| Convex | backup-snapshot |
 | Insforge | database-export |
-| Mongodb Atlas | backup-export-to-cloud-storage |
 | Neon | branch-point-in-time-restore |
+| Nile | automated-backup |
 | Supabase | bulk-data-import-export |
 | Turso | point-in-time-recovery |
 
-### db-T03-change-data-capture — T03: Emit one observable change event
-
-Difficulty: L4 · Skill: change-data-capture
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (7 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | change-data-capture |
-| Convex | realtime-subscriptions |
-| Insforge | realtime-change-feed |
-| Mongodb Atlas | change-streams-cdc |
-| Neon | logical-replication-cdc |
-| Supabase | change-data-capture |
-| Turso | change-data-capture |
-
-### db-T04-evolve-schema — T04: Apply a schema evolution
+### db-T03-evolve-schema — T03: Apply a schema evolution
 
 Difficulty: L3 · Skill: evolve-schema
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (7 vendor capabilities clustered into this task):
+**Coverage** (6 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | schema-migration |
-| Convex | schema-migration |
 | Insforge | migration-execution-api |
-| Mongodb Atlas | relational-schema-migration |
 | Neon | schema-migration-orm-tooling |
+| Nile | schema-alteration |
 | Supabase | schema-migration |
 | Turso | schema-alteration |
 
-### db-T05-inspect-schema — T05: Inspect container metadata
+### db-T04-inspect-schema — T04: Inspect container metadata
 
 Difficulty: L1 · Skill: inspect-schema
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (7 vendor capabilities clustered into this task):
+**Coverage** (6 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | schema-introspection |
-| Convex | system-table-introspection |
 | Insforge | schema-introspection |
-| Mongodb Atlas | schema-introspection |
 | Neon | schema-diff-and-introspection |
+| Nile | schema-introspection |
 | Supabase | schema-introspection |
 | Turso | schema-introspection |
 
-### db-T06-query-records — T06: Filter and read matching records
-
-Difficulty: L2 · Skill: query-records
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (7 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | filtered-query |
-| Convex | filtered-query |
-| Insforge | filtered-query |
-| Mongodb Atlas | filtered-query |
-| Neon | data-api-rest |
-| Supabase | filtered-query |
-| Turso | filtered-query |
-
-### db-T07-vector-search — T07: Create a vector-enabled dataset and query it
+### db-T05-vector-search — T05: Create a vector-enabled dataset and query it
 
 Difficulty: L2 · Skill: vector-search
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (7 vendor capabilities clustered into this task):
+**Coverage** (6 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | vector-search |
-| Convex | vector-search |
 | Insforge | vector-search |
-| Mongodb Atlas | vector-search |
 | Neon | vector-search-pgvector |
+| Nile | tenant-scoped-vector-search |
 | Supabase | vector-similarity-search |
 | Turso | vector-similarity-search |
 
-### db-T08-write-records — T08: Create, update, and delete one record lifecycle
+### db-T06-write-records — T06: Create, update, and delete one record lifecycle
 
 Difficulty: L2 · Skill: write-records
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (11 vendor capabilities clustered into this task):
+**Coverage** (10 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | row-insert |
 | Cockroachdb | row-update |
 | Cockroachdb | row-delete |
-| Convex | document-insert |
 | Insforge | bulk-upsert-import |
-| Mongodb Atlas | document-insert |
 | Neon | baseline-sql-table-and-row-operations |
+| Nile | tenant-lifecycle-management |
 | Supabase | rest-data-api-crud |
 | Turso | row-insert |
 | Turso | row-update |
 | Turso | row-delete |
 
-### db-T09-data-integrity-and-transactions — T09: Enforce one integrity or atomicity rule
+### db-T07-change-data-capture — T07: Emit one observable change event
+
+Difficulty: L4 · Skill: change-data-capture
+
+**Why selected**: Deterministic proposal from concept universe and coverage closure.
+
+**Coverage** (5 vendor capabilities clustered into this task):
+
+| Vendor | Capability |
+|---|---|
+| Cockroachdb | change-data-capture |
+| Insforge | realtime-change-feed |
+| Neon | logical-replication-cdc |
+| Supabase | change-data-capture |
+| Turso | change-data-capture |
+
+### db-T08-data-integrity-and-transactions — T08: Enforce one integrity or atomicity rule
 
 Difficulty: L4 · Skill: data-integrity-and-transactions
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (6 vendor capabilities clustered into this task):
+**Coverage** (5 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | row-upsert |
-| Convex | transactional-writes |
 | Insforge | column-level-constraints |
-| Mongodb Atlas | schema-validation |
+| Nile | primary-key-constraint |
 | Supabase | primary-key-constraint |
 | Turso | upsert-conflict-resolution |
 
-### db-T10-full-text-search — T10: Create a searchable text dataset and query it
+### db-T09-full-text-search — T09: Create a searchable text dataset and query it
 
 Difficulty: L2 · Skill: full-text-search
 
 **Why selected**: Deterministic proposal from concept universe and coverage closure.
 
-**Coverage** (6 vendor capabilities clustered into this task):
+**Coverage** (5 vendor capabilities clustered into this task):
 
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | full-text-search |
-| Convex | full-text-search |
-| Mongodb Atlas | full-text-search |
 | Neon | full-text-search-tsvector |
+| Nile | full-text-search-tsvector |
 | Supabase | full-text-search |
 | Turso | full-text-search |
+
+### db-T10-query-records — T10: Filter and read matching records
+
+Difficulty: L2 · Skill: query-records
+
+**Why selected**: Deterministic proposal from concept universe and coverage closure.
+
+**Coverage** (5 vendor capabilities clustered into this task):
+
+| Vendor | Capability |
+|---|---|
+| Cockroachdb | filtered-query |
+| Insforge | filtered-query |
+| Neon | data-api-rest |
+| Supabase | filtered-query |
+| Turso | filtered-query |

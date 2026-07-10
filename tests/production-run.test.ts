@@ -63,10 +63,9 @@ describe("production rerun helpers", () => {
       "neon",
       "cockroachdb",
       "turso",
-      "convex",
       "supabase",
-      "mongodb-atlas",
       "insforge",
+      "nile",
     ]);
     const frozen = new Date("2026-07-09T12:00:00.000Z");
     expect(datedDaebProductionRunStem(frozen)).toBe("daeb-v1-20260709");

@@ -62,6 +62,10 @@ shape.
   states and invalidate stale approvals. Do not increment the suite version for
   authoring iterations or publish benchmark-of-record results from an unfrozen
   draft.
+- **Freeze the vendor cohort before task outcomes.** The DAEB vendor-selection
+  ledger records core, research, and excluded candidates using managed-sandbox,
+  headless-auth, benchmark-surface, and product-stratum criteria. Only core
+  vendors affect synthesis and production order.
 - **Concept coverage is not task applicability.** DAEB coverage artifacts retain
   ranked capability candidates and same-surface capability bundles. A support
   cell may be enabled only when its bundle satisfies every concrete task

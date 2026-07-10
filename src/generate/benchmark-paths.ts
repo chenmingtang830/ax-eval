@@ -26,6 +26,10 @@ export function daebSuitePath(root: string, version: string = DAEB_ACTIVE_VERSIO
   return resolve(daebVersionDir(root, version), "suite.yaml");
 }
 
+export function daebVendorSelectionLedgerPath(root: string, version: string = DAEB_ACTIVE_VERSION): string {
+  return resolve(daebVersionDir(root, version), "vendor-selection-ledger.yaml");
+}
+
 export function daebExtractsDir(root: string, version: string = DAEB_ACTIVE_VERSION): string {
   return resolve(daebVersionDir(root, version), "extracts");
 }

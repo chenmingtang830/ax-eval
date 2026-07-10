@@ -121,6 +121,10 @@ evaluation suite -> vendor verification extraction -> TargetPack -> execution ->
 ```
 
 The canonical benchmark contract is [`benchmarks/daeb/v1/suite.yaml`](./benchmarks/daeb/v1/suite.yaml).
+Its purposive-stratified core/research/excluded cohort is recorded separately in
+[`benchmarks/daeb/v1/vendor-selection-ledger.yaml`](./benchmarks/daeb/v1/vendor-selection-ledger.yaml);
+vendor inclusion is fixed before task outcomes and requires a persistent free
+managed sandbox plus documented headless API/CLI access for the core cohort.
 Each database vendor has a compiled pack under `benchmarks/daeb/v1/packs/<vendor>/pack.yaml`,
 but those packs are execution artifacts, not independently authored benchmark
 definitions. They are produced from the same suite plus vendor-specific public

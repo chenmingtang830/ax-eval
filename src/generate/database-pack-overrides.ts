@@ -101,6 +101,7 @@ const SQL_IDENTIFIER_CONTRACT_VENDORS = new Set([
   "cockroachdb",
   "insforge",
   "neon",
+  "nile",
   "supabase",
   "turso",
 ]);

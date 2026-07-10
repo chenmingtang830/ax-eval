@@ -49,6 +49,22 @@ function vendorSandboxScope(vendor: ResolveResult): TargetPack["sandbox_scope"] 
       },
     ];
   }
+  if (vendor.slug === "nile") {
+    return [
+      {
+        name: "workspace",
+        env: "NILE_WORKSPACE",
+        required: true,
+        instructions: "existing free-tier Nile workspace; do not create or mutate other workspaces",
+      },
+      {
+        name: "database",
+        env: "NILE_DATABASE",
+        required: true,
+        instructions: "disposable Nile database dedicated to DAEB namespaced resources",
+      },
+    ];
+  }
   return [];
 }
 

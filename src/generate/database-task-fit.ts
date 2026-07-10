@@ -155,9 +155,9 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
     paths: [{
       id: "record-lifecycle",
       requirements: [
-        r("create-record", [/\b(?:row|document)-insert\b/, /\bbulk-import\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
-        r("update-record", [/\b(?:row|document)-(?:update|patch-update|replace|upsert)\b/, /\bupsert\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
-        r("delete-record", [/\b(?:row|document)-delete\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
+        r("create-record", [/\b(?:row|document)-insert\b/, /\brow-insert-update-delete\b/, /\bbulk-import\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
+        r("update-record", [/\b(?:row|document)-(?:update|patch-update|replace|upsert)\b/, /\brow-insert-update-delete\b/, /\bupsert\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
+        r("delete-record", [/\b(?:row|document)-delete\b/, /\brow-insert-update-delete\b/, /\brest-data-api-crud\b/, /\bcrud\b/, /\bsql-table-and-row-operations\b/]),
       ],
     }],
   },
