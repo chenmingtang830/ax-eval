@@ -2,7 +2,7 @@ vendor: Nile
 category: database
 slug: nile
 suite_name: DAEB-1
-extracted_at: 2026-07-10T21:16:53.154Z
+extracted_at: 2026-07-10T21:29:43.272Z
 vendor_config:
   base_url: https://global.thenile.dev
   auth_type: bearer

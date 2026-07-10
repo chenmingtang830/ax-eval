@@ -921,23 +921,6 @@ capabilities:
       source: official-docs
       extracted_at: 2026-07-09T00:00:00Z
       extractor: llm-capability-inventory-v1
-  - capability_name: standard-postgres-tool-connectivity
-    title: Standard Postgres Tool Connectivity
-    description: Connect to a Nile database using standard Postgres clients such as
-      psql, pgAdmin, and DBeaver.
-    resource_kind: connection
-    operation_kind: read
-    surfaces_documented:
-      - api
-    support_type: native
-    evidence:
-      - doc_url: https://thenile.dev/docs/postgres/tools/dbeaver.md
-        quote: Generate credentials. Use this if you really want to simplify the access.
-        strength: direct
-    extraction_provenance:
-      source: official-docs
-      extracted_at: 2026-07-09T00:00:00Z
-      extractor: llm-capability-inventory-v1
   - capability_name: tenant-aware-orm-client
     title: Tenant-Aware SDK Client
     description: The SDK exposes a tenant-aware connection-pool `db` object that

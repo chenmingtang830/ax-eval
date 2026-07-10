@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-c3bmqk
+# run_id: 2026-07-10-8w5r3h
 name: cockroachdb
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-c3bmqk
+run_id: 2026-07-10-8w5r3h
 generated_by: suite-composed
 generator:
   harness: claude-code

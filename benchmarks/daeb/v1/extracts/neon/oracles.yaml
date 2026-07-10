@@ -2,7 +2,7 @@ vendor: Neon
 category: database
 slug: neon
 suite_name: DAEB-1
-extracted_at: 2026-07-10T21:16:53.151Z
+extracted_at: 2026-07-10T21:29:43.269Z
 vendor_config:
   base_url: https://console.neon.tech/api/v2
   auth_type: bearer

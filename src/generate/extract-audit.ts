@@ -180,23 +180,22 @@ function auditInventoryFindings(
   }
   caps = kept;
 
-  caps = caps.map((cap) => {
-    if (!cap.surfaces_documented.includes("cli")) return cap;
+  caps = caps.flatMap((cap) => {
     const evidenceText = cap.evidence.map((item) => `${item.doc_url} ${item.quote}`).join("\n");
     if (!GUI_ONLY_RE.test(evidenceText) || COMMAND_LINE_RE.test(evidenceText)) return cap;
+    const labeledCli = cap.surfaces_documented.includes("cli");
     findings.push({
       vendor,
       artifact: "capability-inventory",
       severity: "error",
       code: "gui_mislabeled_cli",
-      message: "CLI attribution relies only on GUI/desktop evidence; stripped cli surface",
+      message: labeledCli
+        ? "CLI attribution relies only on GUI/desktop evidence; removed capability"
+        : "Capability surface relies only on GUI/desktop evidence; removed capability",
       capability_name: cap.capability_name,
       auto_fixable: true,
     });
-    return {
-      ...cap,
-      surfaces_documented: cap.surfaces_documented.filter((surface) => surface !== "cli"),
-    };
+    return [];
   });
 
   for (const cap of caps) {

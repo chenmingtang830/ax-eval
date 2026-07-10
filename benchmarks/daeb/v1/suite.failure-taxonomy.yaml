@@ -1,6 +1,6 @@
 schema: ax.failure-taxonomy/v1
 benchmark: DAEB-1
-generated_at: 2026-07-10T21:16:52.371Z
+generated_at: 2026-07-10T21:29:42.501Z
 categories:
   - id: generic-harness-tooling-bug
     label: Generic harness/tooling bug

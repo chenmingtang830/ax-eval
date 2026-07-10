@@ -1,6 +1,6 @@
 schema: ax.coverage-matrix/v1
 category: database
-generated_at: 2026-07-10T21:16:52.359Z
+generated_at: 2026-07-10T21:29:42.490Z
 concepts:
   - concept_name: access-control
     title: Access Control
@@ -333,13 +333,13 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a311
-              - &a312
+            evidence: &a310
+              - &a311
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/export-logs
                 quote: CockroachDB Standard users can use the Cloud API to configure log export
                   to Amazon CloudWatch
                 strength: direct
-              - &a313
+              - &a312
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/export-logs
                 quote: "The endpoint used is:
                   https://cockroachlabs.cloud/api/v1/clusters/{your_cluster_id}\
@@ -354,13 +354,13 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a320
-              - &a321
+            evidence: &a319
+              - &a320
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/export-metrics
                 quote: CockroachDB Standard users can use the Cloud API to configure metrics
                   export to Amazon CloudWatch, Datadog, or Prometheus.
                 strength: direct
-              - &a322
+              - &a321
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/export-metrics
                 quote: "CloudWatch:
                   https://cockroachlabs.cloud/api/v1/clusters/{your_cluster_id}\
@@ -393,13 +393,13 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a211
-              - &a212
+            evidence: &a210
+              - &a211
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-org-audit-logs
                 quote: logs are created "when a cluster is created or when a user is added to or
                   removed from an organization."
                 strength: direct
-              - &a213
+              - &a212
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-org-audit-logs
                 quote: the `auditlogevents` endpoint of the Cloud API ... the earliest 200 audit
                   logs for your CockroachDB Cloud organization are returned in
@@ -563,7 +563,7 @@ concepts:
               - api
               - cli
             surface_notes: []
-            evidence: &a222
+            evidence: &a221
               - &a26
                 doc_url: https://supabase.com/docs/guides/database/import-data
                 quote: pgloader … is a powerful tool for efficiently importing data into a
@@ -965,7 +965,7 @@ concepts:
             surfaces_documented:
               - cli
             surface_notes: []
-            evidence: &a112
+            evidence: &a111
               - &a47
                 doc_url: https://www.cockroachlabs.com/docs/stable/selection-queries.html
                 quote: The optional LIMIT and OFFSET clauses can appear in any order, but if
@@ -998,7 +998,7 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a116
+            evidence: &a115
               - &a49
                 doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
                 quote: you can filter "by field value (e.g., "?status=eq.active", "?age=gt.18")"
@@ -1055,7 +1055,7 @@ concepts:
               - api
               - cli
             surface_notes: []
-            evidence: &a251
+            evidence: &a250
               - &a52
                 doc_url: https://neon.com/docs/data-api/get-started
                 quote: exposes your Postgres database as a REST endpoint secured by JWT
@@ -1086,7 +1086,7 @@ concepts:
         vendor: Nile
         status: supported
         source: inventory
-        capability_name: standard-postgres-tool-connectivity
+        capability_name: postgres-protocol-compatibility
         concept_capability_name: postgres-protocol-compatibility
         candidate_capabilities:
           - capability_name: postgres-protocol-compatibility
@@ -1097,24 +1097,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - doc_url: https://thenile.dev/docs/postgres/postgres-compatibility.md
+              - &a55
+                doc_url: https://thenile.dev/docs/postgres/postgres-compatibility.md
                 quote: Nile's Postgres is built 100% on Postgres and is protocol and
                   application-compatible with Postgres
                 strength: direct
-          - capability_name: standard-postgres-tool-connectivity
-            matched_requirements:
-              - filtered-read
-            fit_score: 22
-            surfaces_documented:
-              - api
-            surface_notes: []
-            evidence:
-              - &a55
-                doc_url: https://thenile.dev/docs/postgres/tools/dbeaver.md
-                quote: Generate credentials. Use this if you really want to simplify the access.
-                strength: direct
         capability_bundle:
-          - standard-postgres-tool-connectivity
+          - postgres-protocol-compatibility
         task_fit:
           status: sufficient
           requirement_path: filtered-read
@@ -1122,7 +1111,6 @@ concepts:
             - filtered-read
           missing_requirements: []
           supported_surfaces: &a54
-            - api
             - cli
         surfaces_documented: *a54
         evidence:
@@ -1141,7 +1129,7 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a120
+            evidence: &a119
               - &a57
                 doc_url: https://supabase.com/docs/reference/javascript/select
                 quote: eq, neq, gt, gte, lt, lte, like, ilike, in, is, contains, containedBy,
@@ -1154,12 +1142,12 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a89
-              - &a91
+            evidence: &a88
+              - &a90
                 doc_url: https://supabase.com/docs/guides/api
                 quote: Basic CRUD operations (Create/Read/Update/Delete)
                 strength: direct
-              - &a92
+              - &a91
                 doc_url: https://supabase.com/docs/guides/api
                 quote: The REST API resolves all requests to a single SQL statement leading to
                   fast response times and high throughput.
@@ -1193,7 +1181,7 @@ concepts:
               - sdk
               - cli
             surface_notes: []
-            evidence: &a122
+            evidence: &a121
               - &a59
                 doc_url: https://docs.turso.tech/sql-reference/statements/select.md
                 quote: Filters rows based on a condition. Only rows where the expression
@@ -1519,8 +1507,8 @@ concepts:
             surfaces_documented:
               - cli
             surface_notes: []
-            evidence: &a113
-              - &a115
+            evidence: &a112
+              - &a114
                 doc_url: https://www.cockroachlabs.com/docs/stable/upsert.html
                 quote: The UPSERT statement inserts rows in cases where specified values do not
                   violate uniqueness constraints and updates rows in cases where
@@ -1619,7 +1607,7 @@ concepts:
         vendor: Nile
         status: supported
         source: inventory
-        capability_name: tenant-lifecycle-management
+        capability_name: row-insert-update-delete
         concept_capability_name: row-insert-update-delete
         candidate_capabilities:
           - capability_name: row-insert-update-delete
@@ -1632,32 +1620,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
+              - &a87
+                doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
                 quote: Inserting a new customer or tenant could use SQL, one of our SDKs or REST
                   APIs.
                 strength: direct
-          - capability_name: tenant-lifecycle-management
-            matched_requirements:
-              - create-record
-              - update-record
-              - delete-record
-            fit_score: 36
-            surfaces_documented:
-              - api
-              - cli
-            surface_notes: []
-            evidence:
-              - &a87
-                doc_url: https://thenile.dev/docs/auth/api-reference/tenants/delete-a-tenant.md
-                quote: sets a tenant for delete in the database
-                strength: direct
-              - &a88
-                doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
-                quote: If the schema has cascading set, all the tenants data will be deleted
-                  when a tenant is removed from the tenants table.
-                strength: direct
         capability_bundle:
-          - tenant-lifecycle-management
+          - row-insert-update-delete
         task_fit:
           status: sufficient
           requirement_path: record-lifecycle
@@ -1667,12 +1636,10 @@ concepts:
             - delete-record
           missing_requirements: []
           supported_surfaces: &a86
-            - api
             - cli
         surfaces_documented: *a86
         evidence:
           - *a87
-          - *a88
       - concept_name: write-records
         vendor: Supabase
         status: supported
@@ -1689,7 +1656,7 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a89
+            evidence: *a88
         capability_bundle:
           - rest-data-api-crud
         task_fit:
@@ -1700,12 +1667,12 @@ concepts:
             - update-record
             - delete-record
           missing_requirements: []
-          supported_surfaces: &a90
+          supported_surfaces: &a89
             - api
-        surfaces_documented: *a90
+        surfaces_documented: *a89
         evidence:
+          - *a90
           - *a91
-          - *a92
       - concept_name: write-records
         vendor: Turso
         status: supported
@@ -1723,12 +1690,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a98
+              - &a97
                 doc_url: https://docs.turso.tech/sql-reference/statements/delete.md
                 quote: The DELETE statement removes rows from a table. ... The WHERE clause
                   restricts which rows are deleted.
                 strength: direct
-              - &a99
+              - &a98
                 doc_url: https://docs.turso.tech/sql-reference/statements/delete.md
                 quote: The RETURNING clause causes the DELETE statement to return the values of
                   each deleted row.
@@ -1743,12 +1710,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a94
+              - &a93
                 doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
                 quote: Supply multiple parenthesized groups separated by commas [to] insert
                   several rows simultaneously
                 strength: direct
-              - &a95
+              - &a94
                 doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
                 quote: Inserts the result of a SELECT statement. The number of columns returned
                   by the SELECT must match the number of target columns
@@ -1763,11 +1730,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a96
+              - &a95
                 doc_url: https://docs.turso.tech/sql-reference/statements/update.md
                 quote: UPDATE changes column values in rows that match the WHERE condition.
                 strength: direct
-              - &a97
+              - &a96
                 doc_url: https://docs.turso.tech/sql-reference/statements/update.md
                 quote: The RETURNING clause causes the UPDATE statement to return the new values
                   of each modified row.
@@ -1781,14 +1748,14 @@ concepts:
               - sdk
               - cli
             surface_notes: []
-            evidence: &a123
-              - &a125
+            evidence: &a122
+              - &a124
                 doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
                 quote: The statement supports "OR conflict_action" clauses including IGNORE,
                   REPLACE, ABORT, ROLLBACK, and FAIL to handle constraint
                   violations automatically
                 strength: direct
-              - &a126
+              - &a125
                 doc_url: https://docs.turso.tech/sql-reference/statements/update.md
                 quote: The OR clause provides multiple conflict resolution strategies including
                   ABORT, ROLLBACK, FAIL, IGNORE, and REPLACE to manage
@@ -1806,17 +1773,17 @@ concepts:
             - update-record
             - delete-record
           missing_requirements: []
-          supported_surfaces: &a93
+          supported_surfaces: &a92
             - api
             - cli
-        surfaces_documented: *a93
+        surfaces_documented: *a92
         evidence:
+          - *a93
           - *a94
           - *a95
           - *a96
           - *a97
           - *a98
-          - *a99
   - concept_name: change-data-capture
     title: Change Data Capture
     decisions:
@@ -1835,7 +1802,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a101
+              - &a100
                 doc_url: https://www.cockroachlabs.com/docs/stable/changefeed-messages.html
                 quote: Changefeeds generate and emit messages (on a per-key basis) to sinks as
                   change events (INSERT, UPDATE, DELETE) happen to the rows in
@@ -1849,11 +1816,11 @@ concepts:
           matched_requirements:
             - database-change-feed
           missing_requirements: []
-          supported_surfaces: &a100
+          supported_surfaces: &a99
             - cli
-        surfaces_documented: *a100
+        surfaces_documented: *a99
         evidence:
-          - *a101
+          - *a100
       - concept_name: change-data-capture
         vendor: Insforge
         status: supported
@@ -1869,7 +1836,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a103
+              - &a102
                 doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
                 quote: The platform monitors table modifications via database triggers. When
                   changes occur, triggers invoke `realtime.publish()` to
@@ -1883,11 +1850,11 @@ concepts:
           matched_requirements:
             - database-change-feed
           missing_requirements: []
-          supported_surfaces: &a102
+          supported_surfaces: &a101
             - api
-        surfaces_documented: *a102
+        surfaces_documented: *a101
         evidence:
-          - *a103
+          - *a102
       - concept_name: change-data-capture
         vendor: Neon
         status: supported
@@ -1904,14 +1871,14 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a105
+              - &a104
                 doc_url: https://neon.com/docs/guides/logical-replication-guide
                 quote: Logical replication in Neon works like it does on any standard Postgres
                   installation. It uses a publisher-subscriber model to
                   replicate data from the source database to the destination
                   database.
                 strength: direct
-              - &a106
+              - &a105
                 doc_url: https://neon.com/docs/guides/logical-replication-guide
                 quote: Replication starts by copying a snapshot of the data ... subsequent
                   changes are sent to the subscriber as they occur in real-time.
@@ -1924,13 +1891,13 @@ concepts:
           matched_requirements:
             - database-change-feed
           missing_requirements: []
-          supported_surfaces: &a104
+          supported_surfaces: &a103
             - api
             - cli
-        surfaces_documented: *a104
+        surfaces_documented: *a103
         evidence:
+          - *a104
           - *a105
-          - *a106
       - concept_name: change-data-capture
         vendor: Nile
         status: inconclusive
@@ -1962,7 +1929,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a108
+              - &a107
                 doc_url: https://supabase.com/docs/guides/realtime
                 quote: Listen to database changes in real-time.
                 strength: direct
@@ -1974,11 +1941,11 @@ concepts:
           matched_requirements:
             - database-change-feed
           missing_requirements: []
-          supported_surfaces: &a107
+          supported_surfaces: &a106
             - api
-        surfaces_documented: *a107
+        surfaces_documented: *a106
         evidence:
-          - *a108
+          - *a107
       - concept_name: change-data-capture
         vendor: Turso
         status: supported
@@ -1995,12 +1962,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a110
+              - &a109
                 doc_url: https://docs.turso.tech/tursodb/cdc.md
                 quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
                   deletes) made to your database tables.
                 strength: direct
-              - &a111
+              - &a110
                 doc_url: https://docs.turso.tech/tursodb/cdc.md
                 quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE INDEX,
                   etc.) ... Changes are only recorded when a transaction
@@ -2014,12 +1981,12 @@ concepts:
           matched_requirements:
             - database-change-feed
           missing_requirements: []
-          supported_surfaces: &a109
+          supported_surfaces: &a108
             - cli
-        surfaces_documented: *a109
+        surfaces_documented: *a108
         evidence:
+          - *a109
           - *a110
-          - *a111
   - concept_name: data-integrity-and-transactions
     title: Data Integrity And Transactions
     decisions:
@@ -2037,7 +2004,7 @@ concepts:
             surfaces_documented:
               - cli
             surface_notes: []
-            evidence: *a112
+            evidence: *a111
           - capability_name: row-upsert
             matched_requirements:
               - duplicate-rejection
@@ -2045,7 +2012,7 @@ concepts:
             surfaces_documented:
               - cli
             surface_notes: []
-            evidence: *a113
+            evidence: *a112
         capability_bundle:
           - row-upsert
         task_fit:
@@ -2054,11 +2021,11 @@ concepts:
           matched_requirements:
             - duplicate-rejection
           missing_requirements: []
-          supported_surfaces: &a114
+          supported_surfaces: &a113
             - cli
-        surfaces_documented: *a114
+        surfaces_documented: *a113
         evidence:
-          - *a115
+          - *a114
       - concept_name: data-integrity-and-transactions
         vendor: Insforge
         status: supported
@@ -2073,8 +2040,8 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: &a242
-              - &a118
+            evidence: &a241
+              - &a117
                 doc_url: https://docs.insforge.dev/api-reference/admin/create-table.md
                 quote: Columns have `nullable` (required) and `unique` (optional) boolean
                   properties for controlling null acceptance and enforcing
@@ -2088,7 +2055,7 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a116
+            evidence: *a115
         capability_bundle:
           - column-level-constraints
         task_fit:
@@ -2097,11 +2064,11 @@ concepts:
           matched_requirements:
             - duplicate-rejection
           missing_requirements: []
-          supported_surfaces: &a117
+          supported_surfaces: &a116
             - api
-        surfaces_documented: *a117
+        surfaces_documented: *a116
         evidence:
-          - *a118
+          - *a117
       - concept_name: data-integrity-and-transactions
         vendor: Neon
         status: inconclusive
@@ -2132,9 +2099,9 @@ concepts:
           matched_requirements: []
           missing_requirements:
             - duplicate-rejection
-          supported_surfaces: &a119 []
+          supported_surfaces: &a118 []
           reason: "missing task requirements: duplicate-rejection"
-        surfaces_documented: *a119
+        surfaces_documented: *a118
         evidence:
           - doc_url: https://thenile.dev/docs/postgres/createtable.md
             quote: A primary key is a column or a set of columns that uniquely identifies
@@ -2164,7 +2131,7 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a120
+            evidence: *a119
         capability_bundle: []
         task_fit:
           status: insufficient
@@ -2173,9 +2140,9 @@ concepts:
             - conflict-query
           missing_requirements:
             - atomic-write
-          supported_surfaces: &a121 []
+          supported_surfaces: &a120 []
           reason: "missing task requirements: atomic-write"
-        surfaces_documented: *a121
+        surfaces_documented: *a120
         evidence:
           - doc_url: https://supabase.com/docs/guides/database/tables
             quote: It's recommended to create a Primary Key for every table in your
@@ -2210,7 +2177,7 @@ concepts:
               - sdk
               - cli
             surface_notes: []
-            evidence: *a122
+            evidence: *a121
           - capability_name: upsert-conflict-resolution
             matched_requirements:
               - duplicate-rejection
@@ -2220,7 +2187,7 @@ concepts:
               - sdk
               - cli
             surface_notes: []
-            evidence: *a123
+            evidence: *a122
         capability_bundle:
           - upsert-conflict-resolution
         task_fit:
@@ -2229,13 +2196,13 @@ concepts:
           matched_requirements:
             - duplicate-rejection
           missing_requirements: []
-          supported_surfaces: &a124
+          supported_surfaces: &a123
             - api
             - cli
-        surfaces_documented: *a124
+        surfaces_documented: *a123
         evidence:
+          - *a124
           - *a125
-          - *a126
   - concept_name: full-text-search
     title: Full-Text Search
     decisions:
@@ -2254,7 +2221,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a128
+              - &a127
                 doc_url: https://www.cockroachlabs.com/docs/stable/full-text-search.html
                 quote: The to_tsvector() built-in function converts a string input into a
                   TSVECTOR value.
@@ -2267,11 +2234,11 @@ concepts:
           matched_requirements:
             - full-text-query
           missing_requirements: []
-          supported_surfaces: &a127
+          supported_surfaces: &a126
             - cli
-        surfaces_documented: *a127
+        surfaces_documented: *a126
         evidence:
-          - *a128
+          - *a127
       - concept_name: full-text-search
         vendor: Insforge
         status: inconclusive
@@ -2303,12 +2270,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a130
+              - &a129
                 doc_url: https://neon.com/docs/data-types/tsvector
                 quote: tsvector is a specialized Postgres data type designed for full-text
                   search operations.
                 strength: direct
-              - &a131
+              - &a130
                 doc_url: https://neon.com/docs/data-types/tsvector
                 quote: CREATE INDEX idx_search_vector ON blog_posts USING GIN (search_vector);
                   SELECT title FROM blog_posts WHERE search_vector @@
@@ -2322,12 +2289,12 @@ concepts:
           matched_requirements:
             - full-text-query
           missing_requirements: []
-          supported_surfaces: &a129
+          supported_surfaces: &a128
             - cli
-        surfaces_documented: *a129
+        surfaces_documented: *a128
         evidence:
+          - *a129
           - *a130
-          - *a131
       - concept_name: full-text-search
         vendor: Nile
         status: supported
@@ -2343,12 +2310,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a133
+              - &a132
                 doc_url: https://www.thenile.dev/docs/postgres/datatype/json
                 quote: You can perform full-text searches on jsonb columns for specific tenants
                   using to_tsvector().
                 strength: direct
-              - &a134
+              - &a133
                 doc_url: https://www.thenile.dev/docs/postgres/datatype/json
                 quote: SELECT * FROM products WHERE tenant_id = $1 AND
                   to_tsvector(details->>'description') @@ to_tsquery('fast &
@@ -2362,12 +2329,12 @@ concepts:
           matched_requirements:
             - full-text-query
           missing_requirements: []
-          supported_surfaces: &a132
+          supported_surfaces: &a131
             - cli
-        surfaces_documented: *a132
+        surfaces_documented: *a131
         evidence:
+          - *a132
           - *a133
-          - *a134
       - concept_name: full-text-search
         vendor: Supabase
         status: supported
@@ -2383,12 +2350,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a136
+              - &a135
                 doc_url: https://supabase.com/docs/guides/database/full-text-search
                 quote: Converts your data into searchable tokens. `to_tsvector()` stands for 'to
                   text search vector.'
                 strength: direct
-              - &a137
+              - &a136
                 doc_url: https://supabase.com/docs/guides/database/full-text-search
                 quote: searching for `big` includes results with the word `bigger`
                 strength: direct
@@ -2400,12 +2367,12 @@ concepts:
           matched_requirements:
             - full-text-query
           missing_requirements: []
-          supported_surfaces: &a135
+          supported_surfaces: &a134
             - api
-        surfaces_documented: *a135
+        surfaces_documented: *a134
         evidence:
+          - *a135
           - *a136
-          - *a137
       - concept_name: full-text-search
         vendor: Turso
         status: supported
@@ -2423,12 +2390,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a139
+              - &a138
                 doc_url: https://docs.turso.tech/sql-reference/functions/fts.md
                 quote: Full-text search (FTS) in Turso is powered by Tantivy, not SQLite's
                   FTS3/FTS4/FTS5 modules.
                 strength: direct
-              - &a140
+              - &a139
                 doc_url: https://docs.turso.tech/sql-reference/functions/fts.md
                 quote: FTS indexes are created with the USING fts clause on CREATE INDEX. ...
                   Lower scores indicate higher relevance in the BM25 scoring
@@ -2442,13 +2409,13 @@ concepts:
           matched_requirements:
             - full-text-query
           missing_requirements: []
-          supported_surfaces: &a138
+          supported_surfaces: &a137
             - api
             - cli
-        surfaces_documented: *a138
+        surfaces_documented: *a137
         evidence:
+          - *a138
           - *a139
-          - *a140
   - concept_name: inspect-schema
     title: Inspect Schema
     decisions:
@@ -2467,7 +2434,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a142
+              - &a141
                 doc_url: https://www.cockroachlabs.com/docs/stable/show-tables.html
                 quote: lists the schema, table name, table type, owner, and estimated row count
                   for the tables or views in a schema or database.
@@ -2480,11 +2447,11 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a141
+          supported_surfaces: &a140
             - cli
-        surfaces_documented: *a141
+        surfaces_documented: *a140
         evidence:
-          - *a142
+          - *a141
       - concept_name: inspect-schema
         vendor: Insforge
         status: supported
@@ -2500,7 +2467,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a144
+              - &a143
                 doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema.md
                 quote: 'GET /api/database/tables/{tableName}/schema ... `columns`: Array with
                   "name, type, nullable, unique, default, isPrimaryKey"
@@ -2515,11 +2482,11 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a143
+          supported_surfaces: &a142
             - api
-        surfaces_documented: *a143
+        surfaces_documented: *a142
         evidence:
-          - *a144
+          - *a143
       - concept_name: inspect-schema
         vendor: Neon
         status: supported
@@ -2535,12 +2502,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a146
+              - &a145
                 doc_url: https://neon.com/docs/guides/schema-diff
                 quote: Schema Diff is Neon's SQL schema comparison tool that shows differences
                   between any two branches side-by-side.
                 strength: direct
-              - &a147
+              - &a146
                 doc_url: https://neon.com/docs/guides/schema-diff
                 quote: compare_schema endpoint enabling AI agents to programmatically retrieve
                   schema differences by comparing two branches
@@ -2553,13 +2520,13 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a145
+          supported_surfaces: &a144
             - api
             - cli
-        surfaces_documented: *a145
+        surfaces_documented: *a144
         evidence:
+          - *a145
           - *a146
-          - *a147
       - concept_name: inspect-schema
         vendor: Nile
         status: supported
@@ -2575,11 +2542,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a149
+              - &a148
                 doc_url: https://thenile.dev/docs/postgres/tools/psql.md
                 quote: You can now use the full power of psql with Nile
                 strength: direct
-              - &a150
+              - &a149
                 doc_url: https://thenile.dev/docs/postgres/tools/pgadmin.md
                 quote: You cannot create a table through the UI editor. You can create a table
                   through the query editor
@@ -2594,12 +2561,12 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a148
+          supported_surfaces: &a147
             - cli
-        surfaces_documented: *a148
+        surfaces_documented: *a147
         evidence:
+          - *a148
           - *a149
-          - *a150
       - concept_name: inspect-schema
         vendor: Supabase
         status: supported
@@ -2615,12 +2582,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a152
+              - &a151
                 doc_url: https://supabase.com/docs/guides/api
                 quote: "Instant and auto-generated: As you update your database the changes are
                   immediately accessible through your API."
                 strength: direct
-              - &a153
+              - &a152
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: GET /v1/projects/{ref}/database/openapi — Get PostgREST OpenAPI spec
                 note: from seeded Management API surface
@@ -2633,12 +2600,12 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a151
+          supported_surfaces: &a150
             - api
-        surfaces_documented: *a151
+        surfaces_documented: *a150
         evidence:
+          - *a151
           - *a152
-          - *a153
       - concept_name: inspect-schema
         vendor: Turso
         status: supported
@@ -2655,12 +2622,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a155
+              - &a154
                 doc_url: https://docs.turso.tech/sql-reference/pragmas
                 quote: PRAGMA table_list; Returns one row for each table and view in the
                   database.
                 strength: direct
-              - &a156
+              - &a155
                 doc_url: https://docs.turso.tech/sql-reference/pragmas
                 quote: "PRAGMA table_info: Returns one row for each column in the named table."
                 strength: direct
@@ -2672,12 +2639,12 @@ concepts:
           matched_requirements:
             - schema-metadata
           missing_requirements: []
-          supported_surfaces: &a154
+          supported_surfaces: &a153
             - cli
-        surfaces_documented: *a154
+        surfaces_documented: *a153
         evidence:
+          - *a154
           - *a155
-          - *a156
   - concept_name: database-branching
     title: Database/Backend Branching
     decisions:
@@ -2701,7 +2668,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a157
+              - &a156
                 doc_url: https://docs.insforge.dev/agent-native/branching.md
                 quote: "\"Create a branch with 'full' (schema + data) or 'schema-only' (faster,
                   empty user tables).\"... \"Each branch runs on its own EC2
@@ -2714,7 +2681,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a157
+          - *a156
       - concept_name: database-branching
         vendor: Neon
         status: supported
@@ -2730,7 +2697,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a158
+              - &a157
                 doc_url: https://neon.com/docs/guides/branching-intro
                 quote: Neon branching lets you instantly create copy-on-write database branches
                   for development, testing, preview deployments, and
@@ -2742,7 +2709,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a158
+          - *a157
       - concept_name: database-branching
         vendor: Nile
         status: inconclusive
@@ -2764,12 +2731,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a159
+              - &a158
                 doc_url: https://supabase.com/docs/guides/platform/branching
                 quote: Supabase branches create separate environments that spin off from your
                   main project.
                 strength: direct
-              - &a160
+              - &a159
                 doc_url: https://supabase.com/docs/guides/platform/branching
                 quote: Supabase automatically runs a deployment workflow to deploy your changes
                   to production.
@@ -2780,8 +2747,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a158
           - *a159
-          - *a160
       - concept_name: database-branching
         vendor: Turso
         status: supported
@@ -2797,13 +2764,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a161
+              - &a160
                 doc_url: https://docs.turso.tech/features/branching.md
                 quote: A branch is a separate database instance that is created from an existing
                   database [enabling users to] make changes to the database
                   without affecting the original database.
                 strength: direct
-              - &a162
+              - &a161
                 doc_url: https://docs.turso.tech/features/branching.md
                 quote: turso db create my-new-database-branch --from-db my-existing-database
                 strength: direct
@@ -2813,8 +2780,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a160
           - *a161
-          - *a162
   - concept_name: connection-pooling
     title: PgBouncer Connection Pooling
     decisions:
@@ -2844,7 +2811,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a163
+              - &a162
                 doc_url: https://neon.com/docs/connect/connection-pooling
                 quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
                   concurrent connections. The recommended way to use pooled
@@ -2856,7 +2823,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a163
+          - *a162
       - concept_name: connection-pooling
         vendor: Nile
         status: supported
@@ -2872,7 +2839,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a164
+              - &a163
                 doc_url: https://thenile.dev/docs/getting-started/architecture.md
                 quote: serves as a connection pooling layer, eliminating the need for a separate
                   pooler
@@ -2883,7 +2850,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a164
+          - *a163
       - concept_name: connection-pooling
         vendor: Supabase
         status: supported
@@ -2898,12 +2865,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a165
+              - &a164
                 doc_url: https://supabase.com/docs/guides/database/connecting-to-postgres
                 quote: Connection pooling improves database performance by reusing existing
                   connections between queries.
                 strength: direct
-              - &a166
+              - &a165
                 doc_url: https://supabase.com/docs/guides/database/connecting-to-postgres
                 quote: "Supabase offers two pooling solutions: Supavisor (shared, multi-tenant)
                   and PgBouncer (dedicated, paid tier)."
@@ -2913,8 +2880,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a164
           - *a165
-          - *a166
       - concept_name: connection-pooling
         vendor: Turso
         status: inconclusive
@@ -2938,7 +2905,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a167
+              - &a166
                 doc_url: https://www.cockroachlabs.com/docs/stable/create-table.html
                 quote: The CREATE TABLE statement creates a new table in a database.
                 strength: direct
@@ -2947,7 +2914,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a167
+          - *a166
       - concept_name: define-data-container
         vendor: Insforge
         status: inconclusive
@@ -2981,12 +2948,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a168
+              - &a167
                 doc_url: https://supabase.com/docs/guides/database/tables
                 quote: You must define the 'data type' of each column when it is created. You
                   can add and remove columns at any time after creating a table.
                 strength: direct
-              - &a169
+              - &a168
                 doc_url: https://supabase.com/docs/guides/database/tables
                 quote: By default, Postgres will assume that you want to create the table in the
                   `public` schema.
@@ -2998,8 +2965,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a167
           - *a168
-          - *a169
       - concept_name: define-data-container
         vendor: Turso
         status: supported
@@ -3016,12 +2983,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a170
+              - &a169
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-table.md
                 quote: Create a new table in the database with column definitions, data types,
                   and constraints.
                 strength: direct
-              - &a171
+              - &a170
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-table.md
                 quote: STRICT enables strict type checking, where every value inserted into a
                   STRICT column must match the declared column type or be
@@ -3034,8 +3001,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a169
           - *a170
-          - *a171
   - concept_name: server-side-execution
     title: Server-Side Execution
     decisions:
@@ -3059,7 +3026,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a172
+              - &a171
                 doc_url: https://docs.insforge.dev/sdks/rest/database
                 quote: POST /api/database/advance/rawsql - Execute SQL with strict sanitization
                   (blocks system tables); POST
@@ -3073,12 +3040,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a173
+              - &a172
                 doc_url: https://docs.insforge.dev/sdks/rest/database
                 quote: "RPC Functions: Execute database functions via
                   `/database/rpc/{functionName}`"
                 strength: direct
-              - &a174
+              - &a173
                 doc_url: https://docs.insforge.dev/sdks/rest/database.md
                 quote: POST /api/database/rpc/{functionName} - Execute a database function with
                   parameters; GET /api/database/functions - List all database
@@ -3092,7 +3059,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a175
+              - &a174
                 doc_url: https://docs.insforge.dev/core-concepts/functions/overview
                 quote: Edge functions are TypeScript applications running on Deno, deployed as
                   serverless compute. Functions are accessible via HTTP
@@ -3108,7 +3075,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a176
+              - &a175
                 doc_url: https://docs.insforge.dev/core-concepts/functions/overview
                 quote: '"Attach a cron expression to a function and InsForge invokes it on time,
                   with retry on failure"'
@@ -3119,11 +3086,11 @@ concepts:
           - api
           - cli
         evidence:
+          - *a171
           - *a172
           - *a173
           - *a174
           - *a175
-          - *a176
       - concept_name: server-side-execution
         vendor: Neon
         status: inconclusive
@@ -3151,12 +3118,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a177
+              - &a176
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: POST /v1/projects/{ref}/database/query — [Beta] Run sql query
                 note: from seeded Management API surface
                 strength: direct
-              - &a178
+              - &a177
                 doc_url: https://supabase.com/docs/guides/database/functions
                 quote: you can use the Dashboard's SQL editor or connect directly to your
                   database
@@ -3169,12 +3136,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a179
+              - &a178
                 doc_url: https://supabase.com/docs/guides/database/functions
                 quote: Postgres has built-in support for SQL functions. These functions live
                   inside your database, and they can be used with the API.
                 strength: direct
-              - &a180
+              - &a179
                 doc_url: https://supabase.com/docs/guides/database/functions
                 quote: create or replace function hello_world() returns text language sql as $$
                   select 'hello world'; $$;
@@ -3186,12 +3153,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a181
+              - &a180
                 doc_url: https://supabase.com/docs/guides/database/webhooks
                 quote: Database Webhooks allow you to send real-time data from your database to
                   another system whenever a table event occurs.
                 strength: direct
-              - &a182
+              - &a181
                 doc_url: https://supabase.com/docs/guides/database/webhooks
                 quote: We currently support HTTP webhooks. These can be sent as `POST` or `GET`
                   requests with a JSON payload.
@@ -3204,11 +3171,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a183
+              - &a182
                 doc_url: https://supabase.com/docs/guides/functions
                 quote: Server-side code execution globally distributed
                 strength: direct
-              - &a184
+              - &a183
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: POST /v1/projects/{ref}/functions/deploy — Deploy a function
                 note: from seeded Management API surface
@@ -3219,6 +3186,7 @@ concepts:
           - api
           - cli
         evidence:
+          - *a176
           - *a177
           - *a178
           - *a179
@@ -3226,7 +3194,6 @@ concepts:
           - *a181
           - *a182
           - *a183
-          - *a184
       - concept_name: server-side-execution
         vendor: Turso
         status: supported
@@ -3241,7 +3208,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a185
+              - &a184
                 doc_url: https://docs.turso.tech/sdk/http/reference
                 quote: The /v2/pipeline endpoint to query a database ... Turso uses Bearer
                   authentication, and requires your API token to be passed with
@@ -3252,7 +3219,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a185
+          - *a184
   - concept_name: api-key-authentication
     title: API Key Authentication for Admin/Data APIs
     decisions:
@@ -3276,7 +3243,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a186
+              - &a185
                 doc_url: https://docs.insforge.dev/api-reference/admin/get-table-schema.md
                 quote: "Authentication: Requires either bearer token or API key authentication."
                 strength: direct
@@ -3285,7 +3252,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a186
+          - *a185
       - concept_name: api-key-authentication
         vendor: Neon
         status: inconclusive
@@ -3306,7 +3273,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a187
+              - &a186
                 doc_url: https://thenile.dev/docs/cli/connect_nile.md
                 quote: nile --api-key YOUR_API_KEY db list
                 note: API key auth for automated workflows
@@ -3316,7 +3283,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a187
+          - *a186
       - concept_name: api-key-authentication
         vendor: Supabase
         status: inconclusive
@@ -3346,13 +3313,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a188
+              - &a187
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/managing-access
                 quote: Each service account can have one or more API keys. API keys are used to
                   authenticate and authorize service accounts when using the
                   API.
                 strength: direct
-              - &a189
+              - &a188
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/managing-access
                 quote: The secret key will not be available after closing the Create API key
                   dialog. If you have lost your secret key, you should delete
@@ -3363,8 +3330,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a187
           - *a188
-          - *a189
       - concept_name: api-key-management
         vendor: Insforge
         status: inconclusive
@@ -3397,12 +3364,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a190
+              - &a189
                 doc_url: https://supabase.com/docs/guides/api/api-keys
                 quote: "Safe to expose online: web page, mobile or desktop app, GitHub actions,
                   CLIs, source code."
                 strength: direct
-              - &a191
+              - &a190
                 doc_url: https://supabase.com/docs/guides/api/api-keys
                 quote: "Do not: Add it to web pages, public documents, source code, bundle in
                   executables or packages for mobile, desktop or CLI apps."
@@ -3413,8 +3380,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a189
           - *a190
-          - *a191
       - concept_name: api-key-management
         vendor: Turso
         status: inconclusive
@@ -3438,7 +3405,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a192
+              - &a191
                 doc_url: https://www.cockroachlabs.com/docs/stable/import-into.html
                 quote: The IMPORT INTO statement imports CSV, Avro, Parquet, or delimited data
                   into an existing table by appending new rows to the table.
@@ -3448,7 +3415,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a192
+          - *a191
       - concept_name: bulk-data-import
         vendor: Insforge
         status: inconclusive
@@ -3475,7 +3442,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a193
+              - &a192
                 doc_url: https://thenile.dev/docs/cli/interacting_db.md
                 quote: Import data from files into database tables
                 strength: direct
@@ -3484,7 +3451,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a193
+          - *a192
       - concept_name: bulk-data-import
         vendor: Supabase
         status: inconclusive
@@ -3532,7 +3499,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a194
+              - &a193
                 doc_url: https://thenile.dev/docs/auth/concepts/multifactor.md
                 quote: "For Authenticator: An `otpauthUrl` (for QR code generation), a `secret`,
                   and initial `recoveryKeys`. For Email: A `maskedEmail` and a
@@ -3543,7 +3510,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a194
+          - *a193
       - concept_name: multi-factor-authentication
         vendor: Supabase
         status: supported
@@ -3558,7 +3525,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a195
+              - &a194
                 doc_url: https://supabase.com/docs/guides/auth
                 quote: Add a second factor to user sign-in with TOTP or phone.
                 strength: direct
@@ -3567,7 +3534,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a195
+          - *a194
       - concept_name: multi-factor-authentication
         vendor: Turso
         status: inconclusive
@@ -3604,7 +3571,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a196
+              - &a195
                 doc_url: https://neon.com/docs/reference/api-reference
                 quote: create and manage projects, branches, databases, roles, compute
                   endpoints, and more
@@ -3615,7 +3582,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a196
+          - *a195
       - concept_name: project-lifecycle-management
         vendor: Nile
         status: inconclusive
@@ -3636,12 +3603,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a197
+              - &a196
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: POST /v1/projects/{ref}/pause — Pauses the given project
                 note: from seeded Management API surface
                 strength: direct
-              - &a198
+              - &a197
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: POST /v1/projects/{ref}/restore — Restores the given project
                 strength: direct
@@ -3650,8 +3617,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a196
           - *a197
-          - *a198
       - concept_name: project-lifecycle-management
         vendor: Turso
         status: inconclusive
@@ -3693,7 +3660,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a199
+              - &a198
                 doc_url: https://thenile.dev/docs/postgres/joins.md
                 quote: Returns records with matching values in both tables.
                 strength: direct
@@ -3702,7 +3669,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a199
+          - *a198
       - concept_name: relational-joins
         vendor: Supabase
         status: supported
@@ -3717,7 +3684,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a200
+              - &a199
                 doc_url: https://supabase.com/docs/guides/api
                 quote: Arbitrarily deep relationships among tables/views.
                 strength: direct
@@ -3726,7 +3693,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a200
+          - *a199
       - concept_name: relational-joins
         vendor: Turso
         status: inconclusive
@@ -3750,7 +3717,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a201
+              - &a200
                 doc_url: https://www.cockroachlabs.com/docs/stable/indexes.html
                 quote: you can use secondary indexes to improve the performance of queries using
                   columns not in a table's primary key
@@ -3760,7 +3727,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a201
+          - *a200
       - concept_name: secondary-index
         vendor: Insforge
         status: inconclusive
@@ -3787,12 +3754,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a202
+              - &a201
                 doc_url: https://thenile.dev/docs/postgres/indexes.md
                 quote: They excel in handling equality and range queries. Common operators
                   include `=`, `<`, `>`, `BETWEEN`, and `IN`.
                 strength: direct
-              - &a203
+              - &a202
                 doc_url: https://thenile.dev/docs/postgres/indexes.md
                 quote: GIN indexes are ideal for data values with multiple components, like
                   arrays.
@@ -3802,8 +3769,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a201
           - *a202
-          - *a203
       - concept_name: secondary-index
         vendor: Supabase
         status: inconclusive
@@ -3839,7 +3806,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a204
+              - &a203
                 doc_url: https://docs.insforge.dev/api-reference/admin/create-table.md
                 quote: "The API accepts a JSON object with required fields `tableName` (string)
                   and `columns` (array)... The API supports eight data types:
@@ -3851,7 +3818,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a204
+          - *a203
       - concept_name: table-creation
         vendor: Neon
         status: inconclusive
@@ -3872,7 +3839,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a205
+              - &a204
                 doc_url: https://thenile.dev/docs/postgres/createtable.md
                 quote: A PostgreSQL table is a structured storage object that organizes data
                   into rows and columns.
@@ -3882,7 +3849,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a205
+          - *a204
       - concept_name: table-creation
         vendor: Supabase
         status: inconclusive
@@ -3944,12 +3911,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a206
+              - &a205
                 doc_url: https://docs.turso.tech/sql-reference/functions/aggregate.md
                 quote: count(*) returns the total number of rows in the group, including rows
                   with NULL values.
                 strength: direct
-              - &a207
+              - &a206
                 doc_url: https://docs.turso.tech/sql-reference/functions/aggregate.md
                 quote: The GROUP BY clause partitions rows into groups. Each aggregate function
                   is computed independently for each group.
@@ -3961,8 +3928,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a205
           - *a206
-          - *a207
   - concept_name: aggregate-query
     title: Aggregate Functions (COUNT/SUM/AVG)
     decisions:
@@ -3980,7 +3947,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a208
+              - &a207
                 doc_url: https://www.cockroachlabs.com/docs/stable/null-handling
                 quote: NULL values are not included in the COUNT() of a column - COUNT(*)
                   returns 7 while COUNT(b) returns 4.
@@ -3990,7 +3957,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a208
+          - *a207
       - concept_name: aggregate-query
         vendor: Insforge
         status: inconclusive
@@ -4056,7 +4023,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a209
+              - &a208
                 doc_url: https://thenile.dev/docs/postgres/datatype/arrays.md
                 quote: Adding a new value to an existing integer array [using] pay_by_quarter ||
                   ARRAY[40].
@@ -4066,7 +4033,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a209
+          - *a208
       - concept_name: array-data-type
         vendor: Supabase
         status: inconclusive
@@ -4114,7 +4081,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a210
+              - &a209
                 doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/overview.md
                 quote: The SDK will try its hardest to use context whenever possible. Under the
                   hood, it uses `AsyncLocalStorage`
@@ -4124,7 +4091,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a210
+          - *a209
       - concept_name: async-request-context
         vendor: Supabase
         status: inconclusive
@@ -4153,14 +4120,14 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a211
+            evidence: *a210
         capability_bundle:
           - audit-logging
         surfaces_documented:
           - api
         evidence:
+          - *a211
           - *a212
-          - *a213
       - concept_name: audit-logging
         vendor: Insforge
         status: inconclusive
@@ -4232,14 +4199,14 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a214
+              - &a213
                 doc_url: https://supabase.com/docs/guides/platform/backups
                 quote: Pro Plan projects can access the last 7 days of daily backups. Team Plan
                   projects can access the last 14 days of daily backups, while
                   Enterprise Plan projects can access up to 30 days of daily
                   backups.
                 strength: direct
-              - &a215
+              - &a214
                 doc_url: https://supabase.com/docs/guides/platform/backups
                 quote: Users can restore their database through the Dashboard or
                   programmatically via the Management API.
@@ -4249,8 +4216,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a213
           - *a214
-          - *a215
       - concept_name: automated-backups
         vendor: Turso
         status: inconclusive
@@ -4286,7 +4253,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a216
+              - &a215
                 doc_url: https://neon.com/docs/introduction/autoscaling
                 quote: You can enable autoscaling by opening the Edit compute drawer for your
                   compute and setting the autoscaling range ... The maximum
@@ -4299,7 +4266,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a216
+          - *a215
       - concept_name: autoscaling-compute
         vendor: Nile
         status: inconclusive
@@ -4335,7 +4302,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a217
+              - &a216
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/BlackoutWindowsApi.md
                 quote: Blackout windows are supported for ADVANCED clusters only. ...
                   CreateBlackoutWindow – POST request to establish a new
@@ -4346,7 +4313,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a217
+          - *a216
       - concept_name: backup-blackout-windows
         vendor: Insforge
         status: inconclusive
@@ -4394,11 +4361,11 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a218
+              - &a217
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/billing-management
                 quote: You can also use the Cloud API to [get invoices for an organization].
                 strength: direct
-              - &a219
+              - &a218
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/billing-management
                 quote: 'Export Monthly CSV: "Exports a CSV file with one row per line item for
                   all clusters in your organization"'
@@ -4408,8 +4375,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a217
           - *a218
-          - *a219
       - concept_name: billing-invoices
         vendor: Insforge
         status: inconclusive
@@ -4470,7 +4437,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a220
+              - &a219
                 doc_url: https://neon.com/docs/guides/reset-from-parent
                 quote: Root branches ... cannot be reset because they have no parent branch.
                 strength: direct
@@ -4480,7 +4447,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a220
+          - *a219
       - concept_name: branch-reset-to-parent
         vendor: Nile
         status: inconclusive
@@ -4516,7 +4483,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a221
+              - &a220
                 doc_url: https://www.cockroachlabs.com/docs/stable/copy.html
                 quote: The COPY ... FROM statement copies data from cockroach sql or other third
                   party clients to tables in your cluster.
@@ -4526,7 +4493,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a221
+          - *a220
       - concept_name: bulk-data-copy
         vendor: Insforge
         status: inconclusive
@@ -4598,7 +4565,7 @@ concepts:
               - api
               - cli
             surface_notes: []
-            evidence: *a222
+            evidence: *a221
         capability_bundle:
           - bulk-data-import-export
         surfaces_documented:
@@ -4648,7 +4615,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a223
+              - &a222
                 doc_url: https://thenile.dev/docs/extensions/citext.md
                 quote: queries automatically become case-insensitive
                 strength: direct
@@ -4657,7 +4624,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a223
+          - *a222
       - concept_name: case-insensitive-text
         vendor: Supabase
         status: inconclusive
@@ -4705,7 +4672,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a224
+              - &a223
                 doc_url: https://thenile.dev/docs/postgres/datatype/character.md
                 quote: Variable-length character type. Can store strings up to `n` characters
                   (not bytes) in length.
@@ -4715,7 +4682,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a224
+          - *a223
       - concept_name: character-string-types
         vendor: Supabase
         status: inconclusive
@@ -4763,7 +4730,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a225
+              - &a224
                 doc_url: https://thenile.dev/docs/extensions/rdkit.md
                 quote: Substructure and similarity searching enables finding molecules with
                   specific patterns or comparable compounds.
@@ -4773,7 +4740,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a225
+          - *a224
       - concept_name: chemical-structure-search
         vendor: Supabase
         status: inconclusive
@@ -4816,13 +4783,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a226
+              - &a225
                 doc_url: https://neon.com/docs/guides/branching-github-actions
                 quote: Creates a new database branch in your Neon project. This is ideal for
                   setting up isolated environments for preview deployments or
                   running tests against a feature branch.
                 strength: direct
-              - &a227
+              - &a226
                 doc_url: https://neon.com/docs/guides/branching-github-actions
                 quote: Deletes a specified database branch. Use this to automate the cleanup of
                   ephemeral branches after a pull request is merged or closed.
@@ -4833,8 +4800,8 @@ concepts:
           - cli
           - api
         evidence:
+          - *a225
           - *a226
-          - *a227
       - concept_name: ci-cd-preview-branching
         vendor: Nile
         status: inconclusive
@@ -4870,7 +4837,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a228
+              - &a227
                 doc_url: https://www.cockroachlabs.com/docs/stable/install-cockroachdb-mac.html
                 quote: Extract the archive and optionally copy the cockroach binary into your
                   PATH so you can execute cockroach commands from any shell.
@@ -4880,7 +4847,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a228
+          - *a227
       - concept_name: cli-installation-and-demo
         vendor: Insforge
         status: inconclusive
@@ -4928,7 +4895,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a229
+              - &a228
                 doc_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql.html
                 quote: CockroachDB comes with a built-in client for executing SQL statements
                   from an interactive shell or directly from the command line.
@@ -4938,7 +4905,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a229
+          - *a228
       - concept_name: cli-sql-shell
         vendor: Insforge
         status: inconclusive
@@ -4986,12 +4953,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a230
+              - &a229
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/client-certs-advanced
                 quote: SQL clients may authenticate to CockroachDB Advanced clusters using
                   public key infrastructure (PKI) security certificates.
                 strength: direct
-              - &a231
+              - &a230
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/client-certs-advanced
                 quote: Use a POST request to the endpoint
                   /api/v1/clusters/{CLUSTER_ID}/client-ca-cert ... CockroachDB
@@ -5003,8 +4970,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a229
           - *a230
-          - *a231
       - concept_name: client-ca-cert-management
         vendor: Insforge
         status: inconclusive
@@ -5082,7 +5049,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a232
+              - &a231
                 doc_url: https://docs.turso.tech/cloud/durability.md
                 quote: Commits are only acknowledged once data is safely stored in either S3 or
                   S3-express. ... Both technologies provide a 99.999999999%
@@ -5093,7 +5060,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a232
+          - *a231
   - concept_name: cluster-deletion
     title: Cluster Deletion
     decisions:
@@ -5111,7 +5078,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a233
+              - &a232
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClustersApi.md
                 quote: DeleteCluster (DELETE) - "Delete a cluster and all of its data" requires
                   CLUSTER_ADMIN role
@@ -5121,7 +5088,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a233
+          - *a232
       - concept_name: cluster-deletion
         vendor: Insforge
         status: inconclusive
@@ -5169,7 +5136,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a234
+              - &a233
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClusterDisruptionApi.md
                 quote: GetClusterDisruptionInfo (GET) - Retrieves current disruption
                   specifications for a specified cluster ...
@@ -5181,7 +5148,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a234
+          - *a233
       - concept_name: cluster-disruption-testing
         vendor: Insforge
         status: inconclusive
@@ -5229,11 +5196,11 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a235
+              - &a234
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClustersApi.md
                 quote: CreateCluster (POST) - "Create and initialize a new cluster"
                 strength: direct
-              - &a236
+              - &a235
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
                 quote: "Cluster Lifecycle: Create, retrieve, update, and delete clusters across
                   Basic, Standard, and Advanced plans"
@@ -5243,8 +5210,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a234
           - *a235
-          - *a236
       - concept_name: cluster-provisioning
         vendor: Insforge
         status: inconclusive
@@ -5292,11 +5259,11 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a237
+              - &a236
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClustersApi.md
                 quote: UpdateCluster (PATCH) - "Scale, edit or upgrade a cluster"
                 strength: direct
-              - &a238
+              - &a237
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/advanced-cluster-management
                 quote: You cannot scale a multi-node cluster down to a single-node cluster.
                 strength: direct
@@ -5305,8 +5272,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a236
           - *a237
-          - *a238
       - concept_name: cluster-scaling
         vendor: Insforge
         status: inconclusive
@@ -5354,17 +5321,17 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a239
+              - &a238
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cmek
                 quote: protect data at rest in a CockroachDB Advanced private cluster using a
                   cryptographic key that is entirely within your control, hosted
                   in a supported cloud provider key-management system (KMS)
                 strength: direct
-              - &a240
+              - &a239
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cmek
                 quote: perform a rotation in CockroachDB Cloud and provide the new CMEK key URI
                 strength: direct
-              - &a241
+              - &a240
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cmek
                 quote: Nodes that were using the CMEK will not be able to rejoin the cluster if
                   they are restarted
@@ -5374,9 +5341,9 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a238
           - *a239
           - *a240
-          - *a241
       - concept_name: cmek-encryption
         vendor: Insforge
         status: inconclusive
@@ -5429,13 +5396,13 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a242
+            evidence: *a241
         capability_bundle:
           - column-level-constraints
         surfaces_documented:
           - api
         evidence:
-          - *a118
+          - *a117
       - concept_name: column-level-constraints
         vendor: Neon
         status: inconclusive
@@ -5483,7 +5450,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a243
+              - &a242
                 doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
                 quote: 'The `select` parameter accepts a "Comma-separated list of columns to
                   return" (example: id,title,content)'
@@ -5493,7 +5460,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a243
+          - *a242
       - concept_name: column-projection
         vendor: Neon
         status: inconclusive
@@ -5548,7 +5515,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a244
+              - &a243
                 doc_url: https://neon.com/docs/introduction/autoscaling
                 quote: Neon's Autoscaling feature dynamically adjusts the amount of compute
                   resources allocated to a Neon compute in response to the
@@ -5561,7 +5528,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a244
+          - *a243
       - concept_name: compute-endpoint-lifecycle
         vendor: Nile
         status: inconclusive
@@ -5615,7 +5582,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a245
+              - &a244
                 doc_url: https://thenile.dev/docs/api-reference/databases/update-a-dedicated-compute-instance.md
                 quote: Rename and/or resize a dedicated compute instance.
                 strength: direct
@@ -5624,7 +5591,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a245
+          - *a244
       - concept_name: compute-scaling
         vendor: Supabase
         status: inconclusive
@@ -5685,12 +5652,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a246
+              - &a245
                 doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
                 quote: With MVCC (Multi-Version Concurrency Control), multiple connections can
                   write simultaneously.
                 strength: direct
-              - &a247
+              - &a246
                 doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
                 quote: Use BEGIN CONCURRENT instead of BEGIN to start a transaction that allows
                   other writers to proceed in parallel. ... If two transactions
@@ -5703,8 +5670,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a245
           - *a246
-          - *a247
   - concept_name: count-aggregate
     title: Row Counts
     decisions:
@@ -5746,7 +5713,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a248
+              - &a247
                 doc_url: https://supabase.com/docs/reference/javascript/select
                 quote: "const { count, error } = await supabase.from('characters').select('*', {
                   count: 'exact', head: true })"
@@ -5756,7 +5723,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a248
+          - *a247
       - concept_name: count-aggregate
         vendor: Turso
         status: inconclusive
@@ -5780,13 +5747,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a249
+              - &a248
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/physical-cluster-replication
                 quote: CockroachDB physical cluster replication (PCR) continuously sends all
                   data at the cluster level from a primary cluster to an
                   independent standby cluster.
                 strength: direct
-              - &a250
+              - &a249
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/physical-cluster-replication
                 quote: "Setup and management utilize the Cloud API endpoint:
                   'https://cockroachlabs.cloud/api/v1/physical-replication-stre\
@@ -5798,8 +5765,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a248
           - *a249
-          - *a250
       - concept_name: cross-region-replication
         vendor: Insforge
         status: inconclusive
@@ -5859,7 +5826,7 @@ concepts:
               - api
               - cli
             surface_notes: []
-            evidence: *a251
+            evidence: *a250
         capability_bundle:
           - data-api-rest
         surfaces_documented:
@@ -5921,13 +5888,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a252
+              - &a251
                 doc_url: https://thenile.dev/docs/api-reference/databases/create-a-database-credential.md
                 quote: Generates a new secure credential for a database. The generated password
                   is returned in the response, and is the only time the password
                   is available in plaintext.
                 strength: direct
-              - &a253
+              - &a252
                 doc_url: https://thenile.dev/docs/api-reference/databases/rotate-a-database-credential.md
                 quote: Generates a new credential and schedules existing credentials for
                   deletion after the provided delay.
@@ -5937,8 +5904,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a251
           - *a252
-          - *a253
       - concept_name: database-credential-management
         vendor: Supabase
         status: inconclusive
@@ -5998,12 +5965,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a254
+              - &a253
                 doc_url: https://docs.turso.tech/api-reference/databases/upload.md
                 quote: Upload a SQLite database file to a database created with seed.type =
                   "database_upload".
                 strength: direct
-              - &a255
+              - &a254
                 doc_url: https://docs.turso.tech/api-reference/databases/upload.md
                 quote: This endpoint requires a database token, not a platform API token. ...
                   The SQLite file must use WAL journal mode, 4096-byte page
@@ -6014,8 +5981,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a253
           - *a254
-          - *a255
   - concept_name: database-lifecycle-management
     title: Database Lifecycle Management
     decisions:
@@ -6052,12 +6019,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a256
+              - &a255
                 doc_url: https://thenile.dev/docs/api-reference/databases/delete-a-database.md
                 quote: Marks a database as deleted and queues its data for deletion. The
                   database will no longer appear in your Nile dashboard.
                 strength: direct
-              - &a257
+              - &a256
                 doc_url: https://thenile.dev/docs/api-reference/databases/list-databases.md
                 quote: Lists all of the databases in a workspace.
                 strength: direct
@@ -6067,8 +6034,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a255
           - *a256
-          - *a257
       - concept_name: database-lifecycle-management
         vendor: Supabase
         status: inconclusive
@@ -6110,7 +6077,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a258
+              - &a257
                 doc_url: https://neon.com/docs/reference/neon-cli
                 quote: the terminal tool for managing Neon projects, branches, databases, roles,
                   connection strings, functions, buckets, and the Data API
@@ -6121,7 +6088,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a258
+          - *a257
       - concept_name: database-management
         vendor: Nile
         status: inconclusive
@@ -6163,7 +6130,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a259
+              - &a258
                 doc_url: https://docs.insforge.dev/api-reference/admin/get-database-metadata.md
                 quote: 'GET /api/metadata/database ... returns an object containing: `tables`:
                   An array where "each item includes a name and recordCount"...
@@ -6174,7 +6141,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a259
+          - *a258
       - concept_name: database-metadata
         vendor: Neon
         status: inconclusive
@@ -6240,13 +6207,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a260
+              - &a259
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: GET /v1/projects/{ref}/advisors/performance — Gets project performance
                   advisors.
                 note: from seeded Management API surface
                 strength: direct
-              - &a261
+              - &a260
                 doc_url: https://supabase.com/docs/reference/api/introduction
                 quote: GET /v1/projects/{ref}/advisors/security — Gets project security
                   advisors.
@@ -6256,8 +6223,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a259
           - *a260
-          - *a261
       - concept_name: database-observability
         vendor: Turso
         status: inconclusive
@@ -6299,7 +6266,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a262
+              - &a261
                 doc_url: https://thenile.dev/docs/postgres/views.md
                 quote: Views in PostgreSQL are virtual tables that are generated based on the
                   result of a query.
@@ -6309,7 +6276,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a262
+          - *a261
       - concept_name: database-view
         vendor: Supabase
         status: inconclusive
@@ -6357,7 +6324,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a263
+              - &a262
                 doc_url: https://thenile.dev/docs/api-reference/databases/create-a-dedicated-compute-instance.md
                 quote: Create a dedicated compute instance
                 strength: direct
@@ -6366,7 +6333,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a263
+          - *a262
       - concept_name: dedicated-compute-provisioning
         vendor: Supabase
         status: inconclusive
@@ -6408,11 +6375,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a264
+              - &a263
                 doc_url: https://neon.com/docs/connect/connect-intro
                 quote: psql, JDBC, pgAdmin, DBeaver, TablePlus, VS Code Extension
                 strength: derived_from_connection_surface
-              - &a265
+              - &a264
                 doc_url: https://neon.com/docs/connect/choose-connection
                 quote: A pooled connection routes traffic through PgBouncer ... Direct
                   connections limited by max_connections, which ranges from
@@ -6423,8 +6390,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a263
           - *a264
-          - *a265
       - concept_name: direct-postgres-connectivity
         vendor: Nile
         status: inconclusive
@@ -6478,7 +6445,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a266
+              - &a265
                 doc_url: https://thenile.dev/docs/getting-started/architecture.md
                 quote: A central schema store employs distributed transactions to apply schemas
                   to every tenant during DDL execution
@@ -6488,7 +6455,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a266
+          - *a265
       - concept_name: distributed-schema-propagation
         vendor: Supabase
         status: inconclusive
@@ -6518,13 +6485,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a267
+              - &a266
                 doc_url: https://www.cockroachlabs.com/docs/stable/install-client-drivers.html
                 quote: CockroachDB supports both native drivers and the PostgreSQL wire
                   protocol, so most available PostgreSQL client drivers and ORM
                   frameworks should work with CockroachDB.
                 strength: direct
-              - &a268
+              - &a267
                 doc_url: https://www.cockroachlabs.com/docs/stable/build-a-python-app-with-cockroachdb.html
                 quote: This tutorial shows you how build a simple Python application with
                   CockroachDB and the psycopg2 driver.
@@ -6534,8 +6501,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a266
           - *a267
-          - *a268
       - concept_name: driver-sdk-support
         vendor: Insforge
         status: inconclusive
@@ -6583,12 +6550,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a269
+              - &a268
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/egress-perimeter-controls
                 quote: an attacker, often a malicious insider, steals data by sending backups,
                   changefeeds, data, or logs to a source that they control
                 strength: direct
-              - &a270
+              - &a269
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/egress-perimeter-controls
                 quote: Management is accomplished through the CockroachDB Cloud API using
                   endpoints like
@@ -6600,8 +6567,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a268
           - *a269
-          - *a270
       - concept_name: egress-controls
         vendor: Insforge
         status: inconclusive
@@ -6679,13 +6646,13 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a271
+              - &a270
                 doc_url: https://docs.turso.tech/features/embedded-replicas/introduction.md
                 quote: "Embedded Replicas keep a local read replica of a Turso Cloud database:
                   reads run locally from the file in microseconds, and writes
                   are sent to the cloud primary."
                 strength: direct
-              - &a272
+              - &a271
                 doc_url: https://docs.turso.tech/features/embedded-replicas/introduction.md
                 quote: After a write returns successfully, the replica that initiated the write
                   will always be able to see the new data right away, even if it
@@ -6696,8 +6663,8 @@ concepts:
         surfaces_documented:
           - sdk
         evidence:
+          - *a270
           - *a271
-          - *a272
   - concept_name: embedding-generation
     title: Text Embedding Generation
     decisions:
@@ -6733,7 +6700,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a273
+              - &a272
                 doc_url: https://thenile.dev/docs/ai-embeddings/embedding_models/overview.md
                 quote: Embedding models are used to convert text into vector embeddings. These
                   embeddings can be used to perform various tasks like
@@ -6744,7 +6711,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a273
+          - *a272
       - concept_name: embedding-generation
         vendor: Supabase
         status: inconclusive
@@ -6804,12 +6771,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a274
+              - &a273
                 doc_url: https://docs.turso.tech/tursodb/encryption.md
                 quote: Each 4 KiB page is encrypted individually with a unique nonce ...
                   Encryption keys are never stored on disk
                 strength: direct
-              - &a275
+              - &a274
                 doc_url: https://docs.turso.tech/tursodb/encryption.md
                 quote: "AEGIS (recommended): Modern, high-performance cipher family ... AES-GCM:
                   A NIST-approved standard for compliance requirements"
@@ -6819,8 +6786,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a273
           - *a274
-          - *a275
   - concept_name: external-identity-provider-auth
     title: External Identity Provider Auth (JWKS/OIDC)
     decisions:
@@ -6869,12 +6836,12 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a276
+              - &a275
                 doc_url: https://docs.turso.tech/sdk/authorization/jwks.md
                 quote: Instead of managing tokens manually, you can let your authentication
                   provider issue JWT tokens using JWKS.
                 strength: direct
-              - &a277
+              - &a276
                 doc_url: https://docs.turso.tech/sdk/authorization/jwks.md
                 quote: During the Turso Beta, we only support Clerk & Auth0 as OIDC providers.
                   ... If you don't setup a JWT template with specific
@@ -6887,8 +6854,8 @@ concepts:
           - api
           - sdk
         evidence:
+          - *a275
           - *a276
-          - *a277
   - concept_name: folder-organization
     title: Folder-Based Resource Organization
     decisions:
@@ -6906,12 +6873,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a278
+              - &a277
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/folders
                 quote: Folders allow you to organize and manage access to your clusters
                   according to your organization's requirements.
                 strength: direct
-              - &a279
+              - &a278
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/folders
                 quote: Roles assigned on a folder are inherited by its descendants. ... You can
                   also use the CockroachDB Cloud API, or the Terraform provider
@@ -6922,8 +6889,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a277
           - *a278
-          - *a279
       - concept_name: folder-organization
         vendor: Insforge
         status: inconclusive
@@ -6977,7 +6944,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a280
+              - &a279
                 doc_url: https://docs.insforge.dev/api-reference/admin/create-table.md
                 quote: 'The schema defines "Table-level foreign key constraints" with
                   referential integrity options... Supported actions: `CASCADE`,
@@ -6988,7 +6955,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a280
+          - *a279
       - concept_name: foreign-key-constraints
         vendor: Neon
         status: inconclusive
@@ -7048,11 +7015,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a281
+              - &a280
                 doc_url: https://thenile.dev/docs/auth/frameworks/nextjs.md
                 quote: SignOutButton, SignUpForm, SignedIn, SignedOut, TenantSelector, UserInfo
                 strength: direct
-              - &a282
+              - &a281
                 doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/server/routes.md
                 quote: Route generation depends on the framework you are using
                 strength: direct
@@ -7061,8 +7028,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a280
           - *a281
-          - *a282
       - concept_name: framework-auth-integration
         vendor: Supabase
         status: inconclusive
@@ -7098,7 +7065,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a283
+              - &a282
                 doc_url: https://docs.insforge.dev/core-concepts/functions/overview
                 quote: "**Database Triggers**: Automatic invocation on table operations (INSERT,
                   UPDATE, DELETE) with access to row payloads"
@@ -7108,7 +7075,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a283
+          - *a282
       - concept_name: function-db-triggers
         vendor: Neon
         status: inconclusive
@@ -7150,7 +7117,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a284
+              - &a283
                 doc_url: https://www.cockroachlabs.com/docs/stable/spatial-features.html
                 quote: Not all PostGIS spatial functions are supported.
                 strength: direct
@@ -7159,7 +7126,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a284
+          - *a283
       - concept_name: geospatial-query
         vendor: Insforge
         status: inconclusive
@@ -7225,7 +7192,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a285
+              - &a284
                 doc_url: https://thenile.dev/docs/extensions/postgis.md
                 quote: PostGIS extension adds support for geographic objects to PostgreSQL,
                   allowing you to store, query, and manipulate spatial data.
@@ -7235,7 +7202,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a285
+          - *a284
       - concept_name: geospatial-support
         vendor: Supabase
         status: inconclusive
@@ -7283,7 +7250,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a286
+              - &a285
                 doc_url: https://thenile.dev/docs/extensions/pgrouting.md
                 quote: It enables you to perform shortest path calculations, traveling
                   salesperson solutions, and other routing operations on spatial
@@ -7294,7 +7261,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a286
+          - *a285
       - concept_name: graph-routing-analysis
         vendor: Supabase
         status: inconclusive
@@ -7342,7 +7309,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a287
+              - &a286
                 doc_url: https://thenile.dev/docs/ai-embeddings/rag.md
                 quote: use each method separately to find the closest matching text... combine
                   the distance score from each method
@@ -7352,7 +7319,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a287
+          - *a286
       - concept_name: hybrid-search-rag
         vendor: Supabase
         status: inconclusive
@@ -7406,7 +7373,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a288
+              - &a287
                 doc_url: https://supabase.com/docs/guides/auth
                 quote: Your users can use many popular Auth methods, including password, magic
                   link, one-time password (OTP), social login, and single
@@ -7417,7 +7384,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a288
+          - *a287
       - concept_name: identity-authentication
         vendor: Turso
         status: inconclusive
@@ -7465,7 +7432,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a289
+              - &a288
                 doc_url: https://supabase.com/docs/guides/storage
                 quote: Image Optimization - Resize, compress, and transform media files on the
                   fly with built-in image processing.
@@ -7475,7 +7442,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a289
+          - *a288
       - concept_name: image-transformation
         vendor: Turso
         status: inconclusive
@@ -7499,14 +7466,14 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a290
+              - &a289
                 doc_url: https://www.cockroachlabs.com/docs/stable/check.html
                 quote: The CHECK constraint specifies that values for the column in INSERT or
                   UPDATE statements must return TRUE or NULL for a Boolean
                   expression. If any values return FALSE, the entire statement
                   is rejected.
                 strength: direct
-              - &a291
+              - &a290
                 doc_url: https://www.cockroachlabs.com/docs/stable/foreign-key.html
                 quote: Composite foreign keys can be matched using the MATCH SIMPLE algorithm
                   (which is the same default as PostgreSQL). MATCH FULL is
@@ -7517,8 +7484,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a289
           - *a290
-          - *a291
       - concept_name: integrity-constraints
         vendor: Insforge
         status: inconclusive
@@ -7584,7 +7551,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a292
+              - &a291
                 doc_url: https://thenile.dev/docs/cli/connect_nile.md
                 quote: nile connect login opens default browser for secure authentication
                 strength: direct
@@ -7593,7 +7560,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a292
+          - *a291
       - concept_name: interactive-cli-login
         vendor: Supabase
         status: inconclusive
@@ -7623,7 +7590,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a293
+              - &a292
                 doc_url: https://www.cockroachlabs.com/docs/stable/jsonb.html
                 quote: JSONB supports GIN indexes.
                 strength: direct
@@ -7632,7 +7599,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a293
+          - *a292
       - concept_name: inverted-index
         vendor: Insforge
         status: inconclusive
@@ -7680,12 +7647,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a294
+              - &a293
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/network-authorization
                 quote: Authorized network access can be managed from the CockroachDB Cloud
                   console Network Authorization page.
                 strength: direct
-              - &a295
+              - &a294
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/network-authorization
                 quote: a CockroachDB Advanced cluster is 'locked down' and has no access until
                   an authorized network is created
@@ -7695,8 +7662,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a293
           - *a294
-          - *a295
       - concept_name: ip-allowlisting
         vendor: Insforge
         status: inconclusive
@@ -7776,13 +7743,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a296
+              - &a295
                 doc_url: https://docs.turso.tech/sql-reference/functions/json.md
                 quote: Turso provides a full set of JSON functions compatible with SQLite's
                   JSON1 extension. These functions operate on JSON stored as
                   TEXT or in Turso's internal binary JSON (JSONB) format.
                 strength: direct
-              - &a297
+              - &a296
                 doc_url: https://docs.turso.tech/sql-reference/functions/json.md
                 quote: json_each and json_tree enable walking JSON structures, transforming
                   nested data into flattened relational rows
@@ -7794,8 +7761,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a295
           - *a296
-          - *a297
   - concept_name: json-document-type
     title: JSON/JSONB Document Storage
     decisions:
@@ -7831,12 +7798,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a298
+              - &a297
                 doc_url: https://thenile.dev/docs/postgres/datatype/json.md
                 quote: "Better Performance: `jsonb` allows indexing, making it faster for
                   querying and retrieval."
                 strength: direct
-              - &a299
+              - &a298
                 doc_url: https://thenile.dev/docs/postgres/datatype/json.md
                 quote: GIN (Generalized Inverted Index) indexes accelerate searches within
                   `jsonb` fields
@@ -7846,8 +7813,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a297
           - *a298
-          - *a299
       - concept_name: json-document-type
         vendor: Supabase
         status: inconclusive
@@ -7877,7 +7844,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a300
+              - &a299
                 doc_url: https://www.cockroachlabs.com/docs/stable/jsonb.html
                 quote: The JSONB data type stores JSON (JavaScript Object Notation) data as a
                   binary representation of the JSONB value, which eliminates
@@ -7888,7 +7855,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a300
+          - *a299
       - concept_name: jsonb-document-storage
         vendor: Insforge
         status: inconclusive
@@ -7936,12 +7903,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a301
+              - &a300
                 doc_url: https://www.pulumi.com/registry/packages/cockroach/api-docs/jwtissuer/
                 quote: Configuration to manage external JSON Web Token (JWT) Issuers for
                   authentication to the CockroachDB Cloud API.
                 strength: direct
-              - &a302
+              - &a301
                 doc_url: https://www.pulumi.com/registry/packages/cockroach/api-docs/jwtissuer/
                 quote: 'IdentityMaps: "A list of mappings to map the external token identity
                   into CockroachDB Cloud."'
@@ -7951,8 +7918,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a300
           - *a301
-          - *a302
       - concept_name: jwt-issuer-auth
         vendor: Insforge
         status: inconclusive
@@ -8012,12 +7979,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a303
+              - &a302
                 doc_url: https://neon.com/docs/guides/neon-authorize
                 quote: The Data API enforces Row-Level Security policies based on the user
                   identity in the JWT
                 strength: direct
-              - &a304
+              - &a303
                 doc_url: https://neon.com/docs/guides/neon-authorize
                 quote: The Data API verifies that incoming JWTs contain a matching aud claim.
                 strength: direct
@@ -8026,8 +7993,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a302
           - *a303
-          - *a304
       - concept_name: jwt-rls-integration
         vendor: Nile
         status: inconclusive
@@ -8081,7 +8048,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a305
+              - &a304
                 doc_url: https://thenile.dev/docs/auth/concepts/jwt.md
                 quote: The server can verify the JWT without having to maintain a session on the
                   server side or making database calls.
@@ -8091,7 +8058,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a305
+          - *a304
       - concept_name: jwt-session-auth
         vendor: Supabase
         status: inconclusive
@@ -8145,12 +8112,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a306
+              - &a305
                 doc_url: https://supabase.com/docs/guides/auth/jwts
                 quote: Supabase provides a comprehensive system of managing JWT Signing Keys
                   used to create and verify JSON Web Tokens.
                 strength: direct
-              - &a307
+              - &a306
                 doc_url: https://supabase.com/docs/guides/auth/jwts
                 quote: Supabase Auth continuously issues a new JWT for each user session, for as
                   long as the user remains signed in.
@@ -8160,8 +8127,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a305
           - *a306
-          - *a307
       - concept_name: jwt-signing-keys
         vendor: Turso
         status: inconclusive
@@ -8203,7 +8170,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a308
+              - &a307
                 doc_url: https://thenile.dev/docs/extensions/hstore.md
                 quote: The `hstore` extension provides a data type for storing sets of key-value
                   pairs within a single PostgreSQL value.
@@ -8213,7 +8180,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a308
+          - *a307
       - concept_name: key-value-storage
         vendor: Supabase
         status: inconclusive
@@ -8255,7 +8222,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a309
+              - &a308
                 doc_url: https://neon.com/docs/local/neon-local
                 quote: a proxy service that creates a local interface to your Neon cloud
                   database ... automatically create a new ephemeral branch ...
@@ -8267,7 +8234,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a309
+          - *a308
       - concept_name: local-dev-proxy
         vendor: Nile
         status: inconclusive
@@ -8321,7 +8288,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a310
+              - &a309
                 doc_url: https://thenile.dev/docs/cli/local_development.md
                 quote: Start the local environment... Docker container running pre-configured
                   PostgreSQL
@@ -8331,7 +8298,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a310
+          - *a309
       - concept_name: local-development-environment
         vendor: Supabase
         status: inconclusive
@@ -8360,14 +8327,14 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a311
+            evidence: *a310
         capability_bundle:
           - log-export
         surfaces_documented:
           - api
         evidence:
+          - *a311
           - *a312
-          - *a313
       - concept_name: log-export
         vendor: Insforge
         status: inconclusive
@@ -8415,12 +8382,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a314
+              - &a313
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/advanced-cluster-management
                 quote: During the window, your cluster may experience restarts, degraded
                   performance, and downtime for single-node clusters.
                 strength: direct
-              - &a315
+              - &a314
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
                 quote: "Maintenance: Configure maintenance windows and patch upgrade deferral
                   policies"
@@ -8430,8 +8397,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a313
           - *a314
-          - *a315
       - concept_name: maintenance-windows
         vendor: Insforge
         status: inconclusive
@@ -8492,13 +8459,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a316
+              - &a315
                 doc_url: https://neon.com/docs/neon-auth/overview
                 quote: All authentication data is stored in the neon_auth schema. It's queryable
                   with SQL and compatible with Row Level Security (RLS)
                   policies.
                 strength: direct
-              - &a317
+              - &a316
                 doc_url: https://neon.com/docs/neon-auth/overview
                 quote: every Neon branch gets its own isolated auth environment
                 strength: direct
@@ -8508,8 +8475,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a315
           - *a316
-          - *a317
       - concept_name: managed-auth-service
         vendor: Nile
         status: inconclusive
@@ -8557,13 +8524,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a318
+              - &a317
                 doc_url: https://neon.com/docs/reference/typescript-sdk
                 quote: "a typed wrapper around the Neon REST API ... Branches: Manage branches,
                   including creation, deletion, restoration, and schema
                   management."
                 strength: direct
-              - &a319
+              - &a318
                 doc_url: https://neon.com/docs/reference/python-sdk
                 quote: a wrapper for the Neon API providing methods to programmatically manage
                   API keys, Neon projects, branches, databases, endpoints,
@@ -8574,8 +8541,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a317
           - *a318
-          - *a319
       - concept_name: management-sdk
         vendor: Nile
         status: inconclusive
@@ -8610,14 +8577,14 @@ concepts:
             surfaces_documented:
               - api
             surface_notes: []
-            evidence: *a320
+            evidence: *a319
         capability_bundle:
           - metric-export
         surfaces_documented:
           - api
         evidence:
+          - *a320
           - *a321
-          - *a322
       - concept_name: metric-export
         vendor: Insforge
         status: inconclusive
@@ -8672,7 +8639,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a323
+              - &a322
                 doc_url: https://docs.insforge.dev/core-concepts/database/migrations
                 quote: Each successful run is recorded in `system.custom_migrations`... the
                   workflow is "forward-only"—meaning rollbacks aren't supported
@@ -8684,7 +8651,7 @@ concepts:
           - cli
           - api
         evidence:
-          - *a323
+          - *a322
       - concept_name: migration-history-tracking
         vendor: Neon
         status: inconclusive
@@ -8756,12 +8723,12 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a324
+              - &a323
                 doc_url: https://docs.turso.tech/sql-reference/multiprocess-access.md
                 quote: Share a Turso database file between multiple OS processes using the
                   experimental multiprocess WAL coordinator
                 strength: direct
-              - &a325
+              - &a324
                 doc_url: https://docs.turso.tech/sql-reference/multiprocess-access.md
                 quote: Multi-process access is experimental with potential API changes across
                   releases
@@ -8771,8 +8738,8 @@ concepts:
         surfaces_documented:
           - sdk
         evidence:
+          - *a323
           - *a324
-          - *a325
   - concept_name: multi-region-deployment
     title: Multi-Region Database Deployment
     decisions:
@@ -8809,13 +8776,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a326
+              - &a325
                 doc_url: https://thenile.dev/docs/api-reference/databases/list-available-regions.md
                 quote: Retrieve the list of available region identifiers for a workspace.
                   Identifiers are composed of a prefix indicating the underlying
                   cloud provider followed by a region name in that provider.
                 strength: direct
-              - &a327
+              - &a326
                 doc_url: https://thenile.dev/docs/api-reference/databases/create-a-database.md
                 quote: Creates a database record in the control plane and triggers creation in
                   the target region.
@@ -8826,8 +8793,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a325
           - *a326
-          - *a327
       - concept_name: multi-region-deployment
         vendor: Supabase
         status: inconclusive
@@ -8857,7 +8824,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a328
+              - &a327
                 doc_url: https://www.cockroachlabs.com/docs/stable/multiregion-overview.html
                 quote: Table locality determines how CockroachDB optimizes access to the table's
                   data.
@@ -8867,7 +8834,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a328
+          - *a327
       - concept_name: multi-region-table-locality
         vendor: Insforge
         status: inconclusive
@@ -8915,13 +8882,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a329
+              - &a328
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClustersApi.md
                 quote: ListClusterNodes (GET) - "List nodes for a cluster" ...
                   ListAvailableRegions (GET) - List regions available for new
                   clusters and nodes
                 strength: direct
-              - &a330
+              - &a329
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/advanced-cluster-management
                 quote: For GCP, each region consumes a `/19` CIDR range from the CIDR range
                   configured during cluster creation.
@@ -8931,8 +8898,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a328
           - *a329
-          - *a330
       - concept_name: node-region-management
         vendor: Insforge
         status: inconclusive
@@ -8998,11 +8965,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a331
+              - &a330
                 doc_url: https://thenile.dev/docs/postgres/datatype/numeric.md
                 quote: "NUMERIC (or DECIMAL): Stores exact numbers with an arbitrary precision."
                 strength: direct
-              - &a332
+              - &a331
                 doc_url: https://thenile.dev/docs/postgres/datatype/numeric.md
                 quote: "SERIAL, BIGSERIAL, SMALLSERIAL: Auto-incrementing integer types."
                 strength: direct
@@ -9011,8 +8978,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a330
           - *a331
-          - *a332
       - concept_name: numeric-precision-types
         vendor: Supabase
         status: inconclusive
@@ -9048,7 +9015,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a333
+              - &a332
                 doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
                 quote: '"First-class support for Google, GitHub, Apple, Microsoft, GitLab,
                   Discord, and more. Add custom OAuth 2.0 / OIDC providers
@@ -9060,7 +9027,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a333
+          - *a332
       - concept_name: oauth-authentication
         vendor: Neon
         status: inconclusive
@@ -9120,7 +9087,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a334
+              - &a333
                 doc_url: https://thenile.dev/docs/auth/concepts/oauth.md
                 quote: Your backend service proxy's Nile auth's API, you can intercept errors
                   for your users and handle them accordingly
@@ -9130,7 +9097,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a334
+          - *a333
       - concept_name: oauth-sso-login
         vendor: Supabase
         status: inconclusive
@@ -9184,12 +9151,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a335
+              - &a334
                 doc_url: https://supabase.com/docs/guides/storage
                 quote: Store and serve images, videos, documents, and general-purpose files with
                   direct URL access and row-level security.
                 strength: direct
-              - &a336
+              - &a335
                 doc_url: https://supabase.com/docs/guides/storage
                 quote: S3 compatible Storage, RESTful API, TUS resumable uploads
                 strength: direct
@@ -9198,8 +9165,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a334
           - *a335
-          - *a336
       - concept_name: object-storage
         vendor: Turso
         status: inconclusive
@@ -9235,7 +9202,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a337
+              - &a336
                 doc_url: https://neon.com/docs/reference/neon-cli
                 quote: the terminal tool for managing Neon projects, branches, databases, roles,
                   connection strings, functions, buckets, and the Data API
@@ -9245,7 +9212,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a337
+          - *a336
       - concept_name: object-storage-bucket
         vendor: Nile
         status: inconclusive
@@ -9311,12 +9278,12 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a338
+              - &a337
                 doc_url: https://docs.turso.tech/sync/usage.md
                 quote: Push sends your local changes to the Turso Cloud server. ... all reads
                   and writes happen locally by default.
                 strength: direct
-              - &a339
+              - &a338
                 doc_url: https://docs.turso.tech/sync/usage.md
                 quote: changes are safely stored in the local database file until they can be
                   synced, allowing applications to function without
@@ -9327,8 +9294,8 @@ concepts:
         surfaces_documented:
           - sdk
         evidence:
+          - *a337
           - *a338
-          - *a339
   - concept_name: online-schema-change
     title: Online (Non-Blocking) Schema Changes
     decisions:
@@ -9346,7 +9313,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a340
+              - &a339
                 doc_url: https://www.cockroachlabs.com/docs/stable/online-schema-changes.html
                 quote: The schema change runs as a background job without holding locks on the
                   underlying table data. Your application's queries can run
@@ -9357,7 +9324,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a340
+          - *a339
       - concept_name: online-schema-change
         vendor: Insforge
         status: inconclusive
@@ -9405,12 +9372,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a341
+              - &a340
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/managing-access
                 quote: Permissions are additive, so a user with multiple roles is given all
                   permissions in each area across all assigned roles.
                 strength: direct
-              - &a342
+              - &a341
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/RoleManagementApi.md
                 quote: AddUserToRole - "Add a role to a user or service account" via POST
                   request ... SetRolesForUser - "Replace the roles for a user or
@@ -9421,8 +9388,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a340
           - *a341
-          - *a342
       - concept_name: organization-rbac
         vendor: Insforge
         status: inconclusive
@@ -9482,12 +9449,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a343
+              - &a342
                 doc_url: https://neon.com/docs/guides/prisma
                 quote: Connecting to Neon is simplified with Prisma ORM 5.10.0+ ... single
                   pooled connection string
                 strength: direct
-              - &a344
+              - &a343
                 doc_url: https://neon.com/docs/guides/rls-drizzle
                 quote: The crudPolicy function from drizzle-orm/neon ... declaratively generates
                   Row-Level Security (RLS) policies
@@ -9497,8 +9464,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a342
           - *a343
-          - *a344
       - concept_name: orm-driver-adapters
         vendor: Nile
         status: inconclusive
@@ -9540,7 +9507,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a345
+              - &a344
                 doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
                 quote: 'Limit: "Maximum number of records to return" with a default of 100 and
                   maximum of 1000... Offset: "Number of records to skip for
@@ -9553,7 +9520,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a345
+          - *a344
       - concept_name: pagination-and-count
         vendor: Neon
         status: inconclusive
@@ -9613,7 +9580,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a346
+              - &a345
                 doc_url: https://thenile.dev/docs/auth/magiclink.md
                 quote: Clicking the link automatically exchanges the token for a session, logs
                   them into your application and redirects them to the
@@ -9624,7 +9591,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a346
+          - *a345
       - concept_name: passwordless-magic-link-auth
         vendor: Supabase
         status: inconclusive
@@ -9685,12 +9652,12 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a347
+              - &a346
                 doc_url: https://docs.turso.tech/api-reference/databases/list
                 quote: Returns a list of databases belonging to the organization or user. GET
                   /v1/organizations/{organizationSlug}/databases
                 strength: direct
-              - &a348
+              - &a347
                 doc_url: https://docs.turso.tech/api-reference/introduction
                 quote: Provision a dedicated database per user or per AI agent [with] isolated
                   SQLite instances
@@ -9701,8 +9668,8 @@ concepts:
           - api
           - sdk
         evidence:
+          - *a346
           - *a347
-          - *a348
   - concept_name: postgres-extension-ecosystem
     title: Postgres Extension Catalog (PostGIS, pg_trgm, etc.)
     decisions:
@@ -9732,14 +9699,14 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a349
+              - &a348
                 doc_url: https://neon.com/docs/extensions/pg-extensions
                 quote: Unless otherwise noted, supported extensions can be installed using
                   CREATE EXTENSION syntax. You can install extensions from the
                   Neon SQL Editor or from a client such as psql that permits
                   running SQL queries.
                 strength: direct
-              - &a350
+              - &a349
                 doc_url: https://neon.com/docs/extensions/pg-extensions
                 quote: postgis, postgis_raster, postgis_topology, postgis_sfcgal,
                   postgis_tiger_geocoder ... pgrouting (PostGIS extension must
@@ -9750,8 +9717,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a348
           - *a349
-          - *a350
       - concept_name: postgres-extension-ecosystem
         vendor: Nile
         status: inconclusive
@@ -9812,12 +9779,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a351
+              - &a350
                 doc_url: https://supabase.com/docs/guides/database/extensions
                 quote: Extensions are exactly as they sound - they 'extend' the database with
                   functionality which isn't part of the Postgres core.
                 strength: direct
-              - &a352
+              - &a351
                 doc_url: https://supabase.com/docs/guides/database/extensions
                 quote: Supabase has pre-installed some of the most useful open source extensions
                 strength: direct
@@ -9827,8 +9794,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a350
           - *a351
-          - *a352
       - concept_name: postgres-extension-management
         vendor: Turso
         status: inconclusive
@@ -9852,20 +9819,20 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a353
+              - &a352
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/aws-privatelink
                 quote: Amazon Web Services (AWS) PrivateLink support allows customers to
                   establish SQL access to their clusters entirely through
                   private AWS infrastructure, without exposure to the public
                   internet
                 strength: direct
-              - &a354
+              - &a353
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/PrivateEndpointServicesApi.md
                 quote: CreatePrivateEndpointServices - "Create all PrivateEndpointServices for a
                   cluster" ... AddPrivateEndpointConnection - "Add a connection
                   to a cluster's private endpoint service"
                 strength: direct
-              - &a355
+              - &a354
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/PrivateEndpointServicesApi.md
                 quote: AddPrivateEndpointTrustedOwner - "Add a private endpoint trusted owner to
                   a cluster"
@@ -9875,9 +9842,9 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a352
           - *a353
           - *a354
-          - *a355
       - concept_name: private-connectivity
         vendor: Insforge
         status: inconclusive
@@ -9925,7 +9892,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a356
+              - &a355
                 doc_url: https://www.cockroachlabs.com/docs/stable/explain.html
                 quote: The EXPLAIN statement returns CockroachDB's statement plan for a
                   preparable statement. You can use this information to optimize
@@ -9936,7 +9903,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a356
+          - *a355
       - concept_name: query-plan-explain
         vendor: Insforge
         status: inconclusive
@@ -9997,7 +9964,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a357
+              - &a356
                 doc_url: https://neon.com/docs/introduction/read-replicas
                 quote: Neon read replicas are independent computes designed to perform read
                   operations on the same data as your primary read-write compute
@@ -10010,7 +9977,7 @@ concepts:
           - api
           - cli
         evidence:
-          - *a357
+          - *a356
       - concept_name: read-replica
         vendor: Nile
         status: inconclusive
@@ -10070,12 +10037,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a358
+              - &a357
                 doc_url: https://supabase.com/docs/guides/platform/read-replicas
                 quote: Read Replicas are additional databases kept in sync with your Primary
                   database.
                 strength: direct
-              - &a359
+              - &a358
                 doc_url: https://supabase.com/docs/guides/platform/read-replicas
                 quote: You can only read data from a Read Replica.
                 strength: direct
@@ -10084,8 +10051,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a357
           - *a358
-          - *a359
       - concept_name: read-replicas
         vendor: Turso
         status: inconclusive
@@ -10115,7 +10082,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a360
+              - &a359
                 doc_url: https://docs.insforge.dev/core-concepts/realtime/overview
                 quote: '"exact names for shared rooms, or patterns like `order:%` when every
                   record needs its own live stream."... "Clients can publish
@@ -10126,7 +10093,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a360
+          - *a359
       - concept_name: realtime-pubsub-channels
         vendor: Neon
         status: inconclusive
@@ -10174,7 +10141,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a361
+              - &a360
                 doc_url: https://docs.insforge.dev/api-reference/client/delete-records.md
                 quote: "Remove data via `DELETE /api/database/records/{tableName}`. The `Prefer:
                   return=representation` header provides confirmation of deleted
@@ -10186,7 +10153,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a361
+          - *a360
       - concept_name: record-delete
         vendor: Neon
         status: inconclusive
@@ -10234,7 +10201,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a362
+              - &a361
                 doc_url: https://docs.insforge.dev/api-reference/client/create-records.md
                 quote: "Create one or more records. Request body MUST be an array... type:
                   array... minItems: 1... `Prefer: return=representation` ...
@@ -10246,7 +10213,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a362
+          - *a361
       - concept_name: record-insert
         vendor: Neon
         status: inconclusive
@@ -10294,7 +10261,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a363
+              - &a362
                 doc_url: https://docs.insforge.dev/api-reference/client/update-records.md
                 quote: Modify existing data using `PATCH /api/database/records/{tableName}`.
                   "Use filter operators to specify which records to update."
@@ -10304,7 +10271,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a363
+          - *a362
       - concept_name: record-update
         vendor: Neon
         status: inconclusive
@@ -10352,13 +10319,13 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a364
+              - &a363
                 doc_url: https://docs.insforge.dev/api-reference/permissions/get-realtime-permissions.md
                 quote: '"Retrieve RLS policies for subscribe (channels) and publish (messages)
                   operations"... USING clause: "row-level filtering"... WITH
                   CHECK clause: "row-level validation"'
                 strength: direct
-              - &a365
+              - &a364
                 doc_url: https://docs.insforge.dev/sdks/rest/database
                 quote: GET /api/database/policies - List all Row Level Security policies
                 strength: direct
@@ -10367,8 +10334,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a363
           - *a364
-          - *a365
       - concept_name: rls-policy-introspection-api
         vendor: Neon
         status: inconclusive
@@ -10422,7 +10389,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a366
+              - &a365
                 doc_url: https://neon.com/docs/reference/neon-cli
                 quote: the terminal tool for managing Neon projects, branches, databases, roles,
                   connection strings, functions, buckets, and the Data API
@@ -10433,7 +10400,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a366
+          - *a365
       - concept_name: role-management
         vendor: Nile
         status: inconclusive
@@ -10469,7 +10436,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a367
+              - &a366
                 doc_url: https://www.cockroachlabs.com/docs/stable/row-level-ttl.html
                 quote: Row-Level TTL is a mechanism whereby rows from a table are considered
                   'expired' and can be automatically deleted once those rows
@@ -10480,7 +10447,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a367
+          - *a366
       - concept_name: row-level-ttl
         vendor: Insforge
         status: inconclusive
@@ -10553,12 +10520,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a368
+              - &a367
                 doc_url: https://supabase.com/docs/guides/cron
                 quote: Supabase Cron uses the `pg_cron` Postgres database extension which is the
                   scheduling and execution engine for your Jobs.
                 strength: direct
-              - &a369
+              - &a368
                 doc_url: https://supabase.com/docs/guides/cron
                 quote: run SQL snippets or database functions with zero network latency or make
                   an HTTP request
@@ -10569,8 +10536,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a367
           - *a368
-          - *a369
       - concept_name: scheduled-jobs
         vendor: Turso
         status: inconclusive
@@ -10600,7 +10567,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a370
+              - &a369
                 doc_url: https://docs.insforge.dev/agent-native/diagnostics.md
                 quote: '"The advisor scans for security, performance, and health issues and
                   writes a remediation for each one."... Database Health:
@@ -10612,7 +10579,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a370
+          - *a369
       - concept_name: schema-diagnostics-advisor
         vendor: Neon
         status: inconclusive
@@ -10654,12 +10621,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a371
+              - &a370
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/configure-scim-provisioning
                 quote: the app integration uses the CockroachDB Cloud API to provision an
                   account for the user, or for each of the group's members
                 strength: direct
-              - &a372
+              - &a371
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/configure-scim-provisioning
                 quote: "The SCIM API endpoint is: https://cockroachlabs.cloud/api/scim/v2"
                 strength: direct
@@ -10668,8 +10635,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a370
           - *a371
-          - *a372
       - concept_name: scim-provisioning
         vendor: Insforge
         status: inconclusive
@@ -10749,12 +10716,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a373
+              - &a372
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-index.md
                 quote: Create an index on a table to improve query performance for lookups,
                   joins, and ordering.
                 strength: direct
-              - &a374
+              - &a373
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-index.md
                 quote: The query planner automatically uses indexes when they can speed up a
                   query -- you do not need to reference an index explicitly in
@@ -10767,8 +10734,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a372
           - *a373
-          - *a374
   - concept_name: serverless-http-websocket-driver
     title: Neon Serverless Driver (HTTP/WebSocket)
     decisions:
@@ -10798,7 +10765,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a375
+              - &a374
                 doc_url: https://neon.com/docs/serverless/serverless-driver
                 quote: HTTP is faster for single, non-interactive transactions ('one-shot
                   queries'); WebSockets needed if you require session or
@@ -10810,7 +10777,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a375
+          - *a374
       - concept_name: serverless-http-websocket-driver
         vendor: Nile
         status: inconclusive
@@ -10846,14 +10813,14 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a376
+              - &a375
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ServiceAccountsApi.md
                 quote: 'CreateServiceAccount (POST): "Create a service account" ...
                   DeleteServiceAccount (DELETE): "Delete a service account" ...
                   ListServiceAccounts (GET): "List service accounts for an
                   organization"'
                 strength: direct
-              - &a377
+              - &a376
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/managing-access
                 quote: giving each application that accesses the API its own service account and
                   API key
@@ -10863,8 +10830,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a375
           - *a376
-          - *a377
       - concept_name: service-account-management
         vendor: Insforge
         status: inconclusive
@@ -10930,7 +10897,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a378
+              - &a377
                 doc_url: https://thenile.dev/docs/auth/concepts/sessions.md
                 quote: You can revoke a database session by deleting it from the database. This
                   will cause the user to be logged out of *all* tenants the next
@@ -10941,7 +10908,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a378
+          - *a377
       - concept_name: session-management
         vendor: Supabase
         status: inconclusive
@@ -10989,7 +10956,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a379
+              - &a378
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
                 quote: To create a shared table, you must create a standard table without a
                   tenant_id column. Nile ensures that the data in the shared
@@ -11000,7 +10967,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a379
+          - *a378
       - concept_name: shared-table
         vendor: Supabase
         status: inconclusive
@@ -11054,7 +11021,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a380
+              - &a379
                 doc_url: https://supabase.com/docs/reference/javascript/select
                 quote: The `range` modifier retrieves specific row ranges; the `limit` modifier
                   constrains result set size.
@@ -11064,7 +11031,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a380
+          - *a379
       - concept_name: sort-paginate-reads
         vendor: Turso
         status: inconclusive
@@ -11094,7 +11061,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a381
+              - &a380
                 doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
                 quote: Results can be ordered using the `order` parameter with the format
                   "field.direction"... "createdAt.desc", "name.asc"
@@ -11104,7 +11071,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a381
+          - *a380
       - concept_name: sorting
         vendor: Neon
         status: inconclusive
@@ -11158,7 +11125,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a382
+              - &a381
                 doc_url: https://neon.com/docs/get-started/query-with-neon-sql-editor
                 quote: The Explain feature runs the specified query with the Postgres EXPLAIN
                   command ... The Analyze feature runs the specified query with
@@ -11169,7 +11136,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a382
+          - *a381
       - concept_name: sql-editor-console
         vendor: Nile
         status: inconclusive
@@ -11205,7 +11172,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a383
+              - &a382
                 doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/SQLUsersApi.md
                 quote: CreateSQLUser - "Create a new SQL user" ... DeleteSQLUser - "Delete a SQL
                   user" ... UpdateSQLUserPassword - "Update a SQL user's
@@ -11216,7 +11183,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a383
+          - *a382
       - concept_name: sql-user-management-api
         vendor: Insforge
         status: inconclusive
@@ -11264,7 +11231,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a384
+              - &a383
                 doc_url: https://www.cockroachlabs.com/docs/stable/authorization.html
                 quote: Manage each role or user's SQL privileges for interacting with specific
                   databases and tables, or add a role or user as a member to a
@@ -11275,7 +11242,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a384
+          - *a383
       - concept_name: sql-user-role-management
         vendor: Insforge
         status: inconclusive
@@ -11354,13 +11321,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a385
+              - &a384
                 doc_url: https://docs.turso.tech/cli/db/import.md
                 quote: You can import an existing SQLite file to Turso Cloud using the following
                   command ... Make sure the SQLite file has WAL journal mode
                   enabled.
                 strength: direct
-              - &a386
+              - &a385
                 doc_url: https://docs.turso.tech/cloud/migrate-to-turso.md
                 quote: 'you can alternatively use the Platform API by creating a database with
                   "seed": { "type": "database_upload" }, generating
@@ -11372,8 +11339,8 @@ concepts:
           - api
           - cli
         evidence:
+          - *a384
           - *a385
-          - *a386
   - concept_name: sso-saml
     title: Enterprise SSO (SAML)
     decisions:
@@ -11415,7 +11382,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a387
+              - &a386
                 doc_url: https://supabase.com/docs/guides/auth
                 quote: Single Sign-On for enterprise applications with SAML 2.0.
                 strength: direct
@@ -11424,7 +11391,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a387
+          - *a386
       - concept_name: sso-saml
         vendor: Turso
         status: inconclusive
@@ -11472,7 +11439,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a388
+              - &a387
                 doc_url: https://supabase.com/docs/guides/storage
                 quote: Fine-grained Access Control - Manage file permissions with row-level
                   security and custom policies.
@@ -11482,7 +11449,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a388
+          - *a387
       - concept_name: storage-access-control
         vendor: Turso
         status: inconclusive
@@ -11506,7 +11473,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a389
+              - &a388
                 doc_url: https://www.cockroachlabs.com/docs/stable/stored-procedures.html
                 quote: A stored procedure is a database object consisting of PL/pgSQL or SQL
                   statements that can be issued with a single CALL statement.
@@ -11516,7 +11483,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a389
+          - *a388
       - concept_name: stored-procedures
         vendor: Insforge
         status: inconclusive
@@ -11594,12 +11561,12 @@ concepts:
               - sdk
             surface_notes: []
             evidence:
-              - &a390
+              - &a389
                 doc_url: https://docs.turso.tech/sync/conflict-resolution.md
                 quote: When two clients modify the same data and push, the last push determines
                   the final state on the remote.
                 strength: direct
-              - &a391
+              - &a390
                 doc_url: https://docs.turso.tech/sync/conflict-resolution.md
                 quote: Your local database is rolled back to the last synced state [then remote
                   changes are applied, and unsynchronized local modifications
@@ -11610,8 +11577,8 @@ concepts:
         surfaces_documented:
           - sdk
         evidence:
+          - *a389
           - *a390
-          - *a391
   - concept_name: table-deletion
     title: Delete Table
     decisions:
@@ -11635,7 +11602,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a392
+              - &a391
                 doc_url: https://docs.insforge.dev/api-reference/admin/delete-table.md
                 quote: 'The endpoint is located at `/api/database/tables/{tableName}` and uses
                   the DELETE HTTP method... a successful deletion returns a
@@ -11646,7 +11613,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a392
+          - *a391
       - concept_name: table-deletion
         vendor: Neon
         status: inconclusive
@@ -11688,7 +11655,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a393
+              - &a392
                 doc_url: https://www.cockroachlabs.com/docs/stable/joins.html
                 quote: "CockroachDB supports the following join types: Inner joins, Left outer
                   joins, Right outer joins, Full outer joins."
@@ -11698,7 +11665,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a393
+          - *a392
       - concept_name: table-join
         vendor: Insforge
         status: inconclusive
@@ -11752,7 +11719,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a394
+              - &a393
                 doc_url: https://docs.insforge.dev/api-reference/admin/list-tables.md
                 quote: 'The endpoint is located at `/api/database/tables` and uses the GET HTTP
                   method... it provides "an array" where "items" are strings,
@@ -11764,7 +11731,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a394
+          - *a393
       - concept_name: table-listing
         vendor: Neon
         status: inconclusive
@@ -11824,11 +11791,11 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a395
+              - &a394
                 doc_url: https://thenile.dev/docs/postgres/datatype/date.md
                 quote: "Range: 4713 BC to 5874897 AD"
                 strength: direct
-              - &a396
+              - &a395
                 doc_url: https://thenile.dev/docs/postgres/datatype/date.md
                 quote: Represents a duration of time (e.g., event duration)
                 strength: direct
@@ -11837,8 +11804,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a394
           - *a395
-          - *a396
       - concept_name: temporal-data-types
         vendor: Supabase
         status: inconclusive
@@ -11886,7 +11853,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a397
+              - &a396
                 doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/server/db.md
                 quote: When `nile.tenantId` is set, the `db` object will use the correct
                   tenant's virtual database.
@@ -11896,7 +11863,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a397
+          - *a396
       - concept_name: tenant-aware-orm-client
         vendor: Supabase
         status: inconclusive
@@ -11944,12 +11911,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a398
+              - &a397
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
                 quote: Setting a session context to a specific tenant is equivalent to pointing
                   the connection to a specific tenant DB.
                 strength: direct
-              - &a399
+              - &a398
                 doc_url: https://thenile.dev/docs/auth/concepts/tenants.md
                 quote: No need for a 'where' clause here because we are setting the tenant ID in
                   the context
@@ -11959,8 +11926,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a397
           - *a398
-          - *a399
       - concept_name: tenant-context-scoping
         vendor: Supabase
         status: inconclusive
@@ -12008,7 +11975,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a400
+              - &a399
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
                 quote: control what infrastructure are specific customers placed
                 strength: direct
@@ -12017,7 +11984,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a400
+          - *a399
       - concept_name: tenant-infrastructure-isolation
         vendor: Supabase
         status: inconclusive
@@ -12065,7 +12032,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a401
+              - &a400
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
                 quote: support the ability to move tenants from one location to another with a
                   simple update
@@ -12075,7 +12042,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a401
+          - *a400
       - concept_name: tenant-migration
         vendor: Supabase
         status: inconclusive
@@ -12123,13 +12090,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a402
+              - &a401
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
                 quote: A simplified version will have a 'candidates' table that tracks all
                   candidates in flight...private to each company using the
                   recruiting product.
                 strength: direct
-              - &a403
+              - &a402
                 doc_url: https://thenile.dev/docs/getting-started/architecture.md
                 quote: tables are either tenant-specific or shared. Each page of a tenant table
                   belongs exclusively to one tenant
@@ -12139,8 +12106,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a401
           - *a402
-          - *a403
       - concept_name: tenant-partitioned-table
         vendor: Supabase
         status: inconclusive
@@ -12188,7 +12155,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a404
+              - &a403
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
                 quote: locate a tenant in any location globally while creating the tenant
                 strength: direct
@@ -12197,7 +12164,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a404
+          - *a403
       - concept_name: tenant-region-placement
         vendor: Supabase
         status: inconclusive
@@ -12245,7 +12212,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a405
+              - &a404
                 doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
                 quote: Tenant aware tables can be joined with shared tables to provide relevant
                   information for a specific tenant.
@@ -12255,7 +12222,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a405
+          - *a404
       - concept_name: tenant-shared-join
         vendor: Supabase
         status: inconclusive
@@ -12317,13 +12284,13 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a406
+              - &a405
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
                 quote: Create a trigger that automatically executes one or more SQL statements
                   when a row is inserted into, updated in, or deleted from a
                   table.
                 strength: direct
-              - &a407
+              - &a406
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
                 quote: Triggers execute within the same transaction as the statement that fired
                   them -- if the transaction is rolled back, the trigger's
@@ -12336,8 +12303,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a405
           - *a406
-          - *a407
   - concept_name: triggers
     title: Table Triggers
     decisions:
@@ -12355,12 +12322,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a408
+              - &a407
                 doc_url: https://www.cockroachlabs.com/docs/stable/triggers.html
                 quote: A trigger executes a function when one or more specified SQL operations
                   is performed on a table.
                 strength: direct
-              - &a409
+              - &a408
                 doc_url: https://www.cockroachlabs.com/docs/stable/alter-table.html
                 quote: When a trigger is enabled for a table, it activates if its triggering
                   event occurs on the table.
@@ -12370,8 +12337,8 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
+          - *a407
           - *a408
-          - *a409
       - concept_name: triggers
         vendor: Insforge
         status: inconclusive
@@ -12437,7 +12404,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a410
+              - &a409
                 doc_url: https://thenile.dev/docs/extensions/pg_trgm.md
                 quote: The `pg_trgm` extension provides trigram matching capabilities for fast
                   text similarity search and fuzzy string matching in
@@ -12448,7 +12415,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a410
+          - *a409
       - concept_name: trigram-fuzzy-search
         vendor: Supabase
         status: inconclusive
@@ -12503,7 +12470,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a411
+              - &a410
                 doc_url: https://supabase.com/docs/guides/api/rest/generating-types
                 quote: Supabase APIs are generated from your database, which means that we can
                   use database introspection to generate type-safe API
@@ -12515,7 +12482,7 @@ concepts:
           - cli
           - api
         evidence:
-          - *a411
+          - *a410
       - concept_name: typescript-type-generation
         vendor: Turso
         status: inconclusive
@@ -12545,7 +12512,7 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a412
+              - &a411
                 doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
                 quote: '"New users sign up with an email and password, get a confirmation email,
                   and receive a session JWT on login. Password reset, email
@@ -12556,7 +12523,7 @@ concepts:
         surfaces_documented:
           - api
         evidence:
-          - *a412
+          - *a411
       - concept_name: user-authentication
         vendor: Neon
         status: inconclusive
@@ -12598,7 +12565,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a413
+              - &a412
                 doc_url: https://www.cockroachlabs.com/docs/stable/user-defined-functions.html
                 quote: LANGUAGE specifies the language of the function body. CockroachDB
                   supports the languages SQL and PLpgSQL (PL/pgSQL).
@@ -12608,7 +12575,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a413
+          - *a412
       - concept_name: user-defined-functions
         vendor: Insforge
         status: inconclusive
@@ -12674,11 +12641,11 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a414
+              - &a413
                 doc_url: https://thenile.dev/docs/auth/concepts/users.md
                 quote: To add a user to a tenant, use `linkUser`
                 strength: direct
-              - &a415
+              - &a414
                 doc_url: https://thenile.dev/docs/auth/api-reference/users/unlinks-a-user-from-a-tenant.md
                 quote: Marks a user to be deleted from the tenant. It does not remove the user
                   from other tenants or invalidate active sessions.
@@ -12688,8 +12655,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a413
           - *a414
-          - *a415
       - concept_name: user-tenant-membership
         vendor: Supabase
         status: inconclusive
@@ -12737,7 +12704,7 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a416
+              - &a415
                 doc_url: https://thenile.dev/docs/extensions/uuid-ossp.md
                 quote: Nile includes `public.uuid_generate_v7()` which generates UUIDs with
                   time-ordered lexicographically sortable strings.
@@ -12747,7 +12714,7 @@ concepts:
         surfaces_documented:
           - cli
         evidence:
-          - *a416
+          - *a415
       - concept_name: uuid-generation
         vendor: Supabase
         status: inconclusive
@@ -12777,12 +12744,12 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a417
+              - &a416
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/advanced-cluster-management
                 quote: You can set a deferral period of 30, 60, or 90 days after the patch is
                   released.
                 strength: direct
-              - &a418
+              - &a417
                 doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
                 quote: "Maintenance: Configure maintenance windows and patch upgrade deferral
                   policies"
@@ -12792,8 +12759,8 @@ concepts:
         surfaces_documented:
           - api
         evidence:
+          - *a416
           - *a417
-          - *a418
       - concept_name: version-deferral
         vendor: Insforge
         status: inconclusive
@@ -12873,12 +12840,12 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a419
+              - &a418
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-view.md
                 quote: A view is a virtual table defined by a SELECT statement. It does not
                   store data on disk
                 strength: direct
-              - &a420
+              - &a419
                 doc_url: https://docs.turso.tech/sql-reference/statements/create-view.md
                 quote: Views are read-only. INSERT, UPDATE, and DELETE on a view are not
                   supported unless an INSTEAD OF trigger is defined
@@ -12890,8 +12857,8 @@ concepts:
           - sdk
           - cli
         evidence:
+          - *a418
           - *a419
-          - *a420
   - concept_name: workspace-management
     title: Workspace Management
     decisions:
@@ -12928,18 +12895,18 @@ concepts:
               - cli
             surface_notes: []
             evidence:
-              - &a421
+              - &a420
                 doc_url: https://www.thenile.dev/docs/api-reference/workspaces/create-a-workspace
                 quote: Creates a workspace for the authenticated developer. A workspace slug is
                   generated from the workspace name and used as the workspace
                   identifier.
                 strength: direct
-              - &a422
+              - &a421
                 doc_url: https://thenile.dev/docs/api-reference/workspaces/list-workspaces.md
                 quote: Lists all workspaces that an authenticated developer is authorized to
                   use.
                 strength: direct
-              - &a423
+              - &a422
                 doc_url: https://thenile.dev/docs/cli/managing_workspaces.md
                 quote: The `list` command shows all workspaces you have access to.
                 strength: direct
@@ -12949,9 +12916,9 @@ concepts:
           - api
           - cli
         evidence:
+          - *a420
           - *a421
           - *a422
-          - *a423
       - concept_name: workspace-management
         vendor: Supabase
         status: inconclusive

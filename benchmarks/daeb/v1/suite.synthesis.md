@@ -103,7 +103,7 @@ Difficulty: L2 · Skill: query-records
 | Cockroachdb | filtered-query |
 | Insforge | filtered-query |
 | Neon | data-api-rest |
-| Nile | standard-postgres-tool-connectivity |
+| Nile | postgres-protocol-compatibility |
 | Supabase | filtered-query |
 | Turso | filtered-query |
 
@@ -139,7 +139,7 @@ Difficulty: L2 · Skill: write-records
 | Cockroachdb | row-delete |
 | Insforge | bulk-upsert-import |
 | Neon | baseline-sql-table-and-row-operations |
-| Nile | tenant-lifecycle-management |
+| Nile | row-insert-update-delete |
 | Supabase | rest-data-api-crud |
 | Turso | row-insert |
 | Turso | row-update |
