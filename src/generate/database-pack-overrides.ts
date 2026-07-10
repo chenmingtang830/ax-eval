@@ -121,13 +121,11 @@ const SQL_WRITE_LIFECYCLE_CONTRACT_NOTE = [
   "run-scoped table before reporting the gid.",
 ].join(" ");
 
-const NEON_CLI_ROLE_CONTRACT_NOTE = [
-  "Neon CLI contract: when operating through `neonctl psql` or `neonctl connection-string`, do not rely",
-  "on Neon CLI's default role/database inference. In shared benchmark branches, multiple roles may exist.",
-  "Silently parse `process.env.NEON_DATABASE_URL` to get the URL username as the role name and the path",
-  "database as the database name, then pass `--project-id ${NEON_PROJECT_ID}`, `--role-name <role>`, and",
-  "`--database-name <database>` on `neonctl psql` calls. If `NEON_BRANCH_ID` is set, use it as the branch",
-  "argument. Never print the connection string or token values.",
+const NEON_SQL_CLI_CONTRACT_NOTE = [
+  "Neon SQL CLI contract: run data-plane SQL through plain `psql` with `NEON_DATABASE_URL`; do not use",
+  "`neonctl psql` or `neonctl connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,",
+  "`NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon control-plane operations.",
+  "Never print the connection string or token values.",
 ].join(" ");
 
 const NILE_CLI_CONTRACT_NOTE = [
@@ -170,7 +168,7 @@ export function applyDatabasePackPromptOverride(
     }
     if (task.skill === "write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
-  if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
+  if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_SQL_CLI_CONTRACT_NOTE}`;
   if (vendor.slug === "nile" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NILE_CLI_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
   if (vendor.slug === "mongodb-atlas" && task.id.startsWith("db-")) {
