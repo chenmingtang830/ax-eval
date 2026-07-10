@@ -13,6 +13,7 @@ benchmarks/daeb/
   v1/                                # active frozen version
     vendor-selection-ledger.yaml     # core/research/excluded cohort contract
     suite.yaml                       # canonical task suite
+    suite.support-summary.md         # human-readable API/CLI support table
     extracts/<vendor>/
       capability-inventory.yaml      # Layer 0a cited capabilities
       surfaces.yaml                  # CLI/SDK/MCP agent adapters

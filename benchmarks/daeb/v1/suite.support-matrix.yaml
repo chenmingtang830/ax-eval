@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T21:29:42.501Z
+generated_at: 2026-07-10T22:25:54.256Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control

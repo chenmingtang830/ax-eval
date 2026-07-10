@@ -1118,9 +1118,61 @@ export function writeSuiteFiles(root: string, path: string, suiteYaml: string, s
   return { suitePath, synthesisPath };
 }
 
+export function renderSupportSummaryMarkdown(
+  benchmark: string,
+  tasks: SynthesizedTask[],
+  supportMatrix: SupportMatrix,
+): string {
+  const vendors = [...new Set(supportMatrix.entries.map((entry) => entry.vendor))].sort();
+  const status = (taskId: string, vendor: string, surface: "api" | "cli") =>
+    supportMatrix.entries.find((entry) =>
+      entry.task_id === taskId && entry.vendor === vendor && entry.surface === surface
+    );
+  const cell = (entry: ReturnType<typeof status>) => {
+    if (!entry) return "·";
+    if (entry.status === "supported") return "✓";
+    if (entry.status === "unsupported") return "—";
+    return "?";
+  };
+  const lines = [
+    `# ${benchmark} — Support Summary`,
+    ``,
+    `Human review table derived from \`suite.support-matrix.yaml\`.`,
+    `**✓** supported · **—** unsupported / N/A · **?** inconclusive.`,
+    ``,
+    `| Task | ${vendors.map((vendor) => `${vendor} API / CLI`).join(" | ")} |`,
+    `|---|${vendors.map(() => "---|").join("")}`,
+  ];
+  for (const task of tasks) {
+    lines.push(
+      `| ${task.id} ${task.skill} | ${vendors.map((vendor) => {
+        const api = cell(status(task.id, vendor, "api"));
+        const cli = cell(status(task.id, vendor, "cli"));
+        return `${api} / ${cli}`;
+      }).join(" | ")} |`,
+    );
+  }
+  const exclusions = supportMatrix.entries
+    .filter((entry) => entry.status !== "supported" && entry.reason)
+    .filter((entry) => tasks.some((task) => task.id === entry.task_id));
+  if (exclusions.length) {
+    lines.push(``, `## Unsupported / inconclusive cell reasons`, ``);
+    lines.push(`| Task | Vendor | Surface | Status | Reason |`, `|---|---|---|---|---|`);
+    for (const entry of exclusions) {
+      lines.push(`| ${entry.task_id} | ${entry.vendor} | ${entry.surface} | ${entry.status} | ${entry.reason} |`);
+    }
+  }
+  return `${lines.join("\n")}\n`;
+}
+
 export function writeSuiteArtifacts(root: string, suitePath: string, result: SynthesizeResult): string[] {
   const stem = suitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
   const benchmark = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
+  const supportSummaryPath = resolve(root, suitePath).replace(/\.yaml$/i, ".support-summary.md");
+  writeFileSync(supportSummaryPath, renderSupportSummaryMarkdown(benchmark, result.tasks, {
+    ...result.supportMatrix,
+    benchmark,
+  }));
   return [
     writeMethodology(root, suitePath, result.methodology),
     writeConceptUniverse(root, suitePath, result.conceptUniverse),
@@ -1130,5 +1182,6 @@ export function writeSuiteArtifacts(root: string, suitePath: string, result: Syn
     writeGraderLedger(root, suitePath, { ...result.graderLedger, benchmark }),
     writeFailureTaxonomy(root, suitePath, { ...result.failureTaxonomy, benchmark }),
     writeTraceReview(root, suitePath, { ...result.traceReview, benchmark }),
+    supportSummaryPath,
   ];
 }

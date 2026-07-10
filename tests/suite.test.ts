@@ -40,6 +40,17 @@ describe("canonical task suite", () => {
     }
   });
 
+  it("publishes a human-readable support matrix summary", () => {
+    const summary = readFileSync(
+      resolve(ROOT, "benchmarks", "daeb", "v1", "suite.support-summary.md"),
+      "utf8",
+    );
+    expect(summary).toContain("# DAEB-1 — Support Summary");
+    expect(summary).toContain("Cockroachdb API / CLI");
+    expect(summary).toContain("db-T01-access-control");
+    expect(summary).toContain("Unsupported / inconclusive cell reasons");
+  });
+
   it("rejects a malformed suite", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "axarena-suite-"));
     const path = resolve(dir, "bad.yaml");
