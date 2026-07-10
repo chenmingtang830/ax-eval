@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-gieqdb
+# run_id: 2026-07-10-ycajvp
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-gieqdb
+run_id: 2026-07-10-ycajvp
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -349,11 +349,11 @@ tasks:
   - id: db-T07-write-records
     title: "T07: Create, update, and delete one record lifecycle"
     prompt: >-
-      Using a container named `axarena_write_items_{ns}`, create one record
-      labeled `draft_{ns}`, update that same record so its label becomes
-      `final_{ns}`, then delete one separate throwaway record labeled
-      `delete_me_{ns}`. Report the externally addressable container name and the
-      surviving record identity.
+      Using a container named `axarena_write_items_{ns}`, create one record with
+      immutable `record_id=record_{ns}` and label `draft_{ns}`, update that same
+      record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
 
 
       Database SQL identifier contract: DAEB namespaces may contain hyphens.
@@ -386,11 +386,11 @@ tasks:
     oracles:
       - type: roundtrip
         expected: 1
-        description: updated surviving record is final
+        description: the original record identity survives with the final label
         assertField: 0.count
         sqlDialect: postgres
         sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
-          label = 'final_{ns}'
+          record_id = 'record_{ns}' AND label = 'final_{ns}'
       - type: roundtrip
         expected: 0
         description: draft label no longer remains after update
@@ -488,6 +488,14 @@ tasks:
       control-plane operations. Never print the connection string or token
       values.
     oracles:
+      - type: roundtrip
+        expected: 3
+        description: search corpus contains exactly the three required marker items
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE content
+          LIKE '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR content
+          LIKE '%harbor_{ns}%'
       - type: roundtrip
         expected: 1
         description: full-text query returns exactly one orchard match

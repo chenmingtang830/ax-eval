@@ -2,7 +2,7 @@ vendor: Supabase
 category: database
 slug: supabase
 suite_name: DAEB-1
-extracted_at: 2026-07-10T22:37:54.366Z
+extracted_at: 2026-07-10T23:48:01.482Z
 vendor_config:
   base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
   auth_type: bearer
@@ -111,10 +111,10 @@ tasks:
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
-          label = 'final_{ns}'
+          record_id = 'record_{ns}' AND label = 'final_{ns}'
         assert_field: 0.count
         expected: 1
-        description: updated surviving record is final
+        description: the original record identity survives with the final label
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
           label = 'draft_{ns}'
@@ -147,6 +147,13 @@ tasks:
     na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: supabase:db-T09-full-text-search:full-text-search
     checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          content LIKE '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR
+          content LIKE '%harbor_{ns}%'
+        assert_field: 0.count
+        expected: 3
+        description: search corpus contains exactly the three required marker items
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
           to_tsvector('simple', content) @@ plainto_tsquery('simple',

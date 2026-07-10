@@ -483,6 +483,12 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
     case "full-text-search":
       return item([
         pgCheck(
+          "SELECT COUNT(*)::int AS count FROM \"axarena_search_{ns}\" WHERE content LIKE '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR content LIKE '%harbor_{ns}%'",
+          "0.count",
+          3,
+          "search corpus contains exactly the three required marker items",
+        ),
+        pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_search_{ns}\" WHERE to_tsvector('simple', content) @@ plainto_tsquery('simple', 'orchard_{ns}')",
           "0.count",
           1,
@@ -507,10 +513,10 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
     case "write-records":
       return item([
         pgCheck(
-          "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
+          "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE record_id = 'record_{ns}' AND label = 'final_{ns}'",
           "0.count",
           1,
-          "updated surviving record is final",
+          "the original record identity survives with the final label",
         ),
         pgCheck(
           "SELECT COUNT(*)::int AS count FROM \"axarena_write_items_{ns}\" WHERE label = 'draft_{ns}'",
@@ -622,6 +628,12 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
     case "full-text-search":
       return item([
         tursoSqlCheck(
+          "SELECT COUNT(*) FROM \"axarena_search_{ns}\" WHERE content LIKE '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR content LIKE '%harbor_{ns}%'",
+          "results.0.response.result.rows.0.0.value",
+          "3",
+          "search corpus contains exactly the three required marker items",
+        ),
+        tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_search_{ns}\" WHERE content MATCH 'orchard_{ns}'",
           "results.0.response.result.rows.0.0.value",
           "1",
@@ -646,10 +658,10 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
     case "write-records":
       return item([
         tursoSqlCheck(
-          "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'final_{ns}'",
+          "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE record_id = 'record_{ns}' AND label = 'final_{ns}'",
           "results.0.response.result.rows.0.0.value",
           "1",
-          "updated surviving record is final",
+          "the original record identity survives with the final label",
         ),
         tursoSqlCheck(
           "SELECT COUNT(*) FROM \"axarena_write_items_{ns}\" WHERE label = 'draft_{ns}'",

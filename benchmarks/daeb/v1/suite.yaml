@@ -174,16 +174,15 @@ tasks:
     difficulty: L2
     skill: write-records
     intent: Using a container named `axarena_write_items_{ns}`, create one record
-      labeled `draft_{ns}`, update that same record so its label becomes
-      `final_{ns}`, then delete one separate throwaway record labeled
-      `delete_me_{ns}`. Report the externally addressable container name and the
-      surviving record identity.
-    oracle_hint: "Read back `axarena_write_items_{ns}` and confirm: (1) a surviving
-      record labeled `final_{ns}` exists; (2) no record labeled `draft_{ns}` or
-      `delete_me_{ns}` remains; (3) the surviving `final_{ns}` record is the
-      updated identity of the created draft (same durable id/key reported by the
-      agent, or an equivalent vendor update marker) — creating `final_{ns}`
-      directly without an update does not satisfy the task."
+      with immutable `record_id=record_{ns}` and label `draft_{ns}`, update that
+      same record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
+    oracle_hint: "Read back `axarena_write_items_{ns}` and confirm: (1) the record
+      with `record_id=record_{ns}` has label `final_{ns}`; (2) no record labeled
+      `draft_{ns}` or `delete_me_{ns}` remains; (3) the surviving `record_id` is
+      the identity reported by the agent — creating an unrelated final row does
+      not satisfy the task."
     allowed_surfaces:
       - api
       - cli

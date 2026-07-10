@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-jacur6
+# run_id: 2026-07-10-96t2yv
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-jacur6
+run_id: 2026-07-10-96t2yv
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -527,11 +527,11 @@ tasks:
   - id: db-T07-write-records
     title: "T07: Create, update, and delete one record lifecycle"
     prompt: >-
-      Using a container named `axarena_write_items_{ns}`, create one record
-      labeled `draft_{ns}`, update that same record so its label becomes
-      `final_{ns}`, then delete one separate throwaway record labeled
-      `delete_me_{ns}`. Report the externally addressable container name and the
-      surviving record identity.
+      Using a container named `axarena_write_items_{ns}`, create one record with
+      immutable `record_id=record_{ns}` and label `draft_{ns}`, update that same
+      record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
 
 
       Database SQL identifier contract: DAEB namespaces may contain hyphens.

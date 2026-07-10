@@ -2,7 +2,7 @@ vendor: Turso
 category: database
 slug: turso
 suite_name: DAEB-1
-extracted_at: 2026-07-10T22:37:54.366Z
+extracted_at: 2026-07-10T23:48:01.482Z
 vendor_config:
   base_url: https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io
   auth_type: bearer
@@ -146,10 +146,11 @@ tasks:
           requests:
             - type: execute
               stmt:
-                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE label = 'final_{ns}'
+                sql: SELECT COUNT(*) FROM "axarena_write_items_{ns}" WHERE record_id =
+                  'record_{ns}' AND label = 'final_{ns}'
         assert_field: results.0.response.result.rows.0.0.value
         expected: "1"
-        description: updated surviving record is final
+        description: the original record identity survives with the final label
       - read_method: POST
         read_path_template: /v2/pipeline
         read_body_template:
@@ -194,6 +195,18 @@ tasks:
     na_surfaces: []
     support_reference: turso:db-T09-full-text-search:full-text-search
     checks:
+      - read_method: POST
+        read_path_template: /v2/pipeline
+        read_body_template:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_search_{ns}" WHERE content LIKE
+                  '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR content
+                  LIKE '%harbor_{ns}%'
+        assert_field: results.0.response.result.rows.0.0.value
+        expected: "3"
+        description: search corpus contains exactly the three required marker items
       - read_method: POST
         read_path_template: /v2/pipeline
         read_body_template:

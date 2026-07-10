@@ -166,13 +166,15 @@ describe("task extraction seeds", () => {
     };
 
     const result = await extractOracles(vendor, suite, { harness: "codex", effort: "low" });
-    const check = result.tasks[0]?.checks[0];
-    const sql = (check?.read_body_template as { requests?: Array<{ stmt?: { sql?: string } }> } | undefined)
-      ?.requests?.[0]?.stmt?.sql;
+    const sqls = result.tasks[0]?.checks.map((check) =>
+      (check.read_body_template as { requests?: Array<{ stmt?: { sql?: string } }> } | undefined)
+        ?.requests?.[0]?.stmt?.sql ?? "",
+    ) ?? [];
+    const sql = sqls.find((query) => query.includes(" MATCH "));
 
     expect(sql).toContain('"axarena_search_{ns}"');
     expect(sql).toContain("content MATCH 'orchard_{ns}'");
-    expect(check?.expected).toBe("1");
+    expect(result.tasks[0]?.checks.some((check) => check.expected === "3")).toBe(true);
   });
 
   it("verifies Convex action-backed tasks through /api/action", async () => {
