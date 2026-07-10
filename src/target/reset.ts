@@ -262,6 +262,81 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
   return { deleted, candidates, errors };
 };
 
+function tursoPipelineBody(sql: string): object {
+  return {
+    requests: [{ type: "execute", stmt: { sql } }],
+  };
+}
+
+function tursoRows(body: unknown): unknown[][] {
+  const root = body as {
+    results?: Array<{ response?: { result?: { rows?: Array<Array<{ value?: unknown }>> } } }>;
+  };
+  return root.results?.[0]?.response?.result?.rows?.map((row) => row.map((cell) => cell.value)) ?? [];
+}
+
+/** Turso has no Postgres wire connection in packs, but its documented pipeline
+ * endpoint can list and drop the same namespaced SQLite tables safely. */
+const tursoReset: Resetter = async (pack, _client, _scope, opts) => {
+  const token = process.env[pack.auth?.env ?? ""]?.trim();
+  const baseUrl = resolveEnvTemplate(pack.base_url).replace(/\/$/, "");
+  if (!token) {
+    return {
+      supported: false,
+      message: `auth env ${pack.auth?.env ?? "<unset>"} is missing — cannot reset Turso resources`,
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+  try {
+    const listResponse = await fetch(`${baseUrl}/v2/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(tursoPipelineBody("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'axarena_%'")),
+    });
+    if (!listResponse.ok) throw new Error(`list returned HTTP ${listResponse.status}`);
+    const names = tursoRows(await listResponse.json())
+      .map((row) => row[0])
+      .filter((name): name is string => typeof name === "string")
+      .filter((name) => isAxArenaMongoName(name, opts.ns));
+    const deleted: string[] = [];
+    const errors: string[] = [];
+    for (const name of names) {
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+        errors.push(`refusing unsafe Turso table name ${JSON.stringify(name)}`);
+        continue;
+      }
+      if (opts.dryRun) {
+        deleted.push(name);
+        continue;
+      }
+      const dropResponse = await fetch(`${baseUrl}/v2/pipeline`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(tursoPipelineBody(`DROP TABLE IF EXISTS "${name}"`)),
+      });
+      if (dropResponse.ok) deleted.push(name);
+      else errors.push(`drop ${name} returned HTTP ${dropResponse.status}`);
+    }
+    return {
+      supported: true,
+      message: `Turso reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${names.length} namespaced table(s)`,
+      deleted,
+      candidates: names.length,
+      errors,
+    };
+  } catch (error) {
+    return {
+      supported: false,
+      message: `Turso reset failed: ${error instanceof Error ? error.message : String(error)}`,
+      deleted: [],
+      candidates: 0,
+      errors: [error instanceof Error ? error.message : String(error)],
+    };
+  }
+};
+
 /** Parse the deployment name (subdomain) out of a Convex deployment URL. */
 function parseConvexDeploymentName(baseUrl: string): string | null {
   try {
@@ -393,6 +468,7 @@ const RESETTERS: Record<string, Resetter> = {
   "asana-generated": asanaReset,
   "mongodb-atlas": mongodbAtlasReset,
   convex: convexReset,
+  turso: tursoReset,
 };
 
 /**

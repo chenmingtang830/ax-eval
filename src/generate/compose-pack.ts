@@ -153,6 +153,12 @@ export function composePack(
               // dialect from pack.sql_conn, set below from vendor_config.
               sqlDialect: check.sql_dialect ?? extract.vendor_config.sql_dialect,
               sqlQuery: check.sql_query.replace(/\{ns\}/g, NS_PLACEHOLDER),
+              probeSqlQuery: check.probe_sql_query?.replace(/\{ns\}/g, NS_PLACEHOLDER),
+              probeAssertField: check.probe_assert_field,
+              probeExpected: typeof check.probe_expected === "string"
+                ? check.probe_expected.replace(/\{ns\}/g, NS_PLACEHOLDER)
+                : check.probe_expected,
+              probeExpectError: check.probe_expect_error,
             }
           : check.mongo_query
             ? {

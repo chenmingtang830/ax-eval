@@ -141,6 +141,12 @@ function resolveExpectedValues(oracle: OracleSpec, ns: string | undefined): unkn
   return [oracle.expected, ...(oracle.expectedAny ?? [])].map((v) => resolveExpected(v, ns));
 }
 
+function resolveProbeExpectedValues(oracle: OracleSpec, ns: string | undefined): unknown[] {
+  return [oracle.probeExpected, ...(oracle.probeExpectedAny ?? [])]
+    .filter((value) => value !== undefined)
+    .map((value) => resolveExpected(value, ns));
+}
+
 function normalizeUrl(value: unknown): string | null {
   if (typeof value !== "string") return null;
   try {
@@ -340,6 +346,23 @@ async function verifyRoundtrip(
       const query = applyReportedFields(applyNsTemplate(oracle.sqlQuery));
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
+        if (oracle.probeSqlQuery) {
+          const probeQuery = applyReportedFields(applyNsTemplate(oracle.probeSqlQuery));
+          const probeResult = await runSqlCheck(effectiveSqlConn, probeQuery);
+          const probeField = oracle.probeAssertField ?? "code";
+          const probeActual = resolveDotted(probeResult, probeField);
+          const probeExpected = resolveProbeExpectedValues(oracle, ns);
+          const isErrorObject = !Array.isArray(probeResult) && Boolean(errorMessageFromResult(probeResult));
+          const probePassed = oracle.probeExpectError
+            ? isErrorObject && (!probeExpected.length || valuesMatch(probeActual, probeExpected, oracle.matchMode))
+            : valuesMatch(probeActual, probeExpected, oracle.matchMode);
+          out.push({
+            type: "verifier-probe",
+            passed: probePassed,
+            detail: `${probeField}=${JSON.stringify(probeActual)} expected=${expectedDetail(probeExpected)}${oracle.probeExpectError ? ` error=${isErrorObject}` : ""}`,
+          });
+          if (!probePassed) continue;
+        }
         const row = await runSqlCheck(effectiveSqlConn, query);
         const actual = resolveDotted(row, oracle.assertField);
         const passed = valuesMatch(actual, expectedValues, oracle.matchMode);

@@ -83,6 +83,15 @@ function makePostgresPack(name = "neon"): TargetPack {
   });
 }
 
+function makeTursoPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "turso",
+    base_url: "https://example.turso.io",
+    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
+    tasks: [],
+  });
+}
+
 /** Stub the get/del slice the resetter uses; record delete calls. */
 function stubClient(tasks: Array<{ gid?: string; name?: string }>) {
   const deleted: string[] = [];
@@ -260,5 +269,25 @@ describe("resetPack (pass@k sandbox teardown)", () => {
       'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep" CASCADE',
       'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep"',
     ]);
+  });
+
+  it("resets namespaced Turso tables through the documented pipeline endpoint", async () => {
+    process.env.TURSO_DATABASE_AUTH_TOKEN = "test-token";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [{ response: { result: { rows: [[{ value: "axarena_smoke_ns-keep" }], [{ value: "axarena_other" }]] } } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makeTursoPack(), client, {}, { ns: "ns-keep" });
+
+    expect(res.supported).toBe(true);
+    expect(res.deleted).toEqual(["axarena_smoke_ns-keep"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const dropBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(dropBody.requests[0].stmt.sql).toBe('DROP TABLE IF EXISTS "axarena_smoke_ns-keep"');
+    vi.unstubAllGlobals();
   });
 });

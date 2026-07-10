@@ -60,6 +60,10 @@ const OracleCheckSchema = z
     // SQL wire-protocol form, for vendors with no REST query endpoint.
     sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
     sql_query: z.string().nullish().transform((v) => v ?? undefined),
+    probe_sql_query: z.string().nullish().transform((v) => v ?? undefined),
+    probe_assert_field: z.string().nullish().transform((v) => v ?? undefined),
+    probe_expected: z.union([z.string(), z.number(), z.boolean()]).nullish().transform((v) => v ?? undefined),
+    probe_expect_error: z.boolean().nullish().transform((v) => v ?? undefined),
     mongo_query: z.object({
       database: z.string(),
       collection: z.string(),
@@ -150,6 +154,8 @@ const CHECK_FORMAT_RULES = [
   `- expected: literal string, number, or boolean.`,
   `- description: short reviewer label.`,
   `- auth_field: only for identity-scoped checks where the agent must report a per-user token.`,
+    `- probe_sql_query: optional namespace-scoped verifier SQL probe before the read check; use only for a deterministic conflict/deny assertion.`,
+    `- probe_assert_field/probe_expected: assertion over the probe result (error code defaults to "code" when probe_expect_error is true).`,
   `Use multiple checks for multiple assertions.`,
 ].join("\n");
 

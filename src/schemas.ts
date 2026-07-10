@@ -49,6 +49,14 @@ export const OracleSpecSchema = z.object({
    *  the dotted `assertField` against the first result row. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
+  /** Optional verifier-issued SQL mutation/read before the main round-trip
+   * assertion. Must be namespace-scoped; used for conflict/deny probes. */
+  probeSqlQuery: z.string().optional(),
+  probeAssertField: z.string().optional(),
+  probeExpected: z.unknown().optional(),
+  probeExpectedAny: z.array(z.unknown()).optional(),
+  /** Require probe execution to return an error object rather than rows. */
+  probeExpectError: z.boolean().optional(),
   /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
    *  runs a small declarative read operation against a collection. */
   mongoQuery: z.object({
