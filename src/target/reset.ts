@@ -222,7 +222,18 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
         await client.query(`DROP TABLE IF EXISTS "public"."${table}" CASCADE`);
         deleted.push(id);
       } catch (err) {
-        errors.push(`drop table ${id}: ${err instanceof Error ? err.message : String(err)}`);
+        const message = err instanceof Error ? err.message : String(err);
+        if (/drop cascade is not supported/i.test(message)) {
+          try {
+            await client.query(`DROP TABLE IF EXISTS "public"."${table}"`);
+            deleted.push(id);
+            continue;
+          } catch (fallbackErr) {
+            errors.push(`drop table ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+            continue;
+          }
+        }
+        errors.push(`drop table ${id}: ${message}`);
       }
     }
 
