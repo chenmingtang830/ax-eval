@@ -1,6 +1,9 @@
 schema: ax.trace-review/v1
-benchmark: SUITE
-generated_at: 2026-07-09T23:40:49.481Z
+benchmark: DAEB-1
+generated_at: 2026-07-10T00:07:32.076Z
+status: pending
 sample_size: 10
+sample_ids: []
+findings: []
 summary: Methodology revisions require manual review of a fixed trace sample
   before changing task selection or grader logic.

@@ -67,6 +67,9 @@ shape.
   cell may be enabled only when its bundle satisfies every concrete task
   requirement; never promote the first broad concept match directly into the
   denominator.
+- **Trace review is a real freeze gate.** Re-synthesis resets the memo to
+  `pending`; mark it complete only after reviewing the full fixed sample and
+  recording sample IDs, reviewer, timestamp, commit SHA, and findings.
 
 ## Adding a new target
 

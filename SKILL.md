@@ -247,6 +247,8 @@ exact drafts, and any content change invalidates prior pack approvals.
 When reviewing coverage, distinguish the broad 75% concept-selection bar from
 task applicability: only support-matrix cells whose ranked capability bundle
 satisfies every task requirement on that surface may be executed or scored.
+Do not freeze while `suite.trace-review.yaml` is pending. Complete the declared
+sample and record its IDs, reviewer, timestamp, commit SHA, and findings first.
 
 After freezing a publication bundle, export website data with:
 

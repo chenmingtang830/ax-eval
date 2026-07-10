@@ -2,7 +2,7 @@ vendor: Insforge
 category: database
 slug: insforge
 suite_name: DAEB-1
-extracted_at: 2026-07-09T23:40:52.999Z
+extracted_at: 2026-07-10T00:08:11.706Z
 vendor_config:
   base_url: ${INSFORGE_PROJECT_URL}
   auth_type: bearer
@@ -55,23 +55,10 @@ tasks:
         assert_field: 0.count
         expected: 1
         description: agent-reported durable capture table contains the inserted CDC marker
-  - task_id: db-T04-data-integrity-and-transactions
-    na: false
-    na_surfaces:
-      - cli
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T04-data-integrity-and-transactions:data-integrity-and-transactions
-    checks:
-      - sql_dialect: postgres
-        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
-          external_id = 'primary_{ns}'
-        assert_field: 0.count
-        expected: 1
-        description: exactly one committed record has the protected logical key
-  - task_id: db-T05-evolve-schema
+  - task_id: db-T04-evolve-schema
     na: false
     na_surfaces: []
-    support_reference: insforge:db-T05-evolve-schema:evolve-schema
+    support_reference: insforge:db-T04-evolve-schema:evolve-schema
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
@@ -80,12 +67,12 @@ tasks:
         assert_field: 0.count
         expected: 2
         description: title remains visible and status exists after schema evolution
-  - task_id: db-T06-inspect-schema
+  - task_id: db-T05-inspect-schema
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T06-inspect-schema:inspect-schema
+    support_reference: insforge:db-T05-inspect-schema:inspect-schema
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
@@ -94,12 +81,12 @@ tasks:
         assert_field: 0.count
         expected: 2
         description: schema inspection target exposes name and status fields
-  - task_id: db-T07-query-records
+  - task_id: db-T06-query-records
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T07-query-records:query-records
+    support_reference: insforge:db-T06-query-records:query-records
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
@@ -118,12 +105,12 @@ tasks:
         assert_field: 0.count
         expected: 2
         description: the active set is alpha and gamma
-  - task_id: db-T08-vector-search
+  - task_id: db-T07-vector-search
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T08-vector-search:vector-search
+    support_reference: insforge:db-T07-vector-search:vector-search
     checks:
       - sql_dialect: postgres
         sql_query: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
@@ -131,12 +118,12 @@ tasks:
         assert_field: 0.label
         expected: alpha_{ns}
         description: nearest vector search ranks alpha first
-  - task_id: db-T09-write-records
+  - task_id: db-T08-write-records
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: insforge:db-T09-write-records:write-records
+    support_reference: insforge:db-T08-write-records:write-records
     checks:
       - sql_dialect: postgres
         sql_query: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
@@ -156,6 +143,19 @@ tasks:
         assert_field: 0.count
         expected: 0
         description: throwaway record was deleted
+  - task_id: db-T09-data-integrity-and-transactions
+    na: false
+    na_surfaces:
+      - cli
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: insforge:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
+    checks:
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_integrity_{ns}" WHERE
+          external_id = 'primary_{ns}'
+        assert_field: 0.count
+        expected: 1
+        description: exactly one committed record has the protected logical key
   - task_id: db-T10-full-text-search
     na: true
     na_reason: unsupported for this vendor in support matrix

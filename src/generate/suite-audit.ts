@@ -22,6 +22,7 @@ import {
   loadCoverageMatrix,
   loadSelectionLedger,
   loadSupportMatrix,
+  loadTraceReview,
   type CoverageMatrix,
   type SupportMatrix,
 } from "./methodology.js";
@@ -242,6 +243,7 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   const ledger = loadSelectionLedger(root, suitePath);
   const coverage = loadCoverageMatrix(root, suitePath);
   const supportMatrix = loadSupportMatrix(root, suitePath);
+  const traceReview = loadTraceReview(root, suitePath);
   const target = suite.methodology?.target_task_count ?? 10;
   const minPct = suite.methodology?.min_vendor_coverage_pct ?? 0.75;
 
@@ -276,6 +278,17 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
         auto_fixable: false,
       });
     }
+  }
+
+  if (!traceReview || traceReview.status !== "completed") {
+    findings.push({
+      severity: "error",
+      code: traceReview ? "trace_review_pending" : "trace_review_missing",
+      message: traceReview
+        ? `Trace-review checkpoint is pending (${traceReview.sample_ids.length}/${traceReview.sample_size} sample ids recorded)`
+        : "Trace-review artifact is missing",
+      auto_fixable: false,
+    });
   }
 
   if (ledger) {

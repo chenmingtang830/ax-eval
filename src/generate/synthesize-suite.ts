@@ -465,6 +465,7 @@ export function buildCoverageMatrixArtifact(
               matched_requirements: [],
               fit_score: 0,
               surfaces_documented: capability.surfaces_documented,
+              surface_notes: [],
               evidence: capability.evidence,
             })),
             capability_bundle: selected ? [selected.capability_name] : [],
@@ -858,7 +859,10 @@ function buildTraceReviewArtifact(benchmark: string) {
     schema: "ax.trace-review/v1" as const,
     benchmark,
     generated_at: new Date().toISOString(),
+    status: "pending" as const,
     sample_size: 10,
+    sample_ids: [],
+    findings: [],
     summary: "Methodology revisions require manual review of a fixed trace sample before changing task selection or grader logic.",
   };
 }
@@ -1094,7 +1098,8 @@ export function writeSuiteFiles(root: string, path: string, suiteYaml: string, s
 }
 
 export function writeSuiteArtifacts(root: string, suitePath: string, result: SynthesizeResult): string[] {
-  const benchmark = suitePath.split("/").pop()?.replace(/\.yaml$/i, "").toUpperCase() ?? "CANONICAL-SUITE";
+  const stem = suitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
+  const benchmark = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
   return [
     writeMethodology(root, suitePath, result.methodology),
     writeConceptUniverse(root, suitePath, result.conceptUniverse),

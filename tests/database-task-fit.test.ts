@@ -97,6 +97,16 @@ describe("database task-fit adjudication", () => {
     ]);
     expect(atomic?.status).toBe("sufficient");
     expect(atomic?.capability_bundle).toEqual(["transactional-writes", "filtered-document-queries"]);
+
+    const recommendationOnly = evaluateDatabaseTaskFit("data-integrity-and-transactions", [{
+      ...cap("primary-key-constraint", ["api"], "create"),
+      evidence: [{
+        doc_url: "https://docs.example/keys",
+        quote: "It is recommended to create a primary key.",
+        strength: "direct",
+      }],
+    }]);
+    expect(recommendationOnly?.status).toBe("insufficient");
   });
 
   it("does not claim benchmark-surface schema evolution from SDK-only evidence", () => {
@@ -106,5 +116,27 @@ describe("database task-fit adjudication", () => {
     ]);
     expect(result?.status).toBe("insufficient");
     expect(result?.supported_surfaces).toEqual([]);
+  });
+
+  it("removes GUI-only CLI attribution and deprecated full-text candidates", () => {
+    const inspect = evaluateDatabaseTaskFit("inspect-schema", [{
+      ...cap("schema-introspection", ["cli"], "read"),
+      evidence: [{
+        doc_url: "https://www.mongodb.com/docs/compass/schema/",
+        quote: "The Schema tab in MongoDB Compass samples document fields.",
+        strength: "direct",
+      }],
+    }]);
+    expect(inspect?.status).toBe("insufficient");
+    expect(inspect?.candidates[0]?.surfaces_documented).toEqual([]);
+    expect(inspect?.candidates[0]?.surface_notes[0]).toContain("Compass GUI");
+
+    const search = evaluateDatabaseTaskFit("full-text-search", [
+      cap("full-text-search-bm25", ["cli"], "search", "BM25 Full-Text Search (deprecated)"),
+      cap("full-text-search-tsvector", ["cli"], "search", "Full-Text Search via tsvector"),
+    ]);
+    expect(search?.capability_bundle).toEqual(["full-text-search-tsvector"]);
+    expect(search?.candidates.map((candidate) => candidate.capability_name))
+      .toEqual(["full-text-search-tsvector"]);
   });
 });

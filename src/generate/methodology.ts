@@ -146,6 +146,7 @@ export const CoverageDecisionSchema = z.object({
     matched_requirements: z.array(z.string().min(1)).default([]),
     fit_score: z.number().nonnegative(),
     surfaces_documented: z.array(SurfaceIdSchema).default([]),
+    surface_notes: z.array(z.string().min(1)).default([]),
     evidence: z.array(CapabilityEvidenceSchema).default([]),
   })).optional(),
   capability_bundle: z.array(z.string().min(1)).optional(),
@@ -253,8 +254,25 @@ export const TraceReviewMemoSchema = z.object({
   schema: z.literal("ax.trace-review/v1"),
   benchmark: z.string().min(1),
   generated_at: z.string().min(1),
+  status: z.enum(["pending", "completed"]).default("pending"),
   sample_size: z.number().int().positive(),
+  sample_ids: z.array(z.string().min(1)).default([]),
+  reviewer: z.string().min(1).optional(),
+  reviewed_at: z.string().min(1).optional(),
+  commit_sha: z.string().min(7).optional(),
+  findings: z.array(z.string().min(1)).default([]),
   summary: z.string().min(1),
+}).superRefine((memo, ctx) => {
+  if (memo.status !== "completed") return;
+  if (!memo.reviewer) ctx.addIssue({ code: "custom", message: "completed trace review requires reviewer" });
+  if (!memo.reviewed_at) ctx.addIssue({ code: "custom", message: "completed trace review requires reviewed_at" });
+  if (!memo.commit_sha) ctx.addIssue({ code: "custom", message: "completed trace review requires commit_sha" });
+  if (memo.sample_ids.length !== memo.sample_size) {
+    ctx.addIssue({
+      code: "custom",
+      message: `completed trace review requires exactly sample_size (${memo.sample_size}) sample_ids`,
+    });
+  }
 });
 export type TraceReviewMemo = z.infer<typeof TraceReviewMemoSchema>;
 
@@ -525,6 +543,10 @@ export function writeFailureTaxonomy(root: string, suitePath: string, artifact: 
 
 export function writeTraceReview(root: string, suitePath: string, artifact: TraceReviewMemo): string {
   return writeYaml(traceReviewPath(root, suitePath), artifact);
+}
+
+export function loadTraceReview(root: string, suitePath: string): TraceReviewMemo | null {
+  return readYaml(traceReviewPath(root, suitePath), TraceReviewMemoSchema);
 }
 
 export function loadSupportMatrix(root: string, suitePath: string): SupportMatrix | null {

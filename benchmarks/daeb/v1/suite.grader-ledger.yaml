@@ -1,6 +1,6 @@
 schema: ax.grader-ledger/v1
-benchmark: SUITE
-generated_at: 2026-07-09T23:40:49.481Z
+benchmark: DAEB-1
+generated_at: 2026-07-10T00:07:32.076Z
 tasks:
   - task_id: db-T01-access-control
     outcome_graders:
@@ -46,7 +46,77 @@ tasks:
     human_calibration:
       - manual-spot-check
       - grader-fairness-review
-  - task_id: db-T04-data-integrity-and-transactions
+  - task_id: db-T04-evolve-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T05-inspect-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T06-query-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T07-vector-search
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T08-write-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T09-data-integrity-and-transactions
     outcome_graders:
       - read-back-world-state
     trajectory_graders:
@@ -60,76 +130,6 @@ tasks:
       - token_cost_usd
     human_calibration:
       - manual-spot-check
-      - grader-fairness-review
-  - task_id: db-T05-evolve-schema
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - grader-fairness-review
-  - task_id: db-T06-inspect-schema
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - grader-fairness-review
-  - task_id: db-T07-query-records
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - grader-fairness-review
-  - task_id: db-T08-vector-search
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
-      - grader-fairness-review
-  - task_id: db-T09-write-records
-    outcome_graders:
-      - read-back-world-state
-    trajectory_graders:
-      - transcript-review
-      - trace-shape
-    efficiency_metrics:
-      - latency_ms
-      - tool_call_count
-      - token_input_count
-      - token_output_count
-      - token_cost_usd
-    human_calibration:
       - grader-fairness-review
   - task_id: db-T10-full-text-search
     outcome_graders:

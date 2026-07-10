@@ -7,6 +7,8 @@ interface Requirement {
   id: string;
   patterns: RegExp[];
   exclude?: RegExp[];
+  evidencePatterns?: RegExp[];
+  excludeEvidence?: RegExp[];
 }
 
 interface RequirementPath {
@@ -24,6 +26,7 @@ export interface TaskFitCandidate {
   matched_requirements: string[];
   fit_score: number;
   surfaces_documented: Surface[];
+  surface_notes: string[];
   evidence: Capability["evidence"];
 }
 
@@ -38,10 +41,18 @@ export interface DatabaseTaskFitResult {
   reason?: string;
 }
 
-const r = (id: string, patterns: RegExp[], exclude: RegExp[] = []): Requirement => ({
+const r = (
+  id: string,
+  patterns: RegExp[],
+  exclude: RegExp[] = [],
+  evidencePatterns: RegExp[] = [],
+  excludeEvidence: RegExp[] = [],
+): Requirement => ({
   id,
   patterns,
   exclude,
+  evidencePatterns,
+  excludeEvidence,
 });
 
 const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
@@ -166,7 +177,12 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
           /\bupsert-conflict-resolution\b/,
           /\brow-upsert\b/,
           /\bbaseline-sql-table-and-row-operations\b/,
-        ])],
+        ], [], [
+          /\bunique(?:ness)?\b/,
+          /\bduplicate\b/,
+          /\bconstraint violations?\b/,
+          /\bon conflict\b/,
+        ], [/\brecommended\b/])],
       },
       {
         id: "atomic-check-and-write",
@@ -187,7 +203,7 @@ const DATABASE_TASK_FIT_DEFINITIONS: TaskFitDefinition[] = [
         /\btsvector\b/,
         /\bbm25\b/,
         /\btext-search\b/,
-      ])],
+      ], [/\bdeprecated\b/])],
     }],
   },
   {
@@ -222,8 +238,34 @@ function matchScore(capability: Capability, requirement: Requirement): number {
   const nameHit = requirement.patterns.some((pattern) => pattern.test(capabilityName));
   const identityHit = requirement.patterns.some((pattern) => pattern.test(haystack));
   if (!identityHit) return 0;
+  if (requirement.evidencePatterns?.length) {
+    const qualifyingEvidence = capability.evidence.filter((item) => {
+      const evidenceText = `${item.quote} ${item.note ?? ""}`.toLowerCase();
+      return requirement.evidencePatterns!.some((pattern) => pattern.test(evidenceText))
+        && !requirement.excludeEvidence?.some((pattern) => pattern.test(evidenceText));
+    });
+    if (!qualifyingEvidence.length) return 0;
+  }
   const directEvidence = capability.evidence.some((item) => item.strength === "direct") ? 2 : 0;
   return (nameHit ? 20 : 10) + directEvidence;
+}
+
+function effectiveSurfaces(capability: Capability): { surfaces: Surface[]; notes: string[] } {
+  const surfaces = [...capability.surfaces_documented];
+  const notes: string[] = [];
+  const evidenceText = capability.evidence
+    .map((item) => `${item.doc_url} ${item.quote}`)
+    .join(" ")
+    .toLowerCase();
+  if (
+    surfaces.includes("cli")
+    && /mongodb\.com\/docs\/compass|mongodb compass|schema tab/.test(evidenceText)
+    && !/\bmongosh\b|command[- ]line|atlas cli/.test(evidenceText)
+  ) {
+    surfaces.splice(surfaces.indexOf("cli"), 1);
+    notes.push("Removed CLI attribution: cited evidence is MongoDB Compass GUI, not a command-line surface.");
+  }
+  return { surfaces, notes };
 }
 
 function candidateFor(
@@ -234,11 +276,13 @@ function candidateFor(
     .map((requirement) => ({ id: requirement.id, score: matchScore(capability, requirement) }))
     .filter((match) => match.score > 0);
   if (!scores.length) return null;
+  const surfaceEvidence = effectiveSurfaces(capability);
   return {
     capability_name: capability.capability_name,
     matched_requirements: scores.map((match) => match.id),
     fit_score: scores.reduce((sum, match) => sum + match.score, 0),
-    surfaces_documented: capability.surfaces_documented,
+    surfaces_documented: surfaceEvidence.surfaces,
+    surface_notes: surfaceEvidence.notes,
     evidence: capability.evidence,
   };
 }

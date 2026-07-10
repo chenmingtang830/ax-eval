@@ -2,7 +2,7 @@ vendor: Mongodb Atlas
 category: database
 slug: mongodb-atlas
 suite_name: DAEB-1
-extracted_at: 2026-07-09T23:40:52.999Z
+extracted_at: 2026-07-10T00:08:11.705Z
 vendor_config:
   base_url: https://cloud.mongodb.com
   auth_type: none
@@ -58,28 +58,12 @@ tasks:
         expected: 1
         description: agent-reported durable capture collection contains the inserted
           change event
-  - task_id: db-T04-data-integrity-and-transactions
+  - task_id: db-T04-evolve-schema
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T04-data-integrity-and-transactions:data-integrity-and-transactions
-    checks:
-      - mongo_query:
-          database: ""
-          collection: axarena_integrity_{ns}
-          operation: count
-          filter:
-            external_id: primary_{ns}
-        assert_field: count
-        expected: 1
-        description: exactly one committed document has the protected logical key
-  - task_id: db-T05-evolve-schema
-    na: true
-    na_reason: unsupported for this vendor in support matrix
-    na_surfaces: []
-    na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T05-evolve-schema:evolve-schema
+    support_reference: mongodb-atlas:db-T04-evolve-schema:evolve-schema
     checks:
       - mongo_query:
           database: ""
@@ -90,12 +74,12 @@ tasks:
         assert_field: 0.options.validator.$jsonSchema.properties.status.bsonType
         expected: string
         description: collection metadata exposes the evolved status field
-  - task_id: db-T06-inspect-schema
-    na: false
-    na_surfaces:
-      - api
+  - task_id: db-T05-inspect-schema
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T06-inspect-schema:inspect-schema
+    support_reference: mongodb-atlas:db-T05-inspect-schema:inspect-schema
     checks:
       - mongo_query:
           database: ""
@@ -115,12 +99,12 @@ tasks:
         assert_field: 0.options.validator.$jsonSchema.properties.status.bsonType
         expected: string
         description: collection metadata exposes the status field
-  - task_id: db-T07-query-records
+  - task_id: db-T06-query-records
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T07-query-records:query-records
+    support_reference: mongodb-atlas:db-T06-query-records:query-records
     checks:
       - mongo_query:
           database: ""
@@ -151,12 +135,12 @@ tasks:
         assert_field: count
         expected: 2
         description: the active set is alpha and gamma
-  - task_id: db-T08-vector-search
+  - task_id: db-T07-vector-search
     na: false
     na_surfaces:
       - cli
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T08-vector-search:vector-search
+    support_reference: mongodb-atlas:db-T07-vector-search:vector-search
     checks:
       - mongo_query:
           database: ""
@@ -178,12 +162,12 @@ tasks:
         assert_field: 0.label
         expected: alpha_{ns}
         description: Atlas vector search ranks alpha first
-  - task_id: db-T09-write-records
+  - task_id: db-T08-write-records
     na: true
     na_reason: unsupported for this vendor in support matrix
     na_surfaces: []
     na_surfaces_reason: unsupported for these surfaces in support matrix
-    support_reference: mongodb-atlas:db-T09-write-records:write-records
+    support_reference: mongodb-atlas:db-T08-write-records:write-records
     checks:
       - mongo_query:
           database: ""
@@ -212,6 +196,22 @@ tasks:
         assert_field: count
         expected: 0
         description: throwaway record was deleted
+  - task_id: db-T09-data-integrity-and-transactions
+    na: true
+    na_reason: unsupported for this vendor in support matrix
+    na_surfaces: []
+    na_surfaces_reason: unsupported for these surfaces in support matrix
+    support_reference: mongodb-atlas:db-T09-data-integrity-and-transactions:data-integrity-and-transactions
+    checks:
+      - mongo_query:
+          database: ""
+          collection: axarena_integrity_{ns}
+          operation: count
+          filter:
+            external_id: primary_{ns}
+        assert_field: count
+        expected: 1
+        description: exactly one committed document has the protected logical key
   - task_id: db-T10-full-text-search
     na: false
     na_surfaces:

@@ -39,6 +39,9 @@ applicability. Coverage decisions retain every ranked candidate capability and
 the capability bundle chosen to satisfy task requirements. The support matrix
 enables a vendor/task/surface cell only when every requirement is evidenced on
 that same surface; concept coverage alone is insufficient.
+Every synthesis resets the trace-review memo to `pending`. Human freeze requires
+a completed fixed sample tied to reviewer, timestamp, commit SHA, sample IDs,
+and findings; `audit-suite` treats an incomplete memo as a blocking error.
 
 The boundary with the AXArena website is an explicit export step:
 `export-publication` reads a frozen publication bundle and writes website-ready

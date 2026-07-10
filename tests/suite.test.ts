@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
 
@@ -24,6 +24,19 @@ describe("canonical task suite", () => {
       expect(task.allowed_surfaces).not.toContain("mcp");
       expect(task.intent.length).toBeGreaterThan(20);
       expect(task.oracle_hint.length).toBeGreaterThan(10);
+    }
+  });
+
+  it("labels active suite sibling artifacts as DAEB-1 rather than SUITE", () => {
+    for (const suffix of [
+      "selection-ledger.yaml",
+      "support-matrix.yaml",
+      "grader-ledger.yaml",
+      "failure-taxonomy.yaml",
+      "trace-review.yaml",
+    ]) {
+      expect(readFileSync(resolve(ROOT, "benchmarks", "daeb", "v1", `suite.${suffix}`), "utf8"))
+        .toMatch(/^benchmark: DAEB-1$/m);
     }
   });
 

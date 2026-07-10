@@ -137,6 +137,9 @@ the shared task bank; each coverage decision also retains ranked capability
 candidates, the selected capability bundle, and concrete task-fit requirements.
 Only surfaces where the full task-fit bundle is documented enter the support
 matrix denominator. Broad concept membership alone never enables a run cell.
+Suite freeze additionally requires `suite.trace-review.yaml` to record a
+completed fixed-sample review (sample IDs, reviewer, timestamp, commit SHA, and
+findings); regeneration resets that checkpoint to `pending`.
 
 For DAEB-1/database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex and Claude Code only, one

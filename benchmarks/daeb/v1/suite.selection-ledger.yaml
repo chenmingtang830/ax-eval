@@ -1,7 +1,7 @@
 schema: ax.selection-ledger/v1
-benchmark: SUITE
+benchmark: DAEB-1
 category: database
-generated_at: 2026-07-09T23:40:49.481Z
+generated_at: 2026-07-10T00:07:32.076Z
 methodology:
   schema: ax.suite-methodology/v1
   ontology:
@@ -107,22 +107,6 @@ entries:
     selected_by_model: true
     selected: true
     rationale: Deterministic proposal from concept universe and coverage closure.
-  - concept_name: data-integrity-and-transactions
-    title: Data Integrity And Transactions
-    proposed_difficulty: L4
-    coverage_pct: 1
-    covered_vendors:
-      - Cockroachdb
-      - Convex
-      - Insforge
-      - Mongodb Atlas
-      - Neon
-      - Supabase
-      - Turso
-    verifiable: true
-    selected_by_model: true
-    selected: true
-    rationale: Deterministic proposal from concept universe and coverage closure.
   - concept_name: evolve-schema
     title: Evolve Schema
     proposed_difficulty: L3
@@ -197,6 +181,21 @@ entries:
       - Insforge
       - Mongodb Atlas
       - Neon
+      - Supabase
+      - Turso
+    verifiable: true
+    selected_by_model: true
+    selected: true
+    rationale: Deterministic proposal from concept universe and coverage closure.
+  - concept_name: data-integrity-and-transactions
+    title: Data Integrity And Transactions
+    proposed_difficulty: L4
+    coverage_pct: 0.8571428571428571
+    covered_vendors:
+      - Cockroachdb
+      - Convex
+      - Insforge
+      - Mongodb Atlas
       - Supabase
       - Turso
     verifiable: true

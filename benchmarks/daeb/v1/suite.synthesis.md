@@ -76,25 +76,7 @@ Difficulty: L4 · Skill: change-data-capture
 | Supabase | change-data-capture |
 | Turso | change-data-capture |
 
-### db-T04-data-integrity-and-transactions — T04: Enforce one integrity or atomicity rule
-
-Difficulty: L4 · Skill: data-integrity-and-transactions
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (7 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | integrity-constraints |
-| Convex | transactional-writes |
-| Insforge | column-level-constraints |
-| Mongodb Atlas | schema-validation |
-| Neon | baseline-sql-table-and-row-operations |
-| Supabase | primary-key-constraint |
-| Turso | upsert-conflict-resolution |
-
-### db-T05-evolve-schema — T05: Apply a schema evolution
+### db-T04-evolve-schema — T04: Apply a schema evolution
 
 Difficulty: L3 · Skill: evolve-schema
 
@@ -112,7 +94,7 @@ Difficulty: L3 · Skill: evolve-schema
 | Supabase | schema-migration |
 | Turso | schema-alteration |
 
-### db-T06-inspect-schema — T06: Inspect container metadata
+### db-T05-inspect-schema — T05: Inspect container metadata
 
 Difficulty: L1 · Skill: inspect-schema
 
@@ -130,7 +112,7 @@ Difficulty: L1 · Skill: inspect-schema
 | Supabase | schema-introspection |
 | Turso | schema-introspection |
 
-### db-T07-query-records — T07: Filter and read matching records
+### db-T06-query-records — T06: Filter and read matching records
 
 Difficulty: L2 · Skill: query-records
 
@@ -148,7 +130,7 @@ Difficulty: L2 · Skill: query-records
 | Supabase | filtered-query |
 | Turso | filtered-query |
 
-### db-T08-vector-search — T08: Create a vector-enabled dataset and query it
+### db-T07-vector-search — T07: Create a vector-enabled dataset and query it
 
 Difficulty: L2 · Skill: vector-search
 
@@ -166,7 +148,7 @@ Difficulty: L2 · Skill: vector-search
 | Supabase | vector-similarity-search |
 | Turso | vector-similarity-search |
 
-### db-T09-write-records — T09: Create, update, and delete one record lifecycle
+### db-T08-write-records — T08: Create, update, and delete one record lifecycle
 
 Difficulty: L2 · Skill: write-records
 
@@ -188,6 +170,23 @@ Difficulty: L2 · Skill: write-records
 | Turso | row-update |
 | Turso | row-delete |
 
+### db-T09-data-integrity-and-transactions — T09: Enforce one integrity or atomicity rule
+
+Difficulty: L4 · Skill: data-integrity-and-transactions
+
+**Why selected**: Deterministic proposal from concept universe and coverage closure.
+
+**Coverage** (6 vendor capabilities clustered into this task):
+
+| Vendor | Capability |
+|---|---|
+| Cockroachdb | row-upsert |
+| Convex | transactional-writes |
+| Insforge | column-level-constraints |
+| Mongodb Atlas | schema-validation |
+| Supabase | primary-key-constraint |
+| Turso | upsert-conflict-resolution |
+
 ### db-T10-full-text-search — T10: Create a searchable text dataset and query it
 
 Difficulty: L2 · Skill: full-text-search
@@ -201,6 +200,6 @@ Difficulty: L2 · Skill: full-text-search
 | Cockroachdb | full-text-search |
 | Convex | full-text-search |
 | Mongodb Atlas | full-text-search |
-| Neon | full-text-search-bm25 |
+| Neon | full-text-search-tsvector |
 | Supabase | full-text-search |
 | Turso | full-text-search |
