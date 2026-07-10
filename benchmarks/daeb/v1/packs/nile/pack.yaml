@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-gu93yl
+# run_id: 2026-07-10-a45mhb
 name: nile
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-gu93yl
+run_id: 2026-07-10-a45mhb
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -75,6 +75,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 1
@@ -110,6 +118,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -134,6 +150,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 2
@@ -164,6 +188,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 2
@@ -197,6 +229,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 3
@@ -241,6 +281,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: alpha_{ns}
@@ -279,6 +327,14 @@ tasks:
       `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
       `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
       fix only this run-scoped table before reporting the gid.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 1
@@ -303,7 +359,6 @@ tasks:
           label = 'delete_me_{ns}'
     difficulty: L2
     allowed_surfaces:
-      - api
       - cli
     na: false
     depends_on: []
@@ -327,6 +382,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -351,6 +414,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: na
         description: unsupported for this vendor in support matrix
@@ -375,6 +446,14 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands
+      and set the target database explicitly with `NILE_WORKSPACE` plus
+      `NILE_DB` (or the equivalent `--workspace` and `--db` flags). Before
+      executing SQL, confirm the database name in `NILE_DATABASE_URL` matches
+      `NILE_DB`; use that PostgreSQL connection only for the declared disposable
+      sandbox database. Never print the API key or connection string.
     oracles:
       - type: roundtrip
         expected: 1

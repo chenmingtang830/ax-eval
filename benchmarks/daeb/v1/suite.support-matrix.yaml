@@ -1,7 +1,7 @@
 schema: ax.support-matrix/v1
 benchmark: DAEB-1
 category: database
-generated_at: 2026-07-10T04:12:35.982Z
+generated_at: 2026-07-10T04:15:33.895Z
 entries:
   - vendor: Cockroachdb
     task_id: db-T01-access-control
@@ -424,8 +424,10 @@ entries:
   - vendor: Nile
     task_id: db-T07-write-records
     surface: api
-    status: supported
+    status: unsupported
     source_concept: write-records
+    reason: Nile record lifecycle evidence is SQL/CLI data-plane DML; tenant
+      control-plane APIs do not establish generic table row CRUD for DAEB.
   - vendor: Nile
     task_id: db-T07-write-records
     surface: cli

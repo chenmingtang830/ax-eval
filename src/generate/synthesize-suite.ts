@@ -719,6 +719,12 @@ function databaseTaskSupportOverride(
   surface: "api" | "sdk" | "cli",
 ): { status: "unsupported"; reason: string } | null {
   if (category !== "database") return null;
+  if (vendor === "Nile" && task.skill === "write-records" && surface === "api") {
+    return {
+      status: "unsupported",
+      reason: "Nile record lifecycle evidence is SQL/CLI data-plane DML; tenant control-plane APIs do not establish generic table row CRUD for DAEB.",
+    };
+  }
   if (vendor === "MongoDB Atlas" && task.skill === "server-side-execution" && decision.capability_name === "server-side-javascript-function") {
     return {
       status: "unsupported",
@@ -787,6 +793,18 @@ const INSFORGE_SDK_UNSUPPORTED = new Set([
   "full-text-search",
   "inspect-schema",
 ]);
+const NILE_SDK_UNSUPPORTED = new Set([
+  "access-control",
+  "backup-and-restore",
+  "change-data-capture",
+  "data-integrity-and-transactions",
+  "evolve-schema",
+  "inspect-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "full-text-search",
+]);
 
 function databaseSdkUnsupportedReason(vendor: string, skill: string): string | null {
   if (vendor === "Supabase" && SUPABASE_SDK_UNSUPPORTED.has(skill)) {
@@ -806,6 +824,9 @@ function databaseSdkUnsupportedReason(vendor: string, skill: string): string | n
   }
   if (vendor === "Insforge" && INSFORGE_SDK_UNSUPPORTED.has(skill)) {
     return "Insforge has no benchmark-declared official SDK/client-library path for completing this DAEB task; API support is not inherited by SDK.";
+  }
+  if (vendor === "Nile" && NILE_SDK_UNSUPPORTED.has(skill)) {
+    return "Nile's SDK path is not benchmark-declared for DAEB v1; only documented API/CLI task-fit evidence enters the denominator.";
   }
   return null;
 }

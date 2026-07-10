@@ -122,6 +122,14 @@ const NEON_CLI_ROLE_CONTRACT_NOTE = [
   "argument. Never print the connection string or token values.",
 ].join(" ");
 
+const NILE_CLI_CONTRACT_NOTE = [
+  "Nile CLI contract: use `NILE_API_KEY` for headless control-plane commands and set the target",
+  "database explicitly with `NILE_WORKSPACE` plus `NILE_DB` (or the equivalent `--workspace` and",
+  "`--db` flags). Before executing SQL, confirm the database name in `NILE_DATABASE_URL` matches",
+  "`NILE_DB`; use that PostgreSQL connection only for the declared disposable sandbox database.",
+  "Never print the API key or connection string.",
+].join(" ");
+
 const MONGODB_ATLAS_TASK_CONTRACTS: Record<string, string> = {
   "vector-search": [
     "MongoDB Atlas vector-search contract: when creating Atlas Search/vector indexes through the Node",
@@ -151,6 +159,7 @@ export function applyDatabasePackPromptOverride(
     if (task.skill === "write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
   if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_CLI_ROLE_CONTRACT_NOTE}`;
+  if (vendor.slug === "nile" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NILE_CLI_CONTRACT_NOTE}`;
   if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
   if (vendor.slug === "mongodb-atlas" && task.id.startsWith("db-")) {
     const contract = MONGODB_ATLAS_TASK_CONTRACTS[task.skill];

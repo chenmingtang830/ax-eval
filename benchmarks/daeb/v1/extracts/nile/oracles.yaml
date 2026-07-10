@@ -2,7 +2,7 @@ vendor: Nile
 category: database
 slug: nile
 suite_name: DAEB-1
-extracted_at: 2026-07-10T04:12:36.746Z
+extracted_at: 2026-07-10T04:15:34.575Z
 vendor_config:
   base_url: https://global.thenile.dev
   auth_type: bearer
@@ -110,7 +110,9 @@ tasks:
         description: nearest vector search ranks alpha first
   - task_id: db-T07-write-records
     na: false
-    na_surfaces: []
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: nile:db-T07-write-records:write-records
     checks:
       - sql_dialect: postgres
