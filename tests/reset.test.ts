@@ -13,6 +13,7 @@ const pgMock = vi.hoisted(() => ({
   functionRows: [] as Array<{ proname: string; identity_arguments: string }>,
   executed: [] as string[],
   rejectCascade: false,
+  rejectFunctionCascade: false,
 }));
 
 vi.mock("mongodb", () => ({
@@ -55,6 +56,9 @@ vi.mock("pg", () => ({
       pgMock.executed.push(sql);
       if (pgMock.rejectCascade && sql.includes("DROP TABLE") && sql.includes("CASCADE")) {
         throw new Error("DROP CASCADE is not supported");
+      }
+      if (pgMock.rejectFunctionCascade && sql.includes("DROP FUNCTION") && sql.includes("CASCADE")) {
+        throw new Error("unimplemented: drop function cascade not supported");
       }
       return { rows: [] };
     }
@@ -117,6 +121,7 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     pgMock.functionRows = [];
     pgMock.executed = [];
   pgMock.rejectCascade = false;
+  pgMock.rejectFunctionCascade = false;
   });
 
   it("deletes only AX-probe resources in the named namespace", async () => {
@@ -268,6 +273,22 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     expect(pgMock.executed).toEqual([
       'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep" CASCADE',
       'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep"',
+    ]);
+  });
+
+  it("retries function reset without CASCADE when the database rejects it", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.functionRows = [{ proname: "axarena_echo_ns-keep", identity_arguments: "" }];
+    pgMock.rejectFunctionCascade = true;
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("cockroachdb"), client, {}, { ns: "ns-keep" });
+
+    expect(res.errors).toEqual([]);
+    expect(res.deleted).toEqual(["public.axarena_echo_ns-keep()"]);
+    expect(pgMock.executed).toEqual([
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"() CASCADE',
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"()',
     ]);
   });
 

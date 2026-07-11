@@ -253,7 +253,18 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
         await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments}) CASCADE`);
         deleted.push(id);
       } catch (err) {
-        errors.push(`drop function ${id}: ${err instanceof Error ? err.message : String(err)}`);
+        const message = err instanceof Error ? err.message : String(err);
+        if (/drop function cascade is not supported|drop function.*cascade.*not supported/i.test(message)) {
+          try {
+            await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments})`);
+            deleted.push(id);
+            continue;
+          } catch (fallbackErr) {
+            errors.push(`drop function ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+            continue;
+          }
+        }
+        errors.push(`drop function ${id}: ${message}`);
       }
     }
   } finally {
