@@ -2,7 +2,7 @@ vendor: Neon
 category: database
 slug: neon
 suite_name: DAEB-1
-extracted_at: 2026-07-10T23:48:01.479Z
+extracted_at: 2026-07-11T09:00:06.090Z
 vendor_config:
   base_url: https://console.neon.tech/api/v2
   auth_type: bearer
@@ -29,6 +29,13 @@ tasks:
         assert_field: 0.count
         expected: 1
         description: one allowed record exists under the protected container
+      - sql_dialect: postgres
+        sql_query: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+        assert_field: code
+        assert_outcome: error
+        expected: "42501"
+        sql_conn_field: denied_connection_string
+        description: independent denied identity is rejected from the protected container
   - task_id: db-T02-backup-and-restore
     na: false
     na_surfaces: []

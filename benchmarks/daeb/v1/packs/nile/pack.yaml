@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-f074q5
+# run_id: 2026-07-11-mg8nrg
 name: nile
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-f074q5
+run_id: 2026-07-11-mg8nrg
 generated_by: suite-composed
 generator:
   harness: claude-code

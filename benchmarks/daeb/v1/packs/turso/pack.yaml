@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-uvt0r2
+# run_id: 2026-07-11-8ww1n2
 name: turso
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-uvt0r2
+run_id: 2026-07-11-8ww1n2
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -30,7 +30,8 @@ surfaces:
     auth:
       kind: token
       token_env: TURSO_API_TOKEN
-      token_env_aliases: []
+      token_env_aliases:
+        - TURSO_ORG_API_TOKEN
       instructions: Mint a platform API token with `turso auth api-tokens mint
         <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
         unavailable, use `turso auth login --headless` to complete auth via a
@@ -90,6 +91,23 @@ tasks:
               stmt:
                 sql: SELECT COUNT(*) FROM "axarena_acl_{ns}"
         assertField: results.0.response.result.rows.0.0.value
+      - type: roundtrip
+        expected: permission_denied
+        description: independent denied Turso database token is rejected from the
+          protected table
+        readMethod: POST
+        readPathTemplate: /v2/pipeline
+        readBodyTemplate:
+          requests:
+            - type: execute
+              stmt:
+                sql: SELECT COUNT(*) FROM "axarena_acl_{ns}"
+        assertField: code
+        assertOutcome: error
+        expectedHttpStatuses:
+          - 401
+          - 403
+        authField: denied_database_auth_token
     difficulty: L2
     allowed_surfaces:
       - api

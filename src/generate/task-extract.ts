@@ -76,6 +76,8 @@ const OracleCheckSchema = z
     // A single dotted key path into the JSON response / result row, e.g.
     // "count", "0.email", "documents.0.total". NOT a sentence.
     assert_field: z.string().min(1),
+    assert_outcome: z.enum(["value", "error"]).nullish().transform((v) => v ?? undefined),
+    expected_http_statuses: z.array(z.number().int()).nullish().transform((v) => v ?? undefined),
     // The literal value assert_field must equal. May contain "{ns}".
     expected: z.union([z.string(), z.number(), z.boolean()]),
     // For identity-scoped (e.g. RLS) checks: the name of a token the agent
@@ -152,6 +154,8 @@ const CHECK_FORMAT_RULES = [
   `Each check is one machine-checkable assertion.`,
   `- assert_field: short dotted key path into JSON or the SQL result row, e.g. "length", "0.email", "count".`,
   `- expected: literal string, number, or boolean.`,
+    `- assert_outcome: "error" only when this check must receive a deterministic SQL/API error; assert_field normally becomes "code".`,
+    `- expected_http_statuses: accepted HTTP status codes for an assert_outcome error check.`,
   `- description: short reviewer label.`,
   `- auth_field: only for identity-scoped checks where the agent must report a per-user token.`,
     `- probe_sql_query: optional namespace-scoped verifier SQL probe before the read check; use only for a deterministic conflict/deny assertion.`,
@@ -339,6 +343,17 @@ function tursoSqlCheck(sql: string, assert_field: string, expected: string | num
   });
 }
 
+function tursoPipelineProbeBody(sql: string): object {
+  return {
+    requests: [
+      {
+        type: "execute",
+        stmt: { sql },
+      },
+    ],
+  };
+}
+
 function mongoCheck(
   collection: string,
   operation: "count" | "findOne" | "aggregate" | "listCollections",
@@ -410,6 +425,15 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
           1,
           "one allowed record exists under the protected container",
         ),
+        OracleCheckSchema.parse({
+          sql_dialect: "postgres",
+          sql_query: "SELECT COUNT(*)::int AS count FROM \"axarena_acl_{ns}\"",
+          sql_conn_field: "denied_connection_string",
+          assert_outcome: "error",
+          assert_field: "code",
+          expected: "42501",
+          description: "independent denied identity is rejected from the protected container",
+        }),
       ]);
     case "backup-and-restore":
       return item([pgCheck(
@@ -558,6 +582,17 @@ function tursoSeededTask(task: SuiteTask): OracleExtractItem | null {
           "1",
           "one allowed record exists under the protected table",
         ),
+        OracleCheckSchema.parse({
+          read_method: "POST",
+          read_path_template: "/v2/pipeline",
+          read_body_template: tursoPipelineProbeBody("SELECT COUNT(*) FROM \"axarena_acl_{ns}\""),
+          auth_field: "denied_database_auth_token",
+          assert_outcome: "error",
+          expected_http_statuses: [401, 403],
+          assert_field: "code",
+          expected: "permission_denied",
+          description: "independent denied Turso database token is rejected from the protected table",
+        }),
       ]);
     case "backup-and-restore":
       return item([

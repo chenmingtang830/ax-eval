@@ -170,6 +170,8 @@ export function composePack(
                 readBodyTemplate: check.read_body_template,
               }),
         assertField: check.assert_field,
+        assertOutcome: check.assert_outcome,
+        expectedHttpStatuses: check.expected_http_statuses,
         expected:
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
         authField: check.auth_field,

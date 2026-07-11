@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-10-ycajvp
+# run_id: 2026-07-11-7x56lo
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-10-ycajvp
+run_id: 2026-07-11-7x56lo
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -105,6 +105,14 @@ tasks:
         assertField: 0.count
         sqlDialect: postgres
         sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+      - type: roundtrip
+        expected: "42501"
+        description: independent denied identity is rejected from the protected container
+        assertField: code
+        assertOutcome: error
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+        sqlConnField: denied_connection_string
     difficulty: L2
     allowed_surfaces:
       - cli

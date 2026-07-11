@@ -20,7 +20,8 @@ cli:
   auth:
     kind: token
     token_env: TURSO_API_TOKEN
-    token_env_aliases: []
+    token_env_aliases:
+      - TURSO_ORG_API_TOKEN
     instructions: Mint a platform API token with `turso auth api-tokens mint
       <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
       unavailable, use `turso auth login --headless` to complete auth via a

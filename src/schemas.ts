@@ -43,6 +43,10 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** `value` is the default read-back assertion. `error` requires the SQL or
+   * HTTP operation itself to fail with the expected error field/code. */
+  assertOutcome: z.enum(["value", "error"]).optional(),
+  expectedHttpStatuses: z.array(z.number().int()).optional(),
   /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
    *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
    *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
