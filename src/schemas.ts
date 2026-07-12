@@ -43,12 +43,24 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** `value` is the default read-back assertion. `error` requires the SQL or
+   * HTTP operation itself to fail with the expected error field/code. */
+  assertOutcome: z.enum(["value", "error"]).optional(),
+  expectedHttpStatuses: z.array(z.number().int()).optional(),
   /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
    *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
    *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
    *  the dotted `assertField` against the first result row. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
+  /** Optional verifier-issued SQL mutation/read before the main round-trip
+   * assertion. Must be namespace-scoped; used for conflict/deny probes. */
+  probeSqlQuery: z.string().optional(),
+  probeAssertField: z.string().optional(),
+  probeExpected: z.unknown().optional(),
+  probeExpectedAny: z.array(z.unknown()).optional(),
+  /** Require probe execution to return an error object rather than rows. */
+  probeExpectError: z.boolean().optional(),
   /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
    *  runs a small declarative read operation against a collection. */
   mongoQuery: z.object({
@@ -75,6 +87,12 @@ export const OracleSpecSchema = z.object({
    *  The executor already has this connection string in hand (it's what
    *  it just used to do the work); this only asks it to also report it. */
   sqlConnField: z.string().optional(),
+  /** Identity-scoped SQL verifier role reported by the executor. The verifier
+   * switches to it on the pack's admin connection before executing the check. */
+  sqlRoleField: z.string().optional(),
+  /** Deterministic SQL role name template. `{ns}` is rendered as a
+   * SQL-identifier-safe namespace before the verifier issues SET ROLE. */
+  sqlRoleTemplate: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 

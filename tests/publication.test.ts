@@ -25,11 +25,11 @@ describe("publication bundle", () => {
   // assertions require the full regenerated methodology artifact bundle (methodology,
   // coverage-matrix, grader-ledger, failure-taxonomy, selection-ledger, support-matrix,
   // trace-review, …) which is renamed/regenerated in Phase 3-4. Re-enable them there.
-  it.skip("treats low coverage as publication-critical and high coverage as optional", () => {
+  it.skip("treats medium coverage as publication-critical", () => {
     const runDir = freshDir("ax-pub-run-");
     const outDir = freshDir("ax-pub-out-");
     const vendorDir = resolve(runDir, "supabase");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     mkdirSync(vendorDir, { recursive: true });
 
@@ -44,8 +44,8 @@ describe("publication bundle", () => {
       attempts: 1,
       discovery_score: 0.75,
       content_quality: 0.8,
-      profiles: ["low"],
-      best_profile: "low",
+      profiles: ["medium"],
+      best_profile: "medium",
       model: "test-model",
       latency_ms: 1234,
       tool_call_count: 5,
@@ -97,18 +97,16 @@ describe("publication bundle", () => {
     expect(manifest.publication_readiness).toBe("publication_ready");
     expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
     expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-    expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
-    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["low"]);
+    expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
+    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["medium"]);
     expect(manifest.quality_gates.find((gate) => gate.id === "matrix-completeness")?.status).toBe("pass");
-    expect(manifest.quality_gates.find((gate) => gate.id === "optional-profile-coverage")?.status).toBe("warn");
-    expect(manifest.notes.some((note) => note.includes("missing optional coverage does not block"))).toBe(true);
   });
 
   it.skip("can freeze a production bundle from aggregate-only medium records", () => {
     const runDir = freshDir("ax-pub-prod-run-");
     const outDir = freshDir("ax-pub-prod-out-");
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     mkdirSync(aggregateDir, { recursive: true });
 
@@ -251,7 +249,7 @@ describe("publication bundle", () => {
   it.skip("ignores harness home directories when collecting publication artifacts", () => {
     const runDir = freshDir("ax-pub-ignore-home-run-");
     const outDir = freshDir("ax-pub-ignore-home-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
     const hiddenDir = resolve(runDir, "supabase", "api", "codex", "trial-1", ".invoke-home", "run-codex-medium-api");
@@ -350,7 +348,7 @@ describe("publication bundle", () => {
     const runDir = freshDir("ax-pub-export-run-");
     const bundleDir = freshDir("ax-pub-export-bundle-");
     const outDir = freshDir("ax-pub-export-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
+    const suitePath = "benchmarks/daeb/v1/suite.yaml";
     const suite = loadSuite(resolve(ROOT, suitePath));
     const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
     const trialDir = resolve(runDir, "supabase", "api", "codex", "trial-1");

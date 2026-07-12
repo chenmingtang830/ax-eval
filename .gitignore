@@ -24,6 +24,10 @@ runs/
 # Public-facing content lives in README.md. Images the README embeds live in assets/.
 docs/
 
+# Local DAEB authoring archives (pre-resynth packs/oracles, hygiene moves).
+# Keep on disk for rollback; do not publish in PRs.
+benchmarks/daeb/_archive/
+
 # Maintainer scratch — live repro scripts (Asana/Monday); not part of the public
 # skill. Kept on disk locally; the product surface is the `ax-eval` CLI.
 scripts/
@@ -35,9 +39,11 @@ supabase-sdk-run.*
 *.tgz
 
 # Local vendor CLI/project state from live benchmark debugging.
+# Anchor to repo root so vendor slugs like benchmarks/daeb/v1/extracts/supabase/
+# and benchmarks/daeb/v1/packs/ are not swallowed by bare directory rules.
 .supabase/
-supabase/
-packs/
+/supabase/
+/packs/
 axarena-site/
 
 # OS / editor

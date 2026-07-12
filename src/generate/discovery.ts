@@ -175,8 +175,10 @@ export async function scoreDiscovery(
     canonicalPassed = !!opName && usedRaw.includes(opName);
     canonicalDetail = `used=${result.endpoint_used || "(none)"} canonical-op=${opName || "(none)"} (graphql: matched by mutation name; single endpoint)`;
   } else {
-    canonicalPassed = !!used && used === canonical;
-    canonicalDetail = `used=${used || "(none)"} canonical=${canonical}`;
+    canonicalPassed = !!used && (used === canonical || (!!canonical && used.startsWith(`${canonical}/`)));
+    canonicalDetail = `used=${used || "(none)"} canonical=${canonical}${
+      canonicalPassed && used !== canonical ? " (prefix match)" : ""
+    }`;
   }
   metrics.push({ id: "canonical", passed: canonicalPassed, detail: canonicalDetail });
 

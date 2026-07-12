@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { writeFileSync, mkdtempSync } from "node:fs";
+import { writeFileSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DAEB1 = resolve(ROOT, "targets", "suites", "daeb-1.yaml");
+const DAEB1 = resolve(ROOT, "benchmarks", "daeb", "v1", "suite.yaml");
 
 describe("canonical task suite", () => {
   it("loads and validates the shipped DAEB-1 suite", () => {
@@ -14,7 +14,7 @@ describe("canonical task suite", () => {
     expect(suite.name).toBe("DAEB-1");
     expect(suite.version).toBe(1);
     expect(suite.category).toBe("database");
-    expect(suite.tasks).toHaveLength(10);
+    expect(suite.tasks).toHaveLength(7);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);
     for (const task of suite.tasks) {
       expect(task.id).toMatch(/^db-T\d{2}-/);
@@ -25,6 +25,32 @@ describe("canonical task suite", () => {
       expect(task.intent.length).toBeGreaterThan(20);
       expect(task.oracle_hint.length).toBeGreaterThan(10);
     }
+  });
+
+  it("labels active suite sibling artifacts as DAEB-1 rather than SUITE", () => {
+    for (const suffix of [
+      "selection-ledger.yaml",
+      "support-matrix.yaml",
+      "grader-ledger.yaml",
+      "failure-taxonomy.yaml",
+      "trace-review.yaml",
+    ]) {
+      expect(readFileSync(resolve(ROOT, "benchmarks", "daeb", "v1", `suite.${suffix}`), "utf8"))
+        .toMatch(/^benchmark: DAEB-1$/m);
+    }
+  });
+
+  it("publishes a human-readable support matrix summary", () => {
+    const summary = readFileSync(
+      resolve(ROOT, "benchmarks", "daeb", "v1", "suite.support-summary.md"),
+      "utf8",
+    );
+    expect(summary).toContain("# DAEB-1 — Support Summary");
+    expect(summary).toContain("Cockroachdb API / CLI");
+    expect(summary).toContain("db-T01-access-control");
+    expect(summary).toContain("Unsupported / inconclusive cell reasons");
+    expect(summary).toContain("Broad / task-fit vendors");
+    expect(summary).toContain("Research tasks (excluded from core scoring)");
   });
 
   it("rejects a malformed suite", () => {
@@ -56,9 +82,11 @@ describe("canonical task suite", () => {
 
   it("validation catches missing, extra, and divergent tasks", () => {
     const suite = loadSuite(DAEB1);
+    const first = suite.tasks[0]!;
+    const altDifficulty = (["L1", "L2", "L3", "L4"] as const).find((d) => d !== first.difficulty) ?? "L4";
     const broken = [
       // first task with wrong difficulty
-      { ...suite.tasks[0]!, difficulty: "L4" as const },
+      { id: first.id, title: first.title, difficulty: altDifficulty },
       // extra task not in the suite
       { id: "db-T99-bogus", title: "bogus", difficulty: "L1" as const },
       // all other tasks except the last one (so the last is missing)

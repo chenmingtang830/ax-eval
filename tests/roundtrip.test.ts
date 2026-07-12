@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
-import { resolveDotted } from "../src/http/client.js";
+import { HttpApiError, resolveDotted } from "../src/http/client.js";
 import type { TargetPack } from "../src/schemas.js";
 import { profileSatisfies, getProfile } from "../src/harness/profile.js";
 
@@ -69,6 +69,29 @@ describe("round-trip verification", () => {
     const exec: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "9" } } };
     const out = await verifyGeneratedPack(pack, exec, fakeClient({ "9": { name: "WRONG" } }));
     expect(out[0]!.success).toBe(false);
+  });
+
+  it("accepts an expected HTTP denial for an error-outcome oracle", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [401, 403],
+        }],
+      }],
+    };
+    const deniedClient = {
+      async get() {
+        throw new HttpApiError("forbidden", 403, { code: "permission_denied" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const exec: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "1" } } };
+    const out = await verifyGeneratedPack(deniedPack, exec, deniedClient);
+    expect(out[0]!.success).toBe(true);
+    expect(out[0]!.oracleResults[0]!.detail).toContain("HTTP 403");
   });
 
   it("verifies only the tasks that apply to the selected surface", async () => {

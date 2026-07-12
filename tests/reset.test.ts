@@ -12,6 +12,8 @@ const pgMock = vi.hoisted(() => ({
   tableRows: [] as Array<{ table_name: string }>,
   functionRows: [] as Array<{ proname: string; identity_arguments: string }>,
   executed: [] as string[],
+  rejectCascade: false,
+  rejectFunctionCascade: false,
 }));
 
 vi.mock("mongodb", () => ({
@@ -52,6 +54,12 @@ vi.mock("pg", () => ({
       if (sql.includes("information_schema.tables")) return { rows: pgMock.tableRows };
       if (sql.includes("pg_proc")) return { rows: pgMock.functionRows };
       pgMock.executed.push(sql);
+      if (pgMock.rejectCascade && sql.includes("DROP TABLE") && sql.includes("CASCADE")) {
+        throw new Error("DROP CASCADE is not supported");
+      }
+      if (pgMock.rejectFunctionCascade && sql.includes("DROP FUNCTION") && sql.includes("CASCADE")) {
+        throw new Error("unimplemented: drop function cascade not supported");
+      }
       return { rows: [] };
     }
   },
@@ -75,6 +83,15 @@ function makePostgresPack(name = "neon"): TargetPack {
     name,
     base_url: "https://api.test",
     sql_conn: { dialect: "postgres", connection_string_env: "POSTGRES_TEST_URL" },
+    tasks: [],
+  });
+}
+
+function makeTursoPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "turso",
+    base_url: "https://example.turso.io",
+    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
     tasks: [],
   });
 }
@@ -103,6 +120,8 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     pgMock.tableRows = [];
     pgMock.functionRows = [];
     pgMock.executed = [];
+  pgMock.rejectCascade = false;
+  pgMock.rejectFunctionCascade = false;
   });
 
   it("deletes only AX-probe resources in the named namespace", async () => {
@@ -239,5 +258,57 @@ describe("resetPack (pass@k sandbox teardown)", () => {
       'DROP TABLE IF EXISTS "public"."axarena_acl_ns-keep" CASCADE',
       'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"() CASCADE',
     ]);
+  });
+
+  it("retries table reset without CASCADE when the database rejects it", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.tableRows = [{ table_name: "axarena_smoke_ns-keep" }];
+    pgMock.rejectCascade = true;
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("nile"), client, {}, { ns: "ns-keep" });
+
+    expect(res.errors).toEqual([]);
+    expect(res.deleted).toEqual(["public.axarena_smoke_ns-keep"]);
+    expect(pgMock.executed).toEqual([
+      'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep" CASCADE',
+      'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep"',
+    ]);
+  });
+
+  it("retries function reset without CASCADE when the database rejects it", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.functionRows = [{ proname: "axarena_echo_ns-keep", identity_arguments: "" }];
+    pgMock.rejectFunctionCascade = true;
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("cockroachdb"), client, {}, { ns: "ns-keep" });
+
+    expect(res.errors).toEqual([]);
+    expect(res.deleted).toEqual(["public.axarena_echo_ns-keep()"]);
+    expect(pgMock.executed).toEqual([
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"() CASCADE',
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"()',
+    ]);
+  });
+
+  it("resets namespaced Turso tables through the documented pipeline endpoint", async () => {
+    process.env.TURSO_DATABASE_AUTH_TOKEN = "test-token";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [{ response: { result: { rows: [[{ value: "axarena_smoke_ns-keep" }], [{ value: "axarena_other" }]] } } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makeTursoPack(), client, {}, { ns: "ns-keep" });
+
+    expect(res.supported).toBe(true);
+    expect(res.deleted).toEqual(["axarena_smoke_ns-keep"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const dropBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(dropBody.requests[0].stmt.sql).toBe('DROP TABLE IF EXISTS "axarena_smoke_ns-keep"');
+    vi.unstubAllGlobals();
   });
 });

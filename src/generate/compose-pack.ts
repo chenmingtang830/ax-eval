@@ -19,7 +19,8 @@ import type { OracleExtractResult } from "./task-extract.js";
 import type { SurfaceExtractResult } from "./surface-extract.js";
 import { CANONICAL_SURFACE_SCOPE, type SupportMatrix } from "./methodology.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
-import { applyDatabasePackPromptOverride, databaseSurfaceFallback } from "./database-pack-overrides.js";
+import { applyDatabasePackPromptOverride, databaseSurfaceFallback, databaseDiscoverySpec } from "./database-pack-overrides.js";
+import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export interface ComposePackOptions {
   /** Generation provenance label recorded on the pack. */
@@ -45,6 +46,22 @@ function vendorSandboxScope(vendor: ResolveResult): TargetPack["sandbox_scope"] 
         env: "NEON_BRANCH_ID",
         required: false,
         instructions: "optional existing Neon sandbox branch id connected to NEON_DATABASE_URL; if unset, discover the branch from the project via the Neon API",
+      },
+    ];
+  }
+  if (vendor.slug === "nile") {
+    return [
+      {
+        name: "workspace",
+        env: "NILE_WORKSPACE",
+        required: true,
+        instructions: "existing free-tier Nile workspace; do not create or mutate other workspaces",
+      },
+      {
+        name: "database",
+        env: "NILE_DB",
+        required: true,
+        instructions: "disposable Nile database dedicated to DAEB namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
       },
     ];
   }
@@ -80,8 +97,8 @@ export function composePack(
       throw new Error(`compose-pack: oracle extract for "${vendor.vendor}" is missing task "${suiteTask.id}"`);
     }
     const basePrompt = suiteTask.intent.trim().replace(/\{ns\}/g, NS_PLACEHOLDER);
-    const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt);
     if (o.na) {
+      const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt, []);
       return {
         id: suiteTask.id,
         title: suiteTask.title,
@@ -121,6 +138,7 @@ export function composePack(
       !DISABLED_SURFACES.has(s) &&
       (!supportedFromMatrix || supportedFromMatrix.has(s as typeof CANONICAL_SURFACE_SCOPE[number]))
     );
+    const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt, allowedSurfaces);
     return {
       id: suiteTask.id,
       title: suiteTask.title,
@@ -136,6 +154,12 @@ export function composePack(
               // dialect from pack.sql_conn, set below from vendor_config.
               sqlDialect: check.sql_dialect ?? extract.vendor_config.sql_dialect,
               sqlQuery: check.sql_query.replace(/\{ns\}/g, NS_PLACEHOLDER),
+              probeSqlQuery: check.probe_sql_query?.replace(/\{ns\}/g, NS_PLACEHOLDER),
+              probeAssertField: check.probe_assert_field,
+              probeExpected: typeof check.probe_expected === "string"
+                ? check.probe_expected.replace(/\{ns\}/g, NS_PLACEHOLDER)
+                : check.probe_expected,
+              probeExpectError: check.probe_expect_error,
             }
           : check.mongo_query
             ? {
@@ -147,10 +171,14 @@ export function composePack(
                 readBodyTemplate: check.read_body_template,
               }),
         assertField: check.assert_field,
+        assertOutcome: check.assert_outcome,
+        expectedHttpStatuses: check.expected_http_statuses,
         expected:
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
         authField: check.auth_field,
         sqlConnField: check.sql_conn_field,
+        sqlRoleField: check.sql_role_field,
+        sqlRoleTemplate: check.sql_role_template,
       })),
     };
   });
@@ -205,12 +233,15 @@ export function composePack(
     base_url: extract.vendor_config.base_url,
     headers: {},
     site_url: vendor.site_url ?? "",
+    openapi_url: vendor.openapi_url ?? "",
     docs_urls: vendor.docs_url ? [vendor.docs_url] : [],
     static: {
       site_url: vendor.site_url ?? "",
       docs_urls: vendor.docs_url ? [vendor.docs_url] : [],
+      // Empty checks → default static checklist (v0) when verify-generated audits.
       checks: [],
     },
+    discovery: databaseDiscoverySpec(vendor, extract),
     tasks,
   };
 
@@ -219,9 +250,9 @@ export function composePack(
   return parsed;
 }
 
-/** Path where a composed pack is written. */
-export function composedPackPath(root: string, slug: string, suiteName: string): string {
-  return resolve(root, "targets", "packs", slug, `${suiteName.toLowerCase()}.yaml`);
+/** Path where a composed pack is written (DAEB v1 layout uses pack.yaml). */
+export function composedPackPath(root: string, slug: string, _suiteName: string): string {
+  return daebCompiledPackPath(root, slug);
 }
 
 /** Write a composed pack to disk as YAML. */

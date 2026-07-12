@@ -5,6 +5,8 @@ import { resolve } from "node:path";
 import {
   CapabilityInventorySchema,
   SupportMatrixSchema,
+  TraceReviewMemoSchema,
+  auditCapabilityInventory,
   coverageMatrixPath,
   defaultSuiteMethodology,
   loadSupportMatrix,
@@ -25,15 +27,19 @@ import { composePack } from "../src/generate/compose-pack.js";
 import { applyDatabasePackPromptOverride } from "../src/generate/database-pack-overrides.js";
 import { buildVerificationClientOptions } from "../src/generate/verification-client.js";
 import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
+import { auditSurfaceExtract } from "../src/generate/surface-extract.js";
 import { TargetPackSchema } from "../src/schemas.js";
 import type { Suite } from "../src/generate/suite.js";
 
 describe("suite methodology artifacts", () => {
-  it("defaults canonical suite scope to api/sdk/cli", () => {
-    const methodology = defaultSuiteMethodology("database");
-    expect(methodology.surface_scope).toEqual(["api", "sdk", "cli"]);
-    expect(methodology.static_ax.dimensions).toContain("discoverability");
-    expect(methodology.behavioral.source_of_truth).toMatch(/world state/i);
+  it("defaults database suite scope to api/cli (DAEB v1); other categories keep api/sdk/cli", () => {
+    const database = defaultSuiteMethodology("database");
+    expect(database.surface_scope).toEqual(["api", "cli"]);
+    expect(database.static_ax.dimensions).toContain("discoverability");
+    expect(database.behavioral.source_of_truth).toMatch(/world state/i);
+
+    const generic = defaultSuiteMethodology("crm");
+    expect(generic.surface_scope).toEqual(["api", "sdk", "cli"]);
   });
 
   it("writes capability inventory and support matrix artifacts", () => {
@@ -58,9 +64,9 @@ describe("suite methodology artifacts", () => {
         }],
       }));
       expect(inventoryPath).toContain("capability-inventory.yaml");
-      expect(readdirSync(resolve(dir, "targets", "extracts", "acme"))).toContain("capabilities.yaml");
+      expect(readdirSync(resolve(dir, "benchmarks", "daeb", "v1", "extracts", "acme"))).not.toContain("capabilities.yaml");
 
-      writeSupportMatrix(dir, "targets/suites/demo.yaml", SupportMatrixSchema.parse({
+      writeSupportMatrix(dir, "benchmarks/daeb/v1/suite.yaml", SupportMatrixSchema.parse({
         schema: "ax.support-matrix/v1",
         benchmark: "DEMO",
         category: "database",
@@ -73,7 +79,7 @@ describe("suite methodology artifacts", () => {
           source_concept: "schema-migration",
         }],
       }));
-      expect(loadSupportMatrix(dir, "targets/suites/demo.yaml")?.entries).toHaveLength(1);
+      expect(loadSupportMatrix(dir, "benchmarks/daeb/v1/suite.yaml")?.entries).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -82,7 +88,7 @@ describe("suite methodology artifacts", () => {
   it("loads legacy capabilities.yaml extracts and upgrades them to inventory shape", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-legacy-"));
     try {
-      const extractDir = resolve(dir, "targets", "extracts", "acme");
+      const extractDir = resolve(dir, "benchmarks", "daeb", "v1", "extracts", "acme");
       mkdirSync(extractDir, { recursive: true });
       writeFileSync(resolve(extractDir, "capabilities.yaml"), [
         "vendor: Acme",
@@ -101,12 +107,84 @@ describe("suite methodology artifacts", () => {
       const loaded = loadCapabilityExtract(dir, "acme");
       expect(loaded?.capabilities).toHaveLength(1);
       expect(loaded?.capabilities[0]?.capability_name).toBe("row-level-security");
-      expect(loaded?.capabilities[0]?.family).toBe("access-control");
+      expect(loaded?.capabilities[0]?.family).toBeUndefined();
       expect(loaded?.capabilities[0]?.evidence[0]?.doc_url).toBe("https://docs.example/rls");
       expect(readdirSync(extractDir)).toContain("capability-inventory.yaml");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("audits weak capability evidence before inventory publication", () => {
+    const audited = auditCapabilityInventory(CapabilityInventorySchema.parse({
+      vendor: "MongoDB Atlas",
+      slug: "mongodb-atlas",
+      category: "database",
+      extracted_at: "2026-01-01T02:00:00.000Z",
+      capabilities: [{
+        capability_name: "document-insert",
+        title: "Document insert",
+        description: "Insert documents via the MongoDB driver.",
+        resource_kind: "document",
+        operation_kind: "create",
+        surfaces_documented: ["api", "sdk"],
+        support_type: "native",
+        evidence: [{
+          doc_url: "https://www.mongodb.com/docs/api/doc/atlas-admin-api-v2/",
+          quote: "POST /api/atlas/v2/groups/{groupId}/clusters - Create One Cluster",
+          note: "Cluster provisioning exposes a standard MongoDB connection string; insertOne is available via any MongoDB driver.",
+        }],
+        extraction_provenance: {
+          source: "official-docs",
+          extracted_at: "2026-01-01T00:00:00.000Z",
+          extractor: "llm-capability-inventory-v1",
+        },
+      }, {
+        capability_name: "view-creation",
+        title: "View creation",
+        description: "Create a view.",
+        resource_kind: "view",
+        operation_kind: "create",
+        surfaces_documented: ["sdk", "cli"],
+        support_type: "native",
+        evidence: [{ doc_url: "https://docs.example/llms.txt", quote: "CREATE VIEW - Named queries" }],
+        extraction_provenance: {
+          source: "official-docs",
+          extracted_at: "2026-01-01T02:00:00.000Z",
+          extractor: "llm-capability-inventory-v1",
+        },
+      }],
+    }));
+
+    expect(audited.capabilities[0]?.surfaces_documented).toEqual(["sdk"]);
+    expect(audited.capabilities[0]?.support_type).toBe("idiomatic-pattern");
+    expect(audited.capabilities[0]?.evidence[0]?.strength).toBe("derived_from_connection_surface");
+    expect(audited.capabilities[0]?.extraction_provenance.extracted_at).toBe("2026-01-01T02:00:00.000Z");
+    expect(audited.capabilities[1]?.evidence[0]?.strength).toBe("summary_index");
+    expect(audited.audit_notes.join("\n")).toMatch(/connection-derived data-plane/);
+    expect(audited.audit_notes.join("\n")).toMatch(/summary-index evidence/);
+  });
+
+  it("audits suspicious surface auth before publication", () => {
+    const audited = auditSurfaceExtract({
+      vendor: "Neon",
+      slug: "neon",
+      extracted_at: "2026-01-01T00:00:00.000Z",
+      cli: {
+        bin: "neon",
+        docs_url: "https://neon.com/docs/cli",
+        auth: {
+          kind: "inherit",
+          token_env_aliases: [],
+          instructions: "Point your MCP client at the server URL and approve access in the browser.",
+        },
+      },
+      sdk: null,
+      mcp: null,
+    });
+
+    expect(audited.schema).toBe("ax.surface-extract/v1");
+    expect(audited.audit_notes.join("\n")).toMatch(/copied from another surface/);
   });
 
   it("compose-pack respects support matrix and keeps MCP out of canonical packs", () => {
@@ -184,6 +262,11 @@ describe("suite methodology artifacts", () => {
     expect(pack.tasks[0]?.allowed_surfaces).toEqual(["api", "cli"]);
     expect(pack.tasks[0]?.allowed_surfaces).not.toContain("mcp");
     expect(pack.tasks[0]?.oracles[0]?.readBodyTemplate).toEqual({ id: "{gid}", ns: "{ns}" });
+    expect(pack.discovery?.product).toBe("Acme");
+    expect(pack.discovery?.official_domains.length).toBeGreaterThan(0);
+    expect(pack.discovery?.canonical_endpoint).toBeTruthy();
+    expect(pack.discovery?.goal).toMatch(/cold start|from scratch|NOT given/i);
+    expect(pack.discovery?.goal).not.toContain(pack.discovery!.canonical_endpoint);
   });
 
   it("compose-pack keeps DAEB-style API/CLI suite scope even when support matrix retains SDK research entries", () => {
@@ -281,11 +364,53 @@ describe("suite methodology artifacts", () => {
         na_examples: [],
       },
       "Write one lifecycle.",
+      ["api"],
     );
 
     expect(prompt).toContain("do not call user-session discovery endpoints such as `GET /api/auth/sessions/current`");
     expect(prompt).toContain("use the hosted type name `string` and do not use SQL names like `text`");
     expect(prompt).toContain("make it globally monotonic for the project");
+  });
+
+  it("requires Turso denied_database_auth_token in the access-control prompt", () => {
+    const prompt = applyDatabasePackPromptOverride(
+      { vendor: "Turso", slug: "turso", category: "database", docs_url: "https://docs.turso.tech" },
+      {
+        id: "db-T01-access-control",
+        title: "T01",
+        difficulty: "L2",
+        skill: "access-control",
+        intent: "Configure ACL.",
+        oracle_hint: "Deny probe.",
+        allowed_surfaces: ["api", "cli"],
+        na_examples: [],
+      },
+      "Configure ACL.",
+      ["api", "cli"],
+    );
+    expect(prompt).toContain("denied_database_auth_token");
+    expect(prompt).toContain("/v2/pipeline");
+  });
+
+  it("uses PostgREST contract for Supabase API-only tasks instead of psql", () => {
+    const prompt = applyDatabasePackPromptOverride(
+      { vendor: "Supabase", slug: "supabase", category: "database", docs_url: "https://supabase.com/docs" },
+      {
+        id: "db-T04-query-records",
+        title: "T04",
+        difficulty: "L2",
+        skill: "query-records",
+        intent: "Query records.",
+        oracle_hint: "Read them back.",
+        allowed_surfaces: ["api", "cli"],
+        na_examples: [],
+      },
+      "Query records.",
+      ["api"],
+    );
+    expect(prompt).toContain("PostgREST");
+    expect(prompt).not.toContain("for example, psql");
+    expect(prompt).not.toMatch(/Use the documented SQL command-line data plane/);
   });
 
   it("compose-pack rejects non-API task surfaces without pack-level surface declarations", () => {
@@ -409,7 +534,11 @@ describe("suite methodology artifacts", () => {
       name: "DEMO",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
+      // Exercise SDK wire fallback even though DAEB/database v1 publication scope is api+cli.
+      methodology: {
+        ...defaultSuiteMethodology("database"),
+        surface_scope: ["api", "sdk", "cli"],
+      },
       tasks: [{
         id: "db-T04-define-data-container",
         title: "T04: create container",
@@ -453,7 +582,7 @@ describe("suite methodology artifacts", () => {
 
     expect(pack.surfaces?.sdk?.package).toBe("pg");
     expect(pack.surfaces?.sdk?.auth?.token_env).toBe("COCKROACH_CONNECTION_STRING");
-    expect(pack.surfaces?.cli?.bin).toBe("psql");
+    expect(pack.surfaces?.cli?.bin).toBe("cockroach");
     expect(pack.tasks[0]?.allowed_surfaces).toEqual(["sdk", "cli"]);
   });
 
@@ -516,11 +645,11 @@ describe("suite methodology artifacts", () => {
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T04-define-data-container",
-        title: "T04: create container",
+        id: "db-T10-inspect-schema",
+        title: "T10: inspect schema",
         difficulty: "L1",
-        skill: "define-data-container",
-        intent: "Create `axarena_items_{ns}`.",
+        skill: "inspect-schema",
+        intent: "Inspect `axarena_schema_probe_{ns}`.",
         oracle_hint: "Read it back.",
         allowed_surfaces: ["api"],
         na_examples: [],
@@ -534,13 +663,13 @@ describe("suite methodology artifacts", () => {
       extracted_at: "2026-01-01T00:00:00.000Z",
       vendor_config: { base_url: "${CONVEX_URL}", auth_type: "bearer" as const, auth_env: "CONVEX_DEPLOY_KEY" },
       tasks: [{
-        task_id: "db-T04-define-data-container",
+        task_id: "db-T10-inspect-schema",
         na: false,
         checks: [{
           read_method: "POST" as const,
           read_path_template: "/api/query",
-          read_body_template: { path: "{items_schema_query_path}", args: {} },
-          assert_field: "value.hasLabelField",
+          read_body_template: { path: "{schema_probe_query_path}", args: {} },
+          assert_field: "value.hasNameAndStatus",
           expected: true,
           description: "",
         }],
@@ -566,7 +695,7 @@ describe("suite methodology artifacts", () => {
     expect(convexPack.tasks[0]?.prompt).toContain("prefer reusing the existing local Convex project scaffold");
     expect(convexPack.tasks[0]?.prompt).toContain("not as a reason to run `npm install`");
     expect(convexPack.tasks[0]?.prompt).toContain("prefer that preview-deployment path by default");
-    expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasLabelField:boolean}`");
+    expect(convexPack.tasks[0]?.prompt).toContain("returns `{hasNameAndStatus:boolean}`");
     expect(acmePack.tasks[0]?.prompt).not.toContain("Convex-specific database adapter note");
   });
 
@@ -647,9 +776,12 @@ describe("suite methodology artifacts", () => {
     expect(neonPack.tasks[0]?.prompt).toContain("Database SQL identifier contract");
     expect(neonPack.tasks[0]?.prompt).toContain("double-quote table, function, policy, index, trigger");
     expect(neonPack.tasks[0]?.prompt).toContain("do not replace hyphens with underscores for SQL-backed vendors");
-    expect(neonPack.tasks[0]?.prompt).toContain("Neon CLI contract");
-    expect(neonPack.tasks[0]?.prompt).toContain("`--role-name <role>`");
-    expect(neonPack.tasks[0]?.prompt).toContain("process.env.NEON_DATABASE_URL");
+    // api-only compose: no CLI contract / psql data-plane note
+    expect(neonPack.tasks[0]?.prompt).not.toContain("Neon SQL CLI contract");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("for example, psql");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("--role-name <role>");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("--database-name <database>");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("process.env.NEON_DATABASE_URL");
     expect(mongoPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
     expect(mongoPack.tasks[0]?.prompt).not.toContain("Neon CLI contract");
     expect(convexPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
@@ -661,71 +793,16 @@ describe("suite methodology artifacts", () => {
     expect(convexPack.tasks[0]?.prompt).toContain("smoke-check them on the preview deployment");
   });
 
-  it("adds zero-argument SQL routine guidance for SQL-backed server-side execution tasks", () => {
+  it("adds exact SQL write-lifecycle postcondition guidance for SQL-backed T07 tasks", () => {
     const suite: Suite = {
       name: "DEMO",
       version: 1,
       category: "database",
       methodology: defaultSuiteMethodology("database"),
       tasks: [{
-        id: "db-T08-server-side-execution",
-        title: "T08: routine",
-        difficulty: "L3",
-        skill: "server-side-execution",
-        intent: "Create `axarena_echo_{ns}`.",
-        oracle_hint: "Read it back.",
-        allowed_surfaces: ["api"],
-        na_examples: [],
-      }],
-    };
-    const extract = {
-      vendor: "Neon",
-      category: "database",
-      slug: "neon",
-      suite_name: "DEMO",
-      extracted_at: "2026-01-01T00:00:00.000Z",
-      vendor_config: {
-        base_url: "https://console.neon.tech/api/v2",
-        auth_type: "bearer" as const,
-        auth_env: "NEON_API_KEY",
-        sql_dialect: "postgres" as const,
-        sql_connection_env: "NEON_DATABASE_URL",
-      },
-      tasks: [{
-        task_id: "db-T08-server-side-execution",
-        na: false,
-        checks: [{
-          sql_dialect: "postgres" as const,
-          sql_query: "SELECT \"axarena_echo_{ns}\"() AS result",
-          assert_field: "0.result",
-          expected: "axarena_ok_{ns}",
-          description: "",
-        }],
-      }],
-    };
-
-    const pack = composePack(
-      suite,
-      { vendor: "Neon", slug: "neon", category: "database", docs_url: "https://neon.com/docs", site_url: "https://neon.com" },
-      extract,
-    );
-
-    expect(pack.tasks[0]?.prompt).toContain("SQL server-side routine contract");
-    expect(pack.tasks[0]?.prompt).toContain("zero-argument routine");
-    expect(pack.tasks[0]?.prompt).toContain("Do not rely on bind parameters inside `CREATE FUNCTION`");
-    expect(pack.tasks[0]?.prompt).toContain("result table column named `value`");
-  });
-
-  it("adds exact SQL write-lifecycle postcondition guidance for SQL-backed T10 tasks", () => {
-    const suite: Suite = {
-      name: "DEMO",
-      version: 1,
-      category: "database",
-      methodology: defaultSuiteMethodology("database"),
-      tasks: [{
-        id: "db-T10-write-records",
-        title: "T10: write lifecycle",
-        difficulty: "L1",
+        id: "db-T07-write-records",
+        title: "T07: write lifecycle",
+        difficulty: "L2",
         skill: "write-records",
         intent: "Create, update, and delete marker records in `axarena_write_items_{ns}`.",
         oracle_hint: "Read it back.",
@@ -747,7 +824,7 @@ describe("suite methodology artifacts", () => {
         sql_connection_env: "SUPABASE_DB_URL",
       },
       tasks: [{
-        task_id: "db-T10-write-records",
+        task_id: "db-T07-write-records",
         na: false,
         checks: [{
           sql_dialect: "postgres" as const,
@@ -795,8 +872,8 @@ describe("suite methodology artifacts", () => {
       methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
-          id: "db-T03-change-data-capture",
-          title: "T03: CDC",
+          id: "db-T08-change-data-capture",
+          title: "T08: CDC",
           difficulty: "L4",
           skill: "change-data-capture",
           intent: "Capture one insert event.",
@@ -805,8 +882,8 @@ describe("suite methodology artifacts", () => {
           na_examples: [],
         },
         {
-          id: "db-T09-vector-search",
-          title: "T09: vector",
+          id: "db-T06-vector-search",
+          title: "T06: vector",
           difficulty: "L2",
           skill: "vector-search",
           intent: "Run vector search.",
@@ -830,7 +907,7 @@ describe("suite methodology artifacts", () => {
       },
       tasks: [
         {
-          task_id: "db-T03-change-data-capture",
+          task_id: "db-T08-change-data-capture",
           na: false,
           checks: [{
             mongo_query: {
@@ -845,7 +922,7 @@ describe("suite methodology artifacts", () => {
           }],
         },
         {
-          task_id: "db-T09-vector-search",
+          task_id: "db-T06-vector-search",
           na: false,
           checks: [{
             mongo_query: {
@@ -981,7 +1058,7 @@ describe("suite methodology artifacts", () => {
   it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-pub-"));
     try {
-      const suitePath = "targets/suites/demo.yaml";
+      const suitePath = "benchmarks/daeb/v1/suite.yaml";
       const methodology = defaultSuiteMethodology("database");
       writeMethodology(dir, suitePath, methodology);
       writeCoverageMatrix(dir, suitePath, {
@@ -1054,7 +1131,10 @@ describe("suite methodology artifacts", () => {
         schema: "ax.trace-review/v1",
         benchmark: "DEMO",
         generated_at: "2026-01-01T00:00:00.000Z",
+        status: "pending",
         sample_size: 10,
+        sample_ids: [],
+        findings: [],
         summary: "Review a fixed trace sample for every methodology revision.",
       });
 
@@ -1069,5 +1149,32 @@ describe("suite methodology artifacts", () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+
+  it("requires explicit reviewer metadata and a full sample before trace review completion", () => {
+    expect(TraceReviewMemoSchema.safeParse({
+      schema: "ax.trace-review/v1",
+      benchmark: "DAEB-1",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      status: "completed",
+      sample_size: 2,
+      sample_ids: ["trace-1"],
+      findings: [],
+      summary: "Reviewed.",
+    }).success).toBe(false);
+
+    expect(TraceReviewMemoSchema.safeParse({
+      schema: "ax.trace-review/v1",
+      benchmark: "DAEB-1",
+      generated_at: "2026-01-01T00:00:00.000Z",
+      status: "completed",
+      sample_size: 2,
+      sample_ids: ["trace-1", "trace-2"],
+      reviewer: "Reviewer",
+      reviewed_at: "2026-01-01T01:00:00.000Z",
+      commit_sha: "abcdef123456",
+      findings: ["No blocker."],
+      summary: "Reviewed.",
+    }).success).toBe(true);
   });
 });

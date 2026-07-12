@@ -3,16 +3,16 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import type { GeneratedReportSnapshot } from "./snapshot.js";
 import { tasksForSurface, type SurfaceId } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export const DAEB_LOW_PASS_SCHEMA = "ax.low-coverage-pass/v1" as const;
 export const DAEB_VENDOR_ORDER = [
   "neon",
   "cockroachdb",
   "turso",
-  "convex",
   "supabase",
-  "mongodb-atlas",
   "insforge",
+  "nile",
 ] as const;
 export const DAEB_V1_EXECUTION_SURFACES = ["api", "cli"] as const;
 
@@ -40,7 +40,7 @@ export interface LowPassManifest {
   vendor: string;
   generated_at: string;
   harnesses: string[];
-  profile: "low";
+  profile: "medium";
   execution_mode: "task";
   surfaces: LowPassSurfaceRecord[];
 }
@@ -62,9 +62,8 @@ export function daebVendorOrder(): string[] {
   return [...DAEB_VENDOR_ORDER];
 }
 
-export function daebPackPath(root: string, vendor: string, suitePath: string): string {
-  const suiteStem = suitePath.replace(/^.*\//, "").replace(/\.yaml$/i, "");
-  return resolve(root, "targets", "packs", vendor, `${suiteStem}.yaml`);
+export function daebPackPath(root: string, vendor: string, _suitePath: string): string {
+  return daebCompiledPackPath(root, vendor);
 }
 
 export function daebFreshPackPath(runRoot: string, vendor: string, suitePath: string): string {
@@ -89,7 +88,7 @@ export function combinedResultPath(runDir: string, harness: "codex" | "claude-co
 
 export function defaultLowPassRunRoot(root: string, runDir?: string): string {
   if (!runDir || runDir === "results") {
-    return resolve(root, "results", "runs", "daeb-1-v3", "low-pass");
+    return resolve(root, "results", "runs", "daeb-low-pass");
   }
   return resolve(root, runDir);
 }
@@ -123,7 +122,7 @@ export function writeFailureClassificationStub(
   const artifactDir = dirname(outPath);
   const absolutize = (value: string): string => (isAbsolute(value) ? value : resolve(artifactDir, value));
   const lines: string[] = [
-    `# DAEB-1 low-pass failure review`,
+    `# DAEB low-pass failure review`,
     ``,
     `vendor: ${context.vendor}`,
     `surface: ${context.surface}`,

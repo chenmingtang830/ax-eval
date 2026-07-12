@@ -47,8 +47,18 @@ export function daebProductionVendorOrder(): string[] {
   return [...DAEB_VENDOR_ORDER];
 }
 
-export function defaultProductionRunRoot(root: string, runDir?: string): string {
-  if (!runDir || runDir === "results") return resolve(root, "results", "runs", "daeb-1-v4-production");
+/** Dated production run root: results/runs/daeb-v1-YYYYMMDD (UTC). */
+export function datedDaebProductionRunStem(now: Date = new Date()): string {
+  const yyyy = now.getUTCFullYear();
+  const mm = String(now.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(now.getUTCDate()).padStart(2, "0");
+  return `daeb-v1-${yyyy}${mm}${dd}`;
+}
+
+export function defaultProductionRunRoot(root: string, runDir?: string, now: Date = new Date()): string {
+  if (!runDir || runDir === "results") {
+    return resolve(root, "results", "runs", datedDaebProductionRunStem(now));
+  }
   return resolve(root, runDir);
 }
 
@@ -64,14 +74,21 @@ export function productionAggregateDir(runRoot: string, vendor: string, surface:
   return resolve(productionHarnessRoot(runRoot, vendor, surface, harness), "aggregate");
 }
 
-export function archiveDaebDebugArtifacts(root: string, archiveRoot: string): ProductionArchiveManifestEntry[] {
+/**
+ * Pre-flight cleanup for a production run root: move known debug-only lanes
+ * (targeted re-runs, post-normalize/smoke scratch, ad hoc matrix previews)
+ * out of the way before treating the tree as clean benchmark-of-record input.
+ * Relative to `runRoot` itself (not hardcoded to any one historical run name),
+ * so it works the same way for every fresh `daeb-production-rerun`.
+ */
+export function archiveDaebDebugArtifacts(runRoot: string, archiveRoot: string): ProductionArchiveManifestEntry[] {
   const candidates = [
-    { path: resolve(root, "results", "runs", "daeb-1-v3", "targeted-low"), reason: "targeted reruns are debug-only evidence" },
-    { path: resolve(root, "results", "runs", "daeb-1-v3", "targeted-high"), reason: "targeted reruns are debug-only evidence" },
-    { path: resolve(root, "results", "runs", "daeb-1-v3", "post-normalize"), reason: "post-normalize lanes are not benchmark-of-record input" },
-    { path: resolve(root, "results", "runs", "daeb-1-v3", "smoke"), reason: "smoke lanes are not benchmark-of-record input" },
+    { path: resolve(runRoot, "targeted-low"), reason: "targeted reruns are debug-only evidence" },
+    { path: resolve(runRoot, "targeted-high"), reason: "targeted reruns are debug-only evidence" },
+    { path: resolve(runRoot, "post-normalize"), reason: "post-normalize lanes are not benchmark-of-record input" },
+    { path: resolve(runRoot, "smoke"), reason: "smoke lanes are not benchmark-of-record input" },
   ];
-  const lowPassDir = resolve(root, "results", "runs", "daeb-1-v3", "low-pass");
+  const lowPassDir = resolve(runRoot, "low-pass");
   if (existsSync(lowPassDir)) {
     for (const name of readdirSync(lowPassDir)) {
       if (/^competitive-matrix-preview.*\.html$/i.test(name)) {
@@ -84,7 +101,7 @@ export function archiveDaebDebugArtifacts(root: string, archiveRoot: string): Pr
   }
   const entries: ProductionArchiveManifestEntry[] = [];
   for (const candidate of candidates) {
-    const archivePath = resolve(archiveRoot, relative(resolve(root, "results", "runs"), candidate.path));
+    const archivePath = resolve(archiveRoot, relative(runRoot, candidate.path));
     if (!existsSync(candidate.path)) {
       entries.push({
         source_path: candidate.path,

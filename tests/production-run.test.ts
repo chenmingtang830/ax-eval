@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { aggregateNormalizedResults, type NormalizedResult } from "../src/generate/record.js";
 import {
   archiveDaebDebugArtifacts,
+  datedDaebProductionRunStem,
   daebProductionVendorOrder,
   defaultProductionRunRoot,
   productionAggregateDir,
@@ -62,16 +63,17 @@ describe("production rerun helpers", () => {
       "neon",
       "cockroachdb",
       "turso",
-      "convex",
       "supabase",
-      "mongodb-atlas",
       "insforge",
+      "nile",
     ]);
-    expect(defaultProductionRunRoot("/repo")).toBe("/repo/results/runs/daeb-1-v4-production");
-    expect(productionTrialDir("/repo/results/runs/daeb-1-v4-production", "neon", "api", "codex", 2))
-      .toBe("/repo/results/runs/daeb-1-v4-production/neon/api/codex/trial-2");
-    expect(productionAggregateDir("/repo/results/runs/daeb-1-v4-production", "neon", "api", "codex"))
-      .toBe("/repo/results/runs/daeb-1-v4-production/neon/api/codex/aggregate");
+    const frozen = new Date("2026-07-09T12:00:00.000Z");
+    expect(datedDaebProductionRunStem(frozen)).toBe("daeb-v1-20260709");
+    expect(defaultProductionRunRoot("/repo", undefined, frozen)).toBe("/repo/results/runs/daeb-v1-20260709");
+    expect(productionTrialDir("/repo/results/runs/daeb-v1-20260709", "neon", "api", "codex", 2))
+      .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/trial-2");
+    expect(productionAggregateDir("/repo/results/runs/daeb-v1-20260709", "neon", "api", "codex"))
+      .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/aggregate");
   });
 
   it("aggregates three trial records into mean/range/reliability output", () => {
@@ -87,7 +89,19 @@ describe("production rerun helpers", () => {
     expect(aggregate.pass_hat_3).toBeCloseTo(0.8 ** 3);
     expect(aggregate.task_consistency_at_3).toBeNull();
     expect(aggregate.pass_all_3).toBe(0);
+    expect(aggregate.trial_stability_at_3).toBe("inconsistent");
     expect(aggregate.source_records).toEqual(["trial-1.json", "trial-2.json", "trial-3.json"]);
+
+    expect(aggregateNormalizedResults([
+      makeRecord({ pass_at_1: 1 }),
+      makeRecord({ pass_at_1: 1 }),
+      makeRecord({ pass_at_1: 1 }),
+    ]).trial_stability_at_3).toBe("all_pass");
+    expect(aggregateNormalizedResults([
+      makeRecord({ pass_at_1: 0 }),
+      makeRecord({ pass_at_1: 0 }),
+      makeRecord({ pass_at_1: 0 }),
+    ]).trial_stability_at_3).toBe("all_fail");
   });
 
   it("writes aggregate artifacts for one production cell", () => {
@@ -149,12 +163,13 @@ describe("production rerun helpers", () => {
 
   it("archives known debug artifacts into a separate manifest", () => {
     const root = freshDir();
-    const archiveRoot = resolve(root, "results", "runs", "daeb-1-v4-production", "_archive", "pre-production");
-    const previewDir = resolve(root, "results", "runs", "daeb-1-v3", "low-pass");
-    mkdirSync(resolve(root, "results", "runs", "daeb-1-v3", "targeted-low"), { recursive: true });
+    const runRoot = resolve(root, "results", "runs", "daeb-production");
+    const archiveRoot = resolve(runRoot, "_archive", "pre-production");
+    const previewDir = resolve(runRoot, "low-pass");
+    mkdirSync(resolve(runRoot, "targeted-low"), { recursive: true });
     mkdirSync(previewDir, { recursive: true });
     writeFileSync(resolve(previewDir, "competitive-matrix-preview-v2.html"), "<html></html>\n");
-    const entries = archiveDaebDebugArtifacts(root, archiveRoot);
+    const entries = archiveDaebDebugArtifacts(runRoot, archiveRoot);
     const manifestPath = writeArchiveManifest(archiveRoot, entries);
     expect(entries.some((entry) => entry.status === "archived")).toBe(true);
     expect(readFileSync(manifestPath, "utf8")).toContain("ax.daeb-production-archive/v1");

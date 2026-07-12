@@ -6,6 +6,7 @@ import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
 import { namedFieldsFor } from "./executor.js";
 import { resolveEnvTemplate } from "../target/config.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -75,7 +76,8 @@ export type InvokeValidityStatus =
   | "partial"
   | "runtime_timeout_no_action"
   | "runtime_timeout_partial"
-  | "invoke_failed";
+  | "invoke_failed"
+  | "results_json_invalid";
 
 export interface InvokeRunResult {
   harness: InvokeHarnessId;
@@ -285,69 +287,6 @@ function commandFor(id: InvokeHarnessId): string {
 function text(buf: Buffer | string | null | undefined): string {
   if (!buf) return "";
   return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
-}
-
-function retryWithShellQuoteRecovery(text: string): string {
-  return text.replace(/\\'/g, "'");
-}
-
-function repairBareInnerQuotes(text: string): string {
-  let out = "";
-  let inString = false;
-  let escaping = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    if (!inString) {
-      out += ch;
-      if (ch === '"') {
-        inString = true;
-        escaping = false;
-      }
-      continue;
-    }
-    if (escaping) {
-      out += ch;
-      escaping = false;
-      continue;
-    }
-    if (ch === "\\") {
-      out += ch;
-      escaping = true;
-      continue;
-    }
-    if (ch === '"') {
-      let j = i + 1;
-      while (j < text.length && /\s/.test(text[j]!)) j += 1;
-      const next = text[j];
-      if (next === "," || next === "}" || next === "]" || next === ":") {
-        out += ch;
-        inString = false;
-      } else {
-        out += '\\"';
-      }
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
-
-function parseJsonWithRecovery<T = unknown>(raw: string): T {
-  try {
-    return JSON.parse(raw) as T;
-  } catch (error) {
-    const shellRecovered = retryWithShellQuoteRecovery(raw);
-    if (shellRecovered !== raw) {
-      try {
-        return JSON.parse(shellRecovered) as T;
-      } catch {
-        /* fall through */
-      }
-    }
-    const quoteRecovered = repairBareInnerQuotes(shellRecovered);
-    if (quoteRecovered === raw) throw error;
-    return JSON.parse(quoteRecovered) as T;
-  }
 }
 
 const SECRET_ENV_NAME =
@@ -613,9 +552,16 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
-function stampResultFile(opts: InvokeRunOptions): void {
-  if (!existsSync(opts.paths.resultsPath)) return;
-  const parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
+function stampResultFile(opts: InvokeRunOptions): { ok: boolean; error?: string } {
+  if (!existsSync(opts.paths.resultsPath)) return { ok: true };
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    writeFailureArtifacts(opts, `results JSON invalid (bare quotes / malformed): ${message}`);
+    return { ok: false, error: message };
+  }
   parsed.harness = opts.harness;
   parsed.profile = typeof parsed.profile === "string" && parsed.profile.trim() ? parsed.profile : opts.profile;
   parsed.surface = typeof parsed.surface === "string" && parsed.surface.trim() ? parsed.surface : opts.surface;
@@ -627,6 +573,7 @@ function stampResultFile(opts: InvokeRunOptions): void {
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   normalizeDiscoveryResult(parsed, opts.pack);
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+  return { ok: true };
 }
 
 function looksLikeBaseUrlPlaceholder(value: string): boolean {
@@ -917,12 +864,13 @@ export async function runInvokeHarness(
         ? `harness ${opts.harness} timed out before first action after ${Math.round((opts.firstActionTimeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
         : `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
       : undefined);
+  let stamp: { ok: boolean; error?: string } = { ok: true };
   if (existsSync(opts.paths.resultsPath)) {
-    stampResultFile(opts);
+    stamp = stampResultFile(opts);
   } else {
     const reason = redactSensitiveText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
     writeFailureArtifacts(opts, reason);
-    stampResultFile(opts);
+    stamp = stampResultFile(opts);
   }
   redactFileIfExists(opts.paths.resultsPath);
   redactFileIfExists(opts.paths.tracePath);
@@ -930,17 +878,21 @@ export async function runInvokeHarness(
   const exitLabel = exitCode ?? (signal ?? "unknown");
   const durationMs = Date.now() - startedAt;
   const runtimeDiagnostics = transcriptRuntimeDiagnostics(stdout || stderr, res.firstActionLatencyMs);
-  const validity_status = invokeValidityStatus({
-    ok,
+  const stampFailed = stamp.ok === false;
+  const finalOk = ok && !stampFailed;
+  const validity_status = stampFailed
+    ? "results_json_invalid"
+    : invokeValidityStatus({
+    ok: finalOk,
     timedOut,
     actionOccurred: runtimeDiagnostics.action_occurred,
     resultsExists: existsSync(opts.paths.resultsPath),
     traceExists: existsSync(opts.paths.tracePath),
-    error,
+    error: stamp.error ?? error,
   });
   const meta: InvokeRunResult = {
     harness: opts.harness,
-    ok,
+    ok: finalOk,
     exitCode,
     signal,
     profile: opts.profile,

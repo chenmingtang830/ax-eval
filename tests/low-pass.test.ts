@@ -32,10 +32,9 @@ describe("daeb low-pass helpers", () => {
       "neon",
       "cockroachdb",
       "turso",
-      "convex",
       "supabase",
-      "mongodb-atlas",
       "insforge",
+      "nile",
     ]);
   });
 
@@ -66,14 +65,14 @@ describe("daeb low-pass helpers", () => {
   });
 
   it("uses the dedicated DAEB low-pass run root when no explicit run-dir is provided", () => {
-    expect(defaultLowPassRunRoot("/repo")).toBe("/repo/results/runs/daeb-1-v3/low-pass");
-    expect(defaultLowPassRunRoot("/repo", "results")).toBe("/repo/results/runs/daeb-1-v3/low-pass");
+    expect(defaultLowPassRunRoot("/repo")).toBe("/repo/results/runs/daeb-low-pass");
+    expect(defaultLowPassRunRoot("/repo", "results")).toBe("/repo/results/runs/daeb-low-pass");
     expect(defaultLowPassRunRoot("/repo", "tmp/custom-low-pass")).toBe("/repo/tmp/custom-low-pass");
   });
 
   it("derives a run-scoped fresh pack path for low-pass execution", () => {
-    expect(daebFreshPackPath("/repo/results/runs/daeb-1-v3/low-pass", "convex", "/repo/targets/suites/daeb-1-v3.yaml"))
-      .toBe("/repo/results/runs/daeb-1-v3/low-pass/convex/_compiled/daeb-1-v3.yaml");
+    expect(daebFreshPackPath("/repo/results/runs/daeb-1-v3/low-pass", "convex", "/repo/benchmarks/daeb/v1/suite.yaml"))
+      .toBe("/repo/results/runs/daeb-1-v3/low-pass/convex/_compiled/suite.yaml");
   });
 
   it("writes a human-review failure stub from a generated snapshot", () => {
@@ -101,12 +100,12 @@ describe("daeb low-pass helpers", () => {
         arch: process.arch,
         detectedAt: new Date().toISOString(),
         signals: [],
-        suggestion: { profiles: ["low"], matrix: false, reason: "test" },
+        suggestion: { profiles: ["medium"], matrix: false, reason: "test" },
       },
       warnings: [],
       runs: [
         {
-          profile: "low",
+          profile: "medium",
           harness: "codex",
           model: "gpt-5.5",
           surface: "api",
@@ -114,7 +113,7 @@ describe("daeb low-pass helpers", () => {
             {
               taskId: "t1",
               difficulty: "L1",
-              profile: "low",
+              profile: "medium",
               success: false,
               oracleResults: [{ type: "roundtrip", passed: false, detail: "no gid reported" }],
               error: "failed",
@@ -122,7 +121,7 @@ describe("daeb low-pass helpers", () => {
             },
           ],
           efficiency: { validity_status: "runtime_timeout_partial" },
-          evidence: { results: ["run-codex-low.json"], transcript: "run-codex-low.transcript.jsonl" },
+          evidence: { results: ["run-codex-medium.json"], transcript: "run-codex-medium.transcript.jsonl" },
         },
       ],
     };
@@ -132,17 +131,17 @@ describe("daeb low-pass helpers", () => {
     expect(text).toContain("validity_status: runtime_timeout_partial");
     expect(text).toContain("classification: agent-runtime-failure-needs-review");
     expect(text).toContain("t1");
-    expect(text).toContain(path.replace("failure-review.md", "run-codex-low.json"));
+    expect(text).toContain(path.replace("failure-review.md", "run-codex-medium.json"));
   });
 
-  it("upserts low-pass surface records without clobbering other surfaces", () => {
+  it("upserts medium-effort surface records without clobbering other surfaces", () => {
     const manifest = {
       schema: "ax.low-coverage-pass/v1" as const,
-      suite: "/repo/targets/suites/daeb-1-v3.yaml",
+      suite: "/repo/benchmarks/daeb/v1/suite.yaml",
       vendor: "neon",
       generated_at: "2026-07-04T00:00:00.000Z",
       harnesses: ["codex", "claude-code"],
-      profile: "low" as const,
+      profile: "medium" as const,
       execution_mode: "task" as const,
       surfaces: [
         {

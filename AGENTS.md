@@ -94,10 +94,15 @@ Use this before opening a PR:
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).
 - `targets/` — target-pack index; example target packs live under
   `targets/examples/` (Notion, Stripe, Linear, Exa, Monday, Asana) with approvals.
+- `benchmarks/daeb/` — canonical DAEB-1 suite, extracts, and compiled packs
+  (separate from single-vendor `targets/examples/`). For current DAEB status
+  (authoring freeze vs deferred production), maintainers use
+  `docs/latest_plan.md`; facts live under `benchmarks/daeb/v1/`.
 - `tests/` — vitest suite; the de-facto behavior spec.
-- `docs/` — **maintainer-local, git-ignored** (`roadmap.md`, `dev-guide.md`,
-  `spec/`, `strategy/`). Present in a maintainer checkout, not on the public
-  repo. `dev-guide.md` is the deepest file-by-file map if you have it.
+- `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
+  `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),
+  `communications.md` (claims). Everything else under `docs/_archive/`.
+  Present in a maintainer checkout, not on the public repo.
 
 ## Adding a target
 

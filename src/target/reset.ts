@@ -9,7 +9,9 @@
  * a per-target resetter is registered. Asana is the concrete reference; targets
  * without a resetter fail GRACEFULLY (a clear message, never a throw).
  */
+import { BearerClient } from "../http/client.js";
 import { PROBE_PREFIX } from "../generate/pack.js";
+import { resolveEnvTemplate } from "./config.js";
 import type { TargetPack } from "../schemas.js";
 
 /** The slice of the HTTP client a resetter needs (so tests stub it offline). */
@@ -220,7 +222,18 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
         await client.query(`DROP TABLE IF EXISTS "public"."${table}" CASCADE`);
         deleted.push(id);
       } catch (err) {
-        errors.push(`drop table ${id}: ${err instanceof Error ? err.message : String(err)}`);
+        const message = err instanceof Error ? err.message : String(err);
+        if (/drop cascade is not supported/i.test(message)) {
+          try {
+            await client.query(`DROP TABLE IF EXISTS "public"."${table}"`);
+            deleted.push(id);
+            continue;
+          } catch (fallbackErr) {
+            errors.push(`drop table ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+            continue;
+          }
+        }
+        errors.push(`drop table ${id}: ${message}`);
       }
     }
 
@@ -240,7 +253,18 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
         await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments}) CASCADE`);
         deleted.push(id);
       } catch (err) {
-        errors.push(`drop function ${id}: ${err instanceof Error ? err.message : String(err)}`);
+        const message = err instanceof Error ? err.message : String(err);
+        if (/drop function cascade is not supported|drop function.*cascade.*not supported/i.test(message)) {
+          try {
+            await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments})`);
+            deleted.push(id);
+            continue;
+          } catch (fallbackErr) {
+            errors.push(`drop function ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
+            continue;
+          }
+        }
+        errors.push(`drop function ${id}: ${message}`);
       }
     }
   } finally {
@@ -249,11 +273,213 @@ const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
   return { deleted, candidates, errors };
 };
 
+function tursoPipelineBody(sql: string): object {
+  return {
+    requests: [{ type: "execute", stmt: { sql } }],
+  };
+}
+
+function tursoRows(body: unknown): unknown[][] {
+  const root = body as {
+    results?: Array<{ response?: { result?: { rows?: Array<Array<{ value?: unknown }>> } } }>;
+  };
+  return root.results?.[0]?.response?.result?.rows?.map((row) => row.map((cell) => cell.value)) ?? [];
+}
+
+/** Turso has no Postgres wire connection in packs, but its documented pipeline
+ * endpoint can list and drop the same namespaced SQLite tables safely. */
+const tursoReset: Resetter = async (pack, _client, _scope, opts) => {
+  const token = process.env[pack.auth?.env ?? ""]?.trim();
+  const baseUrl = resolveEnvTemplate(pack.base_url).replace(/\/$/, "");
+  if (!token) {
+    return {
+      supported: false,
+      message: `auth env ${pack.auth?.env ?? "<unset>"} is missing — cannot reset Turso resources`,
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+  try {
+    const listResponse = await fetch(`${baseUrl}/v2/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify(tursoPipelineBody("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'axarena_%'")),
+    });
+    if (!listResponse.ok) throw new Error(`list returned HTTP ${listResponse.status}`);
+    const names = tursoRows(await listResponse.json())
+      .map((row) => row[0])
+      .filter((name): name is string => typeof name === "string")
+      .filter((name) => isAxArenaMongoName(name, opts.ns));
+    const deleted: string[] = [];
+    const errors: string[] = [];
+    for (const name of names) {
+      if (!/^[A-Za-z0-9_-]+$/.test(name)) {
+        errors.push(`refusing unsafe Turso table name ${JSON.stringify(name)}`);
+        continue;
+      }
+      if (opts.dryRun) {
+        deleted.push(name);
+        continue;
+      }
+      const dropResponse = await fetch(`${baseUrl}/v2/pipeline`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify(tursoPipelineBody(`DROP TABLE IF EXISTS "${name}"`)),
+      });
+      if (dropResponse.ok) deleted.push(name);
+      else errors.push(`drop ${name} returned HTTP ${dropResponse.status}`);
+    }
+    return {
+      supported: true,
+      message: `Turso reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${names.length} namespaced table(s)`,
+      deleted,
+      candidates: names.length,
+      errors,
+    };
+  } catch (error) {
+    return {
+      supported: false,
+      message: `Turso reset failed: ${error instanceof Error ? error.message : String(error)}`,
+      deleted: [],
+      candidates: 0,
+      errors: [error instanceof Error ? error.message : String(error)],
+    };
+  }
+};
+
+/** Parse the deployment name (subdomain) out of a Convex deployment URL. */
+function parseConvexDeploymentName(baseUrl: string): string | null {
+  try {
+    const host = new URL(baseUrl).hostname;
+    const match = /^([a-z0-9-]+)\.convex\.cloud$/i.exec(host);
+    return match?.[1] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+interface ConvexDeployment {
+  id: number;
+  name: string;
+  deploymentType: "dev" | "prod" | "preview" | "custom";
+  projectId: number;
+  isDefault: boolean;
+  /** The `--preview-name` the agent/CLI passed to `convex deploy` — the most
+   *  reliable field to match a benchmark trial's namespace against, since the
+   *  auto-generated `name` (e.g. "shocking-cuttlefish-911") never reflects it. */
+  previewIdentifier?: string | null;
+  reference?: string;
+}
+
+/**
+ * Convex reset: delete PREVIEW deployments created by benchmark trials using the
+ * Convex Management API (https://api.convex.dev/v1). This requires a Team Access
+ * Token (created in the Convex dashboard team settings) in CONVEX_TEAM_ACCESS_TOKEN
+ * — the deployment-scoped CONVEX_DEPLOY_KEY cannot delete deployments.
+ *
+ * Only non-default deployments with deploymentType === "preview" are ever
+ * candidates — the base dev/prod deployment the pack points at (isDefault:
+ * true) is never touched.
+ */
+const convexReset: Resetter = async (pack, _client, _scope, opts) => {
+  const managementToken = process.env.CONVEX_TEAM_ACCESS_TOKEN ?? process.env.CONVEX_MANAGEMENT_TOKEN;
+  if (!managementToken) {
+    return {
+      supported: false,
+      message:
+        "Convex reset requires CONVEX_TEAM_ACCESS_TOKEN (a Team Access Token from the Convex dashboard). " +
+        "CONVEX_DEPLOY_KEY is deployment-scoped and cannot delete deployments.",
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+
+  const baseUrl = resolveEnvTemplate(pack.base_url);
+  const baseDeploymentName = parseConvexDeploymentName(baseUrl);
+  if (!baseDeploymentName) {
+    return {
+      supported: false,
+      message: `Could not parse Convex deployment name from base_url "${baseUrl}".`,
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    };
+  }
+
+  const mgmtClient = new BearerClient({
+    baseUrl: "https://api.convex.dev/v1",
+    token: managementToken,
+    authScheme: "bearer",
+    responseEnvelope: undefined,
+    apiStyle: "rest",
+  });
+
+  try {
+    const baseDeployment = await mgmtClient.get<ConvexDeployment>(`/deployments/${baseDeploymentName}`);
+    const deployments = await mgmtClient.get<ConvexDeployment[]>(
+      `/projects/${baseDeployment.projectId}/list_deployments`,
+    );
+
+    const nsPatterns = opts.ns
+      ? [opts.ns, opts.ns.replace(/-/g, "_"), opts.ns.replace(/_/g, "-")]
+      : [];
+    // Never touch the default dev/prod deployments. When an ns is given, only
+    // match preview deployments whose previewIdentifier/reference/name carry
+    // it (a specific trial's cleanup). With no ns, this is a broad --reclaim
+    // of every leftover preview deployment in this benchmark-dedicated
+    // project — naming has drifted across runs, so we don't rely on a fixed
+    // substring like "axarena" here.
+    const candidates = deployments.filter((d) => {
+      if (d.deploymentType !== "preview" || d.isDefault) return false;
+      if (!opts.ns) return true;
+      const haystack = `${d.previewIdentifier ?? ""} ${d.reference ?? ""} ${d.name}`;
+      return nsPatterns.some((p) => haystack.includes(p));
+    });
+
+    const deleted: string[] = [];
+    const errors: string[] = [];
+    for (const d of candidates) {
+      try {
+        if (opts.dryRun) {
+          deleted.push(d.name);
+          continue;
+        }
+        await mgmtClient.post(`/deployments/${d.name}/delete`, {});
+        deleted.push(d.name);
+      } catch (err) {
+        errors.push(`delete ${d.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+
+    return {
+      supported: true,
+      message: `Convex reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${candidates.length} preview deployment(s)${
+        opts.ns ? ` matching ns "${opts.ns}"` : " (broad reclaim)"
+      }.`,
+      deleted,
+      candidates: candidates.length,
+      errors,
+    };
+  } catch (err) {
+    return {
+      supported: false,
+      message: `Convex management API reset failed: ${err instanceof Error ? err.message : String(err)}`,
+      deleted: [],
+      candidates: 0,
+      errors: [err instanceof Error ? err.message : String(err)],
+    };
+  }
+};
+
 /** Per-target resetters, keyed by pack name. */
 const RESETTERS: Record<string, Resetter> = {
   asana: asanaReset,
   "asana-generated": asanaReset,
   "mongodb-atlas": mongodbAtlasReset,
+  convex: convexReset,
+  turso: tursoReset,
 };
 
 /**

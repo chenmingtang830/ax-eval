@@ -2,9 +2,14 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import {
+  daebCapabilityInventoryPath,
+  daebLegacyCapabilitiesPath,
+} from "./benchmark-paths.js";
 
 export const CANONICAL_SURFACE_SCOPE = ["api", "sdk", "cli"] as const;
 export const CANONICAL_ARTIFACT_SCHEMA_VERSION = "ax.suite-methodology/v1" as const;
+export const CAPABILITY_INVENTORY_SCHEMA_VERSION = "ax.capability-inventory/v1" as const;
 
 const SurfaceIdSchema = z.enum(CANONICAL_SURFACE_SCOPE);
 
@@ -44,12 +49,10 @@ export const SuiteMethodologySchema = z.object({
   ontology: OntologySchema,
   static_ax: StaticAxMethodologySchema,
   behavioral: BehavioralMethodologySchema,
-  capability_families: z.array(z.string().min(1)).min(1),
   extraction_requirements: z.array(z.string().min(1)).min(1),
   surface_scope: z.array(SurfaceIdSchema).default([...CANONICAL_SURFACE_SCOPE]),
   min_vendor_coverage_pct: z.number().min(0).max(1),
   target_task_count: z.number().int().positive(),
-  family_diversity_cap: z.number().int().positive(),
   verifiability_requirement: z.string().min(1),
   difficulty_rubric: DifficultyRubricSchema,
   human_review_checkpoints: z.array(z.string().min(1)).min(1),
@@ -60,6 +63,7 @@ export const CapabilityEvidenceSchema = z.object({
   doc_url: z.string().min(1),
   quote: z.string().min(1),
   note: z.string().optional(),
+  strength: z.enum(["direct", "derived_from_connection_surface", "summary_index", "marketing_claim", "inferred"]).optional(),
 });
 
 export const ExtractionProvenanceSchema = z.object({
@@ -68,10 +72,24 @@ export const ExtractionProvenanceSchema = z.object({
   extractor: z.string().min(1),
 });
 
+export const ExtractionContextSchema = z.object({
+  mode: z.enum([
+    "openapi-seeded-grounded",
+    /** @deprecated Prefer openapi-seeded-grounded; kept for reading older inventories. */
+    "openapi-seeded",
+    "grounded-doc-crawl",
+    "manual-review",
+  ]),
+  harness: z.string().optional(),
+  model: z.string().optional(),
+  spec_url: z.string().optional(),
+  notes: z.string().optional(),
+});
+
 export const CapabilityInventoryEntrySchema = z.object({
   capability_name: z.string().min(1),
   title: z.string().min(1),
-  family: z.string().min(1),
+  family: z.string().optional(),
   description: z.string().min(1),
   resource_kind: z.string().min(1),
   operation_kind: z.string().min(1),
@@ -83,11 +101,15 @@ export const CapabilityInventoryEntrySchema = z.object({
 export type CapabilityInventoryEntry = z.infer<typeof CapabilityInventoryEntrySchema>;
 
 export const CapabilityInventorySchema = z.object({
+  schema: z.literal(CAPABILITY_INVENTORY_SCHEMA_VERSION).default(CAPABILITY_INVENTORY_SCHEMA_VERSION),
   vendor: z.string().min(1),
   slug: z.string().min(1),
   category: z.string().min(1),
   extracted_at: z.string().min(1),
   methodology_ref: z.string().optional(),
+  extraction_context: ExtractionContextSchema.optional(),
+  audit_status: z.enum(["candidate", "reviewed", "needs-reextract"]).default("candidate"),
+  audit_notes: z.array(z.string().min(1)).default([]),
   capabilities: z.array(CapabilityInventoryEntrySchema),
 });
 export type CapabilityInventory = z.infer<typeof CapabilityInventorySchema>;
@@ -118,6 +140,24 @@ export const CoverageDecisionSchema = z.object({
   status: z.enum(["supported", "unsupported", "inconclusive"]),
   source: z.enum(["inventory", "gap-check", "selection-default"]),
   capability_name: z.string().optional(),
+  concept_capability_name: z.string().optional(),
+  candidate_capabilities: z.array(z.object({
+    capability_name: z.string().min(1),
+    matched_requirements: z.array(z.string().min(1)).default([]),
+    fit_score: z.number().nonnegative(),
+    surfaces_documented: z.array(SurfaceIdSchema).default([]),
+    surface_notes: z.array(z.string().min(1)).default([]),
+    evidence: z.array(CapabilityEvidenceSchema).default([]),
+  })).optional(),
+  capability_bundle: z.array(z.string().min(1)).optional(),
+  task_fit: z.object({
+    status: z.enum(["sufficient", "insufficient"]),
+    requirement_path: z.string().optional(),
+    matched_requirements: z.array(z.string().min(1)).default([]),
+    missing_requirements: z.array(z.string().min(1)).default([]),
+    supported_surfaces: z.array(SurfaceIdSchema).default([]),
+    reason: z.string().optional(),
+  }).optional(),
   family: z.string().optional(),
   surfaces_documented: z.array(SurfaceIdSchema).optional(),
   evidence: z.array(CapabilityEvidenceSchema).default([]),
@@ -140,10 +180,14 @@ export type CoverageMatrix = z.infer<typeof CoverageMatrixSchema>;
 export const SelectionLedgerEntrySchema = z.object({
   concept_name: z.string().min(1),
   title: z.string().min(1),
-  family: z.string().min(1),
+  family: z.string().optional(),
   proposed_difficulty: z.enum(["L1", "L2", "L3", "L4"]).optional(),
   coverage_pct: z.number().min(0).max(1),
   covered_vendors: z.array(z.string().min(1)).min(1),
+  task_fit_coverage_pct: z.number().min(0).max(1).default(0),
+  task_fit_vendors: z.array(z.string().min(1)).default([]),
+  verifier_ready: z.boolean().default(false),
+  tier: z.enum(["core", "research", "excluded"]).default("excluded"),
   verifiable: z.boolean(),
   selected_by_model: z.boolean().default(false),
   selected: z.boolean(),
@@ -214,12 +258,32 @@ export const TraceReviewMemoSchema = z.object({
   schema: z.literal("ax.trace-review/v1"),
   benchmark: z.string().min(1),
   generated_at: z.string().min(1),
+  status: z.enum(["pending", "completed"]).default("pending"),
   sample_size: z.number().int().positive(),
+  sample_ids: z.array(z.string().min(1)).default([]),
+  reviewer: z.string().min(1).optional(),
+  reviewed_at: z.string().min(1).optional(),
+  commit_sha: z.string().min(7).optional(),
+  findings: z.array(z.string().min(1)).default([]),
   summary: z.string().min(1),
+}).superRefine((memo, ctx) => {
+  if (memo.status !== "completed") return;
+  if (!memo.reviewer) ctx.addIssue({ code: "custom", message: "completed trace review requires reviewer" });
+  if (!memo.reviewed_at) ctx.addIssue({ code: "custom", message: "completed trace review requires reviewed_at" });
+  if (!memo.commit_sha) ctx.addIssue({ code: "custom", message: "completed trace review requires commit_sha" });
+  if (memo.sample_ids.length !== memo.sample_size) {
+    ctx.addIssue({
+      code: "custom",
+      message: `completed trace review requires exactly sample_size (${memo.sample_size}) sample_ids`,
+    });
+  }
 });
 export type TraceReviewMemo = z.infer<typeof TraceReviewMemoSchema>;
 
 export function defaultSuiteMethodology(category: string): SuiteMethodology {
+  // DAEB/database v1 benchmark-of-record is api+cli; SDK stays in the generic
+  // engine but out of the publication scoring denominator.
+  const surfaceScope = category === "database" ? (["api", "cli"] as const) : CANONICAL_SURFACE_SCOPE;
   return SuiteMethodologySchema.parse({
     ontology: {
       task: "A single benchmark problem with fixed intent and success criteria.",
@@ -246,37 +310,23 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
         "Usability-suite scoring is governed only by verified task outcomes on the suite-declared benchmark surfaces.",
       ],
     },
-    capability_families: category === "database"
-      ? [
-          "data-definition",
-          "data-write",
-          "data-read",
-          "access-control",
-          "integrity",
-          "migration",
-          "search",
-          "compute",
-          "change-data-capture",
-          "backup-and-recovery",
-        ]
-      : ["core-operations", "access-control", "operational-ops"],
     extraction_requirements: [
       "Use only official vendor documentation as evidence.",
       "Persist every extracted capability with structured evidence objects.",
       "Document supported benchmark surfaces where evidence exists; deferred surfaces may still be retained as research metadata.",
     ],
+    surface_scope: [...surfaceScope],
     min_vendor_coverage_pct: 0.75,
-    target_task_count: 10,
-    family_diversity_cap: 2,
+    target_task_count: category === "database" ? 7 : 10,
     verifiability_requirement: "Selected tasks must have deterministic read-back verification against world state.",
     difficulty_rubric: {
-      L1: "Single-step create/read/check operation with minimal setup.",
-      L2: "Composed workflow or constrained multi-step task with deterministic state.",
-      L3: "Ambiguous or multi-step workflow requiring discovery and orchestration.",
-      L4: "Operational, recovery, policy, or reliability-sensitive workflow with higher coordination cost.",
+      L1: "Single action: one create/read/update/check call with minimal setup.",
+      L2: "Single capability with configuration or composition: ACL, vector search index, etc.",
+      L3: "Multi-step workflow within one domain: schema evolution, server-side routine.",
+      L4: "Full lifecycle or cross-cutting operational workflow: backup/restore, CDC, integrity constraints.",
     },
     human_review_checkpoints: [
-      "suite methodology revision",
+      "bottom-up pipeline review: capability inventory → concept universe → coverage matrix → selection ledger → task drafts",
       "final suite freeze",
       "publication bundle release",
     ],
@@ -300,11 +350,11 @@ function writeYaml(path: string, value: unknown): string {
 }
 
 export function capabilityInventoryPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "capability-inventory.yaml");
+  return daebCapabilityInventoryPath(root, slug);
 }
 
 export function legacyCapabilityExtractPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "capabilities.yaml");
+  return daebLegacyCapabilitiesPath(root, slug);
 }
 
 export function loadCapabilityInventory(root: string, slug: string): CapabilityInventory | null {
@@ -312,11 +362,122 @@ export function loadCapabilityInventory(root: string, slug: string): CapabilityI
     ?? readYaml(legacyCapabilityExtractPath(root, slug), CapabilityInventorySchema);
 }
 
+function uniq(values: string[]): string[] {
+  return Array.from(new Set(values));
+}
+
+function evidenceText(evidence: z.infer<typeof CapabilityEvidenceSchema>): string {
+  return `${evidence.doc_url} ${evidence.quote} ${evidence.note ?? ""}`.toLowerCase();
+}
+
+function looksConnectionDerived(evidence: z.infer<typeof CapabilityEvidenceSchema>): boolean {
+  const text = evidenceText(evidence);
+  return (
+    /(connection[-_\s]?string|connection uri|wire protocol|sql surface|postgresql-compatible|mongodb driver|any mongodb driver)/i.test(text)
+    && /(cluster|connection|deployment|project)/i.test(evidence.quote)
+  );
+}
+
+function inferEvidenceStrength(evidence: z.infer<typeof CapabilityEvidenceSchema>): NonNullable<z.infer<typeof CapabilityEvidenceSchema>["strength"]> {
+  const hasMethodPath = /\b(GET|POST|PUT|PATCH|DELETE)\s+\//.test(evidence.quote);
+  // Models sometimes stamp Management-API METHOD /path quotes as
+  // derived_from_connection_surface. Upgrade those unless the cite really is
+  // about exposing a wire/driver connection.
+  if (evidence.strength === "derived_from_connection_surface" && hasMethodPath && !looksConnectionDerived(evidence)) {
+    return "direct";
+  }
+  if (evidence.strength) return evidence.strength;
+  const url = evidence.doc_url.toLowerCase();
+  if (url.endsWith("/llms.txt") || url.includes("/llms.txt")) return "summary_index";
+  if (/\/(products?|pricing|features?)\/?$/.test(new URL(evidence.doc_url, "https://example.invalid").pathname)) return "marketing_claim";
+  if (looksConnectionDerived(evidence)) return "derived_from_connection_surface";
+  if (hasMethodPath) return "direct";
+  if (/\b(CREATE|ALTER|DROP|SELECT|INSERT|UPDATE|DELETE|UPSERT|BEGIN|COMMIT|ROLLBACK)\b/i.test(evidence.quote)) return "direct";
+  if (/\b(insertOne|insertMany|findOne|find|updateOne|updateMany|deleteOne|deleteMany|bulkWrite|aggregate|watch|createCollection)\b/.test(evidence.quote)) {
+    return "direct";
+  }
+  return "inferred";
+}
+
+function isConnectionDerivedDataPlane(capability: CapabilityInventoryEntry): boolean {
+  const text = capability.evidence.map(evidenceText).join(" ");
+  return /(connection[-_\s]?string|connection uri|wire protocol|postgresql-compatible|mongodb driver|any mongodb driver)/i.test(text)
+    && capability.surfaces_documented.includes("api")
+    && (capability.surfaces_documented.includes("sdk") || capability.surfaces_documented.includes("cli"));
+}
+
+export function auditCapabilityInventory(inventory: CapabilityInventory): CapabilityInventory {
+  const auditNotes = [...(inventory.audit_notes ?? [])];
+  let weakEvidenceCount = 0;
+  let dataPlaneDowngradeCount = 0;
+  let summaryIndexCount = 0;
+
+  const capabilities = inventory.capabilities.map((capability) => {
+    const evidence = capability.evidence.map((item) => ({
+      ...item,
+      strength: inferEvidenceStrength(item),
+    }));
+    if (evidence.some((item) => item.strength !== "direct")) weakEvidenceCount++;
+    if (evidence.some((item) => item.strength === "summary_index")) summaryIndexCount++;
+
+    let surfacesDocumented = [...capability.surfaces_documented];
+    let supportType = capability.support_type;
+    const allEvidenceWeak = evidence.every((item) => item.strength !== "direct");
+    const connectionDerived = isConnectionDerivedDataPlane({ ...capability, evidence });
+
+    if (connectionDerived) {
+      surfacesDocumented = surfacesDocumented.filter((surface) => surface !== "api");
+      dataPlaneDowngradeCount++;
+    }
+    if (supportType === "native" && allEvidenceWeak) {
+      supportType = evidence.some((item) => item.strength === "marketing_claim") ? "unknown" : "idiomatic-pattern";
+    }
+
+    return {
+      ...capability,
+      surfaces_documented: uniq(surfacesDocumented),
+      support_type: supportType,
+      evidence,
+      extraction_provenance: {
+        ...capability.extraction_provenance,
+        extracted_at: capability.extraction_provenance.extracted_at === "2026-01-01T00:00:00.000Z"
+          ? inventory.extracted_at
+          : capability.extraction_provenance.extracted_at,
+      },
+    };
+  });
+
+  if (weakEvidenceCount) {
+    auditNotes.push(`${weakEvidenceCount} capabilities include non-direct evidence and require reviewer confirmation before publication.`);
+  }
+  if (dataPlaneDowngradeCount) {
+    auditNotes.push(`${dataPlaneDowngradeCount} connection-derived data-plane capabilities were removed from REST api attribution and downgraded unless directly cited.`);
+  }
+  if (summaryIndexCount) {
+    auditNotes.push(`${summaryIndexCount} capabilities cite summary-index evidence such as llms.txt; replace with page-specific docs before publication.`);
+  }
+
+  return CapabilityInventorySchema.parse({
+    ...inventory,
+    schema: CAPABILITY_INVENTORY_SCHEMA_VERSION,
+    audit_status: inventory.audit_status ?? "candidate",
+    audit_notes: uniq(auditNotes),
+    capabilities,
+  });
+}
+
+const CAPABILITY_INVENTORY_HEADER = [
+  "# Cited capability inventory (suite authoring Layer 0a).",
+  "# Each entry's surfaces_documented records which surfaces the official docs say can",
+  "# perform that capability - per-capability documentation attribution for coverage",
+  "# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).",
+  "",
+].join("\n");
+
 export function writeCapabilityInventory(root: string, inventory: CapabilityInventory): string {
   const path = capabilityInventoryPath(root, inventory.slug);
-  writeYaml(path, inventory);
-  const legacyPath = legacyCapabilityExtractPath(root, inventory.slug);
-  writeYaml(legacyPath, inventory);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(path, `${CAPABILITY_INVENTORY_HEADER}${yamlStringify(auditCapabilityInventory(inventory))}`);
   return path;
 }
 
@@ -388,6 +549,18 @@ export function writeTraceReview(root: string, suitePath: string, artifact: Trac
   return writeYaml(traceReviewPath(root, suitePath), artifact);
 }
 
+export function loadTraceReview(root: string, suitePath: string): TraceReviewMemo | null {
+  return readYaml(traceReviewPath(root, suitePath), TraceReviewMemoSchema);
+}
+
 export function loadSupportMatrix(root: string, suitePath: string): SupportMatrix | null {
   return readYaml(supportMatrixPath(root, suitePath), SupportMatrixSchema);
+}
+
+export function loadCoverageMatrix(root: string, suitePath: string): CoverageMatrix | null {
+  return readYaml(coverageMatrixPath(root, suitePath), CoverageMatrixSchema);
+}
+
+export function loadSelectionLedger(root: string, suitePath: string): SelectionLedger | null {
+  return readYaml(selectionLedgerPath(root, suitePath), SelectionLedgerSchema);
 }

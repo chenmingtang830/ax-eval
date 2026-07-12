@@ -80,6 +80,9 @@ export interface NormalizedResult {
    *  Kept for backward compatibility; prefer pass_hat_3 or
    *  task_consistency_at_3 for publication narrative. */
   pass_all_3?: number | null;
+  /** Coarse three-trial stability bucket for publication narrative:
+   *  all_pass / all_fail / inconsistent. Null when trial_count !== 3. */
+  trial_stability_at_3?: "all_pass" | "all_fail" | "inconsistent" | null;
   source_records?: string[];
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
@@ -101,7 +104,7 @@ function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
 }
 
 /** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k).
- *  N/A tasks (per DAEB-1 methodology) are excluded from both solved and tasks. */
+ *  N/A tasks (per DAEB methodology) are excluded from both solved and tasks. */
 function passAtK(outcomes: RoundtripOutcome[]): { solved: number; tasks: number; k: number } {
   const byTask = new Map<string, RoundtripOutcome[]>();
   for (const o of outcomes) {
@@ -264,8 +267,21 @@ export function aggregateNormalizedResults(
     pass_hat_3: records.length === 3 ? meanPassRate ** 3 : null,
     task_consistency_at_3: null,
     pass_all_3: records.length === 3 ? (records.every((record) => record.pass_at_1 >= 1) ? 1 : 0) : null,
+    trial_stability_at_3: classifyTrialStabilityAt3(passValues),
     source_records: sourceRecords,
   };
+}
+
+/** Classify three trial pass rates into all_pass / all_fail / inconsistent. */
+export function classifyTrialStabilityAt3(
+  trialPassRates: number[],
+): "all_pass" | "all_fail" | "inconsistent" | null {
+  if (trialPassRates.length !== 3) return null;
+  const allPass = trialPassRates.every((rate) => rate >= 1);
+  const allFail = trialPassRates.every((rate) => rate <= 0);
+  if (allPass) return "all_pass";
+  if (allFail) return "all_fail";
+  return "inconsistent";
 }
 
 function cellKey(run: ProfileRun, fallbackHarness: string): string {

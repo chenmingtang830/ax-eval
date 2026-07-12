@@ -13,6 +13,7 @@ import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
+import { daebVendorCardPath } from "./benchmark-paths.js";
 
 const ResolveResultSchema = z.object({
   vendor: z.string(),
@@ -20,14 +21,19 @@ const ResolveResultSchema = z.object({
   slug: z.string(),
   discovered_at: z.string(),
   resolver: z.object({
-    method: z.literal("llm-search"),
+    method: z.enum(["llm-search", "registry", "official-docs"]),
     harness: z.string().optional(),
     model: z.string().optional(),
     prompt_version: z.string().optional(),
+    /** For method "registry": the source domain looked up in integrations.sh. */
+    registry_domain: z.string().optional(),
   }),
   site_url: z.string().nullable(),
   docs_url: z.string().nullable(),
   http_status: z.number().nullable(),
+  /** Downloadable OpenAPI spec URL when known (e.g. from the integrations.sh
+   *  registry) — lets extract-capabilities seed from the spec. */
+  openapi_url: z.string().optional(),
 });
 export type ResolveResult = z.infer<typeof ResolveResultSchema>;
 
@@ -122,7 +128,7 @@ export async function resolveVendor(
 
 /** Path where a resolved vendor card is persisted. */
 export function vendorCardPath(root: string, slug: string): string {
-  return resolve(root, "targets", "vendors", `${slug}.discovered.yaml`);
+  return daebVendorCardPath(root, slug);
 }
 
 /** Write a vendor card to disk as YAML. */

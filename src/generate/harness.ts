@@ -40,7 +40,16 @@ class ProcessTimeoutError extends Error {
 type LooseExecFile = (
   bin: string,
   args: string[],
-  options: { cwd: string; maxBuffer: number; encoding: string; detached: boolean },
+  options: {
+    cwd: string;
+    maxBuffer: number;
+    encoding: string;
+    detached: boolean;
+    /** Close stdin so CLIs that optionally append piped stdin (notably
+     *  `codex exec <PROMPT>`) do not hang forever on "Reading additional
+     *  input from stdin..." when the parent process still has an open fd. */
+    stdio?: ["ignore" | "pipe", "pipe", "pipe"];
+  },
   callback: (error: (Error & { stderr?: string; killed?: boolean }) | null, stdout: string, stderr: string) => void,
 ) => { pid?: number; kill: (signal: string) => void };
 
@@ -49,10 +58,19 @@ function runDetached(bin: string, args: string[], opts: { cwd: string; maxBuffer
     // `detached` isn't in @types/node's ExecFileOptions but IS honored by
     // the underlying spawn() — it's what lets us kill the whole process
     // group (see runDetached's docstring) rather than just the direct child.
+    // stdin is ignored: Codex treats an open inherited stdin as "more prompt
+    // may arrive" and stalls after the argv prompt with
+    // "Reading additional input from stdin...".
     const child = (execFile as unknown as LooseExecFile)(
       bin,
       args,
-      { cwd: opts.cwd, maxBuffer: opts.maxBuffer, encoding: "utf8", detached: true },
+      {
+        cwd: opts.cwd,
+        maxBuffer: opts.maxBuffer,
+        encoding: "utf8",
+        detached: true,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
       (error, stdout, stderr) => {
         clearTimeout(timer);
         if (error) {
@@ -320,10 +338,13 @@ export async function invokeGenerator(prompt: string, opts: InvokeGeneratorOptio
   if (fixture) return fixture;
 
   const timeout = opts.timeoutMs ?? GENERATOR_TIMEOUT_MS;
+  const preferredHarness = opts.fallbackHarness;
   const heartbeatTimer = opts.heartbeat
     ? setInterval(() => process.stderr.write(`  [${opts.heartbeat!.label}] still waiting on generator…\n`), opts.heartbeat.everyMs)
     : undefined;
   try {
+    if (preferredHarness === "codex" && process.env.OPENAI_API_KEY) return await invokeOpenAiApi(prompt, opts, timeout);
+    if (preferredHarness === "claude-code" && process.env.ANTHROPIC_API_KEY) return await invokeAnthropicApi(prompt, opts, timeout);
     if (process.env.ANTHROPIC_API_KEY) return await invokeAnthropicApi(prompt, opts, timeout);
     if (process.env.OPENAI_API_KEY) return await invokeOpenAiApi(prompt, opts, timeout);
     // Fallback: no direct API key configured, use whichever local harness CLI is logged in.

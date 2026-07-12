@@ -171,7 +171,9 @@ export class BearerClient {
     return json as T;
   }
 
-  /** POST JSON to a path (relative to baseUrl), unwrapping the response envelope. */
+  /** POST JSON to a path (relative to baseUrl), unwrapping the response envelope.
+   *  Tolerates an empty response body on success (some management-style APIs,
+   *  e.g. Convex's delete-deployment, return 200 with no body). */
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     const url = this.resolveUrl(path);
     const res = await fetch(url, {
@@ -179,10 +181,19 @@ export class BearerClient {
       headers: { ...this.headers(), "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
     });
-    const json = (await res.json()) as Record<string, unknown>;
-    if (!res.ok) {
-      throw new HttpApiError(`POST ${path}: ${BearerClient.extractErrorMessage(json, res)}`, res.status, json);
+    const text = await res.text();
+    let json: Record<string, unknown> | undefined;
+    if (text) {
+      try {
+        json = JSON.parse(text) as Record<string, unknown>;
+      } catch {
+        if (!res.ok) throw new HttpApiError(`POST ${path}: ${res.statusText}`, res.status, text);
+      }
     }
+    if (!res.ok) {
+      throw new HttpApiError(`POST ${path}: ${json ? BearerClient.extractErrorMessage(json, res) : res.statusText}`, res.status, json ?? text);
+    }
+    if (!json) return undefined as T;
     if (this.envelope && this.envelope in json) return json[this.envelope] as T;
     return json as T;
   }

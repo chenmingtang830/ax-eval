@@ -21,19 +21,37 @@ import {
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   ExtractionProvenanceSchema,
+  capabilityInventoryPath,
   legacyCapabilityExtractPath,
   writeCapabilityInventory,
 } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
+const CanonicalSurfaceSchema = z.enum(["api", "sdk", "cli"]);
+
+/** Map model-invented surface labels onto the canonical api/sdk/cli set.
+ *  SQL/wire/console are not first-class surfaces in this inventory schema. */
+export function normalizeSurfacesDocumented(raw: unknown): Array<"api" | "sdk" | "cli"> {
+  if (!Array.isArray(raw)) return ["api", "sdk", "cli"];
+  const out = new Set<"api" | "sdk" | "cli">();
+  for (const item of raw) {
+    const s = String(item).trim().toLowerCase();
+    if (s === "api" || s === "rest" || s === "http" || s === "graphql") out.add("api");
+    else if (s === "sdk" || s === "client" || s === "library" || s === "driver") out.add("sdk");
+    else if (s === "cli" || s === "command-line" || s === "shell") out.add("cli");
+    // sql / wire / psql / console / ui → drop; evidence still carries the detail
+  }
+  return out.size ? [...out] : ["api"];
+}
+
 const CapabilitySchema = z.object({
   capability_name: z.string(),
   title: z.string(),
-  family: z.string(),
+  family: z.string().optional(),
   description: z.string(),
   resource_kind: z.string(),
   operation_kind: z.string(),
-  surfaces_documented: z.array(z.enum(["api", "sdk", "cli"])).default(["api", "sdk", "cli"]),
+  surfaces_documented: z.preprocess(normalizeSurfacesDocumented, z.array(CanonicalSurfaceSchema)).default(["api", "sdk", "cli"]),
   support_type: z.enum(["native", "idiomatic-pattern", "managed-surface", "unknown"]).default("native"),
   evidence: z.array(CapabilityEvidenceSchema).min(1),
   extraction_provenance: ExtractionProvenanceSchema.optional(),
@@ -57,24 +75,6 @@ const LegacyCapabilityExtractSchema = z.object({
   extracted_at: z.string().min(1),
   capabilities: z.array(LegacyCapabilityItemSchema),
 });
-
-function inferLegacyFamily(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["family"] {
-  const primary = `${capability.name} ${capability.title}`.toLowerCase();
-  const secondary = capability.description.toLowerCase();
-  if (/\b(vector|embedding|semantic|similarity|ann|nearest-neighbor)\b/.test(primary)) return "search";
-  if (/\b(full-text|keyword search|atlas search|tantivy|lucene|search)\b/.test(primary)) return "search";
-  if (/\b(backup|restore|pitr|point-in-time)\b/.test(primary)) return "backup-and-recovery";
-  if (/\b(cdc|change data capture|change stream|changefeed|logical replication|replication)\b/.test(primary)) return "change-data-capture";
-  if (/\b(row-level|rls|rbac|role-based|access control|allowlist|authentication|auth)\b/.test(primary)) return "access-control";
-  if (/\b(migration|schema change|schema migration|deploy request|online ddl|branching)\b/.test(primary)) return "migration";
-  if (/\b(trigger|function|procedure|rpc|cron|action|compute|webhook)\b/.test(primary)) return "compute";
-  if (/\b(foreign key|unique|constraint|validation|transaction|acid)\b/.test(primary)) return "integrity";
-  if (/\b(table|column|schema definition|ddl)\b/.test(primary)) return "data-definition";
-  if (/\b(import|export|copy|bulk)\b/.test(primary)) return "data-write";
-  if (/\b(query|read|pagination|index|analytics|sql)\b/.test(primary)) return "data-read";
-  if (/\b(change data capture|change stream|logical replication|realtime)\b/.test(secondary)) return "change-data-capture";
-  return "core-operations";
-}
 
 function inferLegacyResourceKind(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["resource_kind"] {
   const primary = `${capability.name} ${capability.title}`.toLowerCase();
@@ -106,12 +106,11 @@ function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilit
     slug: legacy.slug,
     category: legacy.category,
     extracted_at: legacy.extracted_at,
-    capabilities: legacy.capabilities.map((capability) => ({
-      capability_name: capability.name,
-      title: capability.title,
-      family: inferLegacyFamily(capability),
-      description: capability.description,
-      resource_kind: inferLegacyResourceKind(capability),
+      capabilities: legacy.capabilities.map((capability) => ({
+        capability_name: capability.name,
+        title: capability.title,
+        description: capability.description,
+        resource_kind: inferLegacyResourceKind(capability),
       operation_kind: inferLegacyOperationKind(capability),
       surfaces_documented: ["api", "sdk", "cli"],
       support_type: "unknown",
@@ -143,15 +142,37 @@ function categoryCoverageChecklist(category: string): string[] {
   ];
 }
 
-export function buildCapabilityPrompt(vendor: ResolveResult): string {
+export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: string): string {
   const checklist = categoryCoverageChecklist(vendor.category);
+  const groundingBlock = specSummary
+    ? [
+        `You have a SEED of documented API operations from ${vendor.vendor}'s OpenAPI / registry surface.`,
+        `Treat them as the candidate surface area — start from this set, group related ops into capabilities,`,
+        `and include benchmark-relevant capabilities the operations imply even if not marketed as features.`,
+        ``,
+        `Then WebFetch ${vendor.docs_url} and follow linked guides / API / SDK / CLI pages to gap-fill.`,
+        `The seed is usually control-plane / Management API heavy: you MUST also inventory data-plane and`,
+        `docs-only capabilities the seed misses when the docs support them (SQL/table APIs, SDK client ops,`,
+        `RLS/auth, realtime, migrations, backups, etc.). Do not stop at the seed alone.`,
+        `Ground every capability in what you actually read — cite a specific doc URL and, where practical, a`,
+        `short supporting quote. Prefer page-specific docs over the OpenAPI root when both exist.`,
+        `Do not list capabilities from memory/training knowledge alone.`,
+        ``,
+        `=== SEEDED API OPERATIONS (candidate surface) ===`,
+        specSummary,
+        `=== END SEEDED OPERATIONS ===`,
+        ``,
+      ]
+    : [
+        `WebFetch ${vendor.docs_url} and follow linked pages (guides, API/SDK reference, feature list) as needed.`,
+        `Ground every capability in what you actually read — cite the specific doc URL and, where practical, a`,
+        `short supporting quote. Do not list capabilities from memory/training knowledge alone.`,
+        ``,
+      ];
   return [
     `${vendor.vendor} (${vendor.category}).`,
     ``,
-    `WebFetch ${vendor.docs_url} and follow linked pages (guides, API/SDK reference, feature list) as needed.`,
-    `Ground every capability in what you actually read — cite the specific doc URL and, where practical, a`,
-    `short supporting quote. Do not list capabilities from memory/training knowledge alone.`,
-    ``,
+    ...groundingBlock,
     `Build a benchmark-grade capability inventory for ${vendor.vendor} AS A ${vendor.category.toUpperCase()}.`,
     `Capture the documented capabilities a benchmark author would need to reason about canonical task coverage.`,
     `This is an inventory stage, not a "top 10" ranking stage: include every benchmark-relevant documented`,
@@ -173,23 +194,26 @@ export function buildCapabilityPrompt(vendor: ResolveResult): string {
     `- capability_name: a short, generic, cross-vendor-comparable slug (kebab-case) for the CAPABILITY, not the vendor's`,
     `  product name for it — e.g. "row-level-security" not "supabase-rls", "schema-migration" not`,
     `  "database-migrations-feature". This lets the same capability be recognized across different vendors.`,
-    `- family: a benchmark-oriented family such as data-definition, data-write, data-read, access-control,`,
-    `  integrity, migration, search, compute, change-data-capture, or backup-and-recovery. Prefer a family`,
-    `  from the docs' actual behavior, not marketing taxonomy.`,
     `- title: short human title`,
     `- description: 1-2 sentences, what it actually does`,
     `- resource_kind: the primary resource type touched (table, row, collection, role, function, snapshot, etc.)`,
     `- operation_kind: the primary operation type (create, read, update, search, migrate, restore, stream, etc.)`,
-    `- surfaces_documented: subset of ["api","sdk","cli"] directly evidenced in the docs`,
+    `- surfaces_documented: subset of ["api","sdk","cli"] ONLY — never invent values like "sql", "http",`,
+    `  "wire", or "console". SQL/wire access evidenced via an official SDK or CLI counts as "sdk"/"cli";`,
+    `  a documented REST/HTTP API counts as "api". Omit the surface if none of those three apply.`,
     `- support_type: native | idiomatic-pattern | managed-surface | unknown`,
-    `- evidence: one or more objects with {doc_url, quote, note?}; doc_url must be a specific page, not only the docs root`,
-    `- extraction_provenance: {"source":"official-docs","extracted_at":"<iso>","extractor":"llm-capability-inventory-v1"}`,
+    `- evidence: one or more objects with {doc_url, quote, note?, strength?}; doc_url must be a specific page, not only the docs root`,
+    `  strength is "direct" when the quote directly documents the capability,`,
+    `  "derived_from_connection_surface" when a control-plane endpoint only exposes a SQL/wire/data-plane connection,`,
+    `  "summary_index" for llms.txt or other summary indexes, "marketing_claim" for product/marketing pages,`,
+    `  and "inferred" when the quote only indirectly supports the capability.`,
+    `- extraction_provenance: {"source":"official-docs","extracted_at":"<current ISO timestamp>","extractor":"llm-capability-inventory-v1"}`,
     ``,
     `Return ONLY this JSON object, no commentary:`,
     `{"capabilities": [`,
-    `  {"capability_name": "...", "title": "...", "family": "...", "description": "...", "resource_kind": "...",`,
-    `   "operation_kind": "...", "surfaces_documented": ["api","cli"], "support_type": "native", "evidence": [{"doc_url": "...", "quote": "..."}],`,
-    `   "extraction_provenance": {"source":"official-docs","extracted_at":"2026-01-01T00:00:00.000Z","extractor":"llm-capability-inventory-v1"}}`,
+    `  {"capability_name": "...", "title": "...", "description": "...", "resource_kind": "...",`,
+    `   "operation_kind": "...", "surfaces_documented": ["api","cli"], "support_type": "native", "evidence": [{"doc_url": "...", "quote": "...", "strength": "direct"}],`,
+    `   "extraction_provenance": {"source":"official-docs","extracted_at":"<current ISO timestamp>","extractor":"llm-capability-inventory-v1"}}`,
     `]}`,
   ].filter((line): line is string => typeof line === "string").join("\n");
 }
@@ -198,9 +222,17 @@ export interface ExtractCapabilitiesOptions {
   harness?: HarnessId;
   model?: string;
   effort?: Effort;
+  /** Compact OpenAPI operation inventory (see ingest/spec-summary.ts). When set,
+   *  it seeds the candidate surface so the model does not blind-crawl from
+   *  scratch; WebFetch is still required to gap-fill docs-only / data-plane
+   *  capabilities the seed misses. */
+  specSummary?: string;
+  specUrl?: string;
 }
 
-const TIMEOUT_MS = 8 * 60 * 1000;
+/** Seed+grounded inventories (large OpenAPI + docs gap-fill) routinely need
+ *  more than a blind 12m crawl; keep headroom without unbounded hangs. */
+const TIMEOUT_MS = 18 * 60 * 1000;
 
 /** Extract raw, cited capabilities for a single vendor. */
 export async function extractCapabilities(
@@ -208,21 +240,27 @@ export async function extractCapabilities(
   opts: ExtractCapabilitiesOptions = {},
 ): Promise<CapabilityExtractResult> {
   const label = `${vendor.vendor}/capabilities`;
-  const raw = await invokeGenerator(buildCapabilityPrompt(vendor), {
+  // Always require WebFetch: OpenAPI seed narrows the search space, it does not
+  // replace grounded docs review (Management APIs routinely omit data-plane).
+  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary), {
     requireWebFetch: true,
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     heartbeat: { everyMs: 30_000, label },
     timeoutMs: TIMEOUT_MS,
   });
   const json = await extractJsonObjectWithRepair(raw, {
-    fallbackHarness: (opts.harness === "codex" ? "claude-code" : opts.harness) ?? "claude-code",
+    fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
     effort: opts.effort,
     label,
   });
-  const parsed = z.object({ capabilities: z.array(CapabilitySchema) }).safeParse(JSON.parse(json));
+  // Some models return a bare `[...]` of capabilities instead of the requested
+  // `{"capabilities": [...]}` envelope — accept both.
+  const rawJson = JSON.parse(json) as unknown;
+  const enveloped = Array.isArray(rawJson) ? { capabilities: rawJson } : rawJson;
+  const parsed = z.object({ capabilities: z.array(CapabilitySchema) }).safeParse(enveloped);
   if (!parsed.success) {
     const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
     throw new Error(`capability-extract for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);
@@ -232,6 +270,19 @@ export async function extractCapabilities(
     slug: vendor.slug,
     category: vendor.category,
     extracted_at: new Date().toISOString(),
+    extraction_context: {
+      mode: opts.specSummary ? "openapi-seeded-grounded" : "grounded-doc-crawl",
+      harness: opts.harness,
+      model: opts.model,
+      spec_url: opts.specUrl,
+      notes: opts.specSummary
+        ? "OpenAPI/registry seed used as candidate surface; WebFetch gap-filled against live docs."
+        : "Grounded doc-crawl with no OpenAPI seed.",
+    },
+    audit_status: "candidate",
+    audit_notes: opts.specSummary
+      ? ["OpenAPI-seeded + grounded candidate inventory; citations require human review before publication."]
+      : ["Grounded doc-crawl candidate inventory; citations require human review before publication."],
     capabilities: parsed.data.capabilities.map((cap) => ({
       ...cap,
       extraction_provenance: cap.extraction_provenance ?? {
@@ -262,7 +313,7 @@ export async function extractCapabilitiesAll(
 }
 
 export function capabilityExtractPath(root: string, slug: string): string {
-  return legacyCapabilityExtractPath(root, slug);
+  return capabilityInventoryPath(root, slug);
 }
 
 export function writeCapabilityExtract(root: string, result: CapabilityExtractResult): string {
@@ -271,8 +322,8 @@ export function writeCapabilityExtract(root: string, result: CapabilityExtractRe
 }
 
 export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = resolve(root, "targets", "extracts", slug, "capability-inventory.yaml");
-  const legacyPath = capabilityExtractPath(root, slug);
+  const inventoryPath = capabilityInventoryPath(root, slug);
+  const legacyPath = legacyCapabilityExtractPath(root, slug);
 
   if (existsSync(inventoryPath)) {
     const inventoryRaw = readFileSync(inventoryPath, "utf8");

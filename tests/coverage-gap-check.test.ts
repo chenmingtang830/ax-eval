@@ -1,6 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { deriveCandidateUniverseDeterministic } from "../src/generate/coverage-gap-check.js";
+import { describe, expect, it, vi } from "vitest";
+import {
+  crossCheckGaps,
+  deriveCandidateUniverse,
+  deriveCandidateUniverseDeterministic,
+} from "../src/generate/coverage-gap-check.js";
 import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
+import * as harness from "../src/generate/harness.js";
 
 function extract(vendor: string, capabilities: CapabilityExtractResult["capabilities"]): CapabilityExtractResult {
   return {
@@ -87,5 +92,33 @@ describe("deriveCandidateUniverseDeterministic", () => {
         vendors_citing: [{ vendor: "Acme", capability_name: "postgresql-wire-compatibility" }],
       },
     ]);
+  });
+});
+
+describe("deriveCandidateUniverse seed + LLM assist", () => {
+  it("keeps the deterministic seed when LLM refine fails", async () => {
+    const extracts = [
+      extract("Supabase", [capability("create-table", "data-definition")]),
+      extract("Neon", [capability("create-table", "data-definition")]),
+    ];
+    const seed = deriveCandidateUniverseDeterministic(extracts);
+    vi.spyOn(harness, "invokeGenerator").mockRejectedValue(new Error("timeout"));
+    const clusters = await deriveCandidateUniverse(extracts, { harness: "claude-code" });
+    expect(clusters).toEqual(seed);
+    vi.restoreAllMocks();
+  });
+
+  it("skips gap-check LLM calls by default and in seed-only mode", async () => {
+    const spy = vi.spyOn(harness, "invokeGenerator");
+    const clusters = [{
+      concept_name: "define-data-container",
+      title: "Define data container",
+      vendors_citing: [{ vendor: "Supabase", capability_name: "create-table" }],
+    }];
+    const extracts = [extract("Supabase", [capability("create-table", "data-definition")])];
+    expect(await crossCheckGaps(extracts, clusters, {})).toEqual([]);
+    expect(await crossCheckGaps(extracts, clusters, { deterministic: true })).toEqual([]);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

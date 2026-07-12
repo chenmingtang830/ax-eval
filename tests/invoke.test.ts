@@ -299,7 +299,7 @@ describe("runInvokeHarness", () => {
     }
   });
 
-  it("recovers agent-written result JSON with bare inner quotes instead of crashing", async () => {
+  it("rejects agent-written result JSON with bare inner quotes as results_json_invalid", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
     const malformed = `{
@@ -323,9 +323,8 @@ describe("runInvokeHarness", () => {
     };
 
     const result = await runInvokeHarness(run, spawn);
-    expect(result.ok).toBe(true);
-    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
-    expect(executor.discovery.endpoint_used).toBe('tool "quoted" command');
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("results_json_invalid");
   });
 
   it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
