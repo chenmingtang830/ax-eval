@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-12-vltfmy
+# run_id: 2026-07-12-jhcj83
 name: supabase
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-12-vltfmy
+run_id: 2026-07-12-jhcj83
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -40,7 +40,7 @@ surfaces:
 base_url: https://${SUPABASE_PROJECT_REF}.supabase.co
 headers: {}
 site_url: https://supabase.com
-openapi_url: ""
+openapi_url: https://api.supabase.com/api/v1-json
 docs_urls:
   - https://supabase.com/docs
 static:
@@ -48,6 +48,19 @@ static:
   docs_urls:
     - https://supabase.com/docs
   checks: []
+discovery:
+  product: Supabase
+  goal: "You are about to operate Supabase programmatically on its documented API
+    / CLI data plane. First work out, from scratch, how Supabase's public
+    agent-facing surfaces work: base URL (or CLI entrypoint), authentication,
+    and at least one documented read or write call you can use to confirm the
+    surface is live. You are NOT given any endpoint, base URL, or documentation
+    link; find them yourself."
+  official_domains:
+    - supabase.com
+  canonical_endpoint: GET /rest/v1
+  deprecated_markers: []
+  auth_scheme: Bearer API token / personal access token
 tasks:
   - id: db-T01-access-control
     title: "T01: Configure an idiomatic access-control mechanism"

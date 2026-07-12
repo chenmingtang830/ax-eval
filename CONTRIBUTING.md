@@ -57,11 +57,13 @@ shape.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
   paths must produce schema-valid packs, and neither path replaces human review.
-- **DAEB-1 draft iterations stay v1.** Before human freeze, re-synthesis
-  overwrites the same v1 suite; git SHAs and content hashes identify exact draft
-  states and invalidate stale approvals. Do not increment the suite version for
-  authoring iterations or publish benchmark-of-record results from an unfrozen
-  draft.
+- **DAEB-1 draft iterations stay v1.** Before human **publication** freeze,
+  re-synthesis overwrites the same v1 suite; git SHAs and content hashes identify
+  exact draft states and invalidate stale approvals. Do not increment the suite
+  version for authoring iterations or publish benchmark-of-record results from an
+  unfrozen draft. **Current status:** authoring freeze is done for the 6-vendor
+  core cohort (packs approved; trace review completed); production 3-trial and
+  publication freeze are deferred until after team review.
 - **Freeze the vendor cohort before task outcomes.** The DAEB vendor-selection
   ledger records core, research, and excluded candidates using managed-sandbox,
   headless-auth, benchmark-surface, and product-stratum criteria. Only core

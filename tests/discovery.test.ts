@@ -110,6 +110,29 @@ describe("discovery scoring", () => {
     expect(report.hops).toBe(1);
   });
 
+  it("accepts REST resource-path prefix matches for canonical endpoints", async () => {
+    const restSpec: DiscoverySpec = {
+      product: "Supabase",
+      goal: "operate PostgREST",
+      official_domains: ["supabase.com"],
+      canonical_endpoint: "GET /rest/v1",
+      deprecated_markers: [],
+      auth_scheme: "Bearer API token",
+    };
+    const report = await scoreDiscovery(
+      restSpec,
+      {
+        searches: ["supabase rest api"],
+        urls_visited: ["https://supabase.com/docs"],
+        endpoint_used: "GET /rest/v1/axarena_items_ns1",
+        auth_scheme_found: "Bearer",
+      },
+      fakeClient({}),
+    );
+    expect(report.metrics.find((m) => m.id === "canonical")!.passed).toBe(true);
+    expect(report.metrics.find((m) => m.id === "canonical")!.detail).toMatch(/prefix match/);
+  });
+
   it("flags misled when the first landing is non-official", async () => {
     const result: DiscoveryResult = {
       ns: "ns1",

@@ -371,3 +371,89 @@ export function databaseSurfaceFallback(
   }
   return undefined;
 }
+
+/** Official hostnames for behavioral discovery scoring (site + docs). */
+export function officialDomainsFromVendor(vendor: ResolveResult): string[] {
+  const domains = new Set<string>();
+  for (const raw of [vendor.site_url, vendor.docs_url]) {
+    if (!raw) continue;
+    try {
+      const host = new URL(raw).hostname.toLowerCase().replace(/^www\./, "");
+      if (!host) continue;
+      domains.add(host);
+      const parts = host.split(".");
+      if (parts.length > 2) domains.add(parts.slice(-2).join("."));
+    } catch {
+      /* ignore malformed URLs */
+    }
+  }
+  return [...domains];
+}
+
+function authSchemeLabel(authType: OracleExtractResult["vendor_config"]["auth_type"]): string {
+  switch (authType) {
+    case "bearer":
+      return "Bearer API token / personal access token";
+    case "api-key":
+      return "API key header";
+    case "oauth":
+      return "OAuth bearer token";
+    case "none":
+      return "no auth header (public or connection-string only)";
+    default:
+      return "documented API credential";
+  }
+}
+
+/**
+ * Representative control/data-plane call the agent should discover on the API
+ * surface. Used only for the behavioral discovery *score* — prompts must not
+ * leak this string (executor already keeps Phase 0 free of endpoints).
+ */
+const DAEB_CANONICAL_ENDPOINT: Record<string, string> = {
+  neon: "GET /projects",
+  cockroachdb: "GET /clusters",
+  turso: "POST /v2/pipeline",
+  supabase: "GET /rest/v1",
+  insforge: "GET /api/database/tables",
+  nile: "GET /databases",
+  "mongodb-atlas": "GET /api/atlas/v2/groups",
+  convex: "POST /api/query",
+};
+
+const DAEB_PRODUCT_LABEL: Record<string, string> = {
+  neon: "Neon",
+  cockroachdb: "CockroachDB",
+  turso: "Turso",
+  supabase: "Supabase",
+  insforge: "Insforge",
+  nile: "Nile",
+  "mongodb-atlas": "MongoDB Atlas",
+  convex: "Convex",
+};
+
+/** Cold-start DiscoverySpec for DAEB composed packs (Agent Discovery Score). */
+export function databaseDiscoverySpec(
+  vendor: ResolveResult,
+  extract: OracleExtractResult,
+): import("../schemas.js").DiscoverySpec {
+  const domains = officialDomainsFromVendor(vendor);
+  const product = DAEB_PRODUCT_LABEL[vendor.slug] ?? vendor.vendor;
+  const canonical =
+    DAEB_CANONICAL_ENDPOINT[vendor.slug] ??
+    (extract.vendor_config.base_url ? "GET /" : "");
+  return {
+    product,
+    goal: [
+      `You are about to operate ${product} programmatically on its documented API / CLI data plane.`,
+      `First work out, from scratch, how ${product}'s public agent-facing surfaces work:`,
+      `base URL (or CLI entrypoint), authentication, and at least one documented read or write call`,
+      `you can use to confirm the surface is live.`,
+      `You are NOT given any endpoint, base URL, or documentation link; find them yourself.`,
+    ].join(" "),
+    official_domains: domains,
+    canonical_endpoint: canonical,
+    deprecated_markers: [],
+    auth_scheme: authSchemeLabel(extract.vendor_config.auth_type),
+  };
+}

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-12-ih10oe
+# run_id: 2026-07-12-skkoc9
 name: insforge
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-12-ih10oe
+run_id: 2026-07-12-skkoc9
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -47,6 +47,20 @@ static:
   docs_urls:
     - https://docs.insforge.dev/introduction
   checks: []
+discovery:
+  product: Insforge
+  goal: "You are about to operate Insforge programmatically on its documented API
+    / CLI data plane. First work out, from scratch, how Insforge's public
+    agent-facing surfaces work: base URL (or CLI entrypoint), authentication,
+    and at least one documented read or write call you can use to confirm the
+    surface is live. You are NOT given any endpoint, base URL, or documentation
+    link; find them yourself."
+  official_domains:
+    - insforge.dev
+    - docs.insforge.dev
+  canonical_endpoint: GET /api/database/tables
+  deprecated_markers: []
+  auth_scheme: Bearer API token / personal access token
 tasks:
   - id: db-T01-access-control
     title: "T01: Configure an idiomatic access-control mechanism"

@@ -262,6 +262,11 @@ describe("suite methodology artifacts", () => {
     expect(pack.tasks[0]?.allowed_surfaces).toEqual(["api", "cli"]);
     expect(pack.tasks[0]?.allowed_surfaces).not.toContain("mcp");
     expect(pack.tasks[0]?.oracles[0]?.readBodyTemplate).toEqual({ id: "{gid}", ns: "{ns}" });
+    expect(pack.discovery?.product).toBe("Acme");
+    expect(pack.discovery?.official_domains.length).toBeGreaterThan(0);
+    expect(pack.discovery?.canonical_endpoint).toBeTruthy();
+    expect(pack.discovery?.goal).toMatch(/cold start|from scratch|NOT given/i);
+    expect(pack.discovery?.goal).not.toContain(pack.discovery!.canonical_endpoint);
   });
 
   it("compose-pack keeps DAEB-style API/CLI suite scope even when support matrix retains SDK research entries", () => {

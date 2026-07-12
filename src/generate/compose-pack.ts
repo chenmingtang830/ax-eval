@@ -19,7 +19,7 @@ import type { OracleExtractResult } from "./task-extract.js";
 import type { SurfaceExtractResult } from "./surface-extract.js";
 import { CANONICAL_SURFACE_SCOPE, type SupportMatrix } from "./methodology.js";
 import { TargetPackSchema, type TargetPack } from "../schemas.js";
-import { applyDatabasePackPromptOverride, databaseSurfaceFallback } from "./database-pack-overrides.js";
+import { applyDatabasePackPromptOverride, databaseSurfaceFallback, databaseDiscoverySpec } from "./database-pack-overrides.js";
 import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export interface ComposePackOptions {
@@ -233,12 +233,15 @@ export function composePack(
     base_url: extract.vendor_config.base_url,
     headers: {},
     site_url: vendor.site_url ?? "",
+    openapi_url: vendor.openapi_url ?? "",
     docs_urls: vendor.docs_url ? [vendor.docs_url] : [],
     static: {
       site_url: vendor.site_url ?? "",
       docs_urls: vendor.docs_url ? [vendor.docs_url] : [],
+      // Empty checks → default static checklist (v0) when verify-generated audits.
       checks: [],
     },
+    discovery: databaseDiscoverySpec(vendor, extract),
     tasks,
   };
 

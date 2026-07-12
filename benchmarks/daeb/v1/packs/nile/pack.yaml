@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-12-yk9aib
+# run_id: 2026-07-12-laltmi
 name: nile
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-12-yk9aib
+run_id: 2026-07-12-laltmi
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -48,7 +48,7 @@ surfaces:
 base_url: https://global.thenile.dev
 headers: {}
 site_url: https://www.thenile.dev
-openapi_url: ""
+openapi_url: https://global.thenile.dev/openapi.yaml
 docs_urls:
   - https://www.thenile.dev/docs
 static:
@@ -56,6 +56,19 @@ static:
   docs_urls:
     - https://www.thenile.dev/docs
   checks: []
+discovery:
+  product: Nile
+  goal: "You are about to operate Nile programmatically on its documented API /
+    CLI data plane. First work out, from scratch, how Nile's public agent-facing
+    surfaces work: base URL (or CLI entrypoint), authentication, and at least
+    one documented read or write call you can use to confirm the surface is
+    live. You are NOT given any endpoint, base URL, or documentation link; find
+    them yourself."
+  official_domains:
+    - thenile.dev
+  canonical_endpoint: GET /databases
+  deprecated_markers: []
+  auth_scheme: Bearer API token / personal access token
 tasks:
   - id: db-T01-access-control
     title: "T01: Configure an idiomatic access-control mechanism"

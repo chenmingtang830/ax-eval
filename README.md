@@ -120,6 +120,14 @@ than ordinary local pack authoring:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
+**Current status (mutable v1):** authoring freeze is done for the 6-vendor core
+cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
+`review --approve`d and `suite.trace-review.yaml` is `completed`. Production
+3-trial reruns, publication freeze, and website export are **deferred** until
+after team review; do not treat the commands below as the default next step.
+Research-lane tasks (e.g. backup/CDC/integrity) stay out of the scored
+denominator. Core facts live under [`benchmarks/daeb/v1/`](./benchmarks/daeb/v1/).
+
 The canonical benchmark contract is [`benchmarks/daeb/v1/suite.yaml`](./benchmarks/daeb/v1/suite.yaml).
 Its purposive-stratified core/research/excluded cohort is recorded separately in
 [`benchmarks/daeb/v1/vendor-selection-ledger.yaml`](./benchmarks/daeb/v1/vendor-selection-ledger.yaml);
@@ -131,10 +139,11 @@ definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
 
-Until human freeze, DAEB-1 is one mutable v1 draft: re-synthesis overwrites the
-same suite and invalidates content-hash approvals. Git SHAs and artifact content
-hashes identify exact draft states; draft iterations do not increment the suite
-version. Benchmark-of-record results are produced only after freeze.
+Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+overwrites the same suite and invalidates content-hash approvals. Git SHAs and
+artifact content hashes identify exact draft states; draft iterations do not
+increment the suite version. Benchmark-of-record results are produced only after
+freeze.
 
 Selection and applicability are separate. The 75% concept-coverage bar chooses
 the shared task bank; each coverage decision also retains ranked capability
@@ -151,7 +160,7 @@ medium-effort model per harness, and three trials per supported
 vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
 SDK evidence is research-only for v1.
 
-Run the production lane with:
+When production is unblocked, run the production lane with:
 
 ```bash
 npm run ax-eval -- daeb-production-rerun \

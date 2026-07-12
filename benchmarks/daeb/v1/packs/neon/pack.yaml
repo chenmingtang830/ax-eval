@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-12-015p8g
+# run_id: 2026-07-12-g7mikd
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-12-015p8g
+run_id: 2026-07-12-g7mikd
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -51,7 +51,7 @@ surfaces:
 base_url: https://console.neon.tech/api/v2
 headers: {}
 site_url: https://neon.com
-openapi_url: ""
+openapi_url: https://neon.com/api_spec/release/v2.json
 docs_urls:
   - https://neon.com/docs/reference/api-reference
 static:
@@ -59,6 +59,19 @@ static:
   docs_urls:
     - https://neon.com/docs/reference/api-reference
   checks: []
+discovery:
+  product: Neon
+  goal: "You are about to operate Neon programmatically on its documented API /
+    CLI data plane. First work out, from scratch, how Neon's public agent-facing
+    surfaces work: base URL (or CLI entrypoint), authentication, and at least
+    one documented read or write call you can use to confirm the surface is
+    live. You are NOT given any endpoint, base URL, or documentation link; find
+    them yourself."
+  official_domains:
+    - neon.com
+  canonical_endpoint: GET /projects
+  deprecated_markers: []
+  auth_scheme: Bearer API token / personal access token
 tasks:
   - id: db-T01-access-control
     title: "T01: Configure an idiomatic access-control mechanism"

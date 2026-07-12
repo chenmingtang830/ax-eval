@@ -64,7 +64,7 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 ### AXArena / DAEB-1 canonical benchmark path
 
 DAEB-1 is different from ordinary per-target authoring. It starts from one
-frozen canonical suite, then compiles vendor adapters from public vendor cards
+canonical suite, then compiles vendor adapters from public vendor cards
 and vendor-specific verification extracts:
 
 ```text
@@ -78,20 +78,27 @@ intents, difficulty labels, scoring contract, surfaces, and harness matrix;
 only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
 by vendor.
 
-Once all vendor runs have been verified, freeze the publication bundle:
+**Current status:** mutable DAEB-1 v1 authoring freeze is done for the 6-vendor
+core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
+approved and trace review is completed. Production 3-trial and publication
+freeze are deferred; do not run them as the default next step. Research-lane
+tasks stay out of the scored denominator. Use
+`benchmarks/daeb/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
+
+When production is unblocked and all vendor runs have been verified, freeze the
+publication bundle (core cohort only):
 
 ```bash
 npm run ax-eval -- publication-bundle \
   --suite benchmarks/daeb/v1/suite.yaml \
-  --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
-  --run-dir results/runs/daeb-1-v3 \
-  --out results/publications/daeb-1-v3
+  --vendors neon,cockroachdb,turso,supabase,insforge,nile \
+  --run-dir results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle
 ```
 
 The bundle manifest is the handoff to the AXArena static website and the launch
 report. Treat missing snapshot/normalized artifacts as blockers for a final
-publication, but acceptable in a draft bundle while the 8-vendor run is still
-in progress.
+publication.
 
 ### 1. Generate the frozen task set (or use a committed example)
 
@@ -224,7 +231,9 @@ deep-dive without hunting through prior scratch runs.
 ### DAEB-1 production lane
 
 DAEB-1/database v1 has a dedicated production rerun command for the
-benchmark-of-record matrix:
+benchmark-of-record matrix. **It is deferred** until after team review of the
+approved packs; authoring freeze (approvals + completed trace review) is already
+done for the 6-vendor core cohort.
 
 ```bash
 ax-eval daeb-production-rerun \
@@ -240,16 +249,17 @@ normalized record reports the three-trial mean and range. SDK and MCP should
 not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
 
-Before human freeze, regenerate into the same DAEB-1 v1 contract. Do not bump
-the suite version for authoring iterations; git SHAs and content hashes identify
-exact drafts, and any content change invalidates prior pack approvals.
-Use `benchmarks/daeb/v1/vendor-selection-ledger.yaml` as the core cohort source;
-research/excluded vendors must not silently enter synthesis or production runs.
-When reviewing coverage, distinguish the broad 75% concept-selection bar from
-task applicability: only support-matrix cells whose ranked capability bundle
-satisfies every task requirement on that surface may be executed or scored.
-Do not freeze while `suite.trace-review.yaml` is pending. Complete the declared
-sample and record its IDs, reviewer, timestamp, commit SHA, and findings first.
+Before human **publication** freeze, regenerate into the same DAEB-1 v1
+contract. Do not bump the suite version for authoring iterations; git SHAs and
+content hashes identify exact drafts, and any content change invalidates prior
+pack approvals. Use `benchmarks/daeb/v1/vendor-selection-ledger.yaml` as the
+core cohort source; research/excluded vendors must not silently enter synthesis
+or production runs. When reviewing coverage, distinguish the broad 75%
+concept-selection bar from task applicability: only support-matrix cells whose
+ranked capability bundle satisfies every task requirement on that surface may
+be executed or scored. Do not publication-freeze while
+`suite.trace-review.yaml` is pending (it is already `completed` for the current
+authoring freeze).
 
 After freezing a publication bundle, export website data with:
 
