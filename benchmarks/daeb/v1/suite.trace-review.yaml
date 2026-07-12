@@ -4,17 +4,17 @@ generated_at: 2026-07-12T09:45:00.000Z
 status: completed
 sample_size: 11
 sample_ids:
-  - results/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T01-access-control.trace.json
-  - results/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T02-evolve-schema.trace.json
-  - results/daeb-v1-remediation/medium/codex/insforge-cli-t01/run-codex-medium-cli.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T05-vector-search/run-codex-medium-cli-db-T05-vector-search.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/turso-api-db-T05-vector-search/run-codex-medium-db-T05-vector-search.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/turso-cli-db-T06-write-records/run-codex-medium-cli-db-T06-write-records.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/nile-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/supabase-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
-  - results/daeb-v1-trace-refresh/medium/codex/insforge-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T01-access-control.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/insforge-cli-t01/run-codex-medium-cli.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T05-vector-search/run-codex-medium-cli-db-T05-vector-search.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/turso-api-db-T05-vector-search/run-codex-medium-db-T05-vector-search.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/turso-cli-db-T06-write-records/run-codex-medium-cli-db-T06-write-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/nile-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/supabase-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/insforge-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
 reviewer: Richard Tang
 reviewed_at: 2026-07-12T09:45:00.000Z
 commit_sha: 741e7b0e43fa921fbde093ddd8c851570747692f
