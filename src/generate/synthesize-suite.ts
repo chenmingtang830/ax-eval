@@ -175,7 +175,7 @@ const DATABASE_TASK_TEMPLATES: Record<string, DeterministicTaskTemplate> = {
     skill: "evolve-schema",
     title: "Apply a schema evolution",
     intent:
-      "Starting from a container named `axarena_migrate_{ns}` that already contains a `title` field, apply an idiomatic schema change that adds a new `status` field. Confirm the evolved shape is visible through the vendor's schema or metadata surface.",
+      "In the task-scoped container `axarena_migrate_{ns}`, first establish a baseline schema containing a `title` field (create it if it does not already exist). Then apply an idiomatic schema evolution that adds a new `status` field without recreating or replacing the container. Confirm the evolved shape is visible through the vendor's schema or metadata surface.",
     oracle_hint:
       "Read back metadata for `axarena_migrate_{ns}` and confirm the added `status` field is now present and the pre-existing `title` field remains visible.",
     na_examples: ["This vendor does not support a documented schema evolution or migration flow on api/cli surfaces."],
@@ -299,6 +299,18 @@ const DATABASE_CORE_TASK_ORDER = [
   "change-data-capture",
   "full-text-search",
 ] as const;
+/** Core scoring only includes tasks whose strict verifier contract is already
+ * implemented across the benchmark. Backup, CDC, and integrity stay research
+ * until artifact/provenance/conflict probes are vendor-ready. */
+const DATABASE_VERIFIER_READY_SKILLS = new Set([
+  "access-control",
+  "evolve-schema",
+  "inspect-schema",
+  "query-records",
+  "vector-search",
+  "write-records",
+  "full-text-search",
+]);
 
 /** Infer difficulty from the canonical concept name. This is the deterministic
  *  prior used when no empirical trial calibration is available; the final
@@ -530,6 +542,7 @@ export function buildSelectionLedgerArtifact(
     const selectedByModel = Boolean(proposal);
     const coveredVendors = supported.map((decision) => decision.vendor);
     const taskFitVendors = taskFitSupported.map((decision) => decision.vendor);
+    const verifierReady = category !== "database" || DATABASE_VERIFIER_READY_SKILLS.has(concept.concept_name);
     let selected = false;
     let tier: "core" | "research" | "excluded" = "excluded";
     let rejectionReason: string | undefined;
@@ -549,6 +562,9 @@ export function buildSelectionLedgerArtifact(
     } else if (!meetsTaskFitCoverage) {
       tier = "research";
       rejectionReason = `task-fit coverage below ${Math.round(methodology.min_vendor_coverage_pct * 100)}% (${taskFitSupported.length}/${concept.decisions.length} vendors; need ≥${minVendors})`;
+    } else if (!verifierReady) {
+      tier = "research";
+      rejectionReason = "strict verifier contract pending";
     } else {
       selected = true;
       tier = "core";
@@ -561,6 +577,7 @@ export function buildSelectionLedgerArtifact(
       covered_vendors: coveredVendors,
       task_fit_coverage_pct: taskFitCoveragePct,
       task_fit_vendors: taskFitVendors,
+      verifier_ready: verifierReady,
       tier,
       verifiable: true,
       selected_by_model: selectedByModel,
@@ -592,7 +609,7 @@ export function buildSelectionLedgerArtifact(
   if (selectedCount < methodology.target_task_count) {
     for (const entry of entries) {
       if (entry.selected) continue;
-      if ((entry.task_fit_vendors?.length ?? 0) < minVendors) continue;
+      if (!entry.verifier_ready || (entry.task_fit_vendors?.length ?? 0) < minVendors) continue;
       entry.selected = true;
       entry.tier = "core";
       entry.rejection_reason = undefined;
@@ -605,6 +622,7 @@ export function buildSelectionLedgerArtifact(
     const l4Candidate = entries.find((entry) =>
       !entry.selected
       && entry.proposed_difficulty === "L4"
+      && entry.verifier_ready
       && (entry.task_fit_vendors?.length ?? 0) >= minVendors,
     );
     if (l4Candidate) {

@@ -1,6 +1,6 @@
 schema: ax.coverage-matrix/v1
 category: database
-generated_at: 2026-07-11T09:00:05.370Z
+generated_at: 2026-07-12T02:41:46.711Z
 concepts:
   - concept_name: access-control
     title: Access Control
@@ -57,7 +57,7 @@ concepts:
               - data-access-control
             fit_score: 22
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence:
               - &a5
@@ -81,7 +81,7 @@ concepts:
             - data-access-control
           missing_requirements: []
           supported_surfaces: &a4
-            - api
+            - cli
         surfaces_documented: *a4
         evidence:
           - *a5
@@ -988,29 +988,44 @@ concepts:
         vendor: Insforge
         status: supported
         source: inventory
-        capability_name: filtered-query
+        capability_name: baseline-sql-table-and-row-operations
         concept_capability_name: filtered-query
         candidate_capabilities:
+          - capability_name: baseline-sql-table-and-row-operations
+            matched_requirements:
+              - filtered-read
+            fit_score: 22
+            surfaces_documented:
+              - cli
+            surface_notes: []
+            evidence: &a80
+              - &a49
+                doc_url: https://docs.insforge.dev/sdks/rest/database
+                quote: Every InsForge project comes with a full Postgres database.
+                strength: direct
+              - &a50
+                doc_url: https://docs.insforge.dev/core-concepts/database/overview
+                quote: The same Postgres handles relational queries, semantic search via
+                  pgvector, and realtime change feeds.
+                strength: derived_from_connection_surface
           - capability_name: filtered-query
             matched_requirements:
               - filtered-read
             fit_score: 22
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence: &a115
-              - &a49
-                doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
+              - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
                 quote: you can filter "by field value (e.g., "?status=eq.active", "?age=gt.18")"
                 strength: direct
-              - &a50
-                doc_url: https://docs.insforge.dev/sdks/rest/database
+              - doc_url: https://docs.insforge.dev/sdks/rest/database
                 quote: "The API implements 10 filter operators: Equality: eq, neq; Comparison:
                   gt, gte, lt, lte; Pattern Matching: like and ilike; Set
                   Operations: in; Null Checks: is"
                 strength: direct
         capability_bundle:
-          - filtered-query
+          - baseline-sql-table-and-row-operations
         task_fit:
           status: sufficient
           requirement_path: filtered-read
@@ -1018,7 +1033,7 @@ concepts:
             - filtered-read
           missing_requirements: []
           supported_surfaces: &a48
-            - api
+            - cli
         surfaces_documented: *a48
         evidence:
           - *a49
@@ -1257,7 +1272,7 @@ concepts:
               - similarity-search
             fit_score: 22
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence:
               - &a64
@@ -1277,7 +1292,7 @@ concepts:
             - similarity-search
           missing_requirements: []
           supported_surfaces: &a63
-            - api
+            - cli
         surfaces_documented: *a63
         evidence:
           - *a64
@@ -1537,9 +1552,19 @@ concepts:
         vendor: Insforge
         status: supported
         source: inventory
-        capability_name: bulk-upsert-import
-        concept_capability_name: bulk-upsert-import
+        capability_name: baseline-sql-table-and-row-operations
+        concept_capability_name: baseline-sql-table-and-row-operations
         candidate_capabilities:
+          - capability_name: baseline-sql-table-and-row-operations
+            matched_requirements:
+              - create-record
+              - update-record
+              - delete-record
+            fit_score: 66
+            surfaces_documented:
+              - cli
+            surface_notes: []
+            evidence: *a80
           - capability_name: bulk-upsert-import
             matched_requirements:
               - update-record
@@ -1548,28 +1573,27 @@ concepts:
               - api
             surface_notes: []
             evidence:
-              - &a81
-                doc_url: https://docs.insforge.dev/sdks/rest/database
+              - doc_url: https://docs.insforge.dev/sdks/rest/database
                 quote: "Upsert: Insert-or-update via `resolution=merge-duplicates`... Bulk
                   Operations: CSV/JSON import and bulk upsert capabilities...
                   POST /api/database/advance/bulk-upsert"
                 strength: direct
-        capability_bundle: []
+        capability_bundle:
+          - baseline-sql-table-and-row-operations
         task_fit:
-          status: insufficient
+          status: sufficient
           requirement_path: record-lifecycle
           matched_requirements:
-            - update-record
-          missing_requirements:
             - create-record
+            - update-record
             - delete-record
-          supported_surfaces: &a80 []
-          reason: "missing task requirements: create-record, delete-record"
-        surfaces_documented: *a80
+          missing_requirements: []
+          supported_surfaces: &a81
+            - cli
+        surfaces_documented: *a81
         evidence:
-          - *a81
-        reason: "Concept supported, but concrete task fit is insufficient: missing task
-          requirements: create-record, delete-record"
+          - *a49
+          - *a50
       - concept_name: write-records
         vendor: Neon
         status: supported
@@ -2053,7 +2077,7 @@ concepts:
               - conflict-query
             fit_score: 22
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence: *a115
         capability_bundle:
@@ -10138,7 +10162,7 @@ concepts:
             matched_requirements: []
             fit_score: 0
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence:
               - &a360
@@ -10151,7 +10175,7 @@ concepts:
         capability_bundle:
           - record-delete
         surfaces_documented:
-          - api
+          - cli
         evidence:
           - *a360
       - concept_name: record-delete
@@ -10198,7 +10222,7 @@ concepts:
             matched_requirements: []
             fit_score: 0
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence:
               - &a361
@@ -10211,7 +10235,7 @@ concepts:
         capability_bundle:
           - record-insert
         surfaces_documented:
-          - api
+          - cli
         evidence:
           - *a361
       - concept_name: record-insert
@@ -10258,7 +10282,7 @@ concepts:
             matched_requirements: []
             fit_score: 0
             surfaces_documented:
-              - api
+              - cli
             surface_notes: []
             evidence:
               - &a362
@@ -10269,7 +10293,7 @@ concepts:
         capability_bundle:
           - record-update
         surfaces_documented:
-          - api
+          - cli
         evidence:
           - *a362
       - concept_name: record-update

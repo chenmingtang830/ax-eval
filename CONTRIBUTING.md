@@ -102,7 +102,9 @@ Two details matter for public packs:
 
 Also note that `profile` and `surface` are different axes: the pack declares
 which product surfaces exist, while harness profiles vary execution settings
-(effort/model/autonomy). Do not use profiles to smuggle in or hide surfaces.
+(effort/model/autonomy). New live runs use the single `medium` effort profile;
+legacy low/high artifacts remain readable. Do not use profiles to smuggle in or
+hide surfaces.
 
 ## Pull requests
 

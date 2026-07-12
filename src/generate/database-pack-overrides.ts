@@ -121,6 +121,28 @@ const SQL_WRITE_LIFECYCLE_CONTRACT_NOTE = [
   "run-scoped table before reporting the gid.",
 ].join(" ");
 
+const INSFORGE_RECORDS_SQL_FALLBACK_NOTE = [
+  "Insforge query-records completion contract: if the documented records endpoint returns 404 after a successful schema read-back,",
+  "do not stop or report N/A. Use process.env.INSFORGE_CONNECTION_STRING to create the exact three rows and run the filtered SQL read",
+  "for this task-local table, then report the table as gid. This fallback is required because the verifier reads the same Postgres state.",
+].join(" ");
+
+const STRICT_DENIED_SQL_ROLE_NOTE = [
+  "Strict access-control verifier contract: create the denied principal with the exact deterministic SQL role name `axarena_acl_denied_{ns}`,",
+  "where every hyphen in `{ns}` is replaced with an underscore (and do not otherwise alter the name).",
+  "Create it with no LOGIN and no privilege to read the protected table. Ensure the default SQL identity can SET ROLE to it.",
+  "Configure the policy/grants so that role is denied while the default SQL identity can insert the required authorized row.",
+  "Do not parameterize SQL role names or other DDL identifiers (for example, do not use $1 in CREATE ROLE, GRANT, or CREATE POLICY); quote identifiers directly after validating their source.",
+  "The verifier derives that role name from the namespace, SET ROLEs on its own admin connection, and requires SQLSTATE 42501.",
+  "If you SET ROLE for negative testing, run RESET ROLE (or open a fresh connection) before any later task in the same session.",
+].join(" ");
+
+function strictDeniedSqlIdentityNote(): string {
+  return [
+    STRICT_DENIED_SQL_ROLE_NOTE,
+  ].join(" ");
+}
+
 const NEON_SQL_CLI_CONTRACT_NOTE = [
   "Neon SQL CLI contract: run data-plane SQL through plain `psql` with `NEON_DATABASE_URL`; do not use",
   "`neonctl psql` or `neonctl connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,",
@@ -154,23 +176,88 @@ const MONGODB_ATLAS_TASK_CONTRACTS: Record<string, string> = {
   ].join(" "),
 };
 
+const TURSO_DENIED_TOKEN_NOTE = [
+  "Strict Turso access-control verifier contract: mint a separate Turso database auth token that cannot",
+  "read the protected table `axarena_acl_{ns}` (for example a token scoped only to another database, or",
+  "otherwise lacking read privilege on this table). Report that concrete token string in the task result",
+  "field `denied_database_auth_token`. The verifier POSTs `/v2/pipeline` against the protected table",
+  "using that token and expects HTTP 401/403 with a permission-denied outcome. Do not reuse the primary",
+  "sandbox database token for the denied probe, and do not leave the field empty or null.",
+].join(" ");
+
+const SUPABASE_API_DATA_PLANE_NOTE = [
+  "Supabase API data-plane contract: for this API-surface cell, operate through the documented PostgREST/HTTP",
+  "API against the pack base URL with `SUPABASE_API_KEY` (Authorization / apikey as documented). Do not use",
+  "`psql` or `SUPABASE_DB_URL` for agent actions on this cell — SQL wire is reserved for CLI cells and for",
+  "the verifier's independent read-back.",
+].join(" ");
+
+const COCKROACH_SQL_CLI_CONTRACT_NOTE = [
+  "CockroachDB SQL CLI contract: run data-plane SQL through `cockroach sql` with",
+  "`COCKROACH_CONNECTION_STRING` (or the documented connection URL). Do not use generic `psql` examples",
+  "as the primary path when `cockroach sql` is available. Never print the connection string.",
+].join(" ");
+
+function sqlCliDataPlaneNote(vendorSlug: string, sqlEnv: string): string {
+  if (vendorSlug === "cockroachdb") {
+    return [
+      `Use the documented SQL command-line data plane (\`cockroach sql\`) with process.env.${sqlEnv}`,
+      "for DDL/DML/query operations. Do not assume the vendor control-plane CLI executes arbitrary SQL.",
+    ].join(" ");
+  }
+  return [
+    `Use the documented SQL command-line data plane (for example, psql) with process.env.${sqlEnv}`,
+    "for DDL/DML/query operations. Do not assume the vendor control-plane CLI executes arbitrary SQL.",
+  ].join(" ");
+}
+
 export function applyDatabasePackPromptOverride(
   vendor: ResolveResult,
   task: SuiteTask,
   prompt: string,
+  /** Support-matrix-narrowed surfaces for this vendor/task; defaults to suite task surfaces. */
+  allowedSurfaces?: string[],
 ): string {
   if (vendor.category !== "database") return prompt;
+  const surfaces = allowedSurfaces ?? task.allowed_surfaces;
+  const cliAllowed = surfaces.includes("cli");
+  const apiAllowed = surfaces.includes("api");
+
   if (SQL_IDENTIFIER_CONTRACT_VENDORS.has(vendor.slug) && task.id.startsWith("db-")) {
     prompt = `${prompt}\n\n${SQL_IDENTIFIER_CONTRACT_NOTE}`;
     const sqlEnv = SQL_DATA_PLANE_ENV[vendor.slug];
-    if (sqlEnv) {
-      prompt = `${prompt}\n\nUse the documented SQL command-line data plane (for example, psql) with process.env.${sqlEnv} for DDL/DML/query operations. Do not assume the vendor control-plane CLI executes arbitrary SQL.`;
+    if (sqlEnv && cliAllowed) {
+      prompt = `${prompt}\n\n${sqlCliDataPlaneNote(vendor.slug, sqlEnv)}`;
+    }
+    if (vendor.slug === "supabase" && apiAllowed && !cliAllowed) {
+      prompt = `${prompt}\n\n${SUPABASE_API_DATA_PLANE_NOTE}`;
+    }
+    if (vendor.slug === "supabase" && apiAllowed && cliAllowed) {
+      prompt = `${prompt}\n\n${SUPABASE_API_DATA_PLANE_NOTE} When the assigned surface is CLI, use psql with process.env.SUPABASE_DB_URL instead.`;
     }
     if (task.skill === "write-records") prompt = `${prompt}\n\n${SQL_WRITE_LIFECYCLE_CONTRACT_NOTE}`;
   }
-  if (vendor.slug === "neon" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NEON_SQL_CLI_CONTRACT_NOTE}`;
-  if (vendor.slug === "nile" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${NILE_CLI_CONTRACT_NOTE}`;
-  if (vendor.slug === "insforge" && task.id.startsWith("db-")) prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
+  if (vendor.slug === "neon" && task.id.startsWith("db-") && cliAllowed) {
+    prompt = `${prompt}\n\n${NEON_SQL_CLI_CONTRACT_NOTE}`;
+  }
+  if (vendor.slug === "cockroachdb" && task.id.startsWith("db-") && cliAllowed) {
+    prompt = `${prompt}\n\n${COCKROACH_SQL_CLI_CONTRACT_NOTE}`;
+  }
+  if (vendor.slug === "nile" && task.id.startsWith("db-") && cliAllowed) {
+    prompt = `${prompt}\n\n${NILE_CLI_CONTRACT_NOTE}`;
+  }
+  if (vendor.slug === "insforge" && task.id.startsWith("db-") && apiAllowed) {
+    prompt = `${prompt}\n\n${INSFORGE_API_SCHEMA_NOTE}`;
+  }
+  if (vendor.slug === "insforge" && task.skill === "query-records") {
+    prompt = `${prompt}\n\n${INSFORGE_RECORDS_SQL_FALLBACK_NOTE}`;
+  }
+  if (SQL_DATA_PLANE_ENV[vendor.slug] && task.skill === "access-control") {
+    prompt = `${prompt}\n\n${strictDeniedSqlIdentityNote()}`;
+  }
+  if (vendor.slug === "turso" && task.skill === "access-control") {
+    prompt = `${prompt}\n\n${TURSO_DENIED_TOKEN_NOTE}`;
+  }
   if (vendor.slug === "mongodb-atlas" && task.id.startsWith("db-")) {
     const contract = MONGODB_ATLAS_TASK_CONTRACTS[task.skill];
     if (contract) prompt = `${prompt}\n\n${contract}`;
@@ -207,10 +294,10 @@ export function databaseSurfaceFallback(
       audit_status: "candidate",
       audit_notes: ["Fallback surface generated from SQL connection metadata; verify docs before publication."],
       cli: {
-        bin: "psql",
-        install: "Install PostgreSQL client tools (for example: brew install libpq, then add libpq/bin to PATH).",
-        help: "psql --help",
-        docs_url: "https://www.cockroachlabs.com/docs/stable/connect-to-the-database.html",
+        bin: "cockroach",
+        install: "Install CockroachDB (includes the `cockroach sql` client).",
+        help: "cockroach sql --help",
+        docs_url: "https://www.cockroachlabs.com/docs/stable/cockroach-sql.html",
         auth: { kind: "token", token_env: extract.vendor_config.sql_connection_env, token_env_aliases: [] },
       },
       sdk: {

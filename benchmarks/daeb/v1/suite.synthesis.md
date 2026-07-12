@@ -20,7 +20,7 @@ Every task below traces to specific, cited vendor documentation.
 - **suite**: The frozen canonical task bank for a category.
 - **publication_bundle**: The artifact bundle tying methodology, adapters, evidence, and results together.
 
-## Selected tasks (9)
+## Selected tasks (7)
 
 ### db-T01-access-control — T01: Configure an idiomatic access-control mechanism
 
@@ -39,24 +39,7 @@ Difficulty: L2 · Skill: access-control
 | Supabase | network-access-restriction |
 | Turso | fine-grained-permissions |
 
-### db-T02-backup-and-restore — T02: Produce a backup, snapshot, or export artifact
-
-Difficulty: L4 · Skill: backup-and-restore
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (6 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | backup-restore |
-| Insforge | database-export |
-| Neon | branch-point-in-time-restore |
-| Nile | automated-backup |
-| Supabase | bulk-data-import-export |
-| Turso | point-in-time-recovery |
-
-### db-T03-evolve-schema — T03: Apply a schema evolution
+### db-T02-evolve-schema — T02: Apply a schema evolution
 
 Difficulty: L3 · Skill: evolve-schema
 
@@ -73,7 +56,7 @@ Difficulty: L3 · Skill: evolve-schema
 | Supabase | schema-migration |
 | Turso | schema-alteration |
 
-### db-T04-inspect-schema — T04: Inspect container metadata
+### db-T03-inspect-schema — T03: Inspect container metadata
 
 Difficulty: L1 · Skill: inspect-schema
 
@@ -90,7 +73,7 @@ Difficulty: L1 · Skill: inspect-schema
 | Supabase | schema-introspection |
 | Turso | schema-introspection |
 
-### db-T05-query-records — T05: Filter and read matching records
+### db-T04-query-records — T04: Filter and read matching records
 
 Difficulty: L2 · Skill: query-records
 
@@ -101,13 +84,13 @@ Difficulty: L2 · Skill: query-records
 | Vendor | Capability |
 |---|---|
 | Cockroachdb | filtered-query |
-| Insforge | filtered-query |
+| Insforge | baseline-sql-table-and-row-operations |
 | Neon | data-api-rest |
 | Nile | postgres-protocol-compatibility |
 | Supabase | filtered-query |
 | Turso | filtered-query |
 
-### db-T06-vector-search — T06: Create a vector-enabled dataset and query it
+### db-T05-vector-search — T05: Create a vector-enabled dataset and query it
 
 Difficulty: L2 · Skill: vector-search
 
@@ -124,7 +107,7 @@ Difficulty: L2 · Skill: vector-search
 | Supabase | vector-similarity-search |
 | Turso | vector-similarity-search |
 
-### db-T07-write-records — T07: Create, update, and delete one record lifecycle
+### db-T06-write-records — T06: Create, update, and delete one record lifecycle
 
 Difficulty: L2 · Skill: write-records
 
@@ -137,7 +120,7 @@ Difficulty: L2 · Skill: write-records
 | Cockroachdb | row-insert |
 | Cockroachdb | row-update |
 | Cockroachdb | row-delete |
-| Insforge | bulk-upsert-import |
+| Insforge | baseline-sql-table-and-row-operations |
 | Neon | baseline-sql-table-and-row-operations |
 | Nile | row-insert-update-delete |
 | Supabase | rest-data-api-crud |
@@ -145,23 +128,7 @@ Difficulty: L2 · Skill: write-records
 | Turso | row-update |
 | Turso | row-delete |
 
-### db-T08-change-data-capture — T08: Emit one observable change event
-
-Difficulty: L4 · Skill: change-data-capture
-
-**Why selected**: Deterministic proposal from concept universe and coverage closure.
-
-**Coverage** (5 vendor capabilities clustered into this task):
-
-| Vendor | Capability |
-|---|---|
-| Cockroachdb | change-data-capture |
-| Insforge | realtime-change-feed |
-| Neon | logical-replication-cdc |
-| Supabase | change-data-capture |
-| Turso | change-data-capture |
-
-### db-T09-full-text-search — T09: Create a searchable text dataset and query it
+### db-T07-full-text-search — T07: Create a searchable text dataset and query it
 
 Difficulty: L2 · Skill: full-text-search
 

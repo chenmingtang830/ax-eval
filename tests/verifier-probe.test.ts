@@ -8,6 +8,11 @@ vi.mock("pg", () => ({
     async connect() {}
     async end() {}
     async query(sql: string) {
+      if (sql.includes('SET ROLE "denied_role_')) {
+        const error = new Error("permission denied");
+        Object.assign(error, { code: "42501" });
+        throw error;
+      }
       if (sql.includes("duplicate_probe")) {
         const error = new Error("duplicate key");
         Object.assign(error, { code: "23505" });
@@ -59,5 +64,38 @@ describe("SQL verifier probes", () => {
       expect.objectContaining({ type: "verifier-probe", passed: true }),
       expect.objectContaining({ type: "roundtrip", passed: true }),
     ]);
+  });
+
+  it("switches to a namespace-derived denied role without executor output", async () => {
+    process.env.PROBE_SQL_URL = "postgres://admin@example.test/db";
+    const pack = TargetPackSchema.parse({
+      name: "deny-probe",
+      base_url: "https://api.example.test",
+      sql_conn: { dialect: "postgres", connection_string_env: "PROBE_SQL_URL" },
+      tasks: [{
+        id: "access",
+        title: "Access",
+        allowed_surfaces: ["cli"],
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "postgres",
+          sqlQuery: "SELECT 1",
+          sqlRoleTemplate: "denied_role_{ns}",
+          assertOutcome: "error",
+          assertField: "code",
+          expected: "42501",
+        }],
+      }],
+    });
+
+    const outcomes = await verifyGeneratedPack(
+      pack,
+      { profile: "test", ns: "role", surface: "cli", results: {} },
+      {} as never,
+      "cli",
+    );
+
+    expect(outcomes[0]?.success).toBe(true);
+    expect(outcomes[0]?.oracleResults[0]).toEqual(expect.objectContaining({ passed: true }));
   });
 });

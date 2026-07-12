@@ -44,9 +44,15 @@ export async function runSqlCheck(conn: SqlConn, query: string): Promise<unknown
   if (conn.dialect === "postgres") {
     const { Client } = await import("pg");
     const client = new Client({ connectionString: conn.connectionString });
+    // A peer reset can be emitted by pg after query() rejects. Registering an
+    // error listener keeps verification failures structured instead of letting
+    // Node terminate on an unhandled EventEmitter error.
+    client.on?.("error", () => {});
     await client.connect();
     try {
-      const res = await client.query(query);
+      // Session hygiene: never inherit a prior SET ROLE from a pooled/mis-shared
+      // identity. Deny probes that need SET ROLE include it in the same query.
+      const res = await client.query(`RESET ROLE; ${query}`);
       return res.rows;
     } catch (err) {
       const e = err as { code?: string; message?: string };

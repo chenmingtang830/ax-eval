@@ -1054,7 +1054,7 @@ function howScoredBlock(contentMeasured: boolean): string {
  *  `dataCells(r)` returns the `<td>`s for the columns after `effort`. */
 function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => string): string {
   const surfaces = SURFACE_ORDER.filter((s) => runs.some((r) => (r.surface ?? "api") === s));
-  const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
+  const profRank = (p: string): number => (p === "medium" ? 0 : p === "low" ? 1 : p === "high" ? 2 : 3);
   let html = "";
   for (const s of surfaces) {
     const sRuns = runs.filter((r) => (r.surface ?? "api") === s);
@@ -1081,12 +1081,13 @@ function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => str
 /** Matrix Summary — used when more than one config (harness × surface × effort)
  *  is present. Product-level pillars (static discovery, content quality) are
  *  shown once; then EVERY config is printed in a grid: rows = harness · surface,
- *  columns = effort (low/high). Neutral — all configs shown, none crowned. */
+ *  columns = effort. New runs normally contain only medium; historical
+ *  multi-effort artifacts remain neutral and fully rendered. */
 function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
   const agentDisc = agentDiscoveryScore(runs);
-  const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
+  const profRank = (p: string): number => (p === "medium" ? 0 : p === "low" ? 1 : p === "high" ? 2 : 3);
   const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
 
   const allPct = runs.map((r) => pct(firstAttempts(r.outcomes)));
@@ -1781,9 +1782,10 @@ function renderMethodology(
     );
   } else if (!crossModel && runs.length > 1) {
     const sharedModel = ranModel(runs[0]!);
+    const effortProfiles = profiles.map((profile) => profile.name).join("↔");
     notes.push(
       `All profiles ran on the same model (${sharedModel}) with the same turn budget, so the ` +
-        `effort spread (low↔high) reflects effort only — not a model, turn-budget, or harness difference.`,
+        `effort spread (${effortProfiles}) reflects effort only — not a model, turn-budget, or harness difference.`,
     );
   }
   notes.push(

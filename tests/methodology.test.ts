@@ -359,11 +359,53 @@ describe("suite methodology artifacts", () => {
         na_examples: [],
       },
       "Write one lifecycle.",
+      ["api"],
     );
 
     expect(prompt).toContain("do not call user-session discovery endpoints such as `GET /api/auth/sessions/current`");
     expect(prompt).toContain("use the hosted type name `string` and do not use SQL names like `text`");
     expect(prompt).toContain("make it globally monotonic for the project");
+  });
+
+  it("requires Turso denied_database_auth_token in the access-control prompt", () => {
+    const prompt = applyDatabasePackPromptOverride(
+      { vendor: "Turso", slug: "turso", category: "database", docs_url: "https://docs.turso.tech" },
+      {
+        id: "db-T01-access-control",
+        title: "T01",
+        difficulty: "L2",
+        skill: "access-control",
+        intent: "Configure ACL.",
+        oracle_hint: "Deny probe.",
+        allowed_surfaces: ["api", "cli"],
+        na_examples: [],
+      },
+      "Configure ACL.",
+      ["api", "cli"],
+    );
+    expect(prompt).toContain("denied_database_auth_token");
+    expect(prompt).toContain("/v2/pipeline");
+  });
+
+  it("uses PostgREST contract for Supabase API-only tasks instead of psql", () => {
+    const prompt = applyDatabasePackPromptOverride(
+      { vendor: "Supabase", slug: "supabase", category: "database", docs_url: "https://supabase.com/docs" },
+      {
+        id: "db-T04-query-records",
+        title: "T04",
+        difficulty: "L2",
+        skill: "query-records",
+        intent: "Query records.",
+        oracle_hint: "Read them back.",
+        allowed_surfaces: ["api", "cli"],
+        na_examples: [],
+      },
+      "Query records.",
+      ["api"],
+    );
+    expect(prompt).toContain("PostgREST");
+    expect(prompt).not.toContain("for example, psql");
+    expect(prompt).not.toMatch(/Use the documented SQL command-line data plane/);
   });
 
   it("compose-pack rejects non-API task surfaces without pack-level surface declarations", () => {
@@ -535,7 +577,7 @@ describe("suite methodology artifacts", () => {
 
     expect(pack.surfaces?.sdk?.package).toBe("pg");
     expect(pack.surfaces?.sdk?.auth?.token_env).toBe("COCKROACH_CONNECTION_STRING");
-    expect(pack.surfaces?.cli?.bin).toBe("psql");
+    expect(pack.surfaces?.cli?.bin).toBe("cockroach");
     expect(pack.tasks[0]?.allowed_surfaces).toEqual(["sdk", "cli"]);
   });
 
@@ -729,12 +771,12 @@ describe("suite methodology artifacts", () => {
     expect(neonPack.tasks[0]?.prompt).toContain("Database SQL identifier contract");
     expect(neonPack.tasks[0]?.prompt).toContain("double-quote table, function, policy, index, trigger");
     expect(neonPack.tasks[0]?.prompt).toContain("do not replace hyphens with underscores for SQL-backed vendors");
-    expect(neonPack.tasks[0]?.prompt).toContain("Neon SQL CLI contract");
-    expect(neonPack.tasks[0]?.prompt).toContain("plain `psql`");
-    expect(neonPack.tasks[0]?.prompt).toContain("do not use");
+    // api-only compose: no CLI contract / psql data-plane note
+    expect(neonPack.tasks[0]?.prompt).not.toContain("Neon SQL CLI contract");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("for example, psql");
     expect(neonPack.tasks[0]?.prompt).not.toContain("--role-name <role>");
     expect(neonPack.tasks[0]?.prompt).not.toContain("--database-name <database>");
-    expect(neonPack.tasks[0]?.prompt).toContain("process.env.NEON_DATABASE_URL");
+    expect(neonPack.tasks[0]?.prompt).not.toContain("process.env.NEON_DATABASE_URL");
     expect(mongoPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");
     expect(mongoPack.tasks[0]?.prompt).not.toContain("Neon CLI contract");
     expect(convexPack.tasks[0]?.prompt).not.toContain("Database SQL identifier contract");

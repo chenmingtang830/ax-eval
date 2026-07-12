@@ -23,8 +23,8 @@ import {
 } from "./benchmark-paths.js";
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
-const PUBLICATION_EFFORT_PROFILES = ["low", "high"] as const;
-const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["low"] as const;
+const PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
+const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
 const IGNORED_RECURSIVE_DIRS = new Set([
   ".invoke-home",
   ".codex",

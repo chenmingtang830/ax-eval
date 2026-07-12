@@ -1,6 +1,6 @@
 schema: ax.concept-universe/v1
 category: database
-generated_at: 2026-07-11T09:00:05.369Z
+generated_at: 2026-07-12T02:41:46.710Z
 clusters:
   - concept_name: access-control
     title: Access Control
@@ -132,6 +132,8 @@ clusters:
         capability_name: row-delete
       - vendor: Cockroachdb
         capability_name: row-upsert
+      - vendor: Insforge
+        capability_name: baseline-sql-table-and-row-operations
       - vendor: Insforge
         capability_name: bulk-upsert-import
       - vendor: Neon

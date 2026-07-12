@@ -97,8 +97,8 @@ export function composePack(
       throw new Error(`compose-pack: oracle extract for "${vendor.vendor}" is missing task "${suiteTask.id}"`);
     }
     const basePrompt = suiteTask.intent.trim().replace(/\{ns\}/g, NS_PLACEHOLDER);
-    const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt);
     if (o.na) {
+      const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt, []);
       return {
         id: suiteTask.id,
         title: suiteTask.title,
@@ -138,6 +138,7 @@ export function composePack(
       !DISABLED_SURFACES.has(s) &&
       (!supportedFromMatrix || supportedFromMatrix.has(s as typeof CANONICAL_SURFACE_SCOPE[number]))
     );
+    const prompt = applyDatabasePackPromptOverride(vendor, suiteTask, basePrompt, allowedSurfaces);
     return {
       id: suiteTask.id,
       title: suiteTask.title,
@@ -176,6 +177,8 @@ export function composePack(
           typeof check.expected === "string" ? check.expected.replace(/\{ns\}/g, NS_PLACEHOLDER) : check.expected,
         authField: check.auth_field,
         sqlConnField: check.sql_conn_field,
+        sqlRoleField: check.sql_role_field,
+        sqlRoleTemplate: check.sql_role_template,
       })),
     };
   });

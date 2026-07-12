@@ -16,4 +16,14 @@ describe("parseJsonWithRecovery", () => {
   it("keeps rejecting unrelated malformed JSON", () => {
     expect(() => parseJsonWithRecovery("{ nope")).toThrow();
   });
+
+  it("rejects bare inner quotes instead of silently repairing them", () => {
+    expect(() =>
+      parseJsonWithRecovery(`{
+        "discovery": {
+          "endpoint_used": "tool "quoted" command"
+        }
+      }`),
+    ).toThrow();
+  });
 });

@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-11-8ww1n2
+# run_id: 2026-07-12-fcjlr3
 name: turso
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-11-8ww1n2
+run_id: 2026-07-12-fcjlr3
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -67,6 +67,17 @@ tasks:
       exact canonical names expected by the verifier; do not replace hyphens
       with underscores for SQL-backed vendors. Use parameterized values for
       marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Strict Turso access-control verifier contract: mint a separate Turso
+      database auth token that cannot read the protected table
+      `axarena_acl_{ns}` (for example a token scoped only to another database,
+      or otherwise lacking read privilege on this table). Report that concrete
+      token string in the task result field `denied_database_auth_token`. The
+      verifier POSTs `/v2/pipeline` against the protected table using that token
+      and expects HTTP 401/403 with a permission-denied outcome. Do not reuse
+      the primary sandbox database token for the denied probe, and do not leave
+      the field empty or null.
     oracles:
       - type: roundtrip
         expected: axarena_acl_{ns}
@@ -115,47 +126,14 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T02-backup-and-restore
-    title: "T02: Produce a backup, snapshot, or export artifact"
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
     prompt: >-
-      Create or use a container named `axarena_backup_{ns}` with one marker
-      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
-      artifact using the vendor's idiomatic recovery or export mechanism.
-
-
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
-      double-quote table, function, policy, index, trigger, schema, and other
-      SQL identifiers that include canonical task names or `{ns}`. Preserve the
-      exact canonical names expected by the verifier; do not replace hyphens
-      with underscores for SQL-backed vendors. Use parameterized values for
-      marker strings and row data; only SQL identifiers need identifier quoting.
-    oracles:
-      - type: roundtrip
-        expected: "1"
-        description: the active/restored Turso database contains the backup marker row
-        readMethod: POST
-        readPathTemplate: /v2/pipeline
-        readBodyTemplate:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "axarena_backup_{ns}" WHERE label = 'marker_{ns}'
-        assertField: results.0.response.result.rows.0.0.value
-    difficulty: L4
-    allowed_surfaces:
-      - api
-      - cli
-    na: false
-    depends_on: []
-    trace: []
-  - id: db-T03-evolve-schema
-    title: "T03: Apply a schema evolution"
-    prompt: >-
-      Starting from a container named `axarena_migrate_{ns}` that already
-      contains a `title` field, apply an idiomatic schema change that adds a new
-      `status` field. Confirm the evolved shape is visible through the vendor's
-      schema or metadata surface.
+      In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
 
 
       Database SQL identifier contract: DAEB namespaces may contain hyphens.
@@ -185,8 +163,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T04-inspect-schema
-    title: "T04: Inspect container metadata"
+  - id: db-T03-inspect-schema
+    title: "T03: Inspect container metadata"
     prompt: >-
       Create or use a container named `axarena_schema_probe_{ns}` with fields
       `name` and `status`, then use the vendor's schema or metadata inspection
@@ -219,8 +197,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T05-query-records
-    title: "T05: Filter and read matching records"
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
     prompt: >-
       Using a container named `axarena_query_items_{ns}`, create exactly three
       records with a text field named `label` and values `alpha_{ns}`,
@@ -279,8 +257,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T06-vector-search
-    title: "T06: Create a vector-enabled dataset and query it"
+  - id: db-T05-vector-search
+    title: "T05: Create a vector-enabled dataset and query it"
     prompt: >-
       Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
       field named `label` and at least three items labeled `alpha_{ns}`,
@@ -316,8 +294,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T07-write-records
-    title: "T07: Create, update, and delete one record lifecycle"
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
     prompt: >-
       Using a container named `axarena_write_items_{ns}`, create one record with
       immutable `record_id=record_{ns}` and label `draft_{ns}`, update that same
@@ -383,46 +361,8 @@ tasks:
     na: false
     depends_on: []
     trace: []
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
-    prompt: >-
-      Enable a change stream, realtime subscription, or CDC feed for a container
-      named `axarena_cdc_{ns}`, then create one record labeled `cdc_probe_{ns}`
-      so the resulting insert becomes observable in the stream or feed. Persist
-      the observed event into a durable capture container that is distinct from
-      `axarena_cdc_{ns}`, with either a `row_label` field equal to
-      `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
-
-
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
-      double-quote table, function, policy, index, trigger, schema, and other
-      SQL identifiers that include canonical task names or `{ns}`. Preserve the
-      exact canonical names expected by the verifier; do not replace hyphens
-      with underscores for SQL-backed vendors. Use parameterized values for
-      marker strings and row data; only SQL identifiers need identifier quoting.
-    oracles:
-      - type: roundtrip
-        expected: "1"
-        description: agent-reported durable capture table contains the inserted CDC marker
-        readMethod: POST
-        readPathTemplate: /v2/pipeline
-        readBodyTemplate:
-          requests:
-            - type: execute
-              stmt:
-                sql: SELECT COUNT(*) FROM "{capture_table}" WHERE row_label = 'cdc_probe_{ns}'
-                  OR payload LIKE '%cdc_probe_{ns}%'
-        assertField: results.0.response.result.rows.0.0.value
-    difficulty: L4
-    allowed_surfaces:
-      - cli
-    na: false
-    depends_on: []
-    trace: []
-  - id: db-T09-full-text-search
-    title: "T09: Create a searchable text dataset and query it"
+  - id: db-T07-full-text-search
+    title: "T07: Create a searchable text dataset and query it"
     prompt: >-
       Create a text-searchable dataset named `axarena_search_{ns}` with at least
       three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and

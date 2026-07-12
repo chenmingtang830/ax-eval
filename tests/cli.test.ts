@@ -148,7 +148,7 @@ describe("cli arg handling", () => {
       expect(manifest.publication_readiness).toBe("draft");
       expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
       expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-      expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
+      expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
       expect(manifest.layers.static_ax).toBeTruthy();
@@ -487,7 +487,7 @@ if (!resultPath || !tracePath) {
   process.exit(1);
 }
 fs.writeFileSync(resultPath, JSON.stringify({
-  profile: "floor",
+  profile: "medium",
   ns: "fake-ns",
   surface: "api",
   discovery: { base_url_found: "", searches: [], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: "" },
@@ -502,26 +502,26 @@ console.log(JSON.stringify({ ok: true }));
     const { code, out } = runCli(
       [
         "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "claude-code",
-        "--profile", "floor", "--attempts", "1", "--run-dir", dir,
+        "--attempts", "1", "--run-dir", dir,
       ],
       { PATH: `${binDir}:${process.env.PATH ?? ""}` },
     );
 
     expect(code).toBe(0);
-    expect(out).toContain("claude-code/API/floor"); // per-job progress label in the concurrency pool
+    expect(out).toContain("claude-code/API/medium"); // per-job progress label in the concurrency pool
     // One combined verify-generated command (no per-harness split, no --harness flag).
     expect(out).toContain("ax-eval verify-generated");
     expect(out).toContain("--html");
     expect(out).toContain("generated-eval.html");
     expect(out).not.toContain("--harness claude-code"); // verify command groups by record, not flag
     const files = readdirSync(dir).sort();
-    expect(files).toContain("prompt-claude-code-floor.txt");
-    expect(files).toContain("run-claude-code-floor.json");
-    expect(files).toContain("run-claude-code-floor.trace.json");
-    expect(files).toContain("run-claude-code-floor.transcript.jsonl");
-    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.json"), "utf8"));
+    expect(files).toContain("prompt-claude-code-medium.txt");
+    expect(files).toContain("run-claude-code-medium.json");
+    expect(files).toContain("run-claude-code-medium.trace.json");
+    expect(files).toContain("run-claude-code-medium.transcript.jsonl");
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(executor.harness).toBe("claude-code");
-    expect(executor.profile).toBe("floor");
+    expect(executor.profile).toBe("medium");
   });
 
   it("`--execution-mode task` runs one prompt per task and aggregates them back into a combined run", () => {
@@ -575,7 +575,7 @@ if (!resultPath || !tracePath || !taskId) {
   process.exit(1);
 }
 fs.writeFileSync(resultPath, JSON.stringify({
-  profile: "floor",
+  profile: "medium",
   ns: "fake-ns",
   surface: "api",
   discovery: { base_url_found: "", searches: [taskId], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: taskId },
@@ -590,23 +590,23 @@ console.log(JSON.stringify({ ok: true }));
     const { code, out } = runCli(
       [
         "exec-plan", "--pack", taskPack, "--skip-review", "--invoke", "--harness", "claude-code",
-        "--profile", "floor", "--attempts", "1", "--execution-mode", "task", "--run-dir", dir,
+        "--attempts", "1", "--execution-mode", "task", "--run-dir", dir,
       ],
       { PATH: `${binDir}:${process.env.PATH ?? ""}` },
     );
 
     expect(code).toBe(0);
     const files = readdirSync(dir).sort();
-    expect(files).toContain("run-claude-code-floor.json");
-    expect(files).toContain("run-claude-code-floor.trace.json");
-    expect(files).toContain("run-claude-code-floor.invoke.json");
-    expect(files.some((file) => file.startsWith("run-claude-code-floor-") && file.endsWith(".json"))).toBe(true);
-    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.json"), "utf8"));
+    expect(files).toContain("run-claude-code-medium.json");
+    expect(files).toContain("run-claude-code-medium.trace.json");
+    expect(files).toContain("run-claude-code-medium.invoke.json");
+    expect(files.some((file) => file.startsWith("run-claude-code-medium-") && file.endsWith(".json"))).toBe(true);
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(Object.keys(executor.results).length).toBeGreaterThan(1);
     expect(Object.values(executor.results).every((value: unknown) => {
       return !!value && typeof value === "object" && typeof (value as { gid?: string }).gid === "string";
     })).toBe(true);
-    const meta = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.invoke.json"), "utf8"));
+    const meta = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.invoke.json"), "utf8"));
     expect(meta.executionMode).toBe("task");
     expect(Array.isArray(meta.taskMetaPaths)).toBe(true);
     expect(meta.taskMetaPaths.length).toBeGreaterThan(1);
@@ -646,7 +646,7 @@ console.log(JSON.stringify({ ok: true }));
       { PATH: `${binDir}:${process.env.PATH ?? ""}` },
     );
     expect(code).toBe(0);
-    // Two configs (low + high) ran via the pool — both files exist, and the pool
+    // Explicit legacy profiles still run via the pool — both files exist, and the pool
     // announces its concurrency.
     expect(out).toContain("at concurrency=2");
     const files = readdirSync(dir).sort();

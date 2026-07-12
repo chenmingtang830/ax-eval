@@ -14,7 +14,7 @@ describe("canonical task suite", () => {
     expect(suite.name).toBe("DAEB-1");
     expect(suite.version).toBe(1);
     expect(suite.category).toBe("database");
-    expect(suite.tasks).toHaveLength(9);
+    expect(suite.tasks).toHaveLength(7);
     expect(suite.methodology?.surface_scope).toEqual(["api", "cli"]);
     for (const task of suite.tasks) {
       expect(task.id).toMatch(/^db-T\d{2}-/);

@@ -9,6 +9,7 @@
 import { readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
 import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import type { ObservedRun } from "../harness/transcript.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
@@ -16,6 +17,10 @@ import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
 import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
 import { resolveEnvTemplate } from "../target/config.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
+import { gradeSurfaceHonesty } from "./surface-honesty.js";
+
+export { parseJsonWithRecovery } from "../util/json-parse.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -47,72 +52,6 @@ export interface RoundtripOutcome {
    *  from both the numerator and denominator of the pass rate, not
    *  counted as failures. */
   na: boolean;
-}
-
-function retryWithShellQuoteRecovery(text: string): string {
-  // Some agent-authored result files accidentally include shell-style escaping
-  // like '\'' inside JSON strings. JSON does not allow \' escapes, so strip
-  // only the invalid backslash before retrying parse.
-  return text.replace(/\\'/g, "'");
-}
-
-function repairBareInnerQuotes(text: string): string {
-  let out = "";
-  let inString = false;
-  let escaping = false;
-  for (let i = 0; i < text.length; i += 1) {
-    const ch = text[i]!;
-    if (!inString) {
-      out += ch;
-      if (ch === '"') {
-        inString = true;
-        escaping = false;
-      }
-      continue;
-    }
-    if (escaping) {
-      out += ch;
-      escaping = false;
-      continue;
-    }
-    if (ch === "\\") {
-      out += ch;
-      escaping = true;
-      continue;
-    }
-    if (ch === '"') {
-      let j = i + 1;
-      while (j < text.length && /\s/.test(text[j]!)) j += 1;
-      const next = text[j];
-      if (next === "," || next === "}" || next === "]" || next === ":") {
-        out += ch;
-        inString = false;
-      } else {
-        out += '\\"';
-      }
-      continue;
-    }
-    out += ch;
-  }
-  return out;
-}
-
-export function parseJsonWithRecovery<T = unknown>(text: string): T {
-  try {
-    return JSON.parse(text) as T;
-  } catch (error) {
-    const shellRecovered = retryWithShellQuoteRecovery(text);
-    if (shellRecovered !== text) {
-      try {
-        return JSON.parse(shellRecovered) as T;
-      } catch {
-        /* fall through to inner-quote recovery */
-      }
-    }
-    const quoteRecovered = repairBareInnerQuotes(shellRecovered);
-    if (quoteRecovered === text) throw error;
-    return JSON.parse(quoteRecovered) as T;
-  }
 }
 
 export function loadResults(path: string): ExecutorResults {
@@ -327,7 +266,19 @@ async function verifyRoundtrip(
       // the executor already had this connection string in hand to do
       // the work, so this just asks it to also report it.
       let effectiveSqlConn = sqlConn;
-      if (oracle.sqlConnField) {
+      let rolePrefix = "";
+      const safeNs = (ns ?? "").replace(/[^a-zA-Z0-9_]/g, "_");
+      const role = oracle.sqlRoleTemplate
+        ? oracle.sqlRoleTemplate.replace(/\{ns\}/g, safeNs)
+        : oracle.sqlRoleField ? reported?.[oracle.sqlRoleField] : undefined;
+      if (oracle.sqlRoleTemplate || oracle.sqlRoleField) {
+        if (typeof role !== "string" || !/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) {
+          const source = oracle.sqlRoleTemplate ? `"${oracle.sqlRoleTemplate}"` : `"${oracle.sqlRoleField}"`;
+          out.push({ type: "roundtrip", passed: false, detail: `no valid SQL role resolved from ${source}` });
+          continue;
+        }
+        rolePrefix = `SET ROLE "${role}"; `;
+      } else if (oracle.sqlConnField) {
         const reportedConn = reported?.[oracle.sqlConnField];
         if (typeof reportedConn !== "string" || !reportedConn) {
           out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.sqlConnField}" reported by executor` });
@@ -343,7 +294,7 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
         continue;
       }
-      const query = applyReportedFields(applyNsTemplate(oracle.sqlQuery));
+      const query = rolePrefix + applyReportedFields(applyNsTemplate(oracle.sqlQuery));
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         if (oracle.probeSqlQuery) {
@@ -498,11 +449,19 @@ export async function verifyGeneratedPack(
   executor: ExecutorResults,
   client: BearerClient,
   surface?: SurfaceId,
+  observedRun?: ObservedRun,
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const sqlConn = resolveSqlConn(pack);
   const mongoConn = resolveMongoConn(pack);
+  const honestySurface: SurfaceId =
+    surface ?? (executor.surface === "cli" || executor.surface === "sdk" || executor.surface === "mcp" || executor.surface === "api"
+      ? executor.surface
+      : "api");
+  const honesty = observedRun
+    ? gradeSurfaceHonesty(observedRun, honestySurface, pack)
+    : null;
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -521,6 +480,13 @@ export async function verifyGeneratedPack(
     } catch (err) {
       oracleResults = [];
       error = err instanceof Error ? err.message : String(err);
+    }
+    if (honesty && !honesty.passed) {
+      oracleResults.push({
+        type: "surface-honesty",
+        passed: false,
+        detail: honesty.detail,
+      });
     }
     const na = task.oracles.length > 0 && task.oracles.every((o) => o.type === "na");
     const success = oracleResults.length > 0 && oracleResults.every((r) => r.passed);

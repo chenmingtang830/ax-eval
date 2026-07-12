@@ -87,6 +87,12 @@ export const OracleSpecSchema = z.object({
    *  The executor already has this connection string in hand (it's what
    *  it just used to do the work); this only asks it to also report it. */
   sqlConnField: z.string().optional(),
+  /** Identity-scoped SQL verifier role reported by the executor. The verifier
+   * switches to it on the pack's admin connection before executing the check. */
+  sqlRoleField: z.string().optional(),
+  /** Deterministic SQL role name template. `{ns}` is rendered as a
+   * SQL-identifier-safe namespace before the verifier issues SET ROLE. */
+  sqlRoleTemplate: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 

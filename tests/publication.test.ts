@@ -25,7 +25,7 @@ describe("publication bundle", () => {
   // assertions require the full regenerated methodology artifact bundle (methodology,
   // coverage-matrix, grader-ledger, failure-taxonomy, selection-ledger, support-matrix,
   // trace-review, …) which is renamed/regenerated in Phase 3-4. Re-enable them there.
-  it.skip("treats low coverage as publication-critical and high coverage as optional", () => {
+  it.skip("treats medium coverage as publication-critical", () => {
     const runDir = freshDir("ax-pub-run-");
     const outDir = freshDir("ax-pub-out-");
     const vendorDir = resolve(runDir, "supabase");
@@ -44,8 +44,8 @@ describe("publication bundle", () => {
       attempts: 1,
       discovery_score: 0.75,
       content_quality: 0.8,
-      profiles: ["low"],
-      best_profile: "low",
+      profiles: ["medium"],
+      best_profile: "medium",
       model: "test-model",
       latency_ms: 1234,
       tool_call_count: 5,
@@ -97,11 +97,9 @@ describe("publication bundle", () => {
     expect(manifest.publication_readiness).toBe("publication_ready");
     expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
     expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-    expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
-    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["low"]);
+    expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
+    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["medium"]);
     expect(manifest.quality_gates.find((gate) => gate.id === "matrix-completeness")?.status).toBe("pass");
-    expect(manifest.quality_gates.find((gate) => gate.id === "optional-profile-coverage")?.status).toBe("warn");
-    expect(manifest.notes.some((note) => note.includes("missing optional coverage does not block"))).toBe(true);
   });
 
   it.skip("can freeze a production bundle from aggregate-only medium records", () => {

@@ -44,7 +44,7 @@ methodology:
     - api
     - cli
   min_vendor_coverage_pct: 0.75
-  target_task_count: 9
+  target_task_count: 7
   verifiability_requirement: Selected tasks must have deterministic read-back
     verification against world state.
   difficulty_rubric:
@@ -83,31 +83,15 @@ tasks:
     na_examples:
       - This vendor does not expose a configurable access-control mechanism on
         api/cli surfaces.
-  - id: db-T02-backup-and-restore
-    title: "T02: Produce a backup, snapshot, or export artifact"
-    difficulty: L4
-    skill: backup-and-restore
-    intent: Create or use a container named `axarena_backup_{ns}` with one marker
-      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
-      artifact using the vendor's idiomatic recovery or export mechanism.
-    oracle_hint: Read back the backup, snapshot, or export artifact and confirm (1)
-      its metadata references `axarena_backup_{ns}` or the producing job, and
-      (2) the artifact payload, listing, or restore-preview includes the marker
-      record labeled `marker_{ns}` — metadata-only existence is not enough.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor does not expose a backup, snapshot, or export flow on
-        api/cli surfaces.
-  - id: db-T03-evolve-schema
-    title: "T03: Apply a schema evolution"
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
     difficulty: L3
     skill: evolve-schema
-    intent: Starting from a container named `axarena_migrate_{ns}` that already
-      contains a `title` field, apply an idiomatic schema change that adds a new
-      `status` field. Confirm the evolved shape is visible through the vendor's
-      schema or metadata surface.
+    intent: In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
     oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
       `status` field is now present and the pre-existing `title` field remains
       visible.
@@ -117,8 +101,8 @@ tasks:
     na_examples:
       - This vendor does not support a documented schema evolution or migration
         flow on api/cli surfaces.
-  - id: db-T04-inspect-schema
-    title: "T04: Inspect container metadata"
+  - id: db-T03-inspect-schema
+    title: "T03: Inspect container metadata"
     difficulty: L1
     skill: inspect-schema
     intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
@@ -133,8 +117,8 @@ tasks:
     na_examples:
       - This vendor does not expose schema or metadata inspection on api/cli
         surfaces.
-  - id: db-T05-query-records
-    title: "T05: Filter and read matching records"
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
     difficulty: L2
     skill: query-records
     intent: Using a container named `axarena_query_items_{ns}`, create exactly three
@@ -152,8 +136,8 @@ tasks:
       - cli
     na_examples:
       - This vendor cannot perform filtered record reads on api/cli surfaces.
-  - id: db-T06-vector-search
-    title: "T06: Create a vector-enabled dataset and query it"
+  - id: db-T05-vector-search
+    title: "T05: Create a vector-enabled dataset and query it"
     difficulty: L2
     skill: vector-search
     intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
@@ -169,8 +153,8 @@ tasks:
     na_examples:
       - This vendor does not expose vector indexing or similarity search on
         api/cli surfaces.
-  - id: db-T07-write-records
-    title: "T07: Create, update, and delete one record lifecycle"
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
     difficulty: L2
     skill: write-records
     intent: Using a container named `axarena_write_items_{ns}`, create one record
@@ -189,31 +173,8 @@ tasks:
     na_examples:
       - This vendor cannot perform create, update, and delete record operations
         on api/cli surfaces.
-  - id: db-T08-change-data-capture
-    title: "T08: Emit one observable change event"
-    difficulty: L4
-    skill: change-data-capture
-    intent: Enable a change stream, realtime subscription, or CDC feed for a
-      container named `axarena_cdc_{ns}`, then create one record labeled
-      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
-      or feed. Persist the observed event into a durable capture container that
-      is distinct from `axarena_cdc_{ns}`, with either a `row_label` field equal
-      to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
-      report that capture container name for verification.
-    oracle_hint: Read back the reported capture container (must not be
-      `axarena_cdc_{ns}` itself) and confirm at least one stored event
-      corresponds to `cdc_probe_{ns}` and carries insert/change evidence from
-      the feed (event type, commit watermark, or vendor-equivalent CDC fields).
-      A hand-written row that merely copies the label without feed provenance
-      does not pass.
-    allowed_surfaces:
-      - api
-      - cli
-    na_examples:
-      - This vendor does not expose a documented CDC, change stream, or realtime
-        feed on api/cli surfaces.
-  - id: db-T09-full-text-search
-    title: "T09: Create a searchable text dataset and query it"
+  - id: db-T07-full-text-search
+    title: "T07: Create a searchable text dataset and query it"
     difficulty: L2
     skill: full-text-search
     intent: Create a text-searchable dataset named `axarena_search_{ns}` with at

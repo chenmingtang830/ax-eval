@@ -26,7 +26,7 @@
  *   ax-eval publication-bundle --suite <suite.yaml> --run-dir <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
- *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile high] run prompts locally
+ *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
@@ -135,6 +135,7 @@ import {
 } from "./harness/invoke.js";
 import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
 import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
+import { resetSqlSession, taskUsesSqlRole } from "./generate/sql-session.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
@@ -209,7 +210,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--trial N] [--skip-reset] [--reclaim]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -2395,7 +2396,7 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
       mkdirSync(dirname(freshPackPath), { recursive: true });
       writeFileSync(
         freshPackPath,
-        `# GENERATED — fresh low-pass compiled pack. Do not hand-edit.\n` +
+          `# GENERATED — fresh medium-effort compiled pack. Do not hand-edit.\n` +
           `# source_suite: ${suitePath}\n` +
           `# source_vendor: ${vendorCard.slug}\n` +
           yamlStringify(freshPack),
@@ -2418,7 +2419,7 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
           vendor,
           generated_at: new Date().toISOString(),
           harnesses: ["codex", "claude-code"],
-          profile: "low",
+          profile: "medium",
           execution_mode: "task",
           surfaces: [...existingManifest.surfaces],
         }
@@ -2428,7 +2429,7 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
           vendor,
           generated_at: new Date().toISOString(),
           harnesses: ["codex", "claude-code"],
-          profile: "low",
+          profile: "medium",
           execution_mode: "task",
           surfaces: [],
         };
@@ -2436,7 +2437,7 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
     for (const surface of surfaces) {
       const surfaceDir = resolve(runRoot, vendor, surface);
       mkdirSync(surfaceDir, { recursive: true });
-      console.log(`\nRunning ${vendor}/${surface}: Codex low + Claude low in parallel`);
+      console.log(`\nRunning ${vendor}/${surface}: Codex medium + Claude medium in parallel`);
       await Promise.all([
         runCliSubcommand([
           "exec-plan",
@@ -2446,7 +2447,8 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
           "--invoke",
           "--execution-mode", "task",
           "--harness", "codex",
-          "--profile", "low",
+          "--profile", "medium",
+          "--effort", "medium",
           "--surface", surface,
           "--model", args.codexModel,
           "--invoke-retries", "0",
@@ -2461,7 +2463,8 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
           "--invoke",
           "--execution-mode", "task",
           "--harness", "claude-code",
-          "--profile", "low",
+          "--profile", "medium",
+          "--effort", "medium",
           "--surface", surface,
           "--model", args.claudeModel,
           "--invoke-retries", "0",
@@ -2471,8 +2474,8 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
       ]);
 
       const resultPaths = [
-        combinedResultPath(surfaceDir, "codex", "low", surface),
-        combinedResultPath(surfaceDir, "claude-code", "low", surface),
+        combinedResultPath(surfaceDir, "codex", "medium", surface),
+        combinedResultPath(surfaceDir, "claude-code", "medium", surface),
       ].filter((path) => existsSync(path));
       if (resultPaths.length === 0) {
         throw new Error(`No aggregated result files were produced for ${vendor}/${surface}`);
@@ -2716,7 +2719,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
  * Emit a ready-to-run executor prompt per profile (resolving a fresh namespace
  * each). Each prompt is a single two-phase run: Phase 0 cold-start discovery
  * followed by the L1-L4 tasks built on what it discovered — so discovery is
- * NOT a separate agent, it's step 0 of low and high. ns and
+ * NOT a separate agent, it's step 0 of every medium-effort run. ns and
  * the discovery/results/trace contract are baked in by the builder, so execution
  * is reproducible. Artifacts land under --run-dir (default results/).
  */
@@ -2961,7 +2964,22 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // Load .env so the per-surface auth gate sees the credentials the developer
   // has set (otherwise every surface would read as blocked).
   loadDotenv();
-  const pack = loadPack(args.pack);
+  const loadedPack = loadPack(args.pack);
+  const pack = args.task
+    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => task.id === args.task) }
+    : loadedPack;
+  if (args.task && pack.tasks.length === 0) {
+    throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
+  }
+  const missingRequiredEnv = describeRequiredEnv(pack)
+    .filter((requirement) => requirement.required && !requirement.set)
+    .map((requirement) => requirement.env);
+  if (missingRequiredEnv.length) {
+    throw new Error(
+      `Refusing to exec-plan: required env is missing (${missingRequiredEnv.join(", ")}). ` +
+      `Run: ax-eval check-env --pack ${args.pack}`,
+    );
+  }
   // Hygiene gate: warn about or reclaim leftover probe resources before we start.
   await runHealthCheck(pack, args.reclaim);
   // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
@@ -2988,8 +3006,8 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     }
   }
   const profileNames = args.invoke
-    ? (args.profile.length ? args.profile : ["high"])
-    : (args.harness.length ? args.harness : ["low", "high"]);
+    ? (args.profile.length ? args.profile : ["medium"])
+    : (args.harness.length ? args.harness : ["medium"]);
   if (!Number.isInteger(args.attempts) || args.attempts < 1) {
     throw new Error("--attempts must be a positive integer");
   }
@@ -3379,6 +3397,16 @@ interface InvokeGroup {
             `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
               `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
           );
+          if (job.taskId && taskUsesSqlRole(job.runOpts.pack, job.taskId)) {
+            try {
+              await resetSqlSession(job.runOpts.pack);
+              console.log(`  ↻ sql session RESET ROLE after ${job.taskId}`);
+            } catch (err) {
+              console.warn(
+                `  WARN: RESET ROLE after ${job.taskId} failed: ${err instanceof Error ? err.message : String(err)}`,
+              );
+            }
+          }
         }
       });
       for (const group of invokeGroups.values()) {
@@ -3408,12 +3436,10 @@ interface InvokeGroup {
     const emittedResultPaths = args.executionMode === "task"
       ? [...invokeGroups.values()].map((group) => group.combinedPaths.resultsPath)
       : invokeJobs.map((job) => job.paths.resultsPath);
-    const resetNs = args.executionMode === "task"
+    const invokedNs = args.executionMode === "task"
       ? [...invokeGroups.values()].flatMap((group) => group.taskJobs ?? []).map((job) => ({ ns: job.ns, attempt: job.attempt }))
       : invokeJobs.map((job) => ({ ns: job.ns, attempt: job.attempt }));
-    for (const job of resetNs) {
-      if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
-    }
+    for (const job of invokedNs) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
     for (const resultPath of emittedResultPaths) {
       resultPaths.push(resultPath);
       const meta = siblingInvokeMeta(resultPath);
@@ -3460,47 +3486,10 @@ interface InvokeGroup {
     );
   }
   }
-  if (args.invoke && !args.skipReset && (invokeJobs.length || invokeGroups.size)) {
-    console.log("\nResetting sandbox namespaces after verification…");
-    let resetClient: BearerClient | undefined;
-    let scope: Record<string, string> | undefined;
-    try {
-      resetClient = new BearerClient({
-        baseUrl: resolveEnvTemplate(pack.base_url),
-        token: resolveToken(pack),
-        responseEnvelope: pack.response_envelope,
-        authScheme: pack.auth?.type ?? "bearer",
-        authHeader: pack.auth?.header,
-        extraAuthHeader: pack.auth?.extra_header,
-        extraHeaders: pack.headers,
-        apiStyle: pack.api_style,
-      });
-      scope = resolveScope(pack);
-    } catch (e) {
-      console.warn(
-        `  Could not build reset client/scope: ${e instanceof Error ? e.message : String(e)}; reset skipped.`,
-      );
-    }
-    if (resetClient && scope) {
-      const usedNs = new Set<string>();
-      if (args.executionMode === "task") {
-        for (const group of invokeGroups.values()) {
-          for (const job of group.taskJobs ?? []) usedNs.add(job.ns);
-        }
-      } else {
-        for (const job of invokeJobs) usedNs.add(job.ns);
-      }
-      for (const ns of usedNs) {
-        try {
-          const result = await resetPack(pack, resetClient, scope, { ns });
-          console.log(`  ns=${ns} → ${result.message}`);
-        } catch (e) {
-          console.warn(`  ns=${ns} reset failed: ${e instanceof Error ? e.message : String(e)}`);
-        }
-      }
-    }
-  } else if (resetHints.length) {
-    console.log(`\nBetween attempts, reset the previous namespace so pass@k is isolated:\n${resetHints.join("\n")}`);
+  if (!args.skipReset && resetHints.length) {
+    console.log(
+      `\nAfter verify-generated has read live state, reset these sandbox namespaces:\n${[...new Set(resetHints)].join("\n")}`,
+    );
   }
   if (blockedNotes.length) {
     console.log(
@@ -3835,7 +3824,13 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval verify-generated --pack <yaml> --results <run.json>...");
   if (args.results.length === 0) throw new Error("provide at least one --results <run.json>");
-  const pack = loadPack(args.pack);
+  const loadedPack = loadPack(args.pack);
+  const pack = args.task
+    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => task.id === args.task) }
+    : loadedPack;
+  if (args.task && pack.tasks.length === 0) {
+    throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
+  }
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
   const byAttempt: ProfileRun[] = [];
   // Runtime warnings captured while assembling the report — surfaced verbatim
@@ -3871,7 +3866,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const taskCount = tasksForSurface(pack, surface).length;
     const passCount = Object.values(executor.results).filter((r) => r?.gid).length;
     console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${taskCount} tasks reported a gid on ${surface})…`);
-    const outcomes = await verifyGeneratedPack(pack, executor, client, surface);
+    const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
+    const profileObservedTranscript = args.observe[executor.profile];
+    const obsPath = existsSync(siblingTranscript) ? siblingTranscript : profileObservedTranscript;
+    let observedRun = undefined;
+    if (obsPath && existsSync(obsPath)) {
+      try {
+        observedRun = parseTranscript(obsPath, parseOpts);
+      } catch {
+        /* discovery block below will warn if needed */
+      }
+    }
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
     if (!existsSync(tracePath)) {
@@ -3886,14 +3892,11 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // Transcript resolution, in order: (1) the per-result sibling transcript
     // (`run-*.transcript.jsonl`, like the trace sibling), else (2) an explicit
     // `--observe <profile>=<path>` fallback. Sibling-first is intentional:
-    // multi-cell reports reuse profile names (low/high) across harness×surface
+    // multi-cell reports reuse profile names (usually medium) across harness×surface
     // runs, so a profile-keyed observe map would otherwise let one transcript
     // overwrite all sibling cells with the same profile.
     let discovery;
     let discoverySource: ProfileRun["discoverySource"];
-    const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
-    const profileObservedTranscript = args.observe[executor.profile];
-    const obsPath = existsSync(siblingTranscript) ? siblingTranscript : profileObservedTranscript;
     if (pack.discovery?.product && obsPath) {
       if (!existsSync(obsPath)) {
         warnings.push(
@@ -3906,7 +3909,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         }
       } else {
         try {
-          const run = parseTranscript(obsPath, parseOpts);
+          const run = observedRun ?? parseTranscript(obsPath, parseOpts);
           const selfReported = executor.discovery
             ? { ...executor.discovery, ns: executor.discovery.ns ?? executor.ns }
             : undefined;

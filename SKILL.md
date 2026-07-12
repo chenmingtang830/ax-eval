@@ -1,6 +1,6 @@
 ---
 name: ax-eval
-description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to generate a reviewed L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at low/high effort, and verify with programmatic outcome verification.
+description: Test whether AI agents can use your product — drop in an OpenAPI or GraphQL spec to generate a reviewed L1–L4 task ladder, run it across API/CLI/SDK/MCP surfaces at standard medium effort, and verify with programmatic outcome verification.
 ---
 
 # ax-eval — host-agent skill
@@ -14,9 +14,9 @@ Two things make this real:
   shape, or docs link. You must web-search to discover the API first, then do
   every task with what you found. Record your search funnel honestly — it's
   scored.
-- **Effort profiles.** You run the set twice at two effort levels: `low` and
-  `high`. Same model, same budget — only effort differs, so the spread is
-  attributable.
+- **Standard effort.** New live evaluations use `medium` effort. Historical
+  low/high artifacts remain readable, but they are not the current benchmark
+  contract.
 
 ## Prerequisites
 
@@ -130,19 +130,19 @@ fields, so any later edit re-closes the gate and forces re-approval (no
 AI-approves-AI). The committed example packs ship pre-approved (`*.approval.json`);
 `exec-plan` refuses an un-reviewed/changed pack unless you pass `--skip-review`.
 
-### 3. Emit one prompt per profile
+### 3. Emit the medium-effort prompt
 
 ```bash
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir results/runs/<id>
 ```
 
-Writes `results/runs/<id>/prompt-<profile>-a<N>.txt` for each profile and
-attempt (default 1 attempt per profile; `--attempts N` for pass@k), each a two-phase prompt (Phase 0
+Writes `results/runs/<id>/prompt-medium-a<N>.txt` for each attempt (default 1
+attempt; `--attempts N` for pass@k), each a two-phase prompt (Phase 0
 discovery → Phase 1 tasks) with a unique namespace per attempt.
 
 ### 4. Run each prompt (as the host agent / sub-agents)
 
-For each profile prompt, follow it **exactly**:
+For the medium-effort prompt, follow it **exactly**:
 - **Phase 0:** actually web-search the target's official docs; find the base
   URL, auth scheme, request/response envelope, and how to create resources.
   Record every search query and URL you open.
@@ -152,9 +152,8 @@ For each profile prompt, follow it **exactly**:
   `run-<profile>-a<N>.trace.json` (every API call) to the paths in the
   prompt. Edit no other files.
 
-Honor the effort profile: `low` does the minimum and gives up fast;
-`high` investigates prerequisites, recovers from errors, and verifies
-read-backs.
+Honor the standard medium effort: investigate prerequisites, recover from
+errors, and verify read-backs without changing the declared task scope.
 
 Between repeated attempts on the same profile, run `ax-eval reset --pack <pack>`
 only when the user explicitly asks you to prepare the next attempt. Do not clean
@@ -200,8 +199,8 @@ report. Then summarize for the user:
 The steps above make *you* the harness. To compare harnesses instead, let the
 CLI drive them as subprocesses: run one lane per harness so each receives a
 compatible model slug, for example `exec-plan --invoke --harness claude-code
---surface all --profile low --profile high --model sonnet --invoke-retries 0`,
-then a separate Codex lane with `--harness codex --model <gpt-model>
+--surface all --profile medium --effort medium --model sonnet --invoke-retries 0`,
+then a separate Codex lane with `--harness codex --profile medium --effort medium --model <gpt-model>
 --invoke-retries 0`. The CLI stamps the model each harness actually reported,
 applies native effort where available, and writes one normalized `{surface,
 product, harness}` record per cell. `verify` then renders them as a single
@@ -275,11 +274,10 @@ interpretation, and paper-style appendix.
   `--skip-review` only for a committed/trusted pack). A changed pack must be
   re-approved.
 - Do not skip `verify` — success requires verifier PASS against live state.
-- Report `harness: host-agent` and the host model; label the low↔high spread as an
-  **effort** spread (same model), not a cross-model score. The `sonnet`/`gpt5`
-  cross-model profiles only produce real cross-model data in Cursor Composer
-  (where the `Task` tool spawns alternative-model sub-agents); a plain CLI host
-  should stick to `low`/`high` (or pin a model per run with `--model`).
+- Report `harness: host-agent`, the host model, and `medium` effort. The
+  `sonnet`/`gpt5` cross-model profiles only produce real cross-model data in
+  Cursor Composer (where the `Task` tool spawns alternative-model sub-agents);
+  a plain CLI host should use medium effort or pin a model with `--model`.
 
 ## References
 

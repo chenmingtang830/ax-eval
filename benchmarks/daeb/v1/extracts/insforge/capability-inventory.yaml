@@ -178,7 +178,7 @@ capabilities:
     resource_kind: row
     operation_kind: create
     surfaces_documented:
-      - api
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/create-records.md
@@ -198,7 +198,7 @@ capabilities:
     resource_kind: row
     operation_kind: update
     surfaces_documented:
-      - api
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/update-records.md
@@ -216,7 +216,7 @@ capabilities:
     resource_kind: row
     operation_kind: delete
     surfaces_documented:
-      - api
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/delete-records.md
@@ -229,6 +229,27 @@ capabilities:
       source: official-docs
       extracted_at: 2026-07-09T05:15:39Z
       extractor: llm-capability-inventory-v1
+  - capability_name: baseline-sql-table-and-row-operations
+    title: Standard Postgres DDL/DML through the SQL data plane
+    description: Insforge projects expose a Postgres connection string for SQL
+      clients, which can create tables, manage RLS policies, and perform
+      INSERT, SELECT, UPDATE, and DELETE operations.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://docs.insforge.dev/sdks/rest/database
+        quote: Every InsForge project comes with a full Postgres database.
+        strength: direct
+      - doc_url: https://docs.insforge.dev/core-concepts/database/overview
+        quote: The same Postgres handles relational queries, semantic search via pgvector, and realtime change feeds.
+        strength: derived_from_connection_surface
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-11T22:00:00Z
+      extractor: human-reviewed-pilot-reconciliation
   - capability_name: filtered-query
     title: Query Records with Filters
     description: Retrieve rows with PostgREST-style operator filters on column
@@ -236,7 +257,7 @@ capabilities:
     resource_kind: row
     operation_kind: read
     surfaces_documented:
-      - api
+      - cli
     support_type: idiomatic-pattern
     evidence:
       - doc_url: https://docs.insforge.dev/api-reference/client/query-records.md
@@ -477,7 +498,7 @@ capabilities:
     resource_kind: row
     operation_kind: authorize
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/authentication/overview
@@ -654,7 +675,7 @@ capabilities:
     resource_kind: row
     operation_kind: search
     surfaces_documented:
-      - api
+      - cli
     support_type: native
     evidence:
       - doc_url: https://docs.insforge.dev/core-concepts/database/pgvector

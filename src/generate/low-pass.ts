@@ -40,7 +40,7 @@ export interface LowPassManifest {
   vendor: string;
   generated_at: string;
   harnesses: string[];
-  profile: "low";
+  profile: "medium";
   execution_mode: "task";
   surfaces: LowPassSurfaceRecord[];
 }

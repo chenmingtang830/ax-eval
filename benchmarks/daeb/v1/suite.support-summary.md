@@ -5,66 +5,56 @@ Human review table derived from `suite.support-matrix.yaml`.
 
 | Task | Broad / task-fit vendors | Cockroachdb API / CLI | Insforge API / CLI | Neon API / CLI | Nile API / CLI | Supabase API / CLI | Turso API / CLI |
 |---|---|---|---|---|---|---|---|
-| db-T01-access-control access-control | 6/6 / 5/6 | — / ✓ | ✓ / — | — / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
-| db-T02-backup-and-restore backup-and-restore | 6/6 / 5/6 | ✓ / ✓ | ✓ / — | ✓ / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
-| db-T03-evolve-schema evolve-schema | 6/6 / 6/6 | — / ✓ | ✓ / ✓ | — / ✓ | — / ✓ | ✓ / ✓ | ✓ / ✓ |
-| db-T04-inspect-schema inspect-schema | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | — / ✓ |
-| db-T05-query-records query-records | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T06-vector-search vector-search | 6/6 / 6/6 | — / ✓ | ✓ / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T07-write-records write-records | 6/6 / 5/6 | — / ✓ | — / — | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
-| db-T08-change-data-capture change-data-capture | 5/6 / 5/6 | — / ✓ | ✓ / — | ✓ / ✓ | ? / ? | ✓ / — | — / ✓ |
-| db-T09-full-text-search full-text-search | 5/6 / 5/6 | — / ✓ | ? / ? | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T01-access-control access-control | 6/6 / 5/6 | — / ✓ | — / ✓ | — / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
+| db-T02-evolve-schema evolve-schema | 6/6 / 6/6 | — / ✓ | ✓ / ✓ | — / ✓ | — / ✓ | ✓ / ✓ | ✓ / ✓ |
+| db-T03-inspect-schema inspect-schema | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | — / ✓ |
+| db-T04-query-records query-records | 6/6 / 6/6 | — / ✓ | — / ✓ | ✓ / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T05-vector-search vector-search | 6/6 / 6/6 | — / ✓ | — / ✓ | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T06-write-records write-records | 6/6 / 6/6 | — / ✓ | — / ✓ | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T07-full-text-search full-text-search | 5/6 / 5/6 | — / ✓ | ? / ? | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
 
 ## Unsupported / inconclusive cell reasons
 
 | Task | Vendor | Surface | Status | Reason |
 |---|---|---|---|---|
 | db-T01-access-control | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T01-access-control | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T01-access-control | Insforge | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T01-access-control | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T01-access-control | Nile | api | unsupported | missing task requirements: data-access-control |
 | db-T01-access-control | Nile | cli | unsupported | missing task requirements: data-access-control |
-| db-T02-backup-and-restore | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T02-backup-and-restore | Nile | api | unsupported | missing task requirements: artifact |
-| db-T02-backup-and-restore | Nile | cli | unsupported | missing task requirements: artifact |
-| db-T03-evolve-schema | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T03-evolve-schema | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T03-evolve-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T04-inspect-schema | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T04-inspect-schema | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T04-inspect-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T04-inspect-schema | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T04-inspect-schema | Turso | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T05-query-records | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T05-query-records | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T05-query-records | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T05-query-records | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T06-vector-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T06-vector-search | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T06-vector-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T06-vector-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T06-vector-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T07-write-records | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T07-write-records | Insforge | api | unsupported | missing task requirements: create-record, delete-record |
-| db-T07-write-records | Insforge | cli | unsupported | missing task requirements: create-record, delete-record |
-| db-T07-write-records | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T07-write-records | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T07-write-records | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T08-change-data-capture | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T08-change-data-capture | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T08-change-data-capture | Nile | api | inconclusive | missing task requirements: database-change-feed |
-| db-T08-change-data-capture | Nile | cli | inconclusive | missing task requirements: database-change-feed |
-| db-T08-change-data-capture | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
-| db-T08-change-data-capture | Turso | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-full-text-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-full-text-search | Insforge | api | inconclusive | missing task requirements: full-text-query |
-| db-T09-full-text-search | Insforge | cli | inconclusive | missing task requirements: full-text-query |
-| db-T09-full-text-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-full-text-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
-| db-T09-full-text-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T02-evolve-schema | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T02-evolve-schema | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T02-evolve-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Turso | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T04-query-records | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T04-query-records | Insforge | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T04-query-records | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T04-query-records | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T05-vector-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T05-vector-search | Insforge | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T05-vector-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T05-vector-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T05-vector-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T06-write-records | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T06-write-records | Insforge | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T06-write-records | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T06-write-records | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T06-write-records | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
+| db-T07-full-text-search | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T07-full-text-search | Insforge | api | inconclusive | missing task requirements: full-text-query |
+| db-T07-full-text-search | Insforge | cli | inconclusive | missing task requirements: full-text-query |
+| db-T07-full-text-search | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T07-full-text-search | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T07-full-text-search | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
 
 ## Research tasks (excluded from core scoring)
 
 | Concept | Broad vendors | Task-fit vendors | Reason |
 |---|---|---|---|
+| backup-and-restore | 6 | 5 | strict verifier contract pending |
+| change-data-capture | 5 | 5 | strict verifier contract pending |
 | data-integrity-and-transactions | 5 | 3 | task-fit coverage below 75% (3/6 vendors; need ≥5) |

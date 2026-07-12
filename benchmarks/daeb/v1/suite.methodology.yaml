@@ -37,7 +37,7 @@ surface_scope:
   - api
   - cli
 min_vendor_coverage_pct: 0.75
-target_task_count: 9
+target_task_count: 7
 verifiability_requirement: Selected tasks must have deterministic read-back
   verification against world state.
 difficulty_rubric:

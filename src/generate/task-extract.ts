@@ -91,6 +91,10 @@ const OracleCheckSchema = z
     // pack's default sql_conn (e.g. a new branch created during a restore,
     // or a scoped role created for RBAC testing).
     sql_conn_field: z.string().nullish().transform((v) => v ?? undefined),
+    // Identity-scoped SQL role reported by the executor. The verifier uses
+    // SET ROLE on its own admin connection before executing this check.
+    sql_role_field: z.string().nullish().transform((v) => v ?? undefined),
+    sql_role_template: z.string().nullish().transform((v) => v ?? undefined),
     description: z.string().default(""),
   })
   .refine((c) => [c.read_path_template, c.sql_query, c.mongo_query].filter(Boolean).length === 1, {
@@ -403,7 +407,7 @@ function convexActionCheck(pathField: string, assert_field: string, expected: st
   });
 }
 
-function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
+function postgresSeededTask(_vendor: ResolveResult, task: SuiteTask): OracleExtractItem | null {
   const item = (checks: OracleCheck[]): OracleExtractItem =>
     OracleExtractItemSchema.parse({
       task_id: task.id,
@@ -428,7 +432,7 @@ function postgresSeededTask(task: SuiteTask): OracleExtractItem | null {
         OracleCheckSchema.parse({
           sql_dialect: "postgres",
           sql_query: "SELECT COUNT(*)::int AS count FROM \"axarena_acl_{ns}\"",
-          sql_conn_field: "denied_connection_string",
+          sql_role_template: "axarena_acl_denied_{ns}",
           assert_outcome: "error",
           assert_field: "code",
           expected: "42501",
@@ -1050,7 +1054,7 @@ function convexSeededTask(task: SuiteTask): OracleExtractItem | null {
 
 function seedTaskCheck(vendor: ResolveResult, task: SuiteTask): OracleExtractItem | null {
   if (vendor.category !== "database") return null;
-  if (["supabase", "neon", "cockroachdb", "insforge", "nile"].includes(vendor.slug)) return postgresSeededTask(task);
+  if (["supabase", "neon", "cockroachdb", "insforge", "nile"].includes(vendor.slug)) return postgresSeededTask(vendor, task);
   if (vendor.slug === "turso") return tursoSeededTask(task);
   if (vendor.slug === "mongodb-atlas") return mongoAtlasSeededTask(task);
   if (vendor.slug === "convex") return convexSeededTask(task);

@@ -108,6 +108,7 @@ export function namedFieldsFor(task: Task): string[] {
   for (const oracle of task.oracles) {
     if (oracle.authField) names.add(oracle.authField);
     if (oracle.sqlConnField) names.add(oracle.sqlConnField);
+    if (oracle.sqlRoleField) names.add(oracle.sqlRoleField);
     for (const text of [oracle.readPathTemplate, oracle.sqlQuery]) {
       if (!text) continue;
       for (const m of text.matchAll(placeholderRe)) {

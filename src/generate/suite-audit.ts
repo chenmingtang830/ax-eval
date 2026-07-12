@@ -341,7 +341,13 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
 
   const difficulties = new Set(suite.tasks.map((t) => t.difficulty));
   for (const level of ["L1", "L2", "L3", "L4"] as const) {
-    if (!difficulties.has(level)) {
+    // A database suite may deliberately keep an entire difficulty tier in
+    // research while its strict verifier contract is still being authored.
+    // Do not treat that honest safety gate as a coverage warning.
+    const hasVerifierReadyCandidate = ledger?.entries.some(
+      (entry) => entry.proposed_difficulty === level && entry.verifier_ready,
+    ) ?? true;
+    if (!difficulties.has(level) && hasVerifierReadyCandidate) {
       findings.push({
         severity: "warn",
         code: "missing_difficulty",
