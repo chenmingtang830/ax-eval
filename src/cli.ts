@@ -254,7 +254,7 @@ function commandUsage(command: string | undefined): string {
     case "publication-bundle":
       return [
         "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
-        "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>]",
+        "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>] [--trial-count 3]",
         "  Freeze a publication bundle manifest from the canonical suite, vendor",
         "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
         "  and normalized records. Missing live artifacts are recorded in manifest.json.",
@@ -1638,6 +1638,7 @@ function cmdPublicationBundle(args: Parsed): number {
     requiredEffortProfiles: args.requiredEffortProfiles
       ? args.requiredEffortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
       : undefined,
+    requiredTrialCount: args.trialCount,
   });
 
   const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);

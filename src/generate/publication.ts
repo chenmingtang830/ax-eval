@@ -3,7 +3,7 @@ import { basename, dirname, relative, resolve, sep } from "node:path";
 import { loadPack } from "../config.js";
 import type { TraceStep } from "../harness/executor.js";
 import type { NormalizedResult } from "./record.js";
-import { validatePackAgainstSuite, type Suite } from "./suite.js";
+import { loadSuite, validatePackAgainstSuite, type Suite } from "./suite.js";
 import {
   CANONICAL_SURFACE_SCOPE,
   conceptUniversePath,
@@ -17,8 +17,9 @@ import {
 } from "./methodology.js";
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
-const PUBLICATION_EFFORT_PROFILES = ["low", "high"] as const;
-const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["low"] as const;
+const PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
+const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
+const REQUIRED_PUBLICATION_TRIAL_COUNT = 3;
 const IGNORED_RECURSIVE_DIRS = new Set([
   ".invoke-home",
   ".codex",
@@ -26,6 +27,20 @@ const IGNORED_RECURSIVE_DIRS = new Set([
   "Library",
   "_compiled",
 ]);
+
+function publicBenchmarkIdentity(manifest: Pick<PublicationManifest, "benchmark" | "category">): {
+  id: string;
+  displayName: string;
+} {
+  if (manifest.category.toLowerCase() === "database") {
+    return { id: "axarena-database", displayName: "AXArena Database" };
+  }
+  const category = manifest.category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  return {
+    id: category ? `axarena-${category}` : manifest.benchmark.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+    displayName: manifest.benchmark,
+  };
+}
 
 export type PublicationQualityGate = {
   id: string;
@@ -67,6 +82,7 @@ export type PublicationManifest = {
     harnesses: string[];
     effort_profiles: string[];
     required_effort_profiles: string[];
+    required_trial_count: number;
     expected_cells: number;
   };
   quality_gates: PublicationQualityGate[];
@@ -95,6 +111,7 @@ export type BuildPublicationBundleOptions = {
   outDir: string;
   effortProfiles?: string[];
   requiredEffortProfiles?: string[];
+  requiredTrialCount?: number;
 };
 
 export type AxArenaExportFile = {
@@ -103,7 +120,7 @@ export type AxArenaExportFile = {
 };
 
 export type AxArenaExportManifest = {
-  schema: "ax.axarena-export/v1";
+  schema: "ax.axarena-export/v2";
   benchmark: string;
   category: string;
   suite_version: number;
@@ -111,6 +128,71 @@ export type AxArenaExportManifest = {
   source_bundle: string;
   source_manifest: string;
   files: AxArenaExportFile[];
+};
+
+export type AxArenaCell = {
+  id: string;
+  vendor: string;
+  surface: string;
+  harness: string;
+  model: string | null;
+  profiles: string[];
+  task_count: number;
+  tasks_passed: number;
+  mean_success_rate: number;
+  range_success_rate: { min: number; max: number } | null;
+  trial_count: number | null;
+  trial_values: number[] | null;
+  pass_hat_3: number | null;
+  task_consistency_at_3: number | null;
+  pass_all_3: number | null;
+  trial_stability_at_3: "all_pass" | "all_fail" | "inconsistent" | null;
+  discovery_score: number | null;
+  content_quality: number | null;
+  blocked: string | null;
+  latency_ms: number | null;
+  first_action_latency_ms: number | null;
+  tool_call_count: number | null;
+  token_usage: Record<string, number> | null;
+  token_cost: number | null;
+  validity_status: string | null;
+  normalized_record: string;
+  source_records: string[];
+};
+
+export type AxArenaTaskResult = {
+  vendor: string;
+  task_id: string | null;
+  success: boolean | null;
+  na: boolean;
+  status: unknown;
+  trial: number | null;
+  profile: string | null;
+  harness: string | null;
+  surface: string | null;
+  model: string | null;
+  evidence: {
+    snapshot: string;
+    results: unknown[];
+    trace: unknown[];
+    transcript: string | null;
+  };
+};
+
+export type AxArenaLeaderboardRow = {
+  rank: number | null;
+  status: "ranked" | "incomplete" | "not_comparable";
+  vendor: string;
+  expected_surfaces: string[];
+  cell_count: number;
+  intersection_score: number | null;
+  intersection_consistency_at_3: number | null;
+  applicability_coverage: number;
+  applicable_success_rate: number | null;
+  surface_success_rates: Record<string, number | null>;
+  discovery_score: number | null;
+  incomplete_reasons: string[];
+  cells: string[];
 };
 
 export type BuildAxArenaExportOptions = {
@@ -179,11 +261,16 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 }
 
-function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array<Record<string, unknown>> {
+function trialFromSnapshotPath(snapshotPath: string): number | null {
+  const match = snapshotPath.match(/(?:^|[\\/])trial-(\d+)(?:[\\/]|$)/i);
+  return match ? Number(match[1]) : null;
+}
+
+function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Omit<AxArenaTaskResult, "vendor">[] {
   if (!snapshot || typeof snapshot !== "object") return [];
   const runs = (snapshot as { runs?: unknown }).runs;
   if (!Array.isArray(runs)) return [];
-  const out: Array<Record<string, unknown>> = [];
+  const out: Omit<AxArenaTaskResult, "vendor">[] = [];
   for (const run of runs) {
     if (!run || typeof run !== "object") continue;
     const r = run as {
@@ -199,13 +286,17 @@ function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array
       if (!outcome || typeof outcome !== "object") continue;
       const o = outcome as Record<string, unknown>;
       out.push({
-        task_id: o.taskId ?? o.task_id ?? o.id ?? null,
+        task_id: typeof (o.taskId ?? o.task_id ?? o.id) === "string"
+          ? String(o.taskId ?? o.task_id ?? o.id)
+          : null,
         success: typeof o.success === "boolean" ? o.success : null,
+        na: o.na === true,
         status: o.status ?? null,
-        profile: r.profile ?? null,
-        harness: r.harness ?? null,
-        surface: r.surface ?? null,
-        model: r.model ?? null,
+        trial: trialFromSnapshotPath(snapshotPath),
+        profile: typeof r.profile === "string" ? r.profile : null,
+        harness: typeof r.harness === "string" ? r.harness : null,
+        surface: typeof r.surface === "string" ? r.surface : null,
+        model: typeof r.model === "string" ? r.model : null,
         evidence: {
           snapshot: snapshotPath,
           results: Array.isArray(r.evidence?.results) ? r.evidence?.results : [],
@@ -275,6 +366,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
   const expectedHarnesses = [...PUBLICATION_HARNESSES];
   const expectedProfiles = opts.effortProfiles?.length ? [...opts.effortProfiles] : [...PUBLICATION_EFFORT_PROFILES];
   const requiredProfiles = opts.requiredEffortProfiles?.length ? [...opts.requiredEffortProfiles] : [...REQUIRED_PUBLICATION_EFFORT_PROFILES];
+  const requiredTrialCount = opts.requiredTrialCount ?? REQUIRED_PUBLICATION_TRIAL_COUNT;
 
   const copiedSuite = copyIfExists(
     resolve(opts.root, opts.suitePath),
@@ -457,6 +549,30 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
       ? `${missingCells.length}/${expectedCells} cell(s) missing; ${missingRequiredProfiles.length} cell(s) lack required profile coverage (${requiredProfiles.join("/")}).`
       : `${expectedCells} expected vendor×surface×harness cells are present with required profile coverage (${requiredProfiles.join("/")}).`,
   });
+  const unrankableCells: string[] = [];
+  for (const vendor of vendors) {
+    const records = recordsByVendor.get(vendor.slug) ?? [];
+    for (const harness of expectedHarnesses) {
+      for (const surface of vendor.expected_surfaces) {
+        const record = records.find((candidate) => candidate.harness === harness && candidate.surface === surface);
+        if (!record) continue;
+        const reasons = [
+          record.blocked ? `blocked:${record.blocked}` : "",
+          record.summary_kind !== "aggregate" ? "not-aggregate" : "",
+          record.trial_count !== requiredTrialCount ? `trials:${record.trial_count ?? 0}/${requiredTrialCount}` : "",
+        ].filter(Boolean);
+        if (reasons.length) unrankableCells.push(`${vendor.slug}/${surface}/${harness} (${reasons.join(",")})`);
+      }
+    }
+  }
+  addGate(qualityGates, {
+    id: "rankability",
+    label: "Required cells contain complete production trials",
+    status: unrankableCells.length ? "fail" : "pass",
+    detail: unrankableCells.length
+      ? `${unrankableCells.length} cell(s) cannot enter the public ranking: ${unrankableCells.slice(0, 5).join(" | ")}${unrankableCells.length > 5 ? " | ..." : ""}`
+      : `Every required cell is an unblocked ${requiredTrialCount}-trial aggregate.`,
+  });
   addGate(qualityGates, {
     id: "optional-profile-coverage",
     label: "Optional research profiles are tracked separately",
@@ -512,6 +628,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
       harnesses: expectedHarnesses,
       effort_profiles: expectedProfiles,
       required_effort_profiles: requiredProfiles,
+      required_trial_count: requiredTrialCount,
       expected_cells: expectedCells,
     },
     quality_gates: qualityGates,
@@ -536,7 +653,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
       "Compiled TargetPacks are executable vendor adapters produced from the canonical suite plus vendor-specific verification extraction.",
       "Discoverability & Readiness artifacts and usability-suite artifacts are published side by side but remain separate scoring layers.",
       "Publication-grade bundles require both Discoverability & Readiness artifacts and usability-suite artifacts; missing methodology files are recorded explicitly.",
-      `publication_readiness is draft until required artifacts, required profile matrix coverage (${requiredProfiles.join("/")}), efficiency metrics, and competitive report gates pass.`,
+      `publication_readiness is draft until required artifacts, required profile matrix coverage (${requiredProfiles.join("/")}), ${requiredTrialCount}-trial rankability, efficiency metrics, and competitive report gates pass.`,
       "Optional profile artifacts remain valuable execution-learning and publication evidence, but missing optional coverage does not block a publication-ready bundle when required profile coverage is complete.",
       "Missing artifacts are recorded so draft bundles can be created before every live run finishes.",
       "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle.",
@@ -544,6 +661,168 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
   };
   writeFileSync(resolve(outRoot, "manifest.json"), JSON.stringify(manifest, null, 2) + "\n");
   return manifest;
+}
+
+function mean(values: number[]): number | null {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function taskSurfaceKey(taskId: string, surface: string): string {
+  return `${taskId}::${surface}`;
+}
+
+function resultKey(result: AxArenaTaskResult): string | null {
+  if (!result.task_id || !result.surface || !result.harness || !result.trial) return null;
+  return `${result.vendor}::${result.task_id}::${result.surface}::${result.harness}::${result.trial}`;
+}
+
+function loadVendorSupport(
+  bundleRoot: string,
+  manifest: PublicationManifest,
+  suite: Suite,
+): Map<string, Set<string>> {
+  const support = new Map<string, Set<string>>();
+  for (const vendor of manifest.vendors) {
+    const pairs = new Set<string>();
+    const packPath = vendor.artifacts.compiled_pack
+      ? resolve(bundleRoot, vendor.artifacts.compiled_pack)
+      : "";
+    if (packPath && existsSync(packPath)) {
+      const pack = loadPack(packPath);
+      const byTask = new Map(pack.tasks.map((task) => [task.id, task]));
+      for (const task of suite.tasks) {
+        const compiled = byTask.get(task.id);
+        if (!compiled || compiled.na) continue;
+        for (const surface of manifest.expected_matrix.surfaces) {
+          const allowed = compiled.allowed_surfaces ?? [];
+          if (allowed.length === 0 || allowed.includes(surface)) {
+            pairs.add(taskSurfaceKey(task.id, surface));
+          }
+        }
+      }
+    }
+    support.set(vendor.slug, pairs);
+  }
+  return support;
+}
+
+function buildLeaderboard(
+  manifest: PublicationManifest,
+  suite: Suite,
+  support: Map<string, Set<string>>,
+  cells: AxArenaCell[],
+  taskResults: AxArenaTaskResult[],
+): {
+  rows: AxArenaLeaderboardRow[];
+  intersectionPairs: string[];
+  surfacesWithoutIntersection: string[];
+} {
+  const coreTaskIds = new Set(suite.tasks.map((task) => task.id));
+  const universe = suite.tasks.flatMap((task) =>
+    manifest.expected_matrix.surfaces.map((surface) => taskSurfaceKey(task.id, surface)));
+  const intersectionPairs = universe.filter((pair) =>
+    manifest.vendors.every((vendor) => support.get(vendor.slug)?.has(pair)));
+  const surfacesWithoutIntersection = manifest.expected_matrix.surfaces.filter((surface) =>
+    !intersectionPairs.some((pair) => pair.endsWith(`::${surface}`)));
+  const requiredProfiles = new Set(manifest.expected_matrix.required_effort_profiles);
+  const requiredTrials = manifest.expected_matrix.required_trial_count || REQUIRED_PUBLICATION_TRIAL_COUNT;
+  const eligibleResults = taskResults.filter((result) =>
+    result.task_id && coreTaskIds.has(result.task_id) &&
+    !result.na && result.success !== null &&
+    result.trial !== null && result.trial >= 1 && result.trial <= requiredTrials &&
+    (!result.profile || requiredProfiles.size === 0 || requiredProfiles.has(result.profile)));
+  const resultsByKey = new Map<string, AxArenaTaskResult[]>();
+  for (const result of eligibleResults) {
+    const key = resultKey(result);
+    if (!key) continue;
+    const list = resultsByKey.get(key) ?? [];
+    list.push(result);
+    resultsByKey.set(key, list);
+  }
+
+  const rows = manifest.vendors.map((vendor): AxArenaLeaderboardRow => {
+    const vendorSupport = support.get(vendor.slug) ?? new Set<string>();
+    const vendorCells = cells.filter((cell) => cell.vendor === vendor.slug);
+    const incompleteReasons: string[] = [];
+    for (const surface of vendor.expected_surfaces) {
+      for (const harness of manifest.expected_matrix.harnesses) {
+        const cell = vendorCells.find((candidate) => candidate.surface === surface && candidate.harness === harness);
+        if (!cell) incompleteReasons.push(`missing cell ${surface}/${harness}`);
+        else if (cell.blocked) incompleteReasons.push(`blocked cell ${surface}/${harness}: ${cell.blocked}`);
+        else if (cell.trial_count !== requiredTrials) {
+          incompleteReasons.push(`incomplete trials ${surface}/${harness}: ${cell.trial_count ?? 0}/${requiredTrials}`);
+        }
+      }
+    }
+
+    const expectedResultKeys: string[] = [];
+    for (const pair of vendorSupport) {
+      const [taskId, surface] = pair.split("::") as [string, string];
+      for (const harness of manifest.expected_matrix.harnesses) {
+        for (let trial = 1; trial <= requiredTrials; trial++) {
+          expectedResultKeys.push(`${vendor.slug}::${taskId}::${surface}::${harness}::${trial}`);
+        }
+      }
+    }
+    for (const key of expectedResultKeys) {
+      const results = resultsByKey.get(key) ?? [];
+      if (results.length === 0) incompleteReasons.push(`missing trial outcome ${key.split("::").slice(1).join("/")}`);
+      else if (results.length > 1) incompleteReasons.push(`duplicate trial outcome ${key.split("::").slice(1).join("/")}`);
+    }
+
+    const vendorResults = eligibleResults.filter((result) => result.vendor === vendor.slug);
+    const supportedResults = vendorResults.filter((result) =>
+      result.task_id && result.surface && vendorSupport.has(taskSurfaceKey(result.task_id, result.surface)));
+    const intersectionResults = vendorResults.filter((result) =>
+      result.task_id && result.surface && intersectionPairs.includes(taskSurfaceKey(result.task_id, result.surface)));
+    const surfaceSuccessRates = Object.fromEntries(manifest.expected_matrix.surfaces.map((surface) => {
+      const surfaceValues = supportedResults
+        .filter((result) => result.surface === surface)
+        .map((result) => result.success === true ? 1 : 0);
+      return [surface, mean(surfaceValues)];
+    }));
+    const consistencyUnits: number[] = [];
+    for (const pair of intersectionPairs) {
+      const [taskId, surface] = pair.split("::") as [string, string];
+      for (const harness of manifest.expected_matrix.harnesses) {
+        const trials = Array.from({ length: requiredTrials }, (_, index) =>
+          resultsByKey.get(`${vendor.slug}::${taskId}::${surface}::${harness}::${index + 1}`)?.[0]);
+        if (trials.every(Boolean)) consistencyUnits.push(trials.every((result) => result?.success === true) ? 1 : 0);
+      }
+    }
+    const isComparable = intersectionPairs.length > 0;
+    const isComplete = isComparable && incompleteReasons.length === 0;
+    return {
+      rank: null,
+      status: !isComparable ? "not_comparable" : isComplete ? "ranked" : "incomplete",
+      vendor: vendor.slug,
+      expected_surfaces: vendor.expected_surfaces,
+      cell_count: vendorCells.length,
+      intersection_score: isComplete ? mean(intersectionResults.map((result) => result.success === true ? 1 : 0)) : null,
+      intersection_consistency_at_3: isComplete ? mean(consistencyUnits) : null,
+      applicability_coverage: universe.length ? vendorSupport.size / universe.length : 0,
+      applicable_success_rate: mean(supportedResults.map((result) => result.success === true ? 1 : 0)),
+      surface_success_rates: surfaceSuccessRates,
+      discovery_score: mean(vendorCells.flatMap((cell) => cell.discovery_score === null ? [] : [cell.discovery_score])),
+      incomplete_reasons: [...new Set(incompleteReasons)].sort(),
+      cells: vendorCells.map((cell) => cell.id).sort(),
+    };
+  });
+
+  const ranked = rows.filter((row) => row.status === "ranked").sort((a, b) =>
+    (b.intersection_score ?? -1) - (a.intersection_score ?? -1) ||
+    (b.intersection_consistency_at_3 ?? -1) - (a.intersection_consistency_at_3 ?? -1) ||
+    a.vendor.localeCompare(b.vendor));
+  let previous: AxArenaLeaderboardRow | undefined;
+  for (const [index, row] of ranked.entries()) {
+    const tied = previous &&
+      row.intersection_score === previous.intersection_score &&
+      row.intersection_consistency_at_3 === previous.intersection_consistency_at_3;
+    row.rank = tied ? previous!.rank : index + 1;
+    previous = row;
+  }
+  const unranked = rows.filter((row) => row.status !== "ranked").sort((a, b) => a.vendor.localeCompare(b.vendor));
+  return { rows: [...ranked, ...unranked], intersectionPairs, surfacesWithoutIntersection };
 }
 
 export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExportManifest {
@@ -554,18 +833,18 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
   if (manifest?.schema !== "ax.publication-bundle/v2") {
     throw new Error(`${manifestPath} is not an ax.publication-bundle/v2 manifest`);
   }
+  const suitePath = resolve(bundleRoot, manifest.suite);
+  if (!existsSync(suitePath)) throw new Error(`Publication suite is missing at ${suitePath}`);
+  const suite = loadSuite(suitePath);
+  const requiredTrialCount = manifest.expected_matrix.required_trial_count || REQUIRED_PUBLICATION_TRIAL_COUNT;
 
-  const recordsByPath = new Map<string, NormalizedResult>();
-  const cells: Array<Record<string, unknown>> = [];
-  const taskResults: Array<Record<string, unknown>> = [];
+  const cells: AxArenaCell[] = [];
+  const taskResults: AxArenaTaskResult[] = [];
   const evidence: Array<Record<string, unknown>> = [];
-
   for (const vendor of manifest.vendors) {
     for (const recordPath of vendor.artifacts.normalized_records) {
-      const absolute = resolve(bundleRoot, recordPath);
-      const record = readJsonFile(absolute) as NormalizedResult | null;
+      const record = readJsonFile(resolve(bundleRoot, recordPath)) as NormalizedResult | null;
       if (record?.schema !== "ax.normalized-result/v1") continue;
-      recordsByPath.set(recordPath, record);
       cells.push({
         id: `${vendor.slug}/${record.surface}/${record.harness}`,
         vendor: vendor.slug,
@@ -579,7 +858,15 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
         range_success_rate: record.range_pass_rate ?? null,
         trial_count: record.trial_count ?? null,
         trial_values: record.trial_values ?? null,
+        pass_hat_3: record.pass_hat_3 ?? null,
+        task_consistency_at_3: record.task_consistency_at_3 ?? null,
         pass_all_3: record.pass_all_3 ?? null,
+        trial_stability_at_3: (record as NormalizedResult & {
+          trial_stability_at_3?: "all_pass" | "all_fail" | "inconsistent" | null;
+        }).trial_stability_at_3 ?? null,
+        discovery_score: record.discovery_score,
+        content_quality: record.content_quality,
+        blocked: record.blocked ?? null,
         latency_ms: record.latency_ms ?? null,
         first_action_latency_ms: record.first_action_latency_ms ?? null,
         tool_call_count: record.tool_call_count ?? null,
@@ -589,88 +876,74 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
         normalized_record: recordPath,
         source_records: record.source_records ?? [],
       });
-      evidence.push({
-        kind: "normalized_record",
-        vendor: vendor.slug,
-        surface: record.surface,
-        harness: record.harness,
-        path: recordPath,
-      });
+      evidence.push({ kind: "normalized_record", vendor: vendor.slug, surface: record.surface, harness: record.harness, path: recordPath });
     }
-
     for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
       const parsed = readJsonFile(resolve(bundleRoot, snapshotPath));
-      const results = taskResultsFromSnapshot(snapshotPath, parsed).map((result) => ({
-        vendor: vendor.slug,
-        ...result,
-      }));
-      taskResults.push(...results);
-      evidence.push({
-        kind: "snapshot",
-        vendor: vendor.slug,
-        path: snapshotPath,
-      });
+      taskResults.push(...taskResultsFromSnapshot(snapshotPath, parsed).map((result) => ({ vendor: vendor.slug, ...result })));
+      evidence.push({ kind: "snapshot", vendor: vendor.slug, path: snapshotPath });
     }
-
     for (const reportPath of vendor.artifacts.report_htmls ?? []) {
-      evidence.push({
-        kind: "report_html",
-        vendor: vendor.slug,
-        path: reportPath,
-      });
+      evidence.push({ kind: "report_html", vendor: vendor.slug, path: reportPath });
     }
   }
 
-  const leaderboard = manifest.vendors.map((vendor) => {
-    const vendorCells = cells.filter((cell) => cell.vendor === vendor.slug);
-    const rates = vendorCells
-      .map((cell) => cell.mean_success_rate)
-      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-    return {
-      vendor: vendor.slug,
-      expected_surfaces: vendor.expected_surfaces,
-      cell_count: vendorCells.length,
-      mean_success_rate: rates.length ? rates.reduce((sum, value) => sum + value, 0) / rates.length : null,
-      cells: vendorCells.map((cell) => cell.id),
-    };
-  }).sort((a, b) => (b.mean_success_rate ?? -1) - (a.mean_success_rate ?? -1));
-
-  const tasks = taskResults.reduce((acc, result) => {
-    const taskId = result.task_id;
-    if (typeof taskId !== "string") return acc;
-    const bucket = acc.get(taskId) ?? {
+  const support = loadVendorSupport(bundleRoot, manifest, suite);
+  const ranking = buildLeaderboard(manifest, suite, support, cells, taskResults);
+  const coreTaskIds = new Set(suite.tasks.map((task) => task.id));
+  const observedTaskIds = new Set(taskResults.flatMap((result) => result.task_id ? [result.task_id] : []));
+  const tasks = [
+    ...suite.tasks.map((task) => ({
+      task_id: task.id,
+      title: task.title,
+      difficulty: task.difficulty,
+      skill: task.skill,
+      kind: "core" as const,
+      allowed_surfaces: task.allowed_surfaces,
+      applicability: Object.fromEntries(manifest.vendors.map((vendor) => [
+        vendor.slug,
+        manifest.expected_matrix.surfaces.filter((surface) => support.get(vendor.slug)?.has(taskSurfaceKey(task.id, surface))),
+      ])),
+      results: taskResults.filter((result) => result.task_id === task.id),
+    })),
+    ...[...observedTaskIds].filter((taskId) => !coreTaskIds.has(taskId)).sort().map((taskId) => ({
       task_id: taskId,
-      results: [],
-    };
-    (bucket.results as Array<Record<string, unknown>>).push(result);
-    acc.set(taskId, bucket);
-    return acc;
-  }, new Map<string, Record<string, unknown>>());
+      title: taskId,
+      difficulty: null,
+      skill: null,
+      kind: "research" as const,
+      allowed_surfaces: [],
+      applicability: {},
+      results: taskResults.filter((result) => result.task_id === taskId),
+    })),
+  ];
+  const failures = taskResults.filter((result) => result.success === false && !result.na).map((result) => ({
+    ...result,
+    failure_type: "unclassified",
+    classification_status: "needs_review",
+  }));
+  if (manifest.competitive_report) evidence.push({ kind: "competitive_report", path: manifest.competitive_report });
 
-  const failures = taskResults
-    .filter((result) => result.success === false)
-    .map((result) => ({
-      ...result,
-      failure_type: "unclassified",
-      classification_status: "needs_review",
-    }));
-
-  const methodology = {
-    static_ax: manifest.layers.static_ax,
-    behavioral: manifest.layers.behavioral,
-    suite: manifest.suite,
-    expected_matrix: manifest.expected_matrix,
-    quality_gates: manifest.quality_gates,
-  };
-
-  if (manifest.competitive_report) {
-    evidence.push({
-      kind: "competitive_report",
-      path: manifest.competitive_report,
-    });
-  }
-
+  const exportGates: PublicationQualityGate[] = [...manifest.quality_gates];
+  const incomplete = ranking.rows.filter((row) => row.status === "incomplete");
+  exportGates.push({
+    id: "website-rankability",
+    label: "Website ranking has complete trial-level evidence",
+    status: ranking.intersectionPairs.length === 0 || incomplete.length ? "fail" : "pass",
+    detail: ranking.intersectionPairs.length === 0
+      ? "No core task×surface pair is comparable across the full vendor cohort."
+      : incomplete.length
+        ? `${incomplete.length} vendor(s) lack complete cells or trial outcomes: ${incomplete.map((row) => row.vendor).join(", ")}.`
+        : `${ranking.intersectionPairs.length} shared task×surface pair(s) have complete trial-level evidence.`,
+  });
+  const effectiveReadiness = manifest.publication_readiness === "publication_ready" &&
+    exportGates.every((gate) => gate.status !== "fail")
+    ? "publication_ready"
+    : "draft";
+  const generatedAt = new Date().toISOString();
+  const publicBenchmark = publicBenchmarkIdentity(manifest);
   const files: AxArenaExportFile[] = [
+    { id: "publication", path: "publication.json" },
     { id: "leaderboard", path: "leaderboard.json" },
     { id: "cells", path: "cells.json" },
     { id: "tasks", path: "tasks.json" },
@@ -680,55 +953,65 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
     { id: "methodology-index", path: "methodology-index.json" },
   ];
 
+  writeJson(resolve(outRoot, "publication.json"), {
+    schema: "ax.axarena-publication/v1",
+    benchmark: publicBenchmark.id,
+    display_name: publicBenchmark.displayName,
+    category: manifest.category,
+    suite_version: manifest.suite_version,
+    generated_at: generatedAt,
+    source_readiness: manifest.publication_readiness,
+    publication_readiness: effectiveReadiness,
+    cohort: manifest.vendors.map((vendor) => vendor.slug),
+    scope: {
+      core_task_count: suite.tasks.length,
+      research_task_count: tasks.filter((task) => task.kind === "research").length,
+      surfaces: manifest.expected_matrix.surfaces,
+      harnesses: manifest.expected_matrix.harnesses,
+      effort_profiles: manifest.expected_matrix.required_effort_profiles,
+      trial_count: requiredTrialCount,
+    },
+    quality_gates: exportGates,
+  });
   writeJson(resolve(outRoot, "leaderboard.json"), {
-    schema: "ax.axarena-leaderboard/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    rows: leaderboard,
+    schema: "ax.axarena-leaderboard/v2",
+    benchmark: publicBenchmark.id,
+    generated_at: generatedAt,
+    ranking_method: {
+      primary: "verified success across shared core task×surface×harness×trial outcomes",
+      tie_breaker: "share of shared core task×surface×harness units passing every required trial",
+      required_trial_count: requiredTrialCount,
+      intersection_pairs: ranking.intersectionPairs,
+      surfaces_without_intersection: ranking.surfacesWithoutIntersection,
+      discovery_affects_rank: false,
+    },
+    rows: ranking.rows,
   });
-  writeJson(resolve(outRoot, "cells.json"), {
-    schema: "ax.axarena-cells/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    cells,
-  });
-  writeJson(resolve(outRoot, "tasks.json"), {
-    schema: "ax.axarena-tasks/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    tasks: [...tasks.values()].sort((a, b) => String(a.task_id).localeCompare(String(b.task_id))),
-  });
-  writeJson(resolve(outRoot, "trials.json"), {
-    schema: "ax.axarena-trials/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    task_results: taskResults,
-  });
-  writeJson(resolve(outRoot, "failures.json"), {
-    schema: "ax.axarena-failures/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    failures,
-  });
-  writeJson(resolve(outRoot, "evidence-index.json"), {
-    schema: "ax.axarena-evidence-index/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    evidence,
-  });
+  writeJson(resolve(outRoot, "cells.json"), { schema: "ax.axarena-cells/v2", benchmark: publicBenchmark.id, generated_at: generatedAt, cells });
+  writeJson(resolve(outRoot, "tasks.json"), { schema: "ax.axarena-tasks/v2", benchmark: publicBenchmark.id, generated_at: generatedAt, tasks });
+  writeJson(resolve(outRoot, "trials.json"), { schema: "ax.axarena-trials/v2", benchmark: publicBenchmark.id, generated_at: generatedAt, task_results: taskResults });
+  writeJson(resolve(outRoot, "failures.json"), { schema: "ax.axarena-failures/v1", benchmark: publicBenchmark.id, generated_at: generatedAt, failures });
+  writeJson(resolve(outRoot, "evidence-index.json"), { schema: "ax.axarena-evidence-index/v1", benchmark: publicBenchmark.id, generated_at: generatedAt, evidence });
   writeJson(resolve(outRoot, "methodology-index.json"), {
-    schema: "ax.axarena-methodology-index/v1",
-    benchmark: manifest.benchmark,
-    generated_at: new Date().toISOString(),
-    methodology,
+    schema: "ax.axarena-methodology-index/v2",
+    benchmark: publicBenchmark.id,
+    generated_at: generatedAt,
+    methodology: {
+      static_ax: manifest.layers.static_ax,
+      behavioral: manifest.layers.behavioral,
+      suite: manifest.suite,
+      expected_matrix: manifest.expected_matrix,
+      quality_gates: exportGates,
+      ranking_method: "shared core task×surface intersection; discovery is reported separately",
+    },
   });
 
   const exportManifest: AxArenaExportManifest = {
-    schema: "ax.axarena-export/v1",
-    benchmark: manifest.benchmark,
+    schema: "ax.axarena-export/v2",
+    benchmark: publicBenchmark.id,
     category: manifest.category,
     suite_version: manifest.suite_version,
-    generated_at: new Date().toISOString(),
+    generated_at: generatedAt,
     source_bundle: relative(outRoot, bundleRoot),
     source_manifest: relative(outRoot, manifestPath),
     files,

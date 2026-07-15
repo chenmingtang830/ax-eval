@@ -21,19 +21,30 @@ spec/docs
   -> HTML report / competitive report
 ```
 
-DAEB-1/database v1 adds one publication-grade production lane on top of the
+AXArena Database v1 adds one publication-grade production lane on top of the
 generic flow: `daeb-production-rerun`. It composes fresh vendor packs from the
 frozen suite and verifier extracts, runs only the benchmark-of-record `api` and
 `cli` surfaces, invokes Codex and Claude Code with pinned medium-effort models,
 and writes three isolated trials plus an aggregate normalized record per
 supported cell. Publication bundles read those aggregate records with
-`--effort-profiles medium --required-effort-profiles medium`.
+`--effort-profiles medium --required-effort-profiles medium --trial-count 3`.
+Blocked cells, non-aggregate records, and incomplete trial sets fail the
+publication rankability gate instead of becoming misleading zeroes or partial
+scores.
 
 The boundary with the AXArena website is an explicit export step:
 `export-publication` reads a frozen publication bundle and writes website-ready
-JSON indexes. `ax-eval` owns benchmark truth and artifact generation; an
-`axarena` application should import those indexes for presentation rather than
-recompute scores from raw run directories.
+JSON indexes. The export derives the public ranking from verified per-trial
+outcomes over the core task×surface intersection shared by every core vendor;
+three-trial consistency is the tie-breaker, while applicability coverage,
+applicable-task pass rate, and Agent Discovery Score remain separate fields.
+`ax-eval` owns benchmark truth and artifact generation; an `axarena`
+application imports those versioned indexes for presentation rather than
+recomputing scores from raw run directories.
+
+The bundle may preserve an internal historical suite name, but the website
+contract emits the stable public id `axarena-database` and display name
+`AXArena Database`.
 
 ## System overview
 
@@ -101,7 +112,7 @@ Important command groups:
   - `trace-diff`
   - `publication-bundle`
   - `export-publication`
-- **DAEB-1 production**
+- **AXArena Database production**
   - `daeb-production-rerun`
 - **Maintenance**
   - `reset`

@@ -111,9 +111,9 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
-## DAEB-1 Publication Flow
+## AXArena Database Publication Flow
 
-DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
+AXArena Database, the first public AXArena vertical, uses a stricter publication pipeline
 than ordinary local pack authoring:
 
 ```text
@@ -127,10 +127,10 @@ definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
 
-For DAEB-1/database v1, the benchmark-of-record production lane is narrower
+For AXArena Database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
 medium-effort model per harness, and three trials per supported
-vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+vendor/surface/harness cell. SDK remains available in the engine, but AXArena Database
 SDK evidence is research-only for v1.
 
 Run the production lane with:
@@ -152,13 +152,15 @@ npm run ax-eval -- publication-bundle \
   --run-dir results/runs/daeb-1-v4-production \
   --out results/runs/daeb-1-v4-production/publication-bundle \
   --effort-profiles medium \
-  --required-effort-profiles medium
+  --required-effort-profiles medium \
+  --trial-count 3
 ```
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
 cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
-records, and competitive report. Missing live artifacts are listed explicitly;
-a publication-ready DAEB-1 v1 bundle has no missing references and all required
+records, and competitive report. Missing live artifacts are listed explicitly.
+A publication-ready AXArena Database v1 bundle has no missing references, no blocked
+required cells, exactly three aggregate trials per required cell, and all
 quality gates passing.
 
 `ax-eval` remains the tooling layer. The AXArena website should consume an
@@ -170,10 +172,19 @@ npm run ax-eval -- export-publication \
   --out results/runs/daeb-1-v4-production/axarena-export
 ```
 
-This writes website-ready JSON indexes for leaderboard rows, cells, task
-drilldowns, trial outcomes, evidence links, methodology metadata, and failure
-review placeholders. New reusable benchmark tooling should live here; the
-`axarena` repo should own the curated website, narrative, and presentation.
+This writes website-ready JSON indexes for publication status, leaderboard
+rows, cells, task drilldowns, trial outcomes, evidence links, methodology
+metadata, and failure-review placeholders. The v2 leaderboard ranks vendors on
+the core task×surface intersection shared by the full cohort, breaks ties with
+three-trial consistency, and reports applicability and Agent Discovery Score
+separately. Discovery never changes rank. New reusable benchmark tooling should
+live here; the `axarena` repo should own the curated website, narrative, and
+presentation rather than recomputing scores from raw run directories.
+
+Public exports identify this vertical as `axarena-database` and publish the
+display name `AXArena Database`. Internal suite filenames may retain their
+historical `daeb-1` stem for compatibility; websites and downloadable public
+indexes must use the product name.
 
 ## Architecture
 

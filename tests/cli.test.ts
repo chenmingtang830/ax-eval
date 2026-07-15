@@ -55,6 +55,7 @@ describe("cli arg handling", () => {
     expect(out).toContain("usage: ax-eval publication-bundle");
     expect(out).toContain("--suite <suite.yaml>");
     expect(out).toContain("--effort-profiles <a,b,c>");
+    expect(out).toContain("--trial-count 3");
   });
 
   it("export-publication help prints command usage with exit 0", () => {
@@ -63,6 +64,7 @@ describe("cli arg handling", () => {
     expect(out).toContain("usage: ax-eval export-publication");
     expect(out).toContain("--from <publication-bundle-dir>");
     expect(out).toContain("axarena-ready JSON dataset");
+    expect(out).toContain("leaderboard");
   });
 
   it("daeb-low-pass help prints command usage with exit 0", () => {
@@ -148,7 +150,9 @@ describe("cli arg handling", () => {
       expect(manifest.publication_readiness).toBe("draft");
       expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
       expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-      expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
+      expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
+      expect(manifest.expected_matrix.required_effort_profiles).toEqual(["medium"]);
+      expect(manifest.expected_matrix.required_trial_count).toBe(3);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
       expect(manifest.layers.static_ax).toBeTruthy();

@@ -87,6 +87,20 @@ Also note that `profile` and `surface` are different axes: the pack declares
 which product surfaces exist, while harness profiles vary execution settings
 (effort/model/autonomy). Do not use profiles to smuggle in or hide surfaces.
 
+## Publication exports
+
+`publication-bundle` and `export-publication` are the trust boundary between
+the runner and the AXArena website. Keep scoring here: the website consumes the
+versioned JSON indexes and must not derive rankings from raw run directories.
+Publication-ready AXArena Database cells are unblocked three-trial aggregates. The public
+leaderboard compares the core task×surface intersection shared by the cohort,
+uses three-trial consistency only as a tie-breaker, and discloses applicability
+and discovery separately. Any change to those semantics requires offline
+fixtures covering N/A, missing/blocked cells, ties, and empty intersections,
+plus corresponding README, ARCHITECTURE, and SKILL updates.
+Public JSON uses `axarena-database` as the benchmark id and `AXArena Database`
+as its display name even when historical internal suite paths retain `daeb-1`.
+
 ## Pull requests
 
 - **Tests green.** CI runs `npm ci → npm run typecheck → npm test` on Node 22.

@@ -1,14 +1,38 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { stringify as yamlStringify } from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import { buildAxArenaExport, buildPublicationBundle } from "../src/generate/publication.js";
-import { loadSuite } from "../src/generate/suite.js";
+import { loadSuite, type Suite } from "../src/generate/suite.js";
 
-const ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const REPO_ROOT = resolve(fileURLToPath(new URL("..", import.meta.url)));
+const VENDORS = ["neon", "cockroachdb", "turso", "supabase", "insforge", "nile"];
+const HARNESSES = ["codex", "claude-code"];
+const SURFACES = ["api", "cli"];
+const ARTIFACT_SUFFIXES = [
+  "methodology",
+  "concept-universe",
+  "coverage-matrix",
+  "selection-ledger",
+  "support-matrix",
+  "grader-ledger",
+  "failure-taxonomy",
+  "trace-review",
+];
 
-describe("publication bundle", () => {
+type FixtureOptions = {
+  vendors?: string[];
+  supportedSurfaces?: (vendor: string, taskId: string) => string[];
+  success?: (vendor: string, taskId: string, surface: string, harness: string, trial: number) => boolean;
+  discovery?: (vendor: string) => number;
+  blockedCell?: { vendor: string; surface: string; harness: string; reason: "missing-credential" };
+  missingTrial?: { vendor: string; surface: string; harness: string; trial: number };
+  hiddenDebugRecord?: boolean;
+};
+
+describe("publication bundle and AXArena export", () => {
   const dirs: string[] = [];
 
   function freshDir(prefix: string): string {
@@ -17,506 +41,282 @@ describe("publication bundle", () => {
     return dir;
   }
 
+  function write(path: string, value: string): void {
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, value);
+  }
+
+  function fixtureSuite(root: string): { suite: Suite; suitePath: string } {
+    const source = loadSuite(resolve(REPO_ROOT, "targets/suites/daeb-1-v3.yaml"));
+    const suite: Suite = {
+      ...source,
+      name: "DAEB-1",
+      version: 1,
+      description: "Seven core task publication fixture.",
+      methodology: source.methodology ? {
+        ...source.methodology,
+        target_task_count: 7,
+        surface_scope: ["api", "cli"],
+      } : undefined,
+      tasks: source.tasks.slice(0, 7),
+    };
+    const suitePath = "targets/suites/daeb-1.yaml";
+    write(resolve(root, suitePath), yamlStringify(suite));
+    for (const suffix of ARTIFACT_SUFFIXES) {
+      write(resolve(root, `targets/suites/daeb-1.${suffix}.yaml`), `schema: fixture-${suffix}\n`);
+    }
+    return { suite, suitePath };
+  }
+
+  function aggregateRecord(args: {
+    vendor: string;
+    surface: string;
+    harness: string;
+    discovery: number;
+    blocked?: string;
+  }): Record<string, unknown> {
+    return {
+      schema: "ax.normalized-result/v1",
+      surface: args.surface,
+      product: args.vendor,
+      harness: args.harness,
+      standard_set_version: "DAEB-1-v1",
+      generated_at: "2026-07-13T00:00:00.000Z",
+      tasks_total: 7,
+      tasks_passed: 5,
+      pass_at_1: 5 / 7,
+      pass_at_k: 5 / 7,
+      attempts: 1,
+      discovery_score: args.discovery,
+      content_quality: 0.8,
+      profiles: ["medium"],
+      best_profile: "medium",
+      model: args.harness === "codex" ? "gpt-5.4" : "sonnet",
+      latency_ms: 1200,
+      tool_call_count: 5,
+      token_usage: { input: 100, output: 50 },
+      token_cost: 0.12,
+      validity_status: "valid",
+      first_action_latency_ms: 100,
+      transcript_event_count: 12,
+      action_occurred: true,
+      summary_kind: "aggregate",
+      trial_count: 3,
+      trial_values: [5 / 7, 5 / 7, 5 / 7],
+      mean_pass_rate: 5 / 7,
+      range_pass_rate: { min: 5 / 7, max: 5 / 7 },
+      pass_hat_3: (5 / 7) ** 3,
+      task_consistency_at_3: 5 / 7,
+      pass_all_3: 0,
+      source_records: ["trial-1.json", "trial-2.json", "trial-3.json"],
+      ...(args.blocked ? { blocked: args.blocked } : {}),
+    };
+  }
+
+  function createFixture(options: FixtureOptions = {}): {
+    root: string;
+    suite: Suite;
+    suitePath: string;
+    runDir: string;
+    bundleDir: string;
+    exportDir: string;
+    vendors: string[];
+  } {
+    const root = freshDir("ax-publication-fixture-");
+    const { suite, suitePath } = fixtureSuite(root);
+    const vendors = options.vendors ?? VENDORS;
+    const runDir = "results/production";
+    const bundleDir = "results/publication-bundle";
+    const exportDir = "results/axarena-export";
+    const supportedSurfaces = options.supportedSurfaces ?? (() => [...SURFACES]);
+    const success = options.success ?? ((vendor, taskId, surface, harness, trial) =>
+      (vendors.indexOf(vendor) + suite.tasks.indexOf(suite.tasks.find((task) => task.id === taskId)!) +
+        SURFACES.indexOf(surface) + HARNESSES.indexOf(harness) + trial) % 4 !== 0);
+
+    for (const vendor of vendors) {
+      const packTasks = suite.tasks.map((task) => {
+        const allowed = supportedSurfaces(vendor, task.id);
+        return {
+          id: task.id,
+          title: task.title,
+          prompt: task.intent,
+          difficulty: task.difficulty,
+          allowed_surfaces: allowed,
+          na: allowed.length === 0,
+          oracles: allowed.length ? [{ type: "roundtrip", expected: 1, description: "fixture verifier" }] : [],
+        };
+      });
+      write(resolve(root, `targets/vendors/${vendor}.discovered.yaml`), `name: ${vendor}\nslug: ${vendor}\n`);
+      write(resolve(root, `targets/extracts/${vendor}/daeb-1.yaml`), `vendor: ${vendor}\n`);
+      write(resolve(root, `targets/packs/${vendor}/daeb-1.yaml`), yamlStringify({
+        name: vendor,
+        version: "1",
+        standard_set_version: "DAEB-1-v1",
+        run_id: "fixture",
+        generated_by: "deterministic@no-model",
+        auth_method: "none",
+        base_url: `https://${vendor}.example`,
+        tasks: packTasks,
+      }));
+      write(resolve(root, `targets/packs/${vendor}/daeb-1.approval.json`), JSON.stringify({ approved: true }));
+
+      for (const surface of SURFACES) {
+        for (const harness of HARNESSES) {
+          const aggregateDir = resolve(root, runDir, vendor, surface, harness, "aggregate");
+          const blocked = options.blockedCell?.vendor === vendor && options.blockedCell.surface === surface && options.blockedCell.harness === harness
+            ? options.blockedCell.reason
+            : undefined;
+          write(resolve(aggregateDir, `${harness}.${surface}.aggregate.normalized.json`), JSON.stringify(aggregateRecord({
+            vendor,
+            surface,
+            harness,
+            discovery: options.discovery?.(vendor) ?? 0.75,
+            blocked,
+          }), null, 2));
+          for (let trial = 1; trial <= 3; trial++) {
+            if (options.missingTrial?.vendor === vendor && options.missingTrial.surface === surface &&
+              options.missingTrial.harness === harness && options.missingTrial.trial === trial) continue;
+            const trialDir = resolve(root, runDir, vendor, surface, harness, `trial-${trial}`);
+            const outcomes = suite.tasks.map((task) => {
+              const supported = supportedSurfaces(vendor, task.id).includes(surface);
+              return {
+                taskId: task.id,
+                success: supported ? success(vendor, task.id, surface, harness, trial) : false,
+                na: !supported,
+                status: supported ? "scored" : "na",
+              };
+            });
+            write(resolve(trialDir, "generated-eval.snapshot.json"), JSON.stringify({
+              runs: [{ profile: "medium", harness, surface, model: harness === "codex" ? "gpt-5.4" : "sonnet", outcomes }],
+            }, null, 2));
+            write(resolve(trialDir, "generated-eval.html"), "<html><body>fixture report</body></html>\n");
+          }
+        }
+      }
+      if (options.hiddenDebugRecord) {
+        write(resolve(root, runDir, vendor, "api", "codex", "trial-1", ".invoke-home", "debug.normalized.json"), JSON.stringify(
+          aggregateRecord({ vendor, surface: "api", harness: "codex", discovery: 0 }),
+        ));
+      }
+    }
+    write(resolve(root, runDir, "competitive.html"), "<html><body>competitive fixture</body></html>\n");
+    return { root, suite, suitePath, runDir, bundleDir, exportDir, vendors };
+  }
+
+  function buildFixture(options: FixtureOptions = {}) {
+    const fixture = createFixture(options);
+    const bundle = buildPublicationBundle({
+      root: fixture.root,
+      suite: fixture.suite,
+      suitePath: fixture.suitePath,
+      vendors: fixture.vendors,
+      runDir: fixture.runDir,
+      outDir: fixture.bundleDir,
+      effortProfiles: ["medium"],
+      requiredEffortProfiles: ["medium"],
+      requiredTrialCount: 3,
+    });
+    return { fixture, bundle };
+  }
+
   afterEach(() => {
     for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
 
-  // Deferred to the Phase 4 publication drop: these end-to-end `publication_ready`
-  // assertions require the full regenerated methodology artifact bundle (methodology,
-  // coverage-matrix, grader-ledger, failure-taxonomy, selection-ledger, support-matrix,
-  // trace-review, …) which is renamed/regenerated in Phase 3-4. Re-enable them there.
-  it.skip("treats low coverage as publication-critical and high coverage as optional", () => {
-    const runDir = freshDir("ax-pub-run-");
-    const outDir = freshDir("ax-pub-out-");
-    const vendorDir = resolve(runDir, "supabase");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
-    const suite = loadSuite(resolve(ROOT, suitePath));
-    mkdirSync(vendorDir, { recursive: true });
-
-    const baseRecord = {
-      schema: "ax.normalized-result/v1",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 8,
-      pass_at_1: 0.8,
-      pass_at_k: 0.8,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["low"],
-      best_profile: "low",
-      model: "test-model",
-      latency_ms: 1234,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-    };
-
-    writeFileSync(resolve(vendorDir, "codex.api.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "codex",
-      surface: "api",
-    }, null, 2));
-    writeFileSync(resolve(vendorDir, "claude-code.api.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "claude-code",
-      surface: "api",
-    }, null, 2));
-    writeFileSync(resolve(vendorDir, "codex.cli.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "codex",
-      surface: "cli",
-    }, null, 2));
-    writeFileSync(resolve(vendorDir, "claude-code.cli.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "claude-code",
-      surface: "cli",
-    }, null, 2));
-    writeFileSync(resolve(vendorDir, "generated-eval.snapshot.json"), JSON.stringify({ runs: [] }, null, 2));
-    writeFileSync(resolve(vendorDir, "generated-eval.html"), "<html><body>report</body></html>\n");
-    writeFileSync(resolve(runDir, "competitive.html"), "<html><body>competitive</body></html>\n");
-
-    const manifest = buildPublicationBundle({
-      root: ROOT,
-      suite,
-      suitePath,
-      vendors: ["supabase"],
-      runDir,
-      outDir,
+  it("freezes a publication-ready six-vendor, seven-core-task production bundle", () => {
+    const { bundle } = buildFixture();
+    expect(bundle.publication_readiness).toBe("publication_ready");
+    expect(bundle.vendors).toHaveLength(6);
+    expect(bundle.expected_matrix).toMatchObject({
+      surfaces: ["api", "cli"],
+      harnesses: ["codex", "claude-code"],
+      effort_profiles: ["medium"],
+      required_effort_profiles: ["medium"],
+      required_trial_count: 3,
     });
-
-    expect(manifest.publication_readiness).toBe("publication_ready");
-    expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
-    expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-    expect(manifest.expected_matrix.effort_profiles).toEqual(["low", "high"]);
-    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["low"]);
-    expect(manifest.quality_gates.find((gate) => gate.id === "matrix-completeness")?.status).toBe("pass");
-    expect(manifest.quality_gates.find((gate) => gate.id === "optional-profile-coverage")?.status).toBe("warn");
-    expect(manifest.notes.some((note) => note.includes("missing optional coverage does not block"))).toBe(true);
+    expect(bundle.quality_gates.find((gate) => gate.id === "rankability")?.status).toBe("pass");
   });
 
-  it.skip("can freeze a production bundle from aggregate-only medium records", () => {
-    const runDir = freshDir("ax-pub-prod-run-");
-    const outDir = freshDir("ax-pub-prod-out-");
-    const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
-    const suite = loadSuite(resolve(ROOT, suitePath));
-    mkdirSync(aggregateDir, { recursive: true });
-
-    writeFileSync(resolve(aggregateDir, "codex.api.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "api",
-      product: "supabase",
-      harness: "codex",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 8,
-      pass_at_1: 0.8,
-      pass_at_k: 0.8,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "gpt-5.4",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-      summary_kind: "aggregate",
-      trial_count: 3,
-      trial_values: [0.7, 0.8, 0.9],
-      mean_pass_rate: 0.8,
-      range_pass_rate: { min: 0.7, max: 0.9 },
-      pass_all_3: 0,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate", "claude-code.api.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "api",
-      product: "supabase",
-      harness: "claude-code",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 7,
-      pass_at_1: 0.7,
-      pass_at_k: 0.7,
-      attempts: 1,
-      discovery_score: 0.7,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-      latency_ms: 1300,
-      tool_call_count: 6,
-      token_usage: { input: 110, output: 40 },
-      token_cost: 0.11,
-      validity_status: "valid",
-      first_action_latency_ms: 120,
-      transcript_event_count: 13,
-      action_occurred: true,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "codex", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "codex", "aggregate", "codex.cli.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "cli",
-      product: "supabase",
-      harness: "codex",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 6,
-      pass_at_1: 0.6,
-      pass_at_k: 0.6,
-      attempts: 1,
-      discovery_score: 0.7,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "gpt-5.4",
-      latency_ms: 1400,
-      tool_call_count: 7,
-      token_usage: { input: 120, output: 60 },
-      token_cost: 0.14,
-      validity_status: "valid",
-      first_action_latency_ms: 140,
-      transcript_event_count: 14,
-      action_occurred: true,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate", "claude-code.cli.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "cli",
-      product: "supabase",
-      harness: "claude-code",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 5,
-      pass_at_1: 0.5,
-      pass_at_k: 0.5,
-      attempts: 1,
-      discovery_score: 0.6,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-      latency_ms: 1500,
-      tool_call_count: 8,
-      token_usage: { input: 130, output: 70 },
-      token_cost: 0.15,
-      validity_status: "valid",
-      first_action_latency_ms: 160,
-      transcript_event_count: 15,
-      action_occurred: true,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "api", "codex", "trial-1"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "api", "codex", "trial-1", "generated-eval.snapshot.json"), JSON.stringify({ runs: [] }, null, 2));
-    writeFileSync(resolve(runDir, "supabase", "api", "codex", "trial-1", "generated-eval.html"), "<html><body>report</body></html>\n");
-    writeFileSync(resolve(runDir, "competitive.html"), "<html><body>competitive</body></html>\n");
-
-    const manifest = buildPublicationBundle({
-      root: ROOT,
-      suite,
-      suitePath,
-      vendors: ["supabase"],
-      runDir,
-      outDir,
-      effortProfiles: ["medium"],
-      requiredEffortProfiles: ["medium"],
-    });
-
-    expect(manifest.publication_readiness).toBe("publication_ready");
-    expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
-    expect(manifest.expected_matrix.required_effort_profiles).toEqual(["medium"]);
-    expect(manifest.quality_gates.find((gate) => gate.id === "matrix-completeness")?.status).toBe("pass");
-    expect(manifest.vendors[0].artifacts.normalized_records.every((path) => path.includes("aggregate"))).toBe(true);
+  it("uses aggregate records and ignores harness-home debug artifacts", () => {
+    const { bundle } = buildFixture({ hiddenDebugRecord: true });
+    expect(bundle.publication_readiness).toBe("publication_ready");
+    expect(bundle.vendors.flatMap((vendor) => vendor.artifacts.normalized_records).every((path) => path.includes("aggregate"))).toBe(true);
+    expect(bundle.vendors.flatMap((vendor) => vendor.artifacts.normalized_records).some((path) => path.includes(".invoke-home"))).toBe(false);
   });
 
-  it.skip("ignores harness home directories when collecting publication artifacts", () => {
-    const runDir = freshDir("ax-pub-ignore-home-run-");
-    const outDir = freshDir("ax-pub-ignore-home-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
-    const suite = loadSuite(resolve(ROOT, suitePath));
-    const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
-    const hiddenDir = resolve(runDir, "supabase", "api", "codex", "trial-1", ".invoke-home", "run-codex-medium-api");
-
-    mkdirSync(aggregateDir, { recursive: true });
-    mkdirSync(hiddenDir, { recursive: true });
-
-    const baseRecord = {
-      schema: "ax.normalized-result/v1",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 10,
-      tasks_passed: 8,
-      pass_at_1: 0.8,
-      pass_at_k: 0.8,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      model: "gpt-5.4",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-    };
-
-    writeFileSync(resolve(aggregateDir, "codex.api.aggregate.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "codex",
-      surface: "api",
-      profiles: ["medium"],
-      best_profile: "medium",
-    }, null, 2));
-    writeFileSync(resolve(hiddenDir, "codex.api.debug.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "codex",
-      surface: "api",
-      profiles: ["low"],
-      best_profile: "low",
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate", "claude-code.api.aggregate.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "claude-code",
-      surface: "api",
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "codex", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "codex", "aggregate", "codex.cli.aggregate.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "codex",
-      surface: "cli",
-      profiles: ["medium"],
-      best_profile: "medium",
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate", "claude-code.cli.aggregate.normalized.json"), JSON.stringify({
-      ...baseRecord,
-      product: "supabase",
-      harness: "claude-code",
-      surface: "cli",
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "api", "codex", "trial-1"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "api", "codex", "trial-1", "generated-eval.snapshot.json"), JSON.stringify({ runs: [] }, null, 2));
-    writeFileSync(resolve(runDir, "supabase", "api", "codex", "trial-1", "generated-eval.html"), "<html><body>report</body></html>\n");
-    writeFileSync(resolve(runDir, "competitive.html"), "<html><body>competitive</body></html>\n");
-
-    const manifest = buildPublicationBundle({
-      root: ROOT,
-      suite,
-      suitePath,
-      vendors: ["supabase"],
-      runDir,
-      outDir,
-      effortProfiles: ["medium"],
-      requiredEffortProfiles: ["medium"],
-    });
-
-    expect(manifest.publication_readiness).toBe("publication_ready");
-    expect(manifest.vendors[0].artifacts.normalized_records.some((record) => record.includes(".invoke-home"))).toBe(false);
+  it("keeps blocked or non-three-trial cells in draft", () => {
+    const { bundle } = buildFixture({ blockedCell: { vendor: "neon", surface: "api", harness: "codex", reason: "missing-credential" } });
+    expect(bundle.publication_readiness).toBe("draft");
+    expect(bundle.quality_gates.find((gate) => gate.id === "rankability")?.status).toBe("fail");
   });
 
-  it("exports an axarena-ready dataset from a publication bundle", () => {
-    const runDir = freshDir("ax-pub-export-run-");
-    const bundleDir = freshDir("ax-pub-export-bundle-");
-    const outDir = freshDir("ax-pub-export-out-");
-    const suitePath = "targets/suites/daeb-1-v3.yaml";
-    const suite = loadSuite(resolve(ROOT, suitePath));
-    const aggregateDir = resolve(runDir, "supabase", "api", "codex", "aggregate");
-    const trialDir = resolve(runDir, "supabase", "api", "codex", "trial-1");
-    mkdirSync(aggregateDir, { recursive: true });
-    mkdirSync(trialDir, { recursive: true });
-
-    writeFileSync(resolve(aggregateDir, "codex.api.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "api",
-      product: "supabase",
-      harness: "codex",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 1,
-      tasks_passed: 1,
-      pass_at_1: 1,
-      pass_at_k: 1,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "gpt-5.4",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-      summary_kind: "aggregate",
-      trial_count: 3,
-      trial_values: [1, 1, 1],
-      mean_pass_rate: 1,
-      range_pass_rate: { min: 1, max: 1 },
-      pass_all_3: 1,
-      source_records: ["trial-1/codex.api.normalized.json"],
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "api", "claude-code", "aggregate", "claude-code.api.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "api",
-      product: "supabase",
-      harness: "claude-code",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 1,
-      tasks_passed: 0,
-      pass_at_1: 0,
-      pass_at_k: 0,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "codex", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "codex", "aggregate", "codex.cli.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "cli",
-      product: "supabase",
-      harness: "codex",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 1,
-      tasks_passed: 1,
-      pass_at_1: 1,
-      pass_at_k: 1,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "gpt-5.4",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-    }, null, 2));
-    mkdirSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate"), { recursive: true });
-    writeFileSync(resolve(runDir, "supabase", "cli", "claude-code", "aggregate", "claude-code.cli.aggregate.normalized.json"), JSON.stringify({
-      schema: "ax.normalized-result/v1",
-      surface: "cli",
-      product: "supabase",
-      harness: "claude-code",
-      standard_set_version: "DAEB-1-v3",
-      generated_at: "2026-07-05T00:00:00.000Z",
-      tasks_total: 1,
-      tasks_passed: 1,
-      pass_at_1: 1,
-      pass_at_k: 1,
-      attempts: 1,
-      discovery_score: 0.75,
-      content_quality: 0.8,
-      profiles: ["medium"],
-      best_profile: "medium",
-      model: "sonnet",
-      latency_ms: 1200,
-      tool_call_count: 5,
-      token_usage: { input: 100, output: 50 },
-      token_cost: 0.12,
-      validity_status: "valid",
-      first_action_latency_ms: 100,
-      transcript_event_count: 12,
-      action_occurred: true,
-    }, null, 2));
-    writeFileSync(resolve(trialDir, "generated-eval.snapshot.json"), JSON.stringify({
-      runs: [{
-        profile: "medium",
-        harness: "codex",
-        surface: "api",
-        model: "gpt-5.4",
-        outcomes: [
-          { taskId: "db-T04-define-data-container", success: true, status: "pass" },
-          { taskId: "db-T09-vector-search", success: false, status: "fail" },
-        ],
-        evidence: {
-          results: ["run.json"],
-          trace: ["run.trace.json"],
-          transcript: "run.transcript.jsonl",
-        },
-      }],
-    }, null, 2));
-    writeFileSync(resolve(trialDir, "generated-eval.html"), "<html><body>report</body></html>\n");
-    writeFileSync(resolve(runDir, "competitive.html"), "<html><body>competitive</body></html>\n");
-
-    buildPublicationBundle({
-      root: ROOT,
-      suite,
-      suitePath,
-      vendors: ["supabase"],
-      runDir,
-      outDir: bundleDir,
-      effortProfiles: ["medium"],
-      requiredEffortProfiles: ["medium"],
+  it("exports v2 website data and ranks only the shared task-surface intersection", () => {
+    const { fixture } = buildFixture({
+      vendors: ["alpha", "beta", "gamma"],
+      supportedSurfaces: (vendor, taskId) => vendor === "gamma" && taskId.endsWith("backup-and-restore") ? ["api"] : ["api", "cli"],
+      success: (vendor, _taskId, _surface, _harness, trial) => vendor === "alpha" || (vendor === "beta" && trial < 3),
+      discovery: (vendor) => vendor === "beta" ? 1 : 0.25,
     });
+    const manifest = buildAxArenaExport({ root: fixture.root, bundleDir: fixture.bundleDir, outDir: fixture.exportDir });
+    expect(manifest.schema).toBe("ax.axarena-export/v2");
+    for (const file of manifest.files) expect(existsSync(resolve(fixture.root, fixture.exportDir, file.path))).toBe(true);
 
-    const manifest = buildAxArenaExport({
-      root: ROOT,
-      bundleDir,
-      outDir,
+    const root = resolve(fixture.root, fixture.exportDir);
+    const publication = JSON.parse(readFileSync(resolve(root, "publication.json"), "utf8"));
+    const leaderboard = JSON.parse(readFileSync(resolve(root, "leaderboard.json"), "utf8"));
+    const cells = JSON.parse(readFileSync(resolve(root, "cells.json"), "utf8"));
+    const tasks = JSON.parse(readFileSync(resolve(root, "tasks.json"), "utf8"));
+    expect(publication.schema).toBe("ax.axarena-publication/v1");
+    expect(publication).toMatchObject({ benchmark: "axarena-database", display_name: "AXArena Database" });
+    expect(manifest.benchmark).toBe("axarena-database");
+    expect(leaderboard.schema).toBe("ax.axarena-leaderboard/v2");
+    expect(leaderboard.benchmark).toBe("axarena-database");
+    expect(leaderboard.ranking_method.discovery_affects_rank).toBe(false);
+    expect(leaderboard.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["alpha", "beta", "gamma"]);
+    expect(leaderboard.rows[0]).toMatchObject({ rank: 1, intersection_score: 1, intersection_consistency_at_3: 1 });
+    expect(leaderboard.rows[1].rank).toBe(2);
+    expect(leaderboard.rows[1].discovery_score).toBe(1);
+    expect(leaderboard.rows[2].applicability_coverage).toBeLessThan(1);
+    expect(cells.schema).toBe("ax.axarena-cells/v2");
+    expect(cells.cells[0]).toHaveProperty("task_consistency_at_3");
+    expect(tasks.schema).toBe("ax.axarena-tasks/v2");
+    expect(tasks.tasks).toHaveLength(7);
+    expect(tasks.tasks.every((task: { kind: string }) => task.kind === "core")).toBe(true);
+  });
+
+  it("shares ranks on exact score and reliability ties regardless of discovery", () => {
+    const { fixture } = buildFixture({
+      vendors: ["alpha", "beta"],
+      success: () => true,
+      discovery: (vendor) => vendor === "alpha" ? 0 : 1,
     });
+    buildAxArenaExport({ root: fixture.root, bundleDir: fixture.bundleDir, outDir: fixture.exportDir });
+    const leaderboard = JSON.parse(readFileSync(resolve(fixture.root, fixture.exportDir, "leaderboard.json"), "utf8"));
+    expect(leaderboard.rows.map((row: { rank: number }) => row.rank)).toEqual([1, 1]);
+    expect(leaderboard.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["alpha", "beta"]);
+  });
 
-    expect(manifest.schema).toBe("ax.axarena-export/v1");
-    for (const file of manifest.files) {
-      expect(existsSync(resolve(outDir, file.path))).toBe(true);
-    }
-    const cells = JSON.parse(readFileSync(resolve(outDir, "cells.json"), "utf8"));
-    const failures = JSON.parse(readFileSync(resolve(outDir, "failures.json"), "utf8"));
-    expect(cells.schema).toBe("ax.axarena-cells/v1");
-    expect(cells.cells.some((cell: { id: string }) => cell.id === "supabase/api/codex")).toBe(true);
-    expect(failures.failures).toHaveLength(1);
-    expect(failures.failures[0].task_id).toBe("db-T09-vector-search");
+  it("marks missing trial evidence incomplete and emits no rank for an empty intersection", () => {
+    const incomplete = buildFixture({
+      vendors: ["alpha", "beta"],
+      missingTrial: { vendor: "alpha", surface: "api", harness: "codex", trial: 2 },
+    }).fixture;
+    buildAxArenaExport({ root: incomplete.root, bundleDir: incomplete.bundleDir, outDir: incomplete.exportDir });
+    const incompleteLeaderboard = JSON.parse(readFileSync(resolve(incomplete.root, incomplete.exportDir, "leaderboard.json"), "utf8"));
+    const incompletePublication = JSON.parse(readFileSync(resolve(incomplete.root, incomplete.exportDir, "publication.json"), "utf8"));
+    expect(incompleteLeaderboard.rows.find((row: { vendor: string }) => row.vendor === "alpha")).toMatchObject({ rank: null, status: "incomplete" });
+    expect(incompletePublication.publication_readiness).toBe("draft");
+
+    const empty = buildFixture({
+      vendors: ["one", "two"],
+      supportedSurfaces: (vendor, taskId) => {
+        const first = taskId.endsWith("access-control");
+        return vendor === "one" ? (first ? ["api"] : []) : (!first ? ["cli"] : []);
+      },
+    }).fixture;
+    buildAxArenaExport({ root: empty.root, bundleDir: empty.bundleDir, outDir: empty.exportDir });
+    const emptyLeaderboard = JSON.parse(readFileSync(resolve(empty.root, empty.exportDir, "leaderboard.json"), "utf8"));
+    expect(emptyLeaderboard.ranking_method.intersection_pairs).toEqual([]);
+    expect(emptyLeaderboard.rows.every((row: { rank: number | null; status: string }) => row.rank === null && row.status === "not_comparable")).toBe(true);
   });
 });
