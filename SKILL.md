@@ -266,6 +266,8 @@ interpretation, and paper-style appendix.
   `--skip-review` only for a committed/trusted pack). A changed pack must be
   re-approved.
 - Do not skip `verify` — success requires verifier PASS against live state.
+- Database verifier credentials stay in pack-declared environment variables.
+  Never ask an executor to report a token or connection string in result JSON.
 - Report `harness: host-agent` and the host model; label the low↔high spread as an
   **effort** spread (same model), not a cross-model score. The `sonnet`/`gpt5`
   cross-model profiles only produce real cross-model data in Cursor Composer

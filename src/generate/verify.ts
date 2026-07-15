@@ -13,6 +13,8 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { renderSqlQuery, resolveSqlConnection, runSqlCheck } from "./sql-verify.js";
+import { renderMongoQuery, resolveMongoConnection, runMongoCheck } from "./mongo-verify.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -282,8 +284,9 @@ async function readRoundtripBody(
 
 async function verifyRoundtrip(
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
+  pack: TargetPack,
   ns: string | undefined,
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
@@ -292,6 +295,56 @@ async function verifyRoundtrip(
   const out: OracleResult[] = [];
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
+
+    if (oracle.sqlQuery) {
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "SQL oracle missing assertField" });
+        continue;
+      }
+      try {
+        const connection = resolveSqlConnection(pack);
+        if (!connection) throw new Error("SQL oracle requires pack.sql_conn");
+        if (connection.dialect !== oracle.sqlDialect) {
+          throw new Error(`SQL oracle dialect ${oracle.sqlDialect} does not match pack dialect ${connection.dialect}`);
+        }
+        const query = renderSqlQuery(oracle.sqlQuery, { ns, gid: reported?.gid });
+        const row = await runSqlCheck(connection, query);
+        const actual = resolveDotted(row, oracle.assertField);
+        const expectedValues = resolveExpectedValues(oracle, ns);
+        out.push({
+          type: "roundtrip",
+          passed: valuesMatch(actual, expectedValues, oracle.matchMode),
+          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
+      continue;
+    }
+
+    if (oracle.mongoQuery) {
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "MongoDB oracle missing assertField" });
+        continue;
+      }
+      try {
+        const connection = resolveMongoConnection(pack);
+        if (!connection) throw new Error("MongoDB oracle requires pack.mongo_conn");
+        const query = renderMongoQuery(oracle.mongoQuery, { ns, gid: reported?.gid });
+        const result = await runMongoCheck(connection, query);
+        const actual = resolveDotted(result, oracle.assertField);
+        const expectedValues = resolveExpectedValues(oracle, ns);
+        out.push({
+          type: "roundtrip",
+          passed: valuesMatch(actual, expectedValues, oracle.matchMode),
+          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
+      continue;
+    }
+
     const gid = inferTemplateValue(task, "gid", reported, trace, oracle.readPathTemplate ?? task.create_path ?? "{gid}");
     if (!gid) {
       out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
@@ -382,7 +435,7 @@ export async function verifyGeneratedPack(
   trace: TraceStep[] = [],
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
-  const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
+  const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks.filter((task) => !task.na);
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -392,6 +445,7 @@ export async function verifyGeneratedPack(
         task,
         reported,
         client,
+        pack,
         executor.ns,
         pack.field_select_param,
         pack.api_style,

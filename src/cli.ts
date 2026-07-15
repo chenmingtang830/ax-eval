@@ -46,6 +46,7 @@ import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
 import { authorPackWithLlm } from "./generate/authoring.js";
 import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
+import { buildVerificationClientOptions } from "./generate/verification-client.js";
 import {
   GENERATED_REPORT_SNAPSHOT_SCHEMA,
   loadGeneratedReportSnapshot,
@@ -86,7 +87,7 @@ import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
-import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
+import { describeRequiredEnv, hasRequiredEnv, resolveScope, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { resetPack } from "./target/reset.js";
 import {
   buildEnvChecklist,
@@ -1337,15 +1338,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   if (args.results.length === 0) throw new Error("provide at least one --results <run.json>");
   const pack = loadPack(args.pack);
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
-  const client = new BearerClient({
-    baseUrl: pack.base_url,
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
+  const client = new BearerClient(buildVerificationClientOptions(pack));
   const byAttempt: ProfileRun[] = [];
   // Runtime warnings captured while assembling the report — surfaced verbatim
   // in the report's Methodology so the reader sees what couldn't be measured.
@@ -1609,15 +1602,7 @@ async function cmdReset(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]");
   const pack = loadPack(args.pack);
-  const client = new BearerClient({
-    baseUrl: pack.base_url,
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
+  const client = new BearerClient(buildVerificationClientOptions(pack));
   const scope = resolveScope(pack);
   const result = await resetPack(pack, client, scope, { ns: args.ns || undefined, dryRun: args.dryRun });
   console.log(result.message);

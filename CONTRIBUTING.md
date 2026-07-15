@@ -85,6 +85,10 @@ Two details matter for public packs:
   Token-based surfaces can add `token_env_aliases`; OAuth-only surfaces should
   be modeled as `kind: oauth_app` so the report shows an honest blocked cell
   instead of a fake 0%.
+- SQL and MongoDB outcome verification declares only connection environment
+  variable names in the pack. SQL queries must be single-statement reads;
+  MongoDB checks must use the declarative read operations. Never put a token,
+  DSN, or connection string in a pack, result artifact, or fixture.
 
 Also note that `profile` and `surface` are different axes: the pack declares
 which product surfaces exist, while harness profiles vary execution settings

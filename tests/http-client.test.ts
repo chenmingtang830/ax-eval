@@ -50,6 +50,29 @@ describe("BearerClient auth schemes + headers", () => {
     expect(calls[0].headers.Authorization).toBeUndefined();
   });
 
+  it("can send the raw credential under a second required header", async () => {
+    const calls = stubFetch({ ok: 1 });
+    const c = new BearerClient({
+      baseUrl: "https://api.test",
+      token: "test-token",
+      authScheme: "bearer",
+      extraAuthHeader: "X-Api-Key",
+    });
+    await c.get("/x");
+    expect(calls[0].headers.Authorization).toBe("Bearer test-token");
+    expect(calls[0].headers["X-Api-Key"]).toBe("test-token");
+  });
+
+  it("rejects an extra auth header that would overwrite the primary header", () => {
+    expect(() => new BearerClient({
+      baseUrl: "https://api.test",
+      token: "test-token",
+      authScheme: "bearer",
+      authHeader: "Authorization",
+      extraAuthHeader: "authorization",
+    })).toThrow(/must differ/);
+  });
+
   it("unwraps the response envelope when configured", async () => {
     stubFetch({ data: { name: "wrapped" } });
     const c = new BearerClient({ baseUrl: "https://api.test", token: "t", responseEnvelope: "data" });

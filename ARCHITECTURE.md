@@ -254,12 +254,17 @@ The important rule is:
 
 **the executor does not decide success.**
 
-The executor only reports ids. The verifier then:
+The executor only reports non-secret resource identifiers. The verifier then:
 
-1. reads those resources back from the live API
+1. reads those resources back through HTTP, GraphQL, SQL, or MongoDB
 2. resolves response envelopes
 3. asserts fields against oracle expectations
 4. records per-task outcomes
+
+Database verification uses connection strings from pack-declared environment
+variable names. SQL checks run as one statement inside a read-only transaction;
+MongoDB checks use a constrained declarative read contract. Credentials and
+connection strings never pass through executor result artifacts.
 
 This is the truth layer of the system. It keeps evaluation grounded in actual
 product state instead of agent narration.

@@ -215,6 +215,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
   the expected state back from the product.
 - **Target-declared auth and sandbox scope.** Packs say exactly which env vars and
   sandbox ids are needed; secrets stay local in `.env`.
+- **Read-only database verification.** SQL and MongoDB oracles name connection
+  environment variables; credentials never enter packs or executor results.
 - **Layered gates, not misleading green.** `--min-pass-rate` reports the overall
   gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across

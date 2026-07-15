@@ -34,6 +34,8 @@ export interface BearerClientOptions {
   authScheme?: AuthScheme;
   /** Header the credential goes in. Default "Authorization". */
   authHeader?: string;
+  /** Optional second header that receives the raw credential value. */
+  extraAuthHeader?: string;
   /** Constant headers every request must carry (e.g. Notion-Version). */
   extraHeaders?: Record<string, string>;
   /** Target API style. "rest" (default) uses `get`; "graphql" uses `graphql`
@@ -60,15 +62,20 @@ export class BearerClient {
   private readonly envelope?: string;
   private readonly authScheme: AuthScheme;
   private readonly authHeader: string;
+  private readonly extraAuthHeader?: string;
   private readonly extraHeaders: Record<string, string>;
   readonly apiStyle: ApiStyle;
 
   constructor(opts: BearerClientOptions) {
+    if (opts.extraAuthHeader && opts.extraAuthHeader.toLowerCase() === (opts.authHeader ?? "Authorization").toLowerCase()) {
+      throw new Error("extraAuthHeader must differ from authHeader");
+    }
     this.baseUrl = opts.baseUrl.replace(/\/+$/, "");
     this.token = opts.token;
     this.envelope = opts.responseEnvelope;
     this.authScheme = opts.authScheme ?? "bearer";
     this.authHeader = opts.authHeader ?? "Authorization";
+    this.extraAuthHeader = opts.extraAuthHeader;
     this.extraHeaders = opts.extraHeaders ?? {};
     this.apiStyle = opts.apiStyle ?? "rest";
   }
@@ -80,6 +87,9 @@ export class BearerClient {
       h[this.authHeader] = `Bearer ${this.token}`;
     } else if (this.authScheme === "api-key") {
       h[this.authHeader] = this.token; // raw token, no "Bearer " (Linear/Monday)
+    }
+    if (this.extraAuthHeader && this.authScheme !== "none") {
+      h[this.extraAuthHeader] = this.token;
     }
     return h;
   }
