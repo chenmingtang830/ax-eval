@@ -14,6 +14,38 @@ not for the shipped example baselines.
 Use `targets/examples/<product>/` for the repository-tracked example/reference
 packs. Runtime artifacts still belong under `results/`.
 
+## Planned AXArena Canonical Suites
+
+The completed AXArena benchmark stack places canonical suites under
+`targets/suites/`. DAEB-1 is the first planned canonical suite:
+
+```text
+targets/suites/daeb-1-v3.yaml
+```
+
+This revision documents the layout only; these suite and vendor artifacts land
+in later implementation changes. For DAEB-1, the vendor files are layered:
+
+- `targets/vendors/<vendor>.discovered.yaml` — public vendor card: product name,
+  docs URL, site URL, category metadata.
+- `targets/extracts/<vendor>/daeb-1-v3.yaml` — vendor-specific verifier adapter:
+  read-back checks, auth/base URL, N/A mapping.
+- `targets/extracts/<vendor>/surfaces.yaml` — optional CLI/SDK surface
+  adapter.
+- `targets/packs/<vendor>/daeb-1-v3.yaml` — compiled executable `TargetPack`
+  produced from the canonical suite plus the adapters above.
+
+Publication-grade suites also carry sibling methodology artifacts next to the
+suite YAML itself: methodology, concept universe, coverage matrix, selection
+ledger, support matrix, grader ledger, failure taxonomy, and trace-review memo.
+Those artifacts explain how the Discoverability & Readiness layer and the
+usability canonical suite layer were derived without collapsing them into one
+score.
+
+The compiled DAEB-1 packs will not be separate benchmark definitions. They
+will allow `exec-plan` and `verify-generated` to run against each vendor while
+preserving one shared suite and scoring contract.
+
 ## Good Starting Points
 
 - `examples/notion/pack.yaml` — REST target with API / CLI / SDK / MCP coverage and the
