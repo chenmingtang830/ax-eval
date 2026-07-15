@@ -3,29 +3,7 @@ import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
-
-function isPublicHttpUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    if (!(["http:", "https:"] as string[]).includes(url.protocol)) return false;
-    if (url.username || url.password) return false;
-    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) return false;
-    if (host === "::1" || /^f[cd][0-9a-f]{2}:/i.test(host) || /^fe[89ab][0-9a-f]:/i.test(host)) return false;
-    const octets = host.split(".").map(Number);
-    if (octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)) {
-      if (octets[0] === 10 || octets[0] === 127 || octets[0] === 0) return false;
-      if (octets[0] === 169 && octets[1] === 254) return false;
-      if (octets[0] === 192 && octets[1] === 168) return false;
-      if (octets[0] === 172 && octets[1]! >= 16 && octets[1]! <= 31) return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-const HttpUrlSchema = z.string().url().refine(isPublicHttpUrl, "must be a public http(s) URL without credentials");
+import { PublicHttpUrlSchema } from "./public-url.js";
 
 const ResolveResultSchema = z.object({
   vendor: z.string().min(1),
@@ -38,14 +16,14 @@ const ResolveResultSchema = z.object({
     model: z.string().optional(),
     prompt_version: z.string(),
   }),
-  site_url: HttpUrlSchema.nullable(),
-  docs_url: HttpUrlSchema.nullable(),
+  site_url: PublicHttpUrlSchema.nullable(),
+  docs_url: PublicHttpUrlSchema.nullable(),
 });
 
 const GeneratedVendorSchema = z.object({
   vendor: z.string().min(1),
-  site_url: HttpUrlSchema.nullable(),
-  docs_url: HttpUrlSchema.nullable(),
+  site_url: PublicHttpUrlSchema.nullable(),
+  docs_url: PublicHttpUrlSchema.nullable(),
 });
 
 export type ResolveResult = z.infer<typeof ResolveResultSchema>;
