@@ -53,7 +53,8 @@ shape.
 - **Packs are content-addressed and must pass the review gate.** A generated set
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
-  gate, so re-run `review` after changing a pack. No AI-approves-AI.
+  gate, so re-run `review` after changing tasks, verifiers, headers, credentials,
+  or CLI/SDK/MCP execution configuration. No AI-approves-AI.
 - **Unsupported tasks stay explicit.** Use `na: true` with a concise
   `na_reason`; an empty `allowed_surfaces` list means unrestricted, not N/A.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a

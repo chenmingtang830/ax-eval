@@ -48,10 +48,16 @@ function reviewableContent(pack: TargetPack): unknown {
   return canonical({
     standard_set_version: pack.standard_set_version,
     base_url: pack.base_url,
+    api_style: pack.api_style,
     auth: pack.auth ?? null,
+    headers: pack.headers,
+    request_envelope: pack.request_envelope ?? null,
+    response_envelope: pack.response_envelope ?? null,
+    field_select_param: pack.field_select_param ?? null,
     sandbox_scope: pack.sandbox_scope,
     sql_conn: pack.sql_conn ?? null,
     mongo_conn: pack.mongo_conn ?? null,
+    surfaces: pack.surfaces ?? null,
     discovery: pack.discovery ?? null,
     tasks: pack.tasks.map((t) => ({
       id: t.id,
@@ -275,6 +281,19 @@ export function reviewSummary(pack: TargetPack): string {
     for (const s of pack.sandbox_scope) {
       lines.push(`- sandbox ${s.name}: env \`${s.env}\`${s.required ? "" : " (optional)"} — ${s.instructions || "(no instructions)"}`);
     }
+  }
+  lines.push(`- API: \`${pack.api_style}\` at \`${pack.base_url || "(none)"}\``);
+  if (Object.keys(pack.headers).length > 0) {
+    lines.push(`- constant headers: ${Object.entries(pack.headers).map(([name, value]) => `\`${name}: ${value}\``).join(", ")}`);
+  }
+  if (pack.surfaces?.cli) {
+    lines.push(`- CLI: \`${pack.surfaces.cli.bin}\`${pack.surfaces.cli.install ? `; install \`${pack.surfaces.cli.install}\`` : ""}`);
+  }
+  if (pack.surfaces?.sdk) {
+    lines.push(`- SDK: \`${pack.surfaces.sdk.package}\`${pack.surfaces.sdk.install ? `; install \`${pack.surfaces.sdk.install}\`` : ""}`);
+  }
+  if (pack.surfaces?.mcp) {
+    lines.push(`- MCP (${pack.surfaces.mcp.transport}): \`${pack.surfaces.mcp.server}\``);
   }
   lines.push("");
 

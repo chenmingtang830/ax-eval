@@ -54,7 +54,9 @@ packaging. It never uses Exa; pass explicit official URLs when you have them, or
 let the configured local harness find candidates with its native web/search
 capability and ax-eval will validate them by fetching official pages directly.
 Generated packs still stop at the review gate until a human explicitly approves
-them with `ax-eval review`.
+them with `ax-eval review`. Approval is content-addressed across tasks,
+verifiers, credentials, headers, and API/CLI/SDK/MCP execution configuration;
+changing any of those fields requires review again.
 
 ```bash
 npm run ax-eval -- automate-report --company Acme \

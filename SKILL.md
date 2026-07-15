@@ -141,8 +141,9 @@ a sandbox, so **nothing runs un-reviewed**. The summary lists every task +
 prompt + outcome verifier (flagged by confidence tier: T1 round-trip = strong, T2
 existence/2xx = weak) and the credential/sandbox surface it will touch.
 Approval is **content-addressed** — it records a hash of the reviewable
-fields, so any later edit re-closes the gate and forces re-approval (no
-AI-approves-AI). The committed example packs ship pre-approved (`*.approval.json`);
+fields, including headers and API/CLI/SDK/MCP execution configuration, so any
+later edit re-closes the gate and forces re-approval (no AI-approves-AI). The
+committed example packs ship pre-approved (`*.approval.json`);
 `exec-plan` refuses an un-reviewed/changed pack unless you pass `--skip-review`.
 
 ### 3. Emit one prompt per profile

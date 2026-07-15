@@ -84,6 +84,11 @@ The most important types are:
 This contract-first design is what makes the runner largely target-agnostic.
 Most SaaS additions should be a new pack, not a code change.
 
+The approval hash covers executable and verification intent: tasks, oracles,
+auth and sandbox declarations, API behavior, constant headers, database
+connections, and CLI/SDK/MCP configuration. Editing any of these re-opens the
+human review gate.
+
 ## Execution model
 
 The main orchestrator is [src/cli.ts](./src/cli.ts).

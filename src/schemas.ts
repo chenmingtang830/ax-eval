@@ -230,9 +230,9 @@ export const McpSurfaceSchema = z.object({
 export type McpSurface = z.infer<typeof McpSurfaceSchema>;
 
 /** The non-API surfaces this target exposes. Absent blocks = surface unavailable
- *  (so `--surface all` only fans out to what's declared). Deliberately excluded
- *  from the review hash (see generate/review.ts): declaring a surface doesn't
- *  change what tasks an agent is authorized to run. */
+ *  (so `--surface all` only fans out to what's declared). Surface commands,
+ *  endpoints, and auth metadata are review-hashed because they change how the
+ *  agent reaches the product even when task authorization is unchanged. */
 export const SurfaceConfigSchema = z.object({
   cli: CliSurfaceSchema.optional(),
   sdk: SdkSurfaceSchema.optional(),

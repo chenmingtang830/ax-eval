@@ -62,6 +62,10 @@ describe("review gate", () => {
     const cases = [
       pack({ sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" } }),
       pack({ mongo_conn: { connection_string_env: "MONGODB_URL", database: "sandbox" } }),
+      pack({ api_style: "graphql" }),
+      pack({ headers: { "X-API-Version": "2026-01-01" } }),
+      pack({ response_envelope: "data" }),
+      pack({ surfaces: { cli: { bin: "acme", install: "npm install -g acme" } } }),
       pack({ tasks: [{ ...original.tasks[0], na: true }] }),
       pack({ tasks: [{ ...original.tasks[0], na: true, na_reason: "Unsupported by official docs." }] }),
       pack({ tasks: [{ ...original.tasks[0], depends_on: ["setup"] }] }),
@@ -103,6 +107,16 @@ describe("review gate", () => {
     }));
     expect(md).toContain("N/A: No official recovery surface.");
     expect(md).not.toMatch(/NO ORACLE/);
+  });
+
+  it("shows review-hashed execution surfaces and constants", () => {
+    const md = reviewSummary(pack({
+      headers: { "X-API-Version": "2026-01-01" },
+      surfaces: { mcp: { server: "https://mcp.example.test", transport: "http" } },
+    }));
+    expect(md).toContain("X-API-Version: 2026-01-01");
+    expect(md).toContain("MCP (http)");
+    expect(md).toContain("https://mcp.example.test");
   });
 
   it("does not describe stateless packs as write operations", () => {
