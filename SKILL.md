@@ -61,9 +61,9 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
 ## Workflow
 
-### AXArena / DAEB-1 canonical benchmark path
+### AXArena Database canonical benchmark path
 
-DAEB-1 is different from ordinary per-target authoring. It starts from one
+AXArena Database is different from ordinary per-target authoring. It starts from one
 frozen canonical suite, then compiles vendor adapters from public vendor cards
 and vendor-specific verification extracts:
 
@@ -83,15 +83,18 @@ Once all vendor runs have been verified, freeze the publication bundle:
 ```bash
 npm run ax-eval -- publication-bundle \
   --suite targets/suites/daeb-1-v3.yaml \
-  --vendors supabase,neon,mongodb-atlas,turso,convex,insforge,cockroachdb \
+  --vendors neon,cockroachdb,turso,supabase,insforge,nile \
   --run-dir results/runs/daeb-1-v3 \
-  --out results/publications/daeb-1-v3
+  --out results/publications/daeb-1-v3 \
+  --effort-profiles medium \
+  --required-effort-profiles medium \
+  --trial-count 3
 ```
 
 The bundle manifest is the handoff to the AXArena static website and the launch
-report. Treat missing snapshot/normalized artifacts as blockers for a final
-publication, but acceptable in a draft bundle while the 8-vendor run is still
-in progress.
+report. Treat missing snapshot/normalized artifacts, blocked cells,
+non-aggregate records, and incomplete three-trial cells as blockers for a final
+publication; they remain visible in a draft bundle while the run is in progress.
 
 ### 1. Generate the frozen task set (or use a committed example)
 
@@ -222,9 +225,9 @@ directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
 stdout/stderr, invoke metadata, and a small manifest together so reviewers can
 deep-dive without hunting through prior scratch runs.
 
-### DAEB-1 production lane
+### AXArena Database production lane
 
-DAEB-1/database v1 has a dedicated production rerun command for the
+AXArena Database v1 has a dedicated production rerun command for the
 benchmark-of-record matrix:
 
 ```bash
@@ -238,7 +241,7 @@ This lane is intentionally scoped to `api` and `cli`, Codex and Claude Code,
 `medium` effort, and three trials per supported vendor/surface/harness cell.
 It writes `trial-1/2/3` directories plus an `aggregate/` directory whose
 normalized record reports the three-trial mean and range. SDK and MCP should
-not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
+not be mixed into the AXArena Database v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
 
 After freezing a publication bundle, export website data with:
@@ -252,7 +255,10 @@ ax-eval export-publication \
 This keeps the repo boundary clean: `ax-eval` owns suite compilation,
 execution, verification, aggregation, redaction, bundles, and public JSON
 exports; `axarena` owns the curated website, leaderboard presentation, result
-interpretation, and paper-style appendix.
+interpretation, and paper-style appendix. The exported v2 leaderboard ranks on
+the core task×surface intersection shared by the cohort, uses three-trial
+consistency as its tie-breaker, and reports applicability and Agent Discovery
+Score separately; the website must not recompute those values.
 
 ## Rules
 

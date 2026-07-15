@@ -49,6 +49,43 @@ describe("cli arg handling", () => {
     expect(out).not.toContain("unknown flag");
   });
 
+  it("publication-bundle help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["publication-bundle", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval publication-bundle");
+    expect(out).toContain("--suite <suite.yaml>");
+    expect(out).toContain("--effort-profiles <a,b,c>");
+    expect(out).toContain("--trial-count 3");
+  });
+
+  it("export-publication help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["export-publication", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval export-publication");
+    expect(out).toContain("--from <publication-bundle-dir>");
+    expect(out).toContain("axarena-ready JSON dataset");
+    expect(out).toContain("leaderboard");
+  });
+
+  it("daeb-low-pass help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["daeb-low-pass", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval daeb-low-pass");
+    expect(out).toContain("--surface api|cli|all");
+    expect(out).toContain("--codex-model <slug>");
+    expect(out).toContain("--claude-model <slug>");
+    expect(out).toContain("--skip-reset");
+  });
+
+  it("daeb-production-rerun help prints command usage with exit 0", () => {
+    const { code, out } = runCli(["daeb-production-rerun", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval daeb-production-rerun");
+    expect(out).toContain("--trial-count 3");
+    expect(out).toContain("--invoke-timeout seconds");
+    expect(out).toContain("--skip-archive");
+  });
+
   it("generate without --from or --suite errors with a helpful usage hint", () => {
     const { code, out } = runCli(["generate"]);
     expect(code).not.toBe(0);
@@ -95,6 +132,54 @@ describe("cli arg handling", () => {
     expect(out).toContain("Agent-readiness score");
   });
 
+  it("publication-bundle writes a manifest for a canonical-suite vendor adapter", () => {
+    const outDir = mkdtempSync(resolve(tmpdir(), "ax-pub-"));
+    try {
+      const { code, out } = runCli([
+        "publication-bundle",
+        "--suite", "targets/suites/daeb-1.yaml",
+        "--vendors", "supabase",
+        "--run-dir", "results/runs/does-not-exist",
+        "--out", outDir,
+      ]);
+      expect(code).toBe(0);
+      expect(out).toContain("Saved publication bundle");
+      const manifest = JSON.parse(readFileSync(resolve(outDir, "manifest.json"), "utf8"));
+      expect(manifest.schema).toBe("ax.publication-bundle/v2");
+      expect(manifest.benchmark).toBe("DAEB-1");
+      expect(manifest.publication_readiness).toBe("draft");
+      expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
+      expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
+      expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
+      expect(manifest.expected_matrix.required_effort_profiles).toEqual(["medium"]);
+      expect(manifest.expected_matrix.required_trial_count).toBe(3);
+      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
+      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
+      expect(manifest.layers.static_ax).toBeTruthy();
+      expect(manifest.layers.behavioral).toBeTruthy();
+      expect(manifest.notes.some((note: string) => note.includes("Publication-grade bundles require both Discoverability & Readiness artifacts"))).toBe(true);
+      expect(manifest.vendors).toHaveLength(1);
+      expect(manifest.vendors[0].slug).toBe("supabase");
+      expect(manifest.vendors[0].artifacts.compiled_pack).toBe("vendors/supabase/compiled-pack.yaml");
+      expect(manifest.missing.some((m: string) => m.endsWith("competitive.html"))).toBe(true);
+      expect(manifest.missing.some((m: string) => m.endsWith(".methodology.yaml"))).toBe(true);
+      expect(manifest.vendors[0].missing.some((m: string) => m.includes("*.normalized.json"))).toBe(true);
+    } finally {
+      rmSync(outDir, { recursive: true, force: true });
+    }
+  });
+
+  it("daeb-low-pass rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
+    const { code, out } = runCli(["daeb-low-pass", "--vendor", "neon", "--surface", "sdk"]);
+    expect(code).toBe(1);
+    expect(out).toContain('surface "sdk" is out of scope');
+  });
+
+  it("daeb-production-rerun rejects sdk because DAEB-1/database v1 scope is api+cli", () => {
+    const { code, out } = runCli(["daeb-production-rerun", "--vendor", "neon", "--surface", "sdk"]);
+    expect(code).toBe(1);
+    expect(out).toContain('surface "sdk" is out of scope');
+  });
 });
 
 describe("generate provenance", () => {
