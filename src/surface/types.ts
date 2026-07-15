@@ -36,9 +36,10 @@ export function taskSupportsSurface(task: Pick<Task, "allowed_surfaces">, surfac
   return concrete.length === 0 || concrete.includes(surface);
 }
 
-/** Subset of tasks that apply to the selected execution surface. */
+/** Subset of tasks that apply to the selected execution surface. Structurally
+ *  unsupported tasks are excluded without changing empty-list compatibility. */
 export function tasksForSurface(pack: Pick<TargetPack, "tasks">, surface: SurfaceId): Task[] {
-  return pack.tasks.filter((task) => taskSupportsSurface(task, surface));
+  return pack.tasks.filter((task) => !task.na && taskSupportsSurface(task, surface));
 }
 
 /**

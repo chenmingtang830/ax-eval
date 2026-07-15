@@ -3,6 +3,7 @@ import { TargetPackSchema } from "../src/schemas.js";
 import {
   describeRequiredEnv,
   hasRequiredEnv,
+  resolveEnvTemplate,
   resolveScope,
   resolveToken,
   TargetConfigError,
@@ -16,6 +17,9 @@ const ENV_KEYS = [
   "TARGET_KEY",
   "TARGET_VERIFY",
   "TARGET_REPO",
+  "TARGET_HOST",
+  "TARGET_DATABASE_URL",
+  "TARGET_MONGO_URL",
   "STRIPE_API_KEY",
   "STRIPE_TOKEN",
 ];
@@ -57,6 +61,12 @@ describe("target config (generic auth + sandbox_scope)", () => {
     const p = pack({ auth: { type: "bearer", env: "TARGET_KEY" } });
     expect(() => resolveToken(p)).toThrow(TargetConfigError);
     expect(() => resolveToken(p)).toThrow(/TARGET_KEY/);
+  });
+
+  it("does not require or resolve a credential for explicit no-auth packs", () => {
+    const p = pack({ auth: { type: "none" } });
+    expect(resolveToken(p)).toBe("");
+    expect(describeRequiredEnv(p).some((requirement) => requirement.role === "auth")).toBe(false);
   });
 
   it("accepts declared auth env aliases", () => {
@@ -105,6 +115,37 @@ describe("target config (generic auth + sandbox_scope)", () => {
     expect(reqs.find((r) => r.env === "TARGET_REPO")?.set).toBe(false);
     expect(hasRequiredEnv(p)).toBe(false);
     process.env.TARGET_REPO = "x/y";
+    expect(hasRequiredEnv(p)).toBe(true);
+  });
+
+  it("resolves environment templates only at runtime", () => {
+    const p = pack({
+      auth: { type: "none" },
+      base_url: "https://${TARGET_HOST}.example.test",
+    });
+    expect(describeRequiredEnv(p)).toContainEqual(expect.objectContaining({
+      role: "env_template",
+      env: "TARGET_HOST",
+      set: false,
+    }));
+    expect(() => resolveEnvTemplate(p.base_url)).toThrow(/TARGET_HOST/);
+    process.env.TARGET_HOST = "sandbox";
+    expect(resolveEnvTemplate(p.base_url)).toBe("https://sandbox.example.test");
+  });
+
+  it("requires declared verifier connection environment variables", () => {
+    const p = pack({
+      auth: { type: "none" },
+      sql_conn: { dialect: "postgres", connection_string_env: "TARGET_DATABASE_URL" },
+      mongo_conn: { connection_string_env: "TARGET_MONGO_URL" },
+    });
+    expect(describeRequiredEnv(p)).toEqual(expect.arrayContaining([
+      expect.objectContaining({ role: "sql_conn", env: "TARGET_DATABASE_URL", set: false }),
+      expect.objectContaining({ role: "mongo_conn", env: "TARGET_MONGO_URL", set: false }),
+    ]));
+    expect(hasRequiredEnv(p)).toBe(false);
+    process.env.TARGET_DATABASE_URL = "postgres://example.invalid/db";
+    process.env.TARGET_MONGO_URL = "mongodb://example.invalid/db";
     expect(hasRequiredEnv(p)).toBe(true);
   });
 });

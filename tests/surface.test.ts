@@ -80,6 +80,18 @@ describe("surface registry", () => {
     expect(tasksForSurface(multi, "api").map((t) => t.id)).toEqual(["l1-thing"]);
     expect(tasksForSurface(multi, "mcp").map((t) => t.id)).toEqual(["l2-mcp-only"]);
   });
+
+  it("preserves empty allowed_surfaces compatibility while excluding explicit N/A tasks", () => {
+    const pack = TargetPackSchema.parse({
+      ...base,
+      tasks: [
+        { id: "legacy-unrestricted", prompt: "Do the supported work", allowed_surfaces: [] },
+        { id: "structurally-unsupported", prompt: "Do impossible work", allowed_surfaces: [], na: true },
+      ],
+    });
+    expect(tasksForSurface(pack, "api").map((task) => task.id)).toEqual(["legacy-unrestricted"]);
+    expect(tasksForSurface(pack, "sdk").map((task) => task.id)).toEqual(["legacy-unrestricted"]);
+  });
 });
 
 describe("surface-parameterized executor prompt", () => {

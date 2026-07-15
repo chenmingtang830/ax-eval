@@ -56,6 +56,21 @@ describe("review gate", () => {
     expect(c).not.toBe(a);
   });
 
+  it("hashes verifier connections and execution-control fields", () => {
+    const original = pack();
+    const originalHash = packContentHash(original);
+    const cases = [
+      pack({ sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" } }),
+      pack({ mongo_conn: { connection_string_env: "MONGODB_URL", database: "sandbox" } }),
+      pack({ tasks: [{ ...original.tasks[0], na: true }] }),
+      pack({ tasks: [{ ...original.tasks[0], depends_on: ["setup"] }] }),
+      pack({ tasks: [{ ...original.tasks[0], trace: [{ type: "required_call", path: "/things" }] }] }),
+    ];
+    for (const changed of cases) {
+      expect(packContentHash(changed)).not.toBe(originalHash);
+    }
+  });
+
   it("gate is closed until approved, then matches", () => {
     const p = pack();
     expect(checkApproval(p, packPath).ok).toBe(false);

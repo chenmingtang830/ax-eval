@@ -43,6 +43,32 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** SQL wire-protocol read-back for products without an HTTP query endpoint. */
+  sqlDialect: z.enum(["postgres", "mysql"]).optional(),
+  sqlQuery: z.string().optional(),
+  /** Declarative MongoDB read-back operation. */
+  mongoQuery: z.object({
+    database: z.string(),
+    collection: z.string(),
+    operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
+    filter: z.unknown().optional(),
+    projection: z.unknown().optional(),
+    sort: z.unknown().optional(),
+    pipeline: z.array(z.unknown()).optional(),
+  }).optional(),
+}).superRefine((oracle, context) => {
+  if (Boolean(oracle.sqlDialect) !== Boolean(oracle.sqlQuery)) {
+    context.addIssue({
+      code: "custom",
+      message: "sqlDialect and sqlQuery must be declared together",
+    });
+  }
+  if (oracle.sqlQuery && oracle.mongoQuery) {
+    context.addIssue({
+      code: "custom",
+      message: "an oracle cannot declare both SQL and MongoDB verification",
+    });
+  }
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -76,6 +102,9 @@ export const TaskSchema = z
     /** Surfaces the executor is allowed to use this task (e.g. ["docs"] hides
      *  the OpenAPI spec to force discovery). Empty = unrestricted. */
     allowed_surfaces: z.array(z.string()).default([]),
+    /** True when the task is structurally unsupported for this target on every
+     *  surface. Unlike an empty allowed_surfaces list, this excludes the task. */
+    na: z.boolean().optional(),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
@@ -224,6 +253,8 @@ export const AuthSchema = z.object({
   verify_env_aliases: z.array(z.string()).default([]),
   /** Header name for the credential (default by type: bearer/api-key → Authorization). */
   header: z.string().optional(),
+  /** Optional second header that receives the same credential value. */
+  extra_header: z.string().optional(),
 });
 export type Auth = z.infer<typeof AuthSchema>;
 
@@ -284,6 +315,17 @@ export const TargetPackSchema = z.object({
   /** Sandbox-isolation parameters the developer provisions (level varies by
    *  product). Empty = a single account/key is the whole sandbox (e.g. Stripe). */
   sandbox_scope: z.array(ScopeParamSchema).default([]),
+  /** Connection metadata for SQL read-back verification. The connection string
+   *  remains in the named environment variable and never enters the pack. */
+  sql_conn: z.object({
+    dialect: z.enum(["postgres", "mysql"]),
+    connection_string_env: z.string().regex(/^[A-Z][A-Z0-9_]*$/, "must name an environment variable"),
+  }).optional(),
+  /** Connection metadata for MongoDB read-back verification. */
+  mongo_conn: z.object({
+    connection_string_env: z.string().regex(/^[A-Z][A-Z0-9_]*$/, "must name an environment variable"),
+    database: z.string().optional(),
+  }).optional(),
   /** Non-API surfaces this target exposes (cli/sdk/mcp). The API surface is
    *  always available via `base_url`/`auth`. Drives `--surface` fan-out. */
   surfaces: SurfaceConfigSchema.optional(),
