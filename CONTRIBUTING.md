@@ -54,6 +54,8 @@ shape.
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
+- **Unsupported tasks stay explicit.** Use `na: true` with a concise
+  `na_reason`; an empty `allowed_surfaces` list means unrestricted, not N/A.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed. Product presets can add hints for the authoring pass, but
   the validator still owns schema fidelity and minimum surface coverage; failed

@@ -72,6 +72,8 @@ The most important types are:
     surface configs
 - `Task`
   - a goal-level operation with difficulty, allowed surfaces, and oracle specs
+  - structurally unsupported tasks remain present as `na: true` with a
+    human-reviewable `na_reason`; empty surfaces continue to mean unrestricted
 - `OracleSpec`
   - declarative verification, especially `roundtrip` read-back assertions
 - `SurfaceConfig` / `SurfaceAuth`

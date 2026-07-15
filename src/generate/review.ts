@@ -59,6 +59,7 @@ function reviewableContent(pack: TargetPack): unknown {
       prompt: t.prompt,
       allowed_surfaces: t.allowed_surfaces,
       na: t.na,
+      na_reason: t.na_reason ?? null,
       create_path: t.create_path ?? null,
       create_envelope: t.create_envelope ?? null,
       depends_on: t.depends_on,
@@ -302,10 +303,11 @@ export function reviewSummary(pack: TargetPack): string {
   for (const t of pack.tasks) {
     lines.push(`### [${t.difficulty}] ${t.id}`);
     lines.push(`surfaces: \`${t.allowed_surfaces.join(", ") || "any"}\``);
+    if (t.na) lines.push(`N/A: ${t.na_reason ?? "no reason recorded"}`);
     lines.push("```");
     lines.push(t.prompt.trim());
     lines.push("```");
-    if (t.oracles.length === 0) {
+    if (!t.na && t.oracles.length === 0) {
       lines.push("- ⚠ NO ORACLE — success can't be verified; reject or add one.");
     }
     for (const o of t.oracles) {

@@ -63,6 +63,7 @@ describe("review gate", () => {
       pack({ sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" } }),
       pack({ mongo_conn: { connection_string_env: "MONGODB_URL", database: "sandbox" } }),
       pack({ tasks: [{ ...original.tasks[0], na: true }] }),
+      pack({ tasks: [{ ...original.tasks[0], na: true, na_reason: "Unsupported by official docs." }] }),
       pack({ tasks: [{ ...original.tasks[0], depends_on: ["setup"] }] }),
       pack({ tasks: [{ ...original.tasks[0], trace: [{ type: "required_call", path: "/things" }] }] }),
     ];
@@ -94,6 +95,14 @@ describe("review gate", () => {
   it("summary flags a task with no oracle", () => {
     const md = reviewSummary(pack({ tasks: [{ id: "naked", prompt: "do it", oracles: [] }] }));
     expect(md).toMatch(/NO ORACLE/);
+  });
+
+  it("shows explicit N/A reasons without a false missing-oracle warning", () => {
+    const md = reviewSummary(pack({
+      tasks: [{ id: "unsupported", prompt: "", na: true, na_reason: "No official recovery surface.", oracles: [] }],
+    }));
+    expect(md).toContain("N/A: No official recovery surface.");
+    expect(md).not.toMatch(/NO ORACLE/);
   });
 
   it("does not describe stateless packs as write operations", () => {

@@ -79,7 +79,7 @@ The planned source of truth is `targets/suites/daeb-1-v3.yaml`. Files under
 `targets/packs/<vendor>/daeb-1-v3.yaml` are compiled execution artifacts, not
 separate benchmark definitions. They keep the same task ids, titles, intents,
 difficulty labels, scoring contract, surfaces, and harness matrix; only auth,
-base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
+base URL, outcome-verifier checks, explicit N/A reasons, and surface configuration vary
 by vendor.
 
 In the completed stack, the bundle manifest is the handoff to the AXArena

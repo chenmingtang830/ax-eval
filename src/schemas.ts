@@ -105,6 +105,8 @@ export const TaskSchema = z
     /** True when the task is structurally unsupported for this target on every
      *  surface. Unlike an empty allowed_surfaces list, this excludes the task. */
     na: z.boolean().optional(),
+    /** Human-reviewable evidence summary for an explicit N/A decision. */
+    na_reason: z.string().min(1).optional(),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
