@@ -138,6 +138,25 @@ function expectedDetail(expectedValues: unknown[]): string {
     : `[${expectedValues.map((v) => JSON.stringify(v)).join(" | ")}]`;
 }
 
+function httpErrorOutcome(oracle: OracleSpec, error: HttpApiError, ns: string | undefined): OracleResult {
+  const statusPassed = !oracle.expectedHttpStatuses?.length
+    || oracle.expectedHttpStatuses.includes(error.status);
+  const expectedValues = resolveExpectedValues(oracle, ns);
+  const actual = oracle.assertField ? resolveDotted(error.body, oracle.assertField) : undefined;
+  const bodyPassed = oracle.expected === undefined
+    || (Boolean(oracle.assertField) && valuesMatch(actual, expectedValues, oracle.matchMode));
+  return {
+    type: "roundtrip",
+    passed: statusPassed && bodyPassed,
+    detail: [
+      `HTTP ${error.status} expected=${oracle.expectedHttpStatuses?.join("/") ?? "any error"}`,
+      oracle.expected === undefined
+        ? undefined
+        : `${oracle.assertField ?? "(missing field)"}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+    ].filter(Boolean).join("; "),
+  };
+}
+
 function errorMessageFromResult(value: unknown): string | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
   const record = value as { code?: unknown; message?: unknown; errno?: unknown; sqlState?: unknown };
@@ -364,11 +383,13 @@ async function verifyRoundtrip(
           detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
         });
       } catch (err) {
-        out.push({
-          type: "roundtrip",
-          passed: false,
-          detail: err instanceof Error ? err.message : String(err),
-        });
+        out.push(oracle.assertOutcome === "error" && err instanceof HttpApiError
+          ? httpErrorOutcome(oracle, err, ns)
+          : {
+              type: "roundtrip",
+              passed: false,
+              detail: err instanceof Error ? err.message : String(err),
+            });
       }
       continue;
     }
@@ -425,13 +446,7 @@ async function verifyRoundtrip(
       });
     } catch (err) {
       if (oracle.assertOutcome === "error" && err instanceof HttpApiError) {
-        const statusPassed = !oracle.expectedHttpStatuses?.length
-          || oracle.expectedHttpStatuses.includes(err.status);
-        out.push({
-          type: "roundtrip",
-          passed: statusPassed,
-          detail: `HTTP ${err.status} expected=${oracle.expectedHttpStatuses?.join("/") ?? "any error"}`,
-        });
+        out.push(httpErrorOutcome(oracle, err, ns));
         continue;
       }
       out.push({

@@ -94,6 +94,34 @@ describe("round-trip verification", () => {
     expect(out[0]!.oracleResults[0]!.detail).toContain("HTTP 403");
   });
 
+  it("resolves namespace placeholders in expected HTTP denial bodies", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [403],
+          assertField: "resource",
+          expected: "ax-denied-{ns}",
+        }],
+      }],
+    };
+    const executor: ExecutorResults = {
+      profile: "floor",
+      ns: "run-1",
+      results: { "gen-l1-tasks": { gid: "1" } },
+    };
+    const client = {
+      async get() {
+        throw new HttpApiError("forbidden", 403, { resource: "ax-denied-run-1" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+
+    expect((await verifyGeneratedPack(deniedPack, executor, client))[0]!.success).toBe(true);
+  });
+
   it("verifies only the tasks that apply to the selected surface", async () => {
     const surfacePack: TargetPack = {
       ...pack,

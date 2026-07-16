@@ -7,6 +7,7 @@ import type { TargetPack } from "../schemas.js";
 import { namedFieldsFor } from "./executor.js";
 import { resolveEnvTemplate } from "../target/config.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
+import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -300,7 +301,7 @@ const URL_USERINFO =
  *  still uses raw in-memory stdout so structured result extraction remains
  *  lossless, but persisted logs/traces/meta must never carry live secrets. */
 export function redactSensitiveText(value: string): string {
-  return value
+  return redactCommonSensitiveText(value
     .replace(/\b(?:(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/)[^\s"'<>]+/gi, "<redacted-dsn>")
     .replace(URL_USERINFO, "$1<redacted>@$2")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, "Bearer <redacted>")
@@ -312,7 +313,7 @@ export function redactSensitiveText(value: string): string {
     .replace(/\bsbp_[A-Za-z0-9_]{20,}/g, "<redacted-token>")
     .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<redacted-jwt>")
     .replace(SECRET_ENV_NAME, "$1$2<redacted>")
-    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2");
+    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2"));
 }
 
 function writeRedactedFile(path: string, value: string): void {
