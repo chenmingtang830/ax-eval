@@ -48,7 +48,7 @@ export const vendorSelectionCapabilityExtract: CapabilityExtractResult = {
     operation_kind: "create",
     surfaces_documented: ["cli"],
     support_type: "native",
-    evidence: [{ doc_url: "https://docs.acme.example/records", quote: "Create records." }],
+    evidence: [{ doc_url: "https://docs.acme.example/records", quote: "POST /v1/records creates a record." }],
   }],
 };
 

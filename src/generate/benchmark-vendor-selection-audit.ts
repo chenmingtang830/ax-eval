@@ -1,6 +1,7 @@
 import type { BenchmarkLayout } from "./benchmark-paths.js";
 import {
   loadBenchmarkVendorContext,
+  type BenchmarkVendorContext,
   type BenchmarkVendorContextFinding,
 } from "./benchmark-vendor-context.js";
 import {
@@ -17,14 +18,21 @@ export interface BenchmarkVendorSelectionAuditResult {
   findings: BenchmarkVendorSelectionFinding[];
 }
 
+export function auditBenchmarkVendorSelectionContext(
+  context: BenchmarkVendorContext,
+  resetVerified: ReadonlySet<string>,
+): BenchmarkVendorSelectionAuditResult {
+  const { ledger, capabilities, surfaces } = context;
+  const findings = auditVendorSelectionEvidence(ledger, { capabilities, surfaces, resetVerified })
+    .map((finding): BenchmarkVendorSelectionFinding => ({ ...finding, scope: "vendor" }));
+  return { status: findings.length === 0 ? "pass" : "fail", findings };
+}
+
 export function auditBenchmarkVendorSelection(
   layout: BenchmarkLayout,
   resetVerified: ReadonlySet<string>,
 ): BenchmarkVendorSelectionAuditResult {
   const loaded = loadBenchmarkVendorContext(layout);
   if (loaded.status === "fail") return { status: "fail", findings: loaded.findings };
-  const { ledger, capabilities, surfaces } = loaded.context;
-  const findings = auditVendorSelectionEvidence(ledger, { capabilities, surfaces, resetVerified })
-    .map((finding): BenchmarkVendorSelectionFinding => ({ ...finding, scope: "vendor" }));
-  return { status: findings.length === 0 ? "pass" : "fail", findings };
+  return auditBenchmarkVendorSelectionContext(loaded.context, resetVerified);
 }
