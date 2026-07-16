@@ -69,9 +69,6 @@ export const ConceptUniverseSchema = z.object({
       if (assigned.has(memberId)) {
         context.addIssue({ code: "custom", path: ["clusters", clusterIndex, "member_ids"], message: `member ${memberId} is assigned more than once` });
       }
-      if (member.family !== cluster.family) {
-        context.addIssue({ code: "custom", path: ["clusters", clusterIndex, "family"], message: `member ${memberId} belongs to ${member.family}` });
-      }
       assigned.add(memberId);
       coveredVendors.add(member.slug);
     }
@@ -170,20 +167,18 @@ function capabilityMembers(extracts: readonly CapabilityExtractResult[]): z.infe
 function deterministicClusters(members: readonly z.infer<typeof MemberSchema>[]): z.infer<typeof ClusterSchema>[] {
   const groups = new Map<string, z.infer<typeof MemberSchema>[]>();
   for (const member of members) {
-    const key = `${normalizedConceptName(member.family)}:${normalizedConceptName(member.capability_name)}`;
+    const key = normalizedConceptName(member.capability_name);
     groups.set(key, [...(groups.get(key) ?? []), member]);
   }
-  const conceptCounts = new Map<string, number>();
-  return [...groups.values()].map((group) => {
-    const baseName = normalizedConceptName(group[0]!.capability_name);
-    const seen = conceptCounts.get(baseName) ?? 0;
-    conceptCounts.set(baseName, seen + 1);
-    const conceptName = seen === 0 ? baseName : `${baseName}-${normalizedConceptName(group[0]!.family)}`;
+  return [...groups.entries()].map(([conceptName, group]) => {
+    const familyCounts = new Map<string, number>();
+    for (const member of group) familyCounts.set(member.family, (familyCounts.get(member.family) ?? 0) + 1);
+    const family = [...familyCounts].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]![0];
     return {
       concept_name: conceptName,
       title: group[0]!.title,
       skill: conceptName,
-      family: group[0]!.family,
+      family,
       member_ids: group.map((member) => member.member_id),
     };
   });
@@ -195,7 +190,6 @@ function validatePartition(
   methodology: SuiteMethodology,
 ): void {
   const expected = new Set(members.map((member) => member.member_id));
-  const byId = new Map(members.map((member) => [member.member_id, member]));
   const assigned = new Set<string>();
   const conceptNames = new Set<string>();
   for (const cluster of clusters) {
@@ -207,9 +201,6 @@ function validatePartition(
     for (const memberId of cluster.member_ids) {
       if (!expected.has(memberId)) throw new Error(`concept ${cluster.concept_name} references unknown member ${memberId}`);
       if (assigned.has(memberId)) throw new Error(`capability member ${memberId} appears in more than one concept`);
-      if (byId.get(memberId)!.family !== cluster.family) {
-        throw new Error(`concept ${cluster.concept_name} changes member ${memberId} from family ${byId.get(memberId)!.family} to ${cluster.family}`);
-      }
       assigned.add(memberId);
     }
   }

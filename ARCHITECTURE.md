@@ -132,7 +132,8 @@ The CLI maps local registry JSON/YAML only and requires explicit per-vendor seed
 paths for grounded surface extraction; it performs no registry network fetch.
 Concept-universe clusters persist a canonical kebab-case `skill`. Selection and
 suite synthesis preserve that reviewed identity independently from `family`,
-which remains grouping metadata rather than the canonical task skill.
+which remains selection-policy metadata rather than the canonical task skill or
+a concept-partition boundary.
 
 - **Execution**
   - `exec-plan`

@@ -66,7 +66,9 @@ shape.
   neither path replaces human review.
 - **Concept skill is reviewed identity.** Preserve the concept universe's
   kebab-case `skill` through coverage selection and canonical suite synthesis.
-  Do not replace it with capability-family grouping metadata.
+  Do not replace it with capability-family grouping metadata, and do not split
+  otherwise equivalent normalized capabilities only because vendors label their
+  families differently.
 - **Canonical benchmark changes require trace calibration.** Keep the fixed
   sample review in `suite.trace-review.yaml`; completion requires a reviewer,
   review timestamp, commit SHA, and every unique trace ID in the declared

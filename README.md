@@ -167,7 +167,9 @@ npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
 Concept-universe artifacts assign each reviewed concept a canonical kebab-case
 `skill`. Coverage selection carries that value forward, and suite synthesis uses
 it for the canonical task instead of deriving task identity from the temporary
-capability-family grouping metadata.
+capability-family grouping metadata. Deterministic clustering groups normalized
+capability names across vendors even when their source family labels differ;
+family remains temporary selection-policy metadata, not a partition boundary.
 
 Generation is grounded through Codex or Claude Code (or offline fixtures in
 tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps

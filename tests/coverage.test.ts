@@ -89,6 +89,45 @@ describe("coverage methodology", () => {
     })).rejects.toThrow(/unknown member|omitted members/);
   });
 
+  it("clusters equivalent capabilities independently from vendor family labels", async () => {
+    const methodology = defaultSuiteMethodology("database", 1);
+    const universe = await deriveConceptUniverse("database", [
+      extract("AlphaDB", "alpha", [{ name: "create-table", family: "operations" }]),
+      extract("BetaDB", "beta", [{ name: "create-table", family: "data-definition" }]),
+    ], methodology);
+
+    expect(universe.clusters).toEqual([expect.objectContaining({
+      concept_name: "create-table",
+      family: "data-definition",
+      member_ids: ["alpha:create-table", "beta:create-table"],
+      vendor_coverage: 1,
+    })]);
+  });
+
+  it("accepts a grounded cluster that spans source family labels", async () => {
+    const methodology = defaultSuiteMethodology("database", 1);
+    const universe = await deriveConceptUniverse("database", [
+      extract("AlphaDB", "alpha", [{ name: "create-table", family: "operations" }]),
+      extract("BetaDB", "beta", [{ name: "create-table", family: "data-definition" }]),
+    ], methodology, {
+      generate: async () => JSON.stringify({
+        clusters: [{
+          concept_name: "create-table",
+          title: "Create table",
+          family: "data-definition",
+          member_ids: ["alpha:create-table", "beta:create-table"],
+        }],
+      }),
+    });
+
+    expect(universe.clusters[0]).toMatchObject({
+      concept_name: "create-table",
+      skill: "create-table",
+      member_ids: ["alpha:create-table", "beta:create-table"],
+      vendor_coverage: 1,
+    });
+  });
+
   it("rejects malformed persisted universes", async () => {
     const methodology = defaultSuiteMethodology("database", 2);
     const universe = await deriveConceptUniverse("database", extracts, methodology);
