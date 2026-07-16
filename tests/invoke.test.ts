@@ -300,6 +300,32 @@ describe("runInvokeHarness", () => {
     expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
   });
 
+  it("records first-action timeout diagnostics", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    let seenFirstActionTimeout: number | undefined;
+    const result = await runInvokeHarness(
+      { ...run, firstActionTimeoutMs: 250, retries: 0 },
+      async (_command, _args, _cwd, spawnOpts) => {
+        seenFirstActionTimeout = spawnOpts?.firstActionTimeoutMs;
+        return spawnResult({
+          status: null,
+          signal: "SIGTERM",
+          timedOut: true,
+          timeoutReason: "first_action",
+          actionOccurred: false,
+        });
+      },
+    );
+
+    expect(seenFirstActionTimeout).toBe(250);
+    expect(result.validityStatus).toBe("runtime_timeout_no_action");
+    expect(result.timeoutReason).toBe("first_action");
+    expect(result.actionOccurred).toBe(false);
+    expect(result.profile).toBe("ceiling");
+    expect(result.surface).toBe("api");
+  });
+
   it("cleans up the temporary Claude HOME after an invoked run", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
@@ -338,6 +364,38 @@ describe("runInvokeHarness", () => {
     expect(result.status).toBe(0);
     expect(result.timedOut).toBe(false);
     expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("detects a structured first action and clears the startup timeout", async () => {
+    const dir = freshDir();
+    const event = JSON.stringify({ type: "item.completed", item: { type: "command_execution" } });
+    const result = await DEFAULT_ASYNC_SPAWN(
+      process.execPath,
+      ["-e", `setTimeout(() => console.log(${JSON.stringify(event)}), 20); setTimeout(() => process.exit(0), 80);`],
+      dir,
+      { timeoutMs: 5000, firstActionTimeoutMs: 3000 },
+    );
+
+    expect(result.status).toBe(0);
+    expect(result.timedOut).toBe(false);
+    expect(result.actionOccurred).toBe(true);
+    expect(result.firstActionLatencyMs).toBeTypeOf("number");
+  });
+
+  it("terminates a child that never reaches a structured action", async () => {
+    const dir = freshDir();
+    const started = Date.now();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      process.execPath,
+      ["-e", "setTimeout(() => process.exit(0), 30000)"],
+      dir,
+      { timeoutMs: 5000, firstActionTimeoutMs: 100 },
+    );
+
+    expect(result.timedOut).toBe(true);
+    expect(result.timeoutReason).toBe("first_action");
+    expect(result.actionOccurred).toBe(false);
+    expect(Date.now() - started).toBeLessThan(3000);
   });
 
   it("recovers a Claude-written result file from the transcript and treats a completed run as successful", async () => {
@@ -383,6 +441,7 @@ describe("runInvokeHarness", () => {
 
     expect(result.ok).toBe(true);
     expect(result.timedOut).toBe(true);
+    expect(result.validityStatus).toBe("partial");
     expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-recovered");
     expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))[0].action).toBe("create thing");
   });

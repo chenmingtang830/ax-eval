@@ -56,6 +56,9 @@ export interface InvokeRunOptions {
    *  exceeds it, it is killed and the attempt counts as a timeout failure
    *  (eligible for a retry). 0 / undefined disables the cap. */
   timeoutMs?: number;
+  /** Optional cap for reaching the first structured harness action. This catches
+   *  auth prompts and startup hangs earlier than the full wall-clock timeout. */
+  firstActionTimeoutMs?: number;
   /** How many times to retry a failed or timed-out invocation before giving up.
    *  Default 1 (one retry → up to two attempts total); 0 disables retries. A
    *  retry re-runs the same prompt from a clean slate (any partial results file
@@ -84,7 +87,24 @@ export interface InvokeRunResult {
   attempts?: number;
   /** True when the final attempt was killed by the timeout cap. */
   timedOut?: boolean;
+  timeoutReason?: "wall" | "first_action";
+  validityStatus: InvokeValidityStatus;
+  profile: string;
+  surface: SurfaceId;
+  requestedModel?: string;
+  effort?: "low" | "medium" | "high";
+  durationMs: number;
+  firstActionLatencyMs?: number;
+  transcriptEventCount: number;
+  actionOccurred: boolean;
 }
+
+export type InvokeValidityStatus =
+  | "valid"
+  | "partial"
+  | "runtime_timeout_no_action"
+  | "runtime_timeout_partial"
+  | "invoke_failed";
 
 // Sync spawn — used only for the quick `--version` detection probe.
 type Spawn = (
@@ -117,6 +137,9 @@ export interface ProcResult {
   /** True when the child was killed by the wall-clock timeout cap rather than
    *  exiting on its own. */
   timedOut?: boolean;
+  timeoutReason?: "wall" | "first_action";
+  firstActionLatencyMs?: number;
+  actionOccurred?: boolean;
 }
 
 /** Async spawn — runs the harness without blocking the event loop, so multiple
@@ -131,8 +154,41 @@ export type AsyncSpawn = (
   command: string,
   args: string[],
   cwd: string,
-  opts?: { timeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
+  opts?: { timeoutMs?: number; firstActionTimeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
 ) => Promise<ProcResult>;
+
+function structuredActionOccurred(output: string): boolean {
+  for (const line of output.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line) as Record<string, unknown>;
+      if (event.type === "item.completed") {
+        const item = event.item as Record<string, unknown> | undefined;
+        if (item?.type === "command_execution" || item?.type === "web_search") return true;
+      }
+      if (event.type === "assistant") {
+        const message = event.message as Record<string, unknown> | undefined;
+        const content = Array.isArray(message?.content) ? message.content : [];
+        if (content.some((entry) => (entry as Record<string, unknown>)?.type === "tool_use")) return true;
+      }
+    } catch {
+      // Structured harness streams may be split across chunks; keep buffering.
+    }
+  }
+  return false;
+}
+
+function transcriptEventCount(output: string): number {
+  return output.split("\n").filter((line) => {
+    if (!line.trim()) return false;
+    try {
+      JSON.parse(line);
+      return true;
+    } catch {
+      return false;
+    }
+  }).length;
+}
 
 export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
@@ -145,9 +201,14 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let timedOut = false;
+    let timeoutReason: ProcResult["timeoutReason"];
+    let firstActionLatencyMs: number | undefined;
+    let actionOccurred = false;
+    const startedAt = Date.now();
     let completedAfterOutputs = false;
     let killTimer: NodeJS.Timeout | undefined;
     let timer: NodeJS.Timeout | undefined;
+    let firstActionTimer: NodeJS.Timeout | undefined;
     let outputPoll: NodeJS.Timeout | undefined;
     let outputReadyTimer: NodeJS.Timeout | undefined;
     const successPaths = opts?.successPaths?.filter(Boolean) ?? [];
@@ -169,11 +230,22 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     };
     if (opts?.timeoutMs && opts.timeoutMs > 0) {
       timer = setTimeout(() => {
+        if (timedOut) return;
         timedOut = true;
+        timeoutReason = "wall";
         killChild("SIGTERM");
         // If it ignores SIGTERM, hard-kill so the pool slot is freed.
         killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
       }, opts.timeoutMs);
+    }
+    if (opts?.firstActionTimeoutMs && opts.firstActionTimeoutMs > 0) {
+      firstActionTimer = setTimeout(() => {
+        if (timedOut) return;
+        timedOut = true;
+        timeoutReason = "first_action";
+        killChild("SIGTERM");
+        killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
+      }, opts.firstActionTimeoutMs);
     }
     if (successPaths.length > 0) {
       outputPoll = setInterval(() => {
@@ -199,14 +271,23 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     }
     const finish = (r: ProcResult) => {
       if (timer) clearTimeout(timer);
+      if (firstActionTimer) clearTimeout(firstActionTimer);
       if (killTimer) clearTimeout(killTimer);
       if (outputPoll) clearInterval(outputPoll);
       if (outputReadyTimer) clearTimeout(outputReadyTimer);
       resolve(r);
     };
-    child.stdout?.on("data", (d: Buffer) => out.push(d));
+    child.stdout?.on("data", (d: Buffer) => {
+      out.push(d);
+      if (!actionOccurred && structuredActionOccurred(Buffer.concat(out).toString("utf8"))) {
+        actionOccurred = true;
+        firstActionLatencyMs = Date.now() - startedAt;
+        if (firstActionTimer) clearTimeout(firstActionTimer);
+        firstActionTimer = undefined;
+      }
+    });
     child.stderr?.on("data", (d: Buffer) => err.push(d));
-    child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut }));
+    child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut, timeoutReason, firstActionLatencyMs, actionOccurred }));
     child.on("close", (status, signal) => {
       const afterOutputs = completedAfterOutputs && outputsReady();
       finish({
@@ -215,6 +296,9 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
         status: afterOutputs ? 0 : status,
         signal: afterOutputs ? null : (signal ?? null),
         timedOut,
+        timeoutReason,
+        firstActionLatencyMs,
+        actionOccurred,
       });
     });
   });
@@ -617,6 +701,7 @@ export async function runInvokeHarness(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
+  const startedAt = Date.now();
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
   const { command, args } = buildInvocation(opts.harness, prompt, opts);
   const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
@@ -641,6 +726,7 @@ export async function runInvokeHarness(
       attempt += 1;
       res = await spawnAsync(command, args, opts.cwd, {
         timeoutMs: opts.timeoutMs,
+        firstActionTimeoutMs: opts.firstActionTimeoutMs,
         env: childEnv,
         successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
       });
@@ -673,8 +759,11 @@ export async function runInvokeHarness(
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
   const timedOut = res.timedOut ?? false;
+  const timeoutReason = res.timeoutReason;
   const error = res.error?.message
-    ?? (timedOut ? `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})` : undefined);
+    ?? (timedOut
+      ? `harness ${opts.harness} timed out waiting for ${timeoutReason === "first_action" ? "its first action" : "completion"} (${attempt} attempt${attempt === 1 ? "" : "s"})`
+      : undefined);
   if (existsSync(opts.paths.resultsPath)) {
     stampResultFile(opts);
   } else {
@@ -687,13 +776,29 @@ export async function runInvokeHarness(
   }
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
+  const actionOccurred = res.actionOccurred ?? structuredActionOccurred(stdout);
+  const validityStatus: InvokeValidityStatus = ok
+    ? (timedOut ? "partial" : "valid")
+    : timedOut
+      ? (actionOccurred ? "runtime_timeout_partial" : "runtime_timeout_no_action")
+      : "invoke_failed";
   const meta: InvokeRunResult = {
     harness: opts.harness,
+    profile: opts.profile,
+    surface: opts.surface,
+    requestedModel: opts.model,
+    effort: opts.effort,
     ok,
     exitCode,
     signal,
     attempts: attempt,
     timedOut,
+    timeoutReason,
+    validityStatus,
+    durationMs: Date.now() - startedAt,
+    firstActionLatencyMs: res.firstActionLatencyMs,
+    transcriptEventCount: transcriptEventCount(stdout || stderr),
+    actionOccurred,
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
