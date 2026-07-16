@@ -109,6 +109,10 @@ reviewed inputs: `compose-pack` preserves them verbatim and the authoring audit
 flags drift. Do not infer a write endpoint from a read-back oracle or a quoted
 documentation snippet.
 
+REST canonical actions may name a resource root. Discovery scoring accepts an
+exact method/path or a child path separated by `/`; lookalike prefixes such as
+`/v10` for canonical `/v1` remain failures.
+
 Before any benchmark low-pass execution, inspect the keyless plan:
 
 ```bash

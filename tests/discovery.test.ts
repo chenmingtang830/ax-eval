@@ -110,6 +110,37 @@ describe("discovery scoring", () => {
     expect(report.hops).toBe(1);
   });
 
+  it("accepts REST child resources under the reviewed canonical root", async () => {
+    const report = await scoreDiscovery(
+      { ...spec, canonical_endpoint: "GET /rest/v1", outcome: undefined },
+      {
+        searches: ["acme rest api"],
+        urls_visited: ["https://developers.asana.com/reference"],
+        endpoint_used: "GET /rest/v1/items/123",
+        auth_scheme_found: "Bearer personal access token",
+      },
+      fakeClient({}),
+    );
+    expect(report.metrics.find((metric) => metric.id === "canonical")).toMatchObject({
+      passed: true,
+      detail: expect.stringContaining("child resource"),
+    });
+  });
+
+  it("rejects REST lookalike prefixes outside the canonical path boundary", async () => {
+    const report = await scoreDiscovery(
+      { ...spec, canonical_endpoint: "GET /rest/v1", outcome: undefined },
+      {
+        searches: ["acme rest api"],
+        urls_visited: ["https://developers.asana.com/reference"],
+        endpoint_used: "GET /rest/v10/items",
+        auth_scheme_found: "Bearer personal access token",
+      },
+      fakeClient({}),
+    );
+    expect(report.metrics.find((metric) => metric.id === "canonical")?.passed).toBe(false);
+  });
+
   it("flags misled when the first landing is non-official", async () => {
     const result: DiscoveryResult = {
       ns: "ns1",

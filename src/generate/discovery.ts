@@ -80,6 +80,10 @@ function normEndpoint(e: string): string {
   return `${m[1]!.toUpperCase()} ${m[2]!.replace(/\/+$/, "")}`;
 }
 
+function matchesRestCanonicalEndpoint(used: string, canonical: string): boolean {
+  return Boolean(used && canonical && (used === canonical || used.startsWith(`${canonical}/`)));
+}
+
 /**
  * Classify an auth phrasing into a coarse scheme bucket, so an agent that
  * reports "Authorization: Bearer <PAT>" is scored as matching an expected
@@ -174,8 +178,10 @@ export async function scoreDiscovery(
     canonicalPassed = !!opName && usedRaw.includes(opName);
     canonicalDetail = `used=${result.endpoint_used || "(none)"} canonical-op=${opName || "(none)"} (graphql: matched by mutation name; single endpoint)`;
   } else {
-    canonicalPassed = !!used && used === canonical;
-    canonicalDetail = `used=${used || "(none)"} canonical=${canonical}`;
+    canonicalPassed = matchesRestCanonicalEndpoint(used, canonical);
+    canonicalDetail = `used=${used || "(none)"} canonical=${canonical}${
+      canonicalPassed && used !== canonical ? " (child resource)" : ""
+    }`;
   }
   metrics.push({ id: "canonical", passed: canonicalPassed, detail: canonicalDetail });
 

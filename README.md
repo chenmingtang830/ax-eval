@@ -186,6 +186,10 @@ scheme. `compose-pack` passes this contract through unchanged and the pack audit
 detects later drift; it does not guess canonical endpoints from documentation
 quotes or read-back oracles.
 
+For REST discovery, a reviewed canonical resource root also matches child
+resources beneath the same path boundary: `GET /rest/v1/items` matches
+`GET /rest/v1`, while `GET /rest/v10` does not. HTTP methods must still match.
+
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution

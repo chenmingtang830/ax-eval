@@ -105,6 +105,8 @@ Important command groups:
 Composed-pack discovery contracts are explicit compose-config inputs. The
 composer does not infer canonical actions from vendor cards or verification
 oracles, and pack drift auditing includes the resulting `discovery` block.
+REST canonical scoring uses path-segment boundaries: an exact action or child
+resource matches, while a textual lookalike prefix does not.
 - **Execution**
   - `exec-plan`
   - `probe`
