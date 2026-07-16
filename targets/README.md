@@ -14,7 +14,7 @@ not for the shipped example baselines.
 Use `targets/examples/<product>/` for the repository-tracked example/reference
 packs. Runtime artifacts still belong under `results/`.
 
-## Planned AXArena Canonical Suites
+## Canonical Suites
 
 The completed AXArena benchmark stack places canonical suites under
 `targets/suites/`. DAEB-1 is the first planned canonical suite:
@@ -23,12 +23,14 @@ The completed AXArena benchmark stack places canonical suites under
 targets/suites/daeb-1-v3.yaml
 ```
 
-This revision documents the layout only; these suite and vendor artifacts land
-in later implementation changes. For DAEB-1, the vendor files are layered:
+The CLI creates this layered artifact set with `resolve-vendor`,
+`extract-capabilities`, `extract-surfaces`, `synthesize-suite`, `extract-tasks`,
+and `compose-pack`. Commit generated artifacts only when they are intended as
+reviewed public benchmark inputs. For DAEB-1, the vendor files are layered:
 
 - `targets/vendors/<vendor>.discovered.yaml` — public vendor card: product name,
   docs URL, site URL, category metadata.
-- `targets/extracts/<vendor>/daeb-1-v3.yaml` — vendor-specific verifier adapter:
+- `targets/extracts/<vendor>/daeb-1-v3.tasks.yaml` — vendor-specific verifier adapter:
   read-back checks, auth/base URL, N/A mapping.
 - `targets/extracts/<vendor>/surfaces.yaml` — optional CLI/SDK surface
   adapter.

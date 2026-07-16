@@ -61,7 +61,7 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
 ## Workflow
 
-### Planned AXArena / DAEB-1 canonical benchmark path
+### Suite-first canonical benchmark path
 
 DAEB-1 is different from ordinary per-target authoring. It starts from one
 frozen canonical suite, then compiles vendor adapters from public vendor cards
@@ -71,16 +71,19 @@ and vendor-specific verification extracts:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-This revision documents that direction only. Do not attempt this path until the
-canonical suite, vendor packs, and dedicated commands land in later
-implementation changes. Continue with the supported per-target workflow below.
+Use `resolve-vendor`, `extract-capabilities`, `extract-surfaces`,
+`synthesize-suite`, `extract-tasks`, and `compose-pack` in that order. The
+commands write reviewable artifacts; they do not approve or execute them.
 
-The planned source of truth is `targets/suites/daeb-1-v3.yaml`. Files under
-`targets/packs/<vendor>/daeb-1-v3.yaml` are compiled execution artifacts, not
+The canonical suite is the source of truth. Files under
+`targets/packs/<vendor>/` are compiled execution artifacts, not
 separate benchmark definitions. They keep the same task ids, titles, intents,
 difficulty labels, scoring contract, surfaces, and harness matrix; only auth,
 base URL, outcome-verifier checks, explicit N/A reasons, and surface configuration vary
 by vendor, with official support evidence preserved in the reviewed pack.
+
+Always run `review` and require a current approval before `exec-plan`;
+`compose-pack` never creates an approval automatically.
 
 In the completed stack, the bundle manifest is the handoff to the AXArena
 static website and the launch report. Missing snapshot/normalized artifacts

@@ -131,7 +131,7 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
-## Planned DAEB-1 Publication Flow
+## Suite-First Authoring
 
 DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
 than ordinary local pack authoring:
@@ -140,11 +140,27 @@ than ordinary local pack authoring:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-This revision documents the direction only. The canonical suite, compiled
-vendor packs, and dedicated production/publication commands are introduced by
-later implementation changes and are not available in this revision.
+The generic authoring commands are available now. They write reviewable artifacts
+under `targets/vendors/`, `targets/extracts/`, `targets/suites/`, and
+`targets/packs/`:
 
-The planned canonical benchmark contract will live at
+```bash
+npm run ax-eval -- resolve-vendor --vendors "Vendor A,Vendor B" --category database
+npm run ax-eval -- extract-capabilities --vendors vendor-a,vendor-b
+npm run ax-eval -- extract-surfaces --vendors vendor-a,vendor-b
+npm run ax-eval -- synthesize-suite --suite-name my-suite --category database \
+  --vendors vendor-a,vendor-b --target-tasks 12
+npm run ax-eval -- extract-tasks --suite targets/suites/my-suite.yaml --vendors vendor-a
+npm run ax-eval -- compose-pack --suite targets/suites/my-suite.yaml \
+  --config path/to/vendor-a.compose.yaml --vendors vendor-a
+npm run ax-eval -- review --pack targets/packs/vendor-a/my-suite.yaml --approve --by you
+```
+
+Generation is grounded through Codex or Claude Code (or offline fixtures in
+tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
+refusing the output until a human reviews and approves its content hash.
+
+The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution
 artifacts, not independently authored benchmark definitions. They will be
