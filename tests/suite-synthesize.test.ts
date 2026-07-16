@@ -51,12 +51,14 @@ const universe: ConceptUniverse = {
   clusters: [{
     concept_name: "create-table",
     title: "Create table",
+    skill: "create-table",
     family: "data-definition",
     member_ids: ["alpha:create-table", "beta:create-table"],
     vendor_coverage: 1,
   }, {
     concept_name: "filtered-read",
     title: "Filtered read",
+    skill: "filtered-read",
     family: "reads",
     member_ids: ["alpha:filtered-read", "beta:filtered-read"],
     vendor_coverage: 1,
@@ -70,12 +72,14 @@ const selection: CoverageSelection = {
   selected: [{
     concept_name: "create-table",
     title: "Create table",
+    skill: "create-table",
     family: "data-definition",
     vendor_coverage: 1,
     rationale: "Covered.",
   }, {
     concept_name: "filtered-read",
     title: "Filtered read",
+    skill: "filtered-read",
     family: "reads",
     vendor_coverage: 1,
     rationale: "Covered.",
@@ -91,8 +95,35 @@ describe("suite synthesis", () => {
       "db-T01-create-table",
       "db-T02-filtered-read",
     ]);
+    expect(suite.tasks.map((task) => task.skill)).toEqual(["create-table", "filtered-read"]);
     expect(suite.tasks.every((task) => task.intent.includes("{ns}"))).toBe(true);
     expect(suite.tasks.every((task) => task.allowed_surfaces.join(",") === "api,cli")).toBe(true);
+  });
+
+  it("uses the reviewed concept skill independently from its family", async () => {
+    const independentUniverse: ConceptUniverse = {
+      ...universe,
+      clusters: universe.clusters.map((cluster, index) => index === 0
+        ? { ...cluster, skill: "schema-authoring" }
+        : cluster),
+    };
+    const independentSelection: CoverageSelection = {
+      ...selection,
+      selected: selection.selected.map((concept, index) => index === 0
+        ? { ...concept, skill: "schema-authoring" }
+        : concept),
+    };
+    const suite = await synthesizeSuite(
+      "daeb-1-v3",
+      3,
+      "database",
+      independentUniverse,
+      independentSelection,
+      defaultSuiteMethodology("database", 2),
+    );
+
+    expect(suite.tasks[0]!.skill).toBe("schema-authoring");
+    expect(suite.tasks[0]!.skill).not.toBe(independentSelection.selected[0]!.family);
   });
 
   it("requires generated drafts to cover the exact selected concepts", async () => {

@@ -39,7 +39,7 @@ function selectionTaskFindings(suite: Suite, selection: CoverageSelection): Suit
     const task = suite.tasks[index];
     if (!task) continue;
     const matches = task.title === concept.title
-      && task.skill === concept.family
+      && task.skill === concept.skill
       && task.id.endsWith(`-${concept.concept_name}`);
     if (!matches) {
       findings.push({

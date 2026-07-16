@@ -19,15 +19,20 @@ const MemberSchema = z.object({
   evidence_urls: z.array(z.string().url()).min(1),
 }).strict();
 
+const SkillSchema = z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a kebab-case skill");
+
 const ClusterSchema = z.object({
   concept_name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a kebab-case concept name"),
   title: z.string().min(1),
+  skill: SkillSchema,
   family: z.string().min(1),
   member_ids: z.array(z.string().min(1)).min(1).refine(
     (ids) => new Set(ids).size === ids.length,
     "cluster member ids must be unique",
   ),
 }).strict();
+
+const GeneratedClusterSchema = ClusterSchema.omit({ skill: true });
 
 export const ConceptUniverseSchema = z.object({
   category: z.string().min(1),
@@ -115,6 +120,7 @@ export const CoverageSelectionSchema = z.object({
   selected: z.array(z.object({
     concept_name: z.string().min(1),
     title: z.string().min(1),
+    skill: SkillSchema,
     family: z.string().min(1),
     vendor_coverage: z.number().min(0).max(1),
     rationale: z.string().min(1),
@@ -172,9 +178,11 @@ function deterministicClusters(members: readonly z.infer<typeof MemberSchema>[])
     const baseName = normalizedConceptName(group[0]!.capability_name);
     const seen = conceptCounts.get(baseName) ?? 0;
     conceptCounts.set(baseName, seen + 1);
+    const conceptName = seen === 0 ? baseName : `${baseName}-${normalizedConceptName(group[0]!.family)}`;
     return {
-      concept_name: seen === 0 ? baseName : `${baseName}-${normalizedConceptName(group[0]!.family)}`,
+      concept_name: conceptName,
       title: group[0]!.title,
+      skill: conceptName,
       family: group[0]!.family,
       member_ids: group.map((member) => member.member_id),
     };
@@ -258,9 +266,9 @@ export async function deriveConceptUniverse(
   }
   const members = capabilityMembers(extracts);
   const generated = options.generate
-    ? z.object({ clusters: z.array(ClusterSchema).min(1) }).strict().parse(parseStructuredOutput(
+    ? z.object({ clusters: z.array(GeneratedClusterSchema).min(1) }).strict().parse(parseStructuredOutput(
         await runStructuredGenerator(buildCoveragePrompt(category, members, methodology), options.generate),
-      )).clusters
+      )).clusters.map((cluster) => ({ ...cluster, skill: cluster.concept_name }))
     : deterministicClusters(members);
   validatePartition(generated, members, methodology);
   const vendorCount = new Set(members.map((member) => member.slug)).size;
@@ -304,6 +312,7 @@ export function selectCoverageConcepts(
     selected.push({
       concept_name: cluster.concept_name,
       title: cluster.title,
+      skill: cluster.skill,
       family: cluster.family,
       vendor_coverage: cluster.vendor_coverage,
       rationale: `Meets ${(methodology.min_vendor_coverage_pct * 100).toFixed(0)}% coverage floor and family diversity policy.`,

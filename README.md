@@ -164,6 +164,11 @@ npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
   --suite targets/suites/my-suite.yaml --surface all --harness codex --harness claude-code
 ```
 
+Concept-universe artifacts assign each reviewed concept a canonical kebab-case
+`skill`. Coverage selection carries that value forward, and suite synthesis uses
+it for the canonical task instead of deriving task identity from the temporary
+capability-family grouping metadata.
+
 Generation is grounded through Codex or Claude Code (or offline fixtures in
 tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
 refusing the output until a human reviews and approves its content hash.

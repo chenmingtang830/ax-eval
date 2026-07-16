@@ -131,7 +131,7 @@ function validateSelection(universe: ConceptUniverse, selection: CoverageSelecti
   for (const concept of selection.selected) {
     const cluster = clusters.get(concept.concept_name);
     if (!cluster) throw new Error(`selection references unknown concept ${concept.concept_name}`);
-    if (cluster.family !== concept.family || cluster.title !== concept.title) {
+    if (cluster.family !== concept.family || cluster.skill !== concept.skill || cluster.title !== concept.title) {
       throw new Error(`selection metadata drifted for concept ${concept.concept_name}`);
     }
   }
@@ -221,7 +221,7 @@ export async function synthesizeSuite(
         id: `${prefix}-T${String(index + 1).padStart(2, "0")}-${concept.concept_name}`,
         title: concept.title,
         difficulty: draft.difficulty,
-        skill: concept.family,
+        skill: concept.skill,
         intent: draft.intent,
         oracle_hint: draft.oracle_hint,
         allowed_surfaces: methodology.surface_scope,

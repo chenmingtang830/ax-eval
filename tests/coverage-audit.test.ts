@@ -9,6 +9,7 @@ describe("auditCoverageArtifacts", () => {
       rationale: input.selection.selected[0]!.rationale,
       vendor_coverage: input.selection.selected[0]!.vendor_coverage,
       family: input.selection.selected[0]!.family,
+      skill: input.selection.selected[0]!.skill,
       title: input.selection.selected[0]!.title,
       concept_name: input.selection.selected[0]!.concept_name,
     };

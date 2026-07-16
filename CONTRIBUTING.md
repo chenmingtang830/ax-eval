@@ -64,6 +64,9 @@ shape.
   drafts get one repair pass before surfacing an error. `generate --deterministic`
   is the keyless fixture path. Both paths must produce schema-valid packs, and
   neither path replaces human review.
+- **Concept skill is reviewed identity.** Preserve the concept universe's
+  kebab-case `skill` through coverage selection and canonical suite synthesis.
+  Do not replace it with capability-family grouping metadata.
 - **Canonical benchmark changes require trace calibration.** Keep the fixed
   sample review in `suite.trace-review.yaml`; completion requires a reviewer,
   review timestamp, commit SHA, and every unique trace ID in the declared

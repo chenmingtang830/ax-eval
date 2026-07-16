@@ -60,10 +60,16 @@ describe("coverage methodology", () => {
       now: () => new Date("2026-01-02T00:00:00.000Z"),
     });
     expect(universe.method).toBe("deterministic");
+    expect(universe.clusters.map((cluster) => cluster.skill)).toEqual([
+      "create-table",
+      "filtered-read",
+      "backup",
+    ]);
     expect(universe.clusters.find((cluster) => cluster.concept_name === "create-table")?.vendor_coverage).toBe(1);
     expect(universe.clusters.find((cluster) => cluster.concept_name === "backup")?.vendor_coverage).toBe(0.5);
     const selection = selectCoverageConcepts(universe, methodology, () => new Date("2026-01-03T00:00:00.000Z"));
     expect(selection.selected.map((concept) => concept.concept_name)).toEqual(["create-table", "filtered-read"]);
+    expect(selection.selected.map((concept) => concept.skill)).toEqual(["create-table", "filtered-read"]);
     const matrix = buildCoverageMatrix(universe, () => new Date("2026-01-03T00:00:00.000Z"));
     expect(matrix.decisions.find((decision) => decision.slug === "beta" && decision.concept_name === "backup"))
       .toMatchObject({ status: "unknown", evidence_urls: [] });

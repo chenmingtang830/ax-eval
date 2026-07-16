@@ -59,4 +59,13 @@ describe("auditSuite", () => {
     expect(auditSuite({ suite: candidate, selection: createSuiteAuditSelection() }))
       .toEqual([expect.objectContaining({ code: "selection_task_drift", task_id: candidate.tasks[1]!.id })]);
   });
+
+  it("audits task skill against the reviewed concept rather than its family", () => {
+    const selection = createSuiteAuditSelection();
+    const candidate = createSuiteAuditSuite();
+    candidate.tasks[0] = { ...candidate.tasks[0]!, skill: selection.selected[0]!.family };
+
+    expect(auditSuite({ suite: candidate, selection }))
+      .toEqual([expect.objectContaining({ code: "selection_task_drift", task_id: candidate.tasks[0]!.id })]);
+  });
 });

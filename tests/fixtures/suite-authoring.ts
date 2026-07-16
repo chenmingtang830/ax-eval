@@ -4,10 +4,10 @@ import type { Suite } from "../../src/generate/suite.js";
 import type { TraceReviewMemo } from "../../src/generate/trace-review.js";
 
 export const suiteAuditConcepts = [
-  { concept_name: "create-record", title: "Create a record", family: "writes", difficulty: "L1" as const },
-  { concept_name: "query-records", title: "Query records", family: "reads", difficulty: "L2" as const },
-  { concept_name: "access-control", title: "Configure access", family: "access-control", difficulty: "L3" as const },
-  { concept_name: "backup-restore", title: "Restore data", family: "recovery", difficulty: "L4" as const },
+  { concept_name: "create-record", title: "Create a record", skill: "create-record", family: "writes", difficulty: "L1" as const },
+  { concept_name: "query-records", title: "Query records", skill: "query-records", family: "reads", difficulty: "L2" as const },
+  { concept_name: "access-control", title: "Configure access", skill: "access-control", family: "access-control", difficulty: "L3" as const },
+  { concept_name: "backup-restore", title: "Restore data", skill: "backup-restore", family: "recovery", difficulty: "L4" as const },
 ];
 
 export function createSuiteAuditSelection(
@@ -20,6 +20,7 @@ export function createSuiteAuditSelection(
     selected: selected.map((concept) => ({
       concept_name: concept.concept_name,
       title: concept.title,
+      skill: concept.skill,
       family: concept.family,
       vendor_coverage: 1,
       rationale: "Meets reviewed coverage policy.",
@@ -39,7 +40,7 @@ export function createSuiteAuditSuite(): Suite {
       id: `db-T${String(index + 1).padStart(2, "0")}-${concept.concept_name}`,
       title: concept.title,
       difficulty: concept.difficulty,
-      skill: concept.family,
+      skill: concept.skill,
       intent: `Complete ${concept.title.toLowerCase()} for ax_{ns}.`,
       oracle_hint: "Read live state back independently.",
       allowed_surfaces: [...methodology.surface_scope],

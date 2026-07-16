@@ -49,7 +49,7 @@ export async function createCoverageAuditArtifacts() {
       id: `db-T${String(index + 1).padStart(2, "0")}-${concept.concept_name}`,
       title: concept.title,
       difficulty: index === 0 ? "L1" : "L2",
-      skill: concept.family,
+      skill: concept.skill,
       intent: `Complete ${concept.title.toLowerCase()} for ax_{ns}.`,
       oracle_hint: "Read live state back independently.",
       allowed_surfaces: [...methodology.surface_scope],
