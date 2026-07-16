@@ -1,0 +1,467 @@
+# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
+# generated_by: suite-composed
+# standard_set_version: daeb-1-v1
+# run_id: 2026-07-12-g7mikd
+name: neon
+version: "1"
+standard_set_version: daeb-1-v1
+run_id: 2026-07-12-g7mikd
+generated_by: suite-composed
+generator:
+  harness: claude-code
+  model: host-default
+  effort: high
+  prompt_version: compose-pack-v1
+  source_docs:
+    - https://neon.com/docs/reference/api-reference
+auth_method: pat
+api_style: rest
+auth:
+  type: bearer
+  env: NEON_API_KEY
+  env_aliases: []
+  verify_env_aliases: []
+  header: Authorization
+sandbox_scope:
+  - name: project_id
+    env: NEON_PROJECT_ID
+    required: true
+    instructions: existing Neon sandbox project id; use this instead of creating a
+      new project
+  - name: branch_id
+    env: NEON_BRANCH_ID
+    required: false
+    instructions: optional existing Neon sandbox branch id connected to
+      NEON_DATABASE_URL; if unset, discover the branch from the project via the
+      Neon API
+sql_conn:
+  dialect: postgres
+  connection_string_env: NEON_DATABASE_URL
+surfaces:
+  cli:
+    bin: psql
+    install: Install PostgreSQL client tools (psql).
+    docs_url: https://neon.com/docs/connect/connect-intro
+    auth:
+      kind: inherit
+      token_env_aliases: []
+      instructions: Use NEON_DATABASE_URL with psql for PostgreSQL data-plane
+        operations. NEON_API_KEY is reserved for Neon control-plane API or CLI
+        operations.
+base_url: https://console.neon.tech/api/v2
+headers: {}
+site_url: https://neon.com
+openapi_url: https://neon.com/api_spec/release/v2.json
+docs_urls:
+  - https://neon.com/docs/reference/api-reference
+static:
+  site_url: https://neon.com
+  docs_urls:
+    - https://neon.com/docs/reference/api-reference
+  checks: []
+discovery:
+  product: Neon
+  goal: "You are about to operate Neon programmatically on its documented API /
+    CLI data plane. First work out, from scratch, how Neon's public agent-facing
+    surfaces work: base URL (or CLI entrypoint), authentication, and at least
+    one documented read or write call you can use to confirm the surface is
+    live. You are NOT given any endpoint, base URL, or documentation link; find
+    them yourself."
+  official_domains:
+    - neon.com
+  canonical_endpoint: GET /projects
+  deprecated_markers: []
+  auth_scheme: Bearer API token / personal access token
+tasks:
+  - id: db-T01-access-control
+    title: "T01: Configure an idiomatic access-control mechanism"
+    prompt: >-
+      Configure a documented access-control mechanism for a container named
+      `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
+      ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
+      equivalent). Create one authorized interaction against that protected
+      container and leave the control configuration discoverable on a documented
+      control surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+
+
+      Strict access-control verifier contract: create the denied principal with
+      the exact deterministic SQL role name `axarena_acl_denied_{ns}`, where
+      every hyphen in `{ns}` is replaced with an underscore (and do not
+      otherwise alter the name). Create it with no LOGIN and no privilege to
+      read the protected table. Ensure the default SQL identity can SET ROLE to
+      it. Configure the policy/grants so that role is denied while the default
+      SQL identity can insert the required authorized row. Do not parameterize
+      SQL role names or other DDL identifiers (for example, do not use $1 in
+      CREATE ROLE, GRANT, or CREATE POLICY); quote identifiers directly after
+      validating their source. The verifier derives that role name from the
+      namespace, SET ROLEs on its own admin connection, and requires SQLSTATE
+      42501. If you SET ROLE for negative testing, run RESET ROLE (or open a
+      fresh connection) before any later task in the same session.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: protected container axarena_acl_{ns} exists
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.tables WHERE
+          table_schema = 'public' AND table_name = 'axarena_acl_{ns}'
+      - type: roundtrip
+        expected: 1
+        description: one allowed record exists under the protected container
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+      - type: roundtrip
+        expected: "42501"
+        description: independent denied identity is rejected from the protected container
+        assertField: code
+        assertOutcome: error
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_acl_{ns}"
+        sqlRoleTemplate: axarena_acl_denied_{ns}
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
+    prompt: >-
+      In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: title remains visible and status exists after schema evolution
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_migrate_{ns}' AND
+          column_name IN ('title', 'status')
+    difficulty: L3
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T03-inspect-schema
+    title: "T03: Inspect container metadata"
+    prompt: >-
+      Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: 2
+        description: schema inspection target exposes name and status fields
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM information_schema.columns WHERE
+          table_schema = 'public' AND table_name = 'axarena_schema_probe_{ns}'
+          AND column_name IN ('name', 'status')
+    difficulty: L1
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
+    prompt: >-
+      Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: query container contains exactly the three requested records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}"
+      - type: roundtrip
+        expected: 2
+        description: filtered read returns exactly two active records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active'
+      - type: roundtrip
+        expected: 2
+        description: the active set is alpha and gamma
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_query_items_{ns}" WHERE
+          status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
+    difficulty: L2
+    allowed_surfaces:
+      - api
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T05-vector-search
+    title: "T05: Create a vector-enabled dataset and query it"
+    prompt: >-
+      Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: alpha_{ns}
+        description: nearest vector search ranks alpha first
+        assertField: 0.label
+        sqlDialect: postgres
+        sqlQuery: SELECT label FROM "axarena_vectors_{ns}" ORDER BY embedding <->
+          '[1,0,0]' LIMIT 1
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
+    prompt: >-
+      Using a container named `axarena_write_items_{ns}`, create one record with
+      immutable `record_id=record_{ns}` and label `draft_{ns}`, update that same
+      record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      SQL write lifecycle contract: before reporting this task, read back the
+      target table and ensure the postcondition is exact: one row labeled
+      `final_{ns}`, zero rows labeled `draft_{ns}`, and zero rows labeled
+      `delete_me_{ns}`. If a partial attempt or retry created extra marker rows,
+      fix only this run-scoped table before reporting the gid.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: 1
+        description: the original record identity survives with the final label
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          record_id = 'record_{ns}' AND label = 'final_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: draft label no longer remains after update
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'draft_{ns}'
+      - type: roundtrip
+        expected: 0
+        description: throwaway record was deleted
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_write_items_{ns}" WHERE
+          label = 'delete_me_{ns}'
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
+  - id: db-T07-full-text-search
+    title: "T07: Create a searchable text dataset and query it"
+    prompt: >-
+      Create a text-searchable dataset named `axarena_search_{ns}` with at least
+      three items whose content includes `orchard_{ns}`, `mountain_{ns}`, and
+      `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+
+
+      Database SQL identifier contract: DAEB namespaces may contain hyphens.
+      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      double-quote table, function, policy, index, trigger, schema, and other
+      SQL identifiers that include canonical task names or `{ns}`. Preserve the
+      exact canonical names expected by the verifier; do not replace hyphens
+      with underscores for SQL-backed vendors. Use parameterized values for
+      marker strings and row data; only SQL identifiers need identifier quoting.
+
+
+      Use the documented SQL command-line data plane (for example, psql) with
+      process.env.NEON_DATABASE_URL for DDL/DML/query operations. Do not assume
+      the vendor control-plane CLI executes arbitrary SQL.
+
+
+      Neon SQL CLI contract: run data-plane SQL through plain `psql` with
+      `NEON_DATABASE_URL`; do not use `neonctl psql` or `neonctl
+      connection-string` for benchmark DDL/DML/query work. `NEON_API_KEY`,
+      `NEON_PROJECT_ID`, and `NEON_BRANCH_ID` are reserved for explicit Neon
+      control-plane operations. Never print the connection string or token
+      values.
+    oracles:
+      - type: roundtrip
+        expected: 3
+        description: search corpus contains exactly the three required marker items
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE content
+          LIKE '%orchard_{ns}%' OR content LIKE '%mountain_{ns}%' OR content
+          LIKE '%harbor_{ns}%'
+      - type: roundtrip
+        expected: 1
+        description: full-text query returns exactly one orchard match
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}')
+      - type: roundtrip
+        expected: 0
+        description: orchard search excludes mountain and harbor records
+        assertField: 0.count
+        sqlDialect: postgres
+        sqlQuery: SELECT COUNT(*)::int AS count FROM "axarena_search_{ns}" WHERE
+          to_tsvector('simple', content) @@ plainto_tsquery('simple',
+          'orchard_{ns}') AND (content ILIKE '%mountain_{ns}%' OR content ILIKE
+          '%harbor_{ns}%')
+    difficulty: L2
+    allowed_surfaces:
+      - cli
+    na: false
+    depends_on: []
+    trace: []
