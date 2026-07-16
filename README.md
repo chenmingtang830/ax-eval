@@ -183,7 +183,8 @@ Offline spec seeds must be local files; increase `--spec-max-operations` rather
 than accepting a truncated operation inventory. Local capability specs require
 `--offline`. Remote specs are validated before fetching, every redirect must
 remain on an official public host, private-network resolutions are rejected,
-and source bodies are capped at 5 MB.
+the validated public address is pinned into the actual connection to prevent
+DNS rebinding, and source bodies are capped at 5 MB.
 Sanitized registry surface candidates may seed grounded surface extraction, but
 they remain review-required hypotheses and never become executable CLI/SDK/MCP
 configuration without official-doc verification. Result provenance includes a

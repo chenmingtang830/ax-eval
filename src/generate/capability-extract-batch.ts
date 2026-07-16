@@ -27,6 +27,7 @@ export interface CapabilityExtractBatchOptions {
   concurrency?: number;
   offline?: boolean;
   resolveHost?: (hostname: string) => Promise<readonly string[]>;
+  fetchRemote?: (url: URL, addresses: readonly string[], signal: AbortSignal) => Promise<Response>;
   generate?: StructuredGenerator;
   extractor?: string;
 }
@@ -54,6 +55,7 @@ export async function extractCapabilitiesBatch(
             rejectPrivateNetwork: true,
             maxBytes: MAX_CAPABILITY_SPEC_BYTES,
             resolveHost: options.resolveHost,
+            fetchRemote: options.fetchRemote,
           })
       : undefined;
     const specSummary = fetchedSpec

@@ -94,7 +94,8 @@ shape.
   and retain source/count/truncation provenance in the extract. Do not author
   from an empty or truncated operation inventory. Validate remote hosts and
   redirects before reading response bodies, reject private-network resolution,
-  bound source size, and require offline mode for local files.
+  pin the validated public address into the connection, bound source size, and
+  require offline mode for local files.
 - **Explicit spec mappings fail closed.** `--capability-spec` sources must be
   fetched exactly; do not replace a missing source with a generic fixture.
   Keep multi-vendor generator concurrency bounded, result ordering stable, and

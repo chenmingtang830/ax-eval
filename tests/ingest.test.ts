@@ -69,6 +69,10 @@ describe("OpenAPI source fetching", () => {
       allowedRemoteRoots: ["https://docs.acme.example"],
       rejectPrivateNetwork: true,
       resolveHost: async () => ["93.184.216.34"],
+      fetchRemote: async (url, addresses) => {
+        expect(addresses).toEqual(["93.184.216.34"]);
+        return fetch(url);
+      },
     })).rejects.toThrow(/non-official host|private or non-routable/);
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
@@ -83,6 +87,10 @@ describe("OpenAPI source fetching", () => {
       allowedRemoteRoots: ["https://docs.acme.example"],
       rejectPrivateNetwork: true,
       resolveHost: async () => ["93.184.216.34"],
+      fetchRemote: async (url, addresses) => {
+        expect(addresses).toEqual(["93.184.216.34"]);
+        return fetch(url);
+      },
       maxBytes: 4,
     })).rejects.toThrow(/exceeds 4 bytes/);
     await expect(fetchSpecText(FIXTURE, { allowLocalFiles: false }))

@@ -1,7 +1,10 @@
 /** Fetch an OpenAPI spec (live, with offline fixture fallback) and ingest it. */
 import { lookup } from "node:dns/promises";
 import { existsSync, readFileSync, statSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
 import { isIP } from "node:net";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseSpec, type IngestedSpec } from "./openapi.js";
@@ -25,6 +28,13 @@ export interface IngestOptions {
   maxBytes?: number;
   /** Test seam for deterministic DNS policy checks. */
   resolveHost?: (hostname: string) => Promise<readonly string[]>;
+  /** Test seam for the address-pinned remote request. */
+  fetchRemote?: (url: URL, addresses: readonly string[], signal: AbortSignal) => Promise<Response>;
+}
+
+interface ResolvedRemoteSource {
+  url: URL;
+  addresses: readonly string[];
 }
 
 function isPublicIpv4(address: string): boolean {
@@ -62,14 +72,14 @@ function usesAllowedRemoteHost(value: string, roots: readonly string[]): boolean
   });
 }
 
-async function assertRemoteSource(value: string, opts: IngestOptions): Promise<URL> {
+async function assertRemoteSource(value: string, opts: IngestOptions): Promise<ResolvedRemoteSource> {
   const url = new URL(value);
   if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`spec source must use http or https: ${value}`);
   if (url.username || url.password) throw new Error(`spec source cannot contain credentials: ${value}`);
   if (opts.allowedRemoteRoots && !usesAllowedRemoteHost(value, opts.allowedRemoteRoots)) {
     throw new Error(`spec source uses a non-official host: ${value}`);
   }
-  if (!opts.rejectPrivateNetwork) return url;
+  if (!opts.rejectPrivateNetwork) return { url, addresses: [] };
   const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
     throw new Error(`spec source resolves to a private network host: ${value}`);
@@ -80,7 +90,34 @@ async function assertRemoteSource(value: string, opts: IngestOptions): Promise<U
   if (addresses.length === 0 || addresses.some((address) => !isPublicIpAddress(address))) {
     throw new Error(`spec source resolves to a private or non-routable address: ${value}`);
   }
-  return url;
+  return { url, addresses };
+}
+
+function fetchPinnedRemote(url: URL, addresses: readonly string[], signal: AbortSignal): Promise<Response> {
+  if (addresses.length === 0) return fetch(url, { signal, redirect: "manual" });
+  const address = addresses[0]!;
+  const family = isIP(address);
+  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  return new Promise((resolveResponse, reject) => {
+    const req = request(url, {
+      method: "GET",
+      signal,
+      lookup: (_hostname, _options, callback) => callback(null, address, family),
+    }, (response) => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(response.headers)) {
+        if (Array.isArray(value)) value.forEach((entry) => headers.append(name, entry));
+        else if (value !== undefined) headers.set(name, String(value));
+      }
+      resolveResponse(new Response(Readable.toWeb(response) as ReadableStream, {
+        status: response.statusCode ?? 500,
+        statusText: response.statusMessage,
+        headers,
+      }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
 }
 
 async function readBoundedResponse(response: Response, maxBytes?: number): Promise<string> {
@@ -144,14 +181,14 @@ export async function fetchSpecText(
     try {
       let current = await assertRemoteSource(source, opts);
       for (let redirects = 0; redirects <= 5; redirects++) {
-        const res = await fetch(current, { signal: controller.signal, redirect: "manual" });
-        const responseUrl = res.url || current.href;
+        const res = await (opts.fetchRemote ?? fetchPinnedRemote)(current.url, current.addresses, controller.signal);
+        const responseUrl = res.url || current.url.href;
         await assertRemoteSource(responseUrl, opts);
         if (res.status >= 300 && res.status < 400) {
           if (redirects === 5) throw new Error(`spec source exceeded redirect limit: ${source}`);
           const location = res.headers.get("location");
           if (!location) throw new Error(`spec source redirect is missing a location: ${responseUrl}`);
-          current = await assertRemoteSource(new URL(location, current).href, opts);
+          current = await assertRemoteSource(new URL(location, current.url).href, opts);
           continue;
         }
         if (res.ok) return { text: await readBoundedResponse(res, opts.maxBytes), source: responseUrl };

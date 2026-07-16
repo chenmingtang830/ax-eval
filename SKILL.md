@@ -86,7 +86,8 @@ Use local spec files offline and raise the operation bound if summarization
 would truncate. Capability extraction caps concurrency at three and gives each
 vendor's generator call a bounded 12-minute timeout. Remote spec URLs are
 validated before fetching; redirects must stay on official public hosts, DNS
-must resolve publicly, and source bodies are limited to 5 MB.
+must resolve publicly, the validated address is pinned into the connection, and
+source bodies are limited to 5 MB.
 Registry surface candidates are hints only: pass them through grounded
 `extract-surfaces`, verify every command/package/auth claim against official
 docs, and preserve the registry seed provenance and content hash in the

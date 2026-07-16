@@ -125,6 +125,10 @@ describe("capability extraction batches", () => {
     const settled = await extractCapabilitiesBatch([vendor("Acme")], {
       specSources: new Map([["acme", "https://docs.acme.example/openapi.json"]]),
       resolveHost: async () => ["93.184.216.34"],
+      fetchRemote: async (url, addresses) => {
+        expect(addresses).toEqual(["93.184.216.34"]);
+        return fetch(url);
+      },
       generate: async () => generatedCapability("Acme"),
     });
     expect(String((settled[0] as PromiseRejectedResult).reason)).toMatch(/non-official host/);
