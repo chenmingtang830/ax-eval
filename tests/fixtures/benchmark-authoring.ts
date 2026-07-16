@@ -10,6 +10,7 @@ import {
   vendorSelectionCapabilityExtract,
   vendorSelectionSurfaceExtract,
 } from "./vendor-selection.js";
+import { createCompletedTraceReview } from "./suite-authoring.js";
 
 export async function createBenchmarkAuthoringArtifacts() {
   const coverage = await createCoverageAuditArtifacts();
@@ -52,6 +53,7 @@ export async function createBenchmarkAuthoringArtifacts() {
   );
   return {
     ...coverage,
+    trace_review: createCompletedTraceReview(),
     ledger: createVendorSelectionLedger(),
     capabilities: vendorSelectionCapabilityExtract,
     surfaces: vendorSelectionSurfaceExtract,

@@ -6,6 +6,7 @@ import {
 import type { BenchmarkLayout } from "../src/generate/benchmark-paths.js";
 import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
 import { createCoverageAuditArtifacts } from "./fixtures/coverage-authoring.js";
+import { createCompletedTraceReview } from "./fixtures/suite-authoring.js";
 
 const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-suite-authoring-audit-");
 
@@ -15,6 +16,7 @@ async function writeArtifacts(benchmarkLayout: BenchmarkLayout): Promise<Awaited
   writeYaml(benchmarkLayout.suite_concept_universe_path, artifacts.universe);
   writeYaml(benchmarkLayout.suite_coverage_selection_path, artifacts.selection);
   writeYaml(benchmarkLayout.suite_coverage_matrix_path, artifacts.matrix);
+  writeYaml(benchmarkLayout.suite_trace_review_path, createCompletedTraceReview());
   return artifacts;
 }
 
@@ -27,6 +29,7 @@ describe("auditBenchmarkSuiteAuthoring", () => {
       summary: { errors: 0, warnings: 0 },
       suite: { status: "pass", findings: [] },
       coverage: { status: "pass", findings: [] },
+      trace_review: { status: "pass", findings: [] },
     });
   });
 
@@ -34,7 +37,7 @@ describe("auditBenchmarkSuiteAuthoring", () => {
     const benchmarkLayout = layout();
     const result = auditBenchmarkSuiteAuthoring(benchmarkLayout);
     expect(result.status).toBe("fail");
-    expect(result.summary).toEqual({ errors: 4, warnings: 0 });
+    expect(result.summary).toEqual({ errors: 5, warnings: 0 });
     expect(result.suite.findings).toEqual([
       expect.objectContaining({ artifact: "suite" }),
       expect.objectContaining({ artifact: "coverage-selection" }),
@@ -42,6 +45,9 @@ describe("auditBenchmarkSuiteAuthoring", () => {
     expect(result.coverage.findings).toEqual([
       expect.objectContaining({ artifact: "concept-universe" }),
       expect.objectContaining({ artifact: "coverage-matrix" }),
+    ]);
+    expect(result.trace_review.findings).toEqual([
+      expect.objectContaining({ code: "trace_review_missing" }),
     ]);
   });
 
@@ -51,6 +57,7 @@ describe("auditBenchmarkSuiteAuthoring", () => {
     writeYaml(benchmarkLayout.suite_concept_universe_path, artifacts.universe);
     writeYaml(benchmarkLayout.suite_coverage_selection_path, artifacts.selection);
     writeYaml(benchmarkLayout.suite_coverage_matrix_path, artifacts.matrix);
+    writeYaml(benchmarkLayout.suite_trace_review_path, createCompletedTraceReview());
     const result = auditBenchmarkSuiteAuthoring(benchmarkLayout);
     expect(result.summary).toEqual({ errors: 1, warnings: 0 });
     expect(result.suite.findings).toEqual([expect.objectContaining({ artifact: "suite" })]);
@@ -67,6 +74,28 @@ describe("auditBenchmarkSuiteAuthoring", () => {
     expect(result.coverage).toEqual({ status: "skipped", findings: [] });
   });
 
+  it("owns a pending trace review as one suite-authoring error", async () => {
+    const benchmarkLayout = layout();
+    await writeArtifacts(benchmarkLayout);
+    writeYaml(benchmarkLayout.suite_trace_review_path, {
+      ...createCompletedTraceReview(),
+      status: "pending",
+      sample_ids: ["trace-1"],
+      reviewer: undefined,
+      reviewed_at: undefined,
+      commit_sha: undefined,
+      summary: "Review pending.",
+    });
+    const result = auditBenchmarkSuiteAuthoring(benchmarkLayout);
+    expect(result.summary).toEqual({ errors: 1, warnings: 0 });
+    expect(result.suite).toEqual({ status: "pass", findings: [] });
+    expect(result.coverage).toEqual({ status: "pass", findings: [] });
+    expect(result.trace_review).toMatchObject({
+      status: "fail",
+      findings: [{ code: "trace_review_pending" }],
+    });
+  });
+
   it("preserves suite warnings in the aggregate status", () => {
     const result = combineBenchmarkSuiteAuthoringAudits({
       status: "warn",
@@ -77,7 +106,7 @@ describe("auditBenchmarkSuiteAuthoring", () => {
         message: "Canonical suite has no selected task at difficulty L2",
         difficulty: "L2",
       }],
-    }, { status: "pass", findings: [] });
+    }, { status: "pass", findings: [] }, { status: "pass", findings: [] });
     expect(result.status).toBe("warn");
     expect(result.summary).toEqual({ errors: 0, warnings: 1 });
   });

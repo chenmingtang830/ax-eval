@@ -1,6 +1,7 @@
 import type { CoverageSelection } from "../../src/generate/coverage.js";
 import { defaultSuiteMethodology } from "../../src/generate/suite-methodology.js";
 import type { Suite } from "../../src/generate/suite.js";
+import type { TraceReviewMemo } from "../../src/generate/trace-review.js";
 
 export const suiteAuditConcepts = [
   { concept_name: "create-record", title: "Create a record", family: "writes", difficulty: "L1" as const },
@@ -44,5 +45,21 @@ export function createSuiteAuditSuite(): Suite {
       allowed_surfaces: [...methodology.surface_scope],
       na_examples: [],
     })),
+  };
+}
+
+export function createCompletedTraceReview(): TraceReviewMemo {
+  return {
+    schema: "ax.trace-review/v1",
+    benchmark: "database-eval",
+    generated_at: "2026-07-16T00:00:00.000Z",
+    status: "completed",
+    sample_size: 2,
+    sample_ids: ["trace-1", "trace-2"],
+    reviewer: "Reviewer",
+    reviewed_at: "2026-07-16T01:00:00.000Z",
+    commit_sha: "abcdef123456",
+    findings: [],
+    summary: "Reviewed the fixed trace sample.",
   };
 }

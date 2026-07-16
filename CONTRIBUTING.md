@@ -64,6 +64,10 @@ shape.
   drafts get one repair pass before surfacing an error. `generate --deterministic`
   is the keyless fixture path. Both paths must produce schema-valid packs, and
   neither path replaces human review.
+- **Canonical benchmark changes require trace calibration.** Keep the fixed
+  sample review in `suite.trace-review.yaml`; completion requires a reviewer,
+  review timestamp, commit SHA, and every unique trace ID in the declared
+  sample. Missing or pending evidence must keep the authoring audit failing.
 
 ## Adding a new target
 

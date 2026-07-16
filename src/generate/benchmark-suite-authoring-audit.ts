@@ -8,6 +8,10 @@ import {
   auditBenchmarkSuite,
   type BenchmarkSuiteAuditResult,
 } from "./benchmark-suite-audit.js";
+import {
+  auditBenchmarkTraceReview,
+  type BenchmarkTraceReviewAuditResult,
+} from "./benchmark-trace-review-audit.js";
 
 export interface BenchmarkSuiteAuthoringCoverageResult {
   status: BenchmarkCoverageAuditResult["status"] | "skipped";
@@ -22,6 +26,7 @@ export interface BenchmarkSuiteAuthoringAuditResult {
   };
   suite: BenchmarkSuiteAuditResult;
   coverage: BenchmarkSuiteAuthoringCoverageResult;
+  trace_review: BenchmarkTraceReviewAuditResult;
 }
 
 function suiteOwnedCoverageFinding(
@@ -44,6 +49,7 @@ function suiteOwnedCoverageFinding(
 export function combineBenchmarkSuiteAuthoringAudits(
   suite: BenchmarkSuiteAuditResult,
   rawCoverage: BenchmarkCoverageAuditResult,
+  traceReview: BenchmarkTraceReviewAuditResult,
 ): BenchmarkSuiteAuthoringAuditResult {
   const coverageFindings = rawCoverage.findings.filter((finding) => !suiteOwnedCoverageFinding(finding, suite));
   const suppressedCoverageFindings = rawCoverage.findings.length - coverageFindings.length;
@@ -55,7 +61,7 @@ export function combineBenchmarkSuiteAuthoringAudits(
         : "pass",
     findings: coverageFindings,
   };
-  const findings = [...suite.findings, ...coverage.findings];
+  const findings = [...suite.findings, ...coverage.findings, ...traceReview.findings];
   const errors = findings.filter((finding) => finding.severity === "error").length;
   const warnings = findings.filter((finding) => finding.severity === "warn").length;
   return {
@@ -63,6 +69,7 @@ export function combineBenchmarkSuiteAuthoringAudits(
     summary: { errors, warnings },
     suite,
     coverage,
+    trace_review: traceReview,
   };
 }
 
@@ -70,5 +77,6 @@ export function auditBenchmarkSuiteAuthoring(layout: BenchmarkLayout): Benchmark
   return combineBenchmarkSuiteAuthoringAudits(
     auditBenchmarkSuite(layout),
     auditBenchmarkCoverage(layout),
+    auditBenchmarkTraceReview(layout),
   );
 }

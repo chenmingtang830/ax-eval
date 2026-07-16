@@ -165,13 +165,19 @@ tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
 refusing the output until a human reviews and approves its content hash.
 
 `audit-benchmark` is the read-only authoring gate for a benchmark layout under
-`benchmarks/<slug>/<version>/`. It reports suite, vendor-cohort, extract, and
-compiled-pack drift as sectioned JSON and exits nonzero when errors are found.
+`benchmarks/<slug>/<version>/`. It reports suite, fixed-sample trace review,
+vendor-cohort, extract, and compiled-pack drift as sectioned JSON and exits
+nonzero when errors are found.
 Pass one explicit `--pack-config <vendor>=<yaml>` for each core vendor; config
 files contain env-var names and request-shaping metadata, never credential
 values. `--reset-verified <vendor>` is repeatable and records an external reset
 check without running cleanup. The command does not write, autofix, approve,
 invoke, verify live state, or reset a target.
+
+Canonical benchmark authoring also requires a completed
+`suite.trace-review.yaml` memo. The reviewed sample must identify its reviewer,
+review timestamp, commit SHA, and every unique trace ID in the fixed sample;
+pending or missing review evidence keeps `audit-benchmark` failing.
 
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack

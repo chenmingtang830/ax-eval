@@ -97,9 +97,11 @@ npm run ax-eval -- audit-benchmark --benchmark <benchmark> \
 Repeat `--pack-config` for every core vendor. Add `--reset-verified <vendor>`
 only after an external sandbox reset check has actually completed; the audit
 records that evidence but never performs cleanup. A nonzero exit means the
-suite, cohort extracts, or compiled packs are not ready for review. The command
-is read-only: it does not autofix artifacts, approve packs, invoke harnesses,
-verify live state, or reset targets.
+suite, fixed-sample trace review, cohort extracts, or compiled packs are not
+ready for review. A completed `suite.trace-review.yaml` must record the
+reviewer, review timestamp, commit SHA, and every unique trace ID in the fixed
+sample. The command is read-only: it does not autofix artifacts, approve packs,
+invoke harnesses, verify live state, or reset targets.
 
 Before any benchmark low-pass execution, inspect the keyless plan:
 

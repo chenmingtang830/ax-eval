@@ -22,6 +22,7 @@ async function writeArtifacts(benchmarkLayout: BenchmarkLayout, options: {
   writeYaml(benchmarkLayout.suite_concept_universe_path, artifacts.universe);
   writeYaml(benchmarkLayout.suite_coverage_selection_path, artifacts.selection);
   writeYaml(benchmarkLayout.suite_coverage_matrix_path, artifacts.matrix);
+  writeYaml(benchmarkLayout.suite_trace_review_path, artifacts.trace_review);
   writeYaml(benchmarkLayout.vendor_selection_ledger_path, artifacts.ledger);
   writeYaml(benchmarkCapabilityInventoryPath(benchmarkLayout, "acme"), artifacts.capabilities);
   writeYaml(benchmarkSurfacesPath(benchmarkLayout, "acme"), artifacts.surfaces);
@@ -60,7 +61,7 @@ describe("auditBenchmarkAuthoring", () => {
       packConfigs: new Map(),
     });
     expect(result.status).toBe("fail");
-    expect(result.summary).toEqual({ errors: 5, warnings: 0 });
+    expect(result.summary).toEqual({ errors: 6, warnings: 0 });
     expect(result.cohort_authoring.vendor_selection.findings).toEqual([
       expect.objectContaining({ code: "vendor_selection_ledger_missing" }),
     ]);
