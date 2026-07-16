@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import { assertArtifactSegment } from "./artifact-path.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import { PublicHttpUrlSchema } from "./public-url.js";
 
@@ -107,7 +108,7 @@ export async function resolveVendor(
 }
 
 export function vendorCardPath(root: string, slug: string): string {
-  return resolve(root, "targets", "vendors", `${slug}.discovered.yaml`);
+  return resolve(root, "targets", "vendors", `${assertArtifactSegment(slug, "vendor slug")}.discovered.yaml`);
 }
 
 export function writeVendorCard(root: string, result: ResolveResult): string {

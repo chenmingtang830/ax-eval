@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import { assertArtifactSegment } from "./artifact-path.js";
 import { assertReadOnlyMongoQuery } from "./mongo-verify.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
 import { assertReadOnlySql } from "./sql-verify.js";
@@ -258,7 +259,13 @@ export async function extractTasks(
 }
 
 export function taskExtractPath(root: string, slug: string, suiteName: string): string {
-  return resolve(root, "targets", "extracts", slug, `${suiteName}.tasks.yaml`);
+  return resolve(
+    root,
+    "targets",
+    "extracts",
+    assertArtifactSegment(slug, "vendor slug"),
+    `${assertArtifactSegment(suiteName, "suite name")}.tasks.yaml`,
+  );
 }
 
 export function writeTaskExtract(root: string, result: TaskExtractResult): string {

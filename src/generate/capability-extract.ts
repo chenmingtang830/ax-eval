@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import { assertArtifactSegment } from "./artifact-path.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
@@ -87,7 +88,7 @@ export async function extractCapabilities(
 }
 
 export function capabilityExtractPath(root: string, slug: string): string {
-  return resolve(root, "targets", "extracts", slug, "capabilities.yaml");
+  return resolve(root, "targets", "extracts", assertArtifactSegment(slug, "vendor slug"), "capabilities.yaml");
 }
 
 export function writeCapabilityExtract(root: string, result: CapabilityExtractResult): string {
