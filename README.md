@@ -170,6 +170,10 @@ bundled fixture. Multi-vendor extraction preserves input order and caps actual
 authoring concurrency at three even when the global concurrency is higher.
 Offline spec seeds must be local files; increase `--spec-max-operations` rather
 than accepting a truncated operation inventory.
+Sanitized registry surface candidates may seed grounded surface extraction, but
+they remain review-required hypotheses and never become executable CLI/SDK/MCP
+configuration without official-doc verification. Result provenance includes a
+hash of the exact bounded seed content used.
 
 `audit-benchmark` is the read-only authoring gate for a benchmark layout under
 `benchmarks/<slug>/<version>/`. It reports suite, fixed-sample trace review,

@@ -88,6 +88,10 @@ shape.
 - **Explicit spec mappings fail closed.** `--capability-spec` sources must be
   fetched exactly; do not replace a missing source with a generic fixture.
   Keep multi-vendor generator concurrency bounded and result ordering stable.
+- **Registry candidates are not executable truth.** Use sanitized candidates as
+  bounded hypotheses for grounded surface extraction. Require domain alignment,
+  bounded prompt size, official output evidence, and hashed seed provenance
+  before writing an extract.
 
 ## Adding a new target
 
