@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { TargetPackSchema, type GeneratorProvenance, type TargetPack } from "../schemas.js";
+import { missingDifficultyLevels } from "./difficulty.js";
 
 export interface GeneratorHarnessConfig {
   harness: string;
@@ -232,10 +233,7 @@ export function validateGeneratedPack(seed: TargetPack, pack: TargetPack): Autho
   if (seedSurfaceKeys.join(",") !== packSurfaceKeys.join(",")) {
     errors.push(`declared surfaces changed from [${seedSurfaceKeys.join(", ")}] to [${packSurfaceKeys.join(", ")}]`);
   }
-  const packDifficulties = new Set(pack.tasks.map((task) => task.difficulty));
-  for (const difficulty of ["L1", "L2", "L3", "L4"] as const) {
-    if (!packDifficulties.has(difficulty)) errors.push(`missing ${difficulty} coverage`);
-  }
+  for (const difficulty of missingDifficultyLevels(pack.tasks)) errors.push(`missing ${difficulty} coverage`);
   for (const [surface, seedCount] of surfaceTaskCounts(seed)) {
     const packCount = packCounts.get(surface) ?? 0;
     if (packCount < seedCount) {
