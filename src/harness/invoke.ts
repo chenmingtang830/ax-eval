@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
-import { redactSensitiveText } from "./redaction.js";
+import { redactSensitiveText } from "../safety/redaction.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 

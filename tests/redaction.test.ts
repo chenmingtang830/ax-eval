@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redactSensitiveText } from "../src/harness/redaction.js";
+import { redactSensitiveText } from "../src/safety/redaction.js";
 
 describe("redactSensitiveText", () => {
   it("redacts common credential forms while preserving useful context", () => {
