@@ -1,4 +1,4 @@
-# Target Packs
+# Target Packs (tool layer)
 
 Each target pack declares the product contract ax-eval needs: auth env names,
 sandbox scope, available surfaces, tasks, and read-back oracles. Secrets never
@@ -6,33 +6,34 @@ live here; run `ax-eval init --pack <pack.yaml> --surface all` to print the exac
 `.env` stub for a pack. Generated packs are drafts until their matching
 `*.approval.json` passes the review gate.
 
-The committed example packs themselves live under `targets/examples/<product>/`.
+## Example packs
+
+Committed example packs live under `targets/examples/<product>/`.
+
+Use these when you want a single-vendor ax-eval demo (Notion, Stripe, Linear,
+Exa, …). They are **tool-layer** fixtures, not the AXArena publication suite.
+
 If you generate your own local pack and keep the default output path, it may
 land under `targets/<product>/`; that path is for user-local/generated packs,
 not for the shipped example baselines.
 
-Use `targets/examples/<product>/` for the repository-tracked example/reference
-packs. Runtime artifacts still belong under `results/`.
+Runtime artifacts still belong under `results/`.
 
-## Good Starting Points
+## AXArena / DAEB
 
-- `examples/notion/pack.yaml` — REST target with API / CLI / SDK / MCP coverage and the
-  current README screenshot/report.
-- `examples/stripe/pack.yaml` — REST target with API / CLI / SDK / MCP in test mode.
-- `examples/linear/pack.yaml` — GraphQL target with SDK + MCP surfaces.
-- `examples/exa/pack.yaml` — non-CRUD/search API target.
+The Database AX Benchmark publication contract lives under
+[`benchmarks/daeb/`](../benchmarks/daeb/README.md) — suites, vendor cards,
+capability inventories, surfaces, and compiled packs for the multi-vendor
+canonical suite. Do not put DAEB artifacts back under `targets/`.
 
-## Additional Packs
+## Good starting points (tool demos)
 
-- `examples/asana/pack.yaml` — legacy REST reference pack and internal benchmark; review
-  and approve it before live runs, or use one of the committed generated Asana
-  variants in this repository.
-- `examples/monday/pack.yaml` — GraphQL work-management pack; useful for local rehearsal.
+- `examples/notion/pack.yaml` — REST target with API / CLI / SDK / MCP coverage
+- `examples/stripe/pack.yaml` — REST target with API / CLI / SDK / MCP in test mode
+- `examples/linear/pack.yaml` — GraphQL target with SDK + MCP surfaces
+- `examples/exa/pack.yaml` — non-CRUD/search API target
 
-Generated variants such as `generated.pack.yaml` and `generated.full.pack.yaml`
-are fixtures or larger benchmark sets. Prefer the plain `pack.yaml` when you are
-trying ax-eval for the first time.
+## Additional packs
 
-If you want to keep generated or experimental packs in-repo without replacing a
-committed example pack, prefer a separate user-local path such as
-`targets/<product>/generated.pack.yaml`, or pass `--out` explicitly.
+- `examples/asana/pack.yaml` — legacy REST reference pack
+- `examples/monday/pack.yaml` — GraphQL work-management pack for local rehearsal

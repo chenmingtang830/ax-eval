@@ -7,7 +7,7 @@
 AI agents are becoming users of software. But most teams still test docs, APIs,
 SDKs, CLIs, and MCP servers as developer-facing artifacts, not as interfaces
 agents must discover and operate. `ax-eval` runs reviewed sandbox tasks through
-real agent harnesses, then verifies outcomes with read-back oracles.
+real agent harnesses, then verifies outcomes with independent outcome verification.
 
 **Agent-facing surfaces need integration tests, not just publication checks.**
 
@@ -42,25 +42,17 @@ npm test
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
-(`codex` or `claude-code`) to turn it into a product-quality pack. Product
-presets can add authoring hints for the fuzzy parts, but code still enforces
-surface coverage, schema validity, and a repair pass if the first draft drops
-required metadata or tasks. Use
+(`codex` or `claude-code`) to turn it into a product-quality pack. Use
 `--deterministic` when you need a keyless CI/offline fixture instead.
 
-For an end-to-end report workflow, `automate-report` bootstraps discovery, pack
-generation, review/auth handoff, smoke execution, verification, and final report
-packaging. It never uses Exa; pass explicit official URLs when you have them, or
-let the configured local harness find candidates with its native web/search
-capability and ax-eval will validate them by fetching official pages directly.
-Generated packs still stop at the review gate until a human explicitly approves
-them with `ax-eval review`.
+`automate-report` can orchestrate discovery, generation, review/configuration
+handoff, a low-effort smoke gate, and the requested full report. It still stops
+at the content-addressed review gate: it never approves a generated pack for
+the operator.
 
 ```bash
 npm run ax-eval -- automate-report --company Acme \
-  --openapi https://example.com/openapi.json \
-  --surface all \
-  --harness codex
+  --openapi https://example.com/openapi.json --surface all --harness codex
 ```
 
 ```bash
@@ -74,7 +66,7 @@ npm run ax-eval -- review --pack results/acme.generated.pack.yaml --approve --by
 npm run ax-eval -- init --pack results/acme.generated.pack.yaml >> .env
 npm run ax-eval -- check-env --pack results/acme.generated.pack.yaml
 
-# 3. Emit prompts, run them, then verify with read-back oracles.
+# 3. Emit prompts, run them, then verify with independent outcome verification.
 npm run ax-eval -- exec-plan --pack results/acme.generated.pack.yaml \
   --run-dir results/runs/acme
 npm run ax-eval -- verify-generated --pack results/acme.generated.pack.yaml \
@@ -129,6 +121,97 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
+## DAEB-1 Publication Flow
+
+DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
+than ordinary local pack authoring:
+
+```text
+evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
+```
+
+**Current status (mutable v1):** authoring freeze is done for the 6-vendor core
+cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
+`review --approve`d and `suite.trace-review.yaml` is `completed`. Production
+3-trial reruns, publication freeze, and website export are **deferred** until
+after team review; do not treat the commands below as the default next step.
+Research-lane tasks (e.g. backup/CDC/integrity) stay out of the scored
+denominator. Core facts live under [`benchmarks/daeb/v1/`](./benchmarks/daeb/v1/).
+
+The canonical benchmark contract is [`benchmarks/daeb/v1/suite.yaml`](./benchmarks/daeb/v1/suite.yaml).
+Its purposive-stratified core/research/excluded cohort is recorded separately in
+[`benchmarks/daeb/v1/vendor-selection-ledger.yaml`](./benchmarks/daeb/v1/vendor-selection-ledger.yaml);
+vendor inclusion is fixed before task outcomes and requires a persistent free
+managed sandbox plus documented headless API/CLI access for the core cohort.
+Each database vendor has a compiled pack under `benchmarks/daeb/v1/packs/<vendor>/pack.yaml`,
+but those packs are execution artifacts, not independently authored benchmark
+definitions. They are produced from the same suite plus vendor-specific public
+metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
+configuration.
+
+Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+overwrites the same suite and invalidates content-hash approvals. Git SHAs and
+artifact content hashes identify exact draft states; draft iterations do not
+increment the suite version. Benchmark-of-record results are produced only after
+freeze.
+
+Selection and applicability are separate. The 75% concept-coverage bar chooses
+the shared task bank; each coverage decision also retains ranked capability
+candidates, the selected capability bundle, and concrete task-fit requirements.
+Only surfaces where the full task-fit bundle is documented enter the support
+matrix denominator. Broad concept membership alone never enables a run cell.
+Suite freeze additionally requires `suite.trace-review.yaml` to record a
+completed fixed-sample review (sample IDs, reviewer, timestamp, commit SHA, and
+findings); regeneration resets that checkpoint to `pending`.
+
+For DAEB-1/database v1, the benchmark-of-record production lane is narrower
+than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
+medium-effort model per harness, and three trials per supported
+vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+SDK evidence is research-only for v1.
+
+When production is unblocked, run the production lane with:
+
+```bash
+npm run ax-eval -- daeb-production-rerun \
+  --suite benchmarks/daeb/v1/suite.yaml \
+  --codex-model gpt-5.4 \
+  --claude-model sonnet
+```
+
+Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
+pass rate, observed range, and links to the source trial artifacts. After
+running and verifying the vendor matrix, freeze a publication bundle:
+
+```bash
+npm run ax-eval -- publication-bundle \
+  --suite benchmarks/daeb/v1/suite.yaml \
+  --run-dir results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle \
+  --effort-profiles medium \
+  --required-effort-profiles medium
+```
+
+The bundle writes `manifest.json` tying together the canonical suite, vendor
+cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
+records, and competitive report. Missing live artifacts are listed explicitly;
+a publication-ready DAEB-1 v1 bundle has no missing references and all required
+quality gates passing.
+
+`ax-eval` remains the tooling layer. The AXArena website should consume an
+exported dataset instead of learning runner internals or recomputing scores:
+
+```bash
+npm run ax-eval -- export-publication \
+  --from results/runs/daeb-1-v1-production/publication-bundle-final \
+  --out results/runs/daeb-1-v1-production/axarena-export
+```
+
+This writes website-ready JSON indexes for leaderboard rows, cells, task
+drilldowns, trial outcomes, evidence links, methodology metadata, and failure
+review placeholders. New reusable benchmark tooling should live here; the
+`axarena` repo should own the curated website, narrative, and presentation.
+
 ## Architecture
 
 `ax-eval` is pack-centered and surface-aware.
@@ -137,10 +220,7 @@ without digging through `results/runs/`.
   live in versioned schemas and act as the stable center of the system.
 - **Execution matrix:** the same reviewed pack runs across one or more harnesses
   and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
-  the agent discovers and acts rather than changing the oracle model. When a
-  surface only covers part of the product, generation narrows that surface to
-  the subset of tasks it can actually support instead of forcing API-shaped
-  tasks onto it.
+  the agent discovers and acts rather than changing the outcome-verification model.
 - **Truth layer:** executors report ids, but success is decided by independent
   read-back verification against live product state.
 - **Interpretation layer:** reports and normalized records turn results, traces,
@@ -153,18 +233,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ![ax-eval architecture](./assets/architecture.svg)
 
 1. **Ingest:** parse OpenAPI, GraphQL, docs, auth, and sandbox hints.
-2. **Generate:** draft an L1-L4 task pack with rule-derived oracles and
+2. **Generate:** draft an L1-L4 task pack with rule-derived outcome verifiers and
    LLM-assisted task authoring by default.
 3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
-4. **Execute:** run the same pack across selected surfaces and harnesses, with
-   each surface taking the tasks that generation marked as truly supported.
+4. **Execute:** run the same pack across selected surfaces and harnesses.
 5. **Verify:** read live state back, score the matrix, and write reports.
 
 ## Why It Is Different
 
 - **Goal-level prompts, not endpoint hints.** The agent has to discover the
   surface instead of being handed a curl command.
-- **Programmatic oracles, not self-report.** Success means the verifier can read
+- **Programmatic outcome verification, not self-report.** Success means the verifier can read
   the expected state back from the product.
 - **Target-declared auth and sandbox scope.** Packs say exactly which env vars and
   sandbox ids are needed; secrets stay local in `.env`.
@@ -181,17 +260,22 @@ npm run ax-eval -- ingest --openapi <url>       # parse REST/OpenAPI into an ing
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
 npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>] # LLM-assisted by default
 npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
+npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>]
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
-npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>] # no Exa; stops at review/auth gates before smoke/full
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
-  --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
+  --harness claude-code --surface all --profile medium --effort medium \
+  --model sonnet --run-dir <dir> --invoke-retries 0 # Claude Code, records the actual reported Sonnet model
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness codex --surface all --profile medium --effort medium \
+  --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
-npm run ax-eval -- reset --pack <pack.yaml> [--dry-run]
+npm run ax-eval -- reset --pack <pack.yaml> --ns <run-namespace> [--dry-run]
+# Omit --ns only with --dry-run to inventory all probe resources safely.
 
 npm run ax-eval -- audit --site <url>
 npm run ax-eval -- discover --site <url>
@@ -202,6 +286,13 @@ npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
 authoring is a developer workflow that ends at `review --approve`.
+
+For publication-grade cross-harness lanes, prefer native host-agent binaries over
+PATH wrappers when a wrapper injects unrelated local config. `AX_EVAL_CLAUDE_BIN`
+and `AX_EVAL_CODEX_BIN` let a run pin the executable while the normalized record
+still stamps the model actually reported by the harness. Non-MCP Codex cells are
+run with an isolated Codex home and `mcp_servers={}` so API/CLI/SDK scores are not
+polluted by the operator's unrelated global MCP server logins.
 
 ## Safety
 
@@ -243,7 +334,8 @@ src/generate/       task-pack generation, review, report, normalized records
 src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
-targets/            target-pack index and example pack directories (see targets/README.md)
+targets/            tool-layer example packs (see targets/README.md)
+benchmarks/daeb/    AXArena DAEB publication contract (suite, extracts, packs)
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots
@@ -254,7 +346,7 @@ docs/               maintainer-local notes, intentionally not public docs
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md). The best first contribution is a new
 target pack generated from a public spec, reviewed with the gate, and backed by a
-focused test or oracle improvement.
+focused test or outcome-verifier improvement.
 
 ## Contact
 
