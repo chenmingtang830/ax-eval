@@ -2,6 +2,7 @@ import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import type { SpecSummary } from "../ingest/spec-summary.js";
 import { assertArtifactSegment } from "./artifact-path.js";
 import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
@@ -34,17 +35,36 @@ const CapabilityExtractSchema = z.object({
   extraction_provenance: z.object({
     source: z.literal("official-docs"),
     extractor: z.string().min(1),
+    spec_seed: z.object({
+      source: z.string().min(1),
+      operation_count: z.number().int().positive(),
+      truncated: z.literal(false),
+    }).optional(),
   }),
   capabilities: z.array(CapabilitySchema).min(1),
 });
 
 export type CapabilityExtractResult = z.infer<typeof CapabilityExtractSchema>;
 
-export function buildCapabilityPrompt(vendor: ResolveResult): string {
+export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: SpecSummary): string {
+  const officialRoots = [vendor.docs_url, vendor.site_url].filter((value): value is string => Boolean(value)).join(" or ");
+  const sourceInstructions = specSummary
+    ? [
+        `Use the reviewed OpenAPI operation inventory below as the authoritative API candidate set (${specSummary.operationCount} operations).`,
+        "Do not add API capabilities that are absent from this inventory. Group related operations into reviewer-meaningful capabilities.",
+        `Cite only official evidence URLs under ${officialRoots}. Quote the exact operation line that supports each capability.`,
+        "",
+        "=== REVIEWED OPENAPI OPERATIONS ===",
+        specSummary.text,
+        "=== END REVIEWED OPENAPI OPERATIONS ===",
+      ]
+    : [
+        "Use web fetch/search and cite only official vendor documentation URLs.",
+        "Inventory documented capabilities before selecting benchmark tasks.",
+      ];
   return [
     `Read the official documentation for ${vendor.vendor} (${vendor.category}) starting at ${vendor.docs_url}.`,
-    "Use web fetch/search and cite only official vendor documentation URLs.",
-    "Inventory documented capabilities before selecting benchmark tasks.",
+    ...sourceInstructions,
     "For database products, cover baseline operational capabilities: create table/collection, insert rows/documents,",
     "filtered reads/querying, schema introspection, access control, tracked schema changes, export, and recovery where documented.",
     "Coverage checklist to close before you stop: data definition, writes, reads, integrity, access control, migration, and operations.",
@@ -58,6 +78,7 @@ export interface ExtractCapabilitiesOptions {
   generate?: StructuredGenerator;
   extractor?: string;
   now?: () => Date;
+  specSummary?: SpecSummary;
 }
 
 function normalizeCapabilityOutput(value: unknown): unknown {
@@ -69,9 +90,19 @@ export async function extractCapabilities(
   options: ExtractCapabilitiesOptions = {},
 ): Promise<CapabilityExtractResult> {
   if (!vendor.docs_url) throw new Error(`cannot extract capabilities for ${vendor.vendor}: docs_url is missing`);
+  if (options.specSummary?.operationCount === 0) {
+    throw new Error("capability spec summary contains no operations");
+  }
+  if (options.specSummary?.truncated) {
+    throw new Error("capability spec summary is truncated; regenerate it with a complete operation bound");
+  }
+  if (options.specSummary && /^https?:\/\//i.test(options.specSummary.source)
+    && !urlUsesOfficialHost(options.specSummary.source, [vendor.docs_url, vendor.site_url])) {
+    throw new Error(`capability spec source uses non-official host ${options.specSummary.source}`);
+  }
   const generated = z.object({ capabilities: z.array(CapabilitySchema).min(1) }).safeParse(
     normalizeCapabilityOutput(parseStructuredOutput(
-      await runStructuredGenerator(buildCapabilityPrompt(vendor), options.generate),
+      await runStructuredGenerator(buildCapabilityPrompt(vendor, options.specSummary), options.generate),
     )),
   );
   if (!generated.success) {
@@ -89,7 +120,17 @@ export async function extractCapabilities(
     slug: vendor.slug,
     category: vendor.category,
     extracted_at: (options.now ?? (() => new Date()))().toISOString(),
-    extraction_provenance: { source: "official-docs", extractor: options.extractor ?? "host-default" },
+    extraction_provenance: {
+      source: "official-docs",
+      extractor: options.extractor ?? "host-default",
+      ...(options.specSummary ? {
+        spec_seed: {
+          source: options.specSummary.source,
+          operation_count: options.specSummary.operationCount,
+          truncated: false as const,
+        },
+      } : {}),
+    },
     capabilities: generated.data.capabilities,
   });
 }

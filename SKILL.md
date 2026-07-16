@@ -123,6 +123,9 @@ remain failure, and SQL setup/role errors must not count as query denial.
 Capability extraction accepts either the requested `{ "capabilities": [...] }`
 envelope or a bare top-level array. This is shape normalization only; malformed
 items and non-official evidence must still fail validation.
+When a reviewed OpenAPI summary seeds extraction, treat its operations as the
+API candidate set and preserve its source/count/truncation provenance. Reject
+empty or truncated summaries rather than authoring against partial coverage.
 
 Before any benchmark low-pass execution, inspect the keyless plan:
 

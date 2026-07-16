@@ -117,6 +117,9 @@ error can pass—not connection, transaction, role, or cleanup failures.
 Capability extraction narrowly normalizes a bare top-level JSON array into the
 requested capability envelope before applying the unchanged strict item and
 official-evidence schemas.
+An optional reviewed OpenAPI summary can bound the candidate set; remote summary
+sources must use an official vendor host and their provenance is persisted.
+Empty or truncated summaries are rejected before generator invocation.
 
 - **Execution**
   - `exec-plan`

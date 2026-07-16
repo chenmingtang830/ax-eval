@@ -81,6 +81,10 @@ shape.
 - **Normalize generator shape narrowly.** Capability extraction may wrap a bare
   top-level capability array in the requested envelope, but it must not repair,
   infer, or bypass invalid capability fields or evidence.
+- **Spec seeds are reviewed inputs.** Use deterministic OpenAPI operation
+  summaries to bound capability candidates, reject non-official remote sources,
+  and retain source/count/truncation provenance in the extract. Do not author
+  from an empty or truncated operation inventory.
 
 ## Adding a new target
 

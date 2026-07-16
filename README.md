@@ -200,6 +200,9 @@ never satisfies the denial.
 Capability authoring tolerates the common generator variation of returning the
 requested capability list as a bare JSON array. Each item still passes the same
 strict schema and official-evidence checks before an extract can be written.
+Reviewed OpenAPI operation summaries may also seed the candidate set; extracts
+record the source, operation count, and truncation state for later audit. Empty
+or truncated summaries fail closed instead of silently reducing coverage.
 
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
