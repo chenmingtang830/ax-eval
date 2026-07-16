@@ -1,4 +1,9 @@
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
+import { assertArtifactSegment } from "../generate/artifact-path.js";
+import { loadOptionalYamlArtifact } from "../generate/artifact-yaml.js";
 import { isPublicHttpUrl } from "../generate/public-url.js";
 
 const RegistryCredentialSchema = z.object({
@@ -49,42 +54,61 @@ export const RegistrySurfaceDocumentSchema = z.object({
 
 export type RegistrySurfaceDocument = z.infer<typeof RegistrySurfaceDocumentSchema>;
 
-export interface RegistryAuthRecommendation {
-  kind: "none" | "inherit" | "token" | "oauth_app" | "unknown";
-  credential_ref: string | null;
-  requires_env_mapping: boolean;
-  acquisition_url: string | null;
-}
+const PublicUrlSchema = z.string().max(2048).refine(isPublicHttpUrl, "must be a public HTTP URL");
+const RegistryAuthRecommendationSchema = z.object({
+  kind: z.enum(["none", "inherit", "token", "oauth_app", "unknown"]),
+  credential_ref: z.string().regex(/^credential-[1-9][0-9]*$/).nullable(),
+  requires_env_mapping: z.boolean(),
+  acquisition_url: PublicUrlSchema.nullable(),
+}).strict();
 
-export interface RegistrySurfaceCandidate {
-  id: string;
-  type: "http" | "graphql" | "cli" | "mcp" | "sdk";
-  name: string | null;
-  endpoint: string | null;
-  docs_url: string | null;
-  command: string | null;
-  packages: Array<{ registry: string; identifier: string }>;
-  transport: "http" | "stdio" | null;
-  auth: RegistryAuthRecommendation;
-  provenance: {
-    via: string | null;
-    signal: string | null;
-    evidence_urls: string[];
-  };
-  review_required: true;
-}
+export const RegistrySurfaceCandidateSchema = z.object({
+  id: z.string().min(1).max(120),
+  type: z.enum(["http", "graphql", "cli", "mcp", "sdk"]),
+  name: z.string().max(120).nullable(),
+  endpoint: PublicUrlSchema.nullable(),
+  docs_url: PublicUrlSchema.nullable(),
+  command: z.string().max(300).refine((value) => !/[\n\r;&|`<>$]/.test(value)).nullable(),
+  packages: z.array(z.object({
+    registry: z.string().min(1).max(40),
+    identifier: z.string().min(1).max(200).regex(/^[A-Za-z0-9@/._+-]+$/),
+  }).strict()).max(50),
+  transport: z.enum(["http", "stdio"]).nullable(),
+  auth: RegistryAuthRecommendationSchema,
+  provenance: z.object({
+    via: z.string().max(40).nullable(),
+    signal: z.string().max(160).nullable(),
+    evidence_urls: z.array(PublicUrlSchema).max(50),
+  }).strict(),
+  review_required: z.literal(true),
+}).strict();
 
-export interface RegistryAuthoringSeed {
-  schema: "ax.registry-authoring-seed/v1";
-  domain: string;
-  site_url: string;
-  summary: string | null;
-  mapped_at: string;
-  openapi_urls: string[];
-  docs_urls: string[];
-  candidates: RegistrySurfaceCandidate[];
-  warnings: string[];
-}
+export const RegistryAuthoringSeedSchema = z.object({
+  schema: z.literal("ax.registry-authoring-seed/v1"),
+  domain: z.string().regex(/^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/),
+  site_url: PublicUrlSchema,
+  summary: z.string().max(500).nullable(),
+  mapped_at: z.string().datetime(),
+  openapi_urls: z.array(PublicUrlSchema).max(50),
+  docs_urls: z.array(PublicUrlSchema).max(50),
+  candidates: z.array(RegistrySurfaceCandidateSchema).max(500),
+  warnings: z.array(z.string().max(500)).max(500),
+}).strict().superRefine((seed, context) => {
+  if (new URL(seed.site_url).hostname.toLowerCase() !== seed.domain) {
+    context.addIssue({ code: "custom", path: ["site_url"], message: "must use the registry seed domain" });
+  }
+  const ids = new Set<string>();
+  for (const [index, candidate] of seed.candidates.entries()) {
+    if (ids.has(candidate.id)) {
+      context.addIssue({ code: "custom", path: ["candidates", index, "id"], message: "candidate ids must be unique" });
+    }
+    ids.add(candidate.id);
+  }
+});
+
+export type RegistryAuthRecommendation = z.infer<typeof RegistryAuthRecommendationSchema>;
+export type RegistrySurfaceCandidate = z.infer<typeof RegistrySurfaceCandidateSchema>;
+export type RegistryAuthoringSeed = z.infer<typeof RegistryAuthoringSeedSchema>;
 
 function normalizeDomain(value: string): string {
   const domain = value.trim().toLowerCase().replace(/\.$/, "");
@@ -155,12 +179,32 @@ function authRecommendation(
     : type.includes("oauth")
       ? "oauth_app"
       : "token";
-  return {
+  return RegistryAuthRecommendationSchema.parse({
     kind,
     credential_ref: aliases.get(id) ?? null,
     requires_env_mapping: kind === "token" || kind === "oauth_app",
     acquisition_url: acquisitionUrl,
-  };
+  });
+}
+
+export function registryAuthoringSeedPath(root: string, slug: string): string {
+  return resolve(root, "targets", "seeds", assertArtifactSegment(slug, "vendor slug"), "registry.yaml");
+}
+
+export function writeRegistryAuthoringSeed(root: string, slug: string, seed: RegistryAuthoringSeed): string {
+  const path = registryAuthoringSeedPath(root, slug);
+  mkdirSync(dirname(path), { recursive: true });
+  writeFileSync(`${path}.tmp`, yamlStringify(RegistryAuthoringSeedSchema.parse(seed)));
+  renameSync(`${path}.tmp`, path);
+  return path;
+}
+
+export function loadRegistryAuthoringSeed(root: string, slug: string): RegistryAuthoringSeed | null {
+  return loadRegistryAuthoringSeedPath(registryAuthoringSeedPath(root, slug));
+}
+
+export function loadRegistryAuthoringSeedPath(path: string): RegistryAuthoringSeed | null {
+  return loadOptionalYamlArtifact(path, RegistryAuthoringSeedSchema, "registry authoring seed");
 }
 
 function safeCommand(value: string | undefined): string | null {
@@ -220,7 +264,7 @@ export function mapRegistryAuthoringSeed(
     }];
   });
   const catalog = document.detect?.apiCatalog;
-  return {
+  return RegistryAuthoringSeedSchema.parse({
     schema: "ax.registry-authoring-seed/v1",
     domain,
     site_url: `https://${domain}`,
@@ -230,5 +274,5 @@ export function mapRegistryAuthoringSeed(
     docs_urls: publicUrls(catalog?.docs),
     candidates,
     warnings,
-  };
+  });
 }

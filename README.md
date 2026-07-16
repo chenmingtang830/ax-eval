@@ -174,6 +174,8 @@ Sanitized registry surface candidates may seed grounded surface extraction, but
 they remain review-required hypotheses and never become executable CLI/SDK/MCP
 configuration without official-doc verification. Result provenance includes a
 hash of the exact bounded seed content used.
+Validated registry seeds live at `targets/seeds/<vendor>/registry.yaml`; writes
+are atomic and loaders reject schema drift or unsafe commands.
 
 `audit-benchmark` is the read-only authoring gate for a benchmark layout under
 `benchmarks/<slug>/<version>/`. It reports suite, fixed-sample trace review,

@@ -92,6 +92,9 @@ shape.
   bounded hypotheses for grounded surface extraction. Require domain alignment,
   bounded prompt size, official output evidence, and hashed seed provenance
   before writing an extract.
+- **Persist registry seeds as reviewed artifacts.** Write them atomically under
+  `targets/seeds/<vendor>/registry.yaml`; loaders must reject traversal, unsafe
+  commands, unbounded arrays, and schema drift.
 
 ## Adding a new target
 

@@ -126,6 +126,8 @@ Surface extraction can receive a sanitized registry seed, but embeds it only as
 untrusted data for grounded correction. Domain alignment, candidate bounds, and
 official output URLs remain enforced, with exact seed provenance persisted by
 content hash.
+Registry authoring seeds have a strict bounded output schema and atomic artifact
+path under `targets/seeds/<vendor>/registry.yaml`.
 
 - **Execution**
   - `exec-plan`

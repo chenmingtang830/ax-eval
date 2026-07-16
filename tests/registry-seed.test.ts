@@ -1,5 +1,14 @@
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { stringify as yamlStringify } from "yaml";
 import { describe, expect, it } from "vitest";
-import { mapRegistryAuthoringSeed } from "../src/ingest/registry-seed.js";
+import {
+  loadRegistryAuthoringSeed,
+  loadRegistryAuthoringSeedPath,
+  mapRegistryAuthoringSeed,
+  writeRegistryAuthoringSeed,
+} from "../src/ingest/registry-seed.js";
 
 const FIXTURE = {
   domain: "Supabase.COM.",
@@ -109,5 +118,57 @@ describe("mapRegistryAuthoringSeed", () => {
   it("rejects malformed public domains", () => {
     expect(() => mapRegistryAuthoringSeed({ domain: "localhost", surfaces: [] })).toThrow(/public DNS name/);
     expect(() => mapRegistryAuthoringSeed({ domain: "${DOMAIN}", surfaces: [] })).toThrow(/public DNS name/);
+  });
+
+  it("writes and loads a bounded validated seed atomically", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-registry-seed-"));
+    try {
+      const seed = mapRegistryAuthoringSeed({
+        domain: "example.com",
+        surfaces: [{ type: "cli", command: "example" }],
+      }, { now: () => new Date("2026-01-01T00:00:00.000Z") });
+      const path = writeRegistryAuthoringSeed(root, "example", seed);
+      expect(path).toContain("targets/seeds/example/registry.yaml");
+      expect(existsSync(`${path}.tmp`)).toBe(false);
+      expect(loadRegistryAuthoringSeed(root, "example")).toEqual(seed);
+      expect(loadRegistryAuthoringSeed(root, "missing")).toBeNull();
+      expect(() => writeRegistryAuthoringSeed(root, "../escape", seed)).toThrow(/vendor slug/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects drifted persisted seed artifacts", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-registry-seed-invalid-"));
+    try {
+      const path = join(root, "invalid.yaml");
+      writeFileSync(path, yamlStringify({
+        schema: "ax.registry-authoring-seed/v1",
+        domain: "example.com",
+        site_url: "https://example.com",
+        summary: null,
+        mapped_at: "2026-01-01T00:00:00.000Z",
+        openapi_urls: [],
+        docs_urls: [],
+        candidates: [{ id: "cli:1", type: "cli", command: "example | sh" }],
+        warnings: [],
+      }));
+      expect(() => loadRegistryAuthoringSeedPath(path)).toThrow(/registry authoring seed/);
+
+      const seed = mapRegistryAuthoringSeed({
+        domain: "example.com",
+        surfaces: [{ type: "cli", command: "example" }],
+      });
+      writeFileSync(path, yamlStringify({ ...seed, site_url: "https://other.example" }));
+      expect(() => loadRegistryAuthoringSeedPath(path)).toThrow(/registry authoring seed/);
+
+      writeFileSync(path, yamlStringify({
+        ...seed,
+        candidates: [seed.candidates[0], seed.candidates[0]],
+      }));
+      expect(() => loadRegistryAuthoringSeedPath(path)).toThrow(/registry authoring seed/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

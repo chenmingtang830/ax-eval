@@ -83,6 +83,8 @@ Registry surface candidates are hints only: pass them through grounded
 `extract-surfaces`, verify every command/package/auth claim against official
 docs, and preserve the registry seed provenance and content hash in the
 resulting extract.
+Keep reviewed seed artifacts under `targets/seeds/<vendor>/registry.yaml`; do
+not hand-edit them into a shape that bypasses the validated loader.
 
 The canonical suite is the source of truth. Files under
 `targets/packs/<vendor>/` are compiled execution artifacts, not

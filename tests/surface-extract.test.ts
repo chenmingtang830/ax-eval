@@ -124,7 +124,7 @@ describe("surface extraction", () => {
       surfaces: [{
         type: "cli",
         command: "acme",
-        basis: { evidence: Array.from({ length: 600 }, (_, index) => `https://docs.acme.example/${"x".repeat(90)}${index}`) },
+        basis: { evidence: Array.from({ length: 50 }, (_, index) => `https://docs.acme.example/${"x".repeat(1100)}${index}`) },
       }],
     });
     await expect(extractSurfaces(vendor, {
