@@ -1,5 +1,6 @@
 import { fetchSpecText } from "../ingest/run.js";
 import { summarizeOpenApiText } from "../ingest/spec-summary.js";
+import type { GeneratorHarnessConfig } from "./authoring.js";
 import { extractCapabilities, type CapabilityExtractResult } from "./capability-extract.js";
 import { mapSettledLimit } from "./concurrency.js";
 import { parseSelectedMappings } from "./selected-mapping.js";
@@ -7,6 +8,10 @@ import type { StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
 export const CAPABILITY_EXTRACTION_TIMEOUT_MS = 12 * 60 * 1000;
+
+export function capabilityExtractionHarnessConfig(config: GeneratorHarnessConfig): GeneratorHarnessConfig {
+  return { ...config, timeoutMs: CAPABILITY_EXTRACTION_TIMEOUT_MS };
+}
 export const MAX_CAPABILITY_SPEC_BYTES = 5 * 1024 * 1024;
 
 export function parseCapabilitySpecMappings(

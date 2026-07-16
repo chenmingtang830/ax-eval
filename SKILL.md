@@ -326,6 +326,9 @@ When consolidating a report for review, put every cell's artifacts in one run
 directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
 stdout/stderr, invoke metadata, and a small manifest together so reviewers can
 deep-dive without hunting through prior scratch runs.
+Persisted harness artifacts are redacted before writing. Treat first-action
+timeouts and `validity_status` as diagnostics only; correctness still comes from
+the live read-back verifier and must not be rewritten by runtime metadata.
 
 ### Planned DAEB-1 production lane
 

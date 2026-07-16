@@ -75,6 +75,7 @@ import { resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vend
 import { writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
 import {
   CAPABILITY_EXTRACTION_TIMEOUT_MS,
+  capabilityExtractionHarnessConfig,
   extractCapabilitiesBatch,
   parseCapabilitySpecMappings,
 } from "./generate/capability-extract-batch.js";
@@ -1795,18 +1796,17 @@ function selectedVendors(args: Parsed): string[] {
 
 function authoringGenerator(
   args: Parsed,
-  timeoutMs?: number,
+  configure: (config: Parameters<typeof runGeneratorHarness>[1]) => Parameters<typeof runGeneratorHarness>[1] = (config) => config,
 ): { generate: (prompt: string) => Promise<string>; harness: string } {
   const detected = probeHarness().host;
   const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
   return {
     harness,
-    generate: async (prompt: string) => runGeneratorHarness(prompt, {
+    generate: async (prompt: string) => runGeneratorHarness(prompt, configure({
       harness,
       model: args.generatorModel || undefined,
       effort: args.generatorEffort as "low" | "medium" | "high",
-      timeoutMs,
-    }),
+    })),
   };
 }
 
@@ -1849,7 +1849,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   const slugs = selectedVendors(args);
   const specSources = parseCapabilitySpecMappings(args.capabilitySpecs, slugs);
   const vendors = slugs.map((slug) => requiredVendorCard(root, slug));
-  const generator = authoringGenerator(args, CAPABILITY_EXTRACTION_TIMEOUT_MS);
+  const generator = authoringGenerator(args, capabilityExtractionHarnessConfig);
   const concurrency = Math.min(args.concurrency, 3);
   console.log(
     `Extracting capabilities for ${vendors.length} vendor(s) at concurrency=${concurrency} ` +

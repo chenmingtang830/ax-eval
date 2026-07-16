@@ -38,6 +38,11 @@ scores from raw run directories.
 Publication manifest v2 content-addresses each present artifact and aggregate
 with SHA-256. Bundle materialization verifies destination bytes inside a staging
 directory, so a digest mismatch cannot publish a partial or mislabeled bundle.
+Production trial aggregation validates identity and task totals before emitting
+mean, range, and three-trial reliability fields. The production artifact writer
+uses explicit destinations and atomic writes. Publication cell export accepts
+only manifest-bound aggregate records and rejects identity, profile, trial,
+metric, or provenance drift before producing public JSON.
 
 ## System overview
 
@@ -260,6 +265,13 @@ It is responsible for:
 
 This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
+
+Persisted harness stdout, stderr, transcripts, results, traces, and invoke
+metadata pass through secret redaction. Invoke metadata distinguishes a
+first-action startup timeout from the full wall-clock timeout and records
+action occurrence, event count, duration, first-action latency, and a descriptive
+validity status. Those fields explain harness health; they never change the
+programmatic read-back score.
 
 ### MCP provisioning
 

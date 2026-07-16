@@ -3,7 +3,8 @@ import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
-import { authorPackWithLlm, buildGeneratorPrompt, validateGeneratedPack } from "../src/generate/authoring.js";
+import { authorPackWithLlm, buildGeneratorPrompt, runGeneratorHarness, validateGeneratedPack } from "../src/generate/authoring.js";
+import { capabilityExtractionHarnessConfig } from "../src/generate/capability-extract-batch.js";
 
 function samplePack(): TargetPack {
   return TargetPackSchema.parse({
@@ -66,6 +67,32 @@ function samplePack(): TargetPack {
 }
 
 describe("authoring prompt + validation", () => {
+  it("passes the capability timeout to both generator subprocesses", () => {
+    const calls: Array<{ command: string; timeout?: number }> = [];
+    const spawn = ((command: string, _args: readonly string[], options: { timeout?: number }) => {
+      calls.push({ command, timeout: options.timeout });
+      return {
+        pid: 1,
+        output: [],
+        stdout: command === "claude" ? JSON.stringify({ result: "ok" }) : "ok",
+        stderr: "",
+        status: 0,
+        signal: null,
+      };
+    }) as typeof import("node:child_process").spawnSync;
+
+    expect(runGeneratorHarness("prompt", capabilityExtractionHarnessConfig({
+      harness: "codex",
+    }), spawn)).toBe("ok");
+    expect(runGeneratorHarness("prompt", capabilityExtractionHarnessConfig({
+      harness: "claude-code",
+    }), spawn)).toBe("ok");
+    expect(calls).toEqual([
+      { command: "codex", timeout: 12 * 60 * 1000 },
+      { command: "claude", timeout: 12 * 60 * 1000 },
+    ]);
+  });
+
   it("includes preset guidance and seed surface coverage in the prompt", () => {
     const prompt = buildGeneratorPrompt(
       "Example",

@@ -258,6 +258,13 @@ with mean pass rate, observed range, and links to the source trial artifacts.
 After running and verifying the vendor matrix, the planned
 `publication-bundle` command will freeze the publication artifacts.
 
+The underlying production helpers are strict and keyless-testable: aggregation
+rejects mixed identities or inconsistent trial math; artifact writing is
+allowlisted and atomic; public cell export accepts only manifest-bound aggregate
+records and validates profiles, trial counts, metrics, and provenance. Runtime
+validity and first-action timing remain explanatory metadata and cannot change a
+read-back pass rate.
+
 The bundle will write `manifest.json` tying together the canonical suite,
 vendor cards, verification extracts, compiled TargetPacks, approvals,
 snapshots, normalized records, and competitive report. Missing live artifacts

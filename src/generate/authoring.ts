@@ -162,7 +162,11 @@ function takeFixturePath(): string | undefined {
   return process.env.AX_EVAL_GENERATOR_FIXTURE;
 }
 
-export function runGeneratorHarness(prompt: string, harness: GeneratorHarnessConfig): string {
+export function runGeneratorHarness(
+  prompt: string,
+  harness: GeneratorHarnessConfig,
+  spawn: typeof spawnSync = spawnSync,
+): string {
   const fixture = takeFixturePath();
   if (fixture) return readFileSync(fixture, "utf8");
 
@@ -171,7 +175,7 @@ export function runGeneratorHarness(prompt: string, harness: GeneratorHarnessCon
     const outPath = resolve(dir, "pack.json");
     const modelArgs = harness.model ? ["-m", harness.model] : [];
     const effortArgs = harness.effort ? ["-c", `model_reasoning_effort=${harness.effort}`] : [];
-    const res = spawnSync("codex", [
+    const res = spawn("codex", [
       "exec",
       "--sandbox", "workspace-write",
       "-c", "sandbox_workspace_write.network_access=true",
@@ -194,7 +198,7 @@ export function runGeneratorHarness(prompt: string, harness: GeneratorHarnessCon
 
   if (harness.harness === "claude-code") {
     const modelArgs = harness.model ? ["--model", harness.model] : [];
-    const res = spawnSync("claude", ["-p", prompt, "--output-format", "json", ...modelArgs], {
+    const res = spawn("claude", ["-p", prompt, "--output-format", "json", ...modelArgs], {
       cwd: process.cwd(),
       encoding: "utf8",
       maxBuffer: 50 * 1024 * 1024,
