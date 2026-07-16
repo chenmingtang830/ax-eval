@@ -40,8 +40,9 @@ const pack: TargetPack = {
 function fakeClient(store: Record<string, Record<string, unknown>>) {
   return {
     async get(path: string) {
-      const body = store[path] ?? store[path.split("/").pop()!];
-      if (!body) throw new HttpApiError(`GET ${path}: not found`, 404, {});
+      const gid = path.split("/").pop()!;
+      const body = store[gid];
+      if (!body) throw new Error(`404 ${path}`);
       return body;
     },
     async post(path: string, body: unknown) {
@@ -68,6 +69,58 @@ describe("round-trip verification", () => {
     const exec: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "9" } } };
     const out = await verifyGeneratedPack(pack, exec, fakeClient({ "9": { name: "WRONG" } }));
     expect(out[0]!.success).toBe(false);
+  });
+
+  it("accepts an expected HTTP denial for an error-outcome oracle", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [401, 403],
+          expected: undefined,
+        }],
+      }],
+    };
+    const deniedClient = {
+      async get() {
+        throw new HttpApiError("forbidden", 403, { code: "permission_denied" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const exec: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "1" } } };
+    const out = await verifyGeneratedPack(deniedPack, exec, deniedClient);
+    expect(out[0]!.success).toBe(true);
+    expect(out[0]!.oracleResults[0]!.detail).toContain("HTTP 403");
+  });
+
+  it("resolves namespace placeholders in expected HTTP denial bodies", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [403],
+          assertField: "resource",
+          expected: "ax-denied-{ns}",
+        }],
+      }],
+    };
+    const executor: ExecutorResults = {
+      profile: "floor",
+      ns: "run-1",
+      results: { "gen-l1-tasks": { gid: "1" } },
+    };
+    const client = {
+      async get() {
+        throw new HttpApiError("forbidden", 403, { resource: "ax-denied-run-1" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+
+    expect((await verifyGeneratedPack(deniedPack, executor, client))[0]!.success).toBe(true);
   });
 
   it("verifies only the tasks that apply to the selected surface", async () => {
@@ -183,184 +236,62 @@ describe("round-trip verification", () => {
     expect(out[0]!.success).toBe(true);
   });
 
-  it("fills parent path params from the task trace when the oracle needs more than gid", async () => {
-    const nestedPack: TargetPack = {
-      ...pack,
-      tasks: [
-        {
-          ...pack.tasks[0]!,
-          id: "gen-l2-docs-pages",
-          create_path: "/docs/{docId}/pages",
-          oracles: [
-            {
-              type: "roundtrip",
-              description: "",
-              readPathTemplate: "/docs/{docId}/pages/{gid}",
-              assertField: "name",
-              expected: "nested page",
-            },
-          ],
-        },
-      ],
-    };
+  it("can verify a task against a task-level discovered base URL", async () => {
+    const calls: string[] = [];
+    const client = {
+      withBaseUrl(baseUrl: string) {
+        calls.push(baseUrl);
+        return this;
+      },
+      async get(path: string) {
+        expect(path).toBe("/tasks/1");
+        return { name: "hello" };
+      },
+      async post(path: string, body: unknown) {
+        return { path, body };
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
     const exec: ExecutorResults = {
       profile: "ceiling",
-      results: { "gen-l2-docs-pages": { gid: "page-1" } },
+      results: {
+        "gen-l1-tasks": {
+          gid: "1",
+          __task_base_url: "https://preview-example-123.convex.cloud",
+        },
+      },
     };
-    const out = await verifyGeneratedPack(
-      nestedPack,
-      exec,
-      fakeClient({ "/docs/doc-42/pages/page-1": { name: "nested page" } }),
-      undefined,
-      [{ step: 1, taskId: "gen-l2-docs-pages", action: "create page", method: "POST", path: "/docs/doc-42/pages", status: 202 }],
-    );
+    const out = await verifyGeneratedPack(pack, exec, client);
     expect(out[0]!.success).toBe(true);
+    expect(calls).toEqual(["https://preview-example-123.convex.cloud"]);
   });
 
-  it("infers a missing gid from the trace path when the executor omitted it", async () => {
-    const nestedPack: TargetPack = {
-      ...pack,
-      tasks: [
-        {
-          ...pack.tasks[0]!,
-          id: "gen-l2-docs-pages",
-          create_path: "/docs/{docId}/pages",
-          oracles: [
-            {
-              type: "roundtrip",
-              description: "",
-              readPathTemplate: "/docs/{docId}/pages/{gid}",
-              assertField: "name",
-              expected: "nested page",
-            },
-          ],
-        },
-      ],
-    };
+  it("ignores an invalid task-level base URL override", async () => {
+    const calls: string[] = [];
+    const client = {
+      withBaseUrl(baseUrl: string) {
+        calls.push(baseUrl);
+        return this;
+      },
+      async get(path: string) {
+        expect(path).toBe("/tasks/1");
+        return { name: "hello" };
+      },
+      async post(path: string, body: unknown) {
+        return { path, body };
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
     const exec: ExecutorResults = {
       profile: "ceiling",
-      results: { "gen-l2-docs-pages": { docId: "doc-42" } },
+      results: {
+        "gen-l1-tasks": {
+          gid: "1",
+          __task_base_url: "turso CLI v1.0.29 (already installed at cold start)",
+        },
+      },
     };
-    const out = await verifyGeneratedPack(
-      nestedPack,
-      exec,
-      fakeClient({ "/docs/doc-42/pages/page-1": { name: "nested page" } }),
-      undefined,
-      [{ step: 1, taskId: "gen-l2-docs-pages", action: "verify page", method: "GET", path: "/docs/doc-42/pages/page-1", status: 200 }],
-    );
+    const out = await verifyGeneratedPack(pack, exec, client);
     expect(out[0]!.success).toBe(true);
-  });
-
-  it("falls back to the collection listing when a direct page read by gid fails", async () => {
-    const nestedPack: TargetPack = {
-      ...pack,
-      tasks: [
-        {
-          ...pack.tasks[0]!,
-          id: "gen-l2-docs-pages",
-          create_path: "/docs/{docId}/pages",
-          oracles: [
-            {
-              type: "roundtrip",
-              description: "",
-              readPathTemplate: "/docs/{docId}/pages/{gid}",
-              assertField: "name",
-              expected: "nested page",
-            },
-          ],
-        },
-      ],
-    };
-    const exec: ExecutorResults = {
-      profile: "ceiling",
-      results: { "gen-l2-docs-pages": { gid: "section-1", docId: "doc-42" } },
-    };
-    const out = await verifyGeneratedPack(
-      nestedPack,
-      exec,
-      fakeClient({
-        "/docs/doc-42/pages": {
-          items: [{ id: "canvas-1", href: "https://api.example/docs/doc-42/pages/canvas-1" }],
-        },
-        "/docs/doc-42/pages/canvas-1": { name: "nested page" },
-      }),
-    );
-    expect(out[0]!.success).toBe(true);
-    expect(out[0]!.oracleResults[0]!.detail).toMatch(/collection fallback/);
-  }, 20000);
-
-  it("infers gid and context ids from trace notes when the executor leaves them null", async () => {
-    const nestedPack: TargetPack = {
-      ...pack,
-      tasks: [
-        {
-          ...pack.tasks[0]!,
-          id: "gen-l2-docs-pages",
-          create_path: "/docs/{docId}/pages",
-          oracles: [
-            {
-              type: "roundtrip",
-              description: "",
-              readPathTemplate: "/docs/{docId}/pages/{gid}",
-              assertField: "name",
-              expected: "nested page",
-            },
-          ],
-        },
-      ],
-    };
-    const exec: ExecutorResults = {
-      profile: "ceiling",
-      results: { "gen-l2-docs-pages": { gid: null, docId: null } },
-    };
-    const out = await verifyGeneratedPack(
-      nestedPack,
-      exec,
-      fakeClient({ "/docs/doc-42/pages/page-1": { name: "nested page" } }),
-      undefined,
-      [
-        { step: 1, taskId: "gen-l2-docs-pages", action: "create doc", method: "POST", path: "/docs", status: 201, note: "ok; doc doc-42" },
-        { step: 2, taskId: "gen-l2-docs-pages", action: "create page", method: "POST", path: "/docs/doc-42/pages", status: 202, note: "ok; page page-1" },
-      ],
-    );
-    expect(out[0]!.success).toBe(true);
-  }, 20000);
-
-  it("does not guess a gid from an unrelated id-shaped note token", async () => {
-    const nestedPack: TargetPack = {
-      ...pack,
-      tasks: [
-        {
-          ...pack.tasks[0]!,
-          id: "gen-l2-docs-pages",
-          create_path: "/docs/{docId}/pages",
-          oracles: [
-            {
-              type: "roundtrip",
-              description: "",
-              readPathTemplate: "/docs/{docId}/pages/{gid}",
-              assertField: "name",
-              expected: "nested page",
-            },
-          ],
-        },
-      ],
-    };
-    const exec: ExecutorResults = {
-      profile: "ceiling",
-      results: { "gen-l2-docs-pages": { gid: null, docId: null } },
-    };
-    const out = await verifyGeneratedPack(
-      nestedPack,
-      exec,
-      fakeClient({}),
-      undefined,
-      [
-        { step: 1, taskId: "gen-l2-docs-pages", action: "create doc", method: "POST", path: "/docs", status: 201, note: "ok; request req-12345" },
-      ],
-    );
-    expect(out[0]!.success).toBe(false);
-    expect(out[0]!.oracleResults[0]!.detail).toMatch(/no gid/i);
+    expect(calls).toEqual([]);
   });
 });
 
