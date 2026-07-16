@@ -6,6 +6,7 @@ function completeManifest() {
     benchmark: "Database Suite",
     category: "database",
     suiteVersion: 1,
+    standardSetVersion: "suite-v1",
     vendors: [
       { vendor: "acme", surfaces: ["api", "cli"] },
       { vendor: "beta", surfaces: ["api"] },
@@ -52,6 +53,7 @@ describe("buildPublicationManifest", () => {
       benchmark: "Database Suite",
       category: "database",
       suiteVersion: 1,
+      standardSetVersion: "suite-v1",
       vendors: [{ vendor: "acme", surfaces: ["api"] }],
       harnesses: ["codex", "claude-code"],
       requiredProfiles: ["medium"],
@@ -81,6 +83,7 @@ describe("buildPublicationManifest", () => {
       benchmark: "Database Suite",
       category: "database",
       suiteVersion: 1,
+      standardSetVersion: "suite-v1",
       vendors: [{ vendor: "acme", surfaces: ["api" as const] }],
       harnesses: ["codex"],
       requiredProfiles: ["medium"],

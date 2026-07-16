@@ -35,6 +35,7 @@ export interface PublicationManifest {
   benchmark: string;
   category: string;
   suite_version: number;
+  standard_set_version: string;
   generated_at: string;
   publication_readiness: "publication_ready" | "draft";
   expected_matrix: {
@@ -73,6 +74,7 @@ export function buildPublicationManifest(options: {
   benchmark: string;
   category: string;
   suiteVersion: number;
+  standardSetVersion: string;
   vendors: readonly PublicationVendorExpectation[];
   harnesses: readonly string[];
   requiredProfiles: readonly string[];
@@ -86,6 +88,7 @@ export function buildPublicationManifest(options: {
   if (!Number.isInteger(options.suiteVersion) || options.suiteVersion < 1) {
     throw new Error("suite version must be a positive integer");
   }
+  const standardSetVersion = assertArtifactSegment(options.standardSetVersion, "standard set version");
   if (!Number.isInteger(options.requiredTrialCount) || options.requiredTrialCount < 1) {
     throw new Error("required trial count must be a positive integer");
   }
@@ -186,6 +189,7 @@ export function buildPublicationManifest(options: {
     benchmark: options.benchmark,
     category: options.category,
     suite_version: options.suiteVersion,
+    standard_set_version: standardSetVersion,
     generated_at: (options.now ?? (() => new Date()))().toISOString(),
     publication_readiness: qualityGates.every((gate) => gate.status === "pass") ? "publication_ready" : "draft",
     expected_matrix: {

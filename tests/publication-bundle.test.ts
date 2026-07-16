@@ -25,6 +25,7 @@ function fixture(root: string) {
     benchmark: "Database Suite",
     category: "database",
     suiteVersion: 1,
+    standardSetVersion: "suite-v1",
     vendors: [{ vendor: "acme", surfaces: ["api"] }],
     harnesses: ["codex"],
     requiredProfiles: ["medium"],
