@@ -1,19 +1,7 @@
-/**
- * Compact OpenAPI operation inventory for seeding capability extraction.
- *
- * ax-eval's `ingest` (openapi.ts) produces an opinionated CRUD view tuned for
- * simple REST — it deliberately pairs create/read endpoints and drops anything
- * that doesn't fit that shape. For seeding the benchmark capability inventory
- * we instead want the RAW operation list (every method+path with its summary),
- * so the LLM judges the full documented surface — including non-CRUD operations
- * like backups, functions, or replication that the CRUD view discards.
- *
- * The result is a plain-text block small enough to inline in a prompt: one line
- * per operation, grouped by tag, capped so a several-hundred-operation admin
- * API doesn't blow the context window.
- */
-import { parse as yamlParse } from "yaml";
+import { parseDocument } from "yaml";
 import { fetchSpecText, type IngestOptions } from "./run.js";
+
+const HTTP_METHODS = ["get", "put", "post", "delete", "options", "head", "patch", "trace"] as const;
 
 interface OperationRow {
   method: string;
@@ -22,72 +10,103 @@ interface OperationRow {
   tag: string;
 }
 
-const HTTP_METHODS = ["get", "post", "put", "patch", "delete"] as const;
-
-function collectOperations(spec: Record<string, unknown>): OperationRow[] {
-  const paths = (spec.paths ?? {}) as Record<string, unknown>;
-  const rows: OperationRow[] = [];
-  for (const [path, itemRaw] of Object.entries(paths)) {
-    if (!itemRaw || typeof itemRaw !== "object") continue;
-    const item = itemRaw as Record<string, unknown>;
-    for (const method of HTTP_METHODS) {
-      const opRaw = item[method];
-      if (!opRaw || typeof opRaw !== "object") continue;
-      const op = opRaw as Record<string, unknown>;
-      const summary =
-        (typeof op.summary === "string" && op.summary) ||
-        (typeof op.description === "string" && op.description.split("\n")[0]) ||
-        (typeof op.operationId === "string" && op.operationId) ||
-        "";
-      const tags = Array.isArray(op.tags) ? (op.tags as unknown[]) : [];
-      const tag = typeof tags[0] === "string" ? (tags[0] as string) : "untagged";
-      rows.push({ method: method.toUpperCase(), path, summary: summary.trim().slice(0, 140), tag });
-    }
-  }
-  return rows;
-}
-
 export interface SpecSummary {
   title: string;
   source: string;
   operationCount: number;
-  /** Prompt-ready text: operations grouped by tag, capped. */
   text: string;
   truncated: boolean;
 }
 
-/** Parse OpenAPI (JSON or YAML) text into a compact operation inventory. */
-export function summarizeOpenApiText(text: string, source: string, maxOps = 150): SpecSummary {
-  let spec: Record<string, unknown>;
-  try {
-    spec = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    spec = (yamlParse(text) ?? {}) as Record<string, unknown>;
-  }
-  const info = (spec.info ?? {}) as Record<string, unknown>;
-  const title = typeof info.title === "string" ? info.title : source;
-  const rows = collectOperations(spec);
-  const truncated = rows.length > maxOps;
-  const capped = rows.slice(0, maxOps);
-
-  const byTag = new Map<string, OperationRow[]>();
-  for (const row of capped) {
-    const list = byTag.get(row.tag) ?? [];
-    list.push(row);
-    byTag.set(row.tag, list);
-  }
-  const lines: string[] = [];
-  for (const [tag, ops] of [...byTag.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    lines.push(`## ${tag}`);
-    for (const op of ops) lines.push(`- ${op.method} ${op.path}${op.summary ? ` — ${op.summary}` : ""}`);
-  }
-  if (truncated) lines.push(`… (${rows.length - maxOps} more operations omitted)`);
-
-  return { title, source, operationCount: rows.length, text: lines.join("\n"), truncated };
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-/** Fetch an OpenAPI spec URL and summarize its operations for prompt seeding.
- *  Uses ingest's fetcher (offline fixture support + timeout). */
+function singleLine(value: string, maxLength: number): string {
+  return value.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function parseSpec(text: string): Record<string, unknown> {
+  let value: unknown;
+  try {
+    value = JSON.parse(text);
+  } catch {
+    const document = parseDocument(text);
+    if (document.errors.length > 0) throw new Error("OpenAPI document is not valid JSON or YAML");
+    value = document.toJS();
+  }
+  if (!isRecord(value)) throw new Error("OpenAPI document root must be an object");
+  return value;
+}
+
+function operationSummary(operation: Record<string, unknown>): string {
+  if (typeof operation.summary === "string" && operation.summary.trim()) return singleLine(operation.summary, 140);
+  if (typeof operation.description === "string" && operation.description.trim()) return singleLine(operation.description, 140);
+  if (typeof operation.operationId === "string" && operation.operationId.trim()) return singleLine(operation.operationId, 140);
+  return "";
+}
+
+function collectOperations(spec: Record<string, unknown>): OperationRow[] {
+  if (spec.paths === undefined) return [];
+  if (!isRecord(spec.paths)) throw new Error("OpenAPI paths must be an object");
+  const rows: OperationRow[] = [];
+  for (const [rawPath, itemValue] of Object.entries(spec.paths)) {
+    if (!isRecord(itemValue)) continue;
+    const path = singleLine(rawPath, 240);
+    for (const method of HTTP_METHODS) {
+      const operation = itemValue[method];
+      if (!isRecord(operation)) continue;
+      const tags = Array.isArray(operation.tags) ? operation.tags : [];
+      const tag = typeof tags[0] === "string" && tags[0].trim()
+        ? singleLine(tags[0], 80)
+        : "untagged";
+      rows.push({ method: method.toUpperCase(), path, summary: operationSummary(operation), tag });
+    }
+  }
+  return rows.sort((left, right) =>
+    left.tag.localeCompare(right.tag)
+    || left.path.localeCompare(right.path)
+    || left.method.localeCompare(right.method));
+}
+
+export function summarizeOpenApiText(text: string, source: string, maxOperations = 150): SpecSummary {
+  if (!Number.isInteger(maxOperations) || maxOperations < 1) {
+    throw new Error("maxOperations must be a positive integer");
+  }
+  const spec = parseSpec(text);
+  const info = isRecord(spec.info) ? spec.info : {};
+  const title = typeof info.title === "string" && info.title.trim()
+    ? singleLine(info.title, 160)
+    : source;
+  const operations = collectOperations(spec);
+  const capped = operations.slice(0, maxOperations);
+  const byTag = new Map<string, OperationRow[]>();
+  for (const operation of capped) {
+    byTag.set(operation.tag, [...(byTag.get(operation.tag) ?? []), operation]);
+  }
+  const lines: string[] = [];
+  for (const [tag, taggedOperations] of byTag) {
+    lines.push(`[tag ${JSON.stringify(tag)}]`);
+    for (const operation of taggedOperations) {
+      lines.push([
+        `- method=${operation.method}`,
+        `path=${JSON.stringify(operation.path)}`,
+        ...(operation.summary ? [`summary=${JSON.stringify(operation.summary)}`] : []),
+      ].join(" "));
+    }
+  }
+  const truncated = operations.length > maxOperations;
+  if (truncated) lines.push(`… (${operations.length - maxOperations} more operations omitted)`);
+  return {
+    title,
+    source,
+    operationCount: operations.length,
+    text: lines.join("\n"),
+    truncated,
+  };
+}
+
+/** Fetch an OpenAPI document and summarize it for grounded capability extraction. */
 export async function fetchSpecSummary(url: string, opts: IngestOptions = {}): Promise<SpecSummary> {
   const { text, source } = await fetchSpecText(url, opts);
   return summarizeOpenApiText(text, source);

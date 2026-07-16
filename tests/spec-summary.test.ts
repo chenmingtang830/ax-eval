@@ -1,56 +1,70 @@
 import { describe, expect, it } from "vitest";
 import { summarizeOpenApiText } from "../src/ingest/spec-summary.js";
 
-const SPEC = JSON.stringify({
-  info: { title: "Demo Admin API" },
-  paths: {
-    "/projects": {
-      get: { summary: "List projects", tags: ["Projects"] },
-      post: { summary: "Create a project", tags: ["Projects"] },
-    },
-    "/projects/{id}/backups": {
-      post: { summary: "Create a backup", tags: ["Backups"] },
-    },
-    "/projects/{id}": {
-      delete: { operationId: "deleteProject", tags: ["Projects"] },
-    },
-  },
-});
-
 describe("summarizeOpenApiText", () => {
-  it("lists operations grouped by tag with method + path + summary", () => {
-    const s = summarizeOpenApiText(SPEC, "https://example/openapi.json");
-    expect(s.title).toBe("Demo Admin API");
-    expect(s.operationCount).toBe(4);
-    expect(s.truncated).toBe(false);
-    expect(s.text).toContain("## Backups");
-    expect(s.text).toContain("- POST /projects/{id}/backups — Create a backup");
-    expect(s.text).toContain("- GET /projects — List projects");
-    // Falls back to operationId when no summary/description.
-    expect(s.text).toContain("- DELETE /projects/{id} — deleteProject");
+  it("lists every OpenAPI HTTP method in deterministic tag/path order", () => {
+    const spec = JSON.stringify({
+      info: { title: "Demo Admin API" },
+      paths: {
+        "/z": {
+          trace: { operationId: "traceZ", tags: ["Zed"] },
+          head: { summary: "Inspect Z", tags: ["Zed"] },
+        },
+        "/projects": {
+          options: { description: "Describe\nproject options", tags: ["Projects"] },
+          get: { summary: "List projects", tags: ["Projects"] },
+          post: { summary: "Create a project", tags: ["Projects"] },
+        },
+      },
+    });
+    const summary = summarizeOpenApiText(spec, "fixture.json");
+    expect(summary.title).toBe("Demo Admin API");
+    expect(summary.operationCount).toBe(5);
+    expect(summary.text.split("\n")).toEqual([
+      "[tag \"Projects\"]",
+      "- method=GET path=\"/projects\" summary=\"List projects\"",
+      "- method=OPTIONS path=\"/projects\" summary=\"Describe project options\"",
+      "- method=POST path=\"/projects\" summary=\"Create a project\"",
+      "[tag \"Zed\"]",
+      "- method=HEAD path=\"/z\" summary=\"Inspect Z\"",
+      "- method=TRACE path=\"/z\" summary=\"traceZ\"",
+    ]);
   });
 
-  it("marks truncation and caps the operation list", () => {
-    const paths: Record<string, unknown> = {};
-    for (let i = 0; i < 10; i++) paths[`/r${i}`] = { get: { summary: `op ${i}`, tags: ["T"] } };
-    const s = summarizeOpenApiText(JSON.stringify({ paths }), "src", 5);
-    expect(s.operationCount).toBe(10);
-    expect(s.truncated).toBe(true);
-    expect(s.text).toContain("5 more operations omitted");
+  it("produces the same capped summary regardless of path insertion order", () => {
+    const first = JSON.stringify({ paths: {
+      "/b": { get: { summary: "B", tags: ["T"] } },
+      "/a": { get: { summary: "A", tags: ["T"] } },
+    } });
+    const second = JSON.stringify({ paths: {
+      "/a": { get: { summary: "A", tags: ["T"] } },
+      "/b": { get: { summary: "B", tags: ["T"] } },
+    } });
+    expect(summarizeOpenApiText(first, "src", 1)).toEqual(summarizeOpenApiText(second, "src", 1));
+    expect(summarizeOpenApiText(first, "src", 1)).toMatchObject({ operationCount: 2, truncated: true });
   });
 
-  it("parses YAML specs too", () => {
-    const yaml = [
+  it("parses YAML and sanitizes prompt-facing metadata", () => {
+    const summary = summarizeOpenApiText([
       "info:",
-      "  title: YAML API",
+      "  title: 'YAML   API'",
       "paths:",
       "  /things:",
       "    get:",
-      "      summary: list things",
-      "      tags: [Things]",
-    ].join("\n");
-    const s = summarizeOpenApiText(yaml, "src");
-    expect(s.title).toBe("YAML API");
-    expect(s.text).toContain("- GET /things — list things");
+      "      description: |",
+      "        list things",
+      "        with details",
+      "      tags: ['Things  and  Stuff']",
+    ].join("\n"), "fixture.yaml");
+    expect(summary.title).toBe("YAML API");
+    expect(summary.text).toContain("[tag \"Things and Stuff\"]");
+    expect(summary.text).toContain('summary="list things with details"');
+  });
+
+  it("rejects malformed roots, invalid paths shapes, and invalid limits", () => {
+    expect(() => summarizeOpenApiText("[1,2]", "src")).toThrow(/root must be an object/);
+    expect(() => summarizeOpenApiText("paths: []", "src")).toThrow(/paths must be an object/);
+    expect(() => summarizeOpenApiText("{ nope", "src")).toThrow(/not valid JSON or YAML/);
+    expect(() => summarizeOpenApiText("{}", "src", 0)).toThrow(/positive integer/);
   });
 });
