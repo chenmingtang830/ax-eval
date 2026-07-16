@@ -37,15 +37,30 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     expect(res.errors).toEqual([]);
   });
 
-  it("matches every probe resource when no ns is given", async () => {
-    const { client } = stubClient([
+  it("refuses destructive deletion when no namespace is given", async () => {
+    const { client, deleted } = stubClient([
       { gid: "1", name: "AX probe task ns-a" },
       { gid: "2", name: "AX probe task ns-b" },
       { gid: "3", name: "Untouched" },
     ]);
     const res = await resetPack(makePack("asana"), client, scope, {});
+    expect(res.candidates).toBe(0);
+    expect(res.deleted).toEqual([]);
+    expect(res.errors[0]).toMatch(/--ns/);
+    expect(client.get).not.toHaveBeenCalled();
+    expect(deleted).toEqual([]);
+  });
+
+  it("allows a dry-run inventory across namespaces", async () => {
+    const { client, deleted } = stubClient([
+      { gid: "1", name: "AX probe task ns-a" },
+      { gid: "2", name: "AX probe task ns-b" },
+      { gid: "3", name: "Untouched" },
+    ]);
+    const res = await resetPack(makePack("asana"), client, scope, { dryRun: true });
     expect(res.candidates).toBe(2);
     expect(res.deleted).toEqual(["1", "2"]);
+    expect(deleted).toEqual([]);
   });
 
   it("dry-run previews without calling del", async () => {
@@ -68,9 +83,52 @@ describe("resetPack (pass@k sandbox teardown)", () => {
 
   it("reports a clear error when the sandbox scope lacks a container id", async () => {
     const { client } = stubClient([]);
-    const res = await resetPack(makePack("asana"), client, {}, {});
+    const res = await resetPack(makePack("asana"), client, {}, { ns: "ns-x" });
     expect(res.supported).toBe(true);
     expect(res.candidates).toBe(0);
     expect(res.errors[0]).toMatch(/no sandbox project id/i);
+  });
+
+  it("refuses unexpectedly broad candidate sets before deleting", async () => {
+    const { client, deleted } = stubClient([
+      { gid: "1", name: "AX probe task ns-x" },
+      { gid: "2", name: "AX probe comment ns-x" },
+    ]);
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x", maxCandidates: 1 });
+    expect(res.candidates).toBe(2);
+    expect(res.deleted).toEqual([]);
+    expect(res.errors[0]).toMatch(/safety limit/);
+    expect(deleted).toEqual([]);
+  });
+
+  it("redacts credentials from deletion errors", async () => {
+    const secret = ["napi", "resetcredential123"].join("_");
+    const client: ResetClient = {
+      get: vi.fn(async () => [{ gid: "1", name: "AX probe task ns-x" }]),
+      del: vi.fn(async () => { throw new Error(`Bearer ${secret}`); }),
+    };
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x" });
+    expect(res.errors[0]).not.toContain(secret);
+    expect(res.errors[0]).toContain("[REDACTED]");
+  });
+
+  it("fails closed and redacts credentials when candidate listing fails", async () => {
+    const secret = ["napi", "listcredential123"].join("_");
+    const client: ResetClient = {
+      get: vi.fn(async () => { throw new Error(`Bearer ${secret}`); }),
+      del: vi.fn(async () => undefined),
+    };
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x" });
+    expect(res.deleted).toEqual([]);
+    expect(res.errors[0]).not.toContain(secret);
+    expect(res.errors[0]).toContain("[REDACTED]");
+    expect(client.del).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed namespaces before listing candidates", async () => {
+    const { client } = stubClient([]);
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x\nother" });
+    expect(res.errors[0]).toMatch(/namespace may contain/);
+    expect(client.get).not.toHaveBeenCalled();
   });
 });

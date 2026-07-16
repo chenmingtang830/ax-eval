@@ -172,7 +172,8 @@ Honor the effort profile: `low` does the minimum and gives up fast;
 `high` investigates prerequisites, recovers from errors, and verifies
 read-backs.
 
-Between repeated attempts on the same profile, run `ax-eval reset --pack <pack>`
+Between repeated attempts on the same profile, run
+`ax-eval reset --pack <pack> --ns <completed-run-namespace>`
 only when the user explicitly asks you to prepare the next attempt. Do not clean
 up by default: `verify` reads live product state, so deleting resources before
 the report is rendered corrupts scores.

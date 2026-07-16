@@ -1595,8 +1595,9 @@ function cmdTraceDiff(args: Parsed): number {
  * Sandbox teardown for pass@k hygiene — delete the probe resources a run left
  * behind (named `AX probe … {ns}`) so repeated live runs don't contaminate each
  * other. Target-agnostic: resolves the pack's declared sandbox scope, then a
- * per-target resetter lists + deletes. `--ns` scopes to one run; `--dry-run`
- * previews. Targets without a resetter degrade gracefully (no throw).
+ * per-target resetter lists + deletes. Destructive resets require `--ns`;
+ * `--dry-run` may omit it to inventory every probe resource. Targets without a
+ * resetter degrade gracefully (no throw).
  */
 async function cmdReset(args: Parsed): Promise<number> {
   loadDotenv();

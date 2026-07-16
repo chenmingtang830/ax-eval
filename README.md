@@ -247,7 +247,8 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
-npm run ax-eval -- reset --pack <pack.yaml> [--dry-run]
+npm run ax-eval -- reset --pack <pack.yaml> --ns <run-namespace> [--dry-run]
+# Omit --ns only with --dry-run to inventory all probe resources safely.
 
 npm run ax-eval -- audit --site <url>
 npm run ax-eval -- discover --site <url>
