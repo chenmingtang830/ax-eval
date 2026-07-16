@@ -107,6 +107,11 @@ export const TaskSchema = z
     na: z.boolean().optional(),
     /** Human-reviewable evidence summary for an explicit N/A decision. */
     na_reason: z.string().min(1).optional(),
+    /** Official documentation evidence supporting the task or N/A decision. */
+    support_evidence: z.array(z.object({
+      doc_url: z.string().url(),
+      quote: z.string().min(1),
+    })).optional(),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),

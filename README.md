@@ -149,7 +149,8 @@ The planned canonical benchmark contract will live at
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution
 artifacts, not independently authored benchmark definitions. They will be
 produced from the same suite plus vendor-specific public metadata,
-outcome-verifier checks, auth/base URLs, explicit N/A reasons, and surface configuration.
+official support evidence, outcome-verifier checks, auth/base URLs, explicit N/A
+reasons, and surface configuration.
 
 For DAEB-1/database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex and Claude Code only, one

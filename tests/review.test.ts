@@ -68,6 +68,10 @@ describe("review gate", () => {
       pack({ surfaces: { cli: { bin: "acme", install: "npm install -g acme" } } }),
       pack({ tasks: [{ ...original.tasks[0], na: true }] }),
       pack({ tasks: [{ ...original.tasks[0], na: true, na_reason: "Unsupported by official docs." }] }),
+      pack({ tasks: [{
+        ...original.tasks[0],
+        support_evidence: [{ doc_url: "https://docs.example.test/things", quote: "Create things." }],
+      }] }),
       pack({ tasks: [{ ...original.tasks[0], depends_on: ["setup"] }] }),
       pack({ tasks: [{ ...original.tasks[0], trace: [{ type: "required_call", path: "/things" }] }] }),
     ];
@@ -117,6 +121,19 @@ describe("review gate", () => {
     expect(md).toContain("X-API-Version: 2026-01-01");
     expect(md).toContain("MCP (http)");
     expect(md).toContain("https://mcp.example.test");
+  });
+
+  it("shows official task support evidence", () => {
+    const md = reviewSummary(pack({
+      tasks: [{
+        id: "create-thing",
+        prompt: "Create it",
+        support_evidence: [{ doc_url: "https://docs.example.test/things", quote: "Create things." }],
+        oracles: [],
+      }],
+    }));
+    expect(md).toContain("https://docs.example.test/things");
+    expect(md).toContain("Create things.");
   });
 
   it("does not describe stateless packs as write operations", () => {

@@ -66,6 +66,7 @@ function reviewableContent(pack: TargetPack): unknown {
       allowed_surfaces: t.allowed_surfaces,
       na: t.na,
       na_reason: t.na_reason ?? null,
+      support_evidence: t.support_evidence ?? [],
       create_path: t.create_path ?? null,
       create_envelope: t.create_envelope ?? null,
       depends_on: t.depends_on,
@@ -323,6 +324,9 @@ export function reviewSummary(pack: TargetPack): string {
     lines.push(`### [${t.difficulty}] ${t.id}`);
     lines.push(`surfaces: \`${t.allowed_surfaces.join(", ") || "any"}\``);
     if (t.na) lines.push(`N/A: ${t.na_reason ?? "no reason recorded"}`);
+    for (const evidence of t.support_evidence ?? []) {
+      lines.push(`evidence: \`${evidence.doc_url}\` — ${evidence.quote}`);
+    }
     lines.push("```");
     lines.push(t.prompt.trim());
     lines.push("```");
