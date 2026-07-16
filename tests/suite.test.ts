@@ -2,7 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
+import { loadOptionalSuitePath, loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
 
 function writeSuite(content: string): string {
   const dir = mkdtempSync(join(tmpdir(), "ax-suite-"));
@@ -38,6 +38,12 @@ describe("canonical suite contracts", () => {
   it("rejects empty and duplicate task sets", () => {
     expect(() => loadSuite(writeSuite("name: Empty\nversion: 1\ncategory: database\ntasks: []\n"))).toThrow(/at least 1/);
     expect(() => loadSuite(writeSuite(`${validSuite}\n  - id: db-create\n    title: Duplicate\n    difficulty: L1\n    skill: data-write\n    intent: Duplicate record.\n    oracle_hint: Read it.\n`))).toThrow(/duplicate task id/);
+  });
+
+  it("loads optional suite paths with validated missing-file semantics", () => {
+    const path = writeSuite(validSuite);
+    expect(loadOptionalSuitePath(path)).toEqual(loadSuite(path));
+    expect(loadOptionalSuitePath(`${path}.missing`)).toBeNull();
   });
 
   it("reports missing, extra, duplicate, and divergent pack tasks", () => {

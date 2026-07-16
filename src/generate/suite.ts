@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { parse as yamlParse } from "yaml";
 import { z } from "zod";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { SuiteMethodologySchema } from "./suite-methodology.js";
 
 const SuiteTaskSchema = z.object({
@@ -57,6 +58,10 @@ export function loadSuite(path: string): Suite {
     );
   }
   return result.data;
+}
+
+export function loadOptionalSuitePath(path: string): Suite | null {
+  return loadOptionalYamlArtifact(path, SuiteSchema, "suite");
 }
 
 export function suitePromptFragment(suite: Suite): string {

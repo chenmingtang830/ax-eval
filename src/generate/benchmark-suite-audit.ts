@@ -1,8 +1,7 @@
-import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import type { BenchmarkLayout } from "./benchmark-paths.js";
 import { loadCoverageSelectionPath } from "./coverage.js";
 import { auditSuite, type SuiteAuditFinding } from "./suite-audit.js";
-import { SuiteSchema } from "./suite.js";
+import { loadOptionalSuitePath } from "./suite.js";
 
 export type BenchmarkSuiteArtifact = "suite" | "coverage-selection";
 
@@ -26,7 +25,7 @@ export function auditBenchmarkSuite(layout: BenchmarkLayout): BenchmarkSuiteAudi
     suite: layout.suite_path,
     "coverage-selection": layout.suite_coverage_selection_path,
   };
-  const suite = loadOptionalYamlArtifact(artifactPaths.suite, SuiteSchema, "suite");
+  const suite = loadOptionalSuitePath(artifactPaths.suite);
   const selection = loadCoverageSelectionPath(artifactPaths["coverage-selection"]);
   const loaded = { suite, "coverage-selection": selection };
   const missing = (Object.keys(artifactPaths) as BenchmarkSuiteArtifact[])

@@ -9,7 +9,7 @@ import {
 } from "./benchmark-paths.js";
 import { parsePackComposeConfig, type PackComposeConfig } from "./pack-compose-config.js";
 import { auditComposedPack, type PackAuditFinding } from "./pack-audit.js";
-import { SuiteSchema } from "./suite.js";
+import { loadOptionalSuitePath } from "./suite.js";
 import { loadSurfaceExtractPath } from "./surface-extract.js";
 import { loadTaskExtractPath } from "./task-extract.js";
 import { loadVendorCardPath } from "./vendor-resolve.js";
@@ -52,7 +52,7 @@ export function auditBenchmarkPack(
     "task-extract": benchmarkOraclesPath(layout, slug),
     "composed-pack": benchmarkCompiledPackPath(layout, slug),
   };
-  const suite = loadOptionalYamlArtifact(artifactPaths.suite, SuiteSchema, "suite");
+  const suite = loadOptionalSuitePath(artifactPaths.suite);
   const vendor = loadVendorCardPath(artifactPaths["vendor-card"]);
   const surfaces = loadSurfaceExtractPath(artifactPaths["surface-extract"]);
   const tasks = loadTaskExtractPath(artifactPaths["task-extract"]);

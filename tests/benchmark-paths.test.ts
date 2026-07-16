@@ -24,7 +24,9 @@ describe("benchmark paths", () => {
       packs_dir: resolve("/repo", "benchmarks", "daeb", "v1", "packs"),
       archive_dir: resolve("/repo", "benchmarks", "daeb", "_archive"),
       suite_path: resolve("/repo", "benchmarks", "daeb", "v1", "suite.yaml"),
+      suite_concept_universe_path: resolve("/repo", "benchmarks", "daeb", "v1", "suite.concepts.yaml"),
       suite_coverage_selection_path: resolve("/repo", "benchmarks", "daeb", "v1", "suite.selection.yaml"),
+      suite_coverage_matrix_path: resolve("/repo", "benchmarks", "daeb", "v1", "suite.coverage.yaml"),
       vendor_selection_ledger_path: resolve("/repo", "benchmarks", "daeb", "v1", "vendor-selection-ledger.yaml"),
     });
   });

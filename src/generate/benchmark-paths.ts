@@ -12,7 +12,9 @@ export interface BenchmarkLayout {
   packs_dir: string;
   archive_dir: string;
   suite_path: string;
+  suite_concept_universe_path: string;
   suite_coverage_selection_path: string;
+  suite_coverage_matrix_path: string;
   vendor_selection_ledger_path: string;
 }
 
@@ -32,7 +34,9 @@ export function buildBenchmarkLayout(root: string, benchmark: string, version: s
     packs_dir: resolve(versionDir, "packs"),
     archive_dir: resolve(benchmarkDir, "_archive"),
     suite_path: resolve(versionDir, "suite.yaml"),
+    suite_concept_universe_path: resolve(versionDir, "suite.concepts.yaml"),
     suite_coverage_selection_path: resolve(versionDir, "suite.selection.yaml"),
+    suite_coverage_matrix_path: resolve(versionDir, "suite.coverage.yaml"),
     vendor_selection_ledger_path: resolve(versionDir, "vendor-selection-ledger.yaml"),
   };
 }
