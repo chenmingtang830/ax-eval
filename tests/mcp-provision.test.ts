@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -53,7 +53,58 @@ function pack(): TargetPack {
   });
 }
 
+function tursoCliPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "turso",
+    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
+    base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
+    surfaces: {
+      cli: {
+        bin: "turso",
+        install: "Install the official Turso CLI from the Turso CLI documentation.",
+        help: "turso --help",
+        docs_url: "https://docs.turso.tech/cli",
+        auth: {
+          kind: "token",
+          token_env: "TURSO_DATABASE_AUTH_TOKEN",
+          token_env_aliases: [],
+        },
+      },
+    },
+    tasks: [
+      {
+        id: "t1",
+        prompt: "Run one CLI task.",
+        allowed_surfaces: ["cli"],
+        oracles: [{ type: "roundtrip", readPathTemplate: "/v2/pipeline", assertField: "results.0", expected: "x" }],
+      },
+    ],
+  });
+}
+
 describe("provisionHarnessForSurface", () => {
+  it("writes an isolated no-MCP Codex home for non-MCP surfaces", async () => {
+    const dir = freshDir();
+    const paths = defaultInvokePaths(dir, "codex-low-api", "codex");
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "codex",
+      surface: "api",
+      paths,
+      cwd: "/repo",
+    });
+
+    expect(provisioning.env.HOME).toContain(".invoke-home");
+    expect(provisioning.env.CODEX_HOME).toBe(resolve(provisioning.env.HOME!, ".codex"));
+    expect(provisioning.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
+
+    const config = resolve(provisioning.env.CODEX_HOME!, "config.toml");
+    expect(existsSync(config)).toBe(true);
+    const text = readFileSync(config, "utf8");
+    expect(text).toContain("mcp_servers = {}");
+    expect(text).not.toContain("[mcp_servers.");
+  });
+
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
     const dir = freshDir();
     process.env.ASANA_MCP_CLIENT_ID = "client-id";
@@ -143,5 +194,36 @@ describe("provisionHarnessForSurface", () => {
     const settings = resolve(provisioning.env.HOME!, ".claude/settings.json");
     expect(existsSync(settings)).toBe(true);
     expect(readFileSync(settings, "utf8")).toContain('"defaultMode": "bypassPermissions"');
+  });
+
+  it("injects a shared preinstalled Turso CLI into non-MCP CLI surfaces", async () => {
+    const dir = freshDir();
+    const paths = defaultInvokePaths(dir, "claude-low-cli", "claude-code");
+    const sharedHome = resolve(dir, ".invoke-home", "turso-cli-shared");
+    const sharedBin = resolve(sharedHome, ".turso");
+    mkdirSync(sharedBin, { recursive: true });
+    writeFileSync(resolve(sharedBin, "turso"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
+
+    const claudeProvisioning = await provisionHarnessForSurface({
+      pack: tursoCliPack(),
+      harness: "claude-code",
+      surface: "cli",
+      paths,
+      cwd: "/repo",
+    });
+    expect(claudeProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
+    expect(claudeProvisioning.meta?.shared_cli_home).toBe(sharedHome);
+
+    const codexPaths = defaultInvokePaths(dir, "codex-low-cli", "codex");
+    const codexProvisioning = await provisionHarnessForSurface({
+      pack: tursoCliPack(),
+      harness: "codex",
+      surface: "cli",
+      paths: codexPaths,
+      cwd: "/repo",
+    });
+    expect(codexProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
+    expect(codexProvisioning.env.HOME).toContain(".invoke-home");
+    expect(codexProvisioning.meta?.shared_cli_binary).toBe(resolve(sharedBin, "turso"));
   });
 });

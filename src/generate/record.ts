@@ -52,6 +52,38 @@ export interface NormalizedResult {
    *  harness output). Lets `competitive` compare the same product/surface across
    *  models. null when no run stamped a model (older records). */
   model: string | null;
+  /** Efficiency diagnostics for the best profile. These are explanatory only:
+   *  correctness is still governed by deterministic outcome graders. */
+  latency_ms?: number | null;
+  tool_call_count?: number | null;
+  token_usage?: Record<string, number> | null;
+  token_cost?: number | null;
+  /** Runtime validity diagnostics are explanatory only. They separate harness
+   *  runtime issues (for example, no-action timeouts) from vendor capability. */
+  validity_status?: string | null;
+  first_action_latency_ms?: number | null;
+  transcript_event_count?: number | null;
+  action_occurred?: boolean | null;
+  summary_kind?: "single" | "aggregate";
+  trial_count?: number;
+  trial_values?: number[];
+  mean_pass_rate?: number;
+  range_pass_rate?: { min: number; max: number };
+  /** Anthropic-style reliability estimate: mean per-trial success rate raised
+   *  to k trials. For three production trials, pass_hat_3 = mean^3. */
+  pass_hat_3?: number | null;
+  /** Fraction of scored tasks that passed in every production trial. This uses
+   *  per-task verifier snapshots and is therefore only available for aggregate
+   *  records whose producer supplied task-level consistency evidence. */
+  task_consistency_at_3?: number | null;
+  /** Legacy strict reliability field: 1 only when every trial was 100%.
+   *  Kept for backward compatibility; prefer pass_hat_3 or
+   *  task_consistency_at_3 for publication narrative. */
+  pass_all_3?: number | null;
+  /** Coarse three-trial stability bucket for publication narrative:
+   *  all_pass / all_fail / inconsistent. Null when trial_count !== 3. */
+  trial_stability_at_3?: "all_pass" | "all_fail" | "inconsistent" | null;
+  source_records?: string[];
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
    *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
@@ -71,10 +103,12 @@ function firstAttempts(outcomes: RoundtripOutcome[]): RoundtripOutcome[] {
   return out;
 }
 
-/** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k). */
+/** Solved-on-any-attempt count + max attempts observed (pass@k numerator / k).
+ *  N/A tasks (per DAEB methodology) are excluded from both solved and tasks. */
 function passAtK(outcomes: RoundtripOutcome[]): { solved: number; tasks: number; k: number } {
   const byTask = new Map<string, RoundtripOutcome[]>();
   for (const o of outcomes) {
+    if (o.na) continue;
     const list = byTask.get(o.taskId) ?? [];
     list.push(o);
     byTask.set(o.taskId, list);
@@ -98,7 +132,8 @@ export function discoveryScore(report: DiscoveryReport | undefined): number | nu
 }
 
 function passRateOf(outcomes: RoundtripOutcome[]): number {
-  return outcomes.length ? outcomes.filter((o) => o.success).length / outcomes.length : 0;
+  const scored = outcomes.filter((o) => !o.na);
+  return scored.length ? scored.filter((o) => o.success).length / scored.length : 0;
 }
 
 /** The strongest profile run (highest first-attempt pass rate), or null. */
@@ -149,11 +184,108 @@ export function buildNormalizedResult(
     profiles: runs.map((r) => r.profile),
     best_profile: best?.profile ?? null,
     model: best?.model ?? null,
+    latency_ms: best?.efficiency?.latency_ms ?? null,
+    tool_call_count: best?.efficiency?.tool_call_count ?? null,
+    token_usage: best?.efficiency?.token_usage ?? null,
+    token_cost: best?.efficiency?.token_cost ?? null,
+    validity_status: best?.efficiency?.validity_status ?? null,
+    first_action_latency_ms: best?.efficiency?.first_action_latency_ms ?? null,
+    transcript_event_count: best?.efficiency?.transcript_event_count ?? null,
+    action_occurred: best?.efficiency?.action_occurred ?? null,
+    summary_kind: "single",
   };
 }
 
-function cellKey(run: ProfileRun): string {
-  return `${run.harness ?? "unknown"}\0${run.surface ?? "api"}`;
+function average(values: number[]): number | null {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function range(values: number[]): { min: number; max: number } | null {
+  return values.length ? { min: Math.min(...values), max: Math.max(...values) } : null;
+}
+
+function averageTokenUsage(records: NormalizedResult[]): Record<string, number> | null {
+  const totals = new Map<string, { sum: number; count: number }>();
+  for (const record of records) {
+    if (!record.token_usage) continue;
+    for (const [key, value] of Object.entries(record.token_usage)) {
+      if (typeof value !== "number" || !Number.isFinite(value)) continue;
+      const bucket = totals.get(key) ?? { sum: 0, count: 0 };
+      bucket.sum += value;
+      bucket.count += 1;
+      totals.set(key, bucket);
+    }
+  }
+  if (!totals.size) return null;
+  return Object.fromEntries([...totals.entries()].map(([key, bucket]) => [key, bucket.sum / bucket.count]));
+}
+
+export function aggregateNormalizedResults(
+  records: NormalizedResult[],
+  sourceRecords: string[] = [],
+): NormalizedResult {
+  if (records.length === 0) throw new Error("aggregateNormalizedResults requires at least one trial record.");
+  const first = records[0]!;
+  const passValues = records.map((record) => record.pass_at_1);
+  const latencies = records.flatMap((record) => typeof record.latency_ms === "number" ? [record.latency_ms] : []);
+  const toolCalls = records.flatMap((record) => typeof record.tool_call_count === "number" ? [record.tool_call_count] : []);
+  const tokenCosts = records.flatMap((record) => typeof record.token_cost === "number" ? [record.token_cost] : []);
+  const firstActionLatencies = records.flatMap((record) =>
+    typeof record.first_action_latency_ms === "number" ? [record.first_action_latency_ms] : []);
+  const transcriptEvents = records.flatMap((record) =>
+    typeof record.transcript_event_count === "number" ? [record.transcript_event_count] : []);
+  const meanPassRate = average(passValues) ?? 0;
+  const passRange = range(passValues) ?? { min: 0, max: 0 };
+  const attempts = Math.max(...records.map((record) => record.attempts || 1));
+  const validities = [...new Set(records.map((record) => record.validity_status).filter((value): value is string => Boolean(value)))];
+  const models = [...new Set(records.map((record) => record.model).filter((value): value is string => Boolean(value)))];
+  return {
+    ...first,
+    generated_at: new Date().toISOString(),
+    tasks_passed: Math.round(meanPassRate * first.tasks_total),
+    pass_at_1: meanPassRate,
+    pass_at_k: average(records.map((record) => record.pass_at_k)) ?? meanPassRate,
+    attempts,
+    discovery_score: average(records.flatMap((record) => record.discovery_score === null ? [] : [record.discovery_score])),
+    content_quality: average(records.flatMap((record) => record.content_quality === null ? [] : [record.content_quality])),
+    profiles: [...new Set(records.flatMap((record) => record.profiles))],
+    best_profile: first.best_profile,
+    model: models.length === 1 ? models[0]! : (first.model ?? null),
+    latency_ms: average(latencies),
+    tool_call_count: average(toolCalls),
+    token_usage: averageTokenUsage(records),
+    token_cost: average(tokenCosts),
+    validity_status: validities.length === 1 ? validities[0] : validities.join(","),
+    first_action_latency_ms: average(firstActionLatencies),
+    transcript_event_count: average(transcriptEvents),
+    action_occurred: records.some((record) => record.action_occurred === true),
+    summary_kind: "aggregate",
+    trial_count: records.length,
+    trial_values: passValues,
+    mean_pass_rate: meanPassRate,
+    range_pass_rate: passRange,
+    pass_hat_3: records.length === 3 ? meanPassRate ** 3 : null,
+    task_consistency_at_3: null,
+    pass_all_3: records.length === 3 ? (records.every((record) => record.pass_at_1 >= 1) ? 1 : 0) : null,
+    trial_stability_at_3: classifyTrialStabilityAt3(passValues),
+    source_records: sourceRecords,
+  };
+}
+
+/** Classify three trial pass rates into all_pass / all_fail / inconsistent. */
+export function classifyTrialStabilityAt3(
+  trialPassRates: number[],
+): "all_pass" | "all_fail" | "inconsistent" | null {
+  if (trialPassRates.length !== 3) return null;
+  const allPass = trialPassRates.every((rate) => rate >= 1);
+  const allFail = trialPassRates.every((rate) => rate <= 0);
+  if (allPass) return "all_pass";
+  if (allFail) return "all_fail";
+  return "inconsistent";
+}
+
+function cellKey(run: ProfileRun, fallbackHarness: string): string {
+  return `${run.harness ?? fallbackHarness}\0${run.surface ?? "api"}`;
 }
 
 function cellFileStem(value: string): string {
@@ -179,7 +311,7 @@ export function buildNormalizedResultCells(
 ): NormalizedResultCell[] {
   const grouped = new Map<string, ProfileRun[]>();
   for (const run of runs) {
-    const key = cellKey(run);
+    const key = cellKey(run, fallbackHarness);
     grouped.set(key, [...(grouped.get(key) ?? []), run]);
   }
   return [...grouped.values()].map((cellRuns) => {
@@ -225,6 +357,15 @@ export function buildBlockedResult(
     profiles: [],
     best_profile: null,
     model: null,
+    latency_ms: null,
+    tool_call_count: null,
+    token_usage: null,
+    token_cost: null,
+    validity_status: null,
+    first_action_latency_ms: null,
+    transcript_event_count: null,
+    action_occurred: null,
+    summary_kind: "single",
     blocked,
   };
 }

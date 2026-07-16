@@ -43,11 +43,17 @@ export interface TraceStep {
   note?: string;
 }
 
-/** Resolve a per-execution namespace: <genVersion>-<profile>-<shortRand>. */
-export function resolveNs(runId: string, profile: string): string {
-  const rand = Math.random().toString(36).slice(2, 6);
+/** Resolve a per-execution namespace.
+ *
+ * By default the suffix is a short random token, so concurrent runs with the
+ * same label don't collide. When `trial` is provided the suffix is
+ * deterministic (`t${trial}`), making each production trial use a distinct,
+ * reproducible namespace and preventing cross-trial sandbox pollution.
+ */
+export function resolveNs(runId: string, profile: string, trial?: number): string {
+  const suffix = trial !== undefined ? `t${trial}` : Math.random().toString(36).slice(2, 6);
   const base = (runId || "gen").replace(/[^a-z0-9-]/gi, "");
-  return `${base}-${profile}-${rand}`;
+  return `${base}-${profile}-${suffix}`;
 }
 
 /** Substitute {ns} everywhere in a string. */
@@ -55,69 +61,129 @@ export function applyNs(text: string, ns: string): string {
   return text.split(NS_PLACEHOLDER).join(ns);
 }
 
-function taskResultKeys(task: Task): string[] {
-  const keys = new Set<string>(["gid"]);
-  const scan = (template: string | undefined) => {
-    if (!template) return;
-    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
-      const key = match[1];
-      if (key && key !== "gid") keys.add(key);
-    }
-  };
-  scan(task.create_path);
-  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
-  return [...keys];
-}
-
-function taskResultShape(task: Task): string {
-  const fields = taskResultKeys(task)
-    .map((key) => `"${key}": "<${key} or null>"`)
-    .join(", ");
-  return `      "${task.id}": {${fields}}`;
-}
-
+// Native harness effort knobs do most of the work (codex:
+// model_reasoning_effort; Claude Code: --effort). The prompt still names the
+// intended behavior so transcripts are interpretable, but the wording stays
+// moderate to avoid double-encoding effort as hidden task hints.
 const EFFORT_BLOCK: Record<HarnessProfile["effort"], string> = {
   low:
-    "You are a LOW-EFFORT agent. In discovery, do the bare minimum search and stop " +
-    "at the first plausible answer. In execution, do the minimum literal steps each " +
-    "task names; do NOT investigate prerequisites, inspect responses beyond grabbing " +
-    "the id, or verify results. If a call errors, make at most ONE quick retry, then " +
-    "record that task as failed (gid null) and move on.",
+    "Work at a normal, unhurried pace: it's fine to go with the first reasonable approach " +
+    "you find rather than cross-checking alternatives, and a light sanity check on results " +
+    "is enough — you don't need to exhaustively verify every detail.",
   medium:
-    "You are a MEDIUM-EFFORT agent. Take reasonable steps to discover the API and to " +
-    "complete each task, with a light sanity check, but don't exhaustively investigate.",
+    "Take reasonable steps to discover the API and complete each task, with a light sanity " +
+    "check, but don't exhaustively investigate.",
   high:
-    "You are a HIGH-EFFORT agent. Discover thoroughly (confirm the base URL, the current " +
-    "endpoints, the auth scheme, and any prerequisites like a required workspace field). " +
-    "In execution, inspect responses, recover from errors by fixing and retrying, and " +
-    "verify each result reads back.",
+    "Take extra care: confirm the base URL, current endpoints, auth scheme, and any " +
+    "prerequisites before acting, inspect responses as you go, recover from errors by " +
+    "fixing and retrying, and verify each result reads back before moving on.",
 };
 
 /** Per-task instruction. Goal-level — the endpoint is whatever Phase 0 found. */
+/** Named fields an oracle check needs the agent to self-report, beyond `gid` —
+ *  e.g. Supabase's vector-search check needs `rpc_function_name` because
+ *  PostgREST can't order by vector distance itself, so the agent must wrap it
+ *  in a Postgres function; that requirement is invisible to the agent unless
+ *  surfaced explicitly, since it's vendor-specific verification plumbing the
+ *  shared, vendor-agnostic task prompt text has no reason to mention. */
+export function namedFieldsFor(task: Task): string[] {
+  const names = new Set<string>();
+  const placeholderRe = /\{([a-z][a-z0-9_]*)\}/g;
+  const collect = (value: unknown) => {
+    if (typeof value === "string") {
+      for (const m of value.matchAll(placeholderRe)) {
+        const name = m[1];
+        if (name && name !== "ns" && name !== "gid") names.add(name);
+      }
+      return;
+    }
+    if (Array.isArray(value)) {
+      for (const entry of value) collect(entry);
+      return;
+    }
+    if (value !== null && typeof value === "object") {
+      for (const entry of Object.values(value as Record<string, unknown>)) collect(entry);
+    }
+  };
+  for (const oracle of task.oracles) {
+    if (oracle.authField) names.add(oracle.authField);
+    if (oracle.sqlConnField) names.add(oracle.sqlConnField);
+    if (oracle.sqlRoleField) names.add(oracle.sqlRoleField);
+    for (const text of [oracle.readPathTemplate, oracle.sqlQuery]) {
+      if (!text) continue;
+      for (const m of text.matchAll(placeholderRe)) {
+        const name = m[1];
+        if (name && name !== "ns" && name !== "gid") names.add(name);
+      }
+    }
+    collect(oracle.readBodyTemplate);
+    collect(oracle.mongoQuery);
+  }
+  return [...names];
+}
+
 function taskLine(task: Task, ns: string): string {
-  return `- ${task.id} [${task.difficulty}]: ${applyNs(task.prompt, ns).trim()}`;
+  const base = `- ${task.id} [${task.difficulty}]: ${applyNs(task.prompt, ns).trim()}`;
+  const extra = namedFieldsFor(task);
+  if (!extra.length) return base;
+  return `${base}\n  (also self-report, alongside gid: ${extra.map((n) => `\`${n}\``).join(", ")})`;
+}
+
+function envTemplateNames(text: string): string[] {
+  return [...new Set([...text.matchAll(/\$\{([A-Z0-9_]+)\}/g)].map((match) => match[1]).filter((name): name is string => Boolean(name)))];
+}
+
+function surfaceCredentialEnvNames(pack: TargetPack): string[] {
+  const names = new Set<string>();
+  for (const surface of Object.values(pack.surfaces ?? {})) {
+    const auth = surface?.auth;
+    if (!auth) continue;
+    if (auth.kind === "token" && auth.token_env) names.add(auth.token_env);
+    if (auth.kind === "oauth_app") {
+      if (auth.client_id_env) names.add(auth.client_id_env);
+      if (auth.refresh_token_env) names.add(auth.refresh_token_env);
+    }
+  }
+  return [...names].filter((name) => name !== pack.auth?.env);
 }
 
 /** Tell the agent which .env vars hold the credential + sandbox scope. Derived
  *  from the pack's declarations (target-agnostic); falls back to the legacy Asana
- *  vars when a pack predates the `auth`/`sandbox_scope` blocks. */
+ *  vars only for Asana packs that predate the `auth`/`sandbox_scope` blocks. */
 function credentialBlock(pack: TargetPack): string[] {
   const lines: string[] = [];
   if (!pack.auth?.env && pack.sandbox_scope.length === 0) {
-    lines.push(
-      `Read .env for ASANA_PAT, ASANA_SANDBOX_PROJECT_GID, and ASANA_SANDBOX_WORKSPACE_GID`,
-      `(use the leading numeric portion of each).`,
-    );
+    if (/asana/i.test(pack.name)) {
+      lines.push(
+        `Use process.env.ASANA_PAT, process.env.ASANA_SANDBOX_PROJECT_GID, and process.env.ASANA_SANDBOX_WORKSPACE_GID`,
+        `(use the leading numeric portion of each scope value).`,
+      );
+    } else {
+      lines.push(`No credential env var is declared by this pack; do not assume product-specific default credentials.`);
+    }
     return lines;
   }
   const authVar = pack.auth?.env || "the credential var";
-  lines.push(`Read .env for the credential ${authVar}.`);
+  lines.push(`Use process.env.${authVar} for the credential.`);
+  const templateVars = envTemplateNames(pack.base_url);
+  if (templateVars.length) {
+    lines.push(`Use process.env for non-secret endpoint/context variable(s): ${templateVars.join(", ")}; use these values literally when constructing hosts or URLs.`);
+  }
+  const surfaceCreds = surfaceCredentialEnvNames(pack);
+  if (surfaceCreds.length) {
+    lines.push(`Other declared sandbox credential env var(s), if the docs require them for this surface: ${surfaceCreds.join(", ")}.`);
+  }
+  if (pack.mongo_conn?.database) {
+    lines.push(`Use MongoDB database name "${pack.mongo_conn.database}" for MongoDB data-plane work.`);
+  }
   for (const p of pack.sandbox_scope) {
     const req = p.required ? "" : " (optional)";
     const note = p.instructions ? ` — ${p.instructions}` : "";
-    lines.push(`Read .env for ${p.env}${req} = the sandbox ${p.name}${note}`);
+    lines.push(`Use process.env.${p.env}${req} = the sandbox ${p.name}${note}`);
   }
-  lines.push(`Use the leading numeric/id portion of each scope value if it's pasted as a URL.`);
+  if (pack.sandbox_scope.length) {
+    lines.push(`For sandbox scope vars only, use the leading numeric/id portion if the value is pasted as a URL; do not split endpoint/context vars such as host, org, project-ref, or database names.`);
+  }
   return lines;
 }
 
@@ -131,45 +197,121 @@ export interface BuildPromptOptions {
   /** Which surface the agent must operate the product through. Defaults to the
    *  API surface, whose prompt is identical to the original hard-coded flow. */
   surface?: Surface;
+  /** Optional explicit task subset for task-level execution mode. Defaults to
+   *  every task eligible on the selected surface. */
+  tasks?: Task[];
+  /** Optional shared discovery/bootstrap context for task-level execution. When
+   *  present, the prompt should reuse the prior cell bootstrap instead of
+   *  rerunning full cold-start discovery for every task. */
+  sharedDiscovery?: {
+    path: string;
+    base_url_found?: string;
+    endpoint_used?: string;
+    auth_scheme_found?: string;
+    searches?: string[];
+    urls_visited?: string[];
+    notes?: string;
+  };
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
 export function buildExecutorPrompt(opts: BuildPromptOptions): string {
   const { pack, profile, ns, resultsPath, tracePath } = opts;
   const surface = opts.surface ?? apiSurface;
-  const tasks = tasksForSurface(pack, surface.id);
-  const ids = tasks.map((t) => t.id);
-  const resultsShape = tasks.map((task) => taskResultShape(task)).join(",\n");
+  const tasks = opts.tasks ?? tasksForSurface(pack, surface.id);
+  const sharedDiscovery = opts.sharedDiscovery;
+  const resultsShape = tasks.map((task) => {
+    const fields = ["\"gid\": \"<gid or null>\"", ...namedFieldsFor(task).map((field) => `"${field}": "<value or null>"`)];
+    return `      "${task.id}": {${fields.join(", ")}}`;
+  }).join(",\n");
+  const effortLabel = `${profile.effort.toUpperCase()}-EFFORT`;
+  const taskScope = tasks.length === 0
+    ? "shared bootstrap only"
+    : tasks.length === 1
+      ? "THIS ONE TASK"
+      : "ALL tasks";
+  const completionLine = tasks.length === 0
+    ? "When done, report the shared discovery/bootstrap you established for this cell."
+    : tasks.length === 1
+      ? `When done, report whether the task succeeded or failed and the id.`
+      : `When done, report which tasks succeeded/failed and the ids.`;
+  const phase0Block = sharedDiscovery
+    ? [
+        `=== PHASE 0 — SHARED BOOTSTRAP (already completed for this cell) ===`,
+        `A prior bootstrap run already established the baseline discovery for this ${surface.subject}.`,
+        `Reuse that shared discovery instead of repeating the full cold-start workflow unless it proves unusable.`,
+        `Shared bootstrap artifact: ${sharedDiscovery.path}`,
+        `- base_url_found: ${sharedDiscovery.base_url_found ?? "<unknown>"}`,
+        `- endpoint_used: ${sharedDiscovery.endpoint_used ?? "<unknown>"}`,
+        `- auth_scheme_found: ${sharedDiscovery.auth_scheme_found ?? "<unknown>"}`,
+        `- searches: ${(sharedDiscovery.searches ?? []).join(" | ") || "<none recorded>"}`,
+        `- urls_visited: ${(sharedDiscovery.urls_visited ?? []).join(" | ") || "<none recorded>"}`,
+        `- notes: ${sharedDiscovery.notes ?? "<none>"}`,
+        `Only do extra discovery if the shared bootstrap is missing, stale, or insufficient for this task.`,
+        `If you do additional discovery, append the real extra searches/URLs you used to the output discovery object instead of inventing a fresh cold-start funnel.`,
+      ]
+    : [
+        `=== PHASE 0 — DISCOVERY (cold start, scored) ===`,
+        `Before doing ANY task, work out how to use ${pack.name}'s ${surface.subject}. You are NOT given the`,
+        `base URL, any endpoint, the request/response shape, or a documentation link.`,
+        ...surface.discoveryBlock(pack),
+      ];
+  const phase1Block = tasks.length === 0
+    ? [
+        `=== PHASE 1 — SHARED BOOTSTRAP OUTPUT ===`,
+        `There is no canonical task in this bootstrap run. Only complete shared discovery/bootstrap and write an empty "results" object.`,
+      ]
+    : [
+        `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
+        ...tasks.map((t) => taskLine(t, ns)),
+      ];
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
     `from a cold start. Work in the repo root.`,
     ``,
-    `=== PROFILE: "${profile.name}" (effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
+    `=== PROFILE: "${profile.name}" (${effortLabel}, effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
     EFFORT_BLOCK[profile.effort],
-    `Budget: at most ~${profile.maxTurns} ${surface.actionUnit} total across discovery + ALL tasks.`,
+    `Budget: at most ~${profile.maxTurns} ${surface.actionUnit} total across discovery + ${taskScope}.`,
     ``,
     `=== CREDENTIALS (the "where", not the "how") ===`,
+    `The harness has already loaded declared .env values into the child process environment.`,
     ...credentialBlock(pack),
+    `Secret hygiene is mandatory: never print, cat, grep, rg, echo, or include .env contents or secret values in stdout, trace, notes, or results.`,
+    `Do not use file-reading tools to open .env. In scripts, read only the specific process.env names you need, use them silently, and report only env-var NAMES or redacted placeholders such as <token>.`,
     `The token is provided, but you must still DISCOVER how to authenticate with it and`,
     `what the base URL / endpoints are (Phase 0).`,
     ``,
     ...surface.setupBlock(pack),
-    ...surface.discoveryBlock(pack),
+    ...phase0Block,
     `=== NAMESPACE ===`,
     `Every task name below already has the namespace "${ns}" substituted in. Create resources`,
     `with EXACTLY those names — do not change them.`,
+    `Do not delete, reset, overwrite, or mutate pre-existing resources that were not created in this run.`,
+    `If a quota or sandbox limit blocks a task, record that task as failed instead of cleaning up unrelated resources.`,
     ``,
-    `=== PHASE 1 — TASKS (use ONLY what you discovered in Phase 0) ===`,
-    ...tasks.map((t) => taskLine(t, ns)),
+    ...phase1Block,
     ``,
-    `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
-    `id). If the results shape shows extra context ids (for example a parent doc or table id),`,
-    `report those too. If a task truly fails, record gid as null and leave any extra ids null.`,
-    `If a create/mutate call succeeds and returns an id but immediate read-back is temporarily unavailable`,
-    `(for example 202/404/409 during async processing), still record the created id and any context ids`,
-    `from the successful response or trace rather than dropping them to null.`,
+    ...(tasks.length
+      ? [`Treat tasks as independent best-effort attempts: if one task fails, record that task's gid as null, log the failure, and continue with the remaining tasks instead of aborting the whole run.`]
+      : [`Do not create benchmark resources in this bootstrap run beyond whatever minimal discovery/bootstrap setup is required to learn the documented path.`]),
     ``,
+    ...(tasks.length
+      ? [
+          `For each task capture the created resource's id (for the L2 child task, report the CHILD`,
+          `id). If a task truly fails, record gid as null.`,
+          ``,
+          `Some tasks need more than just "gid" reported to be verifiable — e.g. a second identity/credential (row-`,
+          `level access control needs two signed-in users' tokens to demonstrate isolation between them), or a`,
+          `specific value only you determine while doing the task (e.g. the id of a particular row you're using to`,
+          `test something, or the exact duplicate value you attempted). Whenever a task's instructions imply this,`,
+          `report each such extra value as an EXTRA key alongside that task's "gid" in your results JSON — e.g.`,
+          `{"gid": "<created row id>", "user_a_token": "<user A's signed-in token>", "user_b_token": "<user B's`,
+          `signed-in token>", "test_row_id": "<a specific row's id>"}. Use short, descriptive key names; these are`,
+          `read back by the verifier.`,
+          ``,
+        ]
+      : []),
     `=== OBSERVABILITY (required) ===`,
     `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
     `[{"step":1,"taskId":"<id or 'discovery'>","action":"create task","method":"POST","path":"/tasks","status":201,"note":"ok"}, ...]`,
@@ -196,6 +338,6 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ``,
     `Honesty matters: the discovery funnel is scored, so record your real searches/URLs.`,
     `${surface.actionGuidance(pack)} Do not edit any files other than ${resultsPath} and ${tracePath}.`,
-    `When done, report which tasks succeeded/failed and the ids.`,
+    completionLine,
   ].join("\n");
 }

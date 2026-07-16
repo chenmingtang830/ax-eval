@@ -1,9 +1,99 @@
-import { describe, it, expect, vi } from "vitest";
+import { beforeEach, describe, it, expect, vi } from "vitest";
 import { resetPack, type ResetClient } from "../src/target/reset.js";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 
+const mongoMock = vi.hoisted(() => ({
+  collections: [] as Array<{ name: string; indexes?: Array<{ name: string }> }>,
+  droppedCollections: [] as string[],
+  droppedIndexes: [] as string[],
+}));
+
+const pgMock = vi.hoisted(() => ({
+  tableRows: [] as Array<{ table_name: string }>,
+  functionRows: [] as Array<{ proname: string; identity_arguments: string }>,
+  executed: [] as string[],
+  rejectCascade: false,
+  rejectFunctionCascade: false,
+}));
+
+vi.mock("mongodb", () => ({
+  MongoClient: class {
+    constructor(readonly connectionString: string) {}
+    async connect() {}
+    async close() {}
+    db(database: string) {
+      return {
+        listCollections: () => ({
+          toArray: async () => mongoMock.collections.map((collection) => ({ name: collection.name })),
+        }),
+        collection: (collectionName: string) => {
+          const collection = mongoMock.collections.find((entry) => entry.name === collectionName);
+          return {
+            listSearchIndexes: () => ({
+              toArray: async () => collection?.indexes ?? [],
+            }),
+            dropSearchIndex: async (indexName: string) => {
+              mongoMock.droppedIndexes.push(`${database}.${collectionName}/searchIndex/${indexName}`);
+            },
+            drop: async () => {
+              mongoMock.droppedCollections.push(`${database}.${collectionName}`);
+            },
+          };
+        },
+      };
+    }
+  },
+}));
+
+vi.mock("pg", () => ({
+  Client: class {
+    constructor(readonly opts: { connectionString: string }) {}
+    async connect() {}
+    async end() {}
+    async query(sql: string) {
+      if (sql.includes("information_schema.tables")) return { rows: pgMock.tableRows };
+      if (sql.includes("pg_proc")) return { rows: pgMock.functionRows };
+      pgMock.executed.push(sql);
+      if (pgMock.rejectCascade && sql.includes("DROP TABLE") && sql.includes("CASCADE")) {
+        throw new Error("DROP CASCADE is not supported");
+      }
+      if (pgMock.rejectFunctionCascade && sql.includes("DROP FUNCTION") && sql.includes("CASCADE")) {
+        throw new Error("unimplemented: drop function cascade not supported");
+      }
+      return { rows: [] };
+    }
+  },
+}));
+
 function makePack(name: string): TargetPack {
   return TargetPackSchema.parse({ name, base_url: "https://api.test", tasks: [] });
+}
+
+function makeMongoPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "mongodb-atlas",
+    base_url: "https://cloud.mongodb.com",
+    mongo_conn: { connection_string_env: "ATLAS_CONNECTION_STRING", database: "axarena_eval" },
+    tasks: [],
+  });
+}
+
+function makePostgresPack(name = "neon"): TargetPack {
+  return TargetPackSchema.parse({
+    name,
+    base_url: "https://api.test",
+    sql_conn: { dialect: "postgres", connection_string_env: "POSTGRES_TEST_URL" },
+    tasks: [],
+  });
+}
+
+function makeTursoPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "turso",
+    base_url: "https://example.turso.io",
+    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
+    tasks: [],
+  });
 }
 
 /** Stub the get/del slice the resetter uses; record delete calls. */
@@ -20,6 +110,19 @@ function stubClient(tasks: Array<{ gid?: string; name?: string }>) {
 
 describe("resetPack (pass@k sandbox teardown)", () => {
   const scope = { project_gid: "PROJ1" };
+
+  beforeEach(() => {
+    delete process.env.ATLAS_CONNECTION_STRING;
+    delete process.env.POSTGRES_TEST_URL;
+    mongoMock.collections = [];
+    mongoMock.droppedCollections = [];
+    mongoMock.droppedIndexes = [];
+    pgMock.tableRows = [];
+    pgMock.functionRows = [];
+    pgMock.executed = [];
+  pgMock.rejectCascade = false;
+  pgMock.rejectFunctionCascade = false;
+  });
 
   it("deletes only AX-probe resources in the named namespace", async () => {
     const { client, deleted } = stubClient([
@@ -72,5 +175,140 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     expect(res.supported).toBe(true);
     expect(res.candidates).toBe(0);
     expect(res.errors[0]).toMatch(/no sandbox project id/i);
+  });
+
+  it("dry-runs MongoDB Atlas eval collections and search indexes only", async () => {
+    process.env.ATLAS_CONNECTION_STRING = "mongodb+srv://user:pass@example.test";
+    mongoMock.collections = [
+      { name: "axarena_vectors_ns-keep", indexes: [{ name: "axarena_vector_index_ns-keep" }, { name: "user_index" }] },
+      { name: "axarena_vectors_ns-other", indexes: [{ name: "axarena_vector_index_ns-other" }] },
+      { name: "customer_data", indexes: [{ name: "axarena_vector_index_ns-keep" }] },
+    ];
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makeMongoPack(), client, {}, { ns: "ns-keep", dryRun: true });
+
+    expect(res.supported).toBe(true);
+    expect(res.errors).toEqual([]);
+    expect(res.deleted.sort()).toEqual([
+      "axarena_eval.axarena_vectors_ns-keep",
+      "axarena_eval.axarena_vectors_ns-keep/searchIndex/axarena_vector_index_ns-keep",
+    ]);
+    expect(res.candidates).toBe(2);
+    expect(mongoMock.droppedCollections).toEqual([]);
+    expect(mongoMock.droppedIndexes).toEqual([]);
+  });
+
+  it("drops MongoDB Atlas eval collections and matching search indexes", async () => {
+    process.env.ATLAS_CONNECTION_STRING = "mongodb+srv://user:pass@example.test";
+    mongoMock.collections = [
+      { name: "axarena_vectors_ns-keep", indexes: [{ name: "axarena_vector_index_ns-keep" }] },
+    ];
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makeMongoPack(), client, {}, { ns: "ns-keep" });
+
+    expect(res.deleted.sort()).toEqual([
+      "axarena_eval.axarena_vectors_ns-keep",
+      "axarena_eval.axarena_vectors_ns-keep/searchIndex/axarena_vector_index_ns-keep",
+    ]);
+    expect(mongoMock.droppedIndexes).toEqual([
+      "axarena_eval.axarena_vectors_ns-keep/searchIndex/axarena_vector_index_ns-keep",
+    ]);
+    expect(mongoMock.droppedCollections).toEqual(["axarena_eval.axarena_vectors_ns-keep"]);
+  });
+
+  it("dry-runs postgres eval tables and routines through the generic sql resetter", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.tableRows = [
+      { table_name: "axarena_acl_ns-keep" },
+      { table_name: "axarena_acl_ns-other" },
+    ];
+    pgMock.functionRows = [
+      { proname: "axarena_echo_ns-keep", identity_arguments: "" },
+      { proname: "axarena_echo_ns-other", identity_arguments: "text" },
+    ];
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("neon"), client, {}, { ns: "ns-keep", dryRun: true });
+
+    expect(res.supported).toBe(true);
+    expect(res.errors).toEqual([]);
+    expect(res.deleted.sort()).toEqual([
+      "public.axarena_acl_ns-keep",
+      "public.axarena_echo_ns-keep()",
+    ]);
+    expect(pgMock.executed).toEqual([]);
+  });
+
+  it("drops postgres eval tables and routines through the generic sql resetter", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.tableRows = [{ table_name: "axarena_acl_ns-keep" }];
+    pgMock.functionRows = [{ proname: "axarena_echo_ns-keep", identity_arguments: "" }];
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("cockroachdb"), client, {}, { ns: "ns-keep" });
+
+    expect(res.supported).toBe(true);
+    expect(res.deleted).toEqual([
+      "public.axarena_acl_ns-keep",
+      "public.axarena_echo_ns-keep()",
+    ]);
+    expect(pgMock.executed).toEqual([
+      'DROP TABLE IF EXISTS "public"."axarena_acl_ns-keep" CASCADE',
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"() CASCADE',
+    ]);
+  });
+
+  it("retries table reset without CASCADE when the database rejects it", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.tableRows = [{ table_name: "axarena_smoke_ns-keep" }];
+    pgMock.rejectCascade = true;
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("nile"), client, {}, { ns: "ns-keep" });
+
+    expect(res.errors).toEqual([]);
+    expect(res.deleted).toEqual(["public.axarena_smoke_ns-keep"]);
+    expect(pgMock.executed).toEqual([
+      'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep" CASCADE',
+      'DROP TABLE IF EXISTS "public"."axarena_smoke_ns-keep"',
+    ]);
+  });
+
+  it("retries function reset without CASCADE when the database rejects it", async () => {
+    process.env.POSTGRES_TEST_URL = "postgres://user:pass@example.test/db";
+    pgMock.functionRows = [{ proname: "axarena_echo_ns-keep", identity_arguments: "" }];
+    pgMock.rejectFunctionCascade = true;
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makePostgresPack("cockroachdb"), client, {}, { ns: "ns-keep" });
+
+    expect(res.errors).toEqual([]);
+    expect(res.deleted).toEqual(["public.axarena_echo_ns-keep()"]);
+    expect(pgMock.executed).toEqual([
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"() CASCADE',
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"()',
+    ]);
+  });
+
+  it("resets namespaced Turso tables through the documented pipeline endpoint", async () => {
+    process.env.TURSO_DATABASE_AUTH_TOKEN = "test-token";
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [{ response: { result: { rows: [[{ value: "axarena_smoke_ns-keep" }], [{ value: "axarena_other" }]] } } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const { client } = stubClient([]);
+
+    const res = await resetPack(makeTursoPack(), client, {}, { ns: "ns-keep" });
+
+    expect(res.supported).toBe(true);
+    expect(res.deleted).toEqual(["axarena_smoke_ns-keep"]);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const dropBody = JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body));
+    expect(dropBody.requests[0].stmt.sql).toBe('DROP TABLE IF EXISTS "axarena_smoke_ns-keep"');
+    vi.unstubAllGlobals();
   });
 });

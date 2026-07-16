@@ -55,11 +55,27 @@ shape.
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
-  rule-derived seed. Product presets can add hints for the authoring pass, but
-  the validator still owns schema fidelity and minimum surface coverage; failed
-  drafts get one repair pass before surfacing an error. `generate --deterministic`
-  is the keyless fixture path. Both paths must produce schema-valid packs, and
-  neither path replaces human review.
+  rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
+  paths must produce schema-valid packs, and neither path replaces human review.
+- **DAEB-1 draft iterations stay v1.** Before human **publication** freeze,
+  re-synthesis overwrites the same v1 suite; git SHAs and content hashes identify
+  exact draft states and invalidate stale approvals. Do not increment the suite
+  version for authoring iterations or publish benchmark-of-record results from an
+  unfrozen draft. **Current status:** authoring freeze is done for the 6-vendor
+  core cohort (packs approved; trace review completed); production 3-trial and
+  publication freeze are deferred until after team review.
+- **Freeze the vendor cohort before task outcomes.** The DAEB vendor-selection
+  ledger records core, research, and excluded candidates using managed-sandbox,
+  headless-auth, benchmark-surface, and product-stratum criteria. Only core
+  vendors affect synthesis and production order.
+- **Concept coverage is not task applicability.** DAEB coverage artifacts retain
+  ranked capability candidates and same-surface capability bundles. A support
+  cell may be enabled only when its bundle satisfies every concrete task
+  requirement; never promote the first broad concept match directly into the
+  denominator.
+- **Trace review is a real freeze gate.** Re-synthesis resets the memo to
+  `pending`; mark it complete only after reviewing the full fixed sample and
+  recording sample IDs, reviewer, timestamp, commit SHA, and findings.
 
 ## Adding a new target
 
@@ -88,7 +104,9 @@ Two details matter for public packs:
 
 Also note that `profile` and `surface` are different axes: the pack declares
 which product surfaces exist, while harness profiles vary execution settings
-(effort/model/autonomy). Do not use profiles to smuggle in or hide surfaces.
+(effort/model/autonomy). New live runs use the single `medium` effort profile;
+legacy low/high artifacts remain readable. Do not use profiles to smuggle in or
+hide surfaces.
 
 ## Pull requests
 

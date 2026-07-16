@@ -1,0 +1,26 @@
+# DAEB v1 clean-rerun matrix contract (local results/ only — not publication data).
+# Invoke with an explicit --run-dir so dated roots stay reproducible:
+#   results/runs/daeb-v1-YYYYMMDD
+schema: ax.daeb-run-matrix/v1
+suite: benchmarks/daeb/v1/suite.yaml
+benchmark: DAEB-1
+suite_version: 1
+surface_scope:
+  - api
+  - cli
+harnesses:
+  - codex
+  - claude-code
+effort: medium
+trials: 3
+vendors:
+  - neon
+  - cockroachdb
+  - turso
+  - supabase
+  - insforge
+  - nile
+notes:
+  - Runtime artifacts stay under results/ (gitignored).
+  - Prefer daeb-production-rerun --suite benchmarks/daeb/v1/suite.yaml --run-dir results/runs/daeb-v1-YYYYMMDD.
+  - SDK/MCP are out of v1 scoring scope.

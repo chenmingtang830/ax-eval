@@ -13,7 +13,8 @@ export interface IngestOptions {
   timeoutMs?: number;
 }
 
-/** Map a spec URL to a bundled fixture filename (host_path flattened). */
+/** Map a spec URL to a bundled fixture filename (host_path flattened). Returns
+ *  the path only if a URL-specific fixture exists; no generic fallback. */
 function fixtureFor(url: string): string | null {
   try {
     const u = new URL(url);
@@ -23,14 +24,13 @@ function fixtureFor(url: string): string | null {
   } catch {
     /* ignore */
   }
-  // Generic local fallback used by the demo/tests.
-  const demo = resolve(FIXTURE_DIR, "asana.com_openapi.json");
-  return existsSync(demo) ? demo : null;
+  return null;
 }
 
-/** Fetch raw spec text (live, with offline fixture fallback). Returns the text
- *  plus its provenance so callers can parse it however they need (ingest into a
- *  CRUD model, or run the content-quality smell audit on the raw document). */
+/** Fetch raw spec text. Live mode fetches the URL and errors loudly on
+ *  failure — we used to silently fall back to a generic Asana demo fixture
+ *  on live-fetch failure, which masked broken URLs as successful ingests.
+ *  Offline mode reads only a URL-specific fixture and errors if none exists. */
 export async function fetchSpecText(
   url: string,
   opts: IngestOptions = {},
@@ -39,18 +39,21 @@ export async function fetchSpecText(
     return { text: readFileSync(url, "utf8"), source: url };
   }
   if (!opts.offline) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
+    let res: Response;
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
-      const res = await fetch(url, { signal: controller.signal });
+      res = await fetch(url, { signal: controller.signal });
+    } catch (err) {
       clearTimeout(timer);
-      if (res.ok) return { text: await res.text(), source: url };
-    } catch {
-      /* fall through to fixture */
+      throw new Error(`fetch ${url} failed: ${err instanceof Error ? err.message : String(err)}`);
     }
+    clearTimeout(timer);
+    if (!res.ok) throw new Error(`fetch ${url} returned ${res.status} ${res.statusText}`);
+    return { text: await res.text(), source: url };
   }
   const fx = fixtureFor(url);
-  if (!fx) throw new Error(`could not fetch ${url} and no fixture available`);
+  if (!fx) throw new Error(`offline mode: no fixture for ${url} under ${FIXTURE_DIR}`);
   return { text: readFileSync(fx, "utf8"), source: `fixture:${fx}` };
 }
 

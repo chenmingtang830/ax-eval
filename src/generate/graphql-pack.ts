@@ -7,11 +7,6 @@
 import type { IngestedGraphqlRich } from "../ingest/graphql.js";
 import type { Auth, OracleSpec, ScopeParam, Task, TargetPack } from "../schemas.js";
 import { newRunId, probeValue } from "./pack.js";
-import {
-  declaredTaskAllowedSurfaces,
-  taskAllowedSurfacesForResources,
-  type SurfaceTaskPolicies,
-} from "./surface-policy.js";
 
 export const GRAPHQL_GENERATED_BY = "deterministic@graphql-pack";
 
@@ -36,7 +31,6 @@ export interface GenerateGraphqlPackOptions {
   sandboxScope?: ScopeParam[];
   headers?: Record<string, string>;
   surfaces?: TargetPack["surfaces"];
-  surfaceTaskPolicies?: SurfaceTaskPolicies;
 }
 
 interface DerivedGraphqlOracle {
@@ -311,6 +305,34 @@ const GRAPHQL_L3_PROMPTS = [
     `Someone says: "I need \\"${val}\\" tracked in this workspace today." Decide what to create, create it with the GraphQL API you discovered, and report the created id.`,
 ] as const;
 
+function taskAllowedSurfaces(surfaces: TargetPack["surfaces"] | undefined): string[] {
+  const allowed = ["docs", "api"];
+  if (surfaces?.cli) allowed.push("cli");
+  if (surfaces?.sdk) allowed.push("sdk");
+  if (surfaces?.mcp) allowed.push("mcp");
+  return allowed;
+}
+
+function withoutSurface(allowed: string[], surface: "cli" | "sdk" | "mcp"): string[] {
+  return allowed.filter((id) => id !== surface);
+}
+
+function hasLinearMcpLifecycleCoverage(resource: GraphqlResource): boolean {
+  return /^(issue|comment|document)$/i.test(resource.label);
+}
+
+function lifecycleAllowedSurfaces(
+  resource: GraphqlResource,
+  product: string,
+  surfaces: TargetPack["surfaces"] | undefined,
+): string[] {
+  let allowed = taskAllowedSurfaces(surfaces);
+  if (/^linear$/i.test(product) && surfaces?.mcp && !hasLinearMcpLifecycleCoverage(resource)) {
+    allowed = withoutSurface(allowed, "mcp");
+  }
+  return allowed;
+}
+
 function graphqlGoalRank(resource: GraphqlResource): number {
   const key = resourceKey(resource);
   if (/task|issue|todo/i.test(key)) return 100;
@@ -326,6 +348,7 @@ function graphqlL3Task(resource: GraphqlResource, index: number, allowedSurfaces
     difficulty: "L3",
     prompt: GRAPHQL_L3_PROMPTS[index % GRAPHQL_L3_PROMPTS.length]!(val),
     allowed_surfaces: allowedSurfaces,
+    na: false,
     depends_on: [],
     trace: [],
     oracles: [graphqlOracle(resource.oracle, val)],
@@ -402,6 +425,7 @@ export function generateGraphqlPack(
     );
   }
 
+  const product = opts.product ?? opts.packName;
   const baseUrl = opts.baseUrl ?? (/^https?:\/\//.test(schema.source) ? schema.source : "");
   if (!baseUrl) {
     throw new Error("GraphQL pack generation needs a base URL. Ingest a live endpoint or pass --base-url <graphql-endpoint>.");
@@ -412,8 +436,7 @@ export function generateGraphqlPack(
   const l3Limit = opts.l3Limit ?? 1;
   const l4Limit = opts.l4Limit ?? 3;
   const targetTaskCount = opts.targetTaskCount;
-  const product = opts.product ?? opts.packName;
-  const allowedSurfaces = declaredTaskAllowedSurfaces(opts.surfaces);
+  const allowedSurfaces = taskAllowedSurfaces(opts.surfaces);
   const resources = buildResources(schema, Math.max(limit, l2Limit, l3Limit, l4Limit, targetTaskCount ?? 10, 10));
   const simpleAll = resources.filter((r) => !isStrongDependencyChain(r));
   const simple = simpleAll.slice(0, limit);
@@ -434,12 +457,8 @@ export function generateGraphqlPack(
       prompt:
         `Create one ${res.label} ${valuePrompt(res.identityField, expected)} using the GraphQL API you discovered. ` +
         `Report the created id.`,
-      allowed_surfaces: taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "simple",
-        [res.label],
-      ),
+      allowed_surfaces: allowedSurfaces,
+    na: false,
       depends_on: [],
       trace: [],
       oracles: [graphqlOracle(res.oracle, expected)],
@@ -464,12 +483,8 @@ export function generateGraphqlPack(
       prompt:
         `First create ${indefiniteArticle(parent.label)} ${parent.label}. Then, using its id, ` +
         `create ${indefiniteArticle(child.label)} ${child.label} ${valuePrompt(child.identityField, childVal)}. Report both ids.`,
-      allowed_surfaces: taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "nested",
-        [parent.label, child.label],
-      ),
+      allowed_surfaces: allowedSurfaces,
+    na: false,
       depends_on: [parent.label],
       trace: [],
       oracles: [graphqlOracle(child.oracle, childVal)],
@@ -480,18 +495,7 @@ export function generateGraphqlPack(
   const l3Candidates = simpleAll
     .filter(isL3Eligible)
     .sort((a, b) => graphqlGoalRank(b) - graphqlGoalRank(a) || a.label.localeCompare(b.label));
-  const l3Pool = l3Candidates.map((resource, index) =>
-    graphqlL3Task(
-      resource,
-      index,
-      taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "goal",
-        [resource.label],
-      ),
-    )
-  );
+  const l3Pool = l3Candidates.map((resource, index) => graphqlL3Task(resource, index, allowedSurfaces));
 
   // L4 — generic lifecycle: create then update/rename the same resource, derived
   // from update-like mutations whose input accepts id + identity field.
@@ -500,12 +504,7 @@ export function generateGraphqlPack(
   for (const res of lifecycle) {
     const before = probeValue(`${res.label}-pre`);
     const after = probeValue(`${res.label}-renamed`);
-    const allowedLifecycleSurfaces = taskAllowedSurfacesForResources(
-      allowedSurfaces,
-      opts.surfaceTaskPolicies,
-      "lifecycle",
-      [res.label],
-    );
+    const allowedLifecycleSurfaces = lifecycleAllowedSurfaces(res, product, opts.surfaces);
     l4Pool.push({
       id: `gen-gql-l4-${slugPart(res.label)}-lifecycle`,
       title: `L4: full lifecycle — create then rename ${indefiniteArticle(res.label)} ${res.label}`,
@@ -514,6 +513,7 @@ export function generateGraphqlPack(
         `Create one ${res.label} ${valuePrompt(res.identityField, before)} using the GraphQL API you discovered, then ` +
         `update that same ${res.label} so its ${res.identityField} is "${after}". Report its id.`,
       allowed_surfaces: allowedLifecycleSurfaces,
+      na: false,
       depends_on: [],
       trace: [],
       oracles: [graphqlOracle(res.oracle, after)],

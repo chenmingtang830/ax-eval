@@ -22,12 +22,6 @@
 import { stringify as yamlStringify } from "yaml";
 import type { IngestedSpec, CrudResource } from "../ingest/openapi.js";
 import type { Auth, GeneratorProvenance, OracleSpec, ScopeParam, Task, TargetPack } from "../schemas.js";
-import {
-  declaredTaskAllowedSurfaces,
-  taskAllowedSurfacesForOperation,
-  taskAllowedSurfacesForResources,
-  type SurfaceTaskPolicies,
-} from "./surface-policy.js";
 
 export const GENERATED_BY = "deterministic@no-model";
 
@@ -170,14 +164,6 @@ export interface GenerateOptions {
   headers?: Record<string, string>;
   /** Non-API surfaces exposed by this product (SDK/MCP/CLI). */
   surfaces?: TargetPack["surfaces"];
-  /** Optional per-surface task coverage shaping. */
-  surfaceTaskPolicies?: SurfaceTaskPolicies;
-  /** Additional fully-authored tasks to append after rule-derived generation. */
-  curatedTasks?: Task[];
-  /** Resource names to omit from generic deterministic task generation. Useful
-   *  when a product exposes a path structurally shaped like CRUD but it is a
-   *  poor eval target without product-specific curation. */
-  excludeResources?: string[];
   /** POST-only / stateless operation tasks for APIs that don't expose CRUD
    *  resources for their core value path (e.g. search/content APIs). */
   operationTasks?: OperationTaskTemplate[];
@@ -282,10 +268,6 @@ function orderByPreference<T extends { name: string }>(items: T[], prefer: strin
   return [...items].sort((a, b) => rank(a.name) - rank(b.name) || a.name.localeCompare(b.name));
 }
 
-function isActionLikeResource(res: CrudResource): boolean {
-  return res.name.toLowerCase() === "export" || /\/exports?(?:\/|$)/i.test(res.createPath);
-}
-
 const REST_L3_PROMPTS = [
   (val: string) =>
     `A teammate messages you: "Please add \\"${val}\\" to my to-do list in this workspace so I don't forget to do it." Work out what to create to satisfy this and create it. Report the id of the item you created.`,
@@ -307,7 +289,6 @@ function restL3Task(
   env: string | null,
   assertField: string,
   index: number,
-  allowedSurfaces: string[],
 ): Task {
   const val = probeValue(`${res.name}-goal-${index + 1}`);
   return {
@@ -315,7 +296,8 @@ function restL3Task(
     title: `L3: ambiguous goal-level — ${singularize(res.name)}`,
     difficulty: "L3",
     prompt: REST_L3_PROMPTS[index % REST_L3_PROMPTS.length]!(val),
-    allowed_surfaces: allowedSurfaces,
+    allowed_surfaces: ["api", "docs"],
+    na: false,
     create_path: res.createPath,
     create_envelope: spec.requestEnvelope ?? undefined,
     depends_on: [],
@@ -344,19 +326,16 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   const runId = opts.runId ?? newRunId();
   const env = spec.responseEnvelope;
   const overrides = opts.identityOverrides ?? {};
-  const allowedSurfaces = declaredTaskAllowedSurfaces(opts.surfaces);
-  const excludedResources = new Set((opts.excludeResources ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean));
   /** Read-back identity field for a resource (override → ingest default). */
   const idField = (res: CrudResource): string => overrides[res.name] ?? res.identityField;
-  const generatableResources = spec.resources.filter((res) => !isActionLikeResource(res) && !excludedResources.has(res.name.toLowerCase()));
-  const simpleAll = generatableResources.filter(isSimple);
+  const simpleAll = spec.resources.filter(isSimple);
   const simpleNames = new Set(simpleAll.map((r) => r.name));
   const simpleOrdered = orderByPreference(simpleAll, prefer);
   const simple = simpleOrdered.slice(0, limit);
   // Composed chains: only genuinely-nested resources (no simple create of the
   // same name), so we don't pick a team-scoped duplicate of a top-level create.
   const composed = orderByPreference(
-    generatableResources.filter(
+    spec.resources.filter(
       (r) => !isSimple(r) && r.dependsOn.length > 0 && !simpleNames.has(r.name),
     ),
     prefer,
@@ -372,12 +351,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       prompt:
         `Create one ${res.name} named "${val}" in the sandbox workspace, using the ` +
         `API you discovered. Report the created id.`,
-      allowed_surfaces: taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "simple",
-        [res.name],
-      ),
+      allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -404,12 +379,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       prompt:
         `First create a ${parent.name}. Then, using its id, create a ${chain.name} ` +
         `under it named "${childVal}". Report both ids.`,
-      allowed_surfaces: taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "nested",
-        [parent.name, chain.name],
-      ),
+      allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: chain.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [parent.name],
@@ -424,21 +395,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // NOT named; the agent must infer that a to-do item ("task") satisfies it. The
   // oracle still reads back a concrete resource, so scoring stays programmatic.
   const l3Candidates = [...simpleOrdered].sort((a, b) => restGoalRank(b) - restGoalRank(a) || a.name.localeCompare(b.name));
-  const l3Pool = l3Candidates.map((res, index) =>
-    restL3Task(
-      res,
-      spec,
-      env,
-      idField(res),
-      index,
-      taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "goal",
-        [res.name],
-      ),
-    )
-  );
+  const l3Pool = l3Candidates.map((res, index) => restL3Task(res, spec, env, idField(res), index));
 
   // L4 (generic) — full create→update→read-back lifecycle, derived from the spec
   // (no authoring). For each top simple resource whose item path exposes an
@@ -460,12 +417,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       prompt:
         `Create one ${res.name} named "${before}" in the sandbox workspace, then ` +
         `update that same ${res.name} so its ${idField(res)} is "${after}". Report its id.`,
-      allowed_surfaces: taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "lifecycle",
-        [res.name],
-      ),
+      allowed_surfaces: ["api", "docs"],
+    na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -490,12 +443,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       title: tmpl.title,
       difficulty: "L4",
       prompt: tmpl.prompt.replace(/\{val\}/g, val),
-      allowed_surfaces: tmpl.allowedSurfaces ?? taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "lifecycle",
-        [tmpl.resource],
-      ),
+      allowed_surfaces: tmpl.allowedSurfaces ?? ["api", "docs"],
+      na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -522,7 +471,6 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   const tasks: Task[] = [...selectedL1, ...selectedL2, ...selectedL3, ...selectedL4];
 
   let usedOperationTasks = false;
-  let usedCuratedTasks = false;
   for (const tmpl of opts.operationTasks ?? []) {
     usedOperationTasks = true;
     tasks.push({
@@ -530,11 +478,8 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       title: tmpl.title,
       difficulty: tmpl.difficulty,
       prompt: tmpl.prompt,
-      allowed_surfaces: taskAllowedSurfacesForOperation(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        tmpl.id,
-      ),
+      allowed_surfaces: ["api", "docs"],
+    na: false,
       depends_on: [],
       trace: tmpl.trace ?? [
         { type: "required_call", method: "POST", path: "/search", description: "operate the documented search endpoint" },
@@ -552,17 +497,6 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
           ...(tmpl.matchMode ? { matchMode: tmpl.matchMode } : {}),
         },
       ],
-    });
-  }
-
-  for (const task of opts.curatedTasks ?? []) {
-    usedCuratedTasks = true;
-    tasks.push({
-      ...task,
-      title: task.title ?? task.id,
-      allowed_surfaces: task.allowed_surfaces.length ? task.allowed_surfaces : allowedSurfaces,
-      depends_on: task.depends_on ?? [],
-      trace: task.trace ?? [],
     });
   }
 
@@ -613,7 +547,6 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
     generated_by: opts.generatedBy ?? [
       GENERATED_BY,
       usedL4 ? "l4-curated" : "",
-      usedCuratedTasks ? "task-curated" : "",
       usedOperationTasks ? "operation-curated" : "",
     ].filter(Boolean).join("+"),
     generator: opts.generator,
