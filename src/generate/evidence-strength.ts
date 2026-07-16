@@ -5,6 +5,20 @@ export type EvidenceStrength =
   | "derived_from_connection_surface"
   | "inferred";
 
+export const EVIDENCE_STRENGTHS: readonly EvidenceStrength[] = [
+  "direct",
+  "summary_index",
+  "marketing_claim",
+  "derived_from_connection_surface",
+  "inferred",
+];
+
+const EVIDENCE_STRENGTH_SET = new Set<string>(EVIDENCE_STRENGTHS);
+
+export function isEvidenceStrength(value: unknown): value is EvidenceStrength {
+  return typeof value === "string" && EVIDENCE_STRENGTH_SET.has(value);
+}
+
 export interface EvidenceStrengthInput {
   doc_url: string;
   quote: string;
@@ -31,14 +45,6 @@ const SQL_STATEMENT = /\b(?:CREATE\s+(?:TABLE|DATABASE|SCHEMA|INDEX|ROLE|USER)|A
 const SDK_CALL = /\b(?:insertOne|insertMany|findOne|find|updateOne|updateMany|deleteOne|deleteMany|bulkWrite|aggregate|watch|createCollection)\s*\(/;
 const CONNECTION_SURFACE = /\b(?:connection[-_\s]?string|connection\s+uri|wire\s+protocol|sql\s+surface|postgres(?:ql)?-compatible|mongodb\s+driver)\b/i;
 const CONNECTION_CONTEXT = /\b(?:cluster|connection|deployment|database|project|driver)\b/i;
-const EVIDENCE_STRENGTHS = new Set<EvidenceStrength>([
-  "direct",
-  "summary_index",
-  "marketing_claim",
-  "derived_from_connection_surface",
-  "inferred",
-]);
-
 function urlPath(value: string): string {
   try {
     return new URL(value).pathname.toLowerCase().replace(/\/+$/, "") || "/";
@@ -76,7 +82,7 @@ export function recommendEvidenceStrength(input: EvidenceStrengthInput): Evidenc
   if (input.note !== undefined && typeof input.note !== "string") {
     throw new Error("evidence strength note must be a string");
   }
-  if (input.declared_strength !== undefined && !EVIDENCE_STRENGTHS.has(input.declared_strength)) {
+  if (input.declared_strength !== undefined && !isEvidenceStrength(input.declared_strength)) {
     throw new Error("evidence declared_strength is invalid");
   }
   const result = recommendation(input);
