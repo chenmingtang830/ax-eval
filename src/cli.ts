@@ -31,7 +31,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { parse as yamlParse } from "yaml";
 import { availableHarnesses } from "./adapters/registry.js";
@@ -74,7 +74,14 @@ import { runGeneratorHarness } from "./generate/authoring.js";
 import { resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
 import { writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
 import { extractCapabilitiesBatch, parseCapabilitySpecMappings } from "./generate/capability-extract-batch.js";
+import { parseSelectedMappings } from "./generate/selected-mapping.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
+import {
+  loadRegistryAuthoringSeedPath,
+  MAX_REGISTRY_SOURCE_BYTES,
+  mapRegistryAuthoringSeedText,
+  writeRegistryAuthoringSeed,
+} from "./ingest/registry-seed.js";
 import { extractTasks, writeTaskExtract, loadTaskExtract } from "./generate/task-extract.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { loadSuite, validatePackAgainstSuite } from "./generate/suite.js";
@@ -155,6 +162,7 @@ const COMMANDS = [
   "reset",
   "automate-report",
   "resolve-vendor",
+  "map-registry-seed",
   "extract-capabilities",
   "extract-surfaces",
   "synthesize-suite",
@@ -211,6 +219,12 @@ function commandUsage(command: string | undefined): string {
       ].join("\n");
     case "resolve-vendor":
       return "usage: ax-eval resolve-vendor --vendors <name,...> --category <category> [generator flags]";
+    case "map-registry-seed":
+      return [
+        "usage: ax-eval map-registry-seed --from <registry.json|yaml> --vendor <slug>",
+        "  Maps a local third-party registry document into a sanitized, review-required",
+        "  seed at targets/seeds/<slug>/registry.yaml. Makes no network calls.",
+      ].join("\n");
     case "extract-capabilities":
       return [
         "usage: ax-eval extract-capabilities --vendors <slug,...> [generator flags]",
@@ -220,7 +234,11 @@ function commandUsage(command: string | undefined): string {
         "  Multi-vendor extraction runs at bounded concurrency (maximum 3).",
       ].join("\n");
     case "extract-surfaces":
-      return "usage: ax-eval extract-surfaces --vendors <slug,...> [generator flags]";
+      return [
+        "usage: ax-eval extract-surfaces --vendors <slug,...> [generator flags]",
+        "       [--surface-seed <slug>=<targets/seeds/.../registry.yaml>]...",
+        "  Registry seeds are explicit review-required hypotheses; official-doc extraction remains authoritative.",
+      ].join("\n");
     case "synthesize-suite":
       return "usage: ax-eval synthesize-suite --suite-name <name> --category <category> --vendors <slug,...> [--target-tasks N] [generator flags]";
     case "extract-tasks":
@@ -346,6 +364,7 @@ interface Parsed {
   resetVerified: string[];
   capabilitySpecs: string[];
   specMaxOperations: number;
+  surfaceSeeds: string[];
   _: string[];
 }
 
@@ -415,6 +434,7 @@ function parseArgs(argv: string[]): Parsed {
     resetVerified: [],
     capabilitySpecs: [],
     specMaxOperations: 150,
+    surfaceSeeds: [],
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -534,6 +554,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--pack-config") p.packConfigs.push(value(++i, "--pack-config"));
     else if (a === "--reset-verified") p.resetVerified.push(value(++i, "--reset-verified"));
     else if (a === "--capability-spec") p.capabilitySpecs.push(value(++i, "--capability-spec"));
+    else if (a === "--surface-seed") p.surfaceSeeds.push(value(++i, "--surface-seed"));
     else if (a === "--spec-max-operations") {
       const n = Number(value(++i, "--spec-max-operations"));
       if (!Number.isInteger(n) || n < 1) throw new Error(`--spec-max-operations must be a positive integer (got ${n})`);
@@ -1800,6 +1821,20 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
   return 0;
 }
 
+async function cmdMapRegistrySeed(args: Parsed): Promise<number> {
+  if (!args.from) throw new Error("map-registry-seed requires --from <registry.json|yaml>");
+  const slugs = selectedVendors(args);
+  if (slugs.length !== 1) throw new Error("map-registry-seed requires exactly one --vendor <slug>");
+  if (statSync(args.from).size > MAX_REGISTRY_SOURCE_BYTES) {
+    throw new Error(`registry surface document exceeds ${MAX_REGISTRY_SOURCE_BYTES} bytes`);
+  }
+  const seed = mapRegistryAuthoringSeedText(readFileSync(args.from, "utf8"));
+  const path = writeRegistryAuthoringSeed(process.cwd(), slugs[0]!, seed);
+  console.log(`Registry seed → ${path}`);
+  console.log(`Review it, then run extract-surfaces --vendors ${slugs[0]} --surface-seed ${slugs[0]}=${path}`);
+  return 0;
+}
+
 async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   const root = process.cwd();
   const slugs = selectedVendors(args);
@@ -1836,10 +1871,15 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
 
 async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   const root = process.cwd();
+  const slugs = selectedVendors(args);
+  const seedPaths = parseSelectedMappings(args.surfaceSeeds, slugs, "--surface-seed");
   const generator = authoringGenerator(args);
-  for (const slug of selectedVendors(args)) {
+  for (const slug of slugs) {
     const vendor = requiredVendorCard(root, slug);
-    const result = await extractSurfaces(vendor, { generate: generator.generate });
+    const seedPath = seedPaths.get(slug);
+    const registrySeed = seedPath ? loadRegistryAuthoringSeedPath(seedPath) : undefined;
+    if (seedPath && !registrySeed) throw new Error(`surface seed for ${slug} does not exist`);
+    const result = await extractSurfaces(vendor, { generate: generator.generate, registrySeed: registrySeed ?? undefined });
     console.log(`${vendor.vendor} → ${writeSurfaceExtract(root, result)}`);
   }
   return 0;
@@ -2333,6 +2373,8 @@ async function main(): Promise<number> {
       return cmdAutomateReport(args);
     case "resolve-vendor":
       return cmdResolveVendor(args);
+    case "map-registry-seed":
+      return cmdMapRegistrySeed(args);
     case "extract-capabilities":
       return cmdExtractCapabilities(args);
     case "extract-surfaces":

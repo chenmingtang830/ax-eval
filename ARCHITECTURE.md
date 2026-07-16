@@ -128,6 +128,8 @@ official output URLs remain enforced, with exact seed provenance persisted by
 content hash.
 Registry authoring seeds have a strict bounded output schema and atomic artifact
 path under `targets/seeds/<vendor>/registry.yaml`.
+The CLI maps local registry JSON/YAML only and requires explicit per-vendor seed
+paths for grounded surface extraction; it performs no registry network fetch.
 
 - **Execution**
   - `exec-plan`

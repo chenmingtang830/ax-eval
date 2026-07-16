@@ -95,6 +95,10 @@ shape.
 - **Persist registry seeds as reviewed artifacts.** Write them atomically under
   `targets/seeds/<vendor>/registry.yaml`; loaders must reject traversal, unsafe
   commands, unbounded arrays, and schema drift.
+- **Keep registry ingestion keyless and explicit.** Map a local source document,
+  review the sanitized seed, and pass its path per vendor. Do not auto-fetch a
+  registry service or auto-apply a discovered seed. Reject oversized local
+  source documents before parsing.
 
 ## Adding a new target
 

@@ -1,6 +1,6 @@
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify } from "yaml";
+import { parseDocument, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "../generate/artifact-path.js";
 import { loadOptionalYamlArtifact } from "../generate/artifact-yaml.js";
@@ -109,6 +109,7 @@ export const RegistryAuthoringSeedSchema = z.object({
 export type RegistryAuthRecommendation = z.infer<typeof RegistryAuthRecommendationSchema>;
 export type RegistrySurfaceCandidate = z.infer<typeof RegistrySurfaceCandidateSchema>;
 export type RegistryAuthoringSeed = z.infer<typeof RegistryAuthoringSeedSchema>;
+export const MAX_REGISTRY_SOURCE_BYTES = 2_000_000;
 
 function normalizeDomain(value: string): string {
   const domain = value.trim().toLowerCase().replace(/\.$/, "");
@@ -275,4 +276,16 @@ export function mapRegistryAuthoringSeed(
     candidates,
     warnings,
   });
+}
+
+export function mapRegistryAuthoringSeedText(
+  text: string,
+  options: { now?: () => Date } = {},
+): RegistryAuthoringSeed {
+  if (Buffer.byteLength(text, "utf8") > MAX_REGISTRY_SOURCE_BYTES) {
+    throw new Error(`registry surface document exceeds ${MAX_REGISTRY_SOURCE_BYTES} bytes`);
+  }
+  const document = parseDocument(text);
+  if (document.errors.length > 0) throw new Error("registry surface document is not valid JSON or YAML");
+  return mapRegistryAuthoringSeed(document.toJS({ maxAliasCount: 50 }), options);
 }

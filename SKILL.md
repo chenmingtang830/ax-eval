@@ -85,6 +85,8 @@ docs, and preserve the registry seed provenance and content hash in the
 resulting extract.
 Keep reviewed seed artifacts under `targets/seeds/<vendor>/registry.yaml`; do
 not hand-edit them into a shape that bypasses the validated loader.
+Create them keylessly with `map-registry-seed --from <local.json|yaml> --vendor
+<slug>`, review the result, then pass its path explicitly with `--surface-seed`.
 
 The canonical suite is the source of truth. Files under
 `targets/packs/<vendor>/` are compiled execution artifacts, not

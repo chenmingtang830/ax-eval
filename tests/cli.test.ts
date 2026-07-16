@@ -107,6 +107,7 @@ describe("cli arg handling", () => {
   it("documents every suite authoring command", () => {
     for (const command of [
       "resolve-vendor",
+      "map-registry-seed",
       "extract-capabilities",
       "extract-surfaces",
       "synthesize-suite",
@@ -121,6 +122,7 @@ describe("cli arg handling", () => {
     expect(capabilityHelp.out).toContain("--capability-spec <slug>=<source>");
     expect(capabilityHelp.out).toContain("Offline spec seeds must be local files");
     expect(capabilityHelp.out).toContain("maximum 3");
+    expect(runCli(["extract-surfaces", "--help"]).out).toContain("--surface-seed <slug>=");
   });
 
   it("validates capability spec mapping flags before authoring", () => {
@@ -130,6 +132,14 @@ describe("cli arg handling", () => {
     expect(runCli([
       "extract-capabilities", "--vendors", "acme", "--spec-max-operations", "0",
     ]).out).toContain("--spec-max-operations must be a positive integer");
+  });
+
+  it("validates the local registry seed workflow before authoring", () => {
+    expect(runCli(["map-registry-seed", "--vendor", "acme"]).out)
+      .toContain("requires --from <registry.json|yaml>");
+    expect(runCli([
+      "extract-surfaces", "--vendors", "acme", "--surface-seed", "broken",
+    ]).out).toContain("--surface-seed expects <slug>=<source>");
   });
 
   it("documents and prints a low-pass plan without invoking", () => {

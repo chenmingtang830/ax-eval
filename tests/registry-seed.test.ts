@@ -7,6 +7,7 @@ import {
   loadRegistryAuthoringSeed,
   loadRegistryAuthoringSeedPath,
   mapRegistryAuthoringSeed,
+  mapRegistryAuthoringSeedText,
   writeRegistryAuthoringSeed,
 } from "../src/ingest/registry-seed.js";
 
@@ -118,6 +119,21 @@ describe("mapRegistryAuthoringSeed", () => {
   it("rejects malformed public domains", () => {
     expect(() => mapRegistryAuthoringSeed({ domain: "localhost", surfaces: [] })).toThrow(/public DNS name/);
     expect(() => mapRegistryAuthoringSeed({ domain: "${DOMAIN}", surfaces: [] })).toThrow(/public DNS name/);
+  });
+
+  it("maps local JSON or YAML text and rejects malformed documents", () => {
+    expect(mapRegistryAuthoringSeedText([
+      "domain: example.com",
+      "surfaces:",
+      "  - type: cli",
+      "    command: example",
+    ].join("\n")).candidates[0]?.type).toBe("cli");
+    expect(mapRegistryAuthoringSeedText(JSON.stringify({
+      domain: "example.com",
+      surfaces: [],
+    })).domain).toBe("example.com");
+    expect(() => mapRegistryAuthoringSeedText("domain: [")).toThrow(/not valid JSON or YAML/);
+    expect(() => mapRegistryAuthoringSeedText("x".repeat(2_000_001))).toThrow(/exceeds 2000000 bytes/);
   });
 
   it("writes and loads a bounded validated seed atomically", () => {

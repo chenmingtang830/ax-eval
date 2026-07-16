@@ -146,10 +146,12 @@ under `targets/vendors/`, `targets/extracts/`, `targets/suites/`, and
 
 ```bash
 npm run ax-eval -- resolve-vendor --vendors "Vendor A,Vendor B" --category database
+npm run ax-eval -- map-registry-seed --from path/to/registry-surface.yaml --vendor vendor-a
 npm run ax-eval -- extract-capabilities --vendors vendor-a,vendor-b
 npm run ax-eval -- extract-capabilities --vendors vendor-a,vendor-b \
   --capability-spec vendor-a=path/to/vendor-a.openapi.json --concurrency 2
-npm run ax-eval -- extract-surfaces --vendors vendor-a,vendor-b
+npm run ax-eval -- extract-surfaces --vendors vendor-a,vendor-b \
+  --surface-seed vendor-a=targets/seeds/vendor-a/registry.yaml
 npm run ax-eval -- synthesize-suite --suite-name my-suite --category database \
   --vendors vendor-a,vendor-b --target-tasks 12
 npm run ax-eval -- extract-tasks --suite targets/suites/my-suite.yaml --vendors vendor-a
@@ -176,6 +178,9 @@ configuration without official-doc verification. Result provenance includes a
 hash of the exact bounded seed content used.
 Validated registry seeds live at `targets/seeds/<vendor>/registry.yaml`; writes
 are atomic and loaders reject schema drift or unsafe commands.
+`map-registry-seed` accepts only a local JSON/YAML document and makes no network
+request. `extract-surfaces` consumes seeds only through explicit per-vendor
+`--surface-seed` mappings.
 
 `audit-benchmark` is the read-only authoring gate for a benchmark layout under
 `benchmarks/<slug>/<version>/`. It reports suite, fixed-sample trace review,
