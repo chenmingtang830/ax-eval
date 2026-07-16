@@ -47,12 +47,20 @@ const CONFIG_FIELDS = [
   "static",
 ] as const;
 
+function artifactValue(value: unknown): unknown {
+  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
+}
+
+function artifactEqual(left: unknown, right: unknown): boolean {
+  return isDeepStrictEqual(artifactValue(left), artifactValue(right));
+}
+
 function changedFields(
   actual: TargetPack,
   expected: TargetPack,
   fields: readonly (keyof TargetPack)[],
 ): string[] {
-  return fields.filter((field) => !isDeepStrictEqual(actual[field], expected[field]));
+  return fields.filter((field) => !artifactEqual(actual[field], expected[field]));
 }
 
 function taskIds(pack: TargetPack): string[] {
@@ -63,7 +71,7 @@ function taskContentDrift(actual: TargetPack, expected: TargetPack): string[] {
   const actualById = new Map(actual.tasks.map((task) => [task.id, task]));
   return expected.tasks.flatMap((task) => {
     const candidate = actualById.get(task.id);
-    return candidate && !isDeepStrictEqual(candidate, task) ? [task.id] : [];
+    return candidate && !artifactEqual(candidate, task) ? [task.id] : [];
   });
 }
 
@@ -104,7 +112,7 @@ export function auditComposedPack(input: ComposedPackAuditInput): PackAuditFindi
     });
   }
 
-  if (!isDeepStrictEqual(input.pack.surfaces, expected.surfaces)) {
+  if (!artifactEqual(input.pack.surfaces, expected.surfaces)) {
     findings.push({
       severity: "error",
       code: "pack_surface_drift",
@@ -112,7 +120,7 @@ export function auditComposedPack(input: ComposedPackAuditInput): PackAuditFindi
     });
   }
 
-  if (!isDeepStrictEqual(input.pack.generator, expected.generator)) {
+  if (!artifactEqual(input.pack.generator, expected.generator)) {
     findings.push({
       severity: "error",
       code: "pack_provenance_drift",

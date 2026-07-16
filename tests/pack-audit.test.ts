@@ -94,6 +94,12 @@ describe("auditComposedPack", () => {
     expect(auditComposedPack(input())).toEqual([]);
   });
 
+  it("treats omitted undefined fields as equivalent persisted content", () => {
+    const auditInput = input();
+    auditInput.pack = JSON.parse(JSON.stringify(auditInput.pack));
+    expect(auditComposedPack(auditInput)).toEqual([]);
+  });
+
   it("classifies identity and configuration drift without printing values", () => {
     const auditInput = input();
     auditInput.pack = {
