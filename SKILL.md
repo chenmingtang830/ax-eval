@@ -78,7 +78,8 @@ Pass repeatable `--capability-spec <slug>=<source>` entries when a reviewed
 OpenAPI source should seed a vendor. Explicit sources fail rather than falling
 back to an unrelated fixture; unmapped vendors retain grounded extraction.
 Use local spec files offline and raise the operation bound if summarization
-would truncate.
+would truncate. Capability extraction caps concurrency at three and gives each
+vendor's generator call a bounded 12-minute timeout.
 Registry surface candidates are hints only: pass them through grounded
 `extract-surfaces`, verify every command/package/auth claim against official
 docs, and preserve the registry seed provenance and content hash in the

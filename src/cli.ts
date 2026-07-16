@@ -73,7 +73,11 @@ import { invokeEfficiency } from "./generate/invoke-efficiency.js";
 import { runGeneratorHarness } from "./generate/authoring.js";
 import { resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
 import { writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
-import { extractCapabilitiesBatch, parseCapabilitySpecMappings } from "./generate/capability-extract-batch.js";
+import {
+  CAPABILITY_EXTRACTION_TIMEOUT_MS,
+  extractCapabilitiesBatch,
+  parseCapabilitySpecMappings,
+} from "./generate/capability-extract-batch.js";
 import { parseSelectedMappings } from "./generate/selected-mapping.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import {
@@ -231,7 +235,7 @@ function commandUsage(command: string | undefined): string {
         "       [--capability-spec <slug>=<source>]... [--spec-max-operations N] [--offline]",
         "  Explicit spec sources are fetched exactly (no unrelated fixture fallback).",
         "  Offline spec seeds must be local files; raise --spec-max-operations if a summary truncates.",
-        "  Multi-vendor extraction runs at bounded concurrency (maximum 3).",
+        "  Multi-vendor extraction runs at bounded concurrency (maximum 3) with a 12-minute per-vendor generator timeout.",
       ].join("\n");
     case "extract-surfaces":
       return [
@@ -1788,7 +1792,10 @@ function selectedVendors(args: Parsed): string[] {
   return vendors;
 }
 
-function authoringGenerator(args: Parsed): { generate: (prompt: string) => Promise<string>; harness: string } {
+function authoringGenerator(
+  args: Parsed,
+  timeoutMs?: number,
+): { generate: (prompt: string) => Promise<string>; harness: string } {
   const detected = probeHarness().host;
   const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
   return {
@@ -1797,6 +1804,7 @@ function authoringGenerator(args: Parsed): { generate: (prompt: string) => Promi
       harness,
       model: args.generatorModel || undefined,
       effort: args.generatorEffort as "low" | "medium" | "high",
+      timeoutMs,
     }),
   };
 }
@@ -1840,7 +1848,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   const slugs = selectedVendors(args);
   const specSources = parseCapabilitySpecMappings(args.capabilitySpecs, slugs);
   const vendors = slugs.map((slug) => requiredVendorCard(root, slug));
-  const generator = authoringGenerator(args);
+  const generator = authoringGenerator(args, CAPABILITY_EXTRACTION_TIMEOUT_MS);
   const concurrency = Math.min(args.concurrency, 3);
   console.log(
     `Extracting capabilities for ${vendors.length} vendor(s) at concurrency=${concurrency} ` +

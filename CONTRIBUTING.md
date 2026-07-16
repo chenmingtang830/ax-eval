@@ -92,7 +92,8 @@ shape.
   from an empty or truncated operation inventory.
 - **Explicit spec mappings fail closed.** `--capability-spec` sources must be
   fetched exactly; do not replace a missing source with a generic fixture.
-  Keep multi-vendor generator concurrency bounded and result ordering stable.
+  Keep multi-vendor generator concurrency bounded, result ordering stable, and
+  the capability-specific generator timeout finite.
 - **Registry candidates are not executable truth.** Use sanitized candidates as
   bounded hypotheses for grounded surface extraction. Require domain alignment,
   bounded prompt size, official output evidence, and hashed seed provenance

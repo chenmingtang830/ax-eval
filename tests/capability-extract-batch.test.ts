@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  CAPABILITY_EXTRACTION_TIMEOUT_MS,
   extractCapabilitiesBatch,
   parseCapabilitySpecMappings,
 } from "../src/generate/capability-extract-batch.js";
@@ -38,6 +39,10 @@ function generatedCapability(name: string): string {
 }
 
 describe("capability extraction batches", () => {
+  it("allows long bounded capability authoring without changing other harness defaults", () => {
+    expect(CAPABILITY_EXTRACTION_TIMEOUT_MS).toBe(12 * 60 * 1000);
+  });
+
   it("parses explicit mappings without accepting duplicates or unselected vendors", () => {
     expect([...parseCapabilitySpecMappings(["acme=/tmp/spec=a.json"], ["acme"])]).toEqual([
       ["acme", "/tmp/spec=a.json"],

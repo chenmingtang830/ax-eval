@@ -176,7 +176,9 @@ tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
 refusing the output until a human reviews and approves its content hash.
 `--capability-spec` is repeatable and exact-source: it never substitutes a
 bundled fixture. Multi-vendor extraction preserves input order and caps actual
-authoring concurrency at three even when the global concurrency is higher.
+authoring concurrency at three even when the global concurrency is higher. Each
+capability generator call has a bounded 12-minute timeout for large reviewed
+operation inventories.
 Offline spec seeds must be local files; increase `--spec-max-operations` rather
 than accepting a truncated operation inventory.
 Sanitized registry surface candidates may seed grounded surface extraction, but

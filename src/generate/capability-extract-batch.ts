@@ -6,6 +6,8 @@ import { parseSelectedMappings } from "./selected-mapping.js";
 import type { StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
+export const CAPABILITY_EXTRACTION_TIMEOUT_MS = 12 * 60 * 1000;
+
 export function parseCapabilitySpecMappings(
   entries: readonly string[],
   selectedSlugs: readonly string[],

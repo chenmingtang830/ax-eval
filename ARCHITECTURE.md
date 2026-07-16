@@ -121,7 +121,8 @@ An optional reviewed OpenAPI summary can bound the candidate set; remote summary
 sources must use an official vendor host and their provenance is persisted.
 Empty or truncated summaries are rejected before generator invocation.
 The capability batch runner preserves vendor order, caps concurrent generator
-calls at three, and fetches explicit CLI spec sources without fixture fallback.
+calls at three, applies a capability-specific 12-minute harness timeout, and
+fetches explicit CLI spec sources without fixture fallback.
 Surface extraction can receive a sanitized registry seed, but embeds it only as
 untrusted data for grounded correction. Domain alignment, candidate bounds, and
 official output URLs remain enforced, with exact seed provenance persisted by
