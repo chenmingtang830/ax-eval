@@ -183,7 +183,8 @@ For the medium-effort prompt, follow it **exactly**:
 Honor the standard medium effort: investigate prerequisites, recover from
 errors, and verify read-backs without changing the declared task scope.
 
-Between repeated attempts on the same profile, run `ax-eval reset --pack <pack>`
+Between repeated attempts on the same profile, run
+`ax-eval reset --pack <pack> --ns <completed-run-namespace>`
 only when the user explicitly asks you to prepare the next attempt. Do not clean
 up by default: `verify` reads live product state, so deleting resources before
 the report is rendered corrupts scores.

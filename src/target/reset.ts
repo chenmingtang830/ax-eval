@@ -13,6 +13,7 @@ import { BearerClient } from "../http/client.js";
 import { PROBE_PREFIX } from "../generate/pack.js";
 import { resolveEnvTemplate } from "./config.js";
 import type { TargetPack } from "../schemas.js";
+import { redactSensitiveText } from "../safety/redaction.js";
 
 /** The slice of the HTTP client a resetter needs (so tests stub it offline). */
 export interface ResetClient {
@@ -26,6 +27,11 @@ export interface ResetOptions {
   ns?: string;
   /** List + match but don't delete (preview). */
   dryRun?: boolean;
+  /** Explicit programmatic override for deleting probe resources across every
+   * namespace. The CLI intentionally does not expose this escape hatch. */
+  allowAllNamespaces?: boolean;
+  /** Refuse unexpectedly broad resets. Defaults to 100 matching resources. */
+  maxCandidates?: number;
 }
 
 export interface ResetResult {
@@ -80,10 +86,27 @@ const asanaReset: Resetter = async (_pack, client, scope, opts) => {
   if (!project) {
     return { deleted: [], candidates: 0, errors: ["no sandbox project id in scope — cannot list tasks to reset"] };
   }
-  const tasks = await client.get<Array<{ gid?: string; name?: string }>>(`/projects/${project}/tasks`, {
-    opt_fields: "name",
-  });
+  let tasks: Array<{ gid?: string; name?: string }>;
+  try {
+    tasks = await client.get<Array<{ gid?: string; name?: string }>>(`/projects/${project}/tasks`, {
+      opt_fields: "name",
+    });
+  } catch (error) {
+    return {
+      deleted: [],
+      candidates: 0,
+      errors: [redactSensitiveText(`list /projects/${project}/tasks: ${error instanceof Error ? error.message : String(error)}`)],
+    };
+  }
   const candidates = (Array.isArray(tasks) ? tasks : []).filter((t) => t.gid && isProbeName(t.name, opts.ns));
+  const maxCandidates = opts.maxCandidates ?? 100;
+  if (candidates.length > maxCandidates) {
+    return {
+      deleted: [],
+      candidates: candidates.length,
+      errors: [`refusing reset: ${candidates.length} candidates exceeds the safety limit of ${maxCandidates}`],
+    };
+  }
   const deleted: string[] = [];
   const errors: string[] = [];
   for (const t of candidates) {
@@ -95,7 +118,7 @@ const asanaReset: Resetter = async (_pack, client, scope, opts) => {
       await client.del(`/tasks/${t.gid}`);
       deleted.push(t.gid!);
     } catch (err) {
-      errors.push(`delete /tasks/${t.gid}: ${err instanceof Error ? err.message : String(err)}`);
+      errors.push(redactSensitiveText(`delete /tasks/${t.gid}: ${err instanceof Error ? err.message : String(err)}`));
     }
   }
   return { deleted, candidates: candidates.length, errors };
@@ -505,12 +528,32 @@ export async function resetPack(
       errors: [],
     };
   }
-  const { deleted, candidates, errors } = await resetter(pack, client, scope, opts);
+  const ns = opts.ns?.trim() || undefined;
+  if (ns && !/^[A-Za-z0-9._-]+$/.test(ns)) {
+    return {
+      supported: true,
+      message: `Reset ${pack.name}: refused an invalid namespace.`,
+      deleted: [],
+      candidates: 0,
+      errors: ["namespace may contain only letters, numbers, dot, underscore, and hyphen"],
+    };
+  }
+  if (!opts.dryRun && !ns && !opts.allowAllNamespaces) {
+    return {
+      supported: true,
+      message: `Reset ${pack.name}: refused destructive reset without an explicit namespace.`,
+      deleted: [],
+      candidates: 0,
+      errors: ["pass --ns <token> to delete one run, or use --dry-run to inventory all probe resources"],
+    };
+  }
+  const resetOptions = { ...opts, ns };
+  const { deleted, candidates, errors } = await resetter(pack, client, scope, resetOptions);
   const verb = opts.dryRun ? "would delete" : "deleted";
   return {
     supported: true,
     message: `Reset ${pack.name}: ${verb} ${deleted.length}/${candidates} probe resource(s)${
-      opts.ns ? ` in namespace "${opts.ns}"` : ""
+      ns ? ` in namespace "${ns}"` : ""
     }.`,
     deleted,
     candidates,

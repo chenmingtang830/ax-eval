@@ -311,4 +311,47 @@ describe("resetPack (pass@k sandbox teardown)", () => {
     expect(dropBody.requests[0].stmt.sql).toBe('DROP TABLE IF EXISTS "axarena_smoke_ns-keep"');
     vi.unstubAllGlobals();
   });
+
+  it("refuses unexpectedly broad candidate sets before deleting", async () => {
+    const { client, deleted } = stubClient([
+      { gid: "1", name: "AX probe task ns-x" },
+      { gid: "2", name: "AX probe comment ns-x" },
+    ]);
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x", maxCandidates: 1 });
+    expect(res.candidates).toBe(2);
+    expect(res.deleted).toEqual([]);
+    expect(res.errors[0]).toMatch(/safety limit/);
+    expect(deleted).toEqual([]);
+  });
+
+  it("redacts credentials from deletion errors", async () => {
+    const secret = ["napi", "resetcredential123"].join("_");
+    const client: ResetClient = {
+      get: vi.fn(async () => [{ gid: "1", name: "AX probe task ns-x" }]),
+      del: vi.fn(async () => { throw new Error(`Bearer ${secret}`); }),
+    };
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x" });
+    expect(res.errors[0]).not.toContain(secret);
+    expect(res.errors[0]).toContain("[REDACTED]");
+  });
+
+  it("fails closed and redacts credentials when candidate listing fails", async () => {
+    const secret = ["napi", "listcredential123"].join("_");
+    const client: ResetClient = {
+      get: vi.fn(async () => { throw new Error(`Bearer ${secret}`); }),
+      del: vi.fn(async () => undefined),
+    };
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x" });
+    expect(res.deleted).toEqual([]);
+    expect(res.errors[0]).not.toContain(secret);
+    expect(res.errors[0]).toContain("[REDACTED]");
+    expect(client.del).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed namespaces before listing candidates", async () => {
+    const { client } = stubClient([]);
+    const res = await resetPack(makePack("asana"), client, scope, { ns: "ns-x\nother" });
+    expect(res.errors[0]).toMatch(/namespace may contain/);
+    expect(client.get).not.toHaveBeenCalled();
+  });
 });
