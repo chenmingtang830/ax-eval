@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
+import { PassThrough } from "node:stream";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSpec } from "../src/ingest/openapi.js";
+import { fetchPinnedRemote, fetchSpecText } from "../src/ingest/run.js";
 
 const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -12,6 +15,78 @@ const FIXTURE = resolve(
   "fixtures",
   "asana.com_openapi.json",
 );
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("OpenAPI source fetching", () => {
+  it("pins the validated address in the actual request lookup", async () => {
+    const requestFactory = ((_url: URL, options: Record<string, unknown>, onResponse: (response: PassThrough) => void) => {
+      const lookup = options.lookup as (_hostname: string, _options: object, callback: (error: null, address: string, family: number) => void) => void;
+      lookup("docs.acme.example", {}, (error, address, family) => {
+        expect(error).toBeNull();
+        expect(address).toBe("93.184.216.34");
+        expect(family).toBe(4);
+      });
+      const request = new EventEmitter() as EventEmitter & { end: () => void };
+      request.end = () => {
+        const response = new PassThrough() as PassThrough & { headers: Record<string, string>; statusCode: number; statusMessage: string };
+        response.headers = {};
+        response.statusCode = 200;
+        response.statusMessage = "OK";
+        onResponse(response);
+        response.end("{}");
+      };
+      return request;
+    }) as unknown as typeof import("node:http").request;
+
+    const response = await fetchPinnedRemote(
+      new URL("https://docs.acme.example/openapi.json"),
+      ["93.184.216.34"],
+      new AbortController().signal,
+      requestFactory,
+    );
+    await expect(response.text()).resolves.toBe("{}");
+  });
+
+  it("rejects disallowed hosts and private DNS before fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const secureOptions = {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["10.0.0.8"],
+    };
+    await expect(fetchSpecText("https://third-party.example/openapi.json", secureOptions)).rejects.toThrow(/non-official host/);
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", secureOptions)).rejects.toThrow(/private or non-routable/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("rejects hexadecimal IPv4-mapped IPv6 private addresses", async () => {
+    const fetchRemote = vi.fn(async () => new Response("{}", { status: 200 }));
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["::ffff:7f00:1"],
+      fetchRemote,
+    })).rejects.toThrow(/private or non-routable/);
+    expect(fetchRemote).not.toHaveBeenCalled();
+  });
+
+  it("validates every redirect before following it", async () => {
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["93.184.216.34"],
+      fetchRemote: async () => new Response(null, {
+        status: 302,
+        headers: { location: "http://127.0.0.1/internal" },
+      }),
+    })).rejects.toThrow(/non-official host|private or non-routable/);
+  });
+});
 
 describe("openapi ingest", () => {
   const spec = parseSpec(readFileSync(FIXTURE, "utf8"), "fixture");

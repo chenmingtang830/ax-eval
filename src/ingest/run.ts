@@ -57,11 +57,41 @@ function isPublicIpAddress(address: string): boolean {
   const family = isIP(normalized);
   if (family === 4) return isPublicIpv4(normalized);
   if (family !== 6) return false;
-  if (normalized === "::" || normalized === "::1") return false;
-  if (normalized.startsWith("fc") || normalized.startsWith("fd") || /^fe[89ab]/.test(normalized)) return false;
-  if (normalized.startsWith("ff") || normalized.startsWith("2001:db8:")) return false;
-  const mapped = normalized.match(/::ffff:(\d+\.\d+\.\d+\.\d+)$/)?.[1];
-  return mapped ? isPublicIpv4(mapped) : true;
+  const halves = normalized.split("::");
+  if (halves.length > 2) return false;
+  const parseParts = (value: string): number[] | null => {
+    if (!value) return [];
+    const raw = value.split(":");
+    const parts: number[] = [];
+    for (const [index, part] of raw.entries()) {
+      if (part.includes(".")) {
+        if (index !== raw.length - 1 || isIP(part) !== 4) return null;
+        const octets = part.split(".").map(Number);
+        parts.push((octets[0]! << 8) | octets[1]!, (octets[2]! << 8) | octets[3]!);
+      } else {
+        if (!/^[a-f0-9]{1,4}$/.test(part)) return null;
+        parts.push(Number.parseInt(part, 16));
+      }
+    }
+    return parts;
+  };
+  const left = parseParts(halves[0] ?? "");
+  const right = parseParts(halves[1] ?? "");
+  if (!left || !right) return false;
+  const omitted = 8 - left.length - right.length;
+  if ((halves.length === 2 && omitted < 1) || (halves.length === 1 && omitted !== 0)) return false;
+  const parts = [...left, ...Array.from({ length: omitted }, () => 0), ...right];
+  if (parts.length !== 8) return false;
+  if (parts.every((part) => part === 0) || (parts.slice(0, 7).every((part) => part === 0) && parts[7] === 1)) return false;
+  const first = parts[0]!;
+  if ((first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return false;
+  if (first === 0x2001 && parts[1] === 0x0db8) return false;
+  if (parts.slice(0, 5).every((part) => part === 0) && parts[5] === 0xffff) {
+    const high = parts[6]!;
+    const low = parts[7]!;
+    return isPublicIpv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`);
+  }
+  return true;
 }
 
 function usesAllowedRemoteHost(value: string, roots: readonly string[]): boolean {
