@@ -14,7 +14,7 @@
     "llm"
   ],
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Richard Tang (https://github.com/chenmingtang830)",
   "homepage": "https://github.com/chenmingtang830/ax-eval#readme",
   "repository": {
@@ -44,7 +44,8 @@
     "targets/examples/*/pack.yaml",
     "targets/examples/*/pack.approval.json",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "NOTICE"
   ],
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
