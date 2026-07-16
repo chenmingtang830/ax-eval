@@ -119,6 +119,19 @@ describe("pack composition", () => {
     expect(JSON.stringify(pack)).not.toMatch(/postgres(?:ql)?:\/\//i);
   });
 
+  it("passes an explicit discovery contract through without inference", () => {
+    const discovery = {
+      product: "AcmeDB",
+      goal: "Create a table",
+      official_domains: ["docs.acme.example", "acme.example"],
+      canonical_endpoint: "POST /v1/tables",
+      deprecated_markers: ["api.acme.example/v0"],
+      auth_scheme: "Bearer token",
+    };
+    const pack = composePack(vendor, suite, surfaces, taskExtract, { ...config, discovery });
+    expect(pack.discovery).toEqual(discovery);
+  });
+
   it("rejects missing verifier configuration", () => {
     expect(() => composePack(vendor, suite, surfaces, taskExtract, {
       ...config,

@@ -101,6 +101,10 @@ Important command groups:
   - `generate`
   - `review`
   - `audit-benchmark` (read-only suite/trace-review/cohort/pack authoring gate)
+
+Composed-pack discovery contracts are explicit compose-config inputs. The
+composer does not infer canonical actions from vendor cards or verification
+oracles, and pack drift auditing includes the resulting `discovery` block.
 - **Execution**
   - `exec-plan`
   - `probe`

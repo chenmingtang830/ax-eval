@@ -68,6 +68,10 @@ shape.
   sample review in `suite.trace-review.yaml`; completion requires a reviewer,
   review timestamp, commit SHA, and every unique trace ID in the declared
   sample. Missing or pending evidence must keep the authoring audit failing.
+- **Discovery contracts are reviewed inputs, not heuristics.** When behavioral
+  discovery is scored, declare `discovery` in the vendor compose config and
+  review its goal, official domains, canonical action, deprecated markers, and
+  auth scheme. Do not derive write actions from read-back oracles or prose.
 
 ## Adding a new target
 

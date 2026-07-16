@@ -1,8 +1,13 @@
 import { z } from "zod";
+import { DiscoverySpecSchema } from "../schemas.js";
 import { PublicHttpUrlSchema } from "./public-url.js";
 
 const EnvNameSchema = z.string().regex(/^[A-Z][A-Z0-9_]*$/, "must name an environment variable");
 const HeaderNameSchema = z.string().regex(/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/, "must be a valid HTTP header name");
+const OfficialDomainSchema = z.string().min(1).refine(
+  (value) => !value.includes("://") && !value.includes("/"),
+  "must be a hostname without a scheme or path",
+);
 const UrlTemplateSchema = z.string().refine((value) => {
   const unresolved = value.replace(/\$\{[A-Z][A-Z0-9_]*\}/g, "placeholder");
   return PublicHttpUrlSchema.safeParse(unresolved).success;
@@ -90,12 +95,22 @@ const SandboxScopeSchema = z.object({
   url_pattern: z.string().optional(),
 }).strict();
 
+const ComposeDiscoverySchema = DiscoverySpecSchema.extend({
+  product: z.string().min(1),
+  goal: z.string().min(1),
+  official_domains: z.array(OfficialDomainSchema).min(1),
+  canonical_endpoint: z.string().min(1),
+  deprecated_markers: z.array(z.string().min(1)),
+  auth_scheme: z.string().min(1),
+}).strict();
+
 export const PackComposeConfigSchema = z.object({
   base_url: z.union([UrlTemplateSchema, z.literal("")]),
   api_style: z.enum(["rest", "graphql"]).default("rest"),
   auth: AuthConfigSchema,
   sandbox_scope: z.array(SandboxScopeSchema).default([]),
   headers: ConstantHeadersSchema.default({}),
+  discovery: ComposeDiscoverySchema.optional(),
   request_envelope: z.string().min(1).optional(),
   response_envelope: z.string().min(1).optional(),
   field_select_param: z.string().min(1).optional(),

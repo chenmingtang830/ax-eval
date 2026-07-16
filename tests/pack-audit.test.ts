@@ -114,6 +114,30 @@ describe("auditComposedPack", () => {
     ]);
   });
 
+  it("treats discovery contract changes as configuration drift", () => {
+    const discoveryConfig: PackComposeConfig = {
+      ...config,
+      discovery: {
+        product: "Acme",
+        goal: "Create a record",
+        official_domains: ["docs.acme.example"],
+        canonical_endpoint: "POST /records",
+        deprecated_markers: [],
+        auth_scheme: "Bearer token",
+      },
+    };
+    const auditInput = input({
+      config: discoveryConfig,
+      pack: {
+        ...composePack(vendor, suite, surfaces, tasks, discoveryConfig),
+        discovery: { ...discoveryConfig.discovery!, canonical_endpoint: "POST /v2/records" },
+      },
+    });
+    expect(auditComposedPack(auditInput)).toEqual([
+      expect.objectContaining({ code: "pack_config_drift", message: expect.stringContaining("discovery") }),
+    ]);
+  });
+
   it("reports surface and provenance drift independently", () => {
     const auditInput = input();
     auditInput.pack = {

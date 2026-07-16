@@ -103,6 +103,12 @@ reviewer, review timestamp, commit SHA, and every unique trace ID in the fixed
 sample. The command is read-only: it does not autofix artifacts, approve packs,
 invoke harnesses, verify live state, or reset targets.
 
+If discovery scoring is in scope, put an explicit `discovery` block in each
+vendor compose config. Treat the canonical action and official domains as
+reviewed inputs: `compose-pack` preserves them verbatim and the authoring audit
+flags drift. Do not infer a write endpoint from a read-back oracle or a quoted
+documentation snippet.
+
 Before any benchmark low-pass execution, inspect the keyless plan:
 
 ```bash

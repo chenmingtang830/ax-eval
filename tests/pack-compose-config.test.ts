@@ -16,6 +16,39 @@ describe("pack composition config", () => {
     expect(config.auth.env).toBe("ACME_TOKEN");
   });
 
+  it("accepts an explicit reviewed discovery contract", () => {
+    const config = parsePackComposeConfig({
+      ...baseConfig,
+      discovery: {
+        product: "Acme",
+        goal: "Create a record",
+        official_domains: ["docs.acme.example"],
+        canonical_endpoint: "POST /v1/records",
+        deprecated_markers: ["api.acme.example/v0"],
+        auth_scheme: "Bearer token",
+      },
+    });
+    expect(config.discovery?.canonical_endpoint).toBe("POST /v1/records");
+  });
+
+  it("rejects incomplete or URL-shaped discovery inputs", () => {
+    expect(() => parsePackComposeConfig({
+      ...baseConfig,
+      discovery: {},
+    })).toThrow();
+    expect(() => parsePackComposeConfig({
+      ...baseConfig,
+      discovery: {
+        product: "Acme",
+        goal: "Create a record",
+        official_domains: ["https://docs.acme.example/path"],
+        canonical_endpoint: "POST /v1/records",
+        deprecated_markers: [],
+        auth_scheme: "Bearer token",
+      },
+    })).toThrow(/hostname/);
+  });
+
   it("rejects connection strings where env names are required", () => {
     expect(() => parsePackComposeConfig({
       ...baseConfig,

@@ -153,6 +153,7 @@ export function composePack(
     field_select_param: config.field_select_param,
     site_url: vendor.site_url ?? "",
     docs_urls: vendor.docs_url ? [vendor.docs_url] : [],
+    discovery: config.discovery,
     static: vendor.site_url ? {
       site_url: vendor.site_url,
       docs_urls: vendor.docs_url ? [vendor.docs_url] : [],

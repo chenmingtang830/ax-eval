@@ -44,6 +44,7 @@ const CONFIG_FIELDS = [
   "field_select_param",
   "site_url",
   "docs_urls",
+  "discovery",
   "static",
 ] as const;
 

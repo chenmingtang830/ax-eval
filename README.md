@@ -179,6 +179,13 @@ Canonical benchmark authoring also requires a completed
 review timestamp, commit SHA, and every unique trace ID in the fixed sample;
 pending or missing review evidence keeps `audit-benchmark` failing.
 
+When a compiled pack participates in behavioral discovery scoring, declare its
+`discovery` block explicitly in the vendor compose config. Include the reviewed
+product goal, official domains, canonical action, deprecated markers, and auth
+scheme. `compose-pack` passes this contract through unchanged and the pack audit
+detects later drift; it does not guess canonical endpoints from documentation
+quotes or read-back oracles.
+
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution
