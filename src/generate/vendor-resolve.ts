@@ -6,7 +6,7 @@ import { assertArtifactSegment } from "./artifact-path.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import { PublicHttpUrlSchema } from "./public-url.js";
 
-const ResolveResultSchema = z.object({
+export const ResolveResultSchema = z.object({
   vendor: z.string().min(1),
   category: z.string().min(1),
   slug: z.string().min(1),

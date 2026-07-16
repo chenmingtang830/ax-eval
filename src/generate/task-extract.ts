@@ -126,7 +126,7 @@ const PersistedTaskSchema = GeneratedTaskBaseSchema.extend({
 }).strict().superRefine(validateGeneratedTask);
 
 const GeneratedResultSchema = z.object({ tasks: z.array(GeneratedTaskSchema).min(1) }).strict();
-const TaskExtractSchema = z.object({
+export const TaskExtractSchema = z.object({
   vendor: z.string().min(1),
   slug: z.string().min(1),
   suite_name: z.string().min(1),

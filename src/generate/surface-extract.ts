@@ -51,7 +51,7 @@ const McpSchema = z.object({
   }
 });
 
-const SurfaceExtractSchema = z.object({
+export const SurfaceExtractSchema = z.object({
   vendor: z.string().min(1),
   slug: z.string().min(1),
   extracted_at: z.string().datetime(),
