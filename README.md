@@ -153,6 +153,8 @@ npm run ax-eval -- synthesize-suite --suite-name my-suite --category database \
 npm run ax-eval -- extract-tasks --suite targets/suites/my-suite.yaml --vendors vendor-a
 npm run ax-eval -- compose-pack --suite targets/suites/my-suite.yaml \
   --config path/to/vendor-a.compose.yaml --vendors vendor-a
+npm run ax-eval -- audit-benchmark --benchmark my-benchmark --benchmark-version v1 \
+  --pack-config vendor-a=path/to/vendor-a.compose.yaml
 npm run ax-eval -- review --pack targets/packs/vendor-a/my-suite.yaml --approve --by you
 npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
   --suite targets/suites/my-suite.yaml --surface all --harness codex --harness claude-code
@@ -161,6 +163,15 @@ npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
 Generation is grounded through Codex or Claude Code (or offline fixtures in
 tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
 refusing the output until a human reviews and approves its content hash.
+
+`audit-benchmark` is the read-only authoring gate for a benchmark layout under
+`benchmarks/<slug>/<version>/`. It reports suite, vendor-cohort, extract, and
+compiled-pack drift as sectioned JSON and exits nonzero when errors are found.
+Pass one explicit `--pack-config <vendor>=<yaml>` for each core vendor; config
+files contain env-var names and request-shaping metadata, never credential
+values. `--reset-verified <vendor>` is repeatable and records an external reset
+check without running cleanup. The command does not write, autofix, approve,
+invoke, verify live state, or reset a target.
 
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack

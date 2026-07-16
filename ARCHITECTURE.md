@@ -100,6 +100,7 @@ Important command groups:
   - `ingest`
   - `generate`
   - `review`
+  - `audit-benchmark` (read-only suite/cohort/pack authoring gate)
 - **Execution**
   - `exec-plan`
   - `probe`

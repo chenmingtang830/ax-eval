@@ -85,6 +85,22 @@ by vendor, with official support evidence preserved in the reviewed pack.
 Always run `review` and require a current approval before `exec-plan`;
 `compose-pack` never creates an approval automatically.
 
+Before review, run the keyless benchmark authoring audit from the repository
+root and provide each core vendor's compose config explicitly:
+
+```bash
+npm run ax-eval -- audit-benchmark --benchmark <benchmark> \
+  --benchmark-version <version> \
+  --pack-config <vendor>=path/to/<vendor>.compose.yaml
+```
+
+Repeat `--pack-config` for every core vendor. Add `--reset-verified <vendor>`
+only after an external sandbox reset check has actually completed; the audit
+records that evidence but never performs cleanup. A nonzero exit means the
+suite, cohort extracts, or compiled packs are not ready for review. The command
+is read-only: it does not autofix artifacts, approve packs, invoke harnesses,
+verify live state, or reset targets.
+
 Before any benchmark low-pass execution, inspect the keyless plan:
 
 ```bash

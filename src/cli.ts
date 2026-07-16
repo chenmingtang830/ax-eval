@@ -24,6 +24,8 @@
  *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
  *       [--html path] without re-running live verification
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
+ *   ax-eval audit-benchmark --benchmark <slug> --benchmark-version <version>
+ *       [--benchmark-root <dir>] [--pack-config <slug>=<yaml>]... [--reset-verified <slug>]...
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile high] run prompts locally
  */
@@ -77,6 +79,8 @@ import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { loadSuite, validatePackAgainstSuite } from "./generate/suite.js";
 import { buildLowPassExecutionPlan } from "./generate/low-pass-plan.js";
 import { parsePackComposeConfig } from "./generate/pack-compose-config.js";
+import { auditBenchmarkAuthoring } from "./generate/benchmark-authoring-audit.js";
+import { buildBenchmarkLayout } from "./generate/benchmark-paths.js";
 import { defaultSuiteMethodology } from "./generate/suite-methodology.js";
 import {
   buildCoverageMatrix,
@@ -156,6 +160,7 @@ const COMMANDS = [
   "extract-tasks",
   "compose-pack",
   "plan-low-pass",
+  "audit-benchmark",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -221,6 +226,14 @@ function commandUsage(command: string | undefined): string {
         `                             [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]...`,
         "  Validates the compiled pack against the canonical suite and prints a",
         "  low-profile, one-trial task execution plan. Does not invoke or reset.",
+      ].join("\n");
+    case "audit-benchmark":
+      return [
+        "usage: ax-eval audit-benchmark --benchmark <slug> --benchmark-version <version>",
+        "                               [--benchmark-root <dir>] [--pack-config <slug>=<yaml>]...",
+        "                               [--reset-verified <slug>]...",
+        "  Reads benchmark authoring artifacts and prints a sectioned JSON audit.",
+        "  Never writes, repairs, approves, invokes, verifies, or resets artifacts.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -319,6 +332,11 @@ interface Parsed {
   config: string;
   targetTasks: number;
   suiteVersion: number;
+  benchmarkRoot: string;
+  benchmark: string;
+  benchmarkVersion: string;
+  packConfigs: string[];
+  resetVerified: string[];
   _: string[];
 }
 
@@ -381,6 +399,11 @@ function parseArgs(argv: string[]): Parsed {
     config: "",
     targetTasks: 12,
     suiteVersion: 1,
+    benchmarkRoot: "",
+    benchmark: "",
+    benchmarkVersion: "",
+    packConfigs: [],
+    resetVerified: [],
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -494,6 +517,11 @@ function parseArgs(argv: string[]): Parsed {
       if (!Number.isInteger(n) || n < 1) throw new Error(`--suite-version must be a positive integer (got ${n})`);
       p.suiteVersion = n;
     }
+    else if (a === "--benchmark-root") p.benchmarkRoot = value(++i, "--benchmark-root");
+    else if (a === "--benchmark") p.benchmark = value(++i, "--benchmark");
+    else if (a === "--benchmark-version") p.benchmarkVersion = value(++i, "--benchmark-version");
+    else if (a === "--pack-config") p.packConfigs.push(value(++i, "--pack-config"));
+    else if (a === "--reset-verified") p.resetVerified.push(value(++i, "--reset-verified"));
     else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
@@ -1883,6 +1911,37 @@ function cmdPlanLowPass(args: Parsed): number {
   return 0;
 }
 
+function loadBenchmarkPackConfigs(assignments: readonly string[]): ReadonlyMap<string, unknown> {
+  const paths = new Map<string, string>();
+  for (const assignment of assignments) {
+    const separator = assignment.indexOf("=");
+    if (separator <= 0 || separator === assignment.length - 1) {
+      throw new Error("--pack-config expects <slug>=<yaml>");
+    }
+    const slug = assignment.slice(0, separator);
+    const path = assignment.slice(separator + 1);
+    if (paths.has(slug)) throw new Error(`duplicate --pack-config for ${slug}`);
+    paths.set(slug, path);
+  }
+  return new Map([...paths].map(([slug, path]) => [slug, yamlParse(readFileSync(path, "utf8"))]));
+}
+
+function cmdAuditBenchmark(args: Parsed): number {
+  if (!args.benchmark) throw new Error("--benchmark <slug> is required");
+  if (!args.benchmarkVersion) throw new Error("--benchmark-version <version> is required");
+  const layout = buildBenchmarkLayout(
+    args.benchmarkRoot || process.cwd(),
+    args.benchmark,
+    args.benchmarkVersion,
+  );
+  const report = auditBenchmarkAuthoring(layout, {
+    resetVerified: new Set(args.resetVerified),
+    packConfigs: loadBenchmarkPackConfigs(args.packConfigs),
+  });
+  console.log(JSON.stringify(report, null, 2));
+  return report.summary.errors > 0 ? 1 : 0;
+}
+
 function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
   return {
     ...args,
@@ -1890,6 +1949,8 @@ function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
     harness: [...(overrides.harness ?? args.harness)],
     profile: [...(overrides.profile ?? args.profile)],
     results: [...(overrides.results ?? args.results)],
+    packConfigs: [...(overrides.packConfigs ?? args.packConfigs)],
+    resetVerified: [...(overrides.resetVerified ?? args.resetVerified)],
     observe: { ...(overrides.observe ?? args.observe) },
     _: [...(overrides._ ?? args._)],
   };
@@ -2244,6 +2305,8 @@ async function main(): Promise<number> {
       return cmdComposePack(args);
     case "plan-low-pass":
       return cmdPlanLowPass(args);
+    case "audit-benchmark":
+      return cmdAuditBenchmark(args);
     default:
       console.error(USAGE);
       return 2;
