@@ -59,6 +59,21 @@ export interface NormalizedResult {
   first_action_latency_ms?: number | null;
   transcript_event_count?: number | null;
   action_occurred?: boolean | null;
+  /** Single verified cell or an aggregate over repeated trials of that exact
+   * product/surface/harness/model/standard-set cell. */
+  summary_kind?: "single" | "aggregate";
+  trial_count?: number;
+  trial_values?: number[];
+  mean_pass_rate?: number;
+  range_pass_rate?: { min: number; max: number };
+  /** Estimated probability that three independent trials all succeed when the
+   * observed mean pass rate is treated as the per-trial success probability. */
+  pass_hat_3?: number | null;
+  /** Strict observed indicator: 1 only when all three supplied trials pass all
+   * tasks, 0 otherwise, and null unless exactly three trials were supplied. */
+  pass_all_3?: number | null;
+  trial_stability_at_3?: "all_pass" | "all_fail" | "inconsistent" | null;
+  source_records?: string[];
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
    *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
@@ -161,6 +176,96 @@ export function buildNormalizedResult(
     first_action_latency_ms: best?.efficiency?.first_action_latency_ms ?? null,
     transcript_event_count: best?.efficiency?.transcript_event_count ?? null,
     action_occurred: best?.efficiency?.action_occurred ?? null,
+    summary_kind: "single",
+  };
+}
+
+function average(values: number[]): number | null {
+  return values.length > 0 ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function numericValues(records: readonly NormalizedResult[], select: (record: NormalizedResult) => number | null | undefined): number[] {
+  return records.flatMap((record) => {
+    const value = select(record);
+    return typeof value === "number" && Number.isFinite(value) ? [value] : [];
+  });
+}
+
+export function classifyTrialStabilityAt3(
+  trialPassRates: readonly number[],
+): "all_pass" | "all_fail" | "inconsistent" | null {
+  if (trialPassRates.length !== 3) return null;
+  if (trialPassRates.every((rate) => rate >= 1)) return "all_pass";
+  if (trialPassRates.every((rate) => rate <= 0)) return "all_fail";
+  return "inconsistent";
+}
+
+function assertComparableTrials(records: readonly NormalizedResult[]): void {
+  const first = records[0]!;
+  const comparableFields: Array<keyof Pick<NormalizedResult,
+    "schema" | "surface" | "product" | "harness" | "standard_set_version" | "tasks_total" | "best_profile" | "model"
+  >> = ["schema", "surface", "product", "harness", "standard_set_version", "tasks_total", "best_profile", "model"];
+  for (const [index, record] of records.entries()) {
+    if (record.blocked) throw new Error(`trial ${index + 1} is blocked (${record.blocked}) and cannot be aggregated`);
+    if (record.summary_kind === "aggregate") throw new Error(`trial ${index + 1} is already an aggregate`);
+    if (!Number.isFinite(record.pass_at_1) || record.pass_at_1 < 0 || record.pass_at_1 > 1) {
+      throw new Error(`trial ${index + 1} has invalid pass_at_1 ${record.pass_at_1}`);
+    }
+    if (!Number.isFinite(record.pass_at_k) || record.pass_at_k < record.pass_at_1 || record.pass_at_k > 1) {
+      throw new Error(`trial ${index + 1} has invalid pass_at_k ${record.pass_at_k}`);
+    }
+    if (!Number.isInteger(record.tasks_passed) || record.tasks_passed < 0 || record.tasks_passed > record.tasks_total) {
+      throw new Error(`trial ${index + 1} has invalid tasks_passed ${record.tasks_passed}`);
+    }
+    if (record.tasks_total > 0 && record.tasks_passed / record.tasks_total !== record.pass_at_1) {
+      throw new Error(`trial ${index + 1} tasks_passed does not match pass_at_1`);
+    }
+    for (const field of comparableFields) {
+      if (record[field] !== first[field]) {
+        throw new Error(`trial ${index + 1} does not match the first trial's ${field}`);
+      }
+    }
+  }
+}
+
+export function aggregateNormalizedResults(
+  records: readonly NormalizedResult[],
+  sourceRecords: readonly string[] = [],
+  options: { now?: () => Date } = {},
+): NormalizedResult {
+  if (records.length === 0) throw new Error("aggregateNormalizedResults requires at least one trial record");
+  if (sourceRecords.length > 0 && sourceRecords.length !== records.length) {
+    throw new Error("source record count must match trial record count");
+  }
+  assertComparableTrials(records);
+  const first = records[0]!;
+  const passValues = records.map((record) => record.pass_at_1);
+  const meanPassRate = average(passValues)!;
+  const validityValues = [...new Set(records.map((record) => record.validity_status).filter((value): value is string => Boolean(value)))];
+  return {
+    ...first,
+    generated_at: (options.now ?? (() => new Date()))().toISOString(),
+    tasks_passed: Math.round(meanPassRate * first.tasks_total),
+    pass_at_1: meanPassRate,
+    pass_at_k: average(records.map((record) => record.pass_at_k)) ?? meanPassRate,
+    attempts: Math.max(...records.map((record) => record.attempts || 1)),
+    discovery_score: average(numericValues(records, (record) => record.discovery_score)),
+    content_quality: average(numericValues(records, (record) => record.content_quality)),
+    profiles: [...new Set(records.flatMap((record) => record.profiles))],
+    latency_ms: average(numericValues(records, (record) => record.latency_ms)),
+    validity_status: validityValues.length === 1 ? validityValues[0]! : validityValues.length > 1 ? "mixed" : null,
+    first_action_latency_ms: average(numericValues(records, (record) => record.first_action_latency_ms)),
+    transcript_event_count: average(numericValues(records, (record) => record.transcript_event_count)),
+    action_occurred: records.some((record) => record.action_occurred === true),
+    summary_kind: "aggregate",
+    trial_count: records.length,
+    trial_values: passValues,
+    mean_pass_rate: meanPassRate,
+    range_pass_rate: { min: Math.min(...passValues), max: Math.max(...passValues) },
+    pass_hat_3: records.length === 3 ? meanPassRate ** 3 : null,
+    pass_all_3: records.length === 3 ? (records.every((record) => record.pass_at_1 >= 1) ? 1 : 0) : null,
+    trial_stability_at_3: classifyTrialStabilityAt3(passValues),
+    source_records: [...sourceRecords],
   };
 }
 
