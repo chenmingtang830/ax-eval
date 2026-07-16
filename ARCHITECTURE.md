@@ -264,13 +264,16 @@ MCP provisioning lives in [src/harness/mcp-provision.ts](./src/harness/mcp-provi
 
 It supports:
 
+- stdio MCP executable-plus-argv provisioning for Codex and Claude Code
 - token-based MCP auth
 - OAuth-app MCP auth via refresh-token exchange
 - isolated per-run Codex and Claude homes/configs
 - bearer token injection without writing secrets to tracked files
 
 This is how hosted OAuth-backed MCP surfaces can run headlessly while still
-keeping secret handling local to the invoking process.
+keeping secret handling local to the invoking process. Stdio declarations are
+never interpreted as shell commands: `server` is a validated executable token,
+`args` is an argv array, and token values remain process environment only.
 
 ### Transcript parsing
 

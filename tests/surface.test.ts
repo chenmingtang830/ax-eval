@@ -42,7 +42,7 @@ const multi = TargetPackSchema.parse({
   surfaces: {
     cli: { bin: "demo", install: "npm i -g @demo/cli" },
     sdk: { package: "@demo/sdk", language: "node" },
-    mcp: { server: "npx -y @demo/mcp", transport: "stdio" },
+    mcp: { server: "npx", args: ["-y", "@demo/mcp"], transport: "stdio" },
   },
 });
 

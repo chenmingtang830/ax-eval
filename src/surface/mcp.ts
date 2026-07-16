@@ -20,7 +20,8 @@ export const mcpSurface: Surface = {
       `You must operate ${productName(pack)} through its Model Context Protocol (MCP) server's tools, NOT raw HTTP/curl.`,
     ];
     if (m.setup) lines.push(`Server setup: ${m.setup}`);
-    lines.push(`Server: ${m.server} (transport: ${m.transport}).`, ``);
+    const target = m.transport === "stdio" ? [m.server, ...m.args].join(" ") : m.server;
+    lines.push(`Server: ${target} (transport: ${m.transport}).`, ``);
     return lines;
   },
   discoveryBlock: (pack) => {

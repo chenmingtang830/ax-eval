@@ -59,6 +59,11 @@ The api surface (and any token surface you have creds for) still runs; the block
 surface shows as a distinct cell in the competitive report, never a 0%. To unblock,
 add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
+For stdio MCP, declare `server` as a single executable name and `args` as a YAML
+argv array. Do not put a shell command in `server`; the harness provisions the
+executable and arguments directly for both Codex and Claude Code. Stdio supports
+`inherit` or `token` auth, while OAuth refresh exchange is for hosted HTTP MCP.
+
 ## Workflow
 
 ### Suite-first canonical benchmark path

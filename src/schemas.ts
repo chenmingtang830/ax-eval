@@ -238,10 +238,21 @@ export const SdkSurfaceSchema = z.object({
 });
 export type SdkSurface = z.infer<typeof SdkSurfaceSchema>;
 
+const McpExecutableSchema = z.string().regex(
+  /^[A-Za-z0-9][A-Za-z0-9._/@+-]*$/,
+  "stdio MCP server must be a single executable name; put arguments in args",
+);
+const McpArgumentSchema = z.string().min(1).refine(
+  (value) => !/[\0\n\r]/.test(value),
+  "stdio MCP arguments must not contain null bytes or newlines",
+);
+
 export const McpSurfaceSchema = z.object({
-  /** Server command (stdio) or URL (http) the agent's MCP client connects to. */
+  /** Executable (stdio) or URL (http) the agent's MCP client connects to. */
   server: z.string(),
   transport: z.enum(["stdio", "http"]).default("stdio"),
+  /** Stdio argv. Shell command strings are intentionally unsupported. */
+  args: z.array(McpArgumentSchema).default([]),
   /** How to register/configure the server, shown in the prompt's setup block. */
   setup: z.string().optional(),
   /** MCP docs URL (an authoritative discovery source). */
@@ -252,6 +263,24 @@ export const McpSurfaceSchema = z.object({
   /** Per-surface auth. Hosted OAuth-only servers (Asana/Notion) set
    *  kind="oauth_app"; token-friendly servers (Monday/Linear) set kind="token". */
   auth: SurfaceAuthSchema.optional(),
+}).superRefine((mcp, context) => {
+  if (mcp.transport === "stdio" && !McpExecutableSchema.safeParse(mcp.server).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["server"],
+      message: "stdio MCP server must be a single executable name; put arguments in args",
+    });
+  }
+  if (mcp.transport === "stdio" && mcp.auth?.kind === "oauth_app") {
+    context.addIssue({
+      code: "custom",
+      path: ["auth", "kind"],
+      message: "stdio MCP servers must use inherit or token auth",
+    });
+  }
+  if (mcp.transport === "http" && mcp.args.length > 0) {
+    context.addIssue({ code: "custom", path: ["args"], message: "http MCP servers must not declare args" });
+  }
 });
 export type McpSurface = z.infer<typeof McpSurfaceSchema>;
 

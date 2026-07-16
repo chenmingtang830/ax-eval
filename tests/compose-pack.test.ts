@@ -132,6 +132,27 @@ describe("pack composition", () => {
     expect(pack.discovery).toEqual(discovery);
   });
 
+  it("preserves stdio MCP executable arguments", () => {
+    const mcpSurfaces: SurfaceExtractResult = {
+      ...surfaces,
+      mcp: {
+        server: "npx",
+        transport: "stdio",
+        args: ["-y", "@acme/mcp"],
+        docs_url: "https://docs.acme.example/mcp",
+        auth: { kind: "inherit" },
+      },
+    };
+    const mcpTasks: TaskExtractResult = {
+      ...taskExtract,
+      tasks: taskExtract.tasks.map((task) => task.id === "db-create"
+        ? { ...task, allowed_surfaces: ["api", "cli", "mcp"] }
+        : task),
+    };
+    const pack = composePack(vendor, suite, mcpSurfaces, mcpTasks, config);
+    expect(pack.surfaces?.mcp).toMatchObject({ server: "npx", args: ["-y", "@acme/mcp"] });
+  });
+
   it("rejects missing verifier configuration", () => {
     expect(() => composePack(vendor, suite, surfaces, taskExtract, {
       ...config,

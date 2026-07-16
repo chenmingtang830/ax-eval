@@ -77,6 +77,7 @@ function composeSurfaces(
   const mcp = extracted.mcp && used.has("mcp") ? {
     server: extracted.mcp.server,
     transport: extracted.mcp.transport,
+    args: extracted.mcp.args,
     docs_url: extracted.mcp.docs_url,
     auth: config.surface_auth?.mcp ?? normalizeSurfaceAuth(extracted.mcp.auth),
   } : undefined;

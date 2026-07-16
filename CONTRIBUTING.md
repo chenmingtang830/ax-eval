@@ -132,6 +132,9 @@ Two details matter for public packs:
   Token-based surfaces can add `token_env_aliases`; OAuth-only surfaces should
   be modeled as `kind: oauth_app` so the report shows an honest blocked cell
   instead of a fake 0%.
+- Stdio MCP surfaces declare one executable in `server` and each argument in
+  `args`; never encode a shell command or credential value in either field.
+  Use `inherit` or `token` auth for stdio and reserve `oauth_app` for HTTP MCP.
 - SQL and MongoDB outcome verification declares only connection environment
   variable names in the pack. SQL queries must be single-statement reads;
   MongoDB checks must use the declarative read operations. Never put a token,

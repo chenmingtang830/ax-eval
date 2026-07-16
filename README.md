@@ -371,7 +371,9 @@ the report instead of a misleading failure. OAuth-backed MCP surfaces can be run
 headlessly when the pack declares client id, client secret, refresh token, and token
 URL env names: ax-eval exchanges the refresh token at invoke time, passes the
 short-lived bearer only to the child harness environment, and keeps secret values out
-of tracked files.
+of tracked files. Stdio MCP surfaces declare `server` as one executable and `args` as
+an argv array; ax-eval writes those fields into isolated Codex and Claude configs
+without invoking a shell or serializing token values into config files.
 
 Packs can declare backward-compatible env aliases too: top-level auth supports
 `env_aliases` / `verify_env_aliases`, and token-authenticated SDK/CLI/MCP

@@ -15,6 +15,14 @@ const SafeCommandSchema = z.string().min(1).refine(
   (value) => !/[\n\r;&|`<>$]/.test(value),
   "must not contain shell operators or expansion",
 );
+const McpExecutableSchema = z.string().regex(
+  /^[A-Za-z0-9][A-Za-z0-9._/@+-]*$/,
+  "stdio MCP server must be a single executable name; put arguments in args",
+);
+const McpArgumentSchema = z.string().min(1).refine(
+  (value) => !/[\0\n\r]/.test(value),
+  "stdio MCP arguments must not contain null bytes or newlines",
+);
 const SurfaceAuthSchema = z.object({
   kind: z.enum(["inherit", "token", "oauth_app"]),
   token_env: EnvNameSchema.nullable().optional(),
@@ -41,16 +49,34 @@ const SdkSchema = z.object({
   auth: SurfaceAuthSchema,
 });
 const McpSchema = z.object({
-  server: SafeCommandSchema,
+  server: z.string().min(1),
   transport: z.enum(["stdio", "http"]),
+  args: z.array(McpArgumentSchema).default([]),
   docs_url: PublicHttpUrlSchema,
   auth: SurfaceAuthSchema,
 }).superRefine((mcp, context) => {
+  if (mcp.transport === "stdio" && !McpExecutableSchema.safeParse(mcp.server).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["server"],
+      message: "stdio MCP server must be a single executable name; put arguments in args",
+    });
+  }
+  if (mcp.transport === "stdio" && mcp.auth.kind === "oauth_app") {
+    context.addIssue({
+      code: "custom",
+      path: ["auth", "kind"],
+      message: "stdio MCP servers must use inherit or token auth",
+    });
+  }
   if (mcp.transport === "http" && !/^https?:\/\//i.test(mcp.server)) {
     context.addIssue({ code: "custom", path: ["server"], message: "http transport requires an HTTP URL" });
   }
   if (mcp.transport === "http" && !PublicHttpUrlSchema.safeParse(mcp.server).success) {
     context.addIssue({ code: "custom", path: ["server"], message: "MCP server must be a public URL" });
+  }
+  if (mcp.transport === "http" && mcp.args.length > 0) {
+    context.addIssue({ code: "custom", path: ["args"], message: "http MCP servers must not declare args" });
   }
 });
 
@@ -110,6 +136,8 @@ export function buildSurfacePrompt(vendor: ResolveResult, registrySeed?: Registr
     "Use web fetch/search; do not infer package names, binaries, commands, or authentication from memory.",
     ...seedInstructions,
     "Return official CLI, SDK, and MCP surfaces, or null when no official surface is documented.",
+    "For stdio MCP, return server as one executable name and args as an argv array; never return a shell command string.",
+    "For HTTP MCP, return the public server URL and an empty args array.",
     "For authentication use inherit, token with a SCREAMING_SNAKE_CASE token_env, or oauth_app.",
     "Return JSON only with keys cli, sdk, and mcp.",
   ].join("\n");

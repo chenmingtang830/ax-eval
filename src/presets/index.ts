@@ -65,6 +65,7 @@ const ASANA_PRESET: GeneratePreset<GenerateOptions> = {
       mcp: {
         server: "https://mcp.asana.com/v2/mcp",
         transport: "http",
+        args: [],
         docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
         auth: {
           kind: "oauth_app",
@@ -158,6 +159,7 @@ const EXA_PRESET: GeneratePreset<GenerateOptions> = {
       mcp: {
         server: "exa-mcp-server",
         transport: "stdio",
+        args: [],
         docs_url: "https://docs.exa.ai/reference/exa-mcp",
         auth: {
           kind: "token",
@@ -530,6 +532,7 @@ const CODA_PRESET: GeneratePreset<GenerateOptions> = {
       mcp: {
         server: "https://coda.io/apis/mcp",
         transport: "http",
+        args: [],
         docs_url: "https://help.coda.io/hc/en-us/articles/44722661982989-Connect-to-the-Coda-MCP",
         auth: {
           kind: "token",
@@ -583,6 +586,7 @@ const LINEAR_GRAPHQL_PRESET: GeneratePreset<GenerateGraphqlPackOptions> = {
       mcp: {
         server: "https://mcp.linear.app/mcp",
         transport: "http",
+        args: [],
         docs_url: "https://linear.app/docs/mcp",
         auth: {
           kind: "token",
@@ -622,4 +626,3 @@ export function resolveGraphqlGeneratePreset(product: string): GeneratePreset<Ge
       return undefined;
   }
 }
-

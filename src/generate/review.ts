@@ -294,7 +294,9 @@ export function reviewSummary(pack: TargetPack): string {
     lines.push(`- SDK: \`${pack.surfaces.sdk.package}\`${pack.surfaces.sdk.install ? `; install \`${pack.surfaces.sdk.install}\`` : ""}`);
   }
   if (pack.surfaces?.mcp) {
-    lines.push(`- MCP (${pack.surfaces.mcp.transport}): \`${pack.surfaces.mcp.server}\``);
+    const mcp = pack.surfaces.mcp;
+    const target = mcp.transport === "stdio" ? [mcp.server, ...mcp.args].join(" ") : mcp.server;
+    lines.push(`- MCP (${mcp.transport}): \`${target}\``);
   }
   lines.push("");
 

@@ -22,3 +22,32 @@ describe("TaskSchema", () => {
     expect(pack.site_url).toBe("");
   });
 });
+
+describe("MCP surface schema", () => {
+  it("defaults argv and rejects opaque stdio shell commands", () => {
+    const pack = TargetPackSchema.parse({
+      name: "stdio",
+      surfaces: { mcp: { server: "npx", transport: "stdio" } },
+      tasks: [],
+    });
+    expect(pack.surfaces?.mcp?.args).toEqual([]);
+    expect(() => TargetPackSchema.parse({
+      name: "bad-stdio",
+      surfaces: { mcp: { server: "npx -y @acme/mcp", transport: "stdio" } },
+      tasks: [],
+    })).toThrow(/single executable name/);
+  });
+
+  it("rejects argv on HTTP and OAuth app auth on stdio", () => {
+    expect(() => TargetPackSchema.parse({
+      name: "bad-http",
+      surfaces: { mcp: { server: "https://mcp.example.test", transport: "http", args: ["--bad"] } },
+      tasks: [],
+    })).toThrow(/must not declare args/);
+    expect(() => TargetPackSchema.parse({
+      name: "bad-stdio-auth",
+      surfaces: { mcp: { server: "acme-mcp", transport: "stdio", auth: { kind: "oauth_app" } } },
+      tasks: [],
+    })).toThrow(/inherit or token auth/);
+  });
+});

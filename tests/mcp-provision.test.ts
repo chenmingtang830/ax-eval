@@ -53,7 +53,71 @@ function pack(): TargetPack {
   });
 }
 
+function stdioPack(auth: "inherit" | "token" = "inherit"): TargetPack {
+  return TargetPackSchema.parse({
+    name: "exa-generated",
+    auth: { type: "api-key", env: "EXA_API_KEY" },
+    base_url: "https://api.exa.ai",
+    surfaces: {
+      mcp: {
+        server: "npx",
+        transport: "stdio",
+        args: ["-y", "exa-mcp-server"],
+        auth: auth === "token"
+          ? { kind: "token", token_env: "EXA_MCP_TOKEN", token_env_aliases: ["EXA_API_KEY"] }
+          : { kind: "inherit" },
+      },
+    },
+    tasks: [],
+  });
+}
+
 describe("provisionHarnessForSurface", () => {
+  it("writes a Codex stdio config with executable and argv", async () => {
+    const dir = freshDir();
+    process.env.EXA_API_KEY = "inherited-token";
+    const paths = defaultInvokePaths(dir, "codex-high-mcp", "codex");
+    const provisioning = await provisionHarnessForSurface({
+      pack: stdioPack(),
+      harness: "codex",
+      surface: "mcp",
+      paths,
+      cwd: "/repo",
+    });
+
+    expect(provisioning.meta?.mcp_provisioning).toBe("stdio_inherit");
+    expect(provisioning.env.EXA_API_KEY).toBe("inherited-token");
+    const text = readFileSync(resolve(provisioning.env.CODEX_HOME!, "config.toml"), "utf8");
+    expect(text).toContain('command = "npx"');
+    expect(text).toContain('args = ["-y", "exa-mcp-server"]');
+    expect(text).not.toContain("url =");
+    expect(text).not.toContain("bearer_token_env_var");
+  });
+
+  it("writes a Claude stdio config without embedding token auth", async () => {
+    const dir = freshDir();
+    process.env.EXA_API_KEY = "secret-alias-token";
+    const paths = defaultInvokePaths(dir, "claude-high-mcp", "claude-code");
+    const provisioning = await provisionHarnessForSurface({
+      pack: stdioPack("token"),
+      harness: "claude-code",
+      surface: "mcp",
+      paths,
+      cwd: "/repo",
+    });
+
+    expect(provisioning.meta?.mcp_provisioning).toBe("stdio_env_token");
+    expect(provisioning.env.EXA_MCP_TOKEN).toBe("secret-alias-token");
+    expect(provisioning.meta).not.toHaveProperty("claude_headers_helper");
+    const configText = readFileSync(resolve(provisioning.env.HOME!, ".claude.json"), "utf8");
+    expect(configText).toContain('"type": "stdio"');
+    expect(configText).toContain('"command": "npx"');
+    expect(configText).toContain('"-y"');
+    expect(configText).toContain('"exa-mcp-server"');
+    expect(configText).not.toContain('"url"');
+    expect(configText).not.toContain("secret-alias-token");
+  });
+
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
     const dir = freshDir();
     process.env.ASANA_MCP_CLIENT_ID = "client-id";

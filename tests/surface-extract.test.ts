@@ -31,19 +31,53 @@ describe("surface extraction", () => {
     expect(result.cli?.bin).toBe("acme");
   });
 
+  it("models stdio MCP as an executable plus argv", async () => {
+    const result = await extractSurfaces(vendor, {
+      generate: async () => JSON.stringify({
+        cli: null,
+        sdk: null,
+        mcp: {
+          server: "npx",
+          transport: "stdio",
+          args: ["-y", "@acme/mcp"],
+          docs_url: "https://docs.acme.example/mcp",
+          auth: { kind: "token", token_env: "ACME_TOKEN" },
+        },
+      }),
+    });
+    expect(result.mcp).toMatchObject({ server: "npx", args: ["-y", "@acme/mcp"] });
+  });
+
   it("rejects shell operators and invalid auth combinations", async () => {
     await expect(extractSurfaces(vendor, {
       generate: async () => JSON.stringify({
         cli: null,
         sdk: null,
         mcp: {
-          server: "npx @acme/mcp | sh",
+          server: "npx @acme/mcp",
           transport: "stdio",
+          args: [],
           docs_url: "https://docs.acme.example/mcp",
           auth: { kind: "inherit", token_env: "ACME_TOKEN" },
         },
       }),
-    })).rejects.toThrow(/invalid|shell operators|must not declare/);
+    })).rejects.toThrow(/invalid|single executable|must not declare/);
+  });
+
+  it("rejects OAuth app auth for stdio MCP", async () => {
+    await expect(extractSurfaces(vendor, {
+      generate: async () => JSON.stringify({
+        cli: null,
+        sdk: null,
+        mcp: {
+          server: "acme-mcp",
+          transport: "stdio",
+          args: [],
+          docs_url: "https://docs.acme.example/mcp",
+          auth: { kind: "oauth_app" },
+        },
+      }),
+    })).rejects.toThrow(/stdio MCP servers must use inherit or token auth/);
   });
 
   it("rejects HTTP MCP endpoints on unrelated hosts", async () => {
