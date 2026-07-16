@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { redactSensitiveText } from "./redaction.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -663,11 +664,11 @@ export async function runInvokeHarness(
       try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* best effort */ }
     }
   }
-  writeFileSync(opts.paths.stdoutPath, stdout);
-  writeFileSync(opts.paths.stderrPath, stderr);
+  writeFileSync(opts.paths.stdoutPath, redactSensitiveText(stdout));
+  writeFileSync(opts.paths.stderrPath, redactSensitiveText(stderr));
   // Keep a single transcript file path for verify --observe / report evidence.
   // If a harness emits structured JSONL later, this path can hold it directly.
-  writeFileSync(opts.paths.transcriptPath, stdout || stderr);
+  writeFileSync(opts.paths.transcriptPath, redactSensitiveText(stdout || stderr));
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
@@ -679,6 +680,10 @@ export async function runInvokeHarness(
   } else {
     const reason = error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`;
     writeFailureArtifacts(opts, reason);
+  }
+  for (const artifactPath of [opts.paths.resultsPath, opts.paths.tracePath]) {
+    if (!existsSync(artifactPath)) continue;
+    writeFileSync(artifactPath, redactSensitiveText(readFileSync(artifactPath, "utf8")));
   }
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
@@ -695,11 +700,11 @@ export async function runInvokeHarness(
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok ? undefined : (error ?? stderr.trim()) || `exit ${exitLabel}`,
+    error: ok ? undefined : redactSensitiveText((error ?? stderr.trim()) || `exit ${exitLabel}`),
   };
   writeFileSync(
     opts.paths.metaPath,
-    JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2),
+    redactSensitiveText(JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2)),
   );
   return meta;
 }

@@ -415,4 +415,34 @@ describe("runInvokeHarness", () => {
     expect(result.ok).toBe(true);
     expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-codex");
   });
+
+  it("redacts secrets from every persisted invoke artifact", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const secret = ["napi", "invokecredential123"].join("_");
+    writeFileSync(
+      run.paths.resultsPath,
+      JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: { notes: `token=${secret}` }, results: { t1: { gid: "g" } } }),
+    );
+    writeFileSync(run.paths.tracePath, JSON.stringify([{ step: 1, note: `Bearer ${secret}` }]));
+
+    const result = await runInvokeHarness(
+      { ...run, provisioning: { auth_token: secret } },
+      async () => spawnResult({ stdout: Buffer.from(`stdout token=${secret}`), stderr: Buffer.from(`stderr Bearer ${secret}`) }),
+    );
+
+    expect(result.ok).toBe(true);
+    for (const artifactPath of [
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.metaPath,
+    ]) {
+      const persisted = readFileSync(artifactPath, "utf8");
+      expect(persisted).not.toContain(secret);
+      expect(persisted).toContain("[REDACTED]");
+    }
+  });
 });
