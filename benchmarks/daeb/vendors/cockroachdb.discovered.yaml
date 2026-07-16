@@ -1,0 +1,10 @@
+vendor: Cockroachdb
+category: database
+slug: cockroachdb
+discovered_at: 2026-07-02T20:15:29.129Z
+resolver:
+  method: registry
+  registry_domain: cockroachlabs.com
+site_url: https://cockroachlabs.com
+docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+http_status: null
