@@ -56,7 +56,7 @@ function uniqueSegments(values: readonly string[], label: string): string[] {
   return validated;
 }
 
-function portableRelativePath(path: string, label: string): string {
+export function assertPortablePublicationPath(path: string, label: string): string {
   if (isAbsolute(path) || path.includes("\\")) throw new Error(`${label} must be a portable relative path`);
   const normalized = posix.normalize(path);
   if (normalized === "." || normalized === ".." || normalized.startsWith("../") || normalized !== path) {
@@ -115,7 +115,7 @@ export function buildPublicationManifest(options: {
   const artifacts = options.artifacts.map((artifact, index) => ({
     id: artifactIds[index]!,
     required: artifact.required,
-    ...(artifact.path ? { path: portableRelativePath(artifact.path, `artifact ${artifact.id} path`) } : {}),
+    ...(artifact.path ? { path: assertPortablePublicationPath(artifact.path, `artifact ${artifact.id} path`) } : {}),
   }));
   const missingRequiredArtifacts = artifacts
     .filter((artifact) => artifact.required && !artifact.path)
@@ -139,7 +139,7 @@ export function buildPublicationManifest(options: {
       harness,
       profiles: uniqueSegments(cell.profiles, `profile for ${key}`),
       trial_count: cell.trial_count,
-      aggregate_record: portableRelativePath(cell.aggregate_record, `aggregate record for ${key}`),
+      aggregate_record: assertPortablePublicationPath(cell.aggregate_record, `aggregate record for ${key}`),
     };
   }).sort((left, right) => cellKey(left).localeCompare(cellKey(right)));
 
