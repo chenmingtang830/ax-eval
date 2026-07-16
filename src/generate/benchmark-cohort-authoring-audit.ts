@@ -1,6 +1,8 @@
 import {
   loadBenchmarkVendorContext,
+  type BenchmarkVendorContext,
   type BenchmarkVendorContextFinding,
+  type BenchmarkVendorContextResult,
 } from "./benchmark-vendor-context.js";
 import {
   auditBenchmarkVendorSelectionContext,
@@ -58,19 +60,16 @@ function failedContextResult(finding: BenchmarkVendorContextFinding): BenchmarkC
   };
 }
 
-export function auditBenchmarkCohortAuthoring(
-  layout: BenchmarkLayout,
+export function auditBenchmarkCohortAuthoringContext(
+  context: BenchmarkVendorContext,
   resetVerified: ReadonlySet<string>,
 ): BenchmarkCohortAuthoringAuditResult {
-  const loaded = loadBenchmarkVendorContext(layout);
-  if (loaded.status === "fail") return failedContextResult(loaded.findings[0]);
-
-  const vendorSelection = auditBenchmarkVendorSelectionContext(loaded.context, resetVerified);
-  const extracts = loaded.context.core_slugs.map((slug): BenchmarkCohortExtractAuditResult => {
+  const vendorSelection = auditBenchmarkVendorSelectionContext(context, resetVerified);
+  const extracts = context.core_slugs.map((slug): BenchmarkCohortExtractAuditResult => {
     const rawFindings = auditExtracts({
       slug,
-      capabilities: loaded.context.capabilities.get(slug) ?? null,
-      surfaces: loaded.context.surfaces.get(slug) ?? null,
+      capabilities: context.capabilities.get(slug) ?? null,
+      surfaces: context.surfaces.get(slug) ?? null,
     }).map((finding): BenchmarkCohortExtractFinding => ({ ...finding, slug }));
     const findings = rawFindings.filter((finding) =>
       !vendorSelectionOwnsExtractFinding(finding, vendorSelection.findings));
@@ -96,4 +95,20 @@ export function auditBenchmarkCohortAuthoring(
     vendor_selection: vendorSelection,
     extracts,
   };
+}
+
+export function auditLoadedBenchmarkCohortAuthoring(
+  loaded: BenchmarkVendorContextResult,
+  resetVerified: ReadonlySet<string>,
+): BenchmarkCohortAuthoringAuditResult {
+  return loaded.status === "fail"
+    ? failedContextResult(loaded.findings[0])
+    : auditBenchmarkCohortAuthoringContext(loaded.context, resetVerified);
+}
+
+export function auditBenchmarkCohortAuthoring(
+  layout: BenchmarkLayout,
+  resetVerified: ReadonlySet<string>,
+): BenchmarkCohortAuthoringAuditResult {
+  return auditLoadedBenchmarkCohortAuthoring(loadBenchmarkVendorContext(layout), resetVerified);
 }
