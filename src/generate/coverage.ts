@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import type { CapabilityExtractResult } from "./capability-extract.js";
 import type { SuiteMethodology } from "./suite-methodology.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
@@ -355,19 +356,25 @@ export function writeCoverageMatrix(root: string, suiteName: string, matrix: Cov
 }
 
 export function loadConceptUniverse(root: string, suiteName: string): ConceptUniverse | null {
-  const path = conceptUniversePath(root, suiteName);
-  if (!existsSync(path)) return null;
-  return ConceptUniverseSchema.parse(yamlParse(readFileSync(path, "utf8")));
+  return loadConceptUniversePath(conceptUniversePath(root, suiteName));
 }
 
 export function loadCoverageSelection(root: string, suiteName: string): CoverageSelection | null {
-  const path = coverageSelectionPath(root, suiteName);
-  if (!existsSync(path)) return null;
-  return CoverageSelectionSchema.parse(yamlParse(readFileSync(path, "utf8")));
+  return loadCoverageSelectionPath(coverageSelectionPath(root, suiteName));
 }
 
 export function loadCoverageMatrix(root: string, suiteName: string): CoverageMatrix | null {
-  const path = coverageMatrixPath(root, suiteName);
-  if (!existsSync(path)) return null;
-  return CoverageMatrixSchema.parse(yamlParse(readFileSync(path, "utf8")));
+  return loadCoverageMatrixPath(coverageMatrixPath(root, suiteName));
+}
+
+export function loadConceptUniversePath(path: string): ConceptUniverse | null {
+  return loadOptionalYamlArtifact(path, ConceptUniverseSchema, "concept universe");
+}
+
+export function loadCoverageSelectionPath(path: string): CoverageSelection | null {
+  return loadOptionalYamlArtifact(path, CoverageSelectionSchema, "coverage selection");
+}
+
+export function loadCoverageMatrixPath(path: string): CoverageMatrix | null {
+  return loadOptionalYamlArtifact(path, CoverageMatrixSchema, "coverage matrix");
 }

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,8 +8,11 @@ import {
   deriveConceptUniverse,
   buildCoverageMatrix,
   loadConceptUniverse,
+  loadConceptUniversePath,
   loadCoverageMatrix,
+  loadCoverageMatrixPath,
   loadCoverageSelection,
+  loadCoverageSelectionPath,
   selectCoverageConcepts,
   writeConceptUniverse,
   writeCoverageMatrix,
@@ -111,6 +114,39 @@ describe("coverage methodology", () => {
       expect(loadConceptUniverse(root, "daeb-1-v3")).toEqual(universe);
       expect(loadCoverageSelection(root, "daeb-1-v3")).toEqual(selection);
       expect(loadCoverageMatrix(root, "daeb-1-v3")).toEqual(matrix);
+      expect(loadConceptUniversePath(join(root, "targets", "suites", "daeb-1-v3.concepts.yaml"))).toEqual(universe);
+      expect(loadCoverageSelectionPath(join(root, "targets", "suites", "daeb-1-v3.selection.yaml"))).toEqual(selection);
+      expect(loadCoverageMatrixPath(join(root, "targets", "suites", "daeb-1-v3.coverage.yaml"))).toEqual(matrix);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("returns null for missing explicit artifact paths", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-eval-coverage-loaders-"));
+    try {
+      expect(loadConceptUniversePath(join(root, "missing-concepts.yaml"))).toBeNull();
+      expect(loadCoverageSelectionPath(join(root, "missing-selection.yaml"))).toBeNull();
+      expect(loadCoverageMatrixPath(join(root, "missing-matrix.yaml"))).toBeNull();
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("labels malformed and schema-invalid explicit artifacts", () => {
+    const root = mkdtempSync(join(tmpdir(), "ax-eval-coverage-loaders-"));
+    try {
+      const malformedPath = join(root, "concepts.yaml");
+      const invalidPath = join(root, "selection.yaml");
+      writeFileSync(malformedPath, "clusters: [");
+      writeFileSync(invalidPath, "category: database\n");
+
+      expect(() => loadConceptUniversePath(malformedPath)).toThrow(
+        `Invalid concept universe at ${malformedPath}: malformed YAML`,
+      );
+      expect(() => loadCoverageSelectionPath(invalidPath)).toThrow(
+        `Invalid coverage selection at ${invalidPath}`,
+      );
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
