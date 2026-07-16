@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyNs, buildExecutorPrompt, resolveNs } from "../src/harness/executor.js";
+import { applyNs, buildExecutorPrompt, resolveNs, taskResultKeys } from "../src/harness/executor.js";
 import { getProfile } from "../src/harness/profile.js";
 import { TargetPackSchema } from "../src/schemas.js";
 
@@ -103,5 +103,97 @@ describe("buildExecutorPrompt", () => {
   it("tells the executor to keep created ids even when read-after-write is temporarily unavailable", () => {
     expect(prompt).toContain("still record the created id");
     expect(prompt).toContain("202/404/409");
+  });
+
+  it("uses declared process env vars without instructing the executor to read .env", () => {
+    expect(prompt).toContain("process.env.ASANA_PAT");
+    expect(prompt).toContain("Never open, print, cat, grep, echo");
+    expect(prompt).not.toContain("Read .env");
+  });
+
+  it("protects pre-existing resources and keeps task failures independent", () => {
+    expect(prompt).toContain("Do not delete, reset, overwrite, or mutate pre-existing resources");
+    expect(prompt).toContain("record a failed task and continue");
+  });
+
+  it("supports task subsets with reusable discovery context", () => {
+    const subsetPrompt = buildExecutorPrompt({
+      pack,
+      profile: getProfile("floor"),
+      ns: "demo-floor-ab12",
+      resultsPath: "results/task.json",
+      tracePath: "results/task.trace.json",
+      tasks: [pack.tasks[0]!],
+      sharedDiscovery: {
+        path: "results/bootstrap.json",
+        base_url_found: "https://example.test/api",
+        endpoint_used: "POST /tasks",
+      },
+    });
+
+    expect(subsetPrompt).toContain("SHARED BOOTSTRAP (already completed)");
+    expect(subsetPrompt).toContain("results/bootstrap.json");
+    expect(subsetPrompt).toContain("gen-l1-tasks");
+    expect(subsetPrompt).not.toContain("gen-l3-tasks");
+    expect(subsetPrompt).toContain("whether the task succeeded or failed");
+  });
+
+  it("keeps bootstrap-only runs free of task execution instructions", () => {
+    const bootstrapPrompt = buildExecutorPrompt({
+      pack,
+      profile: getProfile("floor"),
+      ns: "demo-floor-ab12",
+      resultsPath: "results/bootstrap.json",
+      tracePath: "results/bootstrap.trace.json",
+      tasks: [],
+    });
+
+    expect(bootstrapPrompt).toContain("SHARED BOOTSTRAP OUTPUT");
+    expect(bootstrapPrompt).toContain("Do not create benchmark resources");
+    expect(bootstrapPrompt).not.toContain("For each task capture");
+    expect(bootstrapPrompt).not.toContain("record a failed task and continue");
+  });
+
+  it("collects nested non-secret oracle placeholders and excludes credential-shaped fields", () => {
+    const task = TargetPackSchema.parse({
+      name: "database-demo",
+      tasks: [{
+        id: "database-task",
+        prompt: "Create a searchable record.",
+        create_path: "/projects/{project_id}/records",
+        oracles: [
+          {
+            type: "roundtrip",
+            readMethod: "POST",
+            readPathTemplate: "/projects/{project_id}/search",
+            readBodyTemplate: { collection: "{collection_name}", bearer_token: "{bearer_token}", mascot: "{monkey_id}" },
+          },
+          {
+            type: "roundtrip",
+            sqlDialect: "postgres",
+            sqlQuery: "SELECT * FROM {table_name} WHERE id = '{gid}'",
+          },
+          {
+            type: "roundtrip",
+            mongoQuery: {
+              database: "demo",
+              collection: "{mongo_collection}",
+              operation: "findOne",
+              filter: { tenant: "{tenant_id}" },
+            },
+          },
+        ],
+      }],
+    }).tasks[0]!;
+
+    expect(taskResultKeys(task)).toEqual([
+      "gid",
+      "project_id",
+      "collection_name",
+      "monkey_id",
+      "table_name",
+      "mongo_collection",
+      "tenant_id",
+    ]);
   });
 });
