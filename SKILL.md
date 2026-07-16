@@ -120,6 +120,10 @@ non-secret driver field such as `code` under a verifier-controlled
 `sqlRoleTemplate` when role isolation is required. Unexpected success must
 remain failure, and SQL setup/role errors must not count as query denial.
 
+Capability extraction accepts either the requested `{ "capabilities": [...] }`
+envelope or a bare top-level array. This is shape normalization only; malformed
+items and non-official evidence must still fail validation.
+
 Before any benchmark low-pass execution, inspect the keyless plan:
 
 ```bash

@@ -114,6 +114,10 @@ classification fields under an optional verifier-controlled Postgres role. The
 executor's own claim of denial is never sufficient, and only a query-phase SQL
 error can pass—not connection, transaction, role, or cleanup failures.
 
+Capability extraction narrowly normalizes a bare top-level JSON array into the
+requested capability envelope before applying the unchanged strict item and
+official-evidence schemas.
+
 - **Execution**
   - `exec-plan`
   - `probe`

@@ -78,6 +78,9 @@ shape.
   task because the agent merely said a restricted action failed, and never
   treat an unexpected verifier error or role-setup failure as the expected
   query denial.
+- **Normalize generator shape narrowly.** Capability extraction may wrap a bare
+  top-level capability array in the requested envelope, but it must not repair,
+  infer, or bypass invalid capability fields or evidence.
 
 ## Adding a new target
 

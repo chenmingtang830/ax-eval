@@ -60,13 +60,19 @@ export interface ExtractCapabilitiesOptions {
   now?: () => Date;
 }
 
+function normalizeCapabilityOutput(value: unknown): unknown {
+  return Array.isArray(value) ? { capabilities: value } : value;
+}
+
 export async function extractCapabilities(
   vendor: ResolveResult,
   options: ExtractCapabilitiesOptions = {},
 ): Promise<CapabilityExtractResult> {
   if (!vendor.docs_url) throw new Error(`cannot extract capabilities for ${vendor.vendor}: docs_url is missing`);
   const generated = z.object({ capabilities: z.array(CapabilitySchema).min(1) }).safeParse(
-    parseStructuredOutput(await runStructuredGenerator(buildCapabilityPrompt(vendor), options.generate)),
+    normalizeCapabilityOutput(parseStructuredOutput(
+      await runStructuredGenerator(buildCapabilityPrompt(vendor), options.generate),
+    )),
   );
   if (!generated.success) {
     throw new Error(`capability extract for ${vendor.vendor} is invalid: ${generated.error.issues.map((issue) => issue.message).join("; ")}`);

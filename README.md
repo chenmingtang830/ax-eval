@@ -197,6 +197,10 @@ verifier-controlled Postgres `sqlRoleTemplate`. A successful read, an
 unexpected status or body, a role-setup failure, or a different SQL query error
 never satisfies the denial.
 
+Capability authoring tolerates the common generator variation of returning the
+requested capability list as a bare JSON array. Each item still passes the same
+strict schema and official-evidence checks before an extract can be written.
+
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution

@@ -43,4 +43,27 @@ describe("capability extraction", () => {
       }),
     })).rejects.toThrow(/non-official host/);
   });
+
+  it("normalizes a bare capability array without weakening item validation", async () => {
+    const capability = {
+      capability_name: "schema-ddl",
+      title: "Schema definition",
+      family: "data-definition",
+      description: "Create and inspect tables.",
+      resource_kind: "table",
+      operation_kind: "create",
+      surfaces_documented: ["api"],
+      support_type: "native",
+      evidence: [{ doc_url: "https://docs.acme.example/schema", quote: "Create a table." }],
+    };
+    const result = await extractCapabilities(vendor, {
+      generate: async () => JSON.stringify([capability]),
+      now: () => new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(result.capabilities).toHaveLength(1);
+
+    await expect(extractCapabilities(vendor, {
+      generate: async () => JSON.stringify([{ ...capability, evidence: [] }]),
+    })).rejects.toThrow(/invalid/);
+  });
 });
