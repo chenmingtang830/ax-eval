@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
@@ -114,9 +115,9 @@ export function writeSurfaceExtract(root: string, result: SurfaceExtractResult):
 }
 
 export function loadSurfaceExtract(root: string, slug: string): SurfaceExtractResult | null {
-  const path = surfaceExtractPath(root, slug);
-  if (!existsSync(path)) return null;
-  const result = SurfaceExtractSchema.safeParse(yamlParse(readFileSync(path, "utf8")));
-  if (!result.success) throw new Error(`surface extract at ${path} is malformed`);
-  return result.data;
+  return loadSurfaceExtractPath(surfaceExtractPath(root, slug));
+}
+
+export function loadSurfaceExtractPath(path: string): SurfaceExtractResult | null {
+  return loadOptionalYamlArtifact(path, SurfaceExtractSchema, "surface extract");
 }

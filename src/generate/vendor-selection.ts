@@ -1,7 +1,6 @@
-import { existsSync, readFileSync } from "node:fs";
-import { parse as yamlParse } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { PublicHttpUrlSchema } from "./public-url.js";
 
 export const VENDOR_SELECTION_LEDGER_SCHEMA = "ax.vendor-selection-ledger/v1" as const;
@@ -102,14 +101,7 @@ export type VendorSelectionLedger = z.infer<typeof VendorSelectionLedgerSchema>;
 export type VendorSelectionStatus = VendorSelectionEntry["status"];
 
 export function loadVendorSelectionLedger(path: string): VendorSelectionLedger | null {
-  if (!existsSync(path)) return null;
-  const result = VendorSelectionLedgerSchema.safeParse(yamlParse(readFileSync(path, "utf8")));
-  if (!result.success) {
-    throw new Error(`Invalid vendor selection ledger at ${path}: ${result.error.issues
-      .map((issue) => `${issue.path.join(".") || "<root>"}: ${issue.message}`)
-      .join("; ")}`);
-  }
-  return result.data;
+  return loadOptionalYamlArtifact(path, VendorSelectionLedgerSchema, "vendor selection ledger");
 }
 
 export function vendorSlugsByStatus(

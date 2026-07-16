@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
@@ -100,9 +101,9 @@ export function writeCapabilityExtract(root: string, result: CapabilityExtractRe
 }
 
 export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
-  const path = capabilityExtractPath(root, slug);
-  if (!existsSync(path)) return null;
-  const result = CapabilityExtractSchema.safeParse(yamlParse(readFileSync(path, "utf8")));
-  if (!result.success) throw new Error(`capability extract at ${path} is malformed`);
-  return result.data;
+  return loadCapabilityExtractPath(capabilityExtractPath(root, slug));
+}
+
+export function loadCapabilityExtractPath(path: string): CapabilityExtractResult | null {
+  return loadOptionalYamlArtifact(path, CapabilityExtractSchema, "capability extract");
 }
