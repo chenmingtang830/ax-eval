@@ -31,6 +31,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
+import { parse as yamlParse } from "yaml";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
 import { render } from "./reporting.js";
@@ -67,6 +68,24 @@ import {
   type NormalizedResult,
 } from "./generate/record.js";
 import { invokeEfficiency } from "./generate/invoke-efficiency.js";
+import { runGeneratorHarness } from "./generate/authoring.js";
+import { resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
+import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
+import { extractTasks, writeTaskExtract, loadTaskExtract } from "./generate/task-extract.js";
+import { composePack, writeComposedPack } from "./generate/compose-pack.js";
+import { loadSuite } from "./generate/suite.js";
+import { parsePackComposeConfig } from "./generate/pack-compose-config.js";
+import { defaultSuiteMethodology } from "./generate/suite-methodology.js";
+import {
+  buildCoverageMatrix,
+  deriveConceptUniverse,
+  selectCoverageConcepts,
+  writeConceptUniverse,
+  writeCoverageMatrix,
+  writeCoverageSelection,
+} from "./generate/coverage.js";
+import { synthesizeSuite, writeSynthesizedSuite } from "./generate/suite-synthesize.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
@@ -129,6 +148,12 @@ const COMMANDS = [
   "trace-diff",
   "reset",
   "automate-report",
+  "resolve-vendor",
+  "extract-capabilities",
+  "extract-surfaces",
+  "synthesize-suite",
+  "extract-tasks",
+  "compose-pack",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -176,6 +201,18 @@ function commandUsage(command: string | undefined): string {
         "       [--effort low|medium|high] [--run-dir dir] [--smoke-only] [--approve-by name]",
         "       --approve-by only fills the suggested manual review command; it does not auto-approve generated packs.",
       ].join("\n");
+    case "resolve-vendor":
+      return "usage: ax-eval resolve-vendor --vendors <name,...> --category <category> [generator flags]";
+    case "extract-capabilities":
+      return "usage: ax-eval extract-capabilities --vendors <slug,...> [generator flags]";
+    case "extract-surfaces":
+      return "usage: ax-eval extract-surfaces --vendors <slug,...> [generator flags]";
+    case "synthesize-suite":
+      return "usage: ax-eval synthesize-suite --suite-name <name> --category <category> --vendors <slug,...> [--target-tasks N] [generator flags]";
+    case "extract-tasks":
+      return "usage: ax-eval extract-tasks --suite <suite.yaml> --vendors <slug,...> [generator flags]";
+    case "compose-pack":
+      return "usage: ax-eval compose-pack --suite <suite.yaml> --config <config.yaml> --vendors <slug,...>";
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
     case "audit":
@@ -265,6 +302,13 @@ interface Parsed {
   surface?: string;
   company: string;
   approveBy: string;
+  vendors: string;
+  category: string;
+  suite: string;
+  suiteName: string;
+  config: string;
+  targetTasks: number;
+  suiteVersion: number;
   _: string[];
 }
 
@@ -319,6 +363,13 @@ function parseArgs(argv: string[]): Parsed {
     trace: "",
     company: "",
     approveBy: "",
+    vendors: "",
+    category: "",
+    suite: "",
+    suiteName: "",
+    config: "",
+    targetTasks: 12,
+    suiteVersion: 1,
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -414,6 +465,21 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--dry-run") p.dryRun = true;
     else if (a === "--smoke-only") p.smokeOnly = true;
     else if (a === "--company") p.company = value(++i, "--company");
+    else if (a === "--vendors" || a === "--vendor") p.vendors = value(++i, a);
+    else if (a === "--category") p.category = value(++i, "--category");
+    else if (a === "--suite") p.suite = value(++i, "--suite");
+    else if (a === "--suite-name") p.suiteName = value(++i, "--suite-name");
+    else if (a === "--config") p.config = value(++i, "--config");
+    else if (a === "--target-tasks") {
+      const n = Number(value(++i, "--target-tasks"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--target-tasks must be a positive integer (got ${n})`);
+      p.targetTasks = n;
+    }
+    else if (a === "--suite-version") {
+      const n = Number(value(++i, "--suite-version"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--suite-version must be a positive integer (got ${n})`);
+      p.suiteVersion = n;
+    }
     else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
@@ -1635,6 +1701,141 @@ async function cmdReset(args: Parsed): Promise<number> {
   return result.errors.length ? 1 : 0;
 }
 
+function selectedVendors(args: Parsed): string[] {
+  const vendors = args.vendors.split(",").map((value) => value.trim()).filter(Boolean);
+  if (vendors.length === 0) throw new Error("--vendors <name-or-slug,...> is required");
+  if (new Set(vendors).size !== vendors.length) throw new Error("--vendors contains duplicate entries");
+  return vendors;
+}
+
+function authoringGenerator(args: Parsed): { generate: (prompt: string) => Promise<string>; harness: string } {
+  const detected = probeHarness().host;
+  const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
+  return {
+    harness,
+    generate: async (prompt: string) => runGeneratorHarness(prompt, {
+      harness,
+      model: args.generatorModel || undefined,
+      effort: args.generatorEffort as "low" | "medium" | "high",
+    }),
+  };
+}
+
+function requiredVendorCard(root: string, slug: string) {
+  const vendor = loadVendorCard(root, slug);
+  if (!vendor) throw new Error(`missing vendor card for ${slug}; run resolve-vendor first`);
+  return vendor;
+}
+
+async function cmdResolveVendor(args: Parsed): Promise<number> {
+  if (!args.category) throw new Error("--category is required");
+  const names = selectedVendors(args);
+  const root = process.cwd();
+  const generator = authoringGenerator(args);
+  const results = await resolveVendors(names, args.category, {
+    generate: generator.generate,
+    harness: generator.harness,
+    model: args.generatorModel || undefined,
+  });
+  for (const result of results) console.log(`${result.vendor} → ${writeVendorCard(root, result)}`);
+  return 0;
+}
+
+async function cmdExtractCapabilities(args: Parsed): Promise<number> {
+  const root = process.cwd();
+  const generator = authoringGenerator(args);
+  for (const slug of selectedVendors(args)) {
+    const vendor = requiredVendorCard(root, slug);
+    const result = await extractCapabilities(vendor, { generate: generator.generate, extractor: generator.harness });
+    console.log(`${vendor.vendor} → ${writeCapabilityExtract(root, result)}`);
+  }
+  return 0;
+}
+
+async function cmdExtractSurfaces(args: Parsed): Promise<number> {
+  const root = process.cwd();
+  const generator = authoringGenerator(args);
+  for (const slug of selectedVendors(args)) {
+    const vendor = requiredVendorCard(root, slug);
+    const result = await extractSurfaces(vendor, { generate: generator.generate });
+    console.log(`${vendor.vendor} → ${writeSurfaceExtract(root, result)}`);
+  }
+  return 0;
+}
+
+async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
+  if (!args.suiteName) throw new Error("--suite-name is required");
+  if (!args.category) throw new Error("--category is required");
+  const root = process.cwd();
+  const extracts = selectedVendors(args).map((slug) => {
+    const extract = loadCapabilityExtract(root, slug);
+    if (!extract) throw new Error(`missing capability extract for ${slug}; run extract-capabilities first`);
+    return extract;
+  });
+  if (extracts.length < 2) throw new Error("synthesize-suite requires at least two vendor capability extracts");
+  const generator = authoringGenerator(args);
+  const methodology = defaultSuiteMethodology(args.category, args.targetTasks);
+  const universe = await deriveConceptUniverse(args.category, extracts, methodology, { generate: generator.generate });
+  const selection = selectCoverageConcepts(universe, methodology);
+  const matrix = buildCoverageMatrix(universe);
+  writeConceptUniverse(root, args.suiteName, universe);
+  writeCoverageSelection(root, args.suiteName, selection);
+  writeCoverageMatrix(root, args.suiteName, matrix);
+  const suite = await synthesizeSuite(
+    args.suiteName,
+    args.suiteVersion,
+    args.category,
+    universe,
+    selection,
+    methodology,
+    { generate: generator.generate },
+  );
+  console.log(`Suite → ${writeSynthesizedSuite(root, suite)}`);
+  return 0;
+}
+
+async function cmdExtractTasks(args: Parsed): Promise<number> {
+  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
+  const root = process.cwd();
+  const suite = loadSuite(args.suite);
+  const generator = authoringGenerator(args);
+  for (const slug of selectedVendors(args)) {
+    const vendor = requiredVendorCard(root, slug);
+    const capabilities = loadCapabilityExtract(root, slug);
+    const surfaces = loadSurfaceExtract(root, slug);
+    if (!capabilities) throw new Error(`missing capability extract for ${slug}`);
+    if (!surfaces) throw new Error(`missing surface extract for ${slug}`);
+    const result = await extractTasks(vendor, suite, capabilities, surfaces, {
+      generate: generator.generate,
+      extractor: generator.harness,
+    });
+    console.log(`${vendor.vendor} → ${writeTaskExtract(root, result)}`);
+  }
+  return 0;
+}
+
+async function cmdComposePack(args: Parsed): Promise<number> {
+  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
+  if (!args.config) throw new Error("--config <config.yaml> is required");
+  const [slug, ...extra] = selectedVendors(args);
+  if (extra.length > 0) throw new Error("compose-pack accepts exactly one vendor because configuration is vendor-specific");
+  const root = process.cwd();
+  const suite = loadSuite(args.suite);
+  const vendor = requiredVendorCard(root, slug!);
+  const surfaces = loadSurfaceExtract(root, slug!);
+  const tasks = loadTaskExtract(root, slug!, suite.name);
+  if (!surfaces) throw new Error(`missing surface extract for ${slug}`);
+  if (!tasks) throw new Error(`missing task extract for ${slug} and suite ${suite.name}`);
+  const config = parsePackComposeConfig(yamlParse(readFileSync(args.config, "utf8")));
+  const pack = composePack(vendor, suite, surfaces, tasks, config, {
+    generatedBy: `suite-compose@${tasks.extractor}`,
+  });
+  const path = writeComposedPack(root, pack, suite.name);
+  console.log(`Pack → ${path}`);
+  console.log(`Next: ax-eval review --pack ${path}; execution remains blocked until manually approved.`);
+  return 0;
+}
+
 function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
   return {
     ...args,
@@ -1982,6 +2183,18 @@ async function main(): Promise<number> {
       return cmdReset(args);
     case "automate-report":
       return cmdAutomateReport(args);
+    case "resolve-vendor":
+      return cmdResolveVendor(args);
+    case "extract-capabilities":
+      return cmdExtractCapabilities(args);
+    case "extract-surfaces":
+      return cmdExtractSurfaces(args);
+    case "synthesize-suite":
+      return cmdSynthesizeSuite(args);
+    case "extract-tasks":
+      return cmdExtractTasks(args);
+    case "compose-pack":
+      return cmdComposePack(args);
     default:
       console.error(USAGE);
       return 2;

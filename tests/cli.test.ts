@@ -81,6 +81,34 @@ describe("cli arg handling", () => {
     expect(code).toBe(1);
     expect(out).toContain("usage: ax-eval automate-report --company <name>");
   });
+
+  it("documents every suite authoring command", () => {
+    for (const command of [
+      "resolve-vendor",
+      "extract-capabilities",
+      "extract-surfaces",
+      "synthesize-suite",
+      "extract-tasks",
+      "compose-pack",
+    ]) {
+      const { code, out } = runCli([command, "--help"]);
+      expect(code).toBe(0);
+      expect(out).toContain(`usage: ax-eval ${command}`);
+    }
+  });
+
+  it("fails authoring commands at explicit prerequisite gates", () => {
+    expect(runCli(["resolve-vendor", "--vendors", "Acme"]).out).toContain("--category is required");
+    expect(runCli(["synthesize-suite", "--category", "database", "--vendors", "a,b"]).out).toContain("--suite-name is required");
+    expect(runCli(["extract-tasks", "--vendors", "acme"]).out).toContain("--suite <suite.yaml> is required");
+    expect(runCli(["compose-pack", "--suite", "suite.yaml", "--vendors", "acme"]).out).toContain("--config <config.yaml> is required");
+  });
+
+  it("validates first-action timeout values", () => {
+    const { code, out } = runCli(["exec-plan", "--first-action-timeout", "-1"]);
+    expect(code).toBe(1);
+    expect(out).toContain("--first-action-timeout must be a non-negative integer");
+  });
 });
 
 describe("automate-report", () => {
