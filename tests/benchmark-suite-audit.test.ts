@@ -1,29 +1,11 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { stringify as yamlStringify } from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
-import { buildBenchmarkLayout, type BenchmarkLayout } from "../src/generate/benchmark-paths.js";
+import { describe, expect, it } from "vitest";
+import type { BenchmarkLayout } from "../src/generate/benchmark-paths.js";
 import { auditBenchmarkSuite } from "../src/generate/benchmark-suite-audit.js";
 import type { Suite } from "../src/generate/suite.js";
+import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
 import { createSuiteAuditSelection, createSuiteAuditSuite } from "./fixtures/suite-authoring.js";
 
-const directories: string[] = [];
-
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
-});
-
-function layout(): BenchmarkLayout {
-  const root = mkdtempSync(join(tmpdir(), "ax-benchmark-suite-audit-"));
-  directories.push(root);
-  return buildBenchmarkLayout(root, "database-eval", "v1");
-}
-
-function writeYaml(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(value));
-}
+const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-suite-audit-");
 
 function writeArtifacts(benchmarkLayout: BenchmarkLayout, candidateSuite: Suite = createSuiteAuditSuite()): void {
   writeYaml(benchmarkLayout.suite_path, candidateSuite);

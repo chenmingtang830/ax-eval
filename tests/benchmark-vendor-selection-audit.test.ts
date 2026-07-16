@@ -1,30 +1,16 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { stringify as yamlStringify } from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { auditBenchmarkVendorSelection } from "../src/generate/benchmark-vendor-selection-audit.js";
 import {
   benchmarkCapabilityInventoryPath,
   benchmarkSurfacesPath,
-  buildBenchmarkLayout,
   type BenchmarkLayout,
 } from "../src/generate/benchmark-paths.js";
 import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
 import type { SurfaceExtractResult } from "../src/generate/surface-extract.js";
 import type { VendorSelectionLedger } from "../src/generate/vendor-selection.js";
+import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
 
-const directories: string[] = [];
-
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
-});
-
-function layout(): BenchmarkLayout {
-  const root = mkdtempSync(join(tmpdir(), "ax-benchmark-selection-"));
-  directories.push(root);
-  return buildBenchmarkLayout(root, "database-eval", "v1");
-}
+const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-selection-");
 
 function ledger(): VendorSelectionLedger {
   return {
@@ -89,11 +75,6 @@ const surfaceExtract: SurfaceExtractResult = {
   sdk: null,
   mcp: null,
 };
-
-function writeYaml(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(value));
-}
 
 function writeLedger(benchmarkLayout: BenchmarkLayout, value: VendorSelectionLedger = ledger()): void {
   writeYaml(benchmarkLayout.vendor_selection_ledger_path, value);

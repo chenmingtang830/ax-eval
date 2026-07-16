@@ -1,28 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { stringify as yamlStringify } from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { auditBenchmarkCoverage } from "../src/generate/benchmark-coverage-audit.js";
-import { buildBenchmarkLayout, type BenchmarkLayout } from "../src/generate/benchmark-paths.js";
+import type { BenchmarkLayout } from "../src/generate/benchmark-paths.js";
+import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
 import { createCoverageAuditArtifacts } from "./fixtures/coverage-authoring.js";
 
-const directories: string[] = [];
-
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
-});
-
-function layout(): BenchmarkLayout {
-  const root = mkdtempSync(join(tmpdir(), "ax-benchmark-coverage-audit-"));
-  directories.push(root);
-  return buildBenchmarkLayout(root, "database-eval", "v1");
-}
-
-function writeYaml(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(value));
-}
+const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-coverage-audit-");
 
 async function writeArtifacts(benchmarkLayout: BenchmarkLayout): Promise<void> {
   const artifacts = await createCoverageAuditArtifacts();

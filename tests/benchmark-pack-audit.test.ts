@@ -1,15 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { stringify as yamlStringify } from "yaml";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import { auditBenchmarkPack } from "../src/generate/benchmark-pack-audit.js";
 import {
   benchmarkCompiledPackPath,
   benchmarkOraclesPath,
   benchmarkSurfacesPath,
   benchmarkVendorCardPath,
-  buildBenchmarkLayout,
   type BenchmarkLayout,
 } from "../src/generate/benchmark-paths.js";
 import { composePack } from "../src/generate/compose-pack.js";
@@ -18,12 +13,9 @@ import type { Suite } from "../src/generate/suite.js";
 import type { SurfaceExtractResult } from "../src/generate/surface-extract.js";
 import type { TaskExtractResult } from "../src/generate/task-extract.js";
 import type { ResolveResult } from "../src/generate/vendor-resolve.js";
+import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
 
-const directories: string[] = [];
-
-afterEach(() => {
-  for (const directory of directories.splice(0)) rmSync(directory, { recursive: true, force: true });
-});
+const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-pack-audit-");
 
 const vendor: ResolveResult = {
   vendor: "Acme",
@@ -94,17 +86,6 @@ const config: PackComposeConfig = {
   sandbox_scope: [],
   headers: {},
 };
-
-function layout(): BenchmarkLayout {
-  const root = mkdtempSync(join(tmpdir(), "ax-benchmark-pack-audit-"));
-  directories.push(root);
-  return buildBenchmarkLayout(root, "database-eval", "v1");
-}
-
-function writeYaml(path: string, value: unknown): void {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(value));
-}
 
 function writeAuthoringArtifacts(benchmarkLayout: BenchmarkLayout, options: {
   taskExtract?: TaskExtractResult;
