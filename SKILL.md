@@ -166,7 +166,9 @@ not invoke agents, make writes, verify results, or reset the target.
 In the completed stack, the bundle manifest is the handoff to the AXArena
 static website and the launch report. Missing snapshot/normalized artifacts
 are blockers for a final publication, but acceptable in a draft bundle while
-the vendor run is still in progress.
+the vendor run is still in progress. Every present file must have its lowercase
+SHA-256 recorded in publication manifest v2. Materialization verifies the copied
+bytes before the staging directory is renamed into the final bundle.
 
 ### 1. Generate the frozen task set (or use a committed example)
 

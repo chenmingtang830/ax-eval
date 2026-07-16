@@ -2,11 +2,12 @@ import { isAbsolute, posix } from "node:path";
 import { isSurfaceId, type SurfaceId } from "../surface/types.js";
 import { assertArtifactSegment } from "./artifact-path.js";
 
-export const PUBLICATION_MANIFEST_SCHEMA = "ax.publication-manifest/v1" as const;
+export const PUBLICATION_MANIFEST_SCHEMA = "ax.publication-manifest/v2" as const;
 
 export interface PublicationArtifactInput {
   id: string;
   path?: string;
+  sha256?: string;
   required: boolean;
 }
 
@@ -22,10 +23,11 @@ export interface PublicationCellInput {
   profiles: string[];
   trial_count: number;
   aggregate_record: string;
+  aggregate_sha256?: string;
 }
 
 export interface PublicationQualityGate {
-  id: "required-artifacts" | "expected-matrix" | "required-profiles" | "required-trials";
+  id: "required-artifacts" | "content-digests" | "expected-matrix" | "required-profiles" | "required-trials";
   status: "pass" | "fail";
   detail: string;
 }
@@ -45,7 +47,7 @@ export interface PublicationManifest {
     required_trial_count: number;
     expected_cells: number;
   };
-  artifacts: Array<PublicationArtifactInput & { path?: string }>;
+  artifacts: PublicationArtifactInput[];
   cells: PublicationCellInput[];
   quality_gates: PublicationQualityGate[];
   missing_required_artifacts: string[];
@@ -55,6 +57,12 @@ function uniqueSegments(values: readonly string[], label: string): string[] {
   const validated = values.map((value) => assertArtifactSegment(value, label));
   if (new Set(validated).size !== validated.length) throw new Error(`${label} values must be unique`);
   return validated;
+}
+
+function optionalSha256(value: string | undefined, label: string): string | undefined {
+  if (value === undefined) return undefined;
+  if (!/^[a-f0-9]{64}$/.test(value)) throw new Error(`${label} must be a lowercase SHA-256 digest`);
+  return value;
 }
 
 export function assertPortablePublicationPath(path: string, label: string): string {
@@ -115,11 +123,19 @@ export function buildPublicationManifest(options: {
   );
 
   const artifactIds = uniqueSegments(options.artifacts.map((artifact) => artifact.id), "artifact id");
-  const artifacts = options.artifacts.map((artifact, index) => ({
-    id: artifactIds[index]!,
-    required: artifact.required,
-    ...(artifact.path ? { path: assertPortablePublicationPath(artifact.path, `artifact ${artifact.id} path`) } : {}),
-  }));
+  const artifacts = options.artifacts.map((artifact, index) => {
+    const path = artifact.path
+      ? assertPortablePublicationPath(artifact.path, `artifact ${artifact.id} path`)
+      : undefined;
+    const sha256 = optionalSha256(artifact.sha256, `artifact ${artifact.id} sha256`);
+    if (!path && sha256) throw new Error(`artifact ${artifact.id} sha256 requires a path`);
+    return {
+      id: artifactIds[index]!,
+      required: artifact.required,
+      ...(path ? { path } : {}),
+      ...(sha256 ? { sha256 } : {}),
+    };
+  });
   const missingRequiredArtifacts = artifacts
     .filter((artifact) => artifact.required && !artifact.path)
     .map((artifact) => artifact.id);
@@ -136,6 +152,7 @@ export function buildPublicationManifest(options: {
     if (!Number.isInteger(cell.trial_count) || cell.trial_count < 1) {
       throw new Error(`publication cell ${key} has an invalid trial count`);
     }
+    const aggregateSha256 = optionalSha256(cell.aggregate_sha256, `aggregate sha256 for ${key}`);
     return {
       vendor,
       surface: cell.surface,
@@ -143,6 +160,7 @@ export function buildPublicationManifest(options: {
       profiles: uniqueSegments(cell.profiles, `profile for ${key}`),
       trial_count: cell.trial_count,
       aggregate_record: assertPortablePublicationPath(cell.aggregate_record, `aggregate record for ${key}`),
+      ...(aggregateSha256 ? { aggregate_sha256: aggregateSha256 } : {}),
     };
   }).sort((left, right) => cellKey(left).localeCompare(cellKey(right)));
 
@@ -153,6 +171,10 @@ export function buildPublicationManifest(options: {
   const cellsMissingTrials = cells
     .filter((cell) => cell.trial_count < options.requiredTrialCount)
     .map(cellKey);
+  const missingContentDigests = [
+    ...artifacts.filter((artifact) => artifact.path && !artifact.sha256).map((artifact) => artifact.path!),
+    ...cells.filter((cell) => !cell.aggregate_sha256).map((cell) => cell.aggregate_record),
+  ].sort();
   const qualityGates: PublicationQualityGate[] = [
     {
       id: "required-artifacts",
@@ -160,6 +182,13 @@ export function buildPublicationManifest(options: {
       detail: missingRequiredArtifacts.length === 0
         ? "All required publication artifacts are present."
         : `Missing required artifacts: ${missingRequiredArtifacts.join(", ")}.`,
+    },
+    {
+      id: "content-digests",
+      status: missingContentDigests.length === 0 ? "pass" : "fail",
+      detail: missingContentDigests.length === 0
+        ? "Every present publication file has a SHA-256 digest."
+        : `Files missing SHA-256 digests: ${missingContentDigests.join(", ")}.`,
     },
     {
       id: "expected-matrix",

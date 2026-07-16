@@ -3,6 +3,8 @@ import { buildPublicationCellsExport } from "../src/generate/publication-cells.j
 import { buildPublicationManifest } from "../src/generate/publication-manifest.js";
 import { NORMALIZED_RESULT_SCHEMA, type NormalizedResult } from "../src/generate/record.js";
 
+const SHA256 = "a".repeat(64);
+
 function aggregate(overrides: Partial<NormalizedResult> = {}): NormalizedResult {
   return {
     schema: NORMALIZED_RESULT_SCHEMA,
@@ -52,8 +54,8 @@ function manifest() {
     requiredTrialCount: 3,
     artifacts: [],
     cells: [
-      { vendor: "beta", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/codex/aggregate.json" },
-      { vendor: "acme", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex/aggregate.json" },
+      { vendor: "beta", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/codex/aggregate.json", aggregate_sha256: SHA256 },
+      { vendor: "acme", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex/aggregate.json", aggregate_sha256: SHA256 },
     ],
     now: () => new Date("2026-07-16T11:00:00.000Z"),
   });

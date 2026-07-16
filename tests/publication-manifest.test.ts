@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { buildPublicationManifest } from "../src/generate/publication-manifest.js";
 
+const SHA_A = "a".repeat(64);
+const SHA_B = "b".repeat(64);
+
 function completeManifest() {
   return buildPublicationManifest({
     benchmark: "Database Suite",
@@ -15,17 +18,17 @@ function completeManifest() {
     requiredProfiles: ["medium"],
     requiredTrialCount: 3,
     artifacts: [
-      { id: "suite", path: "suite/database.yaml", required: true },
-      { id: "methodology", path: "suite/methodology.md", required: true },
+      { id: "suite", path: "suite/database.yaml", sha256: SHA_A, required: true },
+      { id: "methodology", path: "suite/methodology.md", sha256: SHA_B, required: true },
       { id: "notes", required: false },
     ],
     cells: [
-      { vendor: "beta", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/codex.json" },
-      { vendor: "acme", surface: "cli", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/cli/claude-code.json" },
-      { vendor: "acme", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex.json" },
-      { vendor: "beta", surface: "api", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/claude-code.json" },
-      { vendor: "acme", surface: "cli", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/cli/codex.json" },
-      { vendor: "acme", surface: "api", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/claude-code.json" },
+      { vendor: "beta", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/codex.json", aggregate_sha256: SHA_A },
+      { vendor: "acme", surface: "cli", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/cli/claude-code.json", aggregate_sha256: SHA_A },
+      { vendor: "acme", surface: "api", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex.json", aggregate_sha256: SHA_A },
+      { vendor: "beta", surface: "api", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/beta/api/claude-code.json", aggregate_sha256: SHA_A },
+      { vendor: "acme", surface: "cli", harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/cli/codex.json", aggregate_sha256: SHA_A },
+      { vendor: "acme", surface: "api", harness: "claude-code", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/claude-code.json", aggregate_sha256: SHA_A },
     ],
     now: () => new Date("2026-07-16T12:00:00.000Z"),
   });
@@ -36,6 +39,7 @@ describe("buildPublicationManifest", () => {
     const manifest = completeManifest();
     expect(manifest.generated_at).toBe("2026-07-16T12:00:00.000Z");
     expect(manifest.publication_readiness).toBe("publication_ready");
+    expect(manifest.schema).toBe("ax.publication-manifest/v2");
     expect(manifest.expected_matrix.expected_cells).toBe(6);
     expect(manifest.quality_gates.every((gate) => gate.status === "pass")).toBe(true);
     expect(manifest.cells.map((cell) => `${cell.vendor}/${cell.surface}/${cell.harness}`)).toEqual([
@@ -72,6 +76,7 @@ describe("buildPublicationManifest", () => {
     expect(manifest.missing_required_artifacts).toEqual(["suite"]);
     expect(manifest.quality_gates).toEqual([
       expect.objectContaining({ id: "required-artifacts", status: "fail" }),
+      expect.objectContaining({ id: "content-digests", status: "fail" }),
       expect.objectContaining({ id: "expected-matrix", status: "fail", detail: expect.stringContaining("acme/api/claude-code") }),
       expect.objectContaining({ id: "required-profiles", status: "fail" }),
       expect.objectContaining({ id: "required-trials", status: "fail" }),
@@ -88,11 +93,13 @@ describe("buildPublicationManifest", () => {
       harnesses: ["codex"],
       requiredProfiles: ["medium"],
       requiredTrialCount: 3,
-      artifacts: [{ id: "suite", path: "suite/database.yaml", required: true }],
-      cells: [{ vendor: "acme", surface: "api" as const, harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex.json" }],
+      artifacts: [{ id: "suite", path: "suite/database.yaml", sha256: SHA_A, required: true }],
+      cells: [{ vendor: "acme", surface: "api" as const, harness: "codex", profiles: ["medium"], trial_count: 3, aggregate_record: "vendors/acme/api/codex.json", aggregate_sha256: SHA_A }],
     };
     expect(() => buildPublicationManifest({ ...base, harnesses: ["codex", "codex"] })).toThrow(/harness values must be unique/);
     expect(() => buildPublicationManifest({ ...base, artifacts: [{ id: "suite", path: "../suite.yaml", required: true }] })).toThrow(/portable relative path/);
+    expect(() => buildPublicationManifest({ ...base, artifacts: [{ id: "suite", path: "suite.yaml", sha256: "bad", required: true }] })).toThrow(/SHA-256/);
+    expect(() => buildPublicationManifest({ ...base, artifacts: [{ id: "suite", sha256: SHA_A, required: true }] })).toThrow(/requires a path/);
     expect(() => buildPublicationManifest({ ...base, cells: [...base.cells, ...base.cells] })).toThrow(/appears more than once/);
     expect(() => buildPublicationManifest({
       ...base,

@@ -35,6 +35,9 @@ export step. Later implementations of `publication-bundle` and
 indexes. `ax-eval` owns benchmark truth and artifact generation; an `axarena`
 application should import those indexes for presentation rather than recompute
 scores from raw run directories.
+Publication manifest v2 content-addresses each present artifact and aggregate
+with SHA-256. Bundle materialization verifies destination bytes inside a staging
+directory, so a digest mismatch cannot publish a partial or mislabeled bundle.
 
 ## System overview
 

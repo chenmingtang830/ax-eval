@@ -262,7 +262,9 @@ The bundle will write `manifest.json` tying together the canonical suite,
 vendor cards, verification extracts, compiled TargetPacks, approvals,
 snapshots, normalized records, and competitive report. Missing live artifacts
 will be listed explicitly; a publication-ready DAEB-1 v1 bundle has no missing
-references and all required quality gates passing.
+references and all required quality gates passing. Manifest v2 records a
+lowercase SHA-256 digest for every present artifact and cell aggregate; bundle
+materialization hashes the copied bytes and fails atomically on any mismatch.
 
 `ax-eval` remains the tooling layer. The AXArena website should consume an
 exported dataset instead of learning runner internals or recomputing scores.

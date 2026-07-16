@@ -50,6 +50,9 @@ shape.
   `.env.example` as the template and never paste tokens, real workspace ids, or
   personal identifiers into tracked files. `results/` is gitignored — keep run
   artifacts out of commits.
+- **Content-address publication inputs.** Every present publication artifact and
+  aggregate record needs a lowercase SHA-256 in manifest v2. Never update a path
+  without updating its digest, and keep digest-mismatch tests keyless and local.
 - **Packs are content-addressed and must pass the review gate.** A generated set
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the

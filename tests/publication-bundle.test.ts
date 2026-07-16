@@ -1,4 +1,5 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -11,6 +12,10 @@ function freshDir(): string {
   const dir = mkdtempSync(resolve(tmpdir(), "ax-publication-"));
   dirs.push(dir);
   return dir;
+}
+
+function sha256(value: string): string {
+  return createHash("sha256").update(value).digest("hex");
 }
 
 afterEach(() => {
@@ -30,7 +35,7 @@ function fixture(root: string) {
     harnesses: ["codex"],
     requiredProfiles: ["medium"],
     requiredTrialCount: 3,
-    artifacts: [{ id: "suite", path: "suite/suite.yaml", required: true }],
+    artifacts: [{ id: "suite", path: "suite/suite.yaml", sha256: sha256("name: suite\n"), required: true }],
     cells: [{
       vendor: "acme",
       surface: "api",
@@ -38,6 +43,7 @@ function fixture(root: string) {
       profiles: ["medium"],
       trial_count: 3,
       aggregate_record: "vendors/acme/api/codex/aggregate.json",
+      aggregate_sha256: sha256("{\"score\":1}\n"),
     }],
     now: () => new Date("2026-07-16T12:00:00.000Z"),
   });
@@ -72,10 +78,30 @@ describe("materializePublicationBundle", () => {
     expect(() => materializePublicationBundle({ root, outDir: "out-c", manifest, files: [files[0]!, files[0]!] })).toThrow(/duplicate destination/);
     expect(() => materializePublicationBundle({
       root,
+      outDir: "out-missing-digest",
+      manifest: { ...manifest, artifacts: manifest.artifacts.map(({ sha256: _sha256, ...artifact }) => artifact) },
+      files,
+    })).toThrow(/missing SHA-256 digests/);
+    expect(() => materializePublicationBundle({
+      root,
+      outDir: "out-invalid-digest",
+      manifest: { ...manifest, artifacts: manifest.artifacts.map((artifact) => ({ ...artifact, sha256: "bad" })) },
+      files,
+    })).toThrow(/invalid SHA-256 digest/);
+    expect(() => materializePublicationBundle({
+      root,
       outDir: "out-d",
       manifest: { ...manifest, artifacts: [{ id: "suite", path: ".env", required: true }] },
       files: [{ source_path: "source/suite.yaml", bundle_path: ".env" }, files[1]!],
     })).toThrow(/not publishable/);
+  });
+
+  it("rejects content that does not match the manifest digest", () => {
+    const root = freshDir();
+    const { manifest, files } = fixture(root);
+    writeFileSync(resolve(root, "source", "aggregate.json"), "{\"score\":0}\n");
+    expect(() => materializePublicationBundle({ root, outDir: "bundle", manifest, files })).toThrow(/digest mismatch/);
+    expect(existsSync(resolve(root, "bundle"))).toBe(false);
   });
 
   it("rejects source symlink escapes and never overwrites an existing bundle", () => {
