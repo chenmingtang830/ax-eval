@@ -15,8 +15,8 @@ function extract(vendor: string, slug: string): CapabilityExtractResult {
     extracted_at: "2026-07-16T00:00:00.000Z",
     extraction_provenance: { source: "official-docs", extractor: "test" },
     capabilities: [
-      { capability_name: "create-table", title: "Create tables", family: "data-definition" },
-      { capability_name: "filtered-read", title: "Query records", family: "reads" },
+      { capability_name: "create-table", title: "Create tables" },
+      { capability_name: "filtered-read", title: "Query records" },
     ].map((capability) => ({
       ...capability,
       description: "Operate on database records.",

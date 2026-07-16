@@ -17,7 +17,6 @@ const universe: ConceptUniverse = {
     slug: "alpha",
     capability_name: "create-table",
     title: "Create table",
-    family: "data-definition",
     description: "Create a table.",
     evidence_urls: ["https://docs.alpha.example/tables"],
   }, {
@@ -26,7 +25,6 @@ const universe: ConceptUniverse = {
     slug: "beta",
     capability_name: "create-table",
     title: "Create table",
-    family: "data-definition",
     description: "Create a table.",
     evidence_urls: ["https://docs.beta.example/tables"],
   }, {
@@ -35,7 +33,6 @@ const universe: ConceptUniverse = {
     slug: "alpha",
     capability_name: "filtered-read",
     title: "Filtered read",
-    family: "reads",
     description: "Filter records.",
     evidence_urls: ["https://docs.alpha.example/queries"],
   }, {
@@ -44,7 +41,6 @@ const universe: ConceptUniverse = {
     slug: "beta",
     capability_name: "filtered-read",
     title: "Filtered read",
-    family: "reads",
     description: "Filter records.",
     evidence_urls: ["https://docs.beta.example/queries"],
   }],
@@ -52,14 +48,12 @@ const universe: ConceptUniverse = {
     concept_name: "create-table",
     title: "Create table",
     skill: "create-table",
-    family: "data-definition",
     member_ids: ["alpha:create-table", "beta:create-table"],
     vendor_coverage: 1,
   }, {
     concept_name: "filtered-read",
     title: "Filtered read",
     skill: "filtered-read",
-    family: "reads",
     member_ids: ["alpha:filtered-read", "beta:filtered-read"],
     vendor_coverage: 1,
   }],
@@ -73,14 +67,12 @@ const selection: CoverageSelection = {
     concept_name: "create-table",
     title: "Create table",
     skill: "create-table",
-    family: "data-definition",
     vendor_coverage: 1,
     rationale: "Covered.",
   }, {
     concept_name: "filtered-read",
     title: "Filtered read",
     skill: "filtered-read",
-    family: "reads",
     vendor_coverage: 1,
     rationale: "Covered.",
   }],
@@ -96,11 +88,37 @@ describe("suite synthesis", () => {
       "db-T02-filtered-read",
     ]);
     expect(suite.tasks.map((task) => task.skill)).toEqual(["create-table", "filtered-read"]);
+    expect(suite.tasks.map((task) => task.difficulty)).toEqual(["L1", "L2"]);
     expect(suite.tasks.every((task) => task.intent.includes("{ns}"))).toBe(true);
     expect(suite.tasks.every((task) => task.allowed_surfaces.join(",") === "api,cli")).toBe(true);
   });
 
-  it("uses the reviewed concept skill independently from its family", async () => {
+  it("infers deterministic difficulty from the canonical concept name", async () => {
+    const recoveryUniverse: ConceptUniverse = {
+      ...universe,
+      clusters: universe.clusters.map((cluster, index) => index === 0
+        ? { ...cluster, concept_name: "backup-restore", title: "Backup and restore", skill: "backup-restore" }
+        : cluster),
+    };
+    const recoverySelection: CoverageSelection = {
+      ...selection,
+      selected: selection.selected.map((concept, index) => index === 0
+        ? { ...concept, concept_name: "backup-restore", title: "Backup and restore", skill: "backup-restore" }
+        : concept),
+    };
+    const suite = await synthesizeSuite(
+      "daeb-1-v3",
+      3,
+      "database",
+      recoveryUniverse,
+      recoverySelection,
+      defaultSuiteMethodology("database", 2),
+    );
+
+    expect(suite.tasks[0]).toMatchObject({ difficulty: "L4", skill: "backup-restore" });
+  });
+
+  it("uses the reviewed skill independently from the concept name", async () => {
     const independentUniverse: ConceptUniverse = {
       ...universe,
       clusters: universe.clusters.map((cluster, index) => index === 0
@@ -123,7 +141,7 @@ describe("suite synthesis", () => {
     );
 
     expect(suite.tasks[0]!.skill).toBe("schema-authoring");
-    expect(suite.tasks[0]!.skill).not.toBe(independentSelection.selected[0]!.family);
+    expect(suite.tasks[0]!.skill).not.toBe(independentSelection.selected[0]!.concept_name);
   });
 
   it("requires generated drafts to cover the exact selected concepts", async () => {

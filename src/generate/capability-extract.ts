@@ -18,7 +18,6 @@ const CapabilityEvidenceSchema = z.object({
 const CapabilitySchema = z.object({
   capability_name: z.string().min(1),
   title: z.string().min(1),
-  family: z.string().min(1),
   description: z.string().min(1),
   resource_kind: z.string().min(1),
   operation_kind: z.string().min(1),
@@ -68,7 +67,7 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: SpecS
     "For database products, cover baseline operational capabilities: create table/collection, insert rows/documents,",
     "filtered reads/querying, schema introspection, access control, tracked schema changes, export, and recovery where documented.",
     "Coverage checklist to close before you stop: data definition, writes, reads, integrity, access control, migration, and operations.",
-    "Return JSON only: {\"capabilities\":[{\"capability_name\":...,\"title\":...,\"family\":...,\"description\":...,",
+    "Return JSON only: {\"capabilities\":[{\"capability_name\":...,\"title\":...,\"description\":...,",
     "\"resource_kind\":...,\"operation_kind\":...,\"surfaces_documented\":[...],\"support_type\":...,",
     "\"evidence\":[{\"doc_url\":...,\"quote\":...,\"note\":...}]}]}.",
   ].join("\n");

@@ -21,7 +21,6 @@ function capabilities(overrides: Partial<CapabilityExtractResult["capabilities"]
     capabilities: [{
       capability_name: "create-record",
       title: "Create records",
-      family: "records",
       description: "Create one record.",
       resource_kind: "record",
       operation_kind: "create",

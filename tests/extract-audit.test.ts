@@ -9,7 +9,6 @@ function capability(
   return {
     capability_name: "create-record",
     title: "Create records",
-    family: "records",
     description: "Create one record.",
     resource_kind: "record",
     operation_kind: "create",

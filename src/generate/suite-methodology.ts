@@ -25,10 +25,6 @@ export const SuiteMethodologySchema = z.object({
     source_of_truth: z.string().min(1),
     notes: z.array(z.string().min(1)).default([]),
   }),
-  capability_families: z.array(z.string().min(1)).min(1).refine(
-    (families) => new Set(families).size === families.length,
-    "capability families must be unique",
-  ),
   extraction_requirements: z.array(z.string().min(1)).min(1),
   surface_scope: z.array(SurfaceIdSchema).min(1).refine(
     (surfaces) => new Set(surfaces).size === surfaces.length,
@@ -36,7 +32,6 @@ export const SuiteMethodologySchema = z.object({
   ),
   min_vendor_coverage_pct: z.number().min(0).max(1),
   target_task_count: z.number().int().positive(),
-  family_diversity_cap: z.number().int().positive(),
   verifiability_requirement: z.string().min(1),
   difficulty_rubric: z.object({
     L1: z.string().min(1),
@@ -50,16 +45,6 @@ export const SuiteMethodologySchema = z.object({
 export type SuiteMethodology = z.infer<typeof SuiteMethodologySchema>;
 
 export function defaultSuiteMethodology(category: string, targetTaskCount: number): SuiteMethodology {
-  const databaseFamilies = [
-    "data-definition",
-    "writes",
-    "reads",
-    "integrity",
-    "access-control",
-    "migration",
-    "operations",
-    "recovery",
-  ];
   return SuiteMethodologySchema.parse({
     schema: "ax.suite-methodology/v1",
     ontology: {
@@ -83,7 +68,6 @@ export function defaultSuiteMethodology(category: string, targetTaskCount: numbe
       source_of_truth: "Independent live-state read-back oracles.",
       notes: ["Executor self-reports never decide task success on their own."],
     },
-    capability_families: category === "database" ? databaseFamilies : [category],
     extraction_requirements: [
       "Use official vendor documentation only.",
       "Attach a documentation URL and short evidence quote to every capability.",
@@ -92,7 +76,6 @@ export function defaultSuiteMethodology(category: string, targetTaskCount: numbe
     surface_scope: category === "database" ? ["api", "cli"] : ["api", "cli", "sdk", "mcp"],
     min_vendor_coverage_pct: 0.5,
     target_task_count: targetTaskCount,
-    family_diversity_cap: 2,
     verifiability_requirement: "Every selected task needs an independent deterministic read-back oracle.",
     difficulty_rubric: {
       L1: "One direct operation with a single-resource read-back.",
@@ -102,7 +85,7 @@ export function defaultSuiteMethodology(category: string, targetTaskCount: numbe
     },
     human_review_checkpoints: [
       "Review capability evidence and concept clustering.",
-      "Review selection coverage and family diversity.",
+      "Review selection coverage and concept diversity.",
       "Review every composed task, N/A reason, surface, credential declaration, and oracle before approval.",
     ],
   });

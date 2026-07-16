@@ -42,7 +42,6 @@ export const vendorSelectionCapabilityExtract: CapabilityExtractResult = {
   capabilities: [{
     capability_name: "records",
     title: "Record operations",
-    family: "data",
     description: "Create records.",
     resource_kind: "record",
     operation_kind: "create",

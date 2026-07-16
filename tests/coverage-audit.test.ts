@@ -8,7 +8,6 @@ describe("auditCoverageArtifacts", () => {
     input.selection.selected[0] = {
       rationale: input.selection.selected[0]!.rationale,
       vendor_coverage: input.selection.selected[0]!.vendor_coverage,
-      family: input.selection.selected[0]!.family,
       skill: input.selection.selected[0]!.skill,
       title: input.selection.selected[0]!.title,
       concept_name: input.selection.selected[0]!.concept_name,
@@ -42,20 +41,13 @@ describe("auditCoverageArtifacts", () => {
     ]);
   });
 
-  it("fails closed when methodology and universe no longer compose", async () => {
+  it("fails closed when the target count exceeds the reviewed universe", async () => {
     const input = await createCoverageAuditArtifacts();
-    const firstCluster = input.universe.clusters[0]!;
     input.methodology = {
       ...input.methodology,
-      capability_families: input.methodology.capability_families.filter((family) => family !== firstCluster.family),
       target_task_count: 3,
     };
     expect(auditCoverageArtifacts(input)).toEqual([
-      expect.objectContaining({
-        code: "coverage_family_scope_drift",
-        concept_name: firstCluster.concept_name,
-        family: firstCluster.family,
-      }),
       expect.objectContaining({ code: "coverage_selection_policy_unresolvable" }),
     ]);
   });

@@ -73,7 +73,6 @@ function capabilities(surfaces: Array<"api" | "cli" | "sdk" | "mcp"> = ["cli"]):
     capabilities: [{
       capability_name: "records",
       title: "Record operations",
-      family: "data",
       description: "Create records.",
       resource_kind: "record",
       operation_kind: "create",

@@ -28,7 +28,6 @@ function generatedCapability(name: string): string {
   return JSON.stringify({ capabilities: [{
     capability_name: "tables",
     title: "Tables",
-    family: "data-definition",
     description: "Manage tables.",
     resource_kind: "table",
     operation_kind: "create",

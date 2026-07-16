@@ -55,7 +55,6 @@ const capabilities: CapabilityExtractResult = {
   capabilities: [{
     capability_name: "tables",
     title: "Tables",
-    family: "data-definition",
     description: "Create tables.",
     resource_kind: "table",
     operation_kind: "create",

@@ -20,7 +20,7 @@ import {
 } from "../src/generate/coverage.js";
 import { defaultSuiteMethodology } from "../src/generate/suite-methodology.js";
 
-function extract(vendor: string, slug: string, capabilities: Array<{ name: string; family: string }>): CapabilityExtractResult {
+function extract(vendor: string, slug: string, capabilities: Array<{ name: string; family?: string }>): CapabilityExtractResult {
   return {
     vendor,
     slug,
@@ -30,7 +30,6 @@ function extract(vendor: string, slug: string, capabilities: Array<{ name: strin
     capabilities: capabilities.map((capability) => ({
       capability_name: capability.name,
       title: capability.name.replace(/-/g, " "),
-      family: capability.family,
       description: `${capability.name} capability`,
       resource_kind: "table",
       operation_kind: "operate",
@@ -43,19 +42,19 @@ function extract(vendor: string, slug: string, capabilities: Array<{ name: strin
 
 const extracts = [
   extract("AlphaDB", "alpha", [
-    { name: "create-table", family: "data-definition" },
-    { name: "filtered-read", family: "reads" },
-    { name: "backup", family: "recovery" },
+    { name: "create-table" },
+    { name: "filtered-read" },
+    { name: "backup" },
   ]),
   extract("BetaDB", "beta", [
-    { name: "create-table", family: "data-definition" },
-    { name: "filtered-read", family: "reads" },
+    { name: "create-table" },
+    { name: "filtered-read" },
   ]),
 ];
 
 describe("coverage methodology", () => {
   it("derives a deterministic evidence-complete concept universe", async () => {
-    const methodology = { ...defaultSuiteMethodology("database", 2), family_diversity_cap: 1 };
+    const methodology = defaultSuiteMethodology("database", 2);
     const universe = await deriveConceptUniverse("database", extracts, methodology, {
       now: () => new Date("2026-01-02T00:00:00.000Z"),
     });
@@ -82,14 +81,13 @@ describe("coverage methodology", () => {
         clusters: [{
           concept_name: "tables",
           title: "Tables",
-          family: "data-definition",
           member_ids: ["alpha:create-table", "invented:member"],
         }],
       }),
     })).rejects.toThrow(/unknown member|omitted members/);
   });
 
-  it("clusters equivalent capabilities independently from vendor family labels", async () => {
+  it("does not persist legacy vendor family labels in concept artifacts", async () => {
     const methodology = defaultSuiteMethodology("database", 1);
     const universe = await deriveConceptUniverse("database", [
       extract("AlphaDB", "alpha", [{ name: "create-table", family: "operations" }]),
@@ -98,13 +96,14 @@ describe("coverage methodology", () => {
 
     expect(universe.clusters).toEqual([expect.objectContaining({
       concept_name: "create-table",
-      family: "data-definition",
       member_ids: ["alpha:create-table", "beta:create-table"],
       vendor_coverage: 1,
     })]);
+    expect(universe.members.every((member) => !("family" in member))).toBe(true);
+    expect(universe.clusters.every((cluster) => !("family" in cluster))).toBe(true);
   });
 
-  it("accepts a grounded cluster that spans source family labels", async () => {
+  it("strips legacy family metadata from a grounded cluster", async () => {
     const methodology = defaultSuiteMethodology("database", 1);
     const universe = await deriveConceptUniverse("database", [
       extract("AlphaDB", "alpha", [{ name: "create-table", family: "operations" }]),
@@ -126,6 +125,25 @@ describe("coverage methodology", () => {
       member_ids: ["alpha:create-table", "beta:create-table"],
       vendor_coverage: 1,
     });
+    expect(universe.clusters[0]).not.toHaveProperty("family");
+  });
+
+  it("selects ranked concepts without a hidden family quota", async () => {
+    const methodology = defaultSuiteMethodology("database", 3);
+    const sharedCapabilities = ["create-table", "create-view", "create-index"].map((name) => ({
+      name,
+      family: "data-definition",
+    }));
+    const universe = await deriveConceptUniverse("database", [
+      extract("AlphaDB", "alpha", sharedCapabilities),
+      extract("BetaDB", "beta", sharedCapabilities),
+    ], methodology);
+
+    expect(selectCoverageConcepts(universe, methodology).selected.map((concept) => concept.concept_name)).toEqual([
+      "create-index",
+      "create-table",
+      "create-view",
+    ]);
   });
 
   it("rejects malformed persisted universes", async () => {

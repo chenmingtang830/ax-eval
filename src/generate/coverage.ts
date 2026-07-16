@@ -14,7 +14,6 @@ const MemberSchema = z.object({
   slug: z.string().min(1),
   capability_name: z.string().min(1),
   title: z.string().min(1),
-  family: z.string().min(1),
   description: z.string().min(1),
   evidence_urls: z.array(z.string().url()).min(1),
 }).strict();
@@ -25,14 +24,15 @@ const ClusterSchema = z.object({
   concept_name: z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "must be a kebab-case concept name"),
   title: z.string().min(1),
   skill: SkillSchema,
-  family: z.string().min(1),
   member_ids: z.array(z.string().min(1)).min(1).refine(
     (ids) => new Set(ids).size === ids.length,
     "cluster member ids must be unique",
   ),
 }).strict();
 
-const GeneratedClusterSchema = ClusterSchema.omit({ skill: true });
+const GeneratedClusterSchema = ClusterSchema.omit({ skill: true }).extend({
+  family: z.string().min(1).optional(),
+});
 
 export const ConceptUniverseSchema = z.object({
   category: z.string().min(1),
@@ -118,13 +118,12 @@ export const CoverageSelectionSchema = z.object({
     concept_name: z.string().min(1),
     title: z.string().min(1),
     skill: SkillSchema,
-    family: z.string().min(1),
     vendor_coverage: z.number().min(0).max(1),
     rationale: z.string().min(1),
   }).strict()),
   excluded: z.array(z.object({
     concept_name: z.string().min(1),
-    reason: z.enum(["below-coverage-floor", "family-diversity-cap", "target-reached"]),
+    reason: z.enum(["below-coverage-floor", "target-reached"]),
   }).strict()),
 }).strict().superRefine((selection, context) => {
   if (selection.selected.length !== selection.target_task_count) {
@@ -152,7 +151,6 @@ function capabilityMembers(extracts: readonly CapabilityExtractResult[]): z.infe
         slug: extract.slug,
         capability_name: capability.capability_name,
         title: capability.title,
-        family: capability.family,
         description: capability.description,
         evidence_urls: capability.evidence.map((evidence) => evidence.doc_url),
       }));
@@ -171,14 +169,10 @@ function deterministicClusters(members: readonly z.infer<typeof MemberSchema>[])
     groups.set(key, [...(groups.get(key) ?? []), member]);
   }
   return [...groups.entries()].map(([conceptName, group]) => {
-    const familyCounts = new Map<string, number>();
-    for (const member of group) familyCounts.set(member.family, (familyCounts.get(member.family) ?? 0) + 1);
-    const family = [...familyCounts].sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))[0]![0];
     return {
       concept_name: conceptName,
       title: group[0]!.title,
       skill: conceptName,
-      family,
       member_ids: group.map((member) => member.member_id),
     };
   });
@@ -187,7 +181,6 @@ function deterministicClusters(members: readonly z.infer<typeof MemberSchema>[])
 function validatePartition(
   clusters: readonly z.infer<typeof ClusterSchema>[],
   members: readonly z.infer<typeof MemberSchema>[],
-  methodology: SuiteMethodology,
 ): void {
   const expected = new Set(members.map((member) => member.member_id));
   const assigned = new Set<string>();
@@ -195,9 +188,6 @@ function validatePartition(
   for (const cluster of clusters) {
     if (conceptNames.has(cluster.concept_name)) throw new Error(`duplicate concept ${cluster.concept_name}`);
     conceptNames.add(cluster.concept_name);
-    if (!methodology.capability_families.includes(cluster.family)) {
-      throw new Error(`concept ${cluster.concept_name} uses undeclared family ${cluster.family}`);
-    }
     for (const memberId of cluster.member_ids) {
       if (!expected.has(memberId)) throw new Error(`concept ${cluster.concept_name} references unknown member ${memberId}`);
       if (assigned.has(memberId)) throw new Error(`capability member ${memberId} appears in more than one concept`);
@@ -234,14 +224,12 @@ export function buildCoverageMatrix(
 export function buildCoveragePrompt(
   category: string,
   members: readonly z.infer<typeof MemberSchema>[],
-  methodology: SuiteMethodology,
 ): string {
   return [
     `Cluster the official ${category} capability inventory into vendor-neutral benchmark concepts.`,
     "Return an exact partition: every member_id exactly once, with no invented or omitted members.",
-    `Allowed capability families: ${methodology.capability_families.join(", ")}.`,
     "Use kebab-case concept_name values and concise vendor-neutral titles.",
-    "Return JSON only with a top-level clusters array containing concept_name, title, family, and member_ids.",
+    "Return JSON only with a top-level clusters array containing concept_name, title, and member_ids.",
     JSON.stringify(members, null, 2),
   ].join("\n\n");
 }
@@ -258,10 +246,10 @@ export async function deriveConceptUniverse(
   const members = capabilityMembers(extracts);
   const generated = options.generate
     ? z.object({ clusters: z.array(GeneratedClusterSchema).min(1) }).strict().parse(parseStructuredOutput(
-        await runStructuredGenerator(buildCoveragePrompt(category, members, methodology), options.generate),
-      )).clusters.map((cluster) => ({ ...cluster, skill: cluster.concept_name }))
+        await runStructuredGenerator(buildCoveragePrompt(category, members), options.generate),
+      )).clusters.map(({ family: _family, ...cluster }) => ({ ...cluster, skill: cluster.concept_name }))
     : deterministicClusters(members);
-  validatePartition(generated, members, methodology);
+  validatePartition(generated, members);
   const vendorCount = new Set(members.map((member) => member.slug)).size;
   const byId = new Map(members.map((member) => [member.member_id, member]));
   return ConceptUniverseSchema.parse({
@@ -284,16 +272,11 @@ export function selectCoverageConcepts(
 ): CoverageSelection {
   const selected: CoverageSelection["selected"] = [];
   const excluded: CoverageSelection["excluded"] = [];
-  const familyCounts = new Map<string, number>();
   const ranked = [...universe.clusters].sort((left, right) =>
     right.vendor_coverage - left.vendor_coverage || left.concept_name.localeCompare(right.concept_name));
   for (const cluster of ranked) {
     if (cluster.vendor_coverage < methodology.min_vendor_coverage_pct) {
       excluded.push({ concept_name: cluster.concept_name, reason: "below-coverage-floor" });
-      continue;
-    }
-    if ((familyCounts.get(cluster.family) ?? 0) >= methodology.family_diversity_cap) {
-      excluded.push({ concept_name: cluster.concept_name, reason: "family-diversity-cap" });
       continue;
     }
     if (selected.length >= methodology.target_task_count) {
@@ -304,15 +287,13 @@ export function selectCoverageConcepts(
       concept_name: cluster.concept_name,
       title: cluster.title,
       skill: cluster.skill,
-      family: cluster.family,
       vendor_coverage: cluster.vendor_coverage,
-      rationale: `Meets ${(methodology.min_vendor_coverage_pct * 100).toFixed(0)}% coverage floor and family diversity policy.`,
+      rationale: `Meets ${(methodology.min_vendor_coverage_pct * 100).toFixed(0)}% coverage floor and ranked concept-selection policy.`,
     });
-    familyCounts.set(cluster.family, (familyCounts.get(cluster.family) ?? 0) + 1);
   }
   if (selected.length !== methodology.target_task_count) {
     throw new Error(
-      `coverage policy selected ${selected.length} concepts, but methodology requires ${methodology.target_task_count}; review the coverage floor, family cap, or source inventory`,
+      `coverage policy selected ${selected.length} concepts, but methodology requires ${methodology.target_task_count}; review the coverage floor or source inventory`,
     );
   }
   return CoverageSelectionSchema.parse({

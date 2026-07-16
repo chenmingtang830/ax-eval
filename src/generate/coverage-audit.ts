@@ -18,7 +18,6 @@ export interface CoverageAuditInput {
 export interface CoverageAuditFinding {
   severity: "error";
   code:
-    | "coverage_family_scope_drift"
     | "coverage_selection_category_drift"
     | "coverage_selection_policy_unresolvable"
     | "coverage_selection_policy_drift"
@@ -26,24 +25,11 @@ export interface CoverageAuditFinding {
     | "coverage_matrix_decision_drift";
   message: string;
   concept_name?: string;
-  family?: string;
 }
 
 export function auditCoverageArtifacts(input: CoverageAuditInput): CoverageAuditFinding[] {
   const { universe, selection, matrix, methodology } = input;
   const findings: CoverageAuditFinding[] = [];
-
-  for (const cluster of universe.clusters) {
-    if (!methodology.capability_families.includes(cluster.family)) {
-      findings.push({
-        severity: "error",
-        code: "coverage_family_scope_drift",
-        message: `Concept ${cluster.concept_name} uses family ${cluster.family}, which is absent from the methodology`,
-        concept_name: cluster.concept_name,
-        family: cluster.family,
-      });
-    }
-  }
 
   if (selection.category !== universe.category) {
     findings.push({
@@ -65,7 +51,7 @@ export function auditCoverageArtifacts(input: CoverageAuditInput): CoverageAudit
       findings.push({
         severity: "error",
         code: "coverage_selection_policy_drift",
-        message: "Coverage selection differs from the reviewed coverage and family-diversity policy",
+        message: "Coverage selection differs from the reviewed coverage and concept-selection policy",
       });
     }
   } catch {

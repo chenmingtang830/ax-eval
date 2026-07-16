@@ -57,55 +57,56 @@ function categoryPrefix(category: string): string {
   return category.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 8) || "task";
 }
 
-function databaseDraft(conceptName: string, family: string): Omit<GeneratedDraft, "concept_name"> {
+function databaseDraft(conceptName: string): Omit<GeneratedDraft, "concept_name"> {
   const resource = `ax_${conceptName.replace(/-/g, "_")}_{ns}`;
-  if (family === "data-definition") return {
-    difficulty: "L1",
-    intent: `Create a documented data container named ${resource} with deterministic id and status fields.`,
-    oracle_hint: "Read the live schema or collection metadata and assert the container and required fields exist.",
-    na_examples: ["The product exposes no user-managed schema or collection primitive."],
+  const conceptWords = conceptName.replace(/-/g, " ");
+  if (/\b(?:backup|restore|recovery|snapshot)\b/.test(conceptWords)) return {
+    difficulty: "L4",
+    intent: `Create ${resource} with marker ax_marker_{ns}, take a documented backup or snapshot, change the marker state, and recover it.`,
+    oracle_hint: "Read live restored state and assert the original marker value is present after recovery.",
+    na_examples: ["The product documents no user-triggered backup, snapshot, or recovery mechanism."],
   };
-  if (family === "writes") return {
-    difficulty: "L1",
-    intent: `Create ${resource} and write records including the marker ax_marker_{ns}.`,
-    oracle_hint: "Read live rows or documents and assert the marker record and expected values exist.",
-    na_examples: ["The product is read-only and exposes no persistent write operation."],
-  };
-  if (family === "reads") return {
-    difficulty: "L2",
-    intent: `Create and populate ${resource}, then perform a filtered read that returns only the active marker ax_marker_{ns}.`,
-    oracle_hint: "Run an independent filtered read and assert the exact marker and result count.",
-    na_examples: ["The product cannot filter or query persisted records."],
-  };
-  if (family === "integrity") return {
-    difficulty: "L2",
-    intent: `Create ${resource} with a documented integrity rule that protects a deterministic marker field.`,
-    oracle_hint: "Inspect live schema metadata and assert the required, unique, or validation rule is present.",
-    na_examples: ["The product documents no integrity or validation mechanism."],
-  };
-  if (family === "access-control") return {
+  if (/\b(?:access|permission|policy|role|authentication|authorization)\b/.test(conceptWords)) return {
     difficulty: "L3",
     intent: `Create ${resource} and configure a least-privilege read-only role or policy named ax_reader_{ns}.`,
     oracle_hint: "Read live role or policy metadata and assert the scoped read permission exists without write permission.",
     na_examples: ["Access control is account-wide only and exposes no inspectable scoped role or policy."],
   };
-  if (family === "migration") return {
+  if (/\b(?:migration|migrate|schema change|alter)\b/.test(conceptWords)) return {
     difficulty: "L3",
     intent: `Create ${resource} with a marker record, apply a tracked schema change adding priority, and preserve the marker.`,
     oracle_hint: "Inspect the changed schema and read the pre-existing marker to verify both migration and preservation.",
     na_examples: ["The product has no user-visible schema evolution mechanism."],
   };
-  if (family === "operations") return {
+  if (/\b(?:integrity|constraint|validation|transaction|unique)\b/.test(conceptWords)) return {
+    difficulty: "L2",
+    intent: `Create ${resource} with a documented integrity rule that protects a deterministic marker field.`,
+    oracle_hint: "Inspect live schema metadata and assert the required, unique, or validation rule is present.",
+    na_examples: ["The product documents no integrity or validation mechanism."],
+  };
+  if (/\b(?:read|query|filter|search|list|pagination)\b/.test(conceptWords)) return {
+    difficulty: "L2",
+    intent: `Create and populate ${resource}, then perform a filtered read that returns only the active marker ax_marker_{ns}.`,
+    oracle_hint: "Run an independent filtered read and assert the exact marker and result count.",
+    na_examples: ["The product cannot filter or query persisted records."],
+  };
+  if (/\b(?:insert|write|upsert|create record|create row|create document)\b/.test(conceptWords)) return {
+    difficulty: "L1",
+    intent: `Create ${resource} and write records including the marker ax_marker_{ns}.`,
+    oracle_hint: "Read live rows or documents and assert the marker record and expected values exist.",
+    na_examples: ["The product is read-only and exposes no persistent write operation."],
+  };
+  if (/\b(?:table|collection|schema|ddl|data definition)\b/.test(conceptWords)) return {
+    difficulty: "L1",
+    intent: `Create a documented data container named ${resource} with deterministic id and status fields.`,
+    oracle_hint: "Read the live schema or collection metadata and assert the container and required fields exist.",
+    na_examples: ["The product exposes no user-managed schema or collection primitive."],
+  };
+  if (/\b(?:operation|inspect|export)\b/.test(conceptWords)) return {
     difficulty: "L3",
     intent: `Create ${resource} and complete the documented operational workflow for inspecting or exporting its state.`,
     oracle_hint: "Read live operation metadata or exported state and assert it references the deterministic resource.",
     na_examples: ["No inspectable operational workflow is documented for user-managed data."],
-  };
-  if (family === "recovery") return {
-    difficulty: "L4",
-    intent: `Create ${resource} with marker ax_marker_{ns}, take a documented backup or snapshot, change the marker state, and recover it.`,
-    oracle_hint: "Read live restored state and assert the original marker value is present after recovery.",
-    na_examples: ["The product documents no user-triggered backup, snapshot, or recovery mechanism."],
   };
   return {
     difficulty: "L2",
@@ -121,7 +122,7 @@ function deterministicDrafts(category: string, selection: CoverageSelection): Ge
   }
   return selection.selected.map((concept) => ({
     concept_name: concept.concept_name,
-    ...databaseDraft(concept.concept_name, concept.family),
+    ...databaseDraft(concept.concept_name),
   }));
 }
 
@@ -131,7 +132,7 @@ function validateSelection(universe: ConceptUniverse, selection: CoverageSelecti
   for (const concept of selection.selected) {
     const cluster = clusters.get(concept.concept_name);
     if (!cluster) throw new Error(`selection references unknown concept ${concept.concept_name}`);
-    if (cluster.family !== concept.family || cluster.skill !== concept.skill || cluster.title !== concept.title) {
+    if (cluster.skill !== concept.skill || cluster.title !== concept.title) {
       throw new Error(`selection metadata drifted for concept ${concept.concept_name}`);
     }
   }

@@ -4,10 +4,10 @@ import type { Suite } from "../../src/generate/suite.js";
 import type { TraceReviewMemo } from "../../src/generate/trace-review.js";
 
 export const suiteAuditConcepts = [
-  { concept_name: "create-record", title: "Create a record", skill: "create-record", family: "writes", difficulty: "L1" as const },
-  { concept_name: "query-records", title: "Query records", skill: "query-records", family: "reads", difficulty: "L2" as const },
-  { concept_name: "access-control", title: "Configure access", skill: "access-control", family: "access-control", difficulty: "L3" as const },
-  { concept_name: "backup-restore", title: "Restore data", skill: "backup-restore", family: "recovery", difficulty: "L4" as const },
+  { concept_name: "create-record", title: "Create a record", skill: "create-record", difficulty: "L1" as const },
+  { concept_name: "query-records", title: "Query records", skill: "query-records", difficulty: "L2" as const },
+  { concept_name: "access-control", title: "Configure access", skill: "access-control", difficulty: "L3" as const },
+  { concept_name: "backup-restore", title: "Restore data", skill: "backup-restore", difficulty: "L4" as const },
 ];
 
 export function createSuiteAuditSelection(
@@ -21,7 +21,6 @@ export function createSuiteAuditSelection(
       concept_name: concept.concept_name,
       title: concept.title,
       skill: concept.skill,
-      family: concept.family,
       vendor_coverage: 1,
       rationale: "Meets reviewed coverage policy.",
     })),

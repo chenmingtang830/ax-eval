@@ -60,10 +60,10 @@ describe("auditSuite", () => {
       .toEqual([expect.objectContaining({ code: "selection_task_drift", task_id: candidate.tasks[1]!.id })]);
   });
 
-  it("audits task skill against the reviewed concept rather than its family", () => {
+  it("audits task skill against the reviewed concept skill", () => {
     const selection = createSuiteAuditSelection();
     const candidate = createSuiteAuditSuite();
-    candidate.tasks[0] = { ...candidate.tasks[0]!, skill: selection.selected[0]!.family };
+    candidate.tasks[0] = { ...candidate.tasks[0]!, skill: "different-skill" };
 
     expect(auditSuite({ suite: candidate, selection }))
       .toEqual([expect.objectContaining({ code: "selection_task_drift", task_id: candidate.tasks[0]!.id })]);

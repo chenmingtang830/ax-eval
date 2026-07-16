@@ -95,9 +95,9 @@ difficulty labels, scoring contract, surfaces, and harness matrix; only auth,
 base URL, outcome-verifier checks, explicit N/A reasons, and surface configuration vary
 by vendor, with official support evidence preserved in the reviewed pack.
 The reviewed concept universe also owns each task's kebab-case `skill`; carry it
-through coverage selection and suite synthesis rather than substituting the
-concept's capability-family grouping. Treat vendor family labels as metadata:
-equivalent normalized capability names may share one concept across families.
+through coverage selection and suite synthesis. Do not add a family taxonomy to
+capability, concept, selection, or methodology artifacts; review concept
+diversity directly from the evidence-backed universe and selection ledger.
 
 Always run `review` and require a current approval before `exec-plan`;
 `compose-pack` never creates an approval automatically.

@@ -19,6 +19,7 @@ describe("capability extraction", () => {
     expect(prompt).toMatch(/create table\/collection/i);
     expect(prompt).toMatch(/filtered reads\/querying/i);
     expect(prompt).toMatch(/official vendor documentation/i);
+    expect(prompt).not.toMatch(/\"family\"/);
   });
 
   it("accepts official cited evidence and rejects unrelated hosts", async () => {
@@ -38,6 +39,7 @@ describe("capability extraction", () => {
       now: () => new Date("2026-01-01T00:00:00.000Z"),
     });
     expect(result.capabilities[0]?.capability_name).toBe("schema-ddl");
+    expect(result.capabilities[0]).not.toHaveProperty("family");
     await expect(extractCapabilities(vendor, {
       generate: async () => JSON.stringify({
         capabilities: [{ ...capability, evidence: [{ doc_url: "https://unrelated.example/docs", quote: "Claim." }] }],
@@ -49,7 +51,6 @@ describe("capability extraction", () => {
     const capability = {
       capability_name: "schema-ddl",
       title: "Schema definition",
-      family: "data-definition",
       description: "Create and inspect tables.",
       resource_kind: "table",
       operation_kind: "create",
@@ -81,7 +82,6 @@ describe("capability extraction", () => {
         return JSON.stringify({ capabilities: [{
           capability_name: "schema-ddl",
           title: "Schema definition",
-          family: "data-definition",
           description: "Create tables.",
           resource_kind: "table",
           operation_kind: "create",
