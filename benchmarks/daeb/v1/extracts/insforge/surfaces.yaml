@@ -1,0 +1,39 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Insforge
+slug: insforge
+extracted_at: 2026-07-08T10:53:13.870Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - sdk declares token auth but no headless credential env var.
+  - "Post-extract audit: 1 surface finding(s)."
+cli:
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://docs.insforge.dev/sdks/rest/database
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Use INSFORGE_CONNECTION_STRING with psql for PostgreSQL data-plane
+      operations. INSFORGE_API_KEY is reserved for InsForge API control-plane
+      operations.
+sdk: null
+mcp:
+  server: https://mcp.insforge.dev/mcp
+  transport: http
+  docs_url: https://docs.insforge.dev/mcp-setup
+  auth:
+    kind: oauth_app
+    token_env_aliases: []
+    instructions: Primary auth is browser-based OAuth (opens a login window).
+      API_KEY and API_BASE_URL are available from InsForge Settings → Connect
+      tab and are required for project binding. Non-interactive/headless MCP
+      auth is not explicitly documented; install via `npx add-mcp
+      https://mcp.insforge.dev/mcp`.
