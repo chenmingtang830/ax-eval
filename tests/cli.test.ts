@@ -120,7 +120,9 @@ describe("cli arg handling", () => {
     }
     const capabilityHelp = runCli(["extract-capabilities", "--help"]);
     expect(capabilityHelp.out).toContain("--capability-spec <slug>=<source>");
-    expect(capabilityHelp.out).toContain("Offline spec seeds must be local files");
+    expect(capabilityHelp.out).toContain("Local spec files require --offline");
+    expect(capabilityHelp.out).toContain("official public hosts");
+    expect(capabilityHelp.out).toContain("5 MB");
     expect(capabilityHelp.out).toContain("maximum 3");
     expect(capabilityHelp.out).toContain("12-minute per-vendor generator timeout");
     expect(runCli(["extract-surfaces", "--help"]).out).toContain("--surface-seed <slug>=");

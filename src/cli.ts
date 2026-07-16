@@ -233,8 +233,9 @@ function commandUsage(command: string | undefined): string {
       return [
         "usage: ax-eval extract-capabilities --vendors <slug,...> [generator flags]",
         "       [--capability-spec <slug>=<source>]... [--spec-max-operations N] [--offline]",
-        "  Explicit spec sources are fetched exactly (no unrelated fixture fallback).",
-        "  Offline spec seeds must be local files; raise --spec-max-operations if a summary truncates.",
+        "  Explicit spec sources are bounded to 5 MB and never use unrelated fixture fallback.",
+        "  Local spec files require --offline; remote sources and redirects must remain on official public hosts.",
+        "  Raise --spec-max-operations if a summary truncates.",
         "  Multi-vendor extraction runs at bounded concurrency (maximum 3) with a 12-minute per-vendor generator timeout.",
       ].join("\n");
     case "extract-surfaces":

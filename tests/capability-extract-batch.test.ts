@@ -64,6 +64,7 @@ describe("capability extraction batches", () => {
       const vendors = [vendor("Acme"), vendor("Beta"), vendor("Gamma"), vendor("Delta")];
       const settled = await extractCapabilitiesBatch(vendors, {
         specSources: new Map([["acme", specPath]]),
+        offline: true,
         concurrency: 10,
         generate: async (prompt) => {
           active += 1;
@@ -105,6 +106,7 @@ describe("capability extraction batches", () => {
       } }));
       const truncated = await extractCapabilitiesBatch([vendor("Acme")], {
         specSources: new Map([["acme", specPath]]),
+        offline: true,
         maxSpecOperations: 1,
         generate: async () => generatedCapability("Acme"),
       });
@@ -122,6 +124,7 @@ describe("capability extraction batches", () => {
     })));
     const settled = await extractCapabilitiesBatch([vendor("Acme")], {
       specSources: new Map([["acme", "https://docs.acme.example/openapi.json"]]),
+      resolveHost: async () => ["93.184.216.34"],
       generate: async () => generatedCapability("Acme"),
     });
     expect(String((settled[0] as PromiseRejectedResult).reason)).toMatch(/non-official host/);

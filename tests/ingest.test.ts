@@ -20,7 +20,10 @@ describe("OpenAPI source fetching", () => {
   it("reports the final response URL and can refuse fixture fallback", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: true,
+      status: 200,
       url: "https://cdn.example.test/openapi.json",
+      headers: new Headers(),
+      body: null,
       text: async () => "{}",
     })));
     await expect(fetchSpecText("https://docs.example.test/openapi.json", {
@@ -31,6 +34,59 @@ describe("OpenAPI source fetching", () => {
     await expect(fetchSpecText("https://docs.example.test/openapi.json", {
       allowFixtureFallback: false,
     })).rejects.toThrow(/exact spec source/);
+  });
+
+  it("rejects disallowed hosts and private DNS before fetching", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const secureOptions = {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["10.0.0.8"],
+    };
+
+    await expect(fetchSpecText("https://third-party.example/openapi.json", secureOptions))
+      .rejects.toThrow(/non-official host/);
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", secureOptions))
+      .rejects.toThrow(/private or non-routable/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("validates every redirect before following it", async () => {
+    const fetchMock = vi.fn(async () => ({
+      ok: false,
+      status: 302,
+      url: "https://docs.acme.example/openapi.json",
+      headers: new Headers({ location: "http://127.0.0.1/internal" }),
+      body: null,
+      text: async () => "",
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["93.184.216.34"],
+    })).rejects.toThrow(/non-official host|private or non-routable/);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects oversized remote and non-opted-in local sources", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("12345", {
+      status: 200,
+      headers: { "content-length": "5" },
+    })));
+    await expect(fetchSpecText("https://docs.acme.example/openapi.json", {
+      allowFixtureFallback: false,
+      allowedRemoteRoots: ["https://docs.acme.example"],
+      rejectPrivateNetwork: true,
+      resolveHost: async () => ["93.184.216.34"],
+      maxBytes: 4,
+    })).rejects.toThrow(/exceeds 4 bytes/);
+    await expect(fetchSpecText(FIXTURE, { allowLocalFiles: false }))
+      .rejects.toThrow(/explicit offline mode/);
   });
 });
 

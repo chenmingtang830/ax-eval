@@ -7,6 +7,7 @@ import type { StructuredGenerator } from "./structured-output.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
 export const CAPABILITY_EXTRACTION_TIMEOUT_MS = 12 * 60 * 1000;
+export const MAX_CAPABILITY_SPEC_BYTES = 5 * 1024 * 1024;
 
 export function parseCapabilitySpecMappings(
   entries: readonly string[],
@@ -20,6 +21,7 @@ export interface CapabilityExtractBatchOptions {
   maxSpecOperations?: number;
   concurrency?: number;
   offline?: boolean;
+  resolveHost?: (hostname: string) => Promise<readonly string[]>;
   generate?: StructuredGenerator;
   extractor?: string;
 }
@@ -42,6 +44,11 @@ export async function extractCapabilitiesBatch(
       ? await fetchSpecText(specSource, {
             offline: options.offline,
             allowFixtureFallback: false,
+            allowLocalFiles: options.offline === true,
+            allowedRemoteRoots: [vendor.docs_url, vendor.site_url].filter((value): value is string => Boolean(value)),
+            rejectPrivateNetwork: true,
+            maxBytes: MAX_CAPABILITY_SPEC_BYTES,
+            resolveHost: options.resolveHost,
           })
       : undefined;
     const specSummary = fetchedSpec

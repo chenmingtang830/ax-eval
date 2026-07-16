@@ -118,7 +118,9 @@ Capability extraction narrowly normalizes a bare top-level JSON array into the
 requested capability envelope before applying the unchanged strict item and
 official-evidence schemas.
 An optional reviewed OpenAPI summary can bound the candidate set; remote summary
-sources must use an official vendor host and their provenance is persisted.
+sources are prevalidated against official vendor hosts, checked for public DNS
+resolution on every redirect, and bounded to 5 MB before their provenance is
+persisted. Local sources require explicit offline mode.
 Empty or truncated summaries are rejected before generator invocation.
 The capability batch runner preserves vendor order, caps concurrent generator
 calls at three, applies a capability-specific 12-minute harness timeout, and

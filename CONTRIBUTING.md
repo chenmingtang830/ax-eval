@@ -89,7 +89,9 @@ shape.
 - **Spec seeds are reviewed inputs.** Use deterministic OpenAPI operation
   summaries to bound capability candidates, reject non-official remote sources,
   and retain source/count/truncation provenance in the extract. Do not author
-  from an empty or truncated operation inventory.
+  from an empty or truncated operation inventory. Validate remote hosts and
+  redirects before reading response bodies, reject private-network resolution,
+  bound source size, and require offline mode for local files.
 - **Explicit spec mappings fail closed.** `--capability-spec` sources must be
   fetched exactly; do not replace a missing source with a generic fixture.
   Keep multi-vendor generator concurrency bounded, result ordering stable, and
