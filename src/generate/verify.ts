@@ -9,10 +9,18 @@
 import { readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
 import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import type { ObservedRun } from "../harness/transcript.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
+import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
+import { resolveEnvTemplate } from "../target/config.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
+import { gradeSurfaceHonesty } from "./surface-honesty.js";
+
+export { parseJsonWithRecovery } from "../util/json-parse.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -39,16 +47,21 @@ export interface RoundtripOutcome {
   success: boolean;
   oracleResults: OracleResult[];
   error: string | null;
+  /** True when the pack marks this task N/A for the vendor (its only
+   *  oracle is type "na") — per DAEB methodology, N/A tasks are excluded
+   *  from both the numerator and denominator of the pass rate, not
+   *  counted as failures. */
+  na: boolean;
 }
 
 export function loadResults(path: string): ExecutorResults {
-  return JSON.parse(readFileSync(path, "utf8")) as ExecutorResults;
+  return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
 }
 
 /** Load a sibling *.trace.json if present (observability); empty if missing. */
 export function loadTrace(path: string): TraceStep[] {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8"));
     return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
   } catch {
     return [];
@@ -65,6 +78,12 @@ function resolveExpected(expected: unknown, ns: string | undefined): unknown {
 
 function resolveExpectedValues(oracle: OracleSpec, ns: string | undefined): unknown[] {
   return [oracle.expected, ...(oracle.expectedAny ?? [])].map((v) => resolveExpected(v, ns));
+}
+
+function resolveProbeExpectedValues(oracle: OracleSpec, ns: string | undefined): unknown[] {
+  return [oracle.probeExpected, ...(oracle.probeExpectedAny ?? [])]
+    .filter((value) => value !== undefined)
+    .map((value) => resolveExpected(value, ns));
 }
 
 function normalizeUrl(value: unknown): string | null {
@@ -86,18 +105,66 @@ function normalizeUrl(value: unknown): string | null {
   }
 }
 
+function isAbsoluteHttpUrl(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function valuesMatch(actual: unknown, expectedValues: unknown[], mode: OracleSpec["matchMode"]): boolean {
   if (mode === "url") {
     const normalizedActual = normalizeUrl(actual);
     return expectedValues.some((expected) => normalizedActual !== null && normalizedActual === normalizeUrl(expected));
   }
-  return expectedValues.some((expected) => actual === expected);
+  return expectedValues.some((expected) => {
+    if (actual === expected) return true;
+    // node-postgres returns BIGINT/NUMERIC columns (e.g. COUNT(*)) as strings
+    // to avoid JS precision loss — a check comparing that column against a
+    // literal number (the natural, readable way to author `expected: 5`)
+    // would otherwise always fail on a strict type mismatch alone.
+    if (typeof actual === "string" && typeof expected === "number" && actual.trim() !== "" && Number(actual) === expected) return true;
+    if (typeof expected === "string" && typeof actual === "number" && expected.trim() !== "" && Number(expected) === actual) return true;
+    return false;
+  });
 }
 
 function expectedDetail(expectedValues: unknown[]): string {
   return expectedValues.length === 1
     ? JSON.stringify(expectedValues[0])
     : `[${expectedValues.map((v) => JSON.stringify(v)).join(" | ")}]`;
+}
+
+function httpErrorOutcome(oracle: OracleSpec, error: HttpApiError, ns: string | undefined): OracleResult {
+  const statusPassed = !oracle.expectedHttpStatuses?.length
+    || oracle.expectedHttpStatuses.includes(error.status);
+  const expectedValues = resolveExpectedValues(oracle, ns);
+  const actual = oracle.assertField ? resolveDotted(error.body, oracle.assertField) : undefined;
+  const bodyPassed = oracle.expected === undefined
+    || (Boolean(oracle.assertField) && valuesMatch(actual, expectedValues, oracle.matchMode));
+  return {
+    type: "roundtrip",
+    passed: statusPassed && bodyPassed,
+    detail: [
+      `HTTP ${error.status} expected=${oracle.expectedHttpStatuses?.join("/") ?? "any error"}`,
+      oracle.expected === undefined
+        ? undefined
+        : `${oracle.assertField ?? "(missing field)"}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+    ].filter(Boolean).join("; "),
+  };
+}
+
+function errorMessageFromResult(value: unknown): string | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const record = value as { code?: unknown; message?: unknown; errno?: unknown; sqlState?: unknown };
+  if (typeof record.message !== "string" || !record.message.trim()) return undefined;
+  const prefix = [record.code, record.errno, record.sqlState]
+    .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
+    .join("/");
+  return prefix ? `${prefix}: ${record.message}` : record.message;
 }
 
 function applyGidTemplate(value: unknown, gid: string): unknown {
@@ -113,190 +180,185 @@ function applyGidTemplate(value: unknown, gid: string): unknown {
   return value;
 }
 
-function extractTemplateParams(template: string, path: string): Record<string, string> | null {
-  const tpl = template.split("/").filter(Boolean);
-  const segs = path.split("?")[0]!.split("/").filter(Boolean);
-  if (tpl.length !== segs.length) return null;
-  const out: Record<string, string> = {};
-  for (let i = 0; i < tpl.length; i += 1) {
-    const t = tpl[i]!;
-    const s = segs[i]!;
-    const match = t.match(/^\{([^}]+)\}$/);
-    if (match) {
-      out[match[1]!] = decodeURIComponent(s);
-      continue;
-    }
-    if (t !== s) return null;
-  }
-  return out;
-}
-
-function inferValueFromNote(note: string | undefined, name: string): string | undefined {
-  if (!note) return undefined;
-  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const direct = note.match(new RegExp(`\\b${escapedName}=([^\\s,;]+)`));
-  if (direct?.[1]) return direct[1];
-  const aliases: Record<string, RegExp[]> = {
-    gid: [
-      /\b(?:id|pageId|rowId|packId|folderId|requestId)=([^\s,;]+)/,
-      /\b(?:doc|page|row|pack|folder)\s+([A-Za-z0-9_-]+)\b/,
-    ],
-    docId: [/\b(?:docId|doc)=([^\s,;]+)/, /\bdoc\s+([A-Za-z0-9_-]+)\b/],
-    tableIdOrName: [/\b(?:tableIdOrName|tableId|table)=([^\s,;]+)/, /\btable\s+([A-Za-z0-9_-]+)\b/],
-  };
-  for (const pattern of aliases[name] ?? []) {
-    const match = note.match(pattern);
-    if (match?.[1]) return match[1];
-  }
-  return undefined;
-}
-
-function inferTemplateValue(
-  task: Task,
-  name: string,
+function applyStringTemplates(
+  value: string,
+  ns: string | undefined,
+  gid: string | undefined,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
-  trace: TraceStep[],
-  readPathTemplate: string,
-): string | undefined {
-  const direct = reported?.[name];
-  if (typeof direct === "string" && direct) return direct;
-  const readMatches = trace
-    .filter((step) => step.taskId === task.id && typeof step.path === "string")
-    .map((step) => extractTemplateParams(readPathTemplate, step.path!))
-    .find((value): value is Record<string, string> => !!value?.[name]);
-  if (readMatches?.[name]) return readMatches[name];
-  const createMatches = task.create_path
-    ? trace
-        .filter((step) => step.taskId === task.id && typeof step.path === "string")
-        .map((step) => extractTemplateParams(task.create_path!, step.path!))
-        .find((value): value is Record<string, string> => !!value?.[name])
-    : undefined;
-  if (createMatches?.[name]) return createMatches[name];
-  return [...trace]
-    .filter((step) => step.taskId === task.id)
-    .reverse()
-    .map((step) => inferValueFromNote(step.note, name))
-    .find((value): value is string => typeof value === "string" && value.length > 0);
+  encodeGid = true,
+): string {
+  const withNs = resolveEnvTemplate(ns ? value.split(NS_PLACEHOLDER).join(ns) : value);
+  return withNs.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+    if (name === "ns") return ns ?? match;
+    if (name === "gid") return gid ? (encodeGid ? encodeURIComponent(gid) : gid) : match;
+    const reportedValue = reported?.[name];
+    return typeof reportedValue === "string" ? reportedValue : match;
+  });
 }
 
-function resolvePathTemplate(
-  task: Task,
-  readPathTemplate: string,
+function applyOracleTemplate(
+  value: unknown,
+  ns: string | undefined,
+  gid: string | undefined,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
-  trace: TraceStep[],
-): { path?: string; missing?: string } {
-  const placeholders = [...readPathTemplate.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]!);
-  const replacements: Record<string, string> = {};
-  for (const name of placeholders) {
-    const value = inferTemplateValue(task, name, reported, trace, readPathTemplate);
-    if (!value) return { missing: name };
-    replacements[name] = value;
-  }
-  const path = readPathTemplate.replace(/\{([^}]+)\}/g, (_, name: string) => encodeURIComponent(replacements[name]!));
-  return { path };
-}
-
-function listItems(body: Record<string, unknown>): Record<string, unknown>[] {
-  if (Array.isArray(body.items)) return body.items.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
-  if (Array.isArray(body.results)) return body.results.filter((item): item is Record<string, unknown> => !!item && typeof item === "object");
-  return [];
-}
-
-function hrefPath(value: unknown): string | undefined {
-  if (typeof value !== "string" || !value) return undefined;
-  try {
-    return new URL(value).pathname;
-  } catch {
-    return undefined;
-  }
-}
-
-async function readRoundtripFallback(
-  client: BearerClient,
-  path: string,
-  oracle: OracleSpec,
-  expectedValues: unknown[],
-  gid: string,
-): Promise<Record<string, unknown> | null> {
-  const collectionPath = path.replace(/\/[^/]+$/, "");
-  if (!collectionPath || collectionPath === path) return null;
-  const listing = await client.get<Record<string, unknown>>(collectionPath);
-  const items = listItems(listing);
-  if (items.length === 0) return null;
-
-  const byExpected = items.find((item) =>
-    oracle.assertField
-      ? valuesMatch(resolveDotted(item, oracle.assertField), expectedValues, oracle.matchMode)
-      : false,
-  );
-  if (byExpected) return byExpected;
-
-  const byId = items.find((item) => item.id === gid);
-  if (byId) return byId;
-
-  for (const item of items) {
-    const itemPath = hrefPath(item.href);
-    if (!itemPath || itemPath === path) continue;
-    try {
-      const fetched = await client.get<Record<string, unknown>>(itemPath);
-      if (!oracle.assertField || valuesMatch(resolveDotted(fetched, oracle.assertField), expectedValues, oracle.matchMode)) {
-        return fetched;
-      }
-    } catch {
-      // Best-effort fallback only.
+): unknown {
+  if (typeof value === "string") return applyStringTemplates(value, ns, gid, reported, false);
+  if (Array.isArray(value)) return value.map((entry) => applyOracleTemplate(entry, ns, gid, reported));
+  if (value !== null && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+      out[key] = applyOracleTemplate(entry, ns, gid, reported);
     }
+    return out;
   }
-  return null;
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-async function readRoundtripBody(
-  client: BearerClient,
-  path: string,
-  oracle: OracleSpec,
-  gid: string,
-  fieldSelectParam: string | undefined,
-): Promise<Record<string, unknown>> {
-  const method = oracle.readMethod ?? "GET";
-  let lastErr: unknown;
-  const retryDelays = [0, 500, 1500, 3500, 7000];
-  for (const delay of retryDelays) {
-    if (delay > 0) await sleep(delay);
-    try {
-      return method === "POST"
-        ? await client.post<Record<string, unknown>>(path, applyGidTemplate(oracle.readBodyTemplate, gid))
-        : await client.get<Record<string, unknown>>(
-            path,
-            fieldSelectParam ? { [fieldSelectParam]: oracle.assertField! } : undefined,
-          );
-    } catch (err) {
-      lastErr = err;
-      if (!(err instanceof HttpApiError) || ![404, 409, 423].includes(err.status)) throw err;
-    }
-  }
-  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+  return value;
 }
 
 async function verifyRoundtrip(
   task: Task,
-  reported: { gid?: string } | undefined,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
   ns: string | undefined,
   fieldSelectParam: string | undefined,
   apiStyle: ApiStyle,
-  trace: TraceStep[],
+  sqlConn: SqlConn | null,
+  mongoConn: MongoConn | null,
 ): Promise<OracleResult[]> {
   const out: OracleResult[] = [];
+  // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
+  // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
+  const applyNsTemplate = (template: string): string =>
+    applyStringTemplates(template, ns, undefined, undefined);
+  // Named placeholders beyond {ns}/{gid}: a check can reference a value only
+  // the executor knows once it performs the task (e.g. {test_row_id} for an
+  // RLS visibility check, or {duplicate_email} for a unique-constraint
+  // check) — the executor reports it as an extra key alongside `gid`, the
+  // same mechanism used for authField tokens. Left untouched if unreported
+  // (so a genuinely missing value surfaces as a 404/not-found rather than a
+  // silently broken literal "{name}" in the URL).
+  const applyReportedFields = (template: string): string =>
+    template.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
+      if (name === "ns" || name === "gid") return match;
+      const value = reported?.[name];
+      return typeof value === "string" ? value : match;
+    });
+
   for (const oracle of task.oracles) {
     if (oracle.type !== "roundtrip") continue;
-    const gid = inferTemplateValue(task, "gid", reported, trace, oracle.readPathTemplate ?? task.create_path ?? "{gid}");
-    if (!gid) {
-      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+
+    if (oracle.mongoQuery) {
+      if (!mongoConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has mongoQuery but pack declares no mongo_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported) as MongoQuery;
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        const result = await runMongoCheck(mongoConn, query);
+        const actual = resolveDotted(result, oracle.assertField);
+        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: [
+            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+            actual === undefined ? errorMessageFromResult(result) : undefined,
+          ].filter(Boolean).join("; "),
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
       continue;
     }
+
+    // SQL wire-protocol targets (CockroachDB/PlanetScale): no {gid}
+    // substitution — these checks address state by {ns}, not a
+    // per-resource id, since a "row count" query has no single resource.
+    if (oracle.sqlQuery) {
+      // sqlConnField: the resource under test lives behind a DIFFERENT
+      // credential than the pack's default (e.g. a new branch created
+      // during a restore, or a scoped role created for RBAC testing) —
+      // the executor already had this connection string in hand to do
+      // the work, so this just asks it to also report it.
+      let effectiveSqlConn = sqlConn;
+      let rolePrefix = "";
+      const safeNs = (ns ?? "").replace(/[^a-zA-Z0-9_]/g, "_");
+      const role = oracle.sqlRoleTemplate
+        ? oracle.sqlRoleTemplate.replace(/\{ns\}/g, safeNs)
+        : oracle.sqlRoleField ? reported?.[oracle.sqlRoleField] : undefined;
+      if (oracle.sqlRoleTemplate || oracle.sqlRoleField) {
+        if (typeof role !== "string" || !/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) {
+          const source = oracle.sqlRoleTemplate ? `"${oracle.sqlRoleTemplate}"` : `"${oracle.sqlRoleField}"`;
+          out.push({ type: "roundtrip", passed: false, detail: `no valid SQL role resolved from ${source}` });
+          continue;
+        }
+        rolePrefix = `SET ROLE "${role}"; `;
+      } else if (oracle.sqlConnField) {
+        const reportedConn = reported?.[oracle.sqlConnField];
+        if (typeof reportedConn !== "string" || !reportedConn) {
+          out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.sqlConnField}" reported by executor` });
+          continue;
+        }
+        effectiveSqlConn = { dialect: oracle.sqlDialect ?? sqlConn?.dialect ?? "postgres", connectionString: reportedConn };
+      }
+      if (!effectiveSqlConn) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle has sqlQuery but pack declares no sql_conn" });
+        continue;
+      }
+      if (!oracle.assertField) {
+        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
+        continue;
+      }
+      const query = rolePrefix + applyReportedFields(applyNsTemplate(oracle.sqlQuery));
+      const expectedValues = resolveExpectedValues(oracle, ns);
+      try {
+        if (oracle.probeSqlQuery) {
+          const probeQuery = applyReportedFields(applyNsTemplate(oracle.probeSqlQuery));
+          const probeResult = await runSqlCheck(effectiveSqlConn, probeQuery);
+          const probeField = oracle.probeAssertField ?? "code";
+          const probeActual = resolveDotted(probeResult, probeField);
+          const probeExpected = resolveProbeExpectedValues(oracle, ns);
+          const isErrorObject = !Array.isArray(probeResult) && Boolean(errorMessageFromResult(probeResult));
+          const probePassed = oracle.probeExpectError
+            ? isErrorObject && (!probeExpected.length || valuesMatch(probeActual, probeExpected, oracle.matchMode))
+            : valuesMatch(probeActual, probeExpected, oracle.matchMode);
+          out.push({
+            type: "verifier-probe",
+            passed: probePassed,
+            detail: `${probeField}=${JSON.stringify(probeActual)} expected=${expectedDetail(probeExpected)}${oracle.probeExpectError ? ` error=${isErrorObject}` : ""}`,
+          });
+          if (!probePassed) continue;
+        }
+        const row = await runSqlCheck(effectiveSqlConn, query);
+        const isErrorObject = !Array.isArray(row) && Boolean(errorMessageFromResult(row));
+        const field = oracle.assertOutcome === "error" ? (oracle.assertField ?? "code") : oracle.assertField;
+        const actual = resolveDotted(row, field);
+        const passed = oracle.assertOutcome === "error"
+          ? isErrorObject && valuesMatch(actual, expectedValues, oracle.matchMode)
+          : valuesMatch(actual, expectedValues, oracle.matchMode);
+        out.push({
+          type: "roundtrip",
+          passed,
+          detail: [
+            `${field}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}${oracle.assertOutcome === "error" ? ` error=${isErrorObject}` : ""}`,
+            actual === undefined ? errorMessageFromResult(row) : undefined,
+          ].filter(Boolean).join("; "),
+        });
+      } catch (err) {
+        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+      }
+      continue;
+    }
+
+    const gid = reported?.gid;
+    // Only DAEB-style count/state checks that reference {gid} need one —
+    // a "does this table have 100 rows" query addresses state by {ns}, not
+    // a single resource. Templates that don't mention {gid} skip the check.
+    const needsGid = (t: string | undefined) => Boolean(t?.includes("{gid}"));
 
     // GraphQL targets (Linear/Monday): substitute {gid} into the hand-authored
     // read-back query, POST it, and assert the dotted field against `data`.
@@ -305,7 +367,11 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing readQuery/assertField" });
         continue;
       }
-      const query = oracle.readQueryTemplate.split("{gid}").join(gid);
+      if (needsGid(oracle.readQueryTemplate) && !gid) {
+        out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
+        continue;
+      }
+      const query = applyReportedFields(applyNsTemplate(oracle.readQueryTemplate)).split("{gid}").join(gid ?? "");
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const data = await client.graphql<Record<string, unknown>>(query);
@@ -317,52 +383,71 @@ async function verifyRoundtrip(
           detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
         });
       } catch (err) {
-        out.push({
-          type: "roundtrip",
-          passed: false,
-          detail: err instanceof Error ? err.message : String(err),
-        });
+        out.push(oracle.assertOutcome === "error" && err instanceof HttpApiError
+          ? httpErrorOutcome(oracle, err, ns)
+          : {
+              type: "roundtrip",
+              passed: false,
+              detail: err instanceof Error ? err.message : String(err),
+            });
       }
       continue;
     }
 
-    // REST targets (Asana/Notion/Exa): read back the path and assert the field.
+    // REST targets (Asana/Notion/Exa/DAEB vendors): read back the path and assert the field.
     if (!oracle.readPathTemplate || !oracle.assertField) {
       out.push({ type: "roundtrip", passed: false, detail: "oracle missing readPath/assertField" });
       continue;
     }
-    const { path, missing } = resolvePathTemplate(task, oracle.readPathTemplate, reported, trace);
-    if (!path) {
-      out.push({ type: "roundtrip", passed: false, detail: `oracle missing reported value for {${missing}}` });
+    if (needsGid(oracle.readPathTemplate) && !gid) {
+      out.push({ type: "roundtrip", passed: false, detail: "no gid reported by executor" });
       continue;
     }
+    // Identity-scoped (e.g. RLS) check: authenticate as the token the
+    // executor self-reported under this name, instead of the pack's
+    // admin-level default (which typically bypasses row-level security).
+    let requestClient = client;
+    if (oracle.authField) {
+      const token = reported?.[oracle.authField];
+      if (typeof token !== "string" || !token) {
+        out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.authField}" reported by executor` });
+        continue;
+      }
+      requestClient = client.withToken(token);
+    }
+    const taskBaseUrl = typeof reported?.__task_base_url === "string"
+      ? reported.__task_base_url.trim()
+      : "";
+    if (isAbsoluteHttpUrl(taskBaseUrl)) {
+      requestClient = requestClient.withBaseUrl(taskBaseUrl);
+    }
+    const path = applyReportedFields(applyNsTemplate(oracle.readPathTemplate)).replace("{gid}", gid ? encodeURIComponent(gid) : "");
     const expectedValues = resolveExpectedValues(oracle, ns);
     try {
-      const body = await readRoundtripBody(client, path, oracle, gid, fieldSelectParam);
+      const method = oracle.readMethod ?? "GET";
+      const body =
+        method === "POST"
+          ? await requestClient.post<Record<string, unknown>>(
+              path,
+              applyGidTemplate(applyOracleTemplate(oracle.readBodyTemplate, ns, gid, reported), gid ?? ""),
+            )
+          : await requestClient.get<Record<string, unknown>>(
+              path,
+              fieldSelectParam ? { [fieldSelectParam]: oracle.assertField } : undefined,
+            );
       const actual = resolveDotted(body, oracle.assertField);
-      const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+      const passed = oracle.assertOutcome === "error"
+        ? false
+        : valuesMatch(actual, expectedValues, oracle.matchMode);
       out.push({
         type: "roundtrip",
         passed,
         detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
       });
     } catch (err) {
-      if (oracle.readMethod !== "POST" && err instanceof HttpApiError) {
-        try {
-          const fallback = await readRoundtripFallback(client, path, oracle, expectedValues, gid);
-          if (fallback) {
-            const actual = resolveDotted(fallback, oracle.assertField);
-            const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
-            out.push({
-              type: "roundtrip",
-              passed,
-              detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)} (collection fallback)`,
-            });
-            continue;
-          }
-        } catch {
-          // Keep the original error below.
-        }
+      if (oracle.assertOutcome === "error" && err instanceof HttpApiError) {
+        out.push(httpErrorOutcome(oracle, err, ns));
+        continue;
       }
       out.push({
         type: "roundtrip",
@@ -379,10 +464,19 @@ export async function verifyGeneratedPack(
   executor: ExecutorResults,
   client: BearerClient,
   surface?: SurfaceId,
-  trace: TraceStep[] = [],
+  observedRun?: ObservedRun | TraceStep[],
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
+  const sqlConn = resolveSqlConn(pack);
+  const mongoConn = resolveMongoConn(pack);
+  const honestySurface: SurfaceId =
+    surface ?? (executor.surface === "cli" || executor.surface === "sdk" || executor.surface === "mcp" || executor.surface === "api"
+      ? executor.surface
+      : "api");
+  const honesty = observedRun && !Array.isArray(observedRun)
+    ? gradeSurfaceHonesty(observedRun, honestySurface, pack)
+    : null;
   for (const task of tasks) {
     const reported = executor.results[task.id];
     let oracleResults: OracleResult[];
@@ -395,12 +489,21 @@ export async function verifyGeneratedPack(
         executor.ns,
         pack.field_select_param,
         pack.api_style,
-        trace,
+        sqlConn,
+        mongoConn,
       );
     } catch (err) {
       oracleResults = [];
       error = err instanceof Error ? err.message : String(err);
     }
+    if (honesty && !honesty.passed) {
+      oracleResults.push({
+        type: "surface-honesty",
+        passed: false,
+        detail: honesty.detail,
+      });
+    }
+    const na = task.oracles.length > 0 && task.oracles.every((o) => o.type === "na");
     const success = oracleResults.length > 0 && oracleResults.every((r) => r.passed);
     outcomes.push({
       taskId: task.id,
@@ -409,6 +512,7 @@ export async function verifyGeneratedPack(
       success,
       oracleResults,
       error,
+      na,
     });
   }
   return outcomes;
