@@ -313,6 +313,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'A teammate says: "Please set up a fresh planning doc called \\"AX probe planning doc {ns}\\" for me in this workspace." Decide what object to create, create it, and report the created doc id as gid.',
     allowed_surfaces: ["api", "docs", "mcp"],
+    na: false,
     create_path: "/docs",
     depends_on: [],
     trace: [],
@@ -333,6 +334,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create or copy a doc that already contains a writable table whose identifying column is "Name", then add one row named "AX probe rows {ns}". If a brand-new empty doc has no tables, use another valid API path that yields a real table instead of inventing a table-creation endpoint. Report the row id as gid, the parent doc id as docId, and the target table id as tableIdOrName.',
     allowed_surfaces: ["api", "docs"],
+    na: false,
     create_path: "/docs/{docId}/tables/{tableIdOrName}/rows",
     depends_on: [],
     trace: [],
@@ -353,6 +355,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, then add one page named "AX probe mcp page {ns}". Report the page id as gid and the parent doc id as docId.',
     allowed_surfaces: ["api", "docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/pages",
     depends_on: [],
     trace: [],
@@ -373,6 +376,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, then add one page named "AX probe mcp page-subtitle {ns}" with subtitle "AX probe subtitle {ns}". Report the page id as gid and the parent doc id as docId.',
     allowed_surfaces: ["api", "docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/pages",
     depends_on: [],
     trace: [],
@@ -393,6 +397,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, add a parent page, then add a child page named "AX probe mcp subpage {ns}" under that parent. Report the child page id as gid and the parent doc id as docId.',
     allowed_surfaces: ["docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/pages",
     depends_on: [],
     trace: [],
@@ -413,6 +418,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, add a table whose identifying column is "Name", and create one row named "AX probe mcp row {ns}". Report the row id as gid, the parent doc id as docId, and the created table id as tableIdOrName.',
     allowed_surfaces: ["docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/tables/{tableIdOrName}/rows",
     depends_on: [],
     trace: [],
@@ -433,6 +439,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, add a table whose identifying column is "Name", seed it with one starter row, then add a second row named "AX probe mcp row-second {ns}". Report the second row id as gid, the parent doc id as docId, and the created table id as tableIdOrName.',
     allowed_surfaces: ["docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/tables/{tableIdOrName}/rows",
     depends_on: [],
     trace: [],
@@ -453,6 +460,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'A teammate says: "Please add \\"AX probe mcp page-goal {ns}\\" as a new page in a fresh planning doc for me." Infer the right objects to create, do it, and report the created page id as gid plus the parent doc id as docId.',
     allowed_surfaces: ["api", "docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/pages",
     depends_on: [],
     trace: [],
@@ -473,6 +481,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, add one page named "AX probe mcp page-pre {ns}", then rename that same page to "AX probe mcp page-renamed {ns}". Report the page id as gid and the parent doc id as docId.',
     allowed_surfaces: ["docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/pages",
     depends_on: [],
     trace: [],
@@ -493,6 +502,7 @@ const CODA_CURATED_TASKS: Task[] = [
     prompt:
       'Create a new doc, add a table whose identifying column is "Name", create one row named "AX probe mcp row-pre {ns}", then update that same row so its display name is "AX probe mcp row-renamed {ns}". Report the row id as gid, the parent doc id as docId, and the created table id as tableIdOrName.',
     allowed_surfaces: ["docs", "mcp"],
+    na: false,
     create_path: "/docs/{docId}/tables/{tableIdOrName}/rows",
     depends_on: [],
     trace: [],
@@ -622,4 +632,3 @@ export function resolveGraphqlGeneratePreset(product: string): GeneratePreset<Ge
       return undefined;
   }
 }
-

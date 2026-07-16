@@ -30,7 +30,7 @@
  */
 import { fileURLToPath } from "node:url";
 import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -143,6 +143,19 @@ import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
+import {
+  buildEnvChecklist,
+  automationGeneratedAt,
+  defaultAutomationRunDir,
+  discoverAutomationTarget,
+  hasMissingRequiredConfig,
+  selectSmokeTasks,
+  slugifyAutomationName,
+  writeAutomationManifest,
+  writeShareSummary,
+  type AutomationManifest,
+} from "./automation.js";
+import { resolveGraphqlGeneratePreset, resolveOpenApiGeneratePreset } from "./presets/index.js";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "examples", "asana", "pack.yaml");
@@ -160,6 +173,7 @@ const COMMANDS = [
   "verify",
   "ingest",
   "generate",
+  "automate-report",
   "review",
   "exec-plan",
   "verify-generated",
@@ -206,6 +220,14 @@ function commandUsage(command: string | undefined): string {
         "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB, ...)",
         "  docs-only mode: omit --from, pass --suite + --product + --docs.",
         "                  the LLM web-searches the product's docs in lieu of ingest.",
+      ].join("\n");
+    case "automate-report":
+      return [
+        "usage: ax-eval automate-report --company <name>",
+        "       [--site url] [--docs url,url] [--openapi url] [--graphql endpoint|file]",
+        `       [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]`,
+        "       [--effort low|medium|high] [--run-dir dir] [--smoke-only] [--approve-by name]",
+        "       --approve-by only fills the suggested manual review command; it does not auto-approve generated packs.",
       ].join("\n");
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
@@ -379,6 +401,9 @@ interface Parsed {
    *  (codex → model_reasoning_effort; claude-code → prompt-level). */
   effort: string;
   deterministic: boolean;
+  smokeOnly: boolean;
+  company: string;
+  approveBy: string;
   /** synthesize-suite: opt-in grounded LLM gap adjudication. */
   gapCheckAssist: boolean;
   generatorHarness: string;
@@ -480,6 +505,9 @@ function parseArgs(argv: string[]): Parsed {
     model: "",
     effort: "",
     deterministic: false,
+    smokeOnly: false,
+    company: "",
+    approveBy: "",
     gapCheckAssist: false,
     generatorHarness: "",
     generatorModel: "",
@@ -566,6 +594,9 @@ function parseArgs(argv: string[]): Parsed {
       p.effort = v;
     }
     else if (a === "--deterministic") p.deterministic = true;
+    else if (a === "--smoke-only") p.smokeOnly = true;
+    else if (a === "--company") p.company = value(++i, "--company");
+    else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
     else if (a === "--gap-check-assist") p.gapCheckAssist = true;
     else if (a === "--generator-harness") {
       const v = value(++i, "--generator-harness");
@@ -1352,7 +1383,13 @@ function taskSummary(pack: TargetPack): unknown {
   }));
 }
 
-function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack, suite?: Suite): string {
+function buildGeneratorPrompt(
+  product: string,
+  spec: unknown,
+  seed: TargetPack,
+  suite?: Suite,
+  authoringHints: string[] = [],
+): string {
   const specSummary = JSON.stringify({
     source: (spec as { source?: unknown }).source,
     title: (spec as { title?: unknown }).title,
@@ -1391,6 +1428,9 @@ function buildGeneratorPrompt(product: string, spec: unknown, seed: TargetPack, 
     "Seed pack JSON to improve or preserve:",
     seedJson,
   ];
+  if (authoringHints.length) {
+    sections.push("", "Preset guidance:", ...authoringHints.map((hint) => `- ${hint}`));
+  }
   if (suite) sections.push(suitePromptFragment(suite));
   return sections.join("\n");
 }
@@ -1413,6 +1453,7 @@ async function authorPackWithLlm(
   args: Parsed,
   docsUrls: string[] | undefined,
   suite?: Suite,
+  authoringHints: string[] = [],
 ): Promise<TargetPack> {
   const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
   const prompt = buildGeneratorPrompt(
@@ -1420,6 +1461,7 @@ async function authorPackWithLlm(
     spec,
     { ...seed, generated_by: "llm-assisted", generator: provenance },
     suite,
+    authoringHints,
   );
   const raw = await runGeneratorHarness(prompt, args, provenance);
   const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
@@ -2608,24 +2650,24 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   const generatePolicy = resolvedGeneratePolicy(args);
 
   if (looksLikeGraphqlIngest(spec)) {
-    const isLinear = product.toLowerCase() === "linear";
-    const preset = isLinear ? LINEAR_GRAPHQL_PRESET : undefined;
+    const preset = resolveGraphqlGeneratePreset(product);
+    const presetOptions = preset?.options;
     const graphqlOpts: GenerateGraphqlPackOptions = {
-      ...(preset ?? {}),
+      ...(presetOptions ?? {}),
       ...generatePolicy,
       runId: args.runId || undefined,
-      packName: `${slugify(product)}-generated`,
+      packName: presetOptions?.packName ?? `${slugify(product)}-generated`,
       product,
-      baseUrl: args.baseUrl || preset?.baseUrl || undefined,
-      siteUrl: args.site || preset?.siteUrl || "",
-      ...(docsUrls ? { docsUrls } : preset?.docsUrls ? { docsUrls: preset.docsUrls } : {}),
+      baseUrl: args.baseUrl || presetOptions?.baseUrl || undefined,
+      siteUrl: args.site || presetOptions?.siteUrl || "",
+      ...(docsUrls ? { docsUrls } : presetOptions?.docsUrls ? { docsUrls: presetOptions.docsUrls } : {}),
     };
     const generated = generateGraphqlPack(spec, {
       ...graphqlOpts,
     });
     const pack: TargetPack = args.deterministic
       ? generated
-      : await authorPackWithLlm(product, spec, generated, args, docsUrls, suite);
+      : await authorPackWithLlm(product, spec, generated, args, docsUrls, suite, preset?.authoringHints);
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
@@ -2642,13 +2684,13 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     return 0;
   }
 
-  const isAsana = product.toLowerCase() === "asana";
-  const isExa = product.toLowerCase() === "exa";
+  const preset = resolveOpenApiGeneratePreset(product);
+  const presetOptions = preset?.options;
 
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
   // and resource graph — no per-product hardcoding.
-  const presetAllowsFull = !Boolean(EXA_PRESET.operationTasks && isExa);
+  const presetAllowsFull = preset?.allowFullPreset ?? true;
   const presetAwarePolicy = resolvedGeneratePolicy(args, presetAllowsFull);
   const baseOpts: GenerateOptions = {
     ...presetAwarePolicy,
@@ -2663,21 +2705,18 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     ...(docsUrls ? { docsUrls } : {}),
   };
 
-  // Asana keeps its hand-curated extras (see ASANA_PRESET). Explicit --site/--docs
-  // flags still win over the preset's defaults.
-  const preset = isAsana ? ASANA_PRESET : isExa ? EXA_PRESET : undefined;
-  const opts: GenerateOptions = preset
+  const opts: GenerateOptions = presetOptions
     ? {
-        ...preset,
+        ...presetOptions,
         ...baseOpts,
-        ...(preset.packName ? { packName: preset.packName } : {}),
-        ...(args.limit === 3 && preset.limit !== undefined ? { limit: preset.limit } : {}),
-        ...(args.l2Limit === undefined && preset.l2Limit !== undefined ? { l2Limit: preset.l2Limit } : {}),
-        ...(args.l3Limit === undefined && preset.l3Limit !== undefined ? { l3Limit: preset.l3Limit } : {}),
-        ...(args.l4Limit === undefined && preset.l4Limit !== undefined ? { l4Limit: preset.l4Limit } : {}),
-        ...(baseOpts.targetTaskCount === undefined && preset.targetTaskCount !== undefined ? { targetTaskCount: preset.targetTaskCount } : {}),
-        ...(args.site ? { siteUrl: args.site } : { siteUrl: preset.siteUrl }),
-        ...(docsUrls ? { docsUrls } : { docsUrls: preset.docsUrls }),
+        ...(presetOptions.packName ? { packName: presetOptions.packName } : {}),
+        ...(args.limit === 3 && presetOptions.limit !== undefined ? { limit: presetOptions.limit } : {}),
+        ...(args.l2Limit === undefined && presetOptions.l2Limit !== undefined ? { l2Limit: presetOptions.l2Limit } : {}),
+        ...(args.l3Limit === undefined && presetOptions.l3Limit !== undefined ? { l3Limit: presetOptions.l3Limit } : {}),
+        ...(args.l4Limit === undefined && presetOptions.l4Limit !== undefined ? { l4Limit: presetOptions.l4Limit } : {}),
+        ...(baseOpts.targetTaskCount === undefined && presetOptions.targetTaskCount !== undefined ? { targetTaskCount: presetOptions.targetTaskCount } : {}),
+        ...(args.site ? { siteUrl: args.site } : { siteUrl: presetOptions.siteUrl }),
+        ...(docsUrls ? { docsUrls } : { docsUrls: presetOptions.docsUrls }),
       }
     : baseOpts;
 
@@ -2686,14 +2725,14 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     spec,
     args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
   );
-  const pack = args.deterministic ? seed : await authorPackWithLlm(product, spec, seed, args, provenanceDocs, suite);
+  const pack = args.deterministic
+    ? seed
+    : await authorPackWithLlm(product, spec, seed, args, provenanceDocs, suite, preset?.authoringHints);
   const yaml = packToYaml(pack);
   // Default output: committed example packs live under targets/examples/, but
   // locally generated packs still default to targets/<product>/ so a user can
   // iterate on their own target without overwriting the shipped examples.
-  const defaultOut = isAsana
-    ? "targets/asana/generated.pack.yaml"
-    : `results/${slugify(product)}.generated.pack.yaml`;
+  const defaultOut = preset?.defaultOut ?? `results/${slugify(product)}.generated.pack.yaml`;
   const out = args.out && args.out !== "results/last-run.json" ? args.out : defaultOut;
   mkdirSync(dirname(out), { recursive: true });
   writeFileSync(out, yaml);
@@ -2706,7 +2745,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
   }
   for (const t of pack.tasks) console.log(`  [${t.difficulty}] ${t.id} — surfaces:[${t.allowed_surfaces.join(",")}]`);
   console.log(`\nFrozen pack → ${out}`);
-  if (!isAsana) {
+  if (!preset?.skipReviewReminder) {
     console.log(
       `\nNext: review it before any run —\n  ax-eval review --pack ${out}\n` +
       `Fill the sandbox id(s) it lists, then approve with --approve --by <name>.`,
@@ -4128,6 +4167,250 @@ async function cmdReset(args: Parsed): Promise<number> {
   return result.errors.length ? 1 : 0;
 }
 
+function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
+  return {
+    ...args,
+    ...overrides,
+    harness: [...(overrides.harness ?? args.harness)],
+    profile: [...(overrides.profile ?? args.profile)],
+    results: [...(overrides.results ?? args.results)],
+    observe: { ...(overrides.observe ?? args.observe) },
+    _: [...(overrides._ ?? args._)],
+  };
+}
+
+function jsonRunResults(dir: string): string[] {
+  if (!existsSync(dir)) return [];
+  return readdirSync(dir)
+    .filter((file) => /^run-.*\.json$/.test(file) && !/(\.trace|\.normalized)\.json$/.test(file))
+    .map((file) => resolve(dir, file))
+    .sort();
+}
+
+async function verifyAutomationResults(args: Parsed, dir: string, packPath: string, html: string): Promise<number> {
+  const forced = process.env.AX_EVAL_AUTOMATION_VERIFY_FIXTURE;
+  if (forced === "pass") {
+    mkdirSync(dirname(html), { recursive: true });
+    writeFileSync(html, "<!doctype html><title>AX eval automation fixture pass</title>");
+    console.log(`Verification fixture passed → ${html}`);
+    return 0;
+  }
+  if (forced === "fail") {
+    console.error("Verification fixture failed.");
+    return 1;
+  }
+  const results = jsonRunResults(dir);
+  if (!results.length) {
+    console.error(`No run result files found in ${dir}; cannot verify.`);
+    return 1;
+  }
+  return cmdVerifyGenerated(cloneArgs(args, {
+    pack: packPath,
+    results,
+    html,
+    runDir: dir,
+    minPassRate: 0.8,
+    surface: undefined,
+  }));
+}
+
+function fullProfiles(effort: string): string[] {
+  if (effort === "low") return ["low"];
+  if (effort === "medium") return ["low", "medium"];
+  return ["low", "high"];
+}
+
+function reviewCommand(packPath: string, approvedBy: string): string {
+  const reviewer = approvedBy.trim() ? JSON.stringify(approvedBy) : "<name>";
+  return `ax-eval review --pack ${packPath} --approve --by ${reviewer}`;
+}
+
+function resumeAutomationCommand(
+  company: string,
+  discovery: AutomationManifest["discovery"],
+  runDir: string,
+  approvedBy: string,
+): string {
+  const sourceFlag = `--${discovery.graphql_url ? "graphql" : "openapi"} ${discovery.graphql_url ?? discovery.openapi_url}`;
+  const reviewer = approvedBy.trim() ? ` --approve-by "${approvedBy}"` : "";
+  return `ax-eval automate-report --company "${company}" ${sourceFlag} --run-dir ${runDir}${reviewer}`;
+}
+
+async function cmdAutomateReport(args: Parsed): Promise<number> {
+  loadDotenv();
+  if (!args.company.trim()) throw new Error("usage: ax-eval automate-report --company <name>");
+  const company = args.company.trim();
+  const slug = slugifyAutomationName(company);
+  const runDir = args.runDir && args.runDir !== "results" ? args.runDir : defaultAutomationRunDir(company);
+  const harnesses = args.harness.length ? args.harness : ["codex"];
+  for (const harness of harnesses) {
+    if (!isInvokeHarnessId(harness)) {
+      throw new Error(`--harness for automate-report must be one of ${INVOKE_HARNESS_LIST} (got ${harness})`);
+    }
+  }
+  mkdirSync(runDir, { recursive: true });
+  if (args.approveBy) {
+    console.log("Note: --approve-by only seeds the suggested manual review command. Generated packs still require explicit review approval.");
+  }
+
+  const manifestPath = resolve(runDir, "automation-manifest.json");
+  const sharePath = resolve(runDir, "share-summary.md");
+  const artifacts: Record<string, string> = { manifest: manifestPath, share_summary: sharePath };
+  const nextSteps: string[] = [];
+  const discovery = await discoverAutomationTarget({
+    company,
+    site: args.site || undefined,
+    docs: args.docs ? args.docs.split(",").map((value) => value.trim()).filter(Boolean) : undefined,
+    openapi: args.openapi || undefined,
+    graphql: args.graphql || undefined,
+    harness: harnesses[0]!,
+    offline: args.offline,
+  }, { timeoutMs: 8000 });
+  const manifest: AutomationManifest = {
+    schema: "ax.automation-manifest/v1",
+    company,
+    slug,
+    run_dir: runDir,
+    generated_at: automationGeneratedAt(),
+    discovery,
+    artifacts,
+    next_steps: nextSteps,
+  };
+  writeAutomationManifest(manifestPath, manifest);
+
+  if (!discovery.openapi_url && !discovery.graphql_url) {
+    nextSteps.push("Provide an official --openapi URL or --graphql endpoint/file, or pass --site/--docs so automation can validate candidates.");
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Could not find a trustworthy official OpenAPI or GraphQL spec for ${company}. Re-run with an explicit source.`);
+    return 1;
+  }
+
+  const ingestPath = resolve(runDir, discovery.graphql_url ? "ingest-graphql.json" : "ingest.json");
+  const packPath = resolve(runDir, `${slug}.generated.full.pack.yaml`);
+  const smokePackPath = resolve(runDir, `${slug}.generated.smoke.pack.yaml`);
+  Object.assign(artifacts, { ingest: ingestPath, pack: packPath, smoke_pack: smokePackPath });
+  if (discovery.graphql_url) {
+    const schema = await ingestGraphqlDetailed(discovery.graphql_url, { offline: args.offline });
+    writeFileSync(ingestPath, JSON.stringify(schema, null, 2));
+  } else {
+    const spec = await ingestFromUrl(discovery.openapi_url!, { offline: args.offline });
+    writeFileSync(ingestPath, JSON.stringify(spec, null, 2));
+  }
+
+  const generateArgs = cloneArgs(args, {
+    from: ingestPath,
+    out: packPath,
+    product: company,
+    site: discovery.site_url ?? args.site,
+    docs: discovery.docs_urls.join(","),
+    baseUrl: discovery.graphql_url ?? args.baseUrl,
+    runDir,
+  });
+  try {
+    await cmdGenerate(generateArgs);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    manifest.discovery.warnings.push(`LLM-assisted generation failed; falling back to deterministic generation (${detail}).`);
+    await cmdGenerate(cloneArgs(generateArgs, { deterministic: true }));
+  }
+
+  const pack = loadPack(packPath);
+  const reviewPath = resolve(runDir, "review.txt");
+  const checklistPath = resolve(runDir, "configuration-checklist.md");
+  Object.assign(artifacts, { review: reviewPath, configuration_checklist: checklistPath });
+  writeFileSync(reviewPath, reviewSummary(pack));
+  const checklist = buildEnvChecklist(pack, args.surface ?? "api");
+  writeFileSync(checklistPath, checklist);
+
+  const smokeSelection = selectSmokeTasks(pack);
+  const smokePack: TargetPack = { ...pack, name: `${pack.name}-smoke`, tasks: smokeSelection.tasks };
+  writeFileSync(smokePackPath, packToYaml(smokePack));
+
+  const approval = checkApproval(pack, packPath);
+  if (!approval.ok) {
+    nextSteps.push(`Review the generated pack: ax-eval review --pack ${packPath}`);
+    nextSteps.push(`Approve it after review: ${reviewCommand(packPath, args.approveBy)}`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Stopping before live execution: ${approval.reason}.`);
+    return 1;
+  }
+
+  const smokeApproval = checkApproval(smokePack, smokePackPath);
+  if (!smokeApproval.ok) {
+    nextSteps.push(`Review the derived smoke pack: ax-eval review --pack ${smokePackPath}`);
+    nextSteps.push(`Approve it after review: ${reviewCommand(smokePackPath, args.approveBy)}`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error(`Stopping before smoke execution: ${smokeApproval.reason}.`);
+    return 1;
+  }
+
+  if (hasMissingRequiredConfig(pack, args.surface ?? "api")) {
+    nextSteps.push(`Fill the missing values in ${checklistPath}.`);
+    nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest);
+    console.error("Stopping before live execution: missing required auth or sandbox configuration.");
+    return 1;
+  }
+
+  const smokeDir = resolve(runDir, "smoke");
+  artifacts.smoke_dir = smokeDir;
+  const smokeExec = await cmdExecPlan(cloneArgs(args, {
+    pack: smokePackPath,
+    invoke: true,
+    harness: [harnesses[0]!],
+    profile: ["low"],
+    effort: "low",
+    surface: "api",
+    runDir: smokeDir,
+    attempts: 1,
+  }));
+  if (smokeExec !== 0) return smokeExec;
+  const smokeHtml = resolve(smokeDir, "generated-eval.html");
+  artifacts.smoke_report = smokeHtml;
+  const smokeVerify = await verifyAutomationResults(args, smokeDir, smokePackPath, smokeHtml);
+  if (smokeVerify !== 0) {
+    nextSteps.push(`Inspect smoke artifacts in ${smokeDir}; the full matrix was not run.`);
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest, smokeHtml);
+    return smokeVerify;
+  }
+  if (args.smokeOnly) {
+    nextSteps.push("Smoke passed. Re-run without --smoke-only to produce the full requested report.");
+    writeAutomationManifest(manifestPath, manifest);
+    writeShareSummary(sharePath, manifest, smokeHtml);
+    return 0;
+  }
+
+  const fullDir = resolve(runDir, "full");
+  const fullSurface = args.surface ?? "api";
+  const fullEffort = args.effort || "high";
+  artifacts.full_dir = fullDir;
+  const fullExec = await cmdExecPlan(cloneArgs(args, {
+    pack: packPath,
+    invoke: true,
+    harness: harnesses as InvokeHarnessId[],
+    profile: fullProfiles(fullEffort),
+    effort: fullEffort,
+    surface: fullSurface,
+    runDir: fullDir,
+    attempts: 1,
+  }));
+  if (fullExec !== 0) return fullExec;
+  const fullHtml = resolve(fullDir, "generated-eval.html");
+  artifacts.final_report = fullHtml;
+  const fullVerify = await verifyAutomationResults(args, fullDir, packPath, fullHtml);
+  nextSteps.push(fullVerify === 0 ? `Share ${fullHtml} or ${sharePath}.` : `Inspect failed full-run artifacts in ${fullDir}.`);
+  writeAutomationManifest(manifestPath, manifest);
+  writeShareSummary(sharePath, manifest, fullHtml);
+  return fullVerify;
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
@@ -4171,6 +4454,8 @@ async function main(): Promise<number> {
       return cmdIngest(args);
     case "generate":
       return cmdGenerate(args);
+    case "automate-report":
+      return cmdAutomateReport(args);
     case "review":
       return cmdReview(args);
     case "exec-plan":

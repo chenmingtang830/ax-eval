@@ -63,7 +63,7 @@
   "dependencies": {
     "@linear/sdk": "^86.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@mondaydotcomorg/monday-api-mcp": "^3.1.2",
+    "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
     "@neondatabase/api-client": "^2.7.3",
     "@neondatabase/serverless": "^1.1.0",
     "@notionhq/client": "^5.22.0",
@@ -83,5 +83,13 @@
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "@opentelemetry/auto-instrumentations-node": "^0.77.0",
+    "@opentelemetry/core": "^2.8.0",
+    "@opentelemetry/exporter-prometheus": "^0.219.0",
+    "@opentelemetry/sdk-node": "^0.219.0",
+    "esbuild": "^0.28.1",
+    "uuid": "^11.1.1"
   }
 }
