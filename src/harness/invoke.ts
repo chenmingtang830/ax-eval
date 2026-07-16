@@ -313,7 +313,8 @@ export function redactSensitiveText(value: string): string {
     .replace(/\bsbp_[A-Za-z0-9_]{20,}/g, "<redacted-token>")
     .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<redacted-jwt>")
     .replace(SECRET_ENV_NAME, "$1$2<redacted>")
-    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2"));
+    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2"))
+    .replace(/\[REDACTED\]/g, "<redacted>");
 }
 
 function writeRedactedFile(path: string, value: string): void {

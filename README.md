@@ -45,6 +45,16 @@ builds a rule-derived seed from the spec, then asks a local generator harness
 (`codex` or `claude-code`) to turn it into a product-quality pack. Use
 `--deterministic` when you need a keyless CI/offline fixture instead.
 
+`automate-report` can orchestrate discovery, generation, review/configuration
+handoff, a low-effort smoke gate, and the requested full report. It still stops
+at the content-addressed review gate: it never approves a generated pack for
+the operator.
+
+```bash
+npm run ax-eval -- automate-report --company Acme \
+  --openapi https://example.com/openapi.json --surface all --harness codex
+```
+
 ```bash
 # 1. Draft a task pack from a public spec, then review/freeze it.
 npm run ax-eval -- ingest --openapi https://example.com/openapi.json \
@@ -250,6 +260,7 @@ npm run ax-eval -- ingest --openapi <url>       # parse REST/OpenAPI into an ing
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
 npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>] # LLM-assisted by default
 npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
+npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>]
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]

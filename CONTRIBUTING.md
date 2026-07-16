@@ -55,8 +55,10 @@ shape.
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
-  rule-derived seed; `generate --deterministic` is the keyless fixture path. Both
-  paths must produce schema-valid packs, and neither path replaces human review.
+  rule-derived seed. Product presets may add hints and surface-specific task
+  shaping, but schema validation and the review gate remain authoritative;
+  `generate --deterministic` is the keyless fixture path. Neither path, nor
+  `automate-report`, replaces human review.
 - **DAEB-1 draft iterations stay v1.** Before human **publication** freeze,
   re-synthesis overwrites the same v1 suite; git SHAs and content hashes identify
   exact draft states and invalidate stale approvals. Do not increment the suite

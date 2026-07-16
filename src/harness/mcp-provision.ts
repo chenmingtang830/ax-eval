@@ -21,6 +21,10 @@ function tomlString(value: string): string {
   return JSON.stringify(value);
 }
 
+function tomlArray(values: string[]): string {
+  return `[${values.map(tomlString).join(", ")}]`;
+}
+
 function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
 }
@@ -98,23 +102,33 @@ function writeCodexMcpHome(opts: {
   pack: TargetPack;
   paths: InvokePaths;
   cwd: string;
-  bearerTokenEnvVar: string;
+  bearerTokenEnvVar?: string;
 }): { home: string; configPath: string; serverName: string } {
   const mcp = opts.pack.surfaces?.mcp;
-  if (!mcp?.server) throw new Error("Pack does not declare an MCP server URL");
+  if (!mcp?.server) throw new Error("Pack does not declare an MCP server");
   const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-codex-mcp`);
   const codexDir = resolve(home, ".codex");
   mkdirSync(codexDir, { recursive: true });
   copyCodexAuth(codexDir);
   const configPath = resolve(codexDir, "config.toml");
-  const typeLine = mcp.transport === "http" ? `type = "http"\n` : "";
+  const connection = mcp.transport === "stdio"
+    ? (() => {
+        const command = mcp.args.length === 0 && mcp.server === "exa-mcp-server" ? "npx" : mcp.server;
+        const args = command === "npx" && mcp.server === "exa-mcp-server"
+          ? ["-y", "exa-mcp-server"]
+          : mcp.args;
+        return `command = ${tomlString(command)}\nargs = ${tomlArray(args)}\n`;
+      })()
+    : `url = ${tomlString(mcp.server)}\ntype = "http"\n`;
+  const authLine = opts.bearerTokenEnvVar
+    ? `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n`
+    : "";
   const config =
     `check_for_update_on_startup = false\n\n` +
     `[mcp_servers.${serverName}]\n` +
-    `url = ${tomlString(mcp.server)}\n` +
-    typeLine +
-    `bearer_token_env_var = ${tomlString(opts.bearerTokenEnvVar)}\n` +
+    connection +
+    authLine +
     // Server-level blanket approval — without it codex's default approval
     // policy blocks MCP write calls waiting for interactive confirmation,
     // which a headless eval run can never provide ("cancelled by host").
@@ -157,17 +171,21 @@ function writeClaudeMcpHome(opts: {
   pack: TargetPack;
   paths: InvokePaths;
   cwd: string;
-  bearerTokenEnvVar: string;
-}): { home: string; configPath: string; headersHelperPath: string; serverName: string } {
+  bearerTokenEnvVar?: string;
+}): { home: string; configPath: string; headersHelperPath?: string; serverName: string } {
   const mcp = opts.pack.surfaces?.mcp;
-  if (!mcp?.server) throw new Error("Pack does not declare an MCP server URL");
+  if (!mcp?.server) throw new Error("Pack does not declare an MCP server");
   const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-claude-mcp`);
   const claudeDir = resolve(home, ".claude");
   mkdirSync(claudeDir, { recursive: true });
 
-  const headersHelperPath = resolve(claudeDir, `${serverName}-mcp-headers-helper.js`);
-  writeSecretHeaderHelper(headersHelperPath, opts.bearerTokenEnvVar);
+  const headersHelperPath = opts.bearerTokenEnvVar
+    ? resolve(claudeDir, `${serverName}-mcp-headers-helper.js`)
+    : undefined;
+  if (headersHelperPath && opts.bearerTokenEnvVar) {
+    writeSecretHeaderHelper(headersHelperPath, opts.bearerTokenEnvVar);
+  }
 
   // Invoked eval runs are fully headless. Without an explicit permission mode,
   // Claude will stop at the first remote MCP write and ask for approval instead
@@ -181,19 +199,19 @@ function writeClaudeMcpHome(opts: {
   writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(settingsPath, 0o600); } catch { /* best effort */ }
 
-  // stdio servers (an npm package run locally, e.g. Neon's MCP server) need a
-  // command/args entry, NOT a url — treating the package name as a URL (the
-  // previous bug here) leaves claude-code unable to ever connect. `${VAR}`
-  // in args is claude-code's own documented env-var interpolation, so the
-  // token never needs to be written to disk in plaintext.
-  const mcpServerEntry =
-    mcp.transport === "stdio"
-      ? { command: "npx", args: ["-y", mcp.server, "start", `\${${opts.bearerTokenEnvVar}}`] }
-      : {
-          type: mcp.transport === "http" ? "http" : "streamable-http",
-          url: mcp.server,
-          headersHelper: `node ${JSON.stringify(headersHelperPath)}`,
-        };
+  const mcpServerEntry = mcp.transport === "stdio"
+    ? {
+        type: "stdio",
+        command: mcp.args.length === 0 && mcp.server === "exa-mcp-server" ? "npx" : mcp.server,
+        args: mcp.args.length === 0 && mcp.server === "exa-mcp-server"
+          ? ["-y", "exa-mcp-server"]
+          : mcp.args,
+      }
+    : {
+        type: "http",
+        url: mcp.server,
+        ...(headersHelperPath ? { headersHelper: `node ${JSON.stringify(headersHelperPath)}` } : {}),
+      };
   const configPath = resolve(home, ".claude.json");
   const config = {
     projects: {
@@ -288,12 +306,40 @@ export async function provisionHarnessForSurface(opts: {
       },
     };
   }
-  const auth = opts.pack.surfaces?.mcp?.auth;
-  if (!auth || auth.kind === "inherit") return { env: {} };
+  const mcp = opts.pack.surfaces?.mcp;
+  if (!mcp) return { env: {} };
+  const auth = mcp.auth;
+  let bearerToken: string | undefined;
+  let bearerTokenEnvVar: string | undefined;
+  let stdioTokenEnv: Record<string, string> = {};
+  let authMode = "stdio_inherit";
 
-  const bearerToken = await exchangeRefreshToken(auth);
-  const bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
-  const authMode = auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token";
+  if (mcp.transport === "stdio") {
+    if (auth?.kind === "oauth_app") throw new Error("stdio MCP servers must use inherit or token auth");
+    if (auth?.kind === "token") {
+      bearerToken = env(auth.token_env) ?? auth.token_env_aliases.map(env).find(Boolean);
+      if (!bearerToken || !auth.token_env) throw new Error(`Missing MCP token env ${auth.token_env}`);
+      stdioTokenEnv = { [auth.token_env]: bearerToken };
+      authMode = "stdio_env_token";
+    } else {
+      const inheritedEnv = opts.pack.auth?.env;
+      const inheritedToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
+      if (inheritedEnv && inheritedToken) stdioTokenEnv = { [inheritedEnv]: inheritedToken };
+    }
+  } else if (!auth || auth.kind === "inherit") {
+    const inheritedEnv = opts.pack.auth?.env;
+    bearerToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
+    if (bearerToken) {
+      bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
+      authMode = "inherited_env_bearer_token";
+    } else {
+      authMode = "http_no_auth";
+    }
+  } else {
+    bearerToken = await exchangeRefreshToken(auth);
+    bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
+    authMode = auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token";
+  }
 
   if (opts.harness === "codex") {
     const codex = writeCodexMcpHome({ pack: opts.pack, paths: opts.paths, cwd: opts.cwd, bearerTokenEnvVar });
@@ -301,7 +347,8 @@ export async function provisionHarnessForSurface(opts: {
       env: {
         HOME: codex.home,
         CODEX_HOME: resolve(codex.home, ".codex"),
-        [bearerTokenEnvVar]: bearerToken,
+        ...stdioTokenEnv,
+        ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
       },
       meta: {
         mcp_provisioning: authMode,
@@ -317,13 +364,14 @@ export async function provisionHarnessForSurface(opts: {
     return {
       env: {
         HOME: claude.home,
-        [bearerTokenEnvVar]: bearerToken,
+        ...stdioTokenEnv,
+        ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
       },
       meta: {
         mcp_provisioning: authMode,
         claude_home: claude.home,
         claude_config: claude.configPath,
-        claude_headers_helper: claude.headersHelperPath,
+        ...(claude.headersHelperPath ? { claude_headers_helper: claude.headersHelperPath } : {}),
         mcp_server: claude.serverName,
       },
     };

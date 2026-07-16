@@ -146,7 +146,7 @@ describe("resetPack (pass@k sandbox teardown)", () => {
       { gid: "2", name: "AX probe task ns-b" },
       { gid: "3", name: "Untouched" },
     ]);
-    const res = await resetPack(makePack("asana"), client, scope, {});
+    const res = await resetPack(makePack("asana"), client, scope, { allowAllNamespaces: true });
     expect(res.candidates).toBe(2);
     expect(res.deleted).toEqual(["1", "2"]);
   });
@@ -171,7 +171,7 @@ describe("resetPack (pass@k sandbox teardown)", () => {
 
   it("reports a clear error when the sandbox scope lacks a container id", async () => {
     const { client } = stubClient([]);
-    const res = await resetPack(makePack("asana"), client, {}, {});
+    const res = await resetPack(makePack("asana"), client, {}, { allowAllNamespaces: true });
     expect(res.supported).toBe(true);
     expect(res.candidates).toBe(0);
     expect(res.errors[0]).toMatch(/no sandbox project id/i);

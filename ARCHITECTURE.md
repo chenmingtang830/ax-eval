@@ -222,7 +222,8 @@ The main orchestrator is [src/cli.ts](./src/cli.ts).
 
 Important command groups:
 
-- **Authoring (tool)** — `ingest`, `generate`, `review`
+- **Authoring (tool)** — `ingest`, `generate`, `review`; `automate-report`
+  orchestrates these steps but still stops at manual review/configuration gates
 - **Authoring (DAEB)** — extract / synthesize / audit / compose (see DAEB README)
 - **Execution** — `exec-plan`, `probe`, `check-env`, `init`
 - **Verification and reporting** — `verify`, `verify-generated`, `competitive`,

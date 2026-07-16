@@ -54,6 +54,7 @@
     "ax-eval": "tsx src/cli.ts",
     "build": "tsup src/cli.ts --format esm --clean",
     "prepublishOnly": "npm run build",
+    "pack:check": "node .github/verify-package-contents.mjs",
     "test": "vitest run tests",
     "typecheck": "tsc --noEmit"
   },

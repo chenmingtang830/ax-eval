@@ -196,6 +196,70 @@ describe("provisionHarnessForSurface", () => {
     expect(readFileSync(settings, "utf8")).toContain('"defaultMode": "bypassPermissions"');
   });
 
+  it("writes stdio command and argv without interpreting a shell command", async () => {
+    const dir = freshDir();
+    process.env.DEMO_MCP_TOKEN = "stdio-secret";
+    const stdioPack = TargetPackSchema.parse({
+      name: "demo",
+      auth: { type: "none", env: "" },
+      base_url: "https://api.demo.test",
+      surfaces: {
+        mcp: {
+          server: "npx",
+          transport: "stdio",
+          args: ["-y", "@demo/mcp"],
+          auth: { kind: "token", token_env: "DEMO_MCP_TOKEN" },
+        },
+      },
+      tasks: [],
+    });
+    const paths = defaultInvokePaths(dir, "codex-low-mcp", "codex");
+    const provisioning = await provisionHarnessForSurface({
+      pack: stdioPack,
+      harness: "codex",
+      surface: "mcp",
+      paths,
+      cwd: "/repo",
+    });
+    const config = readFileSync(resolve(provisioning.env.CODEX_HOME!, "config.toml"), "utf8");
+    expect(config).toContain('command = "npx"');
+    expect(config).toContain('args = ["-y", "@demo/mcp"]');
+    expect(config).not.toContain("stdio-secret");
+    expect(provisioning.env.DEMO_MCP_TOKEN).toBe("stdio-secret");
+  });
+
+  it("provisions inherited HTTP bearer auth instead of falling through to global config", async () => {
+    const dir = freshDir();
+    process.env.DEMO_API_TOKEN = "inherited-secret";
+    const inheritedPack = TargetPackSchema.parse({
+      name: "demo",
+      auth: { type: "bearer", env: "DEMO_API_TOKEN" },
+      base_url: "https://api.demo.test",
+      surfaces: {
+        mcp: {
+          server: "https://mcp.demo.test/mcp",
+          transport: "http",
+          auth: { kind: "inherit" },
+        },
+      },
+      tasks: [],
+    });
+    const paths = defaultInvokePaths(dir, "codex-low-mcp", "codex");
+    const provisioning = await provisionHarnessForSurface({
+      pack: inheritedPack,
+      harness: "codex",
+      surface: "mcp",
+      paths,
+      cwd: "/repo",
+    });
+    expect(provisioning.meta?.mcp_provisioning).toBe("inherited_env_bearer_token");
+    expect(provisioning.env.AX_EVAL_MCP_BEARER_TOKEN_DEMO).toBe("inherited-secret");
+    const config = readFileSync(resolve(provisioning.env.CODEX_HOME!, "config.toml"), "utf8");
+    expect(config).toContain('url = "https://mcp.demo.test/mcp"');
+    expect(config).toContain('bearer_token_env_var = "AX_EVAL_MCP_BEARER_TOKEN_DEMO"');
+    expect(config).not.toContain("inherited-secret");
+  });
+
   it("injects a shared preinstalled Turso CLI into non-MCP CLI surfaces", async () => {
     const dir = freshDir();
     const paths = defaultInvokePaths(dir, "claude-low-cli", "claude-code");

@@ -49,6 +49,20 @@ describe("cli arg handling", () => {
     expect(out).not.toContain("unknown flag");
   });
 
+  it("automate-report help documents the guarded workflow", () => {
+    const { code, out } = runCli(["automate-report", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+    expect(out).toContain("--smoke-only");
+    expect(out).toContain("does not auto-approve");
+  });
+
+  it("automate-report requires a company", () => {
+    const { code, out } = runCli(["automate-report"]);
+    expect(code).toBe(1);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+  });
+
   it("publication-bundle help prints command usage with exit 0", () => {
     const { code, out } = runCli(["publication-bundle", "--help"]);
     expect(code).toBe(0);

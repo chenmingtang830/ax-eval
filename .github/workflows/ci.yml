@@ -58,4 +58,4 @@ jobs:
         run: npm run build
 
       - name: Verify package contents
-        run: npm --cache .npm-cache pack --dry-run
+        run: npm run pack:check

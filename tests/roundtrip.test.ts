@@ -80,6 +80,7 @@ describe("round-trip verification", () => {
           ...pack.tasks[0]!.oracles[0]!,
           assertOutcome: "error",
           expectedHttpStatuses: [401, 403],
+          expected: undefined,
         }],
       }],
     };

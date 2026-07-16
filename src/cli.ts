@@ -1058,6 +1058,7 @@ const ASANA_PRESET: Partial<GenerateOptions> = {
     mcp: {
       server: "https://mcp.asana.com/v2/mcp",
       transport: "http",
+      args: [],
       docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
       auth: {
         kind: "oauth_app",
@@ -1140,7 +1141,8 @@ const EXA_PRESET: Partial<GenerateOptions> = {
       auth: { kind: "inherit", token_env_aliases: [] },
     },
     mcp: {
-      server: "exa-mcp-server",
+      server: "npx",
+      args: ["-y", "exa-mcp-server"],
       transport: "stdio",
       docs_url: "https://docs.exa.ai/reference/exa-mcp",
       auth: {
@@ -1307,6 +1309,7 @@ const LINEAR_GRAPHQL_PRESET: Partial<GenerateGraphqlPackOptions> = {
     mcp: {
       server: "https://mcp.linear.app/mcp",
       transport: "http",
+      args: [],
       docs_url: "https://linear.app/docs/mcp",
       auth: {
         kind: "token",
