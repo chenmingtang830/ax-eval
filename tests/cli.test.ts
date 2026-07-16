@@ -4,12 +4,34 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
+import { stringify as yamlStringify } from "yaml";
 import { loadPack } from "../src/config.js";
 import { writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
+const LINEAR_PACK = resolve(ROOT, "targets", "examples", "linear", "pack.yaml");
+
+function writeSuiteForPack(dir: string, packPath: string): string {
+  const pack = loadPack(packPath);
+  const path = resolve(dir, "suite.yaml");
+  writeFileSync(path, yamlStringify({
+    name: "Linear Suite",
+    version: 1,
+    category: "productivity",
+    tasks: pack.tasks.map((task) => ({
+      id: task.id,
+      title: task.title,
+      difficulty: task.difficulty,
+      skill: "product operation",
+      intent: task.prompt,
+      oracle_hint: "Use the reviewed pack oracle.",
+      allowed_surfaces: task.allowed_surfaces.filter((surface) => ["api", "cli", "sdk", "mcp"].includes(surface)),
+    })),
+  }));
+  return path;
+}
 
 /** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
 function runCli(args: string[], env: Record<string, string> = {}): { code: number; out: string } {
@@ -94,6 +116,39 @@ describe("cli arg handling", () => {
       const { code, out } = runCli([command, "--help"]);
       expect(code).toBe(0);
       expect(out).toContain(`usage: ax-eval ${command}`);
+    }
+  });
+
+  it("documents and prints a low-pass plan without invoking", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-low-pass-cli-"));
+    try {
+      const suitePath = writeSuiteForPack(dir, LINEAR_PACK);
+      const help = runCli(["plan-low-pass", "--help"]);
+      expect(help.code).toBe(0);
+      expect(help.out).toContain("Does not invoke or reset");
+
+      const missingPack = runCli(["plan-low-pass", "--suite", suitePath]);
+      expect(missingPack.code).toBe(1);
+      expect(missingPack.out).toContain("--pack <pack.yaml> is required");
+      expect(runCli([
+        "plan-low-pass", "--pack", LINEAR_PACK, "--suite", suitePath, "--invoke",
+      ]).out).toContain("does not support --invoke");
+
+      const result = runCli([
+        "plan-low-pass",
+        "--pack", LINEAR_PACK,
+        "--suite", suitePath,
+        "--surface", "api",
+        "--harness", "codex",
+      ]);
+      expect(result.code).toBe(0);
+      const plan = JSON.parse(result.out) as { schema: string; suite: string; cells: Array<{ harness: string; surface: string }> };
+      expect(plan.schema).toBe("ax.low-pass-plan/v1");
+      expect(plan.suite).toBe("Linear Suite");
+      expect(plan.cells.length).toBeGreaterThan(0);
+      expect(plan.cells.every((cell) => cell.harness === "codex" && cell.surface === "api")).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 

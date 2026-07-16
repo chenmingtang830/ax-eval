@@ -154,6 +154,8 @@ npm run ax-eval -- extract-tasks --suite targets/suites/my-suite.yaml --vendors 
 npm run ax-eval -- compose-pack --suite targets/suites/my-suite.yaml \
   --config path/to/vendor-a.compose.yaml --vendors vendor-a
 npm run ax-eval -- review --pack targets/packs/vendor-a/my-suite.yaml --approve --by you
+npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
+  --suite targets/suites/my-suite.yaml --surface all --harness codex --harness claude-code
 ```
 
 Generation is grounded through Codex or Claude Code (or offline fixtures in
@@ -168,12 +170,16 @@ produced from the same suite plus vendor-specific public metadata,
 official support evidence, outcome-verifier checks, auth/base URLs, explicit N/A
 reasons, and surface configuration.
 
+`plan-low-pass` validates the compiled pack against the canonical suite and
+prints an inspectable low-profile, one-trial task plan. It does not invoke a
+harness, make live writes, verify, classify failures, or reset a sandbox.
+
 For DAEB-1/database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
 medium-effort model per harness, and three trials per supported
 vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
-SDK evidence is research-only for v1. A later implementation introduces the
-planned `daeb-production-rerun` command for this lane.
+SDK evidence is research-only for v1. Production invocation remains a later
+step and is intentionally separate from `plan-low-pass`.
 
 Each planned cell will write `trial-1/2/3` evidence plus an `aggregate/` record
 with mean pass rate, observed range, and links to the source trial artifacts.

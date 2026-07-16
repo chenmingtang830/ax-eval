@@ -74,7 +74,8 @@ import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } fr
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { extractTasks, writeTaskExtract, loadTaskExtract } from "./generate/task-extract.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
-import { loadSuite } from "./generate/suite.js";
+import { loadSuite, validatePackAgainstSuite } from "./generate/suite.js";
+import { buildLowPassExecutionPlan } from "./generate/low-pass-plan.js";
 import { parsePackComposeConfig } from "./generate/pack-compose-config.js";
 import { defaultSuiteMethodology } from "./generate/suite-methodology.js";
 import {
@@ -86,7 +87,7 @@ import {
   writeCoverageSelection,
 } from "./generate/coverage.js";
 import { synthesizeSuite, writeSynthesizedSuite } from "./generate/suite-synthesize.js";
-import { isSurfaceId, type SurfaceId } from "./surface/types.js";
+import { isSurfaceId, SURFACE_IDS, type SurfaceId } from "./surface/types.js";
 import { type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
@@ -154,6 +155,7 @@ const COMMANDS = [
   "synthesize-suite",
   "extract-tasks",
   "compose-pack",
+  "plan-low-pass",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
@@ -213,6 +215,13 @@ function commandUsage(command: string | undefined): string {
       return "usage: ax-eval extract-tasks --suite <suite.yaml> --vendors <slug,...> [generator flags]";
     case "compose-pack":
       return "usage: ax-eval compose-pack --suite <suite.yaml> --config <config.yaml> --vendors <slug,...>";
+    case "plan-low-pass":
+      return [
+        "usage: ax-eval plan-low-pass --pack <pack.yaml> --suite <suite.yaml>",
+        `                             [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]...`,
+        "  Validates the compiled pack against the canonical suite and prints a",
+        "  low-profile, one-trial task execution plan. Does not invoke or reset.",
+      ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
     case "audit":
@@ -234,6 +243,7 @@ function commandUsage(command: string | undefined): string {
 
 interface Parsed {
   pack: string;
+  packProvided: boolean;
   harness: string[];
   profile: string[];
   /** Optional model slug to run the harness as (`--model`). Overrides the
@@ -315,6 +325,7 @@ interface Parsed {
 function parseArgs(argv: string[]): Parsed {
   const p: Parsed = {
     pack: DEFAULT_PACK,
+    packProvided: false,
     harness: [],
     profile: [],
     model: "",
@@ -383,7 +394,10 @@ function parseArgs(argv: string[]): Parsed {
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
-    if (a === "--pack") p.pack = value(++i, "--pack");
+    if (a === "--pack") {
+      p.pack = value(++i, "--pack");
+      p.packProvided = true;
+    }
     else if (a === "--harness") p.harness.push(value(++i, "--harness"));
     else if (a === "--profile") p.profile.push(value(++i, "--profile"));
     else if (a === "--model") p.model = value(++i, "--model");
@@ -1836,6 +1850,39 @@ async function cmdComposePack(args: Parsed): Promise<number> {
   return 0;
 }
 
+function cmdPlanLowPass(args: Parsed): number {
+  if (!args.packProvided) throw new Error("--pack <pack.yaml> is required");
+  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
+  if (args.invoke) throw new Error("plan-low-pass does not support --invoke; it only prints a plan");
+  if (args.profile.length > 0 || args.effort) {
+    throw new Error("plan-low-pass uses the fixed low profile; --profile and --effort are not supported");
+  }
+  const pack = loadPack(args.pack);
+  const suite = loadSuite(args.suite);
+  const validationErrors = validatePackAgainstSuite(
+    pack.tasks.map((task) => ({ id: task.id, title: task.title, difficulty: task.difficulty })),
+    suite,
+  );
+  if (validationErrors.length > 0) {
+    throw new Error(`pack does not match canonical suite: ${validationErrors.join("; ")}`);
+  }
+  const surfaces: SurfaceId[] = args.surface === "all"
+    ? [...(suite.methodology?.surface_scope ?? SURFACE_IDS)]
+    : args.surface
+      ? [args.surface as SurfaceId]
+      : [...(suite.methodology?.surface_scope ?? SURFACE_IDS)];
+  const plan = buildLowPassExecutionPlan({
+    suiteName: suite.name,
+    standardSetVersion: pack.standard_set_version,
+    vendor: pack.name.replace(/-generated$/, ""),
+    pack,
+    surfaces,
+    harnesses: args.harness.length > 0 ? args.harness : ["codex", "claude-code"],
+  });
+  console.log(JSON.stringify(plan, null, 2));
+  return 0;
+}
+
 function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
   return {
     ...args,
@@ -2195,6 +2242,8 @@ async function main(): Promise<number> {
       return cmdExtractTasks(args);
     case "compose-pack":
       return cmdComposePack(args);
+    case "plan-low-pass":
+      return cmdPlanLowPass(args);
     default:
       console.error(USAGE);
       return 2;

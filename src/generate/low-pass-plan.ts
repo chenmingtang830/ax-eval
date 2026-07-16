@@ -27,7 +27,7 @@ export interface LowPassExecutionPlan {
   requested_surfaces: SurfaceId[];
   harnesses: string[];
   cells: LowPassPlanCell[];
-  skipped_surfaces: Array<{ surface: SurfaceId; reason: "no-executable-tasks" }>;
+  skipped_surfaces: Array<{ surface: SurfaceId; reason: "surface-not-configured" | "no-executable-tasks" }>;
 }
 
 function uniqueSegments(values: readonly string[], label: string): string[] {
@@ -40,13 +40,15 @@ export function buildLowPassExecutionPlan(options: {
   suiteName: string;
   standardSetVersion: string;
   vendor: string;
-  pack: Pick<TargetPack, "name" | "standard_set_version" | "tasks">;
+  pack: Pick<TargetPack, "name" | "standard_set_version" | "surfaces" | "tasks">;
   surfaces: readonly SurfaceId[];
   harnesses: readonly string[];
   now?: () => Date;
 }): LowPassExecutionPlan {
-  const suite = assertArtifactSegment(options.suiteName, "suite name");
-  const standardSetVersion = assertArtifactSegment(options.standardSetVersion, "standard set version");
+  const suite = options.suiteName.trim();
+  const standardSetVersion = options.standardSetVersion.trim();
+  if (!suite) throw new Error("suite name must not be empty");
+  if (!standardSetVersion) throw new Error("standard set version must not be empty");
   const vendor = assertArtifactSegment(options.vendor, "vendor slug");
   const harnesses = uniqueSegments(options.harnesses, "harness");
   if (harnesses.length === 0) throw new Error("at least one low-pass harness is required");
@@ -63,6 +65,10 @@ export function buildLowPassExecutionPlan(options: {
   const cells: LowPassPlanCell[] = [];
   const skippedSurfaces: LowPassExecutionPlan["skipped_surfaces"] = [];
   for (const surface of options.surfaces) {
+    if (surface !== "api" && !options.pack.surfaces?.[surface]) {
+      skippedSurfaces.push({ surface, reason: "surface-not-configured" });
+      continue;
+    }
     const tasks = tasksForSurface(options.pack, surface);
     const taskIds = tasks.map((task) => task.id);
     const unverifiable = tasks.filter((task) => task.oracles.length === 0);

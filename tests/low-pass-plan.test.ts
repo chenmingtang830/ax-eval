@@ -2,10 +2,14 @@ import { describe, expect, it } from "vitest";
 import type { TargetPack } from "../src/schemas.js";
 import { buildLowPassExecutionPlan } from "../src/generate/low-pass-plan.js";
 
-function pack(): Pick<TargetPack, "name" | "standard_set_version" | "tasks"> {
+function pack(): Pick<TargetPack, "name" | "standard_set_version" | "surfaces" | "tasks"> {
   return {
     name: "acme-generated",
     standard_set_version: "suite-v1",
+    surfaces: {
+      cli: { bin: "acme" },
+      sdk: { package: "acme-sdk", language: "node" },
+    },
     tasks: [
       {
         id: "shared",
@@ -82,6 +86,19 @@ describe("buildLowPassExecutionPlan", () => {
     expect(plan.skipped_surfaces).toEqual([{ surface: "sdk", reason: "no-executable-tasks" }]);
   });
 
+  it("does not schedule undeclared non-API surfaces", () => {
+    const plan = buildLowPassExecutionPlan({
+      suiteName: "suite",
+      standardSetVersion: "suite-v1",
+      vendor: "acme",
+      pack: pack(),
+      surfaces: ["mcp"],
+      harnesses: ["codex"],
+    });
+    expect(plan.status).toBe("empty");
+    expect(plan.skipped_surfaces).toEqual([{ surface: "mcp", reason: "surface-not-configured" }]);
+  });
+
   it("rejects identity mismatches, duplicates, unsafe names, and invalid surfaces", () => {
     const base = {
       suiteName: "suite",
@@ -94,7 +111,7 @@ describe("buildLowPassExecutionPlan", () => {
     expect(() => buildLowPassExecutionPlan({ ...base, vendor: "other" })).toThrow(/does not match pack/);
     expect(() => buildLowPassExecutionPlan({ ...base, standardSetVersion: "suite-v2" })).toThrow(/does not match pack/);
     expect(() => buildLowPassExecutionPlan({ ...base, harnesses: ["codex", "codex"] })).toThrow(/must be unique/);
-    expect(() => buildLowPassExecutionPlan({ ...base, suiteName: "../suite" })).toThrow(/safe artifact path/);
+    expect(() => buildLowPassExecutionPlan({ ...base, suiteName: " " })).toThrow(/must not be empty/);
     expect(() => buildLowPassExecutionPlan({ ...base, surfaces: ["web" as "api"] })).toThrow(/invalid surface/);
 
     const unverifiable = pack();

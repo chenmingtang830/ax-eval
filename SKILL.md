@@ -85,6 +85,17 @@ by vendor, with official support evidence preserved in the reviewed pack.
 Always run `review` and require a current approval before `exec-plan`;
 `compose-pack` never creates an approval automatically.
 
+Before any benchmark low-pass execution, inspect the keyless plan:
+
+```bash
+npm run ax-eval -- plan-low-pass --pack targets/packs/<vendor>/<suite>.yaml \
+  --suite targets/suites/<suite>.yaml --surface all \
+  --harness codex --harness claude-code
+```
+
+This command only validates and prints the task-level low-profile plan. It does
+not invoke agents, make writes, verify results, or reset the target.
+
 In the completed stack, the bundle manifest is the handoff to the AXArena
 static website and the launch report. Missing snapshot/normalized artifacts
 are blockers for a final publication, but acceptable in a draft bundle while
