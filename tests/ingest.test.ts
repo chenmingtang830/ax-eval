@@ -1,9 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { EventEmitter } from "node:events";
 import { readFileSync } from "node:fs";
+import { PassThrough } from "node:stream";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSpec } from "../src/ingest/openapi.js";
-import { fetchSpecText } from "../src/ingest/run.js";
+import { fetchPinnedRemote, fetchSpecText } from "../src/ingest/run.js";
 
 const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -17,6 +19,35 @@ const FIXTURE = resolve(
 afterEach(() => vi.unstubAllGlobals());
 
 describe("OpenAPI source fetching", () => {
+  it("pins the validated address in the actual request lookup", async () => {
+    const requestFactory = ((_url: URL, options: Record<string, unknown>, onResponse: (response: PassThrough) => void) => {
+      const lookup = options.lookup as (hostname: string, options: object, callback: (error: null, address: string, family: number) => void) => void;
+      lookup("docs.acme.example", {}, (error, address, family) => {
+        expect(error).toBeNull();
+        expect(address).toBe("93.184.216.34");
+        expect(family).toBe(4);
+      });
+      const request = new EventEmitter() as EventEmitter & { end: () => void };
+      request.end = () => {
+        const response = new PassThrough() as PassThrough & { headers: Record<string, string>; statusCode: number; statusMessage: string };
+        response.headers = {};
+        response.statusCode = 200;
+        response.statusMessage = "OK";
+        onResponse(response);
+        response.end("{}");
+      };
+      return request;
+    }) as unknown as typeof import("node:http").request;
+
+    const response = await fetchPinnedRemote(
+      new URL("https://docs.acme.example/openapi.json"),
+      ["93.184.216.34"],
+      new AbortController().signal,
+      requestFactory,
+    );
+    await expect(response.text()).resolves.toBe("{}");
+  });
+
   it("reports the final response URL and can refuse fixture fallback", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => ({
       ok: true,

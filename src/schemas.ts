@@ -408,6 +408,16 @@ export const TargetPackSchema = z.object({
   /** Optional cold-start discovery probe (behavioral AEO). */
   discovery: DiscoverySpecSchema.optional(),
   tasks: z.array(TaskSchema).default([]),
+}).superRefine((pack, context) => {
+  const mcp = pack.surfaces?.mcp;
+  const inheritsHttpAuth = mcp?.transport === "http" && (!mcp.auth || mcp.auth.kind === "inherit");
+  if (inheritsHttpAuth && pack.auth && pack.auth.type !== "bearer" && pack.auth.type !== "none") {
+    context.addIssue({
+      code: "custom",
+      path: ["surfaces", "mcp", "auth", "kind"],
+      message: "HTTP MCP inherit auth requires top-level bearer or none auth",
+    });
+  }
 });
 export type TargetPack = z.infer<typeof TargetPackSchema>;
 

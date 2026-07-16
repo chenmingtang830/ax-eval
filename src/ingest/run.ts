@@ -93,11 +93,16 @@ async function assertRemoteSource(value: string, opts: IngestOptions): Promise<R
   return { url, addresses };
 }
 
-function fetchPinnedRemote(url: URL, addresses: readonly string[], signal: AbortSignal): Promise<Response> {
+export function fetchPinnedRemote(
+  url: URL,
+  addresses: readonly string[],
+  signal: AbortSignal,
+  requestFactory?: typeof httpRequest,
+): Promise<Response> {
   if (addresses.length === 0) return fetch(url, { signal, redirect: "manual" });
   const address = addresses[0]!;
   const family = isIP(address);
-  const request = url.protocol === "https:" ? httpsRequest : httpRequest;
+  const request = requestFactory ?? (url.protocol === "https:" ? httpsRequest : httpRequest);
   return new Promise((resolveResponse, reject) => {
     const req = request(url, {
       method: "GET",

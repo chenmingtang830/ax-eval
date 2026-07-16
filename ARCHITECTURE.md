@@ -290,6 +290,8 @@ This is how hosted OAuth-backed MCP surfaces can run headlessly while still
 keeping secret handling local to the invoking process. Stdio declarations are
 never interpreted as shell commands: `server` is a validated executable token,
 `args` is an argv array, and token values remain process environment only.
+Inherited HTTP MCP auth is limited to top-level bearer auth (or `none`) because
+both supported harness configs expose bearer headers, not arbitrary API-key schemes.
 
 ### Transcript parsing
 

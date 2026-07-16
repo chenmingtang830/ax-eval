@@ -50,4 +50,19 @@ describe("MCP surface schema", () => {
       tasks: [],
     })).toThrow(/inherit or token auth/);
   });
+
+  it("restricts inherited HTTP MCP auth to bearer or no-auth APIs", () => {
+    expect(() => TargetPackSchema.parse({
+      name: "api-key-http-mcp",
+      auth: { type: "api-key", env: "API_KEY", header: "x-api-key" },
+      surfaces: { mcp: { server: "https://mcp.example.test", transport: "http", auth: { kind: "inherit" } } },
+      tasks: [],
+    })).toThrow(/requires top-level bearer or none auth/);
+    expect(() => TargetPackSchema.parse({
+      name: "bearer-http-mcp",
+      auth: { type: "bearer", env: "API_TOKEN" },
+      surfaces: { mcp: { server: "https://mcp.example.test", transport: "http", auth: { kind: "inherit" } } },
+      tasks: [],
+    })).not.toThrow();
+  });
 });
