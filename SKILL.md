@@ -63,6 +63,8 @@ For stdio MCP, declare `server` as a single executable name and `args` as a YAML
 argv array. Do not put a shell command in `server`; the harness provisions the
 executable and arguments directly for both Codex and Claude Code. Stdio supports
 `inherit` or `token` auth, while OAuth refresh exchange is for hosted HTTP MCP.
+HTTP MCP servers are also registered into the isolated per-run harness home when
+auth is inherited or absent; they never rely on an operator's global MCP config.
 
 ## Workflow
 

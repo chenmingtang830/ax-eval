@@ -72,7 +72,54 @@ function stdioPack(auth: "inherit" | "token" = "inherit"): TargetPack {
   });
 }
 
+function inheritedHttpPack(): TargetPack {
+  return TargetPackSchema.parse({
+    name: "public-generated",
+    auth: { type: "none", env: "" },
+    base_url: "https://api.example.test",
+    surfaces: {
+      mcp: {
+        server: "https://mcp.example.test/mcp",
+        transport: "http",
+        auth: { kind: "inherit" },
+      },
+    },
+    tasks: [],
+  });
+}
+
 describe("provisionHarnessForSurface", () => {
+  it("registers inherited HTTP MCP for Codex without global config", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: inheritedHttpPack(),
+      harness: "codex",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "codex-http-mcp", "codex"),
+      cwd: "/repo",
+    });
+    expect(provisioning.meta?.mcp_provisioning).toBe("http_no_auth");
+    const config = readFileSync(resolve(provisioning.env.CODEX_HOME!, "config.toml"), "utf8");
+    expect(config).toContain('url = "https://mcp.example.test/mcp"');
+    expect(config).not.toContain("bearer_token_env_var");
+  });
+
+  it("registers inherited HTTP MCP for Claude without global config", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: inheritedHttpPack(),
+      harness: "claude-code",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "claude-http-mcp", "claude-code"),
+      cwd: "/repo",
+    });
+    expect(provisioning.meta?.mcp_provisioning).toBe("http_no_auth");
+    const config = readFileSync(resolve(provisioning.env.HOME!, ".claude.json"), "utf8");
+    expect(config).toContain('"type": "http"');
+    expect(config).toContain('"url": "https://mcp.example.test/mcp"');
+    expect(config).not.toContain("headersHelper");
+  });
+
   it("writes a Codex stdio config with executable and argv", async () => {
     const dir = freshDir();
     process.env.EXA_API_KEY = "inherited-token";

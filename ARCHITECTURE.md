@@ -280,6 +280,7 @@ MCP provisioning lives in [src/harness/mcp-provision.ts](./src/harness/mcp-provi
 It supports:
 
 - stdio MCP executable-plus-argv provisioning for Codex and Claude Code
+- isolated HTTP MCP registration even when auth is inherited or not required
 - token-based MCP auth
 - OAuth-app MCP auth via refresh-token exchange
 - isolated per-run Codex and Claude homes/configs

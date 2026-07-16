@@ -193,7 +193,6 @@ export async function provisionHarnessForSurface(opts: {
   const mcp = opts.pack.surfaces?.mcp;
   if (!mcp) return { env: {} };
   const auth = mcp.auth;
-  if (mcp.transport === "http" && (!auth || auth.kind === "inherit")) return { env: {} };
 
   let bearerToken: string | undefined;
   let bearerTokenEnvVar: string | undefined;
@@ -213,7 +212,16 @@ export async function provisionHarnessForSurface(opts: {
       const inheritedToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
       if (inheritedEnv && inheritedToken) stdioTokenEnv = { [inheritedEnv]: inheritedToken };
     }
-  } else if (auth) {
+  } else if (!auth || auth.kind === "inherit") {
+    const inheritedEnv = opts.pack.auth?.env;
+    bearerToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
+    if (bearerToken) {
+      bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
+      authMode = "inherited_env_bearer_token";
+    } else {
+      authMode = "http_no_auth";
+    }
+  } else {
     bearerToken = await exchangeRefreshToken(auth);
     bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
     authMode = auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token";
