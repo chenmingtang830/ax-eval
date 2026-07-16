@@ -8,6 +8,7 @@ export interface SqlConnection {
 
 const MUTATING_SQL = /\b(?:insert|update|delete|merge|upsert|create|alter|drop|truncate|grant|revoke|copy|call|do|execute|replace|lock|unlock|into)\b/i;
 const SIDE_EFFECTING_SQL_FUNCTION = /\b(?:nextval|setval|set_config|dblink_exec|lo_import|lo_unlink|pg_advisory_lock|pg_terminate_backend|pg_cancel_backend)\s*\(/i;
+const SESSION_STATE_SQL = /\b(?:set\s+(?:(?:local|session)\s+)?(?:role|session\s+authorization)|reset\s+(?:role|session\s+authorization|all))\b/i;
 
 function sqlForInspection(query: string): string {
   return query
@@ -22,6 +23,9 @@ export function assertReadOnlySql(query: string): void {
   const inspected = sqlForInspection(query).replace(/;\s*$/, "").trim();
   if (!inspected) throw new Error("SQL verifier query is empty");
   if (inspected.includes(";")) throw new Error("SQL verifier queries must contain exactly one statement");
+  if (SESSION_STATE_SQL.test(inspected)) {
+    throw new Error("SQL verifier query changes session authorization or role state");
+  }
   if (!/^(?:select|with|show|explain|describe)\b/i.test(inspected)) {
     throw new Error("SQL verifier queries must be read-only SELECT/CTE/SHOW/EXPLAIN statements");
   }

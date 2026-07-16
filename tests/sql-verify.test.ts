@@ -17,6 +17,15 @@ describe("SQL verification safety", () => {
     expect(() => assertReadOnlySql("SELECT * INTO copied_widgets FROM widgets")).toThrow(/mutating/);
   });
 
+  it("rejects role and session-state changes explicitly", () => {
+    expect(() => assertReadOnlySql("SET ROLE readonly_user")).toThrow(/session authorization or role state/);
+    expect(() => assertReadOnlySql("RESET ROLE")).toThrow(/session authorization or role state/);
+    expect(() => assertReadOnlySql("WITH visible AS (SELECT 1) SET SESSION AUTHORIZATION app_user"))
+      .toThrow(/session authorization or role state/);
+    expect(() => assertReadOnlySql("SELECT 'SET ROLE admin' AS example")).not.toThrow();
+    expect(() => assertReadOnlySql("SELECT current_user")).not.toThrow();
+  });
+
   it("renders only known, constrained template values", () => {
     expect(renderSqlQuery('SELECT count(*) FROM "ax_{ns}" WHERE id = \'{gid}\'', {
       ns: "run-ab12",
