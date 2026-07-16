@@ -13,7 +13,8 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
-import { renderSqlQuery, resolveSqlConnection, runSqlCheck } from "./sql-verify.js";
+import { DatabaseCheckError } from "./database-error.js";
+import { renderSqlQuery, renderSqlRole, resolveSqlConnection, runSqlCheck } from "./sql-verify.js";
 import { renderMongoQuery, resolveMongoConnection, runMongoCheck } from "./mongo-verify.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
 
@@ -103,6 +104,35 @@ function expectedDetail(expectedValues: unknown[]): string {
   return expectedValues.length === 1
     ? JSON.stringify(expectedValues[0])
     : `[${expectedValues.map((v) => JSON.stringify(v)).join(" | ")}]`;
+}
+
+function httpErrorOutcome(oracle: OracleSpec, error: HttpApiError): OracleResult {
+  const expectedStatuses = oracle.expectedHttpStatuses ?? [];
+  const statusPassed = oracle.assertOutcome === "error" && expectedStatuses.includes(error.status);
+  const expectedValues = resolveExpectedValues(oracle, undefined);
+  const actual = oracle.assertField ? resolveDotted(error.body, oracle.assertField) : undefined;
+  const bodyPassed = oracle.expected === undefined
+    || (Boolean(oracle.assertField) && valuesMatch(actual, expectedValues, oracle.matchMode));
+  return {
+    type: "roundtrip",
+    passed: statusPassed && bodyPassed,
+    detail: [
+      `HTTP ${error.status} expected=${expectedStatuses.join("/") || "(none)"}`,
+      oracle.expected === undefined
+        ? undefined
+        : `${oracle.assertField ?? "(missing field)"}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+    ].filter(Boolean).join("; "),
+  };
+}
+
+function sqlRoleForOracle(
+  oracle: OracleSpec,
+  reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  ns: string | undefined,
+): string | undefined {
+  return oracle.sqlRoleTemplate
+    ? renderSqlRole(oracle.sqlRoleTemplate, { ns, gid: reported?.gid })
+    : undefined;
 }
 
 function applyGidTemplate(value: unknown, gid: string): unknown {
@@ -311,16 +341,34 @@ async function verifyRoundtrip(
           throw new Error(`SQL oracle dialect ${oracle.sqlDialect} does not match pack dialect ${connection.dialect}`);
         }
         const query = renderSqlQuery(oracle.sqlQuery, { ns, gid: reported?.gid });
-        const row = await runSqlCheck(connection, query);
+        const role = sqlRoleForOracle(oracle, reported, ns);
+        const row = role
+          ? await runSqlCheck(connection, query, { role })
+          : await runSqlCheck(connection, query);
         const actual = resolveDotted(row, oracle.assertField);
         const expectedValues = resolveExpectedValues(oracle, ns);
         out.push({
           type: "roundtrip",
-          passed: valuesMatch(actual, expectedValues, oracle.matchMode),
-          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+          passed: oracle.assertOutcome !== "error" && valuesMatch(actual, expectedValues, oracle.matchMode),
+          detail: oracle.assertOutcome === "error"
+            ? "expected SQL error but query succeeded"
+            : `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
         });
       } catch (err) {
-        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+        if (oracle.assertOutcome === "error") {
+          const expectedValues = resolveExpectedValues(oracle, ns);
+          const actual = resolveDotted(err, oracle.assertField);
+          const queryFailed = err instanceof DatabaseCheckError && err.phase === "query";
+          out.push({
+            type: "roundtrip",
+            passed: queryFailed && valuesMatch(actual, expectedValues, oracle.matchMode),
+            detail: `phase=${err instanceof DatabaseCheckError ? err.phase ?? "unknown" : "unknown"}; ${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}; ${
+              err instanceof Error ? err.message : String(err)
+            }`,
+          });
+        } else {
+          out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
+        }
       }
       continue;
     }
@@ -366,18 +414,22 @@ async function verifyRoundtrip(
       try {
         const data = await client.graphql<Record<string, unknown>>(query);
         const actual = resolveDotted(data, oracle.assertField);
-        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+        const passed = oracle.assertOutcome !== "error" && valuesMatch(actual, expectedValues, oracle.matchMode);
         out.push({
           type: "roundtrip",
           passed,
-          detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+          detail: oracle.assertOutcome === "error"
+            ? "expected GraphQL HTTP error but query succeeded"
+            : `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
         });
       } catch (err) {
-        out.push({
-          type: "roundtrip",
-          passed: false,
-          detail: err instanceof Error ? err.message : String(err),
-        });
+        out.push(oracle.assertOutcome === "error" && err instanceof HttpApiError
+          ? httpErrorOutcome(oracle, err)
+          : {
+              type: "roundtrip",
+              passed: false,
+              detail: err instanceof Error ? err.message : String(err),
+            });
       }
       continue;
     }
@@ -396,13 +448,19 @@ async function verifyRoundtrip(
     try {
       const body = await readRoundtripBody(client, path, oracle, gid, fieldSelectParam);
       const actual = resolveDotted(body, oracle.assertField);
-      const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
+      const passed = oracle.assertOutcome !== "error" && valuesMatch(actual, expectedValues, oracle.matchMode);
       out.push({
         type: "roundtrip",
         passed,
-        detail: `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
+        detail: oracle.assertOutcome === "error"
+          ? "expected HTTP error but read succeeded"
+          : `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
       });
     } catch (err) {
+      if (oracle.assertOutcome === "error" && err instanceof HttpApiError) {
+        out.push(httpErrorOutcome(oracle, err));
+        continue;
+      }
       if (oracle.readMethod !== "POST" && err instanceof HttpApiError) {
         try {
           const fallback = await readRoundtripFallback(client, path, oracle, expectedValues, gid);

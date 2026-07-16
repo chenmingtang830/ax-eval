@@ -10,4 +10,19 @@ describe("database error redaction", () => {
     expect(safeDatabaseError(new Error(embedded), "different-value").message)
       .toBe("failed at driver://<redacted>@example.invalid");
   });
+
+  it("preserves non-secret SQL error classification fields", () => {
+    const source = Object.assign(new Error("permission denied"), {
+      code: "42501",
+      errno: 1142,
+      sqlState: "42000",
+    });
+    expect(safeDatabaseError(source, "driver://localhost/test", "query")).toMatchObject({
+      message: "permission denied",
+      code: "42501",
+      errno: 1142,
+      sqlState: "42000",
+      phase: "query",
+    });
+  });
 });

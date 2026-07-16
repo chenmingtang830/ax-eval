@@ -18,6 +18,7 @@ vi.mock("../src/generate/mongo-verify.js", async (importOriginal) => ({
 }));
 
 import { TargetPackSchema } from "../src/schemas.js";
+import { DatabaseCheckError } from "../src/generate/database-error.js";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
 import type { BearerClient } from "../src/http/client.js";
 
@@ -48,6 +49,67 @@ describe("database round-trip verification", () => {
       expect.objectContaining({ dialect: "postgres" }),
       "SELECT count(*)::int AS count FROM widgets_run-ab12",
     );
+  });
+
+  it("accepts an independently observed SQL denial code", async () => {
+    const denied = new DatabaseCheckError("permission denied", { code: "42501", phase: "query" });
+    databaseMocks.runSqlCheck.mockRejectedValueOnce(denied);
+    const pack = TargetPackSchema.parse({
+      name: "sql-target",
+      auth: { type: "none" },
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      tasks: [{
+        id: "sql-denial",
+        prompt: "Confirm the restricted identity cannot read the table",
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "postgres",
+          sqlQuery: "SELECT secret FROM restricted_widgets_{ns}",
+          assertOutcome: "error",
+          assertField: "code",
+          expected: "42501",
+          sqlRoleTemplate: "restricted_{ns}",
+        }],
+      }],
+    });
+    const executor: ExecutorResults = { profile: "floor", ns: "run-ab12", results: { "sql-denial": {} } };
+    const outcomes = await verifyGeneratedPack(pack, executor, unusedClient);
+    expect(outcomes[0]?.success).toBe(true);
+    expect(outcomes[0]?.oracleResults[0]?.detail).toContain("code=\"42501\"");
+    expect(databaseMocks.runSqlCheck).toHaveBeenCalledWith(
+      expect.objectContaining({ dialect: "postgres" }),
+      "SELECT secret FROM restricted_widgets_run-ab12",
+      { role: "restricted_run-ab12" },
+    );
+  });
+
+  it("rejects a matching error code when assuming the verifier role fails", async () => {
+    databaseMocks.runSqlCheck.mockRejectedValueOnce(
+      new DatabaseCheckError("permission denied to set role", { code: "42501", phase: "role" }),
+    );
+    const pack = TargetPackSchema.parse({
+      name: "sql-target",
+      auth: { type: "none" },
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      tasks: [{
+        id: "sql-denial",
+        prompt: "Confirm the restricted identity cannot read the table",
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "postgres",
+          sqlQuery: "SELECT secret FROM restricted_widgets_{ns}",
+          assertOutcome: "error",
+          assertField: "code",
+          expected: "42501",
+          sqlRoleTemplate: "restricted_{ns}",
+        }],
+      }],
+    });
+    const executor: ExecutorResults = { profile: "floor", ns: "run-ab12", results: { "sql-denial": {} } };
+
+    const outcomes = await verifyGeneratedPack(pack, executor, unusedClient);
+    expect(outcomes[0]?.success).toBe(false);
+    expect(outcomes[0]?.oracleResults[0]?.detail).toContain("phase=role");
   });
 
   it("verifies MongoDB state and excludes explicit N/A tasks", async () => {

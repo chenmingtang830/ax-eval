@@ -113,6 +113,13 @@ REST canonical actions may name a resource root. Discovery scoring accepts an
 exact method/path or a child path separated by `/`; lookalike prefixes such as
 `/v10` for canonical `/v1` remain failures.
 
+For access-control tasks, require an independent error-outcome oracle rather
+than trusting the agent to report that denial occurred. HTTP checks declare
+`assertOutcome: error` plus explicit `expectedHttpStatuses`; SQL checks assert a
+non-secret driver field such as `code` under a verifier-controlled
+`sqlRoleTemplate` when role isolation is required. Unexpected success must
+remain failure, and SQL setup/role errors must not count as query denial.
+
 Before any benchmark low-pass execution, inspect the keyless plan:
 
 ```bash

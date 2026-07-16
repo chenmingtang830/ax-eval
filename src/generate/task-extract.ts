@@ -35,6 +35,7 @@ const OracleCommon = {
   matchMode: z.enum(["exact", "url"]).optional(),
   responseEnvelope: z.string().min(1).optional(),
   description: z.string().min(1),
+  assertOutcome: z.enum(["value", "error"]).optional(),
 };
 
 const RestOracleSchema = z.object({
@@ -44,29 +45,48 @@ const RestOracleSchema = z.object({
     .regex(/^\/(?!\/)/, "must be a relative API path beginning with one slash")
     .refine((value) => !/[\\\n\r]/.test(value), "must not contain backslashes or control characters"),
   readBodyTemplate: z.unknown().optional(),
+  expectedHttpStatuses: z.array(z.number().int().min(100).max(599)).min(1).optional(),
 }).strict().superRefine((oracle, context) => {
   if (oracle.readMethod === "GET" && oracle.readBodyTemplate !== undefined) {
     context.addIssue({ code: "custom", path: ["readBodyTemplate"], message: "GET verification cannot declare a request body" });
+  }
+  if (oracle.assertOutcome === "error" && !oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", path: ["expectedHttpStatuses"], message: "required for HTTP error outcomes" });
+  }
+  if (oracle.assertOutcome !== "error" && oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", path: ["expectedHttpStatuses"], message: "requires assertOutcome=error" });
   }
 });
 
 const GraphqlOracleSchema = z.object({
   ...OracleCommon,
+  expectedHttpStatuses: z.array(z.number().int().min(100).max(599)).min(1).optional(),
   readQueryTemplate: z.string().min(1).refine(
     (value) => !/\b(?:mutation|subscription)\b/i.test(value),
     "must be a read-only GraphQL query",
   ),
-}).strict();
+}).strict().superRefine((oracle, context) => {
+  if (oracle.assertOutcome === "error" && !oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", path: ["expectedHttpStatuses"], message: "required for HTTP error outcomes" });
+  }
+  if (oracle.assertOutcome !== "error" && oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", path: ["expectedHttpStatuses"], message: "requires assertOutcome=error" });
+  }
+});
 
 const SqlOracleSchema = z.object({
   ...OracleCommon,
   sqlDialect: z.enum(["postgres", "mysql"]),
   sqlQuery: z.string().min(1),
+  sqlRoleTemplate: z.string().min(1).optional(),
 }).strict().superRefine((oracle, context) => {
   try {
     assertReadOnlySql(oracle.sqlQuery);
   } catch (error) {
     context.addIssue({ code: "custom", path: ["sqlQuery"], message: error instanceof Error ? error.message : String(error) });
+  }
+  if (oracle.sqlRoleTemplate && oracle.sqlDialect !== "postgres") {
+    context.addIssue({ code: "custom", message: "SQL role verification requires the postgres dialect" });
   }
 });
 
@@ -86,6 +106,9 @@ const MongoOracleSchema = z.object({
     assertReadOnlyMongoQuery(oracle.mongoQuery);
   } catch (error) {
     context.addIssue({ code: "custom", path: ["mongoQuery"], message: error instanceof Error ? error.message : String(error) });
+  }
+  if (oracle.assertOutcome === "error") {
+    context.addIssue({ code: "custom", path: ["assertOutcome"], message: "MongoDB error outcomes are not supported" });
   }
 });
 

@@ -107,6 +107,13 @@ composer does not infer canonical actions from vendor cards or verification
 oracles, and pack drift auditing includes the resulting `discovery` block.
 REST canonical scoring uses path-segment boundaries: an exact action or child
 resource matches, while a textual lookalike prefix does not.
+
+Negative access checks are first-class round-trip outcomes. Expected HTTP
+denials are status-whitelisted; expected SQL denials compare redacted driver
+classification fields under an optional verifier-controlled Postgres role. The
+executor's own claim of denial is never sufficient, and only a query-phase SQL
+error can pass—not connection, transaction, role, or cleanup failures.
+
 - **Execution**
   - `exec-plan`
   - `probe`

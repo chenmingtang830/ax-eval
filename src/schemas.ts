@@ -43,9 +43,15 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** Whether verification expects a normal value or an independently observed denial/error. */
+  assertOutcome: z.enum(["value", "error"]).optional(),
+  /** Allowed HTTP statuses when assertOutcome is error for REST/GraphQL reads. */
+  expectedHttpStatuses: z.array(z.number().int().min(100).max(599)).min(1).optional(),
   /** SQL wire-protocol read-back for products without an HTTP query endpoint. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
+  /** Optional restricted Postgres role used by the verifier for an independent denial check. */
+  sqlRoleTemplate: z.string().optional(),
   /** Declarative MongoDB read-back operation. */
   mongoQuery: z.object({
     database: z.string(),
@@ -63,11 +69,26 @@ export const OracleSpecSchema = z.object({
       message: "sqlDialect and sqlQuery must be declared together",
     });
   }
+  if (oracle.sqlRoleTemplate && oracle.sqlDialect !== "postgres") {
+    context.addIssue({ code: "custom", message: "SQL role verification requires the postgres dialect" });
+  }
+  if (oracle.sqlQuery && oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", message: "SQL error outcomes cannot declare expectedHttpStatuses" });
+  }
   if (oracle.sqlQuery && oracle.mongoQuery) {
     context.addIssue({
       code: "custom",
       message: "an oracle cannot declare both SQL and MongoDB verification",
     });
+  }
+  if (oracle.assertOutcome === "error" && oracle.mongoQuery) {
+    context.addIssue({ code: "custom", message: "MongoDB error-outcome oracles are not supported" });
+  }
+  if (oracle.expectedHttpStatuses && oracle.assertOutcome !== "error") {
+    context.addIssue({ code: "custom", message: "expectedHttpStatuses requires assertOutcome=error" });
+  }
+  if (oracle.assertOutcome === "error" && !oracle.sqlQuery && !oracle.expectedHttpStatuses) {
+    context.addIssue({ code: "custom", message: "HTTP error-outcome oracles require expectedHttpStatuses" });
   }
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;

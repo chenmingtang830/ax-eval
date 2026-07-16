@@ -48,4 +48,38 @@ describe("database verification contracts", () => {
       sql_conn: { dialect: "postgres", connection_string_env: "database-url" },
     })).toThrow(/environment variable/);
   });
+
+  it("requires explicit HTTP statuses for expected-error oracles", () => {
+    expect(() => TargetPackSchema.parse({
+      name: "denial-target",
+      tasks: [{
+        id: "denial",
+        prompt: "Confirm access is denied",
+        oracles: [{
+          type: "roundtrip",
+          readPathTemplate: "/restricted/{gid}",
+          assertField: "code",
+          expected: "permission_denied",
+          assertOutcome: "error",
+        }],
+      }],
+    })).toThrow(/expectedHttpStatuses/);
+  });
+
+  it("keeps HTTP statuses and verifier-controlled roles on their supported database contracts", () => {
+    expect(() => OracleSpecSchema.parse({
+      type: "roundtrip",
+      sqlDialect: "postgres",
+      sqlQuery: "SELECT 1",
+      assertOutcome: "error",
+      expectedHttpStatuses: [403],
+    })).toThrow(/cannot declare expectedHttpStatuses/);
+
+    expect(() => OracleSpecSchema.parse({
+      type: "roundtrip",
+      sqlDialect: "mysql",
+      sqlQuery: "SELECT 1",
+      sqlRoleTemplate: "restricted_{ns}",
+    })).toThrow(/postgres dialect/);
+  });
 });

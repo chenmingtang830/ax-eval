@@ -190,6 +190,13 @@ For REST discovery, a reviewed canonical resource root also matches child
 resources beneath the same path boundary: `GET /rest/v1/items` matches
 `GET /rest/v1`, while `GET /rest/v10` does not. HTTP methods must still match.
 
+Access-control tasks can use `assertOutcome: error` for independent negative
+verification. HTTP oracles must list allowed `expectedHttpStatuses`; SQL
+oracles assert a redacted driver error field such as `code` and may name a
+verifier-controlled Postgres `sqlRoleTemplate`. A successful read, an
+unexpected status or body, a role-setup failure, or a different SQL query error
+never satisfies the denial.
+
 The curated DAEB canonical benchmark contract is still planned to live at
 `targets/suites/daeb-1-v3.yaml`. Each database vendor will have a compiled pack
 under `targets/packs/<vendor>/daeb-1-v3.yaml`, but those packs are execution

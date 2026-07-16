@@ -72,6 +72,12 @@ shape.
   discovery is scored, declare `discovery` in the vendor compose config and
   review its goal, official domains, canonical action, deprecated markers, and
   auth scheme. Do not derive write actions from read-back oracles or prose.
+- **Access-control success needs an independent denial check.** Use an
+  error-outcome oracle with explicit HTTP statuses or a non-secret SQL driver
+  field, using a verifier-controlled Postgres role where needed. Never pass a
+  task because the agent merely said a restricted action failed, and never
+  treat an unexpected verifier error or role-setup failure as the expected
+  query denial.
 
 ## Adding a new target
 

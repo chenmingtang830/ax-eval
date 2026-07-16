@@ -145,6 +145,28 @@ describe("task extraction", () => {
     })).rejects.toThrow(/non-official host/);
   });
 
+  it("accepts a reviewed Postgres denial oracle with a deterministic role", async () => {
+    const generated = generatedTasks() as { tasks: Array<Record<string, unknown>> };
+    generated.tasks[0]!.oracles = [{
+      type: "roundtrip",
+      sqlDialect: "postgres",
+      sqlQuery: "SELECT secret FROM restricted_items_{ns}",
+      sqlRoleTemplate: "restricted_{ns}",
+      assertOutcome: "error",
+      assertField: "code",
+      expected: "42501",
+      description: "Restricted role is denied.",
+    }];
+    const result = await extractTasks(vendor, suite, capabilities, surfaces, {
+      generate: async () => JSON.stringify(generated),
+      now: () => new Date("2026-07-16T00:00:00.000Z"),
+    });
+    expect(result.tasks[0]?.oracles[0]).toMatchObject({
+      assertOutcome: "error",
+      sqlRoleTemplate: "restricted_{ns}",
+    });
+  });
+
   it("rejects task-set and surface drift", async () => {
     const generated = generatedTasks() as { tasks: Array<Record<string, unknown>> };
     generated.tasks.pop();
@@ -186,6 +208,27 @@ describe("task extraction", () => {
     await expect(extractTasks(vendor, suite, capabilities, surfaces, {
       generate: async () => JSON.stringify(generated),
     })).rejects.toThrow(/read-only GraphQL query|invalid/i);
+  });
+
+  it("rejects generated MongoDB error-outcome oracles", async () => {
+    const generated = generatedTasks() as { tasks: Array<Record<string, unknown>> };
+    generated.tasks[0]!.oracles = [{
+      type: "roundtrip",
+      description: "restricted collection is denied",
+      assertField: "code",
+      expected: "permission_denied",
+      assertOutcome: "error",
+      mongoQuery: {
+        database: "sandbox",
+        collection: "restricted",
+        operation: "findOne",
+        filter: { _id: "{gid}" },
+      },
+    }];
+
+    await expect(extractTasks(vendor, suite, capabilities, surfaces, {
+      generate: async () => JSON.stringify(generated),
+    })).rejects.toThrow(/MongoDB error outcomes are not supported|invalid/i);
   });
 
   it("writes and loads validated extracts atomically", async () => {

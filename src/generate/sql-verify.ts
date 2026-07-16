@@ -1,9 +1,17 @@
 import type { TargetPack } from "../schemas.js";
-import { safeDatabaseError } from "./database-error.js";
+import {
+  DatabaseCheckError,
+  safeDatabaseError,
+  type DatabaseCheckPhase,
+} from "./database-error.js";
 
 export interface SqlConnection {
   dialect: "postgres" | "mysql";
   connectionString: string;
+}
+
+export interface SqlCheckOptions {
+  role?: string;
 }
 
 const MUTATING_SQL = /\b(?:insert|update|delete|merge|upsert|create|alter|drop|truncate|grant|revoke|copy|call|do|execute|replace|lock|unlock|into)\b/i;
@@ -60,6 +68,24 @@ export function renderSqlQuery(
   return rendered;
 }
 
+export function renderSqlRole(
+  template: string,
+  values: { ns?: string; gid?: string },
+): string {
+  const rendered = template.replace(/\{(ns|gid)\}/g, (_, name: "ns" | "gid") =>
+    safeTemplateValue(name, values[name]));
+  const unsupported = rendered.match(/\{([^}]+)\}/)?.[1];
+  if (unsupported) throw new Error(`unsupported SQL role template {${unsupported}}`);
+  return assertSqlRole(rendered);
+}
+
+function assertSqlRole(role: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_-]*$/.test(role)) {
+    throw new Error("SQL verifier role must be a simple identifier");
+  }
+  return role;
+}
+
 export function resolveSqlConnection(pack: TargetPack): SqlConnection | null {
   if (!pack.sql_conn) return null;
   const connectionString = process.env[pack.sql_conn.connection_string_env]?.trim();
@@ -71,48 +97,75 @@ export function resolveSqlConnection(pack: TargetPack): SqlConnection | null {
   return { dialect: pack.sql_conn.dialect, connectionString };
 }
 
-export async function runSqlCheck(connection: SqlConnection, query: string): Promise<unknown> {
+async function runDatabaseOperation<T>(
+  connectionString: string,
+  phase: DatabaseCheckPhase,
+  operation: () => Promise<T>,
+): Promise<T> {
+  try {
+    return await operation();
+  } catch (error) {
+    throw error instanceof DatabaseCheckError
+      ? error
+      : safeDatabaseError(error, connectionString, phase);
+  }
+}
+
+export async function runSqlCheck(
+  connection: SqlConnection,
+  query: string,
+  options: SqlCheckOptions = {},
+): Promise<unknown> {
   try {
     assertReadOnlySql(query);
+    const role = options.role ? assertSqlRole(options.role) : undefined;
+    if (role && connection.dialect !== "postgres") {
+      throw new Error("SQL role verification requires postgres");
+    }
     if (connection.dialect === "postgres") {
-      const { Client } = await import("pg");
+      const { Client } = await runDatabaseOperation(connection.connectionString, "connect", () => import("pg"));
       const client = new Client({
         connectionString: connection.connectionString,
         connectionTimeoutMillis: 10_000,
         query_timeout: 15_000,
       });
-      await client.connect();
+      await runDatabaseOperation(connection.connectionString, "connect", () => client.connect());
       try {
-        await client.query("BEGIN READ ONLY");
-        const result = await client.query(query);
+        await runDatabaseOperation(connection.connectionString, "transaction", () => client.query("BEGIN READ ONLY"));
+        if (role) {
+          await runDatabaseOperation(connection.connectionString, "role", () => client.query(`SET LOCAL ROLE "${role}"`));
+        }
+        const result = await runDatabaseOperation(connection.connectionString, "query", () => client.query(query));
         return result.rows[0] ?? {};
       } finally {
         try {
-          await client.query("ROLLBACK");
+          await runDatabaseOperation(connection.connectionString, "cleanup", () => client.query("ROLLBACK"));
         } finally {
-          await client.end();
+          await runDatabaseOperation(connection.connectionString, "cleanup", () => client.end());
         }
       }
     }
 
-    const mysql = await import("mysql2/promise");
-    const client = await mysql.createConnection({
+    const mysql = await runDatabaseOperation(connection.connectionString, "connect", () => import("mysql2/promise"));
+    const client = await runDatabaseOperation(connection.connectionString, "connect", () => mysql.createConnection({
       uri: connection.connectionString,
       connectTimeout: 10_000,
       multipleStatements: false,
-    });
+    }));
     try {
-      await client.query("START TRANSACTION READ ONLY");
-      const [rows] = await client.query(query);
+      await runDatabaseOperation(connection.connectionString, "transaction", () => client.query("START TRANSACTION READ ONLY"));
+      const [rows] = await runDatabaseOperation(connection.connectionString, "query", () => client.query(query));
       return Array.isArray(rows) ? rows[0] ?? {} : rows;
     } finally {
       try {
-        await client.rollback();
+        await runDatabaseOperation(connection.connectionString, "cleanup", () => client.rollback());
       } finally {
-        await client.end();
+        await runDatabaseOperation(connection.connectionString, "cleanup", () => client.end());
       }
     }
   } catch (error) {
-    throw safeDatabaseError(error, connection.connectionString);
+    throw error instanceof DatabaseCheckError
+      ? error
+      : safeDatabaseError(error, connection.connectionString, "validate");
   }
 }

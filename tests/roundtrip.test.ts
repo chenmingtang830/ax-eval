@@ -70,6 +70,93 @@ describe("round-trip verification", () => {
     expect(out[0]!.success).toBe(false);
   });
 
+  it("accepts only an explicitly allowed HTTP denial status", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [401, 403],
+          assertField: "code",
+          expected: "permission_denied",
+        }],
+      }],
+    };
+    const executor: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "1" } } };
+    const client = {
+      async get() {
+        throw new HttpApiError("forbidden", 403, { code: "permission_denied" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const out = await verifyGeneratedPack(deniedPack, executor, client);
+    expect(out[0]!.success).toBe(true);
+    expect(out[0]!.oracleResults[0]!.detail).toContain("HTTP 403");
+  });
+
+  it("rejects the wrong HTTP error and an unexpected successful read", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          ...pack.tasks[0]!.oracles[0]!,
+          assertOutcome: "error",
+          expectedHttpStatuses: [403],
+          assertField: "code",
+          expected: "permission_denied",
+        }],
+      }],
+    };
+    const executor: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "1" } } };
+    const wrongErrorClient = {
+      async get() {
+        throw new HttpApiError("server error", 500, { code: "server_error" });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    expect((await verifyGeneratedPack(deniedPack, executor, wrongErrorClient))[0]!.success).toBe(false);
+    expect((await verifyGeneratedPack(deniedPack, executor, fakeClient({ "1": { name: "hello" } })))[0]!.success)
+      .toBe(false);
+  });
+
+  it("verifies expected GraphQL HTTP errors with the same status and body contract", async () => {
+    const deniedPack: TargetPack = {
+      ...pack,
+      api_style: "graphql",
+      tasks: [{
+        ...pack.tasks[0]!,
+        oracles: [{
+          type: "roundtrip",
+          description: "restricted query is denied",
+          readQueryTemplate: "query { restricted(id: \"{gid}\") { id } }",
+          assertField: "errors.0.extensions.code",
+          expected: "permission_denied",
+          assertOutcome: "error",
+          expectedHttpStatuses: [200],
+        }],
+      }],
+    };
+    const executor: ExecutorResults = { profile: "floor", results: { "gen-l1-tasks": { gid: "1" } } };
+    const deniedClient = {
+      async graphql() {
+        throw new HttpApiError("forbidden", 200, {
+          errors: [{ extensions: { code: "permission_denied" } }],
+        });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+    const wrongBodyClient = {
+      async graphql() {
+        throw new HttpApiError("forbidden", 200, {
+          errors: [{ extensions: { code: "other_error" } }],
+        });
+      },
+    } as unknown as import("../src/http/client.js").BearerClient;
+
+    expect((await verifyGeneratedPack(deniedPack, executor, deniedClient))[0]!.success).toBe(true);
+    expect((await verifyGeneratedPack(deniedPack, executor, wrongBodyClient))[0]!.success).toBe(false);
+  });
+
   it("verifies only the tasks that apply to the selected surface", async () => {
     const surfacePack: TargetPack = {
       ...pack,
