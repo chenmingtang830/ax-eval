@@ -66,6 +66,7 @@ import {
   buildBlockedResult,
   type NormalizedResult,
 } from "./generate/record.js";
+import { invokeEfficiency } from "./generate/invoke-efficiency.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { type TargetPack } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
@@ -79,6 +80,7 @@ import {
   isInvokeHarnessId,
   runInvokeHarness,
   type InvokeHarnessId,
+  type InvokeRunResult,
   type InvokeRunOptions,
 } from "./harness/invoke.js";
 import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
@@ -218,6 +220,8 @@ interface Parsed {
    *  the whole matrix; the cell is retried (see `invokeRetries`) then recorded
    *  as a timeout failure. 0 disables the cap. */
   invokeTimeout: number;
+  /** Startup cap in seconds for reaching the first structured action. */
+  firstActionTimeout: number;
   /** Retries for a failed/timed-out invocation (`--invoke-retries`, default 1).
    *  0 disables retries. */
   invokeRetries: number;
@@ -277,6 +281,7 @@ function parseArgs(argv: string[]): Parsed {
     generatorEffort: "high",
     concurrency: 4,
     invokeTimeout: 900,
+    firstActionTimeout: 120,
     invokeRetries: 1,
     out: "results/last-run.json",
     site: "",
@@ -358,6 +363,11 @@ function parseArgs(argv: string[]): Parsed {
       const n = Number(value(++i, "--invoke-timeout"));
       if (!Number.isInteger(n) || n < 0) throw new Error(`--invoke-timeout must be a non-negative integer (seconds; got ${n})`);
       p.invokeTimeout = n;
+    }
+    else if (a === "--first-action-timeout") {
+      const n = Number(value(++i, "--first-action-timeout"));
+      if (!Number.isInteger(n) || n < 0) throw new Error(`--first-action-timeout must be a non-negative integer (seconds; got ${n})`);
+      p.firstActionTimeout = n;
     }
     else if (a === "--invoke-retries") {
       const n = Number(value(++i, "--invoke-retries"));
@@ -1092,6 +1102,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
                 model: args.model || undefined,
                 effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
                 timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
+                firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
                 retries: args.invokeRetries,
                 env: provisioning.env,
                 provisioning: provisioning.meta,
@@ -1429,6 +1440,16 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       discoverySource = "self-report";
     }
     const traceExisted = existsSync(tracePath);
+    const invokeMetaPath = rPath.replace(/\.json$/, ".invoke.json");
+    let efficiency: ProfileRun["efficiency"];
+    if (existsSync(invokeMetaPath)) {
+      try {
+        const meta = JSON.parse(readFileSync(invokeMetaPath, "utf8")) as Partial<InvokeRunResult>;
+        efficiency = invokeEfficiency(meta);
+      } catch (error) {
+        warnings.push(`Failed to parse invoke metadata ${rel(invokeMetaPath)} (${error instanceof Error ? error.message : String(error)}).`);
+      }
+    }
     byAttempt.push({
       profile: executor.profile,
       harness: executor.harness,
@@ -1439,6 +1460,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       trace,
       discovery,
       discoverySource,
+      efficiency,
       evidence: {
         results: [rel(rPath)],
         trace: traceExisted ? [rel(tracePath)] : [],

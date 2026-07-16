@@ -243,7 +243,8 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --model sonnet --run-dir <dir> --invoke-retries 0 # Claude Code, records the actual reported Sonnet model
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness codex --surface all --profile low --profile high \
-  --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
+  --model <gpt-model> --run-dir <dir> --invoke-retries 0 \
+  --first-action-timeout 120 # Codex, stop startup/auth hangs before the full wall timeout
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
