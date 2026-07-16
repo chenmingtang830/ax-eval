@@ -39,3 +39,23 @@ jobs:
 
       - name: Test
         run: npm test
+
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build CLI bundle
+        run: npm run build
+
+      - name: Verify package contents
+        run: npm --cache .npm-cache pack --dry-run
