@@ -56,6 +56,13 @@ describe("buildNormalizedResult", () => {
         profile: "ceiling",
         surface: "api",
         discovery: discovery({ auth: false }),
+        efficiency: {
+          latency_ms: 1250,
+          validity_status: "valid",
+          first_action_latency_ms: 75,
+          transcript_event_count: 12,
+          action_occurred: true,
+        },
         outcomes: [outcome("t1", true), outcome("t2", true)],
       },
       {
@@ -81,6 +88,25 @@ describe("buildNormalizedResult", () => {
     expect(rec.profiles).toEqual(["ceiling", "floor"]);
     // Content quality defaults to null (not measured) when not passed.
     expect(rec.content_quality).toBeNull();
+    expect(rec.latency_ms).toBe(1250);
+    expect(rec.validity_status).toBe("valid");
+    expect(rec.first_action_latency_ms).toBe(75);
+    expect(rec.transcript_event_count).toBe(12);
+    expect(rec.action_occurred).toBe(true);
+  });
+
+  it("keeps runtime validity explanatory rather than changing scores", () => {
+    const pack = makePack("asana");
+    const rec = buildNormalizedResult(pack, "api", "codex", [{
+      profile: "ceiling",
+      surface: "api",
+      efficiency: { validity_status: "runtime_timeout_partial", action_occurred: true },
+      outcomes: [outcome("t1", true)],
+    }]);
+
+    expect(rec.validity_status).toBe("runtime_timeout_partial");
+    expect(rec.pass_at_1).toBe(1);
+    expect(rec.tasks_passed).toBe(1);
   });
 
   it("records the content-quality score (0–1) when provided", () => {

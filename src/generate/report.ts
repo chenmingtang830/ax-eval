@@ -57,6 +57,15 @@ export interface ProfileRun {
     trace?: string[];
     transcript?: string;
   };
+  /** Explanatory harness diagnostics. These never affect task correctness,
+   * which remains determined by live read-back oracles. */
+  efficiency?: {
+    latency_ms?: number | null;
+    first_action_latency_ms?: number | null;
+    transcript_event_count?: number | null;
+    action_occurred?: boolean | null;
+    validity_status?: string | null;
+  };
 }
 
 /**
