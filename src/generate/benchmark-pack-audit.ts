@@ -42,9 +42,16 @@ export interface BenchmarkPackAuditResult {
 export function auditBenchmarkPack(
   layout: BenchmarkLayout,
   slug: string,
-  rawConfig: PackComposeConfig,
+  rawConfig: unknown,
 ): BenchmarkPackAuditResult {
-  const config = parsePackComposeConfig(rawConfig);
+  return auditBenchmarkPackWithConfig(layout, slug, parsePackComposeConfig(rawConfig));
+}
+
+export function auditBenchmarkPackWithConfig(
+  layout: BenchmarkLayout,
+  slug: string,
+  config: PackComposeConfig,
+): BenchmarkPackAuditResult {
   const artifactPaths: Record<BenchmarkPackArtifact, string> = {
     suite: layout.suite_path,
     "vendor-card": benchmarkVendorCardPath(layout, slug),

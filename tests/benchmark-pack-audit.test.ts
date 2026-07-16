@@ -7,114 +7,38 @@ import {
   benchmarkVendorCardPath,
   type BenchmarkLayout,
 } from "../src/generate/benchmark-paths.js";
-import { composePack } from "../src/generate/compose-pack.js";
-import type { PackComposeConfig } from "../src/generate/pack-compose-config.js";
-import type { Suite } from "../src/generate/suite.js";
-import type { SurfaceExtractResult } from "../src/generate/surface-extract.js";
 import type { TaskExtractResult } from "../src/generate/task-extract.js";
-import type { ResolveResult } from "../src/generate/vendor-resolve.js";
 import { useBenchmarkTestLayout } from "./fixtures/benchmark-layout.js";
+import {
+  createPackAuthoringArtifacts,
+  packAuthoringConfig,
+  packAuthoringTasks,
+} from "./fixtures/pack-authoring.js";
 
 const { layout, writeYaml } = useBenchmarkTestLayout("ax-benchmark-pack-audit-");
-
-const vendor: ResolveResult = {
-  vendor: "Acme",
-  category: "database",
-  slug: "acme",
-  discovered_at: "2026-07-16T00:00:00.000Z",
-  resolver: { method: "grounded-generator", prompt_version: "test" },
-  site_url: "https://acme.example",
-  docs_url: "https://docs.acme.example",
-};
-
-const suite: Suite = {
-  name: "database-core",
-  version: 1,
-  category: "database",
-  tasks: [{
-    id: "create-record",
-    title: "Create a record",
-    difficulty: "L1",
-    skill: "records",
-    intent: "Create one namespaced record.",
-    oracle_hint: "Read the record back.",
-    allowed_surfaces: ["api"],
-    na_examples: [],
-  }],
-};
-
-const surfaces: SurfaceExtractResult = {
-  vendor: "Acme",
-  slug: "acme",
-  extracted_at: "2026-07-16T00:00:00.000Z",
-  cli: null,
-  sdk: null,
-  mcp: null,
-};
-
-const tasks: TaskExtractResult = {
-  vendor: "Acme",
-  slug: "acme",
-  suite_name: "database-core",
-  suite_version: 1,
-  extracted_at: "2026-07-16T00:00:00.000Z",
-  extractor: "test",
-  tasks: [{
-    id: "create-record",
-    title: "Create a record",
-    difficulty: "L1",
-    prompt: "Create ax_record_{ns}.",
-    allowed_surfaces: ["api"],
-    na: false,
-    na_reason: null,
-    support_evidence: [{ doc_url: "https://docs.acme.example/records", quote: "Create records." }],
-    oracles: [{
-      type: "roundtrip",
-      readMethod: "GET",
-      readPathTemplate: "/records/{gid}",
-      assertField: "name",
-      expected: "ax_record_{ns}",
-      description: "Record exists.",
-    }],
-  }],
-};
-
-const config: PackComposeConfig = {
-  base_url: "https://api.acme.example",
-  api_style: "rest",
-  auth: { type: "none", env: "", env_aliases: [], verify_env_aliases: [] },
-  sandbox_scope: [],
-  headers: {},
-};
 
 function writeAuthoringArtifacts(benchmarkLayout: BenchmarkLayout, options: {
   taskExtract?: TaskExtractResult;
   packBaseUrl?: string;
 } = {}): void {
-  const selectedTasks = options.taskExtract ?? tasks;
-  const pack = composePack(vendor, suite, surfaces, selectedTasks, config, {
-    now: () => new Date("2026-07-16T01:02:03.000Z"),
-  });
-  writeYaml(benchmarkLayout.suite_path, suite);
-  writeYaml(benchmarkVendorCardPath(benchmarkLayout, "acme"), vendor);
-  writeYaml(benchmarkSurfacesPath(benchmarkLayout, "acme"), surfaces);
-  writeYaml(benchmarkOraclesPath(benchmarkLayout, "acme"), selectedTasks);
-  writeYaml(benchmarkCompiledPackPath(benchmarkLayout, "acme"), {
-    ...pack,
-    base_url: options.packBaseUrl ?? pack.base_url,
-  });
+  const artifacts = createPackAuthoringArtifacts(options);
+  writeYaml(benchmarkLayout.suite_path, artifacts.suite);
+  writeYaml(benchmarkVendorCardPath(benchmarkLayout, "acme"), artifacts.vendor);
+  writeYaml(benchmarkSurfacesPath(benchmarkLayout, "acme"), artifacts.surfaces);
+  writeYaml(benchmarkOraclesPath(benchmarkLayout, "acme"), artifacts.tasks);
+  writeYaml(benchmarkCompiledPackPath(benchmarkLayout, "acme"), artifacts.pack);
 }
 
 describe("auditBenchmarkPack", () => {
   it("passes a complete benchmark-layout pack contract", () => {
     const benchmarkLayout = layout();
     writeAuthoringArtifacts(benchmarkLayout);
-    expect(auditBenchmarkPack(benchmarkLayout, "acme", config)).toEqual({ status: "pass", findings: [] });
+    expect(auditBenchmarkPack(benchmarkLayout, "acme", packAuthoringConfig)).toEqual({ status: "pass", findings: [] });
   });
 
   it("reports every required missing artifact in deterministic order", () => {
     const benchmarkLayout = layout();
-    const result = auditBenchmarkPack(benchmarkLayout, "acme", config);
+    const result = auditBenchmarkPack(benchmarkLayout, "acme", packAuthoringConfig);
     expect(result.status).toBe("fail");
     expect(result.findings.map((finding) => "artifact" in finding ? finding.artifact : finding.code)).toEqual([
       "suite",
@@ -128,7 +52,7 @@ describe("auditBenchmarkPack", () => {
   it("returns pack-scoped drift findings", () => {
     const benchmarkLayout = layout();
     writeAuthoringArtifacts(benchmarkLayout, { packBaseUrl: "https://changed.example" });
-    expect(auditBenchmarkPack(benchmarkLayout, "acme", config)).toMatchObject({
+    expect(auditBenchmarkPack(benchmarkLayout, "acme", packAuthoringConfig)).toMatchObject({
       status: "fail",
       findings: [{ scope: "pack", slug: "acme", code: "pack_config_drift" }],
     });
@@ -137,8 +61,8 @@ describe("auditBenchmarkPack", () => {
   it("fails closed without exposing details when authoring artifacts disagree", () => {
     const benchmarkLayout = layout();
     writeAuthoringArtifacts(benchmarkLayout);
-    writeYaml(benchmarkOraclesPath(benchmarkLayout, "acme"), { ...tasks, vendor: "Other" });
-    expect(auditBenchmarkPack(benchmarkLayout, "acme", config)).toEqual({
+    writeYaml(benchmarkOraclesPath(benchmarkLayout, "acme"), { ...packAuthoringTasks, vendor: "Other" });
+    expect(auditBenchmarkPack(benchmarkLayout, "acme", packAuthoringConfig)).toEqual({
       status: "fail",
       findings: [{
         scope: "benchmark",
