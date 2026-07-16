@@ -1,0 +1,27 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Nile
+slug: nile
+extracted_at: 2026-07-10T00:41:00.000Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Official Nile CLI and SDK docs; SDK database credentials inherit from
+    pack env.
+audit_status: candidate
+audit_notes:
+  - Verify SDK database env aliases before enabling SDK benchmark cells.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://www.thenile.dev/docs/postgres/postgres-compatibility
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Use NILE_DATABASE_URL with psql for Nile PostgreSQL SQL data-plane
+      operations. NILE_API_KEY is reserved for Nile control-plane commands.
+sdk: null
+mcp: null
