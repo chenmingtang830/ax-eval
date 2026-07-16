@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { parseStructuredOutput, runStructuredGenerator, type StructuredGenerator } from "./structured-output.js";
 import { PublicHttpUrlSchema } from "./public-url.js";
 
@@ -121,11 +122,9 @@ export function writeVendorCard(root: string, result: ResolveResult): string {
 }
 
 export function loadVendorCard(root: string, slug: string): ResolveResult | null {
-  const path = vendorCardPath(root, slug);
-  if (!existsSync(path)) return null;
-  const parsed = ResolveResultSchema.safeParse(yamlParse(readFileSync(path, "utf8")));
-  if (!parsed.success) {
-    throw new Error(`vendor card at ${path} is malformed: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
-  }
-  return parsed.data;
+  return loadVendorCardPath(vendorCardPath(root, slug));
+}
+
+export function loadVendorCardPath(path: string): ResolveResult | null {
+  return loadOptionalYamlArtifact(path, ResolveResultSchema, "vendor card");
 }

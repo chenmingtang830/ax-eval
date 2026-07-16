@@ -1,8 +1,9 @@
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
+import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { assertArtifactSegment } from "./artifact-path.js";
+import { loadOptionalYamlArtifact } from "./artifact-yaml.js";
 import { assertReadOnlyMongoQuery } from "./mongo-verify.js";
 import { PublicHttpUrlSchema, urlUsesOfficialHost } from "./public-url.js";
 import { assertReadOnlySql } from "./sql-verify.js";
@@ -277,11 +278,9 @@ export function writeTaskExtract(root: string, result: TaskExtractResult): strin
 }
 
 export function loadTaskExtract(root: string, slug: string, suiteName: string): TaskExtractResult | null {
-  const path = taskExtractPath(root, slug, suiteName);
-  if (!existsSync(path)) return null;
-  const parsed = TaskExtractSchema.safeParse(yamlParse(readFileSync(path, "utf8")));
-  if (!parsed.success) {
-    throw new Error(`task extract at ${path} is malformed: ${parsed.error.issues.map((issue) => issue.message).join("; ")}`);
-  }
-  return parsed.data;
+  return loadTaskExtractPath(taskExtractPath(root, slug, suiteName));
+}
+
+export function loadTaskExtractPath(path: string): TaskExtractResult | null {
+  return loadOptionalYamlArtifact(path, TaskExtractSchema, "task extract");
 }

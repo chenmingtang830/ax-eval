@@ -15,6 +15,18 @@ import {
   surfaceExtractPath,
   type SurfaceExtractResult,
 } from "../src/generate/surface-extract.js";
+import {
+  loadTaskExtract,
+  loadTaskExtractPath,
+  taskExtractPath,
+  type TaskExtractResult,
+} from "../src/generate/task-extract.js";
+import {
+  loadVendorCard,
+  loadVendorCardPath,
+  vendorCardPath,
+  type ResolveResult,
+} from "../src/generate/vendor-resolve.js";
 
 const directories: string[] = [];
 
@@ -61,6 +73,43 @@ const surfaceExtract: SurfaceExtractResult = {
   mcp: null,
 };
 
+const vendorCard: ResolveResult = {
+  vendor: "Acme",
+  category: "database",
+  slug: "acme",
+  discovered_at: "2026-07-16T00:00:00.000Z",
+  resolver: { method: "grounded-generator", prompt_version: "test" },
+  site_url: "https://acme.example",
+  docs_url: "https://docs.acme.example",
+};
+
+const taskExtract: TaskExtractResult = {
+  vendor: "Acme",
+  slug: "acme",
+  suite_name: "database-core",
+  suite_version: 1,
+  extracted_at: "2026-07-16T00:00:00.000Z",
+  extractor: "test",
+  tasks: [{
+    id: "create-record",
+    title: "Create a record",
+    difficulty: "L1",
+    prompt: "Create ax_record_{ns}.",
+    allowed_surfaces: ["api"],
+    na: false,
+    na_reason: null,
+    support_evidence: [{ doc_url: "https://docs.acme.example/records", quote: "Create records." }],
+    oracles: [{
+      type: "roundtrip",
+      readMethod: "GET",
+      readPathTemplate: "/records/{gid}",
+      assertField: "name",
+      expected: "ax_record_{ns}",
+      description: "Record exists.",
+    }],
+  }],
+};
+
 describe("validated YAML artifact loaders", () => {
   it("loads capability extracts by explicit path and legacy root/slug", () => {
     const root = temporaryRoot();
@@ -82,6 +131,26 @@ describe("validated YAML artifact loaders", () => {
     expect(loadSurfaceExtract(root, "acme")).toEqual(surfaceExtract);
   });
 
+  it("loads vendor cards by explicit path and legacy root/slug", () => {
+    const root = temporaryRoot();
+    const path = vendorCardPath(root, "acme");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, yamlStringify(vendorCard));
+
+    expect(loadVendorCardPath(path)).toEqual(vendorCard);
+    expect(loadVendorCard(root, "acme")).toEqual(vendorCard);
+  });
+
+  it("loads task extracts by explicit path and legacy root/slug/suite", () => {
+    const root = temporaryRoot();
+    const path = taskExtractPath(root, "acme", "database-core");
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, yamlStringify(taskExtract));
+
+    expect(loadTaskExtractPath(path)).toEqual(taskExtract);
+    expect(loadTaskExtract(root, "acme", "database-core")).toEqual(taskExtract);
+  });
+
   it("returns schema output with defaults applied", () => {
     const root = temporaryRoot();
     const path = join(root, "capabilities.yaml");
@@ -101,6 +170,8 @@ describe("validated YAML artifact loaders", () => {
     const root = temporaryRoot();
     expect(loadCapabilityExtractPath(join(root, "missing-capabilities.yaml"))).toBeNull();
     expect(loadSurfaceExtractPath(join(root, "missing-surfaces.yaml"))).toBeNull();
+    expect(loadVendorCardPath(join(root, "missing-vendor.yaml"))).toBeNull();
+    expect(loadTaskExtractPath(join(root, "missing-tasks.yaml"))).toBeNull();
   });
 
   it("fails closed with schema paths for malformed artifacts", () => {
