@@ -8,9 +8,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(HERE, "..", "static", "fixtures");
 
 export interface IngestOptions {
-  /** Force offline: read the local fixture instead of the network. */
+  /** Force offline: read a local path or, when allowed, a bundled fixture. */
   offline?: boolean;
   timeoutMs?: number;
+  /** Refuse bundled fixture fallback when the caller requires this exact source. */
+  allowFixtureFallback?: boolean;
 }
 
 /** Map a spec URL to a bundled fixture filename (host_path flattened). */
@@ -39,15 +41,19 @@ export async function fetchSpecText(
     return { text: readFileSync(url, "utf8"), source: url };
   }
   if (!opts.offline) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
       const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      if (res.ok) return { text: await res.text(), source: url };
+      if (res.ok) return { text: await res.text(), source: res.url || url };
     } catch {
       /* fall through to fixture */
+    } finally {
+      clearTimeout(timer);
     }
+  }
+  if (opts.allowFixtureFallback === false) {
+    throw new Error(`could not fetch exact spec source ${url}`);
   }
   const fx = fixtureFor(url);
   if (!fx) throw new Error(`could not fetch ${url} and no fixture available`);

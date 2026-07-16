@@ -85,6 +85,9 @@ shape.
   summaries to bound capability candidates, reject non-official remote sources,
   and retain source/count/truncation provenance in the extract. Do not author
   from an empty or truncated operation inventory.
+- **Explicit spec mappings fail closed.** `--capability-spec` sources must be
+  fetched exactly; do not replace a missing source with a generic fixture.
+  Keep multi-vendor generator concurrency bounded and result ordering stable.
 
 ## Adding a new target
 

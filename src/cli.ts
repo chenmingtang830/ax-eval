@@ -72,7 +72,8 @@ import {
 import { invokeEfficiency } from "./generate/invoke-efficiency.js";
 import { runGeneratorHarness } from "./generate/authoring.js";
 import { resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
-import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
+import { extractCapabilitiesBatch, parseCapabilitySpecMappings } from "./generate/capability-extract-batch.js";
 import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
 import { extractTasks, writeTaskExtract, loadTaskExtract } from "./generate/task-extract.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
@@ -211,7 +212,13 @@ function commandUsage(command: string | undefined): string {
     case "resolve-vendor":
       return "usage: ax-eval resolve-vendor --vendors <name,...> --category <category> [generator flags]";
     case "extract-capabilities":
-      return "usage: ax-eval extract-capabilities --vendors <slug,...> [generator flags]";
+      return [
+        "usage: ax-eval extract-capabilities --vendors <slug,...> [generator flags]",
+        "       [--capability-spec <slug>=<source>]... [--spec-max-operations N] [--offline]",
+        "  Explicit spec sources are fetched exactly (no unrelated fixture fallback).",
+        "  Offline spec seeds must be local files; raise --spec-max-operations if a summary truncates.",
+        "  Multi-vendor extraction runs at bounded concurrency (maximum 3).",
+      ].join("\n");
     case "extract-surfaces":
       return "usage: ax-eval extract-surfaces --vendors <slug,...> [generator flags]";
     case "synthesize-suite":
@@ -337,6 +344,8 @@ interface Parsed {
   benchmarkVersion: string;
   packConfigs: string[];
   resetVerified: string[];
+  capabilitySpecs: string[];
+  specMaxOperations: number;
   _: string[];
 }
 
@@ -404,6 +413,8 @@ function parseArgs(argv: string[]): Parsed {
     benchmarkVersion: "",
     packConfigs: [],
     resetVerified: [],
+    capabilitySpecs: [],
+    specMaxOperations: 150,
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -522,6 +533,12 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--benchmark-version") p.benchmarkVersion = value(++i, "--benchmark-version");
     else if (a === "--pack-config") p.packConfigs.push(value(++i, "--pack-config"));
     else if (a === "--reset-verified") p.resetVerified.push(value(++i, "--reset-verified"));
+    else if (a === "--capability-spec") p.capabilitySpecs.push(value(++i, "--capability-spec"));
+    else if (a === "--spec-max-operations") {
+      const n = Number(value(++i, "--spec-max-operations"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--spec-max-operations must be a positive integer (got ${n})`);
+      p.specMaxOperations = n;
+    }
     else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
@@ -1785,13 +1802,36 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
 
 async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   const root = process.cwd();
+  const slugs = selectedVendors(args);
+  const specSources = parseCapabilitySpecMappings(args.capabilitySpecs, slugs);
+  const vendors = slugs.map((slug) => requiredVendorCard(root, slug));
   const generator = authoringGenerator(args);
-  for (const slug of selectedVendors(args)) {
-    const vendor = requiredVendorCard(root, slug);
-    const result = await extractCapabilities(vendor, { generate: generator.generate, extractor: generator.harness });
-    console.log(`${vendor.vendor} → ${writeCapabilityExtract(root, result)}`);
+  const concurrency = Math.min(args.concurrency, 3);
+  console.log(
+    `Extracting capabilities for ${vendors.length} vendor(s) at concurrency=${concurrency} ` +
+    `(${specSources.size} spec-seeded, ${vendors.length - specSources.size} grounded)`,
+  );
+  const settled = await extractCapabilitiesBatch(vendors, {
+    specSources,
+    maxSpecOperations: args.specMaxOperations,
+    concurrency,
+    offline: args.offline,
+    generate: generator.generate,
+    extractor: generator.harness,
+  });
+  let failures = 0;
+  for (let index = 0; index < settled.length; index++) {
+    const outcome = settled[index]!;
+    const vendor = vendors[index]!;
+    if (outcome.status === "rejected") {
+      failures += 1;
+      console.error(`${vendor.vendor} → FAILED: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+      continue;
+    }
+    const path = writeCapabilityExtract(root, outcome.value.extract);
+    console.log(`${vendor.vendor} → ${path}${outcome.value.specSource ? ` (spec ${outcome.value.specSource})` : ""}`);
   }
-  return 0;
+  return failures ? 1 : 0;
 }
 
 async function cmdExtractSurfaces(args: Parsed): Promise<number> {

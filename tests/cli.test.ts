@@ -117,6 +117,19 @@ describe("cli arg handling", () => {
       expect(code).toBe(0);
       expect(out).toContain(`usage: ax-eval ${command}`);
     }
+    const capabilityHelp = runCli(["extract-capabilities", "--help"]);
+    expect(capabilityHelp.out).toContain("--capability-spec <slug>=<source>");
+    expect(capabilityHelp.out).toContain("Offline spec seeds must be local files");
+    expect(capabilityHelp.out).toContain("maximum 3");
+  });
+
+  it("validates capability spec mapping flags before authoring", () => {
+    expect(runCli([
+      "extract-capabilities", "--vendors", "acme", "--capability-spec", "broken",
+    ]).out).toContain("--capability-spec expects <slug>=<source>");
+    expect(runCli([
+      "extract-capabilities", "--vendors", "acme", "--spec-max-operations", "0",
+    ]).out).toContain("--spec-max-operations must be a positive integer");
   });
 
   it("documents and prints a low-pass plan without invoking", () => {

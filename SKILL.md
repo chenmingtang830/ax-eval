@@ -74,6 +74,11 @@ evaluation suite -> vendor verification extraction -> TargetPack -> execution ->
 Use `resolve-vendor`, `extract-capabilities`, `extract-surfaces`,
 `synthesize-suite`, `extract-tasks`, and `compose-pack` in that order. The
 commands write reviewable artifacts; they do not approve or execute them.
+Pass repeatable `--capability-spec <slug>=<source>` entries when a reviewed
+OpenAPI source should seed a vendor. Explicit sources fail rather than falling
+back to an unrelated fixture; unmapped vendors retain grounded extraction.
+Use local spec files offline and raise the operation bound if summarization
+would truncate.
 
 The canonical suite is the source of truth. Files under
 `targets/packs/<vendor>/` are compiled execution artifacts, not

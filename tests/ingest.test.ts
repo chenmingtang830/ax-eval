@@ -1,8 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseSpec } from "../src/ingest/openapi.js";
+import { fetchSpecText } from "../src/ingest/run.js";
 
 const FIXTURE = resolve(
   dirname(fileURLToPath(import.meta.url)),
@@ -12,6 +13,26 @@ const FIXTURE = resolve(
   "fixtures",
   "asana.com_openapi.json",
 );
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe("OpenAPI source fetching", () => {
+  it("reports the final response URL and can refuse fixture fallback", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      url: "https://cdn.example.test/openapi.json",
+      text: async () => "{}",
+    })));
+    await expect(fetchSpecText("https://docs.example.test/openapi.json", {
+      allowFixtureFallback: false,
+    })).resolves.toEqual({ text: "{}", source: "https://cdn.example.test/openapi.json" });
+
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
+    await expect(fetchSpecText("https://docs.example.test/openapi.json", {
+      allowFixtureFallback: false,
+    })).rejects.toThrow(/exact spec source/);
+  });
+});
 
 describe("openapi ingest", () => {
   const spec = parseSpec(readFileSync(FIXTURE, "utf8"), "fixture");

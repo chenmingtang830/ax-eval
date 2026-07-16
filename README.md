@@ -147,6 +147,8 @@ under `targets/vendors/`, `targets/extracts/`, `targets/suites/`, and
 ```bash
 npm run ax-eval -- resolve-vendor --vendors "Vendor A,Vendor B" --category database
 npm run ax-eval -- extract-capabilities --vendors vendor-a,vendor-b
+npm run ax-eval -- extract-capabilities --vendors vendor-a,vendor-b \
+  --capability-spec vendor-a=path/to/vendor-a.openapi.json --concurrency 2
 npm run ax-eval -- extract-surfaces --vendors vendor-a,vendor-b
 npm run ax-eval -- synthesize-suite --suite-name my-suite --category database \
   --vendors vendor-a,vendor-b --target-tasks 12
@@ -163,6 +165,11 @@ npm run ax-eval -- plan-low-pass --pack targets/packs/vendor-a/my-suite.yaml \
 Generation is grounded through Codex or Claude Code (or offline fixtures in
 tests). `compose-pack` is pure and never creates an approval; `exec-plan` keeps
 refusing the output until a human reviews and approves its content hash.
+`--capability-spec` is repeatable and exact-source: it never substitutes a
+bundled fixture. Multi-vendor extraction preserves input order and caps actual
+authoring concurrency at three even when the global concurrency is higher.
+Offline spec seeds must be local files; increase `--spec-max-operations` rather
+than accepting a truncated operation inventory.
 
 `audit-benchmark` is the read-only authoring gate for a benchmark layout under
 `benchmarks/<slug>/<version>/`. It reports suite, fixed-sample trace review,
