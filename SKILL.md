@@ -256,6 +256,11 @@ product, harness}` record per cell. `verify` then renders them as a single
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 
+Both harness adapters parse agent-authored result JSON fail-closed. The only
+recovery allowed is removal of invalid shell-style `\'` escapes copied from
+commands; bare inner quotes and other malformed JSON produce a
+`results_json_invalid` invoke status instead of being repaired or scored.
+
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
 and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
 CLI, and SDK Codex cells are invoked with an isolated Codex home plus

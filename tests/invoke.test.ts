@@ -282,6 +282,26 @@ describe("runInvokeHarness", () => {
     expect(result.attempts).toBe(2);
   });
 
+  for (const harness of ["claude-code", "codex"] as const) {
+    it(`classifies malformed ${harness} result JSON without crashing finalization`, async () => {
+      const dir = freshDir();
+      const run = opts(dir, harness);
+      const spawn: AsyncSpawn = async () => {
+        writeFileSync(
+          run.paths.resultsPath,
+          `{ "profile": "ceiling", "ns": "${run.ns}", "surface": "api", "results": {}, "note": "tool "quoted" command" }`,
+        );
+        writeFileSync(run.paths.tracePath, "[]");
+        return spawnResult({ stdout: Buffer.from('{"type":"result","subtype":"success"}') });
+      };
+
+      const result = await runInvokeHarness({ ...run, retries: 0 }, spawn);
+      expect(result.ok).toBe(false);
+      expect(result.validityStatus).toBe("results_json_invalid");
+      expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).discovery.notes).toContain("results JSON invalid");
+    });
+  }
+
   it("passes the timeout cap to the spawn and records a timeout as a failure", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");

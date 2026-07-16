@@ -15,6 +15,9 @@ import type { DiscoveryResult } from "./discovery.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { renderSqlQuery, resolveSqlConnection, runSqlCheck } from "./sql-verify.js";
 import { renderMongoQuery, resolveMongoConnection, runMongoCheck } from "./mongo-verify.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
+
+export { parseJsonWithRecovery } from "../util/json-parse.js";
 
 export interface ExecutorResults {
   profile: string;
@@ -44,13 +47,13 @@ export interface RoundtripOutcome {
 }
 
 export function loadResults(path: string): ExecutorResults {
-  return JSON.parse(readFileSync(path, "utf8")) as ExecutorResults;
+  return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
 }
 
 /** Load a sibling *.trace.json if present (observability); empty if missing. */
 export function loadTrace(path: string): TraceStep[] {
   try {
-    const parsed = JSON.parse(readFileSync(path, "utf8"));
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8"));
     return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
   } catch {
     return [];

@@ -6,6 +6,7 @@ import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
 import { redactSensitiveText } from "../safety/redaction.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -104,6 +105,7 @@ export type InvokeValidityStatus =
   | "partial"
   | "runtime_timeout_no_action"
   | "runtime_timeout_partial"
+  | "results_json_invalid"
   | "invoke_failed";
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -522,9 +524,16 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
-function stampResultFile(opts: InvokeRunOptions): void {
-  if (!existsSync(opts.paths.resultsPath)) return;
-  const parsed = JSON.parse(readFileSync(opts.paths.resultsPath, "utf8")) as Record<string, unknown>;
+function stampResultFile(opts: InvokeRunOptions): { ok: boolean; error?: string } {
+  if (!existsSync(opts.paths.resultsPath)) return { ok: true };
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    writeFailureArtifacts(opts, `results JSON invalid: ${message}`);
+    return { ok: false, error: message };
+  }
   parsed.harness = opts.harness;
   parsed.profile = String(parsed.profile ?? opts.profile);
   parsed.surface = opts.surface;
@@ -535,6 +544,7 @@ function stampResultFile(opts: InvokeRunOptions): void {
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+  return { ok: true };
 }
 
 function parseResultPayload(text: string): Record<string, unknown> | undefined {
@@ -764,8 +774,9 @@ export async function runInvokeHarness(
     ?? (timedOut
       ? `harness ${opts.harness} timed out waiting for ${timeoutReason === "first_action" ? "its first action" : "completion"} (${attempt} attempt${attempt === 1 ? "" : "s"})`
       : undefined);
+  let stamp: { ok: boolean; error?: string } = { ok: true };
   if (existsSync(opts.paths.resultsPath)) {
-    stampResultFile(opts);
+    stamp = stampResultFile(opts);
   } else {
     const reason = error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`;
     writeFailureArtifacts(opts, reason);
@@ -777,18 +788,21 @@ export async function runInvokeHarness(
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
   const actionOccurred = res.actionOccurred ?? structuredActionOccurred(stdout);
-  const validityStatus: InvokeValidityStatus = ok
-    ? (timedOut ? "partial" : "valid")
-    : timedOut
-      ? (actionOccurred ? "runtime_timeout_partial" : "runtime_timeout_no_action")
-      : "invoke_failed";
+  const finalOk = ok && stamp.ok;
+  const validityStatus: InvokeValidityStatus = !stamp.ok
+    ? "results_json_invalid"
+    : finalOk
+      ? (timedOut ? "partial" : "valid")
+      : timedOut
+        ? (actionOccurred ? "runtime_timeout_partial" : "runtime_timeout_no_action")
+        : "invoke_failed";
   const meta: InvokeRunResult = {
     harness: opts.harness,
     profile: opts.profile,
     surface: opts.surface,
     requestedModel: opts.model,
     effort: opts.effort,
-    ok,
+    ok: finalOk,
     exitCode,
     signal,
     attempts: attempt,
@@ -805,7 +819,7 @@ export async function runInvokeHarness(
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok ? undefined : redactSensitiveText((error ?? stderr.trim()) || `exit ${exitLabel}`),
+    error: finalOk ? undefined : redactSensitiveText((stamp.error ?? error ?? stderr.trim()) || `exit ${exitLabel}`),
   };
   writeFileSync(
     opts.paths.metaPath,

@@ -214,6 +214,8 @@ It is responsible for:
 - collecting stdout/stderr/transcripts
 - retrying failed or timed-out runs
 - recovering results from transcript or agent output when files are missing
+- parsing result files fail-closed, with only narrow shell-quote recovery;
+  malformed result JSON becomes `results_json_invalid`
 - terminating lingering wrappers once required artifacts exist
 
 This layer is intentionally harness-specific. The rest of the system stays
