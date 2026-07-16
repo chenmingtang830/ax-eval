@@ -53,11 +53,36 @@ function envHint(primary: string | undefined, aliases: string[] = []): string {
   return `${names[0]} (aliases: ${names.slice(1).join(", ")})`;
 }
 
+function envTemplateNames(value: unknown): string[] {
+  const names: string[] = [];
+  const collectFromString = (text: string) => {
+    for (const match of text.matchAll(/\$\{([A-Z0-9_]+)\}/g)) {
+      if (match[1]) names.push(match[1]);
+    }
+  };
+  const visit = (item: unknown) => {
+    if (typeof item === "string") {
+      collectFromString(item);
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) visit(child);
+      return;
+    }
+    if (item && typeof item === "object") {
+      for (const child of Object.values(item as Record<string, unknown>)) visit(child);
+    }
+  };
+  visit(value);
+  return [...new Set(names)];
+}
+
 /** Resolve the credential the runner uses for verification/oracles. Prefers the
  *  pack's declared `verify_env` then `env`; legacy fallback = ASANA_VERIFY_PAT
  *  → ASANA_PAT so packs without an `auth` block still work. */
 export function resolveToken(pack: TargetPack): string {
   const a = pack.auth;
+  if (a?.type === "none") return "";
   const candidates = a?.env
     ? [
         envCandidates(a.verify_env, a.verify_env_aliases),
@@ -81,6 +106,24 @@ export function resolveToken(pack: TargetPack): string {
 /** The HTTP header name for the credential. Defaults by auth type. */
 export function authHeader(pack: TargetPack): string {
   return pack.auth?.header ?? "Authorization";
+}
+
+/** Substitute `${ENV_VAR}` references (e.g. in `base_url` for vendors whose
+ *  API host is per-account, like Supabase's `https://${SUPABASE_PROJECT_REF}.supabase.co`)
+ *  from process.env. Throws if a referenced var is unset — a silent empty
+ *  substitution would just 404 confusingly at request time.
+ *
+ *  Deliberately NOT applied inside loadPack(): approval hashes the pack's
+ *  template form, so the hash stays stable across different developers'
+ *  env values. Substitution only happens right before a live HTTP call. */
+export function resolveEnvTemplate(text: string): string {
+  return text.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) => {
+    const value = env(name);
+    if (!value) {
+      throw new TargetConfigError(`base_url/path references \${${name}}, but that env var is unset in .env`);
+    }
+    return value;
+  });
 }
 
 /** Apply a scope param's optional `url_pattern` to extract an id from a pasted
@@ -129,27 +172,69 @@ export interface EnvRequirement {
  *  Drives a target-agnostic `check-env`. */
 export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
   const reqs: EnvRequirement[] = [];
+  const pushUnique = (req: EnvRequirement) => {
+    if (reqs.some((existing) => existing.env === req.env && existing.role === req.role)) return;
+    reqs.push(req);
+  };
   const authEnv = pack.auth?.env || "ASANA_PAT";
   const authAliases = pack.auth?.env_aliases ?? [];
   const verifyEnv = pack.auth?.verify_env;
   const verifyAliases = pack.auth?.verify_env_aliases ?? [];
-  reqs.push({
-    role: "auth",
-    env: authEnv,
-    required: true,
-    set: Boolean(resolveEnvValue(verifyEnv, verifyAliases) || resolveEnvValue(authEnv, authAliases)),
-    instructions: [
-      "the agent's sandbox credential",
-      envCandidates(authEnv, authAliases).length > 1 ? `aliases accepted: ${envCandidates(authEnv, authAliases).slice(1).join(", ")}` : "",
-    ].filter(Boolean).join(" — "),
-  });
+  if (pack.auth?.type !== "none") {
+    pushUnique({
+      role: "auth",
+      env: authEnv,
+      required: true,
+      set: Boolean(resolveEnvValue(verifyEnv, verifyAliases) || resolveEnvValue(authEnv, authAliases)),
+      instructions: [
+        "the agent's sandbox credential",
+        envCandidates(authEnv, authAliases).length > 1 ? `aliases accepted: ${envCandidates(authEnv, authAliases).slice(1).join(", ")}` : "",
+      ].filter(Boolean).join(" — "),
+    });
+  }
+  for (const name of envTemplateNames([
+    pack.base_url,
+    pack.tasks.flatMap((task) => task.oracles.map((oracle) => [
+      oracle.readPathTemplate,
+      oracle.readBodyTemplate,
+      oracle.readQueryTemplate,
+      oracle.sqlQuery,
+      oracle.mongoQuery,
+    ])),
+  ])) {
+    pushUnique({
+      role: "env_template",
+      env: name,
+      required: true,
+      set: Boolean(env(name)),
+      instructions: "required by a pack URL or verifier template",
+    });
+  }
   for (const p of pack.sandbox_scope) {
-    reqs.push({
+    pushUnique({
       role: p.name,
       env: p.env,
       required: p.required,
       set: Boolean(env(p.env)),
       instructions: p.instructions || undefined,
+    });
+  }
+  if (pack.sql_conn?.connection_string_env) {
+    pushUnique({
+      role: "sql_conn",
+      env: pack.sql_conn.connection_string_env,
+      required: true,
+      set: Boolean(env(pack.sql_conn.connection_string_env)),
+      instructions: `${pack.sql_conn.dialect} connection string used by SQL outcome verifiers`,
+    });
+  }
+  if (pack.mongo_conn?.connection_string_env) {
+    pushUnique({
+      role: "mongo_conn",
+      env: pack.mongo_conn.connection_string_env,
+      required: true,
+      set: Boolean(env(pack.mongo_conn.connection_string_env)),
+      instructions: "MongoDB connection string used by Mongo outcome verifiers",
     });
   }
   return reqs;

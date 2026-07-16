@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -7,10 +7,15 @@ import {
   DEFAULT_ASYNC_SPAWN,
   defaultInvokePaths,
   detectInvokeHarness,
+  redactHarnessArtifactText,
   runInvokeHarness,
+  codexOutputSchema,
   type AsyncSpawn,
   type InvokeRunOptions,
 } from "../src/harness/invoke.js";
+import { buildExecutorPrompt } from "../src/harness/executor.js";
+import { getProfile } from "../src/harness/profile.js";
+import { getSurface } from "../src/surface/index.js";
 
 const dirs: string[] = [];
 
@@ -34,6 +39,7 @@ function pack(): TargetPack {
       {
         id: "t1",
         prompt: "Create one thing.",
+        allowed_surfaces: ["api"],
         oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "x" }],
       },
     ],
@@ -53,6 +59,9 @@ function makeSpawnResult() {
     status: 0,
     signal: null,
     error: undefined,
+    timedOut: undefined,
+    timeoutReason: undefined,
+    firstActionLatencyMs: undefined,
   };
 }
 
@@ -87,17 +96,52 @@ describe("detectInvokeHarness", () => {
     expect(detected.ok).toBe(true);
     expect(detected.version).toBe("codex 1.2.3");
   });
+});
 
-  it("cleans up the temporary Claude HOME after detection", () => {
-    let seenHome = "";
-    const detected = detectInvokeHarness("claude-code", (_command, _args, options) => {
-      seenHome = String(options?.env?.HOME ?? "");
-      expect(existsSync(seenHome)).toBe(true);
-      return spawnResult({ stdout: Buffer.from("claude 1.0.0\n") });
-    });
-    expect(detected.ok).toBe(true);
-    expect(seenHome).not.toBe("");
-    expect(existsSync(seenHome)).toBe(false);
+describe("redactHarnessArtifactText", () => {
+  it("redacts common credential shapes while preserving env-var names", () => {
+    // Assemble Neon/Sentry-shaped fixtures at runtime so secret scanners do not
+    // flag contiguous credential-looking literals in source.
+    const neonHead = ["napi_", "1l1uah8v9netldvmvzu7164ebe9"].join("");
+    const neonTail = "51zlk8qr6j1jey0yf5elo1fojz1ubjrpra6j7";
+    const neonKey = `${neonHead}${neonTail}`;
+    const sentryPublic = ["3bbe57a973254129", "bcb93e47dc0cc46f"].join("");
+    const sentryHost = ["o343074", ".ingest.sentry.io/2052166"].join("");
+    const raw = [
+      "DATABASE_URL=postgresql://user:pass@example.test:5432/db",
+      "SUPABASE_ACCESS_TOKEN=sbp_abcdefghijklmnopqrstuvwxyz",
+      `neonctl help default --api-key ${neonKey}`,
+      `wrapped neon default [default: "${neonHead}\n                    ${neonTail}"]`,
+      `json escaped neon default [default: \\"${neonHead}\\n                    ${neonTail}\\"]`,
+      `partially redacted wrapped neon default [default: "<redacted-token>\n                    ${neonTail}"]`,
+      `partially redacted escaped neon default [default: \\"<redacted-token>\\n                    ${neonTail}\\"]`,
+      "ASANA_PAT=2/123/abc:def",
+      "CONVEX_DEPLOY_KEY=preview:team:project|eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc",
+      "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456",
+      "JWT=eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc",
+      "MONGODB_URI=mongodb+srv://user:pass@example.mongodb.net/db",
+      `sentry dsn https://${sentryPublic}@${sentryHost}`,
+      "\"dsn\":\"https://publickey@example.com/project\"",
+      "package @supabase/postgrest-js should stay readable",
+    ].join("\n");
+
+    const redacted = redactHarnessArtifactText(raw);
+    expect(redacted).toContain("DATABASE_URL=<redacted>");
+    expect(redacted).toContain("SUPABASE_ACCESS_TOKEN=<redacted>");
+    expect(redacted).toContain("ASANA_PAT=<redacted>");
+    expect(redacted).toContain("CONVEX_DEPLOY_KEY=<redacted>");
+    expect(redacted).toContain("Authorization: Bearer <redacted>");
+    expect(redacted).toContain("JWT=<redacted>");
+    expect(redacted).toContain("MONGODB_URI=<redacted>");
+    expect(redacted).toContain(`https://<redacted>@${sentryHost}`);
+    expect(redacted).toContain("\"dsn\":\"<redacted>\"");
+    expect(redacted).not.toContain("user:pass");
+    expect(redacted).not.toContain("sbp_abcdefghijklmnopqrstuvwxyz");
+    expect(redacted).not.toContain(neonKey);
+    expect(redacted).not.toContain(neonTail);
+    expect(redacted).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
+    expect(redacted).not.toContain(sentryPublic);
+    expect(redacted).toContain("@supabase/postgrest-js");
   });
 });
 
@@ -132,6 +176,58 @@ describe("runInvokeHarness", () => {
     expect(executor.profile).toBe("ceiling");
   });
 
+  it("passes pinned model and native effort to Claude Code", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("--model");
+      expect(args).toContain("sonnet");
+      expect(args).toContain("--effort");
+      expect(args).toContain("low");
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "low",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+
+    const result = await runInvokeHarness({ ...run, profile: "low", model: "sonnet", effort: "low" }, spawn);
+    expect(result.ok).toBe(true);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.model).toBe("claude-sonnet-5");
+  });
+
+  it("disables inherited MCP servers for non-MCP Codex invocations", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("-c");
+      expect(args).toContain("mcp_servers={}");
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "low",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from("{}"), stderr: Buffer.from("model: gpt-5.5\n") });
+    };
+
+    const result = await runInvokeHarness({ ...run, profile: "low", model: "gpt-5.5", effort: "low" }, spawn);
+    expect(result.ok).toBe(true);
+  });
+
   it("writes explainable failure artifacts when the harness exits before writing results", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
@@ -149,6 +245,154 @@ describe("runInvokeHarness", () => {
     expect(executor.profile).toBe("ceiling");
     expect(executor.results.t1.gid).toBeNull();
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
+  });
+
+  it("normalizes placeholder discovery base URLs from declared env templates", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const original = process.env.CONVEX_URL;
+    process.env.CONVEX_URL = "preview-example-123.convex.cloud";
+    try {
+      const convexPack = TargetPackSchema.parse({
+        name: "convex",
+        standard_set_version: "demo-v1",
+        run_id: "gen",
+        base_url: "https://${CONVEX_URL}",
+        tasks: [
+          {
+            id: "t1",
+            prompt: "Create one thing.",
+            allowed_surfaces: ["api"],
+            oracles: [{ type: "roundtrip", readPathTemplate: "/things/{gid}", assertField: "name", expected: "x" }],
+          },
+        ],
+      });
+      const spawn: AsyncSpawn = async () => {
+        writeFileSync(
+          run.paths.resultsPath,
+          JSON.stringify({
+            profile: "ceiling",
+            ns: run.ns,
+            surface: "api",
+            discovery: {
+              base_url_found: "<CONVEX_URL>/api/{query|mutation|action}",
+              searches: [],
+              urls_visited: [],
+              endpoint_used: "POST /api/query",
+              auth_scheme_found: "Authorization: Convex <deploy_key>",
+              notes: "placeholder-like base URL",
+            },
+            results: { t1: { gid: "gid-1" } },
+          }),
+        );
+        writeFileSync(run.paths.tracePath, "[]");
+        return spawnResult({ stdout: Buffer.from("{}"), stderr: Buffer.from("model: gpt-5.5\n") });
+      };
+
+      const result = await runInvokeHarness({ ...run, pack: convexPack }, spawn);
+      expect(result.ok).toBe(true);
+      const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+      expect(executor.discovery.base_url_found).toBe("https://preview-example-123.convex.cloud");
+    } finally {
+      if (original === undefined) delete process.env.CONVEX_URL;
+      else process.env.CONVEX_URL = original;
+    }
+  });
+
+  it("rejects agent-written result JSON with bare inner quotes as results_json_invalid", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const malformed = `{
+  "profile": "ceiling",
+  "ns": "${run.ns}",
+  "surface": "api",
+  "discovery": {
+    "base_url_found": "demo",
+    "searches": [],
+    "urls_visited": [],
+    "endpoint_used": "tool \"quoted\" command",
+    "auth_scheme_found": "token",
+    "notes": "ok"
+  },
+  "results": { "t1": { "gid": "gid-1" } }
+}`;
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, malformed);
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("results_json_invalid");
+  });
+
+  it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const secretDsn = "postgresql://user:pass@example.test:5432/db";
+    const secretToken = "sbp_abcdefghijklmnopqrstuvwxyz";
+    const secretJwt = "eyJaaaaaaaaaa.bbbbbbbbbbbb.cccccccccccc";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "ceiling",
+          ns: run.ns,
+          surface: "api",
+          discovery: { notes: `used DATABASE_URL=${secretDsn}` },
+          results: { t1: { gid: "gid-1" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, JSON.stringify([{ note: `token ${secretToken}` }]));
+      return spawnResult({
+        stdout: Buffer.from(`DATABASE_URL=${secretDsn}\nSUPABASE_ACCESS_TOKEN=${secretToken}\nJWT=${secretJwt}`),
+        stderr: Buffer.from(`Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456\nmodel: gpt-test`),
+      });
+    };
+
+    const result = await runInvokeHarness({ ...run, provisioning: { connection: secretDsn } }, spawn);
+    expect(result.ok).toBe(true);
+    for (const path of [
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.metaPath,
+    ]) {
+      const content = readFileSync(path, "utf8");
+      expect(content).not.toContain(secretDsn);
+      expect(content).not.toContain(secretToken);
+      expect(content).not.toContain(secretJwt);
+      expect(content).not.toContain("abcdefghijklmnopqrstuvwxyz123456");
+      expect(content).toContain("<redacted");
+    }
+  });
+
+  it("redacts isolated invoke-home host CLI caches", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const home = resolve(dir, ".invoke-home", "demo-claude");
+    const cacheDir = resolve(home, ".claude", "projects", "demo");
+    mkdirSync(cacheDir, { recursive: true });
+    const cacheFile = resolve(cacheDir, "session.jsonl");
+    const secretDsn = "postgresql://user:pass@example.test:5432/db";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(cacheFile, `tool output DATABASE_URL=${secretDsn}\n`);
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from("ok") });
+    };
+
+    const result = await runInvokeHarness({ ...run, env: { HOME: home } }, spawn);
+    expect(result.ok).toBe(true);
+    const content = readFileSync(cacheFile, "utf8");
+    expect(content).toContain("DATABASE_URL=<redacted>");
+    expect(content).not.toContain(secretDsn);
   });
 
   it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
@@ -169,6 +413,36 @@ describe("runInvokeHarness", () => {
     expect(result.ok).toBe(true);
     expect(seenArgs).toContain("-c");
     expect(seenArgs).toContain('approval_policy="never"');
+  });
+
+  it("locks Codex structured output metadata to the current run and stamps empty partial metadata", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: "",
+          ns: "",
+          surface: "",
+          discovery: { notes: "partial progress message" },
+          results: { t1: { gid: null } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}'), stderr: Buffer.from("model: gpt-test\n") });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    const schema = JSON.parse(readFileSync(run.paths.codexSchemaPath!, "utf8"));
+    expect(schema.properties.profile.enum).toEqual(["ceiling"]);
+    expect(schema.properties.ns.enum).toEqual([run.ns]);
+    expect(schema.properties.surface.enum).toEqual(["api"]);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.profile).toBe("ceiling");
+    expect(executor.ns).toBe(run.ns);
+    expect(executor.surface).toBe("api");
   });
 
   it("restricts the codex output schema to tasks that apply to the selected surface", async () => {
@@ -217,46 +491,41 @@ describe("runInvokeHarness", () => {
     expect(Object.keys(schema.properties.results.properties)).toEqual(["mcp-only"]);
   });
 
-  it("includes extra per-task context ids in the codex output schema when verification needs them", async () => {
-    const dir = freshDir();
-    const schemaPack = TargetPackSchema.parse({
+  it("allows verifier-required self-report fields in Codex strict output schema and prompt shape", () => {
+    const verifierPack = TargetPackSchema.parse({
       ...pack(),
-      tasks: [
-        {
-          id: "page-task",
-          prompt: "Create a page.",
-          allowed_surfaces: ["mcp", "docs"],
-          create_path: "/docs/{docId}/pages",
-          oracles: [{ type: "roundtrip", readPathTemplate: "/docs/{docId}/pages/{gid}", assertField: "name", expected: "x" }],
-        },
-      ],
+      tasks: [{
+        id: "needs-extra",
+        prompt: "Create a stream and report its capture table.",
+        allowed_surfaces: ["api"],
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "postgres",
+          sqlQuery: "select count(*)::int as count from {capture_table}",
+          assertField: "count",
+          expected: 1,
+        }],
+      }],
     });
-    const paths = defaultInvokePaths(dir, "codex-mcp-extra", "codex");
-    writeFileSync(paths.promptPath, "Do the task and write files.");
-    const run: InvokeRunOptions = {
-      pack: schemaPack,
-      harness: "codex",
-      profile: "ceiling",
-      surface: "mcp",
-      ns: "demo-high-mcp",
-      paths,
-      cwd: dir,
-    };
 
-    const spawn: AsyncSpawn = async () => {
-      writeFileSync(
-        run.paths.resultsPath,
-        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "mcp", discovery: {}, results: { "page-task": { gid: "g", docId: "d" } } }),
-      );
-      writeFileSync(run.paths.tracePath, "[]");
-      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    const schema = codexOutputSchema(verifierPack, "codex:low", "api", "ns-1") as {
+      properties: { results: { properties: Record<string, { properties: Record<string, unknown>; required: string[] }> } };
     };
+    const taskSchema = schema.properties.results.properties["needs-extra"]!;
+    expect(taskSchema.properties).toHaveProperty("gid");
+    expect(taskSchema.properties).toHaveProperty("capture_table");
+    expect(taskSchema.required).toEqual(["gid", "capture_table"]);
 
-    const result = await runInvokeHarness(run, spawn);
-    expect(result.ok).toBe(true);
-    const schema = JSON.parse(readFileSync(paths.codexSchemaPath!, "utf8"));
-    expect(schema.properties.results.properties["page-task"].required).toEqual(["gid", "docId"]);
-    expect(schema.properties.results.properties["page-task"].properties.docId).toBeTruthy();
+    const prompt = buildExecutorPrompt({
+      pack: verifierPack,
+      profile: getProfile("low"),
+      ns: "ns-1",
+      resultsPath: "results/run.json",
+      tracePath: "results/run.trace.json",
+      surface: getSurface("api"),
+    });
+    expect(prompt).toContain("(also self-report, alongside gid: `capture_table`)");
+    expect(prompt).toContain('"needs-extra": {"gid": "<gid or null>", "capture_table": "<value or null>"}');
   });
 
   it("retries a failed invocation once, then succeeds on the second attempt", async () => {
@@ -286,38 +555,50 @@ describe("runInvokeHarness", () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
     let seenTimeout: number | undefined;
+    let seenFirstActionTimeout: number | undefined;
     const spawn: AsyncSpawn = async (_command, _args, _cwd, spawnOpts) => {
       seenTimeout = spawnOpts?.timeoutMs;
+      seenFirstActionTimeout = spawnOpts?.firstActionTimeoutMs;
       // Simulate the child being killed by the wall-clock cap (no results written).
-      return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, stdout: Buffer.from("") });
+      return spawnResult({ status: null, signal: "SIGTERM", timedOut: true, timeoutReason: "first-action", stdout: Buffer.from("") });
     };
-    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, retries: 0 }, spawn);
+    const result = await runInvokeHarness({ ...run, timeoutMs: 1000, firstActionTimeoutMs: 250, retries: 0, model: "sonnet" }, spawn);
     expect(seenTimeout).toBe(1000);
+    expect(seenFirstActionTimeout).toBe(250);
     expect(result.timedOut).toBe(true);
+    expect(result.timeoutReason).toBe("first-action");
+    expect(result.validity_status).toBe("runtime_timeout_no_action");
+    expect(result.action_occurred).toBe(false);
+    expect(result.transcript_event_count).toBe(0);
     expect(result.ok).toBe(false);
     expect(result.attempts).toBe(1);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
-    expect(String(executor.discovery?.notes ?? "")).toMatch(/timed out/i);
+    expect(executor.model).toBe("sonnet");
+    expect(String(executor.discovery?.notes ?? "")).toMatch(/before first action/i);
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.validity_status).toBe("runtime_timeout_no_action");
+    expect(meta.action_occurred).toBe(false);
   });
 
-  it("cleans up the temporary Claude HOME after an invoked run", async () => {
+  it("records runtime_timeout_partial when a timed-out transcript contains an action", async () => {
     const dir = freshDir();
-    const run = opts(dir, "claude-code");
-    let seenHome = "";
-    const spawn: AsyncSpawn = async (_command, _args, _cwd, spawnOpts) => {
-      seenHome = String(spawnOpts?.env?.HOME ?? "");
-      expect(existsSync(seenHome)).toBe(true);
-      writeFileSync(
-        run.paths.resultsPath,
-        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
-      );
-      writeFileSync(run.paths.tracePath, "[]");
-      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
-    };
-    const result = await runInvokeHarness(run, spawn);
-    expect(result.ok).toBe(true);
-    expect(seenHome).not.toBe("");
-    expect(existsSync(seenHome)).toBe(false);
+    const run = opts(dir, "codex");
+    const stdout = JSON.stringify({
+      type: "item.completed",
+      item: { type: "command_execution", command: "democtl create thing" },
+    });
+    const result = await runInvokeHarness(
+      { ...run, timeoutMs: 1000, retries: 0 },
+      async () => spawnResult({ status: null, signal: "SIGTERM", timedOut: true, timeoutReason: "wall", stdout: Buffer.from(stdout) }),
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("runtime_timeout_partial");
+    expect(result.action_occurred).toBe(true);
+    expect(result.transcript_event_count).toBe(1);
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.validity_status).toBe("runtime_timeout_partial");
+    expect(meta.action_occurred).toBe(true);
   });
 
   it("terminates a lingering wrapper once the required artifacts exist", async () => {
@@ -337,6 +618,22 @@ describe("runInvokeHarness", () => {
 
     expect(result.status).toBe(0);
     expect(result.timedOut).toBe(false);
+    expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("terminates a no-action child at the first-action timeout", async () => {
+    const dir = freshDir();
+    const started = Date.now();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/bin/sh",
+      ["-c", "node -e \"setTimeout(() => {}, 30000)\""],
+      dir,
+      { timeoutMs: 60000, firstActionTimeoutMs: 50 },
+    );
+
+    expect(result.timedOut).toBe(true);
+    expect(result.timeoutReason).toBe("first-action");
+    expect(result.firstActionLatencyMs).toBeNull();
     expect(Date.now() - started).toBeLessThan(10000);
   });
 
@@ -383,6 +680,9 @@ describe("runInvokeHarness", () => {
 
     expect(result.ok).toBe(true);
     expect(result.timedOut).toBe(true);
+    expect(result.validity_status).toBe("runtime_timeout_partial");
+    expect(result.action_occurred).toBe(true);
+    expect(result.transcript_event_count).toBe(2);
     expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-recovered");
     expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))[0].action).toBe("create thing");
   });

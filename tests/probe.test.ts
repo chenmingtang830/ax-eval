@@ -3,12 +3,12 @@ import { probeHarness } from "../src/harness/probe.js";
 import { HOST_MODEL } from "../src/harness/profile.js";
 
 describe("probeHarness", () => {
-  it("detects Cursor and suggests the host-default effort sweep", () => {
+  it("detects Cursor and suggests the standard medium effort", () => {
     const p = probeHarness({ CURSOR_AGENT: "1", CURSOR_TRACE_ID: "abc", PATH: "/usr/bin" });
     expect(p.host).toBe("cursor");
     expect(p.confidence).toBe("high");
     expect(p.model).toBe(HOST_MODEL);
-    expect(p.suggestion.profiles).toEqual(["low", "high"]);
+    expect(p.suggestion.profiles).toEqual(["medium"]);
     expect(p.suggestion.matrix).toBe(false);
     // Key names only — never values.
     expect(p.signals).toContain("CURSOR_AGENT");
@@ -26,7 +26,7 @@ describe("probeHarness", () => {
   it("falls back to the default model when Claude Code declares no model env", () => {
     const p = probeHarness({ CLAUDE_CODE_ENTRYPOINT: "cli" });
     expect(p.host).toBe("claude-code");
-    expect(p.model).toBe("claude-4.6-sonnet");
+    expect(p.model).toBe("sonnet");
   });
 
   it("detects OpenAI Codex and suggests the gpt5 profile", () => {
@@ -54,7 +54,7 @@ describe("probeHarness", () => {
     expect(p.host).toBe("ci");
     expect(p.confidence).toBe("high");
     expect(p.model).toBeNull();
-    expect(p.suggestion.profiles).toEqual(["low", "high"]);
+    expect(p.suggestion.profiles).toEqual(["medium"]);
   });
 
   it("falls back to unknown/host-default when nothing matches", () => {
@@ -63,7 +63,7 @@ describe("probeHarness", () => {
     expect(p.confidence).toBe("none");
     expect(p.model).toBeNull();
     expect(p.signals).toEqual([]);
-    expect(p.suggestion.profiles).toEqual(["low", "high"]);
+    expect(p.suggestion.profiles).toEqual(["medium"]);
     expect(p.suggestion.matrix).toBe(false);
   });
 
