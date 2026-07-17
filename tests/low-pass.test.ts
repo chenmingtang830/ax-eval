@@ -4,9 +4,13 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
   combinedResultPath,
+  cleanupLowPassResults,
   daebFreshPackPath,
   daebVendorOrder,
   defaultLowPassRunRoot,
+  lowPassSafetyIssues,
+  loadLowPassResults,
+  persistLowPassSurfaceOutcome,
   supportedLowPassSurfaces,
   upsertLowPassSurfaceRecord,
   writeFailureClassificationStub,
@@ -73,6 +77,133 @@ describe("daeb low-pass helpers", () => {
   it("derives a run-scoped fresh pack path for low-pass execution", () => {
     expect(daebFreshPackPath("/repo/results/runs/daeb-1-v3/low-pass", "convex", "/repo/benchmarks/daeb/v1/suite.yaml"))
       .toBe("/repo/results/runs/daeb-1-v3/low-pass/convex/_compiled/suite.yaml");
+  });
+
+  it("halts a lane when invocation, result, cleanup, or verification safety is unconfirmed", () => {
+    expect(lowPassSafetyIssues({
+      invocationErrors: ["codex exited 1"],
+      missingResultPaths: ["run-codex-medium.json"],
+      cleanupSupported: false,
+      cleanupMessage: "missing namespace",
+      verifyError: "no snapshot",
+      snapshotValid: false,
+    })).toEqual([
+      "invocation failed: codex exited 1",
+      "missing result: run-codex-medium.json",
+      "cleanup unconfirmed: missing namespace",
+      "verification artifact invalid: no snapshot",
+    ]);
+    expect(lowPassSafetyIssues({
+      invocationErrors: [],
+      missingResultPaths: [],
+      cleanupSupported: true,
+      cleanupMessage: "deleted",
+      snapshotValid: true,
+    })).toEqual([]);
+  });
+
+  it("settles malformed results and reset failures instead of throwing before cleanup reporting", async () => {
+    const loaded = loadLowPassResults(["valid.json", "malformed.json"], (path) => {
+      if (path === "malformed.json") throw new Error("Unexpected end of JSON input");
+      return { ns: "valid-ns" };
+    });
+    expect(loaded).toEqual([
+      { path: "valid.json", result: { ns: "valid-ns" } },
+      { path: "malformed.json", error: "Unexpected end of JSON input" },
+    ]);
+
+    const cleanup = await cleanupLowPassResults({
+      loadedResults: loaded,
+      missingResultPaths: ["missing.json"],
+      skipReset: false,
+      reset: async () => ({
+        supported: true,
+        message: "deleted valid-ns",
+        deleted: ["one"],
+        candidates: 1,
+        errors: [],
+      }),
+    });
+    expect(cleanup.performed).toBe(true);
+    expect(cleanup.supported).toBe(false);
+    expect(cleanup.message).toContain("deleted valid-ns");
+    expect(cleanup.errors).toEqual(expect.arrayContaining([
+      expect.stringContaining("unreadable result malformed.json"),
+      expect.stringContaining("missing result namespace for missing.json"),
+    ]));
+  });
+
+  it("captures scope or reset exceptions and preserves explicit skip-reset behavior", async () => {
+    const loaded = loadLowPassResults(["result.json"], () => ({ ns: "trial-ns" }));
+    const failed = await cleanupLowPassResults({
+      loadedResults: loaded,
+      missingResultPaths: [],
+      skipReset: false,
+      reset: async () => { throw new Error("scope unavailable"); },
+    });
+    expect(failed.supported).toBe(false);
+    expect(failed.errors).toEqual(["scope unavailable"]);
+
+    const skipped = await cleanupLowPassResults({
+      loadedResults: loaded,
+      missingResultPaths: [],
+      skipReset: true,
+      reset: async () => { throw new Error("must not run"); },
+    });
+    expect(skipped).toEqual({ performed: false, supported: true, message: "skip-reset requested", errors: [] });
+  });
+
+  it("treats a loaded result without a namespace as unconfirmed cleanup", async () => {
+    const cleanup = await cleanupLowPassResults({
+      loadedResults: loadLowPassResults(["result.json"], () => ({})),
+      missingResultPaths: [],
+      skipReset: false,
+      reset: async () => { throw new Error("must not run"); },
+    });
+    expect(cleanup.supported).toBe(false);
+    expect(cleanup.errors).toEqual(["missing result namespace for result.json"]);
+  });
+
+  it("persists the surface manifest before returning corrupt-snapshot safety errors", () => {
+    const dir = freshDir();
+    const manifestPath = resolve(dir, "low-pass.manifest.json");
+    const manifest = {
+      schema: "ax.low-coverage-pass/v1" as const,
+      suite: "/repo/benchmarks/daeb/v1/suite.yaml",
+      vendor: "neon",
+      generated_at: "2026-07-17T00:00:00.000Z",
+      harnesses: ["codex", "claude-code"],
+      profile: "medium" as const,
+      execution_mode: "task" as const,
+      surfaces: [],
+    };
+    const record = {
+      surface: "api" as const,
+      run_dir: dir,
+      result_paths: ["result.json"],
+      html_report: "report.html",
+      snapshot_path: "snapshot.json",
+      classification_path: "failure-review.md",
+      namespaces: ["trial-ns"],
+      reset: { performed: true, supported: true, message: "deleted", errors: [] },
+      verify_status: "failed" as const,
+      verify_error: "snapshot unreadable",
+    };
+    const finalized = persistLowPassSurfaceOutcome({
+      manifestPath,
+      manifest,
+      record,
+      safety: {
+        invocationErrors: [],
+        missingResultPaths: [],
+        cleanupSupported: true,
+        cleanupMessage: "deleted",
+        verifyError: "snapshot unreadable",
+        snapshotValid: false,
+      },
+    });
+    expect(JSON.parse(readFileSync(manifestPath, "utf8")).surfaces).toHaveLength(1);
+    expect(finalized.unsafeReasons).toEqual(["verification artifact invalid: snapshot unreadable"]);
   });
 
   it("writes a human-review failure stub from a generated snapshot", () => {

@@ -8,12 +8,16 @@ import {
   DAEB_PRODUCTION_CODEX_MODEL,
   DAEB_PRODUCTION_EFFORT,
   archiveDaebDebugArtifacts,
+  assertRunCleanupConfirmed,
+  cleanupRecordFromReset,
   datedDaebProductionRunStem,
   daebProductionVendorOrder,
   defaultProductionRunRoot,
   productionAggregateDir,
   productionTrialDir,
+  readRunCleanupRecord,
   writeArchiveManifest,
+  writeRunCleanupRecord,
   writeProductionAggregate,
 } from "../src/generate/production-run.js";
 
@@ -80,6 +84,41 @@ describe("production rerun helpers", () => {
       .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/trial-2");
     expect(productionAggregateDir("/repo/results/runs/daeb-v1-20260709", "neon", "api", "codex"))
       .toBe("/repo/results/runs/daeb-v1-20260709/neon/api/codex/aggregate");
+  });
+
+  it("requires confirmed cleanup before resuming an existing trial", () => {
+    const dir = freshDir();
+    expect(() => assertRunCleanupConfirmed(dir, false)).toThrow(/cleanup is not confirmed/);
+
+    writeRunCleanupRecord(dir, cleanupRecordFromReset("trial-ns", {
+      supported: true,
+      message: "deleted trial resources",
+      deleted: ["one"],
+      candidates: 1,
+      errors: [],
+    }));
+
+    expect(readRunCleanupRecord(dir)?.status).toBe("confirmed");
+    expect(() => assertRunCleanupConfirmed(dir, false)).not.toThrow();
+  });
+
+  it("does not treat unsupported or errored reset results as confirmed", () => {
+    const unsupported = cleanupRecordFromReset("trial-ns", {
+      supported: false,
+      message: "no resetter",
+      deleted: [],
+      candidates: 0,
+      errors: [],
+    });
+    const errored = cleanupRecordFromReset("trial-ns", {
+      supported: true,
+      message: "delete failed",
+      deleted: [],
+      candidates: 1,
+      errors: ["boom"],
+    });
+    expect(unsupported.status).toBe("unconfirmed");
+    expect(errored.status).toBe("unconfirmed");
   });
 
   it("aggregates three trial records into mean/range/reliability output", () => {

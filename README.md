@@ -187,7 +187,12 @@ comment with that diff.
 Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
 pass rate, observed range, exact pass³ count, harness version, run batch,
 successful-attempt latency, retry-inclusive duration/tokens/cost, and links to
-the source trial artifacts. After
+the source trial artifacts. Runtime
+recomposition is allowed only when the generated pack matches the committed
+human-approved content hash; the staged approval is then enforced by the normal
+`exec-plan` review gate. Each trial also records `cleanup.json`. A failed or
+resumed lane stops before the next trial unless namespace cleanup is confirmed;
+production runs cannot skip reset. After
 running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
