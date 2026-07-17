@@ -3,6 +3,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import type { GeneratedReportSnapshot } from "./snapshot.js";
 import { tasksForSurface, type SurfaceId } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import type { ResetResult } from "../target/reset.js";
 import { daebCompiledPackPath } from "./benchmark-paths.js";
 
 export const DAEB_LOW_PASS_SCHEMA = "ax.low-coverage-pass/v1" as const;
@@ -43,6 +44,106 @@ export interface LowPassManifest {
   profile: "medium";
   execution_mode: "task";
   surfaces: LowPassSurfaceRecord[];
+}
+
+export interface LowPassLoadedResult<T extends { ns?: string } = { ns?: string }> {
+  path: string;
+  result?: T;
+  error?: string;
+}
+
+export function loadLowPassResults<T extends { ns?: string }>(
+  paths: string[],
+  load: (path: string) => T,
+): LowPassLoadedResult<T>[] {
+  return paths.map((path) => {
+    try {
+      return { path, result: load(path) };
+    } catch (error) {
+      return { path, error: error instanceof Error ? error.message : String(error) };
+    }
+  });
+}
+
+export async function cleanupLowPassResults<T extends { ns?: string }>(opts: {
+  loadedResults: LowPassLoadedResult<T>[];
+  missingResultPaths: string[];
+  skipReset: boolean;
+  reset: (result: T) => Promise<ResetResult>;
+}): Promise<NonNullable<LowPassSurfaceRecord["reset"]>> {
+  if (opts.skipReset) {
+    return { performed: false, supported: true, message: "skip-reset requested", errors: [] };
+  }
+  const results = await Promise.all(opts.loadedResults.map(async (loaded) => {
+    if (loaded.error) {
+      return {
+        supported: false,
+        message: `cannot parse ${loaded.path}: ${loaded.error}`,
+        errors: [`unreadable result ${loaded.path}: ${loaded.error}`],
+      };
+    }
+    if (!loaded.result?.ns) {
+      return {
+        supported: false,
+        message: `no ns recorded in ${loaded.path}`,
+        errors: [`missing result namespace for ${loaded.path}`],
+      };
+    }
+    try {
+      const resetResult = await opts.reset(loaded.result);
+      return {
+        supported: resetResult.supported && resetResult.errors.length === 0,
+        message: resetResult.message,
+        errors: resetResult.errors,
+      };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return {
+        supported: false,
+        message: `reset ns=${loaded.result.ns} failed: ${message}`,
+        errors: [message],
+      };
+    }
+  }));
+  return {
+    performed: true,
+    supported: opts.missingResultPaths.length === 0 && results.every((result) => result.supported),
+    message: [
+      ...results.map((result) => result.message),
+      ...opts.missingResultPaths.map((path) => `missing result; cleanup cannot be confirmed for ${path}`),
+    ].join(" | "),
+    errors: [
+      ...results.flatMap((result) => result.errors),
+      ...opts.missingResultPaths.map((path) => `missing result namespace for ${path}`),
+    ],
+  };
+}
+
+export function lowPassSafetyIssues(opts: {
+  invocationErrors: string[];
+  missingResultPaths: string[];
+  cleanupSupported: boolean;
+  cleanupMessage: string;
+  verifyError?: string;
+  snapshotValid: boolean;
+}): string[] {
+  return [
+    ...opts.invocationErrors.map((error) => `invocation failed: ${error}`),
+    ...opts.missingResultPaths.map((path) => `missing result: ${path}`),
+    ...(opts.cleanupSupported ? [] : [`cleanup unconfirmed: ${opts.cleanupMessage}`]),
+    ...(!opts.snapshotValid && opts.verifyError ? [`verification artifact invalid: ${opts.verifyError}`] : []),
+  ];
+}
+
+export function persistLowPassSurfaceOutcome(opts: {
+  manifestPath: string;
+  manifest: LowPassManifest;
+  record: LowPassSurfaceRecord;
+  safety: Parameters<typeof lowPassSafetyIssues>[0];
+}): { manifest: LowPassManifest; unsafeReasons: string[] } {
+  const manifest = upsertLowPassSurfaceRecord(opts.manifest, opts.record);
+  writeFileSync(opts.manifestPath, JSON.stringify(manifest, null, 2) + "\n");
+  return { manifest, unsafeReasons: lowPassSafetyIssues(opts.safety) };
 }
 
 export function upsertLowPassSurfaceRecord(

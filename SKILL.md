@@ -271,6 +271,13 @@ normalized record reports the three-trial mean and range. SDK and MCP should
 not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
 
+The command recomposes a run-scoped pack only when it exactly matches the
+committed human-approved pack, stages that approval, and runs through the normal
+review gate. Each trial writes `cleanup.json` after verification. If invocation
+or reset fails and cleanup cannot be confirmed, the workflow stops before the
+next trial. Inspect the preserved artifacts and perform an explicit namespace
+reset before retrying; do not delete evidence before verification.
+
 Before human **publication** freeze, regenerate into the same DAEB-1 v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and
 content hashes identify exact drafts, and any content change invalidates prior

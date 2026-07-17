@@ -150,6 +150,11 @@ fields. Any edit to the pack re-closes the gate on both tracks. `exec-plan`
 refuses an un-reviewed or edited pack unless `--skip-review`. Do not bypass this
 in code.
 
+DAEB orchestration may recompose a run-scoped pack for provenance, but it must
+first prove that the result matches the committed human-approved content hash.
+The approval sidecar is then staged beside the run-scoped pack and `exec-plan`
+performs its ordinary review check; orchestration does not use `--skip-review`.
+
 ## Tool track
 
 Layout:
@@ -207,7 +212,10 @@ DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
 The production lane (`daeb-production-rerun`) is narrower than the generic
 engine: `api` and `cli` only, Codex and Claude Code only, one medium-effort model
 per harness, three trials plus aggregate per supported cell. SDK evidence is
-research-only for v1 scoring.
+research-only for v1 scoring. Harness lanes settle before the workflow advances,
+and every trial persists cleanup status after verification. Missing namespaces,
+unsupported resetters, reset errors, or stale runs without confirmed cleanup
+halt the lane rather than contaminating the next trial.
 
 Publication boundary: `publication-bundle` then `export-publication`. `ax-eval`
 owns benchmark truth and artifacts; an `axarena` app imports exported indexes

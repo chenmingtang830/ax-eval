@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from "node:fs";
 import { basename, dirname, relative, resolve, sep } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
+import type { ResetResult } from "../target/reset.js";
 import type { NormalizedResult } from "./record.js";
 import { aggregateNormalizedResults } from "./record.js";
 import { DAEB_VENDOR_ORDER, DAEB_V1_EXECUTION_SURFACES } from "./low-pass.js";
@@ -11,6 +12,7 @@ export const DAEB_PRODUCTION_TRIAL_COUNT = 3 as const;
 export const DAEB_PRODUCTION_EFFORT = "medium" as const;
 export const DAEB_PRODUCTION_HARNESSES = ["codex", "claude-code"] as const;
 export const DAEB_PRODUCTION_SURFACES = [...DAEB_V1_EXECUTION_SURFACES] as const;
+export const DAEB_RUN_CLEANUP_SCHEMA = "ax.daeb-run-cleanup/v1" as const;
 
 export interface ProductionTrialRecord {
   trial: number;
@@ -20,6 +22,59 @@ export interface ProductionTrialRecord {
   report_html?: string;
   classification_path?: string;
   result_paths: string[];
+}
+
+export interface RunCleanupRecord {
+  schema: typeof DAEB_RUN_CLEANUP_SCHEMA;
+  generated_at: string;
+  status: "confirmed" | "skipped" | "unconfirmed";
+  namespace?: string;
+  message: string;
+  errors: string[];
+}
+
+export function runCleanupPath(runDir: string): string {
+  return resolve(runDir, "cleanup.json");
+}
+
+export function cleanupRecordFromReset(namespace: string, result: ResetResult): RunCleanupRecord {
+  const confirmed = result.supported && result.errors.length === 0;
+  return {
+    schema: DAEB_RUN_CLEANUP_SCHEMA,
+    generated_at: new Date().toISOString(),
+    status: confirmed ? "confirmed" : "unconfirmed",
+    namespace,
+    message: result.message,
+    errors: result.errors,
+  };
+}
+
+export function writeRunCleanupRecord(runDir: string, record: RunCleanupRecord): string {
+  mkdirSync(runDir, { recursive: true });
+  const path = runCleanupPath(runDir);
+  writeFileSync(path, JSON.stringify(record, null, 2) + "\n");
+  return path;
+}
+
+export function readRunCleanupRecord(runDir: string): RunCleanupRecord | null {
+  const path = runCleanupPath(runDir);
+  if (!existsSync(path)) return null;
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as RunCleanupRecord;
+    return parsed.schema === DAEB_RUN_CLEANUP_SCHEMA ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function assertRunCleanupConfirmed(runDir: string, skipReset: boolean): void {
+  if (skipReset) return;
+  const record = readRunCleanupRecord(runDir);
+  if (record?.status === "confirmed") return;
+  throw new Error(
+    `Cannot safely resume ${runDir}: cleanup is not confirmed. ` +
+    "Inspect the run artifacts, reset the recorded namespace manually, then remove or repair the stale trial directory.",
+  );
 }
 
 export interface ProductionAggregateManifest {
