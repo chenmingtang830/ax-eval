@@ -70,6 +70,42 @@ export interface InvokeRunOptions {
   env?: Record<string, string>;
   /** Non-secret provisioning metadata written to the invoke meta artifact. */
   provisioning?: Record<string, unknown>;
+  /** Result of the already-required harness detection probe. Passing it through
+   *  avoids a second `--version` call and makes the detected version durable. */
+  harnessDetection?: InvokeDetection;
+  /** Stable identifier shared by comparable runs from the same execution batch. */
+  runBatchId?: string;
+}
+
+export interface InvokeHarnessMetrics {
+  harness_version_raw: string | null;
+  harness_version_semver: string | null;
+  run_batch_id: string | null;
+  /** Successful attempt wall time (or the final failed attempt when none pass). */
+  duration_ms: number | null;
+  /** Wall time consumed by every attempt, including failed retries. */
+  total_duration_ms: number;
+  /** Native harness-reported dollars. Codex is intentionally null. */
+  cost_usd: number | null;
+  /** Native token counters summed across every attempt. */
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+}
+
+export interface InvokeAttemptMetrics {
+  attempt: number;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  ok: boolean;
+  exit_code: number | null;
+  signal: NodeJS.Signals | null;
+  timed_out: boolean;
+  timeout_reason?: "wall" | "first-action";
+  cost_usd: number | null;
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+  harness_duration_ms: number | null;
 }
 
 export type InvokeValidityStatus =
@@ -109,6 +145,8 @@ export interface InvokeRunResult {
   first_action_latency_ms?: number | null;
   transcript_event_count?: number;
   action_occurred?: boolean;
+  metrics?: InvokeHarnessMetrics;
+  attempt_metrics?: InvokeAttemptMetrics[];
 }
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -513,6 +551,119 @@ function modelFromJson(json: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function addMetric(target: Record<string, number>, key: string, value: unknown): void {
+  const n = finiteNumber(value);
+  if (n !== undefined) target[key] = (target[key] ?? 0) + n;
+}
+
+function tokenUsageFrom(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  addMetric(out, "input_tokens", record.input_tokens ?? record.inputTokens);
+  addMetric(out, "output_tokens", record.output_tokens ?? record.outputTokens);
+  addMetric(out, "cached_input_tokens", record.cached_input_tokens ?? record.cachedInputTokens);
+  addMetric(out, "cache_read_input_tokens", record.cache_read_input_tokens ?? record.cacheReadInputTokens);
+  addMetric(out, "cache_creation_input_tokens", record.cache_creation_input_tokens ?? record.cacheCreationInputTokens);
+  addMetric(out, "total_tokens", record.total_tokens ?? record.totalTokens);
+  if (out.total_tokens === undefined && (out.input_tokens !== undefined || out.output_tokens !== undefined)) {
+    out.total_tokens = (out.input_tokens ?? 0) + (out.output_tokens ?? 0);
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function mergeUsage(
+  target: Record<string, number>,
+  source: Record<string, number> | null | undefined,
+): void {
+  if (!source) return;
+  for (const [key, value] of Object.entries(source)) target[key] = (target[key] ?? 0) + value;
+}
+
+function claudeUsage(json: Record<string, unknown>): Record<string, number> | null {
+  const direct = tokenUsageFrom(json.usage);
+  if (direct) return direct;
+  const modelUsage = json.modelUsage;
+  if (!modelUsage || typeof modelUsage !== "object" || Array.isArray(modelUsage)) return null;
+  const total: Record<string, number> = {};
+  for (const usage of Object.values(modelUsage as Record<string, unknown>)) mergeUsage(total, tokenUsageFrom(usage));
+  return Object.keys(total).length ? total : null;
+}
+
+interface ParsedHarnessMetrics {
+  model?: string;
+  cost_usd: number | null;
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+  harness_duration_ms: number | null;
+}
+
+/** Parse each harness's native event shape once. Claude's final result carries
+ *  cost, usage, duration and turns. Codex emits token usage on turn.completed
+ *  but does not report dollars, so cost_usd remains explicitly null. */
+function parseHarnessMetrics(harness: InvokeHarnessId, raw: string): ParsedHarnessMetrics {
+  let model: string | undefined;
+  let costUsd: number | null = null;
+  let numTurns: number | null = null;
+  let harnessDurationMs: number | null = null;
+  const usage: Record<string, number> = {};
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    model = modelFromJson(event) ?? model;
+    if (harness === "claude-code" && event.type === "result") {
+      costUsd = finiteNumber(event.total_cost_usd) ?? costUsd;
+      numTurns = finiteNumber(event.num_turns) ?? numTurns;
+      harnessDurationMs = finiteNumber(event.duration_ms) ?? harnessDurationMs;
+      mergeUsage(usage, claudeUsage(event));
+    }
+    if (harness === "codex" && event.type === "turn.completed") {
+      mergeUsage(usage, tokenUsageFrom(event.usage));
+    }
+  }
+  return {
+    model,
+    cost_usd: harness === "claude-code" ? costUsd : null,
+    token_usage: Object.keys(usage).length ? usage : null,
+    num_turns: numTurns,
+    harness_duration_ms: harnessDurationMs,
+  };
+}
+
+function semverFromVersion(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return raw.match(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\b/)?.[1] ?? null;
+}
+
+function summarizeInvokeMetrics(opts: InvokeRunOptions, attempts: InvokeAttemptMetrics[]): InvokeHarnessMetrics {
+  const selected = [...attempts].reverse().find((attempt) => attempt.ok) ?? attempts.at(-1);
+  const tokenUsage: Record<string, number> = {};
+  for (const attempt of attempts) mergeUsage(tokenUsage, attempt.token_usage);
+  const costs = attempts.flatMap((attempt) => typeof attempt.cost_usd === "number" ? [attempt.cost_usd] : []);
+  const turns = attempts.flatMap((attempt) => typeof attempt.num_turns === "number" ? [attempt.num_turns] : []);
+  const rawVersion = opts.harnessDetection?.version?.trim() || null;
+  return {
+    harness_version_raw: rawVersion,
+    harness_version_semver: semverFromVersion(rawVersion ?? undefined),
+    run_batch_id: opts.runBatchId?.trim() || null,
+    duration_ms: selected?.duration_ms ?? null,
+    total_duration_ms: attempts.reduce((sum, attempt) => sum + attempt.duration_ms, 0),
+    cost_usd: opts.harness === "claude-code" && costs.length ? costs.reduce((sum, value) => sum + value, 0) : null,
+    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
+    num_turns: turns.length ? turns.reduce((sum, value) => sum + value, 0) : null,
+  };
+}
+
 /** Read the model the harness ACTUALLY ran as out of its stdout, so the report
  *  records ground truth instead of a hardcoded profile label. Handles both
  *  shapes: a single JSON object (`--output-format json`, Codex), and NDJSON
@@ -554,7 +705,7 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
-function stampResultFile(opts: InvokeRunOptions): { ok: boolean; error?: string } {
+function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics): { ok: boolean; error?: string } {
   if (!existsSync(opts.paths.resultsPath)) return { ok: true };
   let parsed: Record<string, unknown>;
   try {
@@ -573,6 +724,7 @@ function stampResultFile(opts: InvokeRunOptions): { ok: boolean; error?: string 
   // doesn't carry the model in its output, so fall back to its stderr banner.
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
+  parsed.metrics = metrics;
   normalizeDiscoveryResult(parsed, opts.pack);
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
   return { ok: true };
@@ -826,8 +978,11 @@ export async function runInvokeHarness(
   let ok = false;
   let stdout = "";
   let stderr = "";
+  const attemptMetrics: InvokeAttemptMetrics[] = [];
   while (attempt < maxAttempts) {
     attempt += 1;
+    const attemptStarted = new Date();
+    const attemptStartedMs = Date.now();
     res = await spawnAsync(command, args, opts.cwd, {
       timeoutMs: opts.timeoutMs,
       firstActionTimeoutMs: opts.firstActionTimeoutMs,
@@ -842,6 +997,23 @@ export async function runInvokeHarness(
       !res.error &&
       existsSync(opts.paths.resultsPath) &&
       (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
+    const nativeMetrics = parseHarnessMetrics(opts.harness, stdout);
+    const attemptFinished = new Date();
+    attemptMetrics.push({
+      attempt,
+      started_at: attemptStarted.toISOString(),
+      finished_at: attemptFinished.toISOString(),
+      duration_ms: Date.now() - attemptStartedMs,
+      ok,
+      exit_code: res.status ?? null,
+      signal: res.signal ?? null,
+      timed_out: res.timedOut ?? false,
+      timeout_reason: res.timeoutReason,
+      cost_usd: nativeMetrics.cost_usd,
+      token_usage: nativeMetrics.token_usage,
+      num_turns: nativeMetrics.num_turns,
+      harness_duration_ms: nativeMetrics.harness_duration_ms,
+    });
     if (ok || attempt >= maxAttempts) break;
     // Failed and a retry is left: drop any partial results file so the next
     // attempt is scored on its own output, not stale leftovers.
@@ -866,13 +1038,14 @@ export async function runInvokeHarness(
         ? `harness ${opts.harness} timed out before first action after ${Math.round((opts.firstActionTimeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
         : `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
       : undefined);
+  const metrics = summarizeInvokeMetrics(opts, attemptMetrics);
   let stamp: { ok: boolean; error?: string } = { ok: true };
   if (existsSync(opts.paths.resultsPath)) {
-    stamp = stampResultFile(opts);
+    stamp = stampResultFile(opts, metrics);
   } else {
     const reason = redactHarnessArtifactText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
     writeFailureArtifacts(opts, reason);
-    stamp = stampResultFile(opts);
+    stamp = stampResultFile(opts, metrics);
   }
   redactFileIfExists(opts.paths.resultsPath);
   redactFileIfExists(opts.paths.tracePath);
@@ -909,6 +1082,8 @@ export async function runInvokeHarness(
     first_action_latency_ms: runtimeDiagnostics.first_action_latency_ms,
     transcript_event_count: runtimeDiagnostics.transcript_event_count,
     action_occurred: runtimeDiagnostics.action_occurred,
+    metrics,
+    attempt_metrics: attemptMetrics,
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,

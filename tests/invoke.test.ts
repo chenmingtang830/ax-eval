@@ -551,6 +551,86 @@ describe("runInvokeHarness", () => {
     expect(result.attempts).toBe(2);
   });
 
+  it("persists harness version and sums Claude retry cost/tokens while keeping per-attempt latency", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    let calls = 0;
+    const spawn: AsyncSpawn = async () => {
+      calls += 1;
+      const stdout = JSON.stringify({
+        type: "result",
+        subtype: calls === 1 ? "error" : "success",
+        total_cost_usd: calls === 1 ? 0.1 : 0.2,
+        usage: {
+          input_tokens: calls === 1 ? 100 : 200,
+          output_tokens: calls === 1 ? 10 : 20,
+          cache_read_input_tokens: calls === 1 ? 5 : 7,
+        },
+        duration_ms: calls === 1 ? 900 : 1200,
+        num_turns: calls,
+        modelUsage: { "claude-sonnet-5": { outputTokens: calls === 1 ? 10 : 20 } },
+      });
+      if (calls === 1) return spawnResult({ status: 1, stdout: Buffer.from(stdout) });
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(stdout) });
+    };
+    const result = await runInvokeHarness({
+      ...run,
+      retries: 1,
+      harnessDetection: { ok: true, command: "claude", version: "2.1.5 (Claude Code)" },
+      runBatchId: "batch-20260718",
+    }, spawn);
+
+    expect(result.metrics).toMatchObject({
+      harness_version_raw: "2.1.5 (Claude Code)",
+      harness_version_semver: "2.1.5",
+      run_batch_id: "batch-20260718",
+      token_usage: { input_tokens: 300, output_tokens: 30, cache_read_input_tokens: 12, total_tokens: 330 },
+      num_turns: 3,
+    });
+    expect(result.metrics?.cost_usd).toBeCloseTo(0.3);
+    expect(result.attempt_metrics).toHaveLength(2);
+    expect(result.attempt_metrics?.every((attempt) => typeof attempt.duration_ms === "number")).toBe(true);
+    expect(result.attempt_metrics?.[0]?.ok).toBe(false);
+    expect(result.attempt_metrics?.[1]?.ok).toBe(true);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.metrics.cost_usd).toBeCloseTo(0.3);
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.attempt_metrics).toHaveLength(2);
+  });
+
+  it("captures Codex turn token usage and leaves dollar cost null", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(JSON.stringify({
+        type: "turn.completed",
+        usage: { input_tokens: 450, cached_input_tokens: 50, output_tokens: 75 },
+      })) });
+    };
+    const result = await runInvokeHarness({
+      ...run,
+      harnessDetection: { ok: true, command: "codex", version: "codex-cli 0.121.0" },
+    }, spawn);
+    expect(result.metrics?.cost_usd).toBeNull();
+    expect(result.metrics?.token_usage).toEqual({
+      input_tokens: 450,
+      output_tokens: 75,
+      cached_input_tokens: 50,
+      total_tokens: 525,
+    });
+    expect(result.metrics?.harness_version_semver).toBe("0.121.0");
+  });
+
   it("passes the timeout cap to the spawn and records a timeout as a failure", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
