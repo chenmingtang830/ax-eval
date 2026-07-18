@@ -20,6 +20,7 @@ const required = new Set([
   "README.md",
   "SKILL.md",
   "dist/cli.js",
+  "schemas/normalized-result.v1.json",
   "targets/README.md",
   "benchmarks/daeb/README.md",
   "benchmarks/daeb/v1/suite.yaml",
