@@ -264,4 +264,17 @@ describe("transcript Codex-surface capture (codex exec --json)", () => {
     expect(disc.endpoint_used).toBe("POST /tasks");
     expect(disc.searches.length).toBeGreaterThan(0);
   });
+
+  it("records SQL wire signals for surface-honesty grading", () => {
+    const text = [
+      codexItem({
+        type: "command_execution",
+        command: "psql \"$NEON_DATABASE_URL\" -c 'SELECT 1'",
+        exit_code: 0,
+        status: "completed",
+      }),
+    ].join("\n");
+    const run = parseTranscriptContent(text);
+    expect(run.wireSignals).toEqual(expect.arrayContaining(["psql", "sql_env"]));
+  });
 });

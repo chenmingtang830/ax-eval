@@ -1,0 +1,66 @@
+schema: ax.extract-advisory/v1
+vendor: Turso
+slug: turso
+generated_at: 2026-07-10T21:01:29.246Z
+findings:
+  - severity: warn
+    topic: surface_auth
+    message: The CLI auth instructions say --headless lets an agent 'complete auth
+      via a printed URL', but Turso's own docs never describe the mechanics of
+      that flow (whether the CLI polls automatically after a human opens the URL
+      elsewhere, or requires manually pasting a code back). The authentication
+      page only names WSL/remote-CI as the use case without describing the
+      handshake, so the extraction cannot substantiate that this bootstrap step
+      is zero-touch — a human is still implied to be needed to open the printed
+      URL and approve login in a browser, which undercuts using it as a fully
+      unattended headless bootstrap for a CI/agent pipeline.
+    doc_url: https://docs.turso.tech/cli/authentication
+    quote: If you're using Windows with WSL or a remote CI/CD environment, pass the
+      `--headless` flag.
+  - severity: warn
+    topic: task_fit
+    message: "'encryption-at-rest' is tagged surfaces_documented:['api'] with
+      support_type 'native', but the cited page shows encryption is actually
+      enabled by invoking a separate binary, `tursodb`, with an
+      `--experimental-encryption` flag and cipher=/hexkey= parameters in a local
+      connection URI — not through any Turso Platform API call. There is no API
+      endpoint to configure encryption on a Turso Cloud database, and the
+      mechanism is explicitly experimental, which the 'api'/'native' tags
+      obscure."
+    doc_url: https://docs.turso.tech/tursodb/encryption.md
+    quote: tursodb --experimental-encryption
+      "file:encrypted.db?cipher=aegis256&hexkey=YOUR_HEX_KEY"
+  - severity: warn
+    topic: task_fit
+    message: "'multi-process-file-access' is tagged surfaces_documented:['sdk'] with
+      support_type 'native' and no caveat, but the doc scopes it strictly to a
+      database file on a local POSIX filesystem and explicitly excludes
+      network/distributed filesystems. This has nothing to do with a Turso Cloud
+      database reached over the SDK's libsql:// connection
+      (TURSO_DATABASE_URL/TURSO_AUTH_TOKEN) — an agent operating only against a
+      hosted database cannot use this capability at all."
+    doc_url: https://docs.turso.tech/sql-reference/multiprocess-access.md
+    quote: The database must live on a local filesystem that implements POSIX
+      byte-range locks and mmap correctly.
+  - severity: info
+    topic: task_fit
+    message: "'vector-similarity-search' carries support_type 'native' implying full
+      support, but the same doc set discloses there is no index-backed path:
+      every similarity query is a full table scan. For a DAEB task requiring
+      vector search over a growing corpus, this caveat (already present in the
+      evidence but not reflected in the 'native' classification) materially
+      limits scalability versus a vendor with ANN indexing."
+    doc_url: https://docs.turso.tech/sql-reference/functions/vector.md
+    quote: Vector indexes are not yet supported. All similarity searches use a
+      linear scan over the table.
+  - severity: info
+    topic: self_service
+    message: "'external-identity-provider-auth' is workable self-service today, but
+      two constraints aren't reflected in the capability's plain 'native' tag:
+      (1) it is Beta and limited to exactly two OIDC providers, and (2) skipping
+      a custom JWT permission template silently produces a token scoped to every
+      database in every group in the org — an easy self-service misconfiguration
+      with a large blast radius for an agent-provisioned credential."
+    doc_url: https://docs.turso.tech/sdk/authorization/jwks.md
+    quote: the generated tokens will have access to all databases in all groups by
+      default

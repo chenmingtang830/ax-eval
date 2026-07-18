@@ -1,0 +1,1230 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+schema: ax.capability-inventory/v1
+vendor: Nile
+slug: nile
+category: database
+extracted_at: 2026-07-10T00:46:44.541Z
+extraction_context:
+  mode: openapi-seeded-grounded
+  harness: claude-code
+  model: claude-sonnet-5
+  spec_url: https://global.thenile.dev/openapi.yaml
+  notes: OpenAPI/registry seed used as candidate surface; WebFetch gap-filled
+    against live docs.
+audit_status: candidate
+audit_notes:
+  - OpenAPI-seeded + grounded candidate inventory; citations require human
+    review before publication.
+  - 1 capabilities include non-direct evidence and require reviewer confirmation
+    before publication.
+  - "Post-extract audit: 3 inventory finding(s)."
+capabilities:
+  - capability_name: table-creation
+    title: Table Creation
+    description: Create Postgres tables with typed columns to define the structure
+      for storing rows.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/createtable.md
+        quote: A PostgreSQL table is a structured storage object that organizes data
+          into rows and columns.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-alteration
+    title: Schema Alteration (ALTER TABLE)
+    description: Add columns to an existing table via ALTER TABLE, evolving the
+      schema in place.
+    resource_kind: table
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/createtable.md
+        quote: To add a new column to an existing table, you use the ALTER TABLE
+          statement
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: primary-key-constraint
+    title: Primary Key Constraint
+    description: Define a column or set of columns that uniquely identifies each row
+      in a table.
+    resource_kind: constraint
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/createtable.md
+        quote: A primary key is a column or a set of columns that uniquely identifies
+          each row in a table
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: foreign-key-constraint
+    title: Foreign Key Constraint
+    description: Establish referential-integrity links between rows in two tables.
+    resource_kind: constraint
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/createtable.md
+        quote: A foreign key is a column or a set of columns that establishes a link
+          between data in two tables
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-view
+    title: View Creation
+    description: Create, query, replace, and drop virtual tables (views) generated
+      from a query.
+    resource_kind: view
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/views.md
+        quote: Views in PostgreSQL are virtual tables that are generated based on the
+          result of a query.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-introspection
+    title: Schema Introspection
+    description: Inspect table and schema metadata using standard Postgres tools;
+      some GUI clients restrict table creation to the SQL/query editor rather
+      than a visual designer.
+    resource_kind: table
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/tools/psql.md
+        quote: You can now use the full power of psql with Nile
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/tools/pgadmin.md
+        quote: You cannot create a table through the UI editor. You can create a table
+          through the query editor
+        note: shows introspection/DDL is SQL-driven rather than exposed as a dedicated
+          schema API
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: shared-table
+    title: Shared (Cross-Tenant) Table
+    description: Create a table without a tenant_id column so its data is visible to
+      all tenants, for reference/lookup data shared across the app.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
+        quote: To create a shared table, you must create a standard table without a
+          tenant_id column. Nile ensures that the data in the shared table is
+          available across all tenants.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-partitioned-table
+    title: Tenant-Partitioned Table
+    description: Create tables with tenant_id embedded in the primary key so each
+      tenant's rows are physically isolated into exclusive pages.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
+        quote: A simplified version will have a 'candidates' table that tracks all
+          candidates in flight...private to each company using the recruiting
+          product.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/getting-started/architecture.md
+        quote: tables are either tenant-specific or shared. Each page of a tenant table
+          belongs exclusively to one tenant
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: json-document-type
+    title: JSON/JSONB Document Storage
+    description: Store and query semi-structured data using JSON/JSONB columns with
+      dedicated operators and GIN indexing.
+    resource_kind: column
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/datatype/json.md
+        quote: "Better Performance: `jsonb` allows indexing, making it faster for
+          querying and retrieval."
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/datatype/json.md
+        quote: GIN (Generalized Inverted Index) indexes accelerate searches within
+          `jsonb` fields
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: array-data-type
+    title: Array Data Type
+    description: Store multi-dimensional arrays in a column and operate on them with
+      concatenation, containment, unnest, and aggregation functions.
+    resource_kind: column
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/datatype/arrays.md
+        quote: Adding a new value to an existing integer array [using] pay_by_quarter ||
+          ARRAY[40].
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: numeric-precision-types
+    title: Numeric & Auto-Increment Types
+    description: Arbitrary-precision NUMERIC/DECIMAL, floating point types, and
+      auto-incrementing SERIAL/BIGSERIAL identifier columns.
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/datatype/numeric.md
+        quote: "NUMERIC (or DECIMAL): Stores exact numbers with an arbitrary precision."
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/datatype/numeric.md
+        quote: "SERIAL, BIGSERIAL, SMALLSERIAL: Auto-incrementing integer types."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: temporal-data-types
+    title: Date/Time Types
+    description: Store dates, timezone-aware timestamps, and durations (intervals)
+      with a wide historical/future range.
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/datatype/date.md
+        quote: "Range: 4713 BC to 5874897 AD"
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/datatype/date.md
+        quote: Represents a duration of time (e.g., event duration)
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: character-string-types
+    title: Character/String Types
+    description: Store fixed-length, variable-length, and unlimited-length text
+      using char, varchar, and text types.
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/datatype/character.md
+        quote: Variable-length character type. Can store strings up to `n` characters
+          (not bytes) in length.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: secondary-index
+    title: Secondary Indexing
+    description: Create B-Tree, Hash, GiST, GIN, or BRIN indexes to accelerate
+      different query access patterns.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/indexes.md
+        quote: They excel in handling equality and range queries. Common operators
+          include `=`, `<`, `>`, `BETWEEN`, and `IN`.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/indexes.md
+        quote: GIN indexes are ideal for data values with multiple components, like
+          arrays.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: relational-joins
+    title: Relational Joins
+    description: Combine rows across tables using INNER, LEFT, RIGHT, and FULL OUTER joins.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/joins.md
+        quote: Returns records with matching values in both tables.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-shared-join
+    title: Tenant-to-Shared-Table Join
+    description: Join tenant-partitioned tables with shared tables in a single query
+      to combine tenant-specific and global reference data.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
+        quote: Tenant aware tables can be joined with shared tables to provide relevant
+          information for a specific tenant.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-context-scoping
+    title: Tenant Context Scoping
+    description: Set a session/connection-level tenant context (e.g. nile.tenant_id)
+      so subsequent reads and writes are automatically scoped to one tenant
+      without explicit WHERE clauses.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
+        quote: Setting a session context to a specific tenant is equivalent to pointing
+          the connection to a specific tenant DB.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/auth/concepts/tenants.md
+        quote: No need for a 'where' clause here because we are setting the tenant ID in
+          the context
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: postgres-protocol-compatibility
+    title: Postgres Protocol/SQL Compatibility
+    description: Full wire-protocol and application compatibility with Postgres 15,
+      enabling standard SQL querying (SELECT/WHERE/ORDER/aggregates) and reuse
+      of the Postgres ecosystem's tools.
+    resource_kind: database
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/postgres/postgres-compatibility.md
+        quote: Nile's Postgres is built 100% on Postgres and is protocol and
+          application-compatible with Postgres
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-insert-update-delete
+    title: Row Insert/Update/Delete
+    description: Mutate rows using standard SQL DML (INSERT/UPDATE/DELETE) via SQL,
+      SDKs, or REST APIs.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
+        quote: Inserting a new customer or tenant could use SQL, one of our SDKs or REST
+          APIs.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: bulk-data-import
+    title: Bulk Data Import
+    description: Import data from CSV/text files into database tables via the CLI
+      copy command, with custom delimiters and column mapping.
+    resource_kind: table
+    operation_kind: import
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/cli/interacting_db.md
+        quote: Import data from files into database tables
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-statement-transaction
+    title: Multi-Table Transactions
+    description: Execute writes to multiple shared tables within a single ACID transaction.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-sharing.md
+        quote: It is possible to do writes to multiple shared tables in the same
+          transaction.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration
+    title: ORM Schema Migrations
+    description: Track and apply schema changes via third-party ORM migration
+      tooling (Prisma, Drizzle Kit, Alembic, Django), including baselining
+      Nile's built-in tenants table.
+    resource_kind: schema
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/getting-started/schema_migrations/prisma.md
+        quote: we first create a baseline migration that will include the built-in
+          tables, and then create additional migrations
+        strength: direct
+      - doc_url: https://thenile.dev/docs/getting-started/schema_migrations/alembic.md
+        quote: Since Nile has a built-in `Tenants` table that can't be dropped, we
+          include the `Tenant` model in models.py to prevent this.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: distributed-schema-propagation
+    title: Distributed DDL Propagation
+    description: A central schema store uses distributed transactions to apply a
+      single DDL statement to every tenant partition automatically.
+    resource_kind: schema
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/getting-started/architecture.md
+        quote: A central schema store employs distributed transactions to apply schemas
+          to every tenant during DDL execution
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-security
+    title: Tenant Data Isolation (RLS-equivalent)
+    description: Enforces per-tenant data isolation at the connection/session level
+      rather than via native Postgres RLS policies, which Nile does not yet
+      support.
+    resource_kind: row
+    operation_kind: filter
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-isolation.md
+        quote: When no tenant context is set, the connection can access across all the
+          tenant DBs...any region, multitenant or dedicated infrastructure.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/postgres/postgres-compatibility.md
+        quote: Row level security policies are not supported yet
+        note: confirms isolation is achieved via session-context routing, not native RLS
+          policies
+        strength: inferred
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: jwt-session-auth
+    title: JWT Session Authentication
+    description: Issue stateless JWTs for email/password-authenticated sessions that
+      a server can verify without a database call.
+    resource_kind: token
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/concepts/jwt.md
+        quote: The server can verify the JWT without having to maintain a session on the
+          server side or making database calls.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: oauth-sso-login
+    title: OAuth / SSO Login
+    description: Authenticate users via third-party OAuth/SSO providers using an
+      authorization-code flow proxied through the developer's backend.
+    resource_kind: session
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/concepts/oauth.md
+        quote: Your backend service proxy's Nile auth's API, you can intercept errors
+          for your users and handle them accordingly
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-factor-authentication
+    title: Multi-Factor Authentication
+    description: Enroll and challenge users with TOTP authenticator apps or email
+      one-time codes, including recovery keys and method removal.
+    resource_kind: user
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/concepts/multifactor.md
+        quote: "For Authenticator: An `otpauthUrl` (for QR code generation), a `secret`,
+          and initial `recoveryKeys`. For Email: A `maskedEmail` and a `token`
+          to be used for verification."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: passwordless-magic-link-auth
+    title: Passwordless Magic Link Auth
+    description: Send a time-limited (4-hour) magic link that auto-exchanges for a
+      session and logs the user in on click.
+    resource_kind: session
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/magiclink.md
+        quote: Clicking the link automatically exchanges the token for a session, logs
+          them into your application and redirects them to the `callbackUrl`.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: session-management
+    title: Session Lifecycle Management
+    description: Create sessions on login, expire them after a default 30-day
+      window, and revoke database-backed sessions to force logout across all
+      tenants.
+    resource_kind: session
+    operation_kind: delete
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/concepts/sessions.md
+        quote: You can revoke a database session by deleting it from the database. This
+          will cause the user to be logged out of *all* tenants the next time
+          they make a request.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: user-tenant-membership
+    title: User-Tenant Membership Management
+    description: Link or unlink users to/from tenants, invite new users by email to
+      a tenant, and list a tenant's users.
+    resource_kind: user
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/concepts/users.md
+        quote: To add a user to a tenant, use `linkUser`
+        strength: direct
+      - doc_url: https://thenile.dev/docs/auth/api-reference/users/unlinks-a-user-from-a-tenant.md
+        quote: Marks a user to be deleted from the tenant. It does not remove the user
+          from other tenants or invalidate active sessions.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-lifecycle-management
+    title: Tenant CRUD Lifecycle
+    description: Create, read, update (rename), and soft-delete tenants, with
+      optional cascading delete of the tenant's associated data.
+    resource_kind: tenant
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/api-reference/tenants/delete-a-tenant.md
+        quote: sets a tenant for delete in the database
+        strength: direct
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-management.md
+        quote: If the schema has cascading set, all the tenants data will be deleted
+          when a tenant is removed from the tenants table.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-region-placement
+    title: Tenant Geographic Placement
+    description: Place a tenant's data in a specific geographic region at creation
+      time and track its provisioning readiness via a status field.
+    resource_kind: tenant
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
+        quote: locate a tenant in any location globally while creating the tenant
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-migration
+    title: Tenant Region Migration
+    description: Move an existing tenant's data to a different region via a simple
+      update operation.
+    resource_kind: tenant
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
+        quote: support the ability to move tenants from one location to another with a
+          simple update
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-infrastructure-isolation
+    title: Tenant Dedicated Infrastructure Placement
+    description: Assign specific tenants to dedicated compute/infrastructure rather
+      than shared multi-tenant infrastructure.
+    resource_kind: tenant
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
+        quote: control what infrastructure are specific customers placed
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-credential-management
+    title: Database Credential Management
+    description: Create, list, delete, and rotate Postgres-compatible database
+      credentials (username/password) used to connect to a database.
+    resource_kind: credential
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/api-reference/databases/create-a-database-credential.md
+        quote: Generates a new secure credential for a database. The generated password
+          is returned in the response, and is the only time the password is
+          available in plaintext.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/api-reference/databases/rotate-a-database-credential.md
+        quote: Generates a new credential and schedules existing credentials for
+          deletion after the provided delay.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: api-key-authentication
+    title: API Key Authentication
+    description: Authenticate CLI/automation workflows via a long-lived API key
+      instead of interactive OAuth login.
+    resource_kind: credential
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/cli/connect_nile.md
+        quote: nile --api-key YOUR_API_KEY db list
+        note: API key auth for automated workflows
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: interactive-cli-login
+    title: Interactive CLI OAuth Login
+    description: Authenticate the CLI interactively via a browser-based OAuth flow,
+      check session status, and log out.
+    resource_kind: session
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/cli/connect_nile.md
+        quote: nile connect login opens default browser for secure authentication
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: automated-backup
+    title: Automated Backups
+    description: Databases are automatically backed up three times daily to protect
+      against data loss.
+    resource_kind: backup
+    operation_kind: backup
+    surfaces_documented:
+      - api
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://thenile.dev/docs/support/backup_restore.md
+        quote: We take three backups daily to ensure your data is well-protected.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: point-in-time-restore
+    title: Point-in-Time Restore
+    description: Request restoration of a backup selected based on when a data issue
+      occurred, into a separate schema or a fresh database, via a manual
+      support-mediated process.
+    resource_kind: backup
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://thenile.dev/docs/support/backup_restore.md
+        quote: Upon your request, an appropriate backup, based on the time when the data
+          issue occurred, will be restored.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/support/backup_restore.md
+        quote: Backup will be restored in a separate schema within your database or
+          alternatively into the original schema in an empty database.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: dedicated-compute-provisioning
+    title: Dedicated Compute Provisioning
+    description: Create, list, describe, and delete a dedicated (non-shared) compute
+      instance for a database, with a configurable instance size.
+    resource_kind: compute-instance
+    operation_kind: create
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/api-reference/databases/create-a-dedicated-compute-instance.md
+        quote: Create a dedicated compute instance
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: compute-scaling
+    title: Compute Instance Resize
+    description: Rename and/or resize an existing dedicated compute instance to
+      change its capacity.
+    resource_kind: compute-instance
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/api-reference/databases/update-a-dedicated-compute-instance.md
+        quote: Rename and/or resize a dedicated compute instance.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-region-deployment
+    title: Multi-Region Database Deployment
+    description: List available cloud-provider regions and create databases in a
+      chosen region.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/api-reference/databases/list-available-regions.md
+        quote: Retrieve the list of available region identifiers for a workspace.
+          Identifiers are composed of a prefix indicating the underlying cloud
+          provider followed by a region name in that provider.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/api-reference/databases/create-a-database.md
+        quote: Creates a database record in the control plane and triggers creation in
+          the target region.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: connection-pooling
+    title: Built-in Connection Pooling
+    description: The compute layer includes a built-in connection pooling layer,
+      removing the need for an external pooler.
+    resource_kind: connection
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/getting-started/architecture.md
+        quote: serves as a connection pooling layer, eliminating the need for a separate
+          pooler
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-lifecycle-management
+    title: Database Lifecycle Management
+    description: Create, retrieve, list, and soft-delete databases within a workspace.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/api-reference/databases/delete-a-database.md
+        quote: Marks a database as deleted and queues its data for deletion. The
+          database will no longer appear in your Nile dashboard.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/api-reference/databases/list-databases.md
+        quote: Lists all of the databases in a workspace.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: workspace-management
+    title: Workspace Management
+    description: Create and list workspaces, the organizational containers for
+      databases and developers, each identified by a generated slug.
+    resource_kind: workspace
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.thenile.dev/docs/api-reference/workspaces/create-a-workspace
+        quote: Creates a workspace for the authenticated developer. A workspace slug is
+          generated from the workspace name and used as the workspace
+          identifier.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/api-reference/workspaces/list-workspaces.md
+        quote: Lists all workspaces that an authenticated developer is authorized to
+          use.
+        strength: direct
+      - doc_url: https://thenile.dev/docs/cli/managing_workspaces.md
+        quote: The `list` command shows all workspaces you have access to.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: local-development-environment
+    title: Local Development Environment
+    description: Spin up a Dockerized local Postgres environment via the CLI that
+      mirrors Nile for offline development, then tear it down.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://thenile.dev/docs/cli/local_development.md
+        quote: Start the local environment... Docker container running pre-configured
+          PostgreSQL
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-aware-orm-client
+    title: Tenant-Aware SDK Client
+    description: The SDK exposes a tenant-aware connection-pool `db` object that
+      automatically routes queries to the correct tenant's virtual database
+      based on request context.
+    resource_kind: connection
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/server/db.md
+        quote: When `nile.tenantId` is set, the `db` object will use the correct
+          tenant's virtual database.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: async-request-context
+    title: Async Request Context Propagation
+    description: The SDK propagates tenant/user context across async calls using
+      AsyncLocalStorage so queries are automatically scoped without manual
+      parameter passing.
+    resource_kind: connection
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/overview.md
+        quote: The SDK will try its hardest to use context whenever possible. Under the
+          hood, it uses `AsyncLocalStorage`
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: framework-auth-integration
+    title: Framework Auth Integration
+    description: Pre-built auth route handlers and React UI components (sign-in/up,
+      tenant selector, user info) for Next.js, React, Express, Remix, and Nuxt.
+    resource_kind: session
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/auth/frameworks/nextjs.md
+        quote: SignOutButton, SignUpForm, SignedIn, SignedOut, TenantSelector, UserInfo
+        strength: direct
+      - doc_url: https://thenile.dev/docs/auth/sdk-reference/javascript/server/routes.md
+        quote: Route generation depends on the framework you are using
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-similarity-search
+    title: Vector Similarity Search
+    description: Store embeddings and run exact/approximate nearest-neighbor search
+      using pgvector distance metrics (cosine, Euclidean) with HNSW/IVFFlat
+      indexes.
+    resource_kind: vector
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/ai-embeddings/vectors/pg_vector.md
+        quote: Exact and approximate nearest neighbor search (with optional HNSW and
+          IVFFlat indexes)
+        strength: direct
+      - doc_url: https://thenile.dev/docs/ai-embeddings/vectors/vector_database.md
+        quote: When you search for one vector, the database can efficiently find the
+          'nearest' vectors, based on a distance metric such as cosine
+          similarity or Euclidean distance.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: diskann-vector-indexing
+    title: Disk-Backed ANN Vector Indexing
+    description: The pgvectorscale extension adds DiskANN (disk-backed) approximate
+      nearest-neighbor indexing with quantization for vector search that doesn't
+      fit in memory.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/pgvectorscale.md
+        quote: The `pgvectorscale` extension adds diskANN index support for pgvector
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: tenant-scoped-vector-search
+    title: Tenant-Scoped Vector Search
+    description: Run ANN vector queries scoped to an individual tenant using the
+      nile.tenant_id session parameter, automatically partitioning vector search
+      per tenant.
+    resource_kind: vector
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/ai-embeddings/vectors/diskann.md
+        quote: Execute ANN queries scoped to individual tenants using `SET
+          nile.tenant_id`, enabling multi-tenant vector search with automatic
+          partitioning.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: embedding-generation
+    title: Text Embedding Generation
+    description: Generate vector embeddings from text via supported embedding-model
+      providers for similarity search, clustering, and classification.
+    resource_kind: vector
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/ai-embeddings/embedding_models/overview.md
+        quote: Embedding models are used to convert text into vector embeddings. These
+          embeddings can be used to perform various tasks like similarity
+          search, clustering, and classification.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: hybrid-search-rag
+    title: Hybrid Search / RAG
+    description: Combine full-text/lexical and semantic vector search results with
+      blended scoring to retrieve context for retrieval-augmented generation.
+    resource_kind: vector
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/ai-embeddings/rag.md
+        quote: use each method separately to find the closest matching text... combine
+          the distance score from each method
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: trigram-fuzzy-search
+    title: Trigram Fuzzy Text Search
+    description: The pg_trgm extension enables fast fuzzy string matching and text
+      similarity search using trigrams.
+    resource_kind: column
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/pg_trgm.md
+        quote: The `pg_trgm` extension provides trigram matching capabilities for fast
+          text similarity search and fuzzy string matching in PostgreSQL.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: case-insensitive-text
+    title: Case-Insensitive Text Type
+    description: The citext extension provides a case-insensitive text type usable
+      in columns, indexes, and unique constraints.
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/citext.md
+        quote: queries automatically become case-insensitive
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: key-value-storage
+    title: Key-Value Column Storage
+    description: The hstore extension stores sets of key-value pairs within a single
+      column value.
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/hstore.md
+        quote: The `hstore` extension provides a data type for storing sets of key-value
+          pairs within a single PostgreSQL value.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: uuid-generation
+    title: UUID Generation
+    description: The uuid-ossp extension generates UUIDs (v1/v3/v4/v5), and Nile
+      adds a time-ordered, lexicographically sortable uuid_generate_v7().
+    resource_kind: column
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/uuid-ossp.md
+        quote: Nile includes `public.uuid_generate_v7()` which generates UUIDs with
+          time-ordered lexicographically sortable strings.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: geospatial-support
+    title: Geospatial Data Support
+    description: The PostGIS extension adds storage, querying, and manipulation of
+      spatial/geographic data types.
+    resource_kind: column
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/postgis.md
+        quote: PostGIS extension adds support for geographic objects to PostgreSQL,
+          allowing you to store, query, and manipulate spatial data.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: graph-routing-analysis
+    title: Network Routing Analysis
+    description: The pgRouting extension performs shortest-path,
+      traveling-salesperson, and other routing computations over spatial
+      networks.
+    resource_kind: row
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/pgrouting.md
+        quote: It enables you to perform shortest path calculations, traveling
+          salesperson solutions, and other routing operations on spatial
+          networks like road networks.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: chemical-structure-search
+    title: Cheminformatics Structure Search
+    description: The RDKit extension enables storage and substructure/similarity
+      search over molecular structures.
+    resource_kind: row
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://thenile.dev/docs/extensions/rdkit.md
+        quote: Substructure and similarity searching enables finding molecules with
+          specific patterns or comparable compounds.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T00:00:00Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search-tsvector
+    title: PostgreSQL Full-Text Search with tsvector
+    description: Use PostgreSQL tsvector and tsquery operators to index and filter
+      text content, including JSONB fields, in a Nile database.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://www.thenile.dev/docs/postgres/datatype/json
+        quote: You can perform full-text searches on jsonb columns for specific tenants
+          using to_tsvector().
+        strength: direct
+      - doc_url: https://www.thenile.dev/docs/postgres/datatype/json
+        quote: SELECT * FROM products WHERE tenant_id = $1 AND
+          to_tsvector(details->>'description') @@ to_tsquery('fast &
+          processor');
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-10T00:48:00.000Z
+      extractor: human-review-gap-fill

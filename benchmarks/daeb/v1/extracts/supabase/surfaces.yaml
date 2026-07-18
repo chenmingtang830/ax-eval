@@ -1,0 +1,42 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Supabase
+slug: supabase
+extracted_at: 2026-07-08T10:53:19.797Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - sdk declares token auth but no headless credential env var.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://supabase.com/docs/guides/database/connecting-to-postgres
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Use SUPABASE_DB_URL with psql for PostgreSQL data-plane
+      operations. SUPABASE_ACCESS_TOKEN is reserved for Supabase control-plane
+      CLI operations.
+sdk: null
+mcp:
+  server: https://mcp.supabase.com/mcp
+  transport: http
+  docs_url: https://supabase.com/docs/guides/ai-tools/mcp
+  auth:
+    kind: token
+    token_env: SUPABASE_ACCESS_TOKEN
+    token_env_aliases: []
+    instructions: "Default interactive setup uses OAuth2 dynamic client registration
+      (browser flow — no PAT needed). For CI/headless: pass
+      SUPABASE_ACCESS_TOKEN as the Bearer token in the Authorization header.
+      Optionally scope to one project by appending ?project_ref=<id> to the URL
+      or setting SUPABASE_PROJECT_REF. A local stdio alternative is also
+      available: npx -y @supabase/mcp-server-supabase@latest (requires
+      SUPABASE_ACCESS_TOKEN env var)."

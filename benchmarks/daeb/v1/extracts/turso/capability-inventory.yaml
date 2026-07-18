@@ -1,0 +1,905 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+schema: ax.capability-inventory/v1
+vendor: Turso
+slug: turso
+category: database
+extracted_at: 2026-07-09T05:06:18.785Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  model: claude-sonnet-5
+  notes: Grounded doc-crawl with no OpenAPI seed.
+audit_status: candidate
+audit_notes:
+  - Grounded doc-crawl candidate inventory; citations require human review
+    before publication.
+  - "Post-extract audit: 0 inventory finding(s)."
+capabilities:
+  - capability_name: table-schema-definition
+    title: Table & Column Schema Definition
+    description: Define new tables with typed columns, defaults, and
+      column/table-level constraints (PRIMARY KEY, NOT NULL, UNIQUE, CHECK,
+      FOREIGN KEY), with optional STRICT typing.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-table.md
+        quote: Create a new table in the database with column definitions, data types,
+          and constraints.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-table.md
+        quote: STRICT enables strict type checking, where every value inserted into a
+          STRICT column must match the declared column type or be losslessly
+          convertible
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-alteration
+    title: Schema Evolution via ALTER TABLE
+    description: Rename tables/columns and add or drop columns on existing tables
+      without recreating them, with dependent triggers, indexes, and views
+      updated automatically.
+    resource_kind: table
+    operation_kind: migrate
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table.md
+        quote: Add a new column to an existing table. The new column is always appended
+          as the last column.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/alter-table.md
+        quote: "updates all references to the table in: Triggers that reference the
+          table, Indexes on the table, Foreign key constraints, CHECK
+          constraints, [and] Views that reference the table."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-introspection
+    title: Schema Introspection via PRAGMA
+    description: Query built-in PRAGMA table functions to list tables/views and
+      inspect column-level metadata (name, type, nullability, primary key) for
+      any table.
+    resource_kind: table
+    operation_kind: read
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: PRAGMA table_list; Returns one row for each table and view in the
+          database.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/pragmas
+        quote: "PRAGMA table_info: Returns one row for each column in the named table."
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-insert
+    title: Row Insert (Single, Bulk, Insert-From-Select)
+    description: Insert single or multiple rows via multi-value INSERT, or populate
+      a table from the results of a SELECT statement.
+    resource_kind: row
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
+        quote: Supply multiple parenthesized groups separated by commas [to] insert
+          several rows simultaneously
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
+        quote: Inserts the result of a SELECT statement. The number of columns returned
+          by the SELECT must match the number of target columns
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: upsert-conflict-resolution
+    title: Write Conflict Resolution (Upsert)
+    description: Automatically resolve constraint violations on INSERT/UPDATE/DELETE
+      using OR IGNORE, REPLACE, ABORT, ROLLBACK, or FAIL clauses instead of
+      manual conflict handling.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/insert.md
+        quote: The statement supports "OR conflict_action" clauses including IGNORE,
+          REPLACE, ABORT, ROLLBACK, and FAIL to handle constraint violations
+          automatically
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/update.md
+        quote: The OR clause provides multiple conflict resolution strategies including
+          ABORT, ROLLBACK, FAIL, IGNORE, and REPLACE to manage constraint
+          violations.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-update
+    title: Row Update
+    description: Update column values for rows matching a WHERE condition, with
+      cross-table joins via FROM, RETURNING of new values, and ORDER BY/LIMIT
+      scoping.
+    resource_kind: row
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/update.md
+        quote: UPDATE changes column values in rows that match the WHERE condition.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/update.md
+        quote: The RETURNING clause causes the UPDATE statement to return the new values
+          of each modified row.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-delete
+    title: Row Delete
+    description: Remove rows matching a WHERE condition (or all rows), with optional
+      RETURNING of deleted values and ORDER BY/LIMIT/OFFSET scoping.
+    resource_kind: row
+    operation_kind: delete
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/delete.md
+        quote: The DELETE statement removes rows from a table. ... The WHERE clause
+          restricts which rows are deleted.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/delete.md
+        quote: The RETURNING clause causes the DELETE statement to return the values of
+          each deleted row.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: filtered-query
+    title: Filtered Queries & Joins
+    description: Retrieve rows with WHERE filtering and combine multiple tables via
+      INNER, LEFT OUTER, FULL OUTER, NATURAL, or USING joins.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select.md
+        quote: Filters rows based on a condition. Only rows where the expression
+          evaluates to true are included in the result.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select.md
+        quote: Combines rows from two or more tables based on a related column [with
+          support for] INNER, LEFT OUTER, FULL OUTER, NATURAL, and USING
+          variants.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: query-sorting-pagination
+    title: Sorting, Grouping & Pagination
+    description: Sort result sets with ORDER BY, group rows with GROUP BY/HAVING,
+      and page through results with LIMIT/OFFSET.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select.md
+        quote: Restricts the number of rows returned and optionally skips a number of
+          rows [using] LIMIT and OFFSET clauses
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/select.md
+        quote: Sorts the result set. Without ORDER BY, the row order is unspecified
+          [with] support for ascending/descending order and NULL placement
+          control.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: aggregate-functions
+    title: Aggregate Functions (COUNT/SUM/AVG/MIN/MAX)
+    description: Compute per-group summary statistics such as row counts, sums,
+      averages, and min/max values, filtered post-aggregation via HAVING.
+    resource_kind: row
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/aggregate.md
+        quote: count(*) returns the total number of rows in the group, including rows
+          with NULL values.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/functions/aggregate.md
+        quote: The GROUP BY clause partitions rows into groups. Each aggregate function
+          is computed independently for each group.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: json-document-functions
+    title: JSON Document Functions
+    description: Store, extract, validate, and mutate JSON documents inside
+      TEXT/JSONB columns, including path extraction, patching, aggregation into
+      JSON arrays, and table-valued traversal via json_each/json_tree.
+    resource_kind: json-value
+    operation_kind: update
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/json.md
+        quote: Turso provides a full set of JSON functions compatible with SQLite's
+          JSON1 extension. These functions operate on JSON stored as TEXT or in
+          Turso's internal binary JSON (JSONB) format.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/functions/json.md
+        quote: json_each and json_tree enable walking JSON structures, transforming
+          nested data into flattened relational rows
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: secondary-indexing
+    title: Secondary Indexes (B-tree, Partial, Expression)
+    description: Create B-tree indexes, including composite, UNIQUE, partial, and
+      expression indexes, automatically used by the query planner to accelerate
+      lookups, joins, and ordering.
+    resource_kind: index
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-index.md
+        quote: Create an index on a table to improve query performance for lookups,
+          joins, and ordering.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-index.md
+        quote: The query planner automatically uses indexes when they can speed up a
+          query -- you do not need to reference an index explicitly in your SQL
+          statements.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: view-definition
+    title: Virtual Views
+    description: Define read-only virtual tables backed by a SELECT statement to
+      simplify queries or restrict visible columns/rows, executed on each
+      reference rather than materialized.
+    resource_kind: view
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-view.md
+        quote: A view is a virtual table defined by a SELECT statement. It does not
+          store data on disk
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-view.md
+        quote: Views are read-only. INSERT, UPDATE, and DELETE on a view are not
+          supported unless an INSTEAD OF trigger is defined
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: trigger-based-automation
+    title: Triggers (Server-Side Row Automation)
+    description: Automatically execute SQL statements before, after, or instead of
+      INSERT/UPDATE/DELETE events, with access to NEW/OLD row values and
+      conditional WHEN clauses, all inside the firing transaction.
+    resource_kind: trigger
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
+        quote: Create a trigger that automatically executes one or more SQL statements
+          when a row is inserted into, updated in, or deleted from a table.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/create-trigger.md
+        quote: Triggers execute within the same transaction as the statement that fired
+          them -- if the transaction is rolled back, the trigger's effects are
+          also rolled back.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: transactional-consistency
+    title: Atomic Transactions
+    description: Group multiple statements into a single atomic unit via
+      BEGIN/COMMIT/ROLLBACK, with implicit autocommit transactions when no
+      explicit transaction is active.
+    resource_kind: transaction
+    operation_kind: execute
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions.md
+        quote: Transactions group multiple SQL statements into a single atomic unit of
+          work. Either all statements in a transaction succeed and are
+          committed, or the entire transaction is rolled back.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/statements/transactions.md
+        quote: Turso does not support SAVEPOINT or nested transactions. Each connection
+          can have at most one active transaction at a time.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: concurrent-writes
+    title: MVCC Concurrent Writes
+    description: Allow multiple connections to write simultaneously via BEGIN
+      CONCURRENT and snapshot isolation, with conflict errors returned to the
+      application for retry when overlapping data is modified.
+    resource_kind: transaction
+    operation_kind: write
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
+        quote: With MVCC (Multi-Version Concurrency Control), multiple connections can
+          write simultaneously.
+        strength: direct
+      - doc_url: https://docs.turso.tech/tursodb/concurrent-writes.md
+        quote: Use BEGIN CONCURRENT instead of BEGIN to start a transaction that allows
+          other writers to proceed in parallel. ... If two transactions modify
+          the same data, one will receive a conflict error and must roll back
+          and retry.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-embeddings-storage
+    title: Native Vector Storage & Distance Functions
+    description: Store vector embeddings as compact BLOBs (32/64-bit dense, 8-bit
+      quantized, 1-bit binary) and compute similarity via cosine, L2,
+      dot-product, or Jaccard distance functions.
+    resource_kind: vector
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/vector.md
+        quote: Turso provides built-in functions for storing and querying vector
+          embeddings. Vectors are stored as BLOBs in a compact binary format.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/functions/vector.md
+        quote: Distance functions compute the distance between two vectors. Smaller
+          values indicate more similar vectors.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-similarity-search
+    title: Vector Similarity Search
+    description: Build semantic search, recommendation, and RAG workflows by running
+      similarity searches over embeddings stored alongside relational data;
+      currently implemented as a linear scan since vector indexes are not yet
+      supported.
+    resource_kind: vector
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/guides/vector-search.md
+        quote: Build semantic search, recommendation systems, and RAG workflows with
+          native vector search.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/functions/vector.md
+        quote: Vector indexes are not yet supported. All similarity searches use a
+          linear scan over the table.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search
+    title: Full-Text Search (Tantivy-backed)
+    description: Create FTS indexes via CREATE INDEX ... USING fts, with BM25
+      relevance scoring, boolean/phrase/prefix query syntax, and highlighting of
+      matched terms, powered by Tantivy rather than SQLite's FTS modules.
+    resource_kind: index
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/functions/fts.md
+        quote: Full-text search (FTS) in Turso is powered by Tantivy, not SQLite's
+          FTS3/FTS4/FTS5 modules.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/functions/fts.md
+        quote: FTS indexes are created with the USING fts clause on CREATE INDEX. ...
+          Lower scores indicate higher relevance in the BM25 scoring algorithm
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: embedded-replica-sync
+    title: Embedded Replicas (Local Reads, Remote Writes)
+    description: Keep a local read replica of a cloud database so reads are served
+      in microseconds from disk while writes are forwarded to the remote primary
+      and synced back locally, with a read-your-writes guarantee.
+    resource_kind: database
+    operation_kind: sync
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/features/embedded-replicas/introduction.md
+        quote: "Embedded Replicas keep a local read replica of a Turso Cloud database:
+          reads run locally from the file in microseconds, and writes are sent
+          to the cloud primary."
+        strength: direct
+      - doc_url: https://docs.turso.tech/features/embedded-replicas/introduction.md
+        quote: After a write returns successfully, the replica that initiated the write
+          will always be able to see the new data right away, even if it never
+          calls sync().
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: offline-first-sync
+    title: Offline-First Push/Pull Sync
+    description: Maintain a local database file that syncs bidirectionally with
+      Turso Cloud via explicit push()/pull() calls across TypeScript, Python,
+      and Go SDKs, buffering local writes when offline.
+    resource_kind: database
+    operation_kind: sync
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sync/usage.md
+        quote: Push sends your local changes to the Turso Cloud server. ... all reads
+          and writes happen locally by default.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sync/usage.md
+        quote: changes are safely stored in the local database file until they can be
+          synced, allowing applications to function without connectivity.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sync-conflict-resolution
+    title: Sync Conflict Resolution (Last-Push-Wins)
+    description: Resolve concurrent edits from multiple offline clients using a
+      last-push-wins strategy, atomically rolling back local state, applying
+      remote changes, then replaying unpushed local writes.
+    resource_kind: row
+    operation_kind: sync
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sync/conflict-resolution.md
+        quote: When two clients modify the same data and push, the last push determines
+          the final state on the remote.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sync/conflict-resolution.md
+        quote: Your local database is rolled back to the last synced state [then remote
+          changes are applied, and unsynchronized local modifications are
+          reapplied on top]
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: change-data-capture
+    title: Change Data Capture (CDC)
+    description: Track all DML (insert/update/delete) and DDL (CREATE/DROP TABLE,
+      CREATE INDEX, etc.) changes into a queryable local table, committed only
+      when the originating transaction commits.
+    resource_kind: change-event
+    operation_kind: stream
+    surfaces_documented:
+      - sdk
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/cdc.md
+        quote: Change Data Capture (CDC) tracks all data changes (inserts, updates,
+          deletes) made to your database tables.
+        strength: direct
+      - doc_url: https://docs.turso.tech/tursodb/cdc.md
+        quote: CDC also tracks DDL operations (CREATE TABLE, DROP TABLE, CREATE INDEX,
+          etc.) ... Changes are only recorded when a transaction commits.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-branching
+    title: Database Branching
+    description: Create a new, independent database instance seeded from an existing
+      database (a branch) for development, testing, or per-pull-request
+      workflows, via CLI --from-db or the Platform API seed field.
+    resource_kind: database
+    operation_kind: branch
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/features/branching.md
+        quote: A branch is a separate database instance that is created from an existing
+          database [enabling users to] make changes to the database without
+          affecting the original database.
+        strength: direct
+      - doc_url: https://docs.turso.tech/features/branching.md
+        quote: turso db create my-new-database-branch --from-db my-existing-database
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: point-in-time-recovery
+    title: Point-in-Time Recovery
+    description: Restore a database to a specific past timestamp (e.g. to recover
+      from an accidental drop) by creating a new database seeded from the
+      existing one at that timestamp; retention ranges from 24 hours to 90 days
+      by plan.
+    resource_kind: database
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/features/point-in-time-recovery.md
+        quote: PITR allows you to restore a database to a specific point in time. This
+          is useful for recovering from user errors, such as dropping a table by
+          mistake.
+        strength: direct
+      - doc_url: https://docs.turso.tech/features/point-in-time-recovery.md
+        quote: turso db create my-new-database --from-db my-existing-database
+          --timestamp 2024-01-01T00:00:00Z
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sqlite-import-migration
+    title: SQLite Database Import/Migration
+    description: Import an existing SQLite (WAL-mode) database file into Turso Cloud
+      wholesale, transferring schema, tables, and data, via the CLI db import
+      command or the Platform API database_upload seed type.
+    resource_kind: database
+    operation_kind: import
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/cli/db/import.md
+        quote: You can import an existing SQLite file to Turso Cloud using the following
+          command ... Make sure the SQLite file has WAL journal mode enabled.
+        strength: direct
+      - doc_url: https://docs.turso.tech/cloud/migrate-to-turso.md
+        quote: 'you can alternatively use the Platform API by creating a database with
+          "seed": { "type": "database_upload" }, generating authentication
+          credentials, and uploading your SQLite file'
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-export
+    title: Database Snapshot Export
+    description: Export a database snapshot from Turso Cloud to a local SQLite file
+      via the CLI, with the caveat that the export may not reflect the very
+      latest writes.
+    resource_kind: database
+    operation_kind: export
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/cli/db/export.md
+        quote: Export a database snapshot from Turso to a SQLite file.
+        strength: direct
+      - doc_url: https://docs.turso.tech/cli/db/export.md
+        quote: The exported file may not contain the latest changes. Use SDK to sync the
+          database after exporting to ensure you have the most recent version.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-file-upload-api
+    title: Direct Database File Upload (Platform API)
+    description: Upload a raw SQLite database file over HTTP to a database
+      provisioned with seed.type = database_upload, authenticated with a
+      database-scoped token against the database's own hostname.
+    resource_kind: database
+    operation_kind: import
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/api-reference/databases/upload.md
+        quote: Upload a SQLite database file to a database created with seed.type =
+          "database_upload".
+        strength: direct
+      - doc_url: https://docs.turso.tech/api-reference/databases/upload.md
+        quote: This endpoint requires a database token, not a platform API token. ...
+          The SQLite file must use WAL journal mode, 4096-byte page size,
+          disabled auto-vacuum, and UTF-8 encoding.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: scoped-auth-tokens
+    title: Scoped, Expiring Auth Tokens
+    description: Issue JWT-based tokens that restrict client access by
+      database/group, permission level (full-access vs read-only), and
+      time-based expiration, generated via CLI or Platform API.
+    resource_kind: token
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/authorization.md
+        quote: Turso uses scoped, JWT-based tokens to control access to your databases.
+          Every token can be restricted by database, permission level, and
+          expiration.
+        strength: direct
+      - doc_url: https://docs.turso.tech/api-reference/databases/create-token
+        quote: Authorization level for the token (full-access or read-only) ...
+          Expiration time for the token (e.g., 2w1d30m)
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: fine-grained-permissions
+    title: Table/Action-Level Fine-Grained Permissions
+    description: Scope a token's permissions per table (or all tables) and per
+      action — data_read, data_add, data_update, data_delete, schema_add,
+      schema_update, schema_delete — enabling role-based access patterns.
+    resource_kind: token
+    operation_kind: authorize
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions.md
+        quote: Permissions follow the format <table-name|all>:<action1>,<action2> ...
+          Use all as the table name to apply permissions to every table.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sdk/authorization/fine-grained-permissions.md
+        quote: "seven distinct operations: read operations (data_read), write operations
+          (data_add, data_update, data_delete), and schema operations
+          (schema_add, schema_update, schema_delete)"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: external-identity-provider-auth
+    title: External Identity Provider Auth (JWKS/OIDC)
+    description: Let an external auth provider (Clerk or Auth0 during beta) issue
+      JWT tokens validated against a registered JWKS endpoint, avoiding manual
+      token management, with optional JWT templates constraining default access.
+    resource_kind: token
+    operation_kind: authenticate
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/authorization/jwks.md
+        quote: Instead of managing tokens manually, you can let your authentication
+          provider issue JWT tokens using JWKS.
+        strength: direct
+      - doc_url: https://docs.turso.tech/sdk/authorization/jwks.md
+        quote: During the Turso Beta, we only support Clerk & Auth0 as OIDC providers.
+          ... If you don't setup a JWT template with specific permissions, the
+          generated tokens will have access to all databases in all groups by
+          default.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: platform-database-provisioning
+    title: Programmatic Database Provisioning
+    description: Create and list databases within an organization/group
+      programmatically via the Platform API, returning identifiers, hostnames,
+      region, and branch/parent metadata — the basis for multi-tenant per-user
+      database provisioning.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/api-reference/databases/list
+        quote: Returns a list of databases belonging to the organization or user. GET
+          /v1/organizations/{organizationSlug}/databases
+        strength: direct
+      - doc_url: https://docs.turso.tech/api-reference/introduction
+        quote: Provision a dedicated database per user or per AI agent [with] isolated
+          SQLite instances
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: multi-process-file-access
+    title: Multi-Process Shared File Access
+    description: Experimental coordinator letting multiple OS processes on the same
+      host open and write to the same database file concurrently via
+      shared-memory WAL coordination, without a server tier.
+    resource_kind: database
+    operation_kind: write
+    surfaces_documented:
+      - sdk
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sql-reference/multiprocess-access.md
+        quote: Share a Turso database file between multiple OS processes using the
+          experimental multiprocess WAL coordinator
+        strength: direct
+      - doc_url: https://docs.turso.tech/sql-reference/multiprocess-access.md
+        quote: Multi-process access is experimental with potential API changes across
+          releases
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: encryption-at-rest
+    title: Page-Level Encryption at Rest
+    description: Encrypt every 4 KiB database page and WAL file individually with a
+      unique nonce, keeping keys in memory only, choosing between AEGIS or
+      AES-GCM cipher families.
+    resource_kind: database
+    operation_kind: encrypt
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/tursodb/encryption.md
+        quote: Each 4 KiB page is encrypted individually with a unique nonce ...
+          Encryption keys are never stored on disk
+        strength: direct
+      - doc_url: https://docs.turso.tech/tursodb/encryption.md
+        quote: "AEGIS (recommended): Modern, high-performance cipher family ... AES-GCM:
+          A NIST-approved standard for compliance requirements"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: cloud-storage-durability
+    title: S3-Backed Commit Durability
+    description: Acknowledge writes only once persisted to S3-Express One Zone (with
+      periodic fold-back into the main file on S3), relying on AWS's
+      99.999999999% durability guarantee instead of a self-managed consensus
+      protocol.
+    resource_kind: database
+    operation_kind: persist
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://docs.turso.tech/cloud/durability.md
+        quote: Commits are only acknowledged once data is safely stored in either S3 or
+          S3-express. ... Both technologies provide a 99.999999999% durability
+          guarantee
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: http-api-query-execution
+    title: SQL-over-HTTP Query Execution
+    description: Execute SQL statements (including multi-statement, interactive
+      pipelines with positional/named parameters) over a stateless HTTP API
+      using bearer-token authentication, without requiring a native
+      wire-protocol client.
+    resource_kind: query
+    operation_kind: execute
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://docs.turso.tech/sdk/http/reference
+        quote: The /v2/pipeline endpoint to query a database ... Turso uses Bearer
+          authentication, and requires your API token to be passed with all
+          protected requests in the Authorization header
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:04:30Z
+      extractor: llm-capability-inventory-v1
