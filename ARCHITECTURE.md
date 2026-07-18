@@ -44,7 +44,7 @@ OpenAPI / GraphQL / docs                vendor cards + extracts
 | Source of truth | Per-product pack | Canonical `suite.yaml` + ledger |
 | Packs live under | `targets/examples/` (shipped) or local `targets/` | `benchmarks/daeb/v1/packs/<vendor>/` |
 | Authoring | `ingest` → `generate` → `review` | extract → synthesize → compose → `review` |
-| Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex+Claude Code, medium, 3 trials |
+| Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex `gpt-5.6-terra` + Claude Code `claude-sonnet-5`, high, 3 trials |
 | Extra gates | Content-hash approval | Ledger, audit-suite, trace-review, publication freeze |
 
 Deep DAEB artifact detail lives in
@@ -205,9 +205,20 @@ DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
 - `suite.trace-review.yaml` — fixed-sample review memo (freeze gate)
 
 The production lane (`daeb-production-rerun`) is narrower than the generic
-engine: `api` and `cli` only, Codex and Claude Code only, one medium-effort model
-per harness, three trials plus aggregate per supported cell. SDK evidence is
-research-only for v1 scoring.
+engine: `api` and `cli` only, Codex `gpt-5.6-terra` and Claude Code
+`claude-sonnet-5` at high effort, three clean trials plus aggregate per
+supported cell. SDK evidence is research-only for v1 scoring.
+
+Invocation metadata preserves every retry attempt. The normalized public record
+uses successful-attempt latency, retry-inclusive total duration/tokens/native
+cost, raw + semver harness version, and run batch identity. Production
+aggregation uses median trial latency and total consumption. `pass_hat_3`
+(mean cubed) is deprecated; ranking uses exact tasks passing all three trials.
+
+Publication exports keep harnesses independent. Within one harness, tasks are
+averaged inside each surface and Overall is the equal-weight macro-average of
+participating surfaces. The pass³ tie-break is the exact eligible
+task×surface-cell ratio, with numerator and denominator published.
 
 Publication boundary: `publication-bundle` then `export-publication`. `ax-eval`
 owns benchmark truth and artifacts; an `axarena` app imports exported indexes
@@ -227,7 +238,7 @@ Important command groups:
 - **Authoring (DAEB)** — extract / synthesize / audit / compose (see DAEB README)
 - **Execution** — `exec-plan`, `probe`, `check-env`, `init`
 - **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
-  `trace-diff`
+  `trace-diff`, `records-diff`
 - **Publication (DAEB)** — `publication-bundle`, `export-publication`,
   `daeb-production-rerun`
 - **Maintenance** — `reset` (after verify, never before)

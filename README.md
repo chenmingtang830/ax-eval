@@ -165,22 +165,22 @@ completed fixed-sample review (sample IDs, reviewer, timestamp, commit SHA, and
 findings); regeneration resets that checkpoint to `pending`.
 
 For DAEB-1/database v1, the benchmark-of-record production lane is narrower
-than the generic engine: `api` and `cli` only, Codex and Claude Code only, one
-medium-effort model per harness, and three trials per supported
-vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+than the generic engine: `api` and `cli` only, Codex with `gpt-5.6-terra` and
+Claude Code with `claude-sonnet-5`, both at high effort, and three clean trials
+per supported vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
 SDK evidence is research-only for v1.
 
 When production is unblocked, run the production lane with:
 
 ```bash
 npm run ax-eval -- daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml \
-  --codex-model gpt-5.4 \
-  --claude-model sonnet
+  --suite benchmarks/daeb/v1/suite.yaml
 ```
 
 Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
-pass rate, observed range, and links to the source trial artifacts. After
+pass rate, observed range, exact pass³ count, harness version, run batch,
+successful-attempt latency, retry-inclusive duration/tokens/cost, and links to
+the source trial artifacts. After
 running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
@@ -188,8 +188,8 @@ npm run ax-eval -- publication-bundle \
   --suite benchmarks/daeb/v1/suite.yaml \
   --run-dir results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle \
-  --effort-profiles medium \
-  --required-effort-profiles medium
+  --effort-profiles high \
+  --required-effort-profiles high
 ```
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
@@ -209,7 +209,16 @@ npm run ax-eval -- export-publication \
 
 This writes website-ready JSON indexes for leaderboard rows, cells, task
 drilldowns, trial outcomes, evidence links, methodology metadata, and failure
-review placeholders. New reusable benchmark tooling should live here; the
+review placeholders. Codex and Claude Code remain
+separate rankings. Overall first averages eligible tasks within each surface,
+then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
+
+Compare two normalized-record sets without decoding HTML:
+
+```bash
+npm run ax-eval -- records-diff --base <baseline-dir> --head <candidate-dir> --out records-diff.md
+```
+New reusable benchmark tooling should live here; the
 `axarena` repo should own the curated website, narrative, and presentation.
 
 ## Architecture
@@ -281,6 +290,7 @@ npm run ax-eval -- audit --site <url>
 npm run ax-eval -- discover --site <url>
 npm run ax-eval -- smells --openapi <url>
 npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
+npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
 
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and

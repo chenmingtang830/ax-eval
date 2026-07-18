@@ -259,17 +259,22 @@ done for the 6-vendor core cohort.
 
 ```bash
 ax-eval daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml \
-  --codex-model gpt-5.4 \
-  --claude-model sonnet
+  --suite benchmarks/daeb/v1/suite.yaml
 ```
 
-This lane is intentionally scoped to `api` and `cli`, Codex and Claude Code,
-`medium` effort, and three trials per supported vendor/surface/harness cell.
+This lane is intentionally scoped to `api` and `cli`: Codex runs
+`gpt-5.6-terra`, Claude Code runs `claude-sonnet-5`, both at `high` effort,
+with exactly three clean trials per supported vendor/surface/harness cell.
 It writes `trial-1/2/3` directories plus an `aggregate/` directory whose
 normalized record reports the three-trial mean and range. SDK and MCP should
 not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
+
+Normalized records are public, schema-versioned artifacts
+(`schemas/normalized-result.v1.json`). They retain native harness version,
+run-batch identity, successful-attempt latency, retry-inclusive duration and
+consumption, and exact pass³ numerator/denominator. Codex dollar cost is null;
+do not synthesize a price table.
 
 Before human **publication** freeze, regenerate into the same DAEB-1 v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and
