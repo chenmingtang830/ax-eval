@@ -177,6 +177,13 @@ npm run ax-eval -- daeb-production-rerun \
   --suite benchmarks/daeb/v1/suite.yaml
 ```
 
+Maintainers can run the same command through the **Trusted sandbox production
+records** workflow. The repository's `trusted-sandbox` environment must have
+required reviewers and the vendor credentials configured; approval happens
+before the reviewed ref receives any secret. An optional prior workflow run ID
+produces a normalized-records diff, and an optional PR number updates one bot
+comment with that diff.
+
 Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
 pass rate, observed range, exact pass³ count, harness version, run batch,
 successful-attempt latency, retry-inclusive duration/tokens/cost, and links to

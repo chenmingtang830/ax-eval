@@ -262,6 +262,13 @@ ax-eval daeb-production-rerun \
   --suite benchmarks/daeb/v1/suite.yaml
 ```
 
+For hosted execution, dispatch **Trusted sandbox production records** only
+after the repository's `trusted-sandbox` environment has required reviewers
+and the scoped vendor secrets. The workflow executes a reviewed ref after
+environment approval, uploads normalized records plus cleanup evidence, and
+can compare against a prior trusted workflow run without exposing credentials
+to the keyless PR workflow.
+
 This lane is intentionally scoped to `api` and `cli`: Codex runs
 `gpt-5.6-terra`, Claude Code runs `claude-sonnet-5`, both at `high` effort,
 with exactly three clean trials per supported vendor/surface/harness cell.

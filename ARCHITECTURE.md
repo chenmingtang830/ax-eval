@@ -209,6 +209,11 @@ engine: `api` and `cli` only, Codex `gpt-5.6-terra` and Claude Code
 `claude-sonnet-5` at high effort, three clean trials plus aggregate per
 supported cell. SDK evidence is research-only for v1 scoring.
 
+Hosted live execution is a manual `workflow_dispatch` behind the protected
+`trusted-sandbox` environment. Required reviewers approve the selected ref
+before environment secrets become available. Pull requests have a separate
+keyless fixture-diff workflow and never receive those secrets.
+
 Invocation metadata preserves every retry attempt. The normalized public record
 uses successful-attempt latency, retry-inclusive total duration/tokens/native
 cost, raw + semver harness version, and run batch identity. Production
