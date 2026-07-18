@@ -21,10 +21,16 @@ import {
   daebPacksDir,
   daebVendorCardPath,
 } from "./benchmark-paths.js";
+import {
+  DAEB_PRODUCTION_CLAUDE_MODEL,
+  DAEB_PRODUCTION_CODEX_MODEL,
+  DAEB_PRODUCTION_EFFORT,
+  DAEB_PRODUCTION_TRIAL_COUNT,
+} from "./production-run.js";
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
-const PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
-const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["medium"] as const;
+const PUBLICATION_EFFORT_PROFILES = ["high"] as const;
+const REQUIRED_PUBLICATION_EFFORT_PROFILES = ["high"] as const;
 const IGNORED_RECURSIVE_DIRS = new Set([
   ".invoke-home",
   ".codex",
@@ -226,10 +232,17 @@ function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array
 
 function hasEfficiencyMetrics(record: Record<string, unknown>): boolean {
   const keys = new Set(Object.keys(record));
+  const harness = record.harness;
   return (
-    (keys.has("latency_ms") || keys.has("duration_ms") || keys.has("time_to_last_token")) &&
-    (keys.has("token_usage") || keys.has("tokens") || keys.has("token_cost") || keys.has("cost_per_task")) &&
-    (keys.has("tool_calls") || keys.has("tool_call_count"))
+    keys.has("latency_ms") &&
+    keys.has("total_duration_ms") &&
+    keys.has("token_usage") &&
+    keys.has("cost_usd") &&
+    keys.has("tool_call_count") &&
+    keys.has("harness_version_raw") &&
+    keys.has("harness_version_semver") &&
+    keys.has("run_batch_id") &&
+    (harness !== "claude-code" || typeof record.cost_usd === "number")
   );
 }
 
@@ -484,6 +497,41 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
         : "Normalized records include latency, token/cost, and tool-call metrics.",
   });
 
+  const canonicalConfigIssues: string[] = [];
+  for (const record of allRecords) {
+    const expectedModel = record.harness === "codex"
+      ? DAEB_PRODUCTION_CODEX_MODEL
+      : record.harness === "claude-code" ? DAEB_PRODUCTION_CLAUDE_MODEL : null;
+    if (expectedModel && record.model !== expectedModel) {
+      canonicalConfigIssues.push(`${record.product}/${record.surface}/${record.harness}: model=${record.model ?? "missing"}`);
+    }
+    if (!record.profiles.includes(DAEB_PRODUCTION_EFFORT)) {
+      canonicalConfigIssues.push(`${record.product}/${record.surface}/${record.harness}: missing ${DAEB_PRODUCTION_EFFORT} profile`);
+    }
+    if (record.summary_kind !== "aggregate" || record.trial_count !== DAEB_PRODUCTION_TRIAL_COUNT) {
+      canonicalConfigIssues.push(`${record.product}/${record.surface}/${record.harness}: requires ${DAEB_PRODUCTION_TRIAL_COUNT}-trial aggregate`);
+    }
+  }
+  const runBatchIds = [...new Set(allRecords.map((record) => record.run_batch_id).filter((value): value is string => Boolean(value)))];
+  if (allRecords.some((record) => !record.run_batch_id) || runBatchIds.length !== 1) {
+    canonicalConfigIssues.push(`run_batch_id must be present and identical across publication records (found ${runBatchIds.join(",") || "none"})`);
+  }
+  for (const harness of expectedHarnesses) {
+    const harnessRecords = allRecords.filter((record) => record.harness === harness);
+    const versions = [...new Set(harnessRecords.map((record) => record.harness_version_semver).filter((value): value is string => Boolean(value)))];
+    if (harnessRecords.some((record) => !record.harness_version_semver) || versions.length !== 1) {
+      canonicalConfigIssues.push(`${harness}: harness_version_semver must be present and identical (found ${versions.join(",") || "none"})`);
+    }
+  }
+  addGate(qualityGates, {
+    id: "canonical-execution-config",
+    label: "Production records use the frozen execution configuration",
+    status: canonicalConfigIssues.length ? "fail" : "pass",
+    detail: canonicalConfigIssues.length
+      ? `${canonicalConfigIssues.length} issue(s): ${canonicalConfigIssues.slice(0, 5).join(" | ")}${canonicalConfigIssues.length > 5 ? " | ..." : ""}`
+      : `${DAEB_PRODUCTION_CODEX_MODEL} and ${DAEB_PRODUCTION_CLAUDE_MODEL}, ${DAEB_PRODUCTION_EFFORT} effort, ${DAEB_PRODUCTION_TRIAL_COUNT} trials, one run batch, and one version per harness.`,
+  });
+
   const traceIssues = vendors.flatMap((vendor) => {
     const snapshot = vendor.artifacts.snapshot ? resolve(outRoot, vendor.artifacts.snapshot) : "";
     return snapshot ? snapshotTraceIssues(snapshot).map((issue) => `${vendor.slug}: ${issue}`) : [];
@@ -560,7 +608,7 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
     throw new Error(`${manifestPath} is not an ax.publication-bundle/v2 manifest`);
   }
 
-  const recordsByPath = new Map<string, NormalizedResult>();
+  const leaderboardRecords: Array<{ vendor: string; record: NormalizedResult }> = [];
   const cells: Array<Record<string, unknown>> = [];
   const taskResults: Array<Record<string, unknown>> = [];
   const evidence: Array<Record<string, unknown>> = [];
@@ -570,7 +618,7 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
       const absolute = resolve(bundleRoot, recordPath);
       const record = readJsonFile(absolute) as NormalizedResult | null;
       if (record?.schema !== "ax.normalized-result/v1") continue;
-      recordsByPath.set(recordPath, record);
+      leaderboardRecords.push({ vendor: vendor.slug, record });
       cells.push({
         id: `${vendor.slug}/${record.surface}/${record.harness}`,
         vendor: vendor.slug,
@@ -585,12 +633,22 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
         trial_count: record.trial_count ?? null,
         trial_values: record.trial_values ?? null,
         pass_all_3: record.pass_all_3 ?? null,
+        pass_3_rate: record.task_consistency_at_3 ?? null,
+        pass_3_count: record.pass_3_tasks ?? null,
+        pass_3_total: record.pass_3_tasks_total ?? null,
         trial_stability_at_3: record.trial_stability_at_3 ?? null,
         latency_ms: record.latency_ms ?? null,
+        total_duration_ms: record.total_duration_ms ?? null,
         first_action_latency_ms: record.first_action_latency_ms ?? null,
         tool_call_count: record.tool_call_count ?? null,
         token_usage: record.token_usage ?? null,
         token_cost: record.token_cost ?? null,
+        cost_usd: record.cost_usd ?? null,
+        tokens_in: record.tokens_in ?? null,
+        tokens_out: record.tokens_out ?? null,
+        harness_version_raw: record.harness_version_raw ?? null,
+        harness_version_semver: record.harness_version_semver ?? null,
+        run_batch_id: record.run_batch_id ?? null,
         validity_status: record.validity_status ?? null,
         normalized_record: recordPath,
         source_records: record.source_records ?? [],
@@ -627,19 +685,67 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
     }
   }
 
-  const leaderboard = manifest.vendors.map((vendor) => {
-    const vendorCells = cells.filter((cell) => cell.vendor === vendor.slug);
-    const rates = vendorCells
-      .map((cell) => cell.mean_success_rate)
-      .filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  const selectedRecords = new Map<string, { vendor: string; record: NormalizedResult }>();
+  for (const entry of leaderboardRecords) {
+    if (entry.record.blocked) continue;
+    const key = `${entry.vendor}\0${entry.record.harness}\0${entry.record.surface}`;
+    const current = selectedRecords.get(key);
+    if (!current || (entry.record.summary_kind === "aggregate" && current.record.summary_kind !== "aggregate") ||
+      (entry.record.summary_kind === current.record.summary_kind && entry.record.generated_at > current.record.generated_at)) {
+      selectedRecords.set(key, entry);
+    }
+  }
+  const makeView = (harness: string, surface: string | null) => {
+    const rows = manifest.vendors.flatMap((vendor) => {
+      const records = [...selectedRecords.values()]
+        .filter((entry) => entry.vendor === vendor.slug && entry.record.harness === harness)
+        .filter((entry) => surface === null || entry.record.surface === surface)
+        .map((entry) => entry.record);
+      if (!records.length) return [];
+      const pass3Available = records.every((record) =>
+        typeof record.pass_3_tasks === "number" && typeof record.pass_3_tasks_total === "number");
+      const pass3Count = pass3Available ? records.reduce((sum, record) => sum + record.pass_3_tasks!, 0) : null;
+      const pass3Total = pass3Available ? records.reduce((sum, record) => sum + record.pass_3_tasks_total!, 0) : null;
+      const surfaceScores = Object.fromEntries(records.map((record) => [record.surface, {
+        mean_pass_at_1: record.mean_pass_rate ?? record.pass_at_1,
+        pass_3_rate: record.task_consistency_at_3 ?? null,
+        pass_3_count: record.pass_3_tasks ?? null,
+        pass_3_total: record.pass_3_tasks_total ?? null,
+      }]));
+      const score = records.reduce((sum, record) => sum + (record.mean_pass_rate ?? record.pass_at_1), 0) / records.length;
+      return [{
+        rank: 0,
+        vendor: vendor.slug,
+        mean_pass_at_1: score,
+        pass_3_rate: pass3Count !== null && pass3Total ? pass3Count / pass3Total : null,
+        pass_3_count: pass3Count,
+        pass_3_total: pass3Total,
+        surface_count: records.length,
+        surfaces: surfaceScores,
+      }];
+    }).sort((a, b) =>
+      b.mean_pass_at_1 - a.mean_pass_at_1 ||
+      (b.pass_3_rate ?? -1) - (a.pass_3_rate ?? -1) ||
+      (b.pass_3_count ?? -1) - (a.pass_3_count ?? -1) ||
+      a.vendor.localeCompare(b.vendor));
+    return { rows: rows.map((row, index) => ({ ...row, rank: index + 1 })) };
+  };
+  const leaderboard = manifest.expected_matrix.harnesses.map((harness) => {
+    const records = [...selectedRecords.values()].filter((entry) => entry.record.harness === harness).map((entry) => entry.record);
+    const models = [...new Set(records.map((record) => record.model).filter((value): value is string => Boolean(value)))];
+    const versions = [...new Set(records.map((record) => record.harness_version_semver).filter((value): value is string => Boolean(value)))];
     return {
-      vendor: vendor.slug,
-      expected_surfaces: vendor.expected_surfaces,
-      cell_count: vendorCells.length,
-      mean_success_rate: rates.length ? rates.reduce((sum, value) => sum + value, 0) / rates.length : null,
-      cells: vendorCells.map((cell) => cell.id),
+      harness,
+      model: models.length === 1 ? models[0] : null,
+      effort: DAEB_PRODUCTION_EFFORT,
+      harness_version_semver: versions.length === 1 ? versions[0] : null,
+      views: {
+        overall: makeView(harness, null),
+        api: makeView(harness, "api"),
+        cli: makeView(harness, "cli"),
+      },
     };
-  }).sort((a, b) => (b.mean_success_rate ?? -1) - (a.mean_success_rate ?? -1));
+  });
 
   const tasks = taskResults.reduce((acc, result) => {
     const taskId = result.task_id;
@@ -687,10 +793,16 @@ export function buildAxArenaExport(opts: BuildAxArenaExportOptions): AxArenaExpo
   ];
 
   writeJson(resolve(outRoot, "leaderboard.json"), {
-    schema: "ax.axarena-leaderboard/v1",
+    schema: "ax.axarena-leaderboard/v2",
     benchmark: manifest.benchmark,
     generated_at: new Date().toISOString(),
-    rows: leaderboard,
+    scoring: {
+      primary: "mean pass@1 within surface, then equal-weight macro-average across participating surfaces",
+      tie_breakers: ["pass_3_rate", "pass_3_count", "vendor"],
+      agents_are_independent: true,
+      na_policy: "exclude structural N/A cells and publish the denominator",
+    },
+    agents: leaderboard,
   });
   writeJson(resolve(outRoot, "cells.json"), {
     schema: "ax.axarena-cells/v1",
