@@ -8,7 +8,9 @@ import { DAEB_VENDOR_ORDER, DAEB_V1_EXECUTION_SURFACES } from "./low-pass.js";
 export const DAEB_PRODUCTION_RUN_SCHEMA = "ax.daeb-production-run/v1" as const;
 export const DAEB_PRODUCTION_ARCHIVE_SCHEMA = "ax.daeb-production-archive/v1" as const;
 export const DAEB_PRODUCTION_TRIAL_COUNT = 3 as const;
-export const DAEB_PRODUCTION_EFFORT = "medium" as const;
+export const DAEB_PRODUCTION_EFFORT = "high" as const;
+export const DAEB_PRODUCTION_CODEX_MODEL = "gpt-5.6-terra" as const;
+export const DAEB_PRODUCTION_CLAUDE_MODEL = "claude-sonnet-5" as const;
 export const DAEB_PRODUCTION_HARNESSES = ["codex", "claude-code"] as const;
 export const DAEB_PRODUCTION_SURFACES = [...DAEB_V1_EXECUTION_SURFACES] as const;
 
@@ -164,7 +166,7 @@ function loadTrialOutcomeMap(snapshotPath: string | undefined): Map<string, bool
   return byTask;
 }
 
-function taskConsistencyAt3(trials: ProductionTrialRecord[]): number | null {
+function taskConsistencyAt3(trials: ProductionTrialRecord[]): { rate: number; count: number; total: number } | null {
   if (trials.length !== 3) return null;
   const trialMaps = trials.map((trial) => loadTrialOutcomeMap(trial.snapshot_path));
   if (trialMaps.some((map) => !map)) return null;
@@ -178,7 +180,7 @@ function taskConsistencyAt3(trials: ProductionTrialRecord[]): number | null {
   for (const taskId of taskIds) {
     if (maps.every((map) => map.get(taskId) === true)) stablePasses += 1;
   }
-  return stablePasses / taskIds.size;
+  return { rate: stablePasses / taskIds.size, count: stablePasses, total: taskIds.size };
 }
 
 export function writeProductionAggregate(opts: {
@@ -194,7 +196,10 @@ export function writeProductionAggregate(opts: {
   mkdirSync(aggregateDir, { recursive: true });
   const sourceRecords = opts.trials.map((trial) => trial.normalized_record);
   const aggregate = aggregateNormalizedResults(opts.records, sourceRecords);
-  aggregate.task_consistency_at_3 = taskConsistencyAt3(opts.trials);
+  const consistency = taskConsistencyAt3(opts.trials);
+  aggregate.task_consistency_at_3 = consistency?.rate ?? null;
+  aggregate.pass_3_tasks = consistency?.count ?? null;
+  aggregate.pass_3_tasks_total = consistency?.total ?? null;
   const normalizedPath = resolve(aggregateDir, `${opts.harness}.${opts.surface}.aggregate.normalized.json`);
   writeFileSync(normalizedPath, JSON.stringify(aggregate, null, 2) + "\n");
   const trialManifestPath = resolve(aggregateDir, "trial-manifest.json");

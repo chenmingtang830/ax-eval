@@ -4,6 +4,9 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { aggregateNormalizedResults, type NormalizedResult } from "../src/generate/record.js";
 import {
+  DAEB_PRODUCTION_CLAUDE_MODEL,
+  DAEB_PRODUCTION_CODEX_MODEL,
+  DAEB_PRODUCTION_EFFORT,
   archiveDaebDebugArtifacts,
   datedDaebProductionRunStem,
   daebProductionVendorOrder,
@@ -37,9 +40,9 @@ function makeRecord(overrides: Partial<NormalizedResult> = {}): NormalizedResult
     attempts: 1,
     discovery_score: 0.7,
     content_quality: 0.8,
-    profiles: ["medium"],
-    best_profile: "medium",
-    model: "gpt-5.4",
+    profiles: ["high"],
+    best_profile: "high",
+    model: "gpt-5.6-terra",
     latency_ms: 1000,
     tool_call_count: 5,
     token_usage: { input: 100, output: 50 },
@@ -59,6 +62,9 @@ afterEach(() => {
 
 describe("production rerun helpers", () => {
   it("returns the benchmark vendor order and clean default root", () => {
+    expect(DAEB_PRODUCTION_EFFORT).toBe("high");
+    expect(DAEB_PRODUCTION_CODEX_MODEL).toBe("gpt-5.6-terra");
+    expect(DAEB_PRODUCTION_CLAUDE_MODEL).toBe("claude-sonnet-5");
     expect(daebProductionVendorOrder()).toEqual([
       "neon",
       "cockroachdb",
@@ -124,28 +130,28 @@ describe("production rerun helpers", () => {
       vendor: "supabase",
       surface: "api",
       harness: "codex",
-      model: "gpt-5.4",
+      model: "gpt-5.6-terra",
       trials: [
         {
           trial: 1,
           trial_dir: resolve(runRoot, "supabase", "api", "codex", "trial-1"),
           normalized_record: "trial-1/codex.api.normalized.json",
           snapshot_path: resolve(runRoot, "supabase", "api", "codex", "trial-1", "generated-eval.snapshot.json"),
-          result_paths: ["trial-1/run-codex-medium.json"],
+          result_paths: ["trial-1/run-codex-high.json"],
         },
         {
           trial: 2,
           trial_dir: resolve(runRoot, "supabase", "api", "codex", "trial-2"),
           normalized_record: "trial-2/codex.api.normalized.json",
           snapshot_path: resolve(runRoot, "supabase", "api", "codex", "trial-2", "generated-eval.snapshot.json"),
-          result_paths: ["trial-2/run-codex-medium.json"],
+          result_paths: ["trial-2/run-codex-high.json"],
         },
         {
           trial: 3,
           trial_dir: resolve(runRoot, "supabase", "api", "codex", "trial-3"),
           normalized_record: "trial-3/codex.api.normalized.json",
           snapshot_path: resolve(runRoot, "supabase", "api", "codex", "trial-3", "generated-eval.snapshot.json"),
-          result_paths: ["trial-3/run-codex-medium.json"],
+          result_paths: ["trial-3/run-codex-high.json"],
         },
       ],
       records: [
@@ -159,6 +165,8 @@ describe("production rerun helpers", () => {
     expect(saved.mean_pass_rate).toBeCloseTo(0.8);
     expect(saved.range_pass_rate).toEqual({ min: 0.7, max: 0.9 });
     expect(saved.task_consistency_at_3).toBeCloseTo(1 / 3);
+    expect(saved.pass_3_tasks).toBe(1);
+    expect(saved.pass_3_tasks_total).toBe(3);
   });
 
   it("archives known debug artifacts into a separate manifest", () => {
