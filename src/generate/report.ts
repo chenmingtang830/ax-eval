@@ -52,9 +52,14 @@ export interface ProfileRun {
    *  read-back outcomes remain the only pass/fail authority. */
   efficiency?: {
     latency_ms?: number | null;
+    total_duration_ms?: number | null;
     tool_call_count?: number | null;
     token_usage?: Record<string, number> | null;
     token_cost?: number | null;
+    cost_usd?: number | null;
+    harness_version_raw?: string | null;
+    harness_version_semver?: string | null;
+    run_batch_id?: string | null;
     validity_status?: string | null;
     first_action_latency_ms?: number | null;
     transcript_event_count?: number | null;

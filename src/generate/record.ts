@@ -52,12 +52,22 @@ export interface NormalizedResult {
    *  harness output). Lets `competitive` compare the same product/surface across
    *  models. null when no run stamped a model (older records). */
   model: string | null;
+  /** Raw `--version` output and parsed semver for the harness that executed the
+   *  best profile. */
+  harness_version_raw?: string | null;
+  harness_version_semver?: string | null;
+  /** Comparable execution batch. Latency should only be compared within one. */
+  run_batch_id?: string | null;
   /** Efficiency diagnostics for the best profile. These are explanatory only:
    *  correctness is still governed by deterministic outcome graders. */
   latency_ms?: number | null;
+  total_duration_ms?: number | null;
   tool_call_count?: number | null;
   token_usage?: Record<string, number> | null;
   token_cost?: number | null;
+  cost_usd?: number | null;
+  tokens_in?: number | null;
+  tokens_out?: number | null;
   /** Runtime validity diagnostics are explanatory only. They separate harness
    *  runtime issues (for example, no-action timeouts) from vendor capability. */
   validity_status?: string | null;
@@ -69,13 +79,15 @@ export interface NormalizedResult {
   trial_values?: number[];
   mean_pass_rate?: number;
   range_pass_rate?: { min: number; max: number };
-  /** Anthropic-style reliability estimate: mean per-trial success rate raised
-   *  to k trials. For three production trials, pass_hat_3 = mean^3. */
+  /** Deprecated independence estimate retained for v1 reader compatibility.
+   *  Never use this for ranking; use task_consistency_at_3 + exact counts. */
   pass_hat_3?: number | null;
   /** Fraction of scored tasks that passed in every production trial. This uses
    *  per-task verifier snapshots and is therefore only available for aggregate
    *  records whose producer supplied task-level consistency evidence. */
   task_consistency_at_3?: number | null;
+  pass_3_tasks?: number | null;
+  pass_3_tasks_total?: number | null;
   /** Legacy strict reliability field: 1 only when every trial was 100%.
    *  Kept for backward compatibility; prefer pass_hat_3 or
    *  task_consistency_at_3 for publication narrative. */
@@ -184,10 +196,17 @@ export function buildNormalizedResult(
     profiles: runs.map((r) => r.profile),
     best_profile: best?.profile ?? null,
     model: best?.model ?? null,
+    harness_version_raw: best?.efficiency?.harness_version_raw ?? null,
+    harness_version_semver: best?.efficiency?.harness_version_semver ?? null,
+    run_batch_id: best?.efficiency?.run_batch_id ?? null,
     latency_ms: best?.efficiency?.latency_ms ?? null,
+    total_duration_ms: best?.efficiency?.total_duration_ms ?? null,
     tool_call_count: best?.efficiency?.tool_call_count ?? null,
     token_usage: best?.efficiency?.token_usage ?? null,
     token_cost: best?.efficiency?.token_cost ?? null,
+    cost_usd: best?.efficiency?.cost_usd ?? best?.efficiency?.token_cost ?? null,
+    tokens_in: best?.efficiency?.token_usage?.input_tokens ?? null,
+    tokens_out: best?.efficiency?.token_usage?.output_tokens ?? null,
     validity_status: best?.efficiency?.validity_status ?? null,
     first_action_latency_ms: best?.efficiency?.first_action_latency_ms ?? null,
     transcript_event_count: best?.efficiency?.transcript_event_count ?? null,
@@ -204,20 +223,24 @@ function range(values: number[]): { min: number; max: number } | null {
   return values.length ? { min: Math.min(...values), max: Math.max(...values) } : null;
 }
 
-function averageTokenUsage(records: NormalizedResult[]): Record<string, number> | null {
-  const totals = new Map<string, { sum: number; count: number }>();
+function sumTokenUsage(records: NormalizedResult[]): Record<string, number> | null {
+  const totals = new Map<string, number>();
   for (const record of records) {
     if (!record.token_usage) continue;
     for (const [key, value] of Object.entries(record.token_usage)) {
       if (typeof value !== "number" || !Number.isFinite(value)) continue;
-      const bucket = totals.get(key) ?? { sum: 0, count: 0 };
-      bucket.sum += value;
-      bucket.count += 1;
-      totals.set(key, bucket);
+      totals.set(key, (totals.get(key) ?? 0) + value);
     }
   }
   if (!totals.size) return null;
-  return Object.fromEntries([...totals.entries()].map(([key, bucket]) => [key, bucket.sum / bucket.count]));
+  return Object.fromEntries(totals);
+}
+
+function median(values: number[]): number | null {
+  if (!values.length) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[middle]! : (sorted[middle - 1]! + sorted[middle]!) / 2;
 }
 
 export function aggregateNormalizedResults(
@@ -230,6 +253,8 @@ export function aggregateNormalizedResults(
   const latencies = records.flatMap((record) => typeof record.latency_ms === "number" ? [record.latency_ms] : []);
   const toolCalls = records.flatMap((record) => typeof record.tool_call_count === "number" ? [record.tool_call_count] : []);
   const tokenCosts = records.flatMap((record) => typeof record.token_cost === "number" ? [record.token_cost] : []);
+  const costsUsd = records.flatMap((record) => typeof record.cost_usd === "number" ? [record.cost_usd] : []);
+  const totalDurations = records.flatMap((record) => typeof record.total_duration_ms === "number" ? [record.total_duration_ms] : []);
   const firstActionLatencies = records.flatMap((record) =>
     typeof record.first_action_latency_ms === "number" ? [record.first_action_latency_ms] : []);
   const transcriptEvents = records.flatMap((record) =>
@@ -239,6 +264,10 @@ export function aggregateNormalizedResults(
   const attempts = Math.max(...records.map((record) => record.attempts || 1));
   const validities = [...new Set(records.map((record) => record.validity_status).filter((value): value is string => Boolean(value)))];
   const models = [...new Set(records.map((record) => record.model).filter((value): value is string => Boolean(value)))];
+  const harnessVersionsRaw = [...new Set(records.map((record) => record.harness_version_raw).filter((value): value is string => Boolean(value)))];
+  const harnessVersionsSemver = [...new Set(records.map((record) => record.harness_version_semver).filter((value): value is string => Boolean(value)))];
+  const runBatchIds = [...new Set(records.map((record) => record.run_batch_id).filter((value): value is string => Boolean(value)))];
+  const aggregateTokenUsage = sumTokenUsage(records);
   return {
     ...first,
     generated_at: new Date().toISOString(),
@@ -251,10 +280,17 @@ export function aggregateNormalizedResults(
     profiles: [...new Set(records.flatMap((record) => record.profiles))],
     best_profile: first.best_profile,
     model: models.length === 1 ? models[0]! : (first.model ?? null),
-    latency_ms: average(latencies),
+    harness_version_raw: harnessVersionsRaw.length === 1 ? harnessVersionsRaw[0]! : null,
+    harness_version_semver: harnessVersionsSemver.length === 1 ? harnessVersionsSemver[0]! : null,
+    run_batch_id: runBatchIds.length === 1 ? runBatchIds[0]! : null,
+    latency_ms: median(latencies),
+    total_duration_ms: totalDurations.length ? totalDurations.reduce((sum, value) => sum + value, 0) : null,
     tool_call_count: average(toolCalls),
-    token_usage: averageTokenUsage(records),
+    token_usage: aggregateTokenUsage,
     token_cost: average(tokenCosts),
+    cost_usd: costsUsd.length ? costsUsd.reduce((sum, value) => sum + value, 0) : null,
+    tokens_in: aggregateTokenUsage?.input_tokens ?? null,
+    tokens_out: aggregateTokenUsage?.output_tokens ?? null,
     validity_status: validities.length === 1 ? validities[0] : validities.join(","),
     first_action_latency_ms: average(firstActionLatencies),
     transcript_event_count: average(transcriptEvents),
@@ -266,6 +302,8 @@ export function aggregateNormalizedResults(
     range_pass_rate: passRange,
     pass_hat_3: records.length === 3 ? meanPassRate ** 3 : null,
     task_consistency_at_3: null,
+    pass_3_tasks: null,
+    pass_3_tasks_total: null,
     pass_all_3: records.length === 3 ? (records.every((record) => record.pass_at_1 >= 1) ? 1 : 0) : null,
     trial_stability_at_3: classifyTrialStabilityAt3(passValues),
     source_records: sourceRecords,
@@ -357,10 +395,17 @@ export function buildBlockedResult(
     profiles: [],
     best_profile: null,
     model: null,
+    harness_version_raw: null,
+    harness_version_semver: null,
+    run_batch_id: null,
     latency_ms: null,
+    total_duration_ms: null,
     tool_call_count: null,
     token_usage: null,
     token_cost: null,
+    cost_usd: null,
+    tokens_in: null,
+    tokens_out: null,
     validity_status: null,
     first_action_latency_ms: null,
     transcript_event_count: null,

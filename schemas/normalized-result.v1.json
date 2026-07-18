@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/schemas/normalized-result.v1.json",
+  "title": "ax normalized result v1",
+  "description": "Stable public record for one product × surface × harness result cell.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "surface", "product", "harness", "standard_set_version",
+    "generated_at", "tasks_total", "tasks_passed", "pass_at_1", "pass_at_k",
+    "attempts", "discovery_score", "content_quality", "profiles",
+    "best_profile", "model"
+  ],
+  "properties": {
+    "schema": { "const": "ax.normalized-result/v1" },
+    "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+    "product": { "type": "string", "minLength": 1 },
+    "harness": { "type": "string", "minLength": 1 },
+    "standard_set_version": { "type": "string", "minLength": 1 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "tasks_total": { "type": "integer", "minimum": 0 },
+    "tasks_passed": { "type": "integer", "minimum": 0 },
+    "pass_at_1": { "type": "number", "minimum": 0, "maximum": 1 },
+    "pass_at_k": { "type": "number", "minimum": 0, "maximum": 1 },
+    "attempts": { "type": "integer", "minimum": 1 },
+    "discovery_score": { "$ref": "#/$defs/nullableRate" },
+    "content_quality": { "$ref": "#/$defs/nullableRate" },
+    "profiles": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "best_profile": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] },
+    "harness_version_raw": { "type": ["string", "null"] },
+    "harness_version_semver": { "type": ["string", "null"] },
+    "run_batch_id": { "type": ["string", "null"] },
+    "latency_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "total_duration_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tool_call_count": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "token_usage": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": { "type": "number", "minimum": 0 } }
+      ]
+    },
+    "token_cost": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "cost_usd": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tokens_in": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tokens_out": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "validity_status": { "type": ["string", "null"] },
+    "first_action_latency_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "transcript_event_count": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "action_occurred": { "type": ["boolean", "null"] },
+    "summary_kind": { "enum": ["single", "aggregate"] },
+    "trial_count": { "type": "integer", "minimum": 1 },
+    "trial_values": { "type": "array", "items": { "type": "number", "minimum": 0, "maximum": 1 } },
+    "mean_pass_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "range_pass_rate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "number", "minimum": 0, "maximum": 1 },
+        "max": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "pass_hat_3": { "$ref": "#/$defs/nullableRate", "deprecated": true },
+    "task_consistency_at_3": { "$ref": "#/$defs/nullableRate" },
+    "pass_3_tasks": { "type": ["integer", "null"], "minimum": 0 },
+    "pass_3_tasks_total": { "type": ["integer", "null"], "minimum": 0 },
+    "pass_all_3": { "$ref": "#/$defs/nullableRate", "deprecated": true },
+    "trial_stability_at_3": { "enum": ["all_pass", "all_fail", "inconsistent", null] },
+    "source_records": { "type": "array", "items": { "type": "string" } },
+    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "invoke-failed"] }
+  },
+  "$defs": {
+    "nullableRate": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "nullableNonNegativeNumber": {
+      "type": ["number", "null"],
+      "minimum": 0
+    }
+  }
+}
