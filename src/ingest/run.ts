@@ -1,5 +1,10 @@
 /** Fetch an OpenAPI spec (live, with offline fixture fallback) and ingest it. */
-import { existsSync, readFileSync } from "node:fs";
+import { lookup } from "node:dns/promises";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { request as httpRequest } from "node:http";
+import { request as httpsRequest } from "node:https";
+import { isIP } from "node:net";
+import { Readable } from "node:stream";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { parseSpec, type IngestedSpec } from "./openapi.js";
@@ -8,9 +13,172 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(HERE, "..", "static", "fixtures");
 
 export interface IngestOptions {
-  /** Force offline: read the local fixture instead of the network. */
+  /** Force offline: read a local path or, when allowed, a bundled fixture. */
   offline?: boolean;
   timeoutMs?: number;
+  /** Refuse bundled fixture fallback when the caller requires this exact source. */
+  allowFixtureFallback?: boolean;
+  /** Require explicit opt-in before reading a local source path. */
+  allowLocalFiles?: boolean;
+  /** Restrict live requests and every redirect to these official URL roots. */
+  allowedRemoteRoots?: readonly string[];
+  /** Resolve hosts before requesting and reject non-public network addresses. */
+  rejectPrivateNetwork?: boolean;
+  /** Maximum accepted source size in bytes. */
+  maxBytes?: number;
+  /** Test seam for deterministic DNS policy checks. */
+  resolveHost?: (hostname: string) => Promise<readonly string[]>;
+  /** Test seam for the address-pinned remote request. */
+  fetchRemote?: (url: URL, addresses: readonly string[], signal: AbortSignal) => Promise<Response>;
+}
+
+interface ResolvedRemoteSource {
+  url: URL;
+  addresses: readonly string[];
+}
+
+function isPublicIpv4(address: string): boolean {
+  const octets = address.split(".").map(Number);
+  if (octets.length !== 4 || octets.some((octet) => !Number.isInteger(octet) || octet < 0 || octet > 255)) return false;
+  const [a, b, c] = octets as [number, number, number, number];
+  if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+  if (a === 100 && b >= 64 && b <= 127) return false;
+  if (a === 169 && b === 254) return false;
+  if (a === 172 && b >= 16 && b <= 31) return false;
+  if (a === 192 && b === 168) return false;
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) return false;
+  if (a === 198 && (b === 18 || b === 19 || b === 51)) return false;
+  if (a === 203 && b === 0 && c === 113) return false;
+  return true;
+}
+
+function isPublicIpAddress(address: string): boolean {
+  const normalized = address.toLowerCase().split("%", 1)[0]!;
+  const family = isIP(normalized);
+  if (family === 4) return isPublicIpv4(normalized);
+  if (family !== 6) return false;
+  const halves = normalized.split("::");
+  if (halves.length > 2) return false;
+  const parseParts = (value: string): number[] | null => {
+    if (!value) return [];
+    const raw = value.split(":");
+    const parts: number[] = [];
+    for (const [index, part] of raw.entries()) {
+      if (part.includes(".")) {
+        if (index !== raw.length - 1 || isIP(part) !== 4) return null;
+        const octets = part.split(".").map(Number);
+        parts.push((octets[0]! << 8) | octets[1]!, (octets[2]! << 8) | octets[3]!);
+      } else {
+        if (!/^[a-f0-9]{1,4}$/.test(part)) return null;
+        parts.push(Number.parseInt(part, 16));
+      }
+    }
+    return parts;
+  };
+  const left = parseParts(halves[0] ?? "");
+  const right = parseParts(halves[1] ?? "");
+  if (!left || !right) return false;
+  const omitted = 8 - left.length - right.length;
+  if ((halves.length === 2 && omitted < 1) || (halves.length === 1 && omitted !== 0)) return false;
+  const parts = [...left, ...Array.from({ length: omitted }, () => 0), ...right];
+  if (parts.length !== 8) return false;
+  if (parts.every((part) => part === 0) || (parts.slice(0, 7).every((part) => part === 0) && parts[7] === 1)) return false;
+  const first = parts[0]!;
+  if ((first & 0xfe00) === 0xfc00 || (first & 0xffc0) === 0xfe80 || (first & 0xff00) === 0xff00) return false;
+  if (first === 0x2001 && parts[1] === 0x0db8) return false;
+  if (parts.slice(0, 5).every((part) => part === 0) && parts[5] === 0xffff) {
+    const high = parts[6]!;
+    const low = parts[7]!;
+    return isPublicIpv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`);
+  }
+  return true;
+}
+
+function usesAllowedRemoteHost(value: string, roots: readonly string[]): boolean {
+  const host = new URL(value).hostname.toLowerCase();
+  return roots.some((root) => {
+    const officialHost = new URL(root).hostname.toLowerCase();
+    return host === officialHost || host.endsWith(`.${officialHost}`);
+  });
+}
+
+async function assertRemoteSource(value: string, opts: IngestOptions): Promise<ResolvedRemoteSource> {
+  const url = new URL(value);
+  if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error(`spec source must use http or https: ${value}`);
+  if (url.username || url.password) throw new Error(`spec source cannot contain credentials: ${value}`);
+  if (opts.allowedRemoteRoots && !usesAllowedRemoteHost(value, opts.allowedRemoteRoots)) {
+    throw new Error(`spec source uses a non-official host: ${value}`);
+  }
+  if (!opts.rejectPrivateNetwork) return { url, addresses: [] };
+  const hostname = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  if (hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) {
+    throw new Error(`spec source resolves to a private network host: ${value}`);
+  }
+  const addresses = isIP(hostname) === 0
+    ? await (opts.resolveHost ?? (async (host) => (await lookup(host, { all: true, verbatim: true })).map((entry) => entry.address)))(hostname)
+    : [hostname];
+  if (addresses.length === 0 || addresses.some((address) => !isPublicIpAddress(address))) {
+    throw new Error(`spec source resolves to a private or non-routable address: ${value}`);
+  }
+  return { url, addresses };
+}
+
+export function fetchPinnedRemote(
+  url: URL,
+  addresses: readonly string[],
+  signal: AbortSignal,
+  requestFactory?: typeof httpRequest,
+): Promise<Response> {
+  if (addresses.length === 0) return fetch(url, { signal, redirect: "manual" });
+  const address = addresses[0]!;
+  const family = isIP(address);
+  const request = requestFactory ?? (url.protocol === "https:" ? httpsRequest : httpRequest);
+  return new Promise((resolveResponse, reject) => {
+    const req = request(url, {
+      method: "GET",
+      signal,
+      lookup: (_hostname, _options, callback) => callback(null, address, family),
+    }, (response) => {
+      const headers = new Headers();
+      for (const [name, value] of Object.entries(response.headers)) {
+        if (Array.isArray(value)) value.forEach((entry) => headers.append(name, entry));
+        else if (value !== undefined) headers.set(name, String(value));
+      }
+      resolveResponse(new Response(Readable.toWeb(response) as ReadableStream, {
+        status: response.statusCode ?? 500,
+        statusText: response.statusMessage,
+        headers,
+      }));
+    });
+    req.on("error", reject);
+    req.end();
+  });
+}
+
+async function readBoundedResponse(response: Response, maxBytes?: number): Promise<string> {
+  const declaredLength = Number(response.headers.get("content-length"));
+  if (maxBytes && Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+    throw new Error(`spec source exceeds ${maxBytes} bytes`);
+  }
+  if (!response.body) {
+    const text = await response.text();
+    if (maxBytes && Buffer.byteLength(text) > maxBytes) throw new Error(`spec source exceeds ${maxBytes} bytes`);
+    return text;
+  }
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (maxBytes && total > maxBytes) {
+      await reader.cancel();
+      throw new Error(`spec source exceeds ${maxBytes} bytes`);
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 /** Map a spec URL to a bundled fixture filename (host_path flattened). */
@@ -32,25 +200,50 @@ function fixtureFor(url: string): string | null {
  *  plus its provenance so callers can parse it however they need (ingest into a
  *  CRUD model, or run the content-quality smell audit on the raw document). */
 export async function fetchSpecText(
-  url: string,
+  source: string,
   opts: IngestOptions = {},
 ): Promise<{ text: string; source: string }> {
-  if (existsSync(url)) {
-    return { text: readFileSync(url, "utf8"), source: url };
+  if (existsSync(source)) {
+    if (opts.allowLocalFiles === false) throw new Error(`local spec sources require explicit offline mode: ${source}`);
+    const stat = statSync(source);
+    if (!stat.isFile()) throw new Error(`local spec source must be a file: ${source}`);
+    if (opts.maxBytes && stat.size > opts.maxBytes) throw new Error(`spec source exceeds ${opts.maxBytes} bytes`);
+    return { text: readFileSync(source, "utf8"), source };
   }
   if (!opts.offline) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 20000);
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(timer);
-      if (res.ok) return { text: await res.text(), source: url };
-    } catch {
+      let current = await assertRemoteSource(source, opts);
+      for (let redirects = 0; redirects <= 5; redirects++) {
+        const res = await (opts.fetchRemote ?? fetchPinnedRemote)(current.url, current.addresses, controller.signal);
+        const responseUrl = res.url || current.url.href;
+        await assertRemoteSource(responseUrl, opts);
+        if (res.status >= 300 && res.status < 400) {
+          if (redirects === 5) throw new Error(`spec source exceeded redirect limit: ${source}`);
+          const location = res.headers.get("location");
+          if (!location) throw new Error(`spec source redirect is missing a location: ${responseUrl}`);
+          current = await assertRemoteSource(new URL(location, current.url).href, opts);
+          continue;
+        }
+        if (res.ok) return { text: await readBoundedResponse(res, opts.maxBytes), source: responseUrl };
+        break;
+      }
+    } catch (error) {
+      if (opts.allowFixtureFallback === false) {
+        if (error instanceof Error && /^(?:spec source|local spec source)/.test(error.message)) throw error;
+        throw new Error(`could not fetch exact spec source ${source}: ${error instanceof Error ? error.message : String(error)}`);
+      }
       /* fall through to fixture */
+    } finally {
+      clearTimeout(timer);
     }
   }
-  const fx = fixtureFor(url);
-  if (!fx) throw new Error(`could not fetch ${url} and no fixture available`);
+  if (opts.allowFixtureFallback === false) {
+    throw new Error(`could not fetch exact spec source ${source}`);
+  }
+  const fx = fixtureFor(source);
+  if (!fx) throw new Error(`could not fetch ${source} and no fixture available`);
   return { text: readFileSync(fx, "utf8"), source: `fixture:${fx}` };
 }
 
