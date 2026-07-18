@@ -18,6 +18,7 @@
  */
 import { readFileSync } from "node:fs";
 import type { DiscoveryResult } from "../generate/discovery.js";
+import { detectWireSignals } from "../generate/surface-honesty.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { TraceStep } from "./executor.js";
 
@@ -55,6 +56,9 @@ export interface ObservedRun {
   /** Whether the agent enumerated the MCP server's tools (tools/list — the
    *  MCP-surface authoritative discovery source). */
   mcpToolsListed: boolean;
+  /** SQL-wire / node-pg / libsql signals observed in shell/scripts (for api
+   *  surface-honesty grading). */
+  wireSignals: string[];
 }
 
 const FETCH_TOOLS = new Set(["WebFetch", "open_resource", "Fetch"]);
@@ -242,6 +246,7 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
     sdkUsage: [],
     mcpToolCalls: [],
     mcpToolsListed: false,
+    wireSignals: [],
   };
 
   // Scan a shell command / script for API calls, auth, and surface signals.
@@ -249,6 +254,9 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
   // events so both harnesses are parsed the same way.
   const scanCommand = (cmd: string): void => {
     if (!cmd) return;
+    for (const signal of detectWireSignals(cmd)) {
+      if (!run.wireSignals.includes(signal)) run.wireSignals.push(signal);
+    }
     // Matches both curl headers (`authorization: Bearer`) and code/JSON forms.
     if (/authorization["'\s]*:["'\s]*bearer/i.test(cmd)) run.sawBearer = true;
     // Strategy A: literal curl URLs.
