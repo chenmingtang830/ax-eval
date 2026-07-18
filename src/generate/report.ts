@@ -25,6 +25,7 @@ import {
 import type { HarnessProbe } from "../harness/probe.js";
 import { REPORT_STYLE } from "../report-style.js";
 import { renderContentQualitySection, type SpecQualityAudit } from "../static/smells.js";
+import { renderCliHelpQualitySection, type CliHelpQualityAudit } from "../static/cli-smells.js";
 import type { StaticCheckResult } from "../static/types.js";
 
 export interface ProfileRun {
@@ -79,6 +80,11 @@ export interface StaticReadiness {
   /** The full smell audit behind `contentScore`, rendered as its own report
    *  section. Absent when the audit didn't run. */
   contentQuality?: SpecQualityAudit;
+  /** CLI help quality score, 0–100. Absent when no CLI surface is configured or
+   *  the help command could not be evaluated. */
+  cliHelpScore?: number;
+  /** Full CLI help audit behind `cliHelpScore`. */
+  cliHelpQuality?: CliHelpQualityAudit;
 }
 
 /** One actionable, prioritized recommendation produced by the engine below. */
@@ -684,6 +690,20 @@ export function buildRecommendations(
     });
   }
 
+  const cliHelpScore = staticReadiness?.cliHelpScore;
+  if (cliHelpScore !== undefined && cliHelpScore < 80) {
+    const cq = staticReadiness?.cliHelpQuality;
+    recs.push({
+      category: "discovery",
+      priority: cliHelpScore < 50 ? "high" : "med",
+      title: "Improve the CLI help quality",
+      detail:
+        `The CLI help surface scores ${cliHelpScore}/100` +
+        (cq ? ` (${cq.totalFindings} finding(s) from ${cq.command})` : "") +
+        ". Agents rely on CLI help to discover subcommands, flags, auth, examples, and destructive-operation semantics before they act.",
+    });
+  }
+
   if (maxAttempts(runs) <= 1 && runs.some((r) => r.outcomes.length > 0)) {
     recs.push({
       category: "execution",
@@ -754,6 +774,7 @@ function renderTldr(
   if (!cells.length) return "";
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const cliHelp = stat?.cliHelpScore;
   const harnesses = [...new Set(cells.map((c) => c.harness))];
 
   // A pill links to its detail section when one exists; Static discovery has no
@@ -778,8 +799,8 @@ function renderTldr(
   const section = (title: string, body: string): string =>
     `<div class="ax-tldr__section"><div class="ax-tldr__section-h">${title}</div>${body}</div>`;
 
-  // Multi-harness: the two cell-level pillars (task success, agent discovery) are
-  // broken down PER HARNESS; the two product-level pillars stay single pills.
+  // Multi-harness: task success and agent discovery are broken down per harness;
+  // product-level static scores stay single pills.
   if (harnesses.length > 1) {
     const surfaces = SURFACE_ORDER.filter((s) => cells.some((c) => c.surface === s));
     const profiles = [...new Set(runs.map((r) => r.profile))];
@@ -793,7 +814,7 @@ function renderTldr(
       `<strong>${esc(opLabel)}</strong>. ${esc(opTakeaway)} ${esc(processQualityTakeaway(runs))} ` +
       `<strong>${harnesses.length} harnesses × ${surfaces.length} surface${surfaces.length === 1 ? "" : "s"} × ${profiles.length} effort level${profiles.length === 1 ? "" : "s"} = ${runs.length} configs</strong>, ` +
       `summarized into ${cells.length} harness × surface cell${cells.length === 1 ? "" : "s"}. ` +
-      `Task success ${spread} across configs. Static discovery and content quality are product-level; ` +
+      `Task success ${spread} across configs. Static scores are product-level; ` +
       `task success and agent discovery break down by harness below.`;
     // Per-harness range across that harness's cells (min–max, or single value).
     const range = (nums: (number | undefined)[], unit: string): string => {
@@ -807,6 +828,7 @@ function renderTldr(
       pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
       pill("Agent discovery", discSpread === "—" ? "—" : `${esc(discSpread)}`, "#agent-discovery"),
       content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+      cliHelp !== undefined ? pill("CLI help quality", num(cliHelp, "/100"), "#cli-help-quality") : "",
     ].filter(Boolean);
     const byHarness = harnesses
       .map((h) => {
@@ -836,8 +858,8 @@ function renderTldr(
   </section>`;
   }
 
-  // Single harness (one cell, or one harness across profiles/attempts): the
-  // classic four-pillar TL;DR with a neutral, surface-aware takeaway.
+  // Single harness (one cell, or one harness across profiles/attempts): a neutral,
+  // surface-aware TL;DR.
   const best = bestBehavioralPct(runs);
   if (!best) return "";
   const surface = dominantSurface(runs);
@@ -857,6 +879,7 @@ function renderTldr(
     pill("Static discovery", num(readiness, "/100"), stat?.v0Checks?.length ? "#static-discovery" : undefined),
     pill("Agent discovery", num(agentDisc, "/100"), "#agent-discovery"),
     content !== undefined ? pill("Content quality", num(content, "/100"), "#content-quality") : "",
+    cliHelp !== undefined ? pill("CLI help quality", num(cliHelp, "/100"), "#cli-help-quality") : "",
   ].filter(Boolean);
   const executionBody = `<div class="ax-tldr__pills">${pill("Task success", num(best.pct, "%"), "#scores")}</div><p class="ax-tldr__section-note">On the <strong>${esc(surface.toUpperCase())}</strong> surface with <strong>${esc(best.profile)}</strong> effort, ${failNote}.</p>`;
   return `<section class="ax-section ax-tldr" id="tldr">
@@ -988,13 +1011,16 @@ function countBadge(n: number): string {
   return `<span class="ax-heat ax-heat--count ax-heat--${countTier(n)}">${esc(n)}</span>`;
 }
 
-/** The four-pillar formula explainer (shared by single-cell + matrix views). */
-function howScoredBlock(contentMeasured: boolean): string {
+/** Score formula explainer (shared by single-cell + matrix views). */
+function howScoredBlock(contentMeasured: boolean, cliHelpMeasured = false): string {
   const items = [
     `<strong>Static discovery /100</strong> — the higher of two docs-site audits: v0 (conventional-path checklist — llms.txt, OpenAPI, sitemap, OAuth discovery, …) and v2 (a docs-graph crawl scoring link-reachable surfaces). <code class="ax-code">max(v0, v2)</code>.`,
     `<strong>Agent discovery /100</strong> — the share of a run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
     contentMeasured
       ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    cliHelpMeasured
+      ? `<strong>CLI help quality /100</strong> — a weighted score over the declared CLI help output: description, commands, flags, auth, examples, and destructive-operation labeling.`
       : "",
     `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
   ].filter(Boolean);
@@ -1041,6 +1067,7 @@ function groupedConfigRows(runs: ProfileRun[], dataCells: (r: ProfileRun) => str
 function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
   const readiness = readinessScore(stat);
   const content = stat?.contentScore;
+  const cliHelp = stat?.cliHelpScore;
   const agentDisc = agentDiscoveryScore(runs);
   const profRank = (p: string): number => (p === "low" ? 0 : p === "high" ? 1 : 2);
   const profiles = [...new Set(runs.map((r) => r.profile))].sort((a, b) => profRank(a) - profRank(b) || a.localeCompare(b));
@@ -1106,6 +1133,13 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
         <span class="ax-card__sub">weighted OpenAPI smell score · product-level</span>
       </div>`
       : "",
+    cliHelp !== undefined
+      ? `<div class="ax-card ${scoreBand(cliHelp)}">
+        <span class="ax-card__value">${esc(cliHelp)}<span class="ax-card__scale">/100</span></span>
+        <span class="ax-card__label"><a href="#cli-help-quality">CLI help quality</a></span>
+        <span class="ax-card__sub">weighted CLI help score · product-level</span>
+      </div>`
+      : "",
     `<div class="ax-card ${scoreBand(agentDisc)}">
         <span class="ax-card__value">${agentDisc !== undefined ? esc(agentDisc) : "—"}${agentDisc !== undefined ? '<span class="ax-card__scale">/100</span>' : ""}</span>
         <span class="ax-card__label"><a href="#agent-discovery">Agent discovery</a></span>
@@ -1147,14 +1181,14 @@ function renderMatrixScorecard(stat: StaticReadiness | undefined, runs: ProfileR
       <tbody>${body}</tbody>
     </table>
     </div>
-    ${howScoredBlock(content !== undefined)}
+    ${howScoredBlock(content !== undefined, cliHelp !== undefined)}
   </section>`;
 }
 
 /** Section 2 — one-line verdict + scorecard metric cards. */
 function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]): string {
-  // More than one config (any of harness/surface/effort varies) → the neutral
-  // all-configs matrix. A single config falls through to the four-pillar scorecard.
+  // More than one config (any of harness/surface/effort varies) uses the neutral
+  // all-configs matrix. A single config falls through to the scorecard.
   if (runs.length > 1) return renderMatrixScorecard(stat, runs);
 
   const best = bestBehavioralPct(runs);
@@ -1202,6 +1236,7 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       .join(" · ") || "not measured";
 
   const content = stat?.contentScore;
+  const cliHelp = stat?.cliHelpScore;
   const agentDisc = agentDiscoveryScore(runs);
   // Card color by the shared strict scale (only 100 green) so the four pillars
   // read consistently with the matrix view.
@@ -1243,6 +1278,15 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
       </div>`,
     );
   }
+  if (cliHelp !== undefined) {
+    cards.push(
+      `<div class="ax-card ${band(cliHelp)}">
+        ${val(cliHelp, "/100")}
+        <span class="ax-card__label"><a href="#cli-help-quality">CLI help quality</a></span>
+        <span class="ax-card__sub">weighted CLI help score</span>
+      </div>`,
+    );
+  }
   const executionCards = [
     `<div class="ax-card ${band(best?.pct)}">
         ${val(best?.pct, "%")}
@@ -1258,6 +1302,9 @@ function renderScorecard(stat: StaticReadiness | undefined, runs: ProfileRun[]):
     `<strong>Agent discovery /100</strong> — the share of the strongest run's scored Phase-0 signals that passed (reached the authoritative source · used a concrete create action · avoided a stale/wrong source · authenticated). Efficiency (hops) is reported but not scored.`,
     content !== undefined
       ? `<strong>Content quality /100</strong> — a weighted score over the OpenAPI spec's per-endpoint "smells" (Hermes taxonomy): 100 minus weighted smell prevalence, so a clean spec ≈ 100.`
+      : "",
+    cliHelp !== undefined
+      ? `<strong>CLI help quality /100</strong> — a weighted score over the declared CLI help output: description, command/action discovery, flags, auth, examples, and destructive-operation labeling.`
       : "",
     `<strong>Task success %</strong> — the share of tasks whose <em>round-trip oracle</em> passed for the best profile: the agent creates/mutates a resource and the verifier independently reads it back and asserts a server-confirmed field.`,
   ].filter(Boolean);
@@ -1352,6 +1399,19 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     );
   }
 
+  const cli = stat?.cliHelpQuality;
+  if (cli && stat?.cliHelpScore !== undefined && stat.cliHelpScore < 80) {
+    const top = (Object.keys(cli.byCategory) as (keyof typeof cli.byCategory)[])
+      .filter((c) => cli.byCategory[c] > 0)
+      .sort((a, b) => cli.byCategory[b] - cli.byCategory[a])[0];
+    pushFinding(
+      "discovery",
+      `CLI help quality is ${stat.cliHelpScore}/100 (${cli.totalFindings} finding(s) from ${cli.command})` +
+        (top ? `, most often ${top}` : "") +
+        " — agents may struggle to discover commands, flags, auth, or examples before acting.",
+    );
+  }
+
   const scored = runs.filter((r) => r.discovery);
   if (scored.length) {
     const missing = new Set<string>();
@@ -1407,9 +1467,9 @@ function buildFindings(pack: TargetPack, runs: ProfileRun[], stat?: StaticReadin
     }
   }
 
-  // Allow one extra slot when the content-quality axis contributed a finding,
+  // Allow one extra slot when a surface-quality axis contributed a finding,
   // so it doesn't crowd out the attribution finding.
-  return findings.slice(0, stat?.contentQuality ? 4 : 3);
+  return findings.slice(0, stat?.contentQuality || stat?.cliHelpQuality ? 4 : 3);
 }
 
 function renderFindings(title: string, findings: Finding[], id?: string): string {
@@ -2057,7 +2117,8 @@ export function renderGeneratedReport(
     staticReadiness &&
     (staticReadiness.v0Score !== undefined ||
       staticReadiness.v2Score !== undefined ||
-      staticReadiness.contentScore !== undefined);
+      staticReadiness.contentScore !== undefined ||
+      staticReadiness.cliHelpScore !== undefined);
   const stat = hasStatic ? staticReadiness : undefined;
   const recs = buildRecommendations(pack, runs, stat);
   const findings = buildFindings(pack, runs, stat);
@@ -2088,6 +2149,7 @@ export function renderGeneratedReport(
         renderStaticDiscovery(stat),
         renderDiscovery(pack, runs),
         stat?.contentQuality ? renderContentQualitySection(stat.contentQuality) : "",
+        stat?.cliHelpQuality ? renderCliHelpQualitySection(stat.cliHelpQuality) : "",
       ],
     ),
     renderSectionGroup(
