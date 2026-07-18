@@ -29,7 +29,7 @@
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
  */
 import { fileURLToPath } from "node:url";
-import { dirname, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawn, spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
@@ -95,6 +95,7 @@ import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifac
 import { auditSuite, applySuiteAudit, formatSuiteAuditReport } from "./generate/suite-audit.js";
 import { composePack, writeComposedPack } from "./generate/compose-pack.js";
 import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
+import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
 import {
   DAEB_LOW_PASS_SCHEMA,
   combinedResultPath,
@@ -109,6 +110,8 @@ import {
   type LowPassSurfaceRecord,
 } from "./generate/low-pass.js";
 import {
+  DAEB_PRODUCTION_CLAUDE_MODEL,
+  DAEB_PRODUCTION_CODEX_MODEL,
   DAEB_PRODUCTION_EFFORT,
   DAEB_PRODUCTION_HARNESSES,
   DAEB_PRODUCTION_TRIAL_COUNT,
@@ -193,6 +196,7 @@ const COMMANDS = [
   "synthesize-suite",
   "publication-bundle",
   "export-publication",
+  "records-diff",
   "daeb-low-pass",
   "daeb-production-rerun",
 ] as const;
@@ -233,7 +237,7 @@ function commandUsage(command: string | undefined): string {
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--trial N] [--skip-reset] [--reclaim]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -350,6 +354,12 @@ function commandUsage(command: string | undefined): string {
         "  Exports an axarena-ready JSON dataset from a frozen publication bundle.",
         "  Writes leaderboard, cell, task, trial, failure, evidence, and methodology indexes.",
       ].join("\n");
+    case "records-diff":
+      return [
+        "usage: ax-eval records-diff --base <record-file-or-dir> --head <record-file-or-dir> --out <diff.md>",
+        "  Compares normalized result records and writes deterministic Markdown.",
+        "  Overall macro-averages surfaces per agent; operational metrics never affect rank.",
+      ].join("\n");
     case "daeb-low-pass":
       return [
         "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
@@ -363,12 +373,11 @@ function commandUsage(command: string | undefined): string {
       return [
         "usage: ax-eval daeb-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
         "                                     [--surface api|cli|all] [--run-dir <dir>]",
-        "                                     [--codex-model <slug>] [--claude-model <slug>]",
         "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
-        "                                     [--skip-reset] [--skip-archive] [--reclaim]",
+        "                                     [--skip-archive] [--reclaim]",
         "  Runs the DAEB/database v1 production rerun lane with api/cli only,",
-        "  one vendor → one surface → one harness → three medium-effort trials,",
-        "  then writes aggregate mean/range/pass^3 artifacts under aggregate/.",
+        "  one vendor → one surface → one harness → three clean high-effort trials,",
+        "  then writes aggregate mean/range/pass³ artifacts under aggregate/.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -438,6 +447,8 @@ interface Parsed {
   graphql: string;
   snapshot: string;
   from: string;
+  baseRecords: string;
+  headRecords: string;
   baseUrl: string;
   limit: number;
   l2Limit: number | undefined;
@@ -447,6 +458,7 @@ interface Parsed {
   taskCount: number | undefined;
   results: string[];
   runId: string;
+  runBatchId: string;
   runDir: string;
   observe: Record<string, string>;
   maxPages: number;
@@ -530,6 +542,8 @@ function parseArgs(argv: string[]): Parsed {
     graphql: "",
     snapshot: "",
     from: "",
+    baseRecords: "",
+    headRecords: "",
     baseUrl: "",
     limit: 3,
     l2Limit: undefined,
@@ -538,6 +552,7 @@ function parseArgs(argv: string[]): Parsed {
     taskCount: undefined,
     results: [],
     runId: "",
+    runBatchId: "",
     runDir: "results",
     observe: {},
     maxPages: 25,
@@ -561,8 +576,8 @@ function parseArgs(argv: string[]): Parsed {
     domain: "",
     slug: "",
     specs: "",
-    codexModel: "gpt-5.4",
-    claudeModel: "sonnet",
+    codexModel: DAEB_PRODUCTION_CODEX_MODEL,
+    claudeModel: DAEB_PRODUCTION_CLAUDE_MODEL,
     effortProfiles: "",
     requiredEffortProfiles: "",
     skipReset: false,
@@ -647,6 +662,8 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
     else if (a === "--snapshot") p.snapshot = value(++i, "--snapshot");
     else if (a === "--from") p.from = value(++i, "--from");
+    else if (a === "--base") p.baseRecords = value(++i, "--base");
+    else if (a === "--head") p.headRecords = value(++i, "--head");
     else if (a === "--suite") p.suite = value(++i, "--suite");
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
@@ -666,6 +683,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--task-count") p.taskCount = Number(value(++i, "--task-count"));
     else if (a === "--results") p.results.push(value(++i, "--results"));
     else if (a === "--run-id") p.runId = value(++i, "--run-id");
+    else if (a === "--run-batch-id") p.runBatchId = value(++i, "--run-batch-id");
     else if (a === "--run-dir") p.runDir = value(++i, "--run-dir");
     else if (a === "--observe") {
       const v = value(++i, "--observe");
@@ -2052,6 +2070,17 @@ function cmdExportPublication(args: Parsed): number {
   return 0;
 }
 
+function cmdRecordsDiff(args: Parsed): number {
+  if (!args.baseRecords) throw new Error("--base <record-file-or-dir> is required");
+  if (!args.headRecords) throw new Error("--head <record-file-or-dir> is required");
+  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <diff.md> is required");
+  const markdown = renderRecordsDiffMarkdown(resolve(process.cwd(), args.baseRecords), resolve(process.cwd(), args.headRecords));
+  mkdirSync(dirname(resolve(process.cwd(), args.out)), { recursive: true });
+  writeFileSync(resolve(process.cwd(), args.out), markdown);
+  console.log(`Saved normalized records diff → ${args.out}`);
+  return 0;
+}
+
 function loadNormalizedRecordForTrial(runDir: string, harness: string, surface: SurfaceId): { path: string; record: NormalizedResult } {
   const candidates = loadAggregateCandidateRecords(runDir);
   for (const candidate of candidates) {
@@ -2088,10 +2117,17 @@ function buildProductionFailureRecord(
     profiles: [profile],
     best_profile: profile,
     model,
+    harness_version_raw: null,
+    harness_version_semver: null,
+    run_batch_id: null,
     latency_ms: null,
+    total_duration_ms: null,
     tool_call_count: null,
     token_usage: null,
     token_cost: null,
+    cost_usd: null,
+    tokens_in: null,
+    tokens_out: null,
     validity_status: "invoke_failed",
     first_action_latency_ms: null,
     transcript_event_count: null,
@@ -2149,7 +2185,7 @@ async function runProductionHarnessTrial(opts: {
   const trialDir = productionTrialDir(opts.runRoot, opts.vendor, opts.surface, opts.harness, opts.trial);
   mkdirSync(trialDir, { recursive: true });
   console.log(`    ${opts.harness} trial ${opts.trial}/${opts.trialCount} → ${trialDir}`);
-  const resultPath = combinedResultPath(trialDir, opts.harness, "medium", opts.surface);
+  const resultPath = combinedResultPath(trialDir, opts.harness, DAEB_PRODUCTION_EFFORT, opts.surface);
   const htmlPath = resolve(trialDir, "generated-eval.html");
   const snapshotPath = resolve(trialDir, "generated-eval.snapshot.json");
   const classificationPath = resolve(trialDir, "failure-review.md");
@@ -2184,7 +2220,7 @@ async function runProductionHarnessTrial(opts: {
         "--invoke",
         "--execution-mode", "task",
         "--harness", opts.harness,
-        "--profile", "medium",
+        "--profile", DAEB_PRODUCTION_EFFORT,
         "--surface", opts.surface,
         "--model", opts.model,
         "--effort", DAEB_PRODUCTION_EFFORT,
@@ -2193,6 +2229,7 @@ async function runProductionHarnessTrial(opts: {
         "--first-action-timeout", String(opts.firstActionTimeout || 240),
         "--concurrency", "1",
         "--trial", String(opts.trial),
+        "--run-batch-id", basename(opts.runRoot),
         "--skip-reset",
       ]);
     } else {
@@ -2259,7 +2296,7 @@ async function runProductionHarnessTrial(opts: {
     try {
       normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
     } catch {
-      const record = buildProductionFailureRecord(opts.pack, opts.surface, opts.harness, opts.model, "medium");
+      const record = buildProductionFailureRecord(opts.pack, opts.surface, opts.harness, opts.model, DAEB_PRODUCTION_EFFORT);
       const normalizedPath = resolve(trialDir, `${opts.harness}.${opts.surface}.failed.normalized.json`);
       writeFileSync(normalizedPath, JSON.stringify(record, null, 2) + "\n");
       normalized = { path: normalizedPath, record };
@@ -2309,8 +2346,16 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
     throw new Error(`DAEB/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
   }
-  if (!Number.isInteger(args.trialCount) || args.trialCount < 1) {
-    throw new Error("--trial-count must be a positive integer");
+  if (args.trialCount !== DAEB_PRODUCTION_TRIAL_COUNT) {
+    throw new Error(`DAEB production ranking requires exactly ${DAEB_PRODUCTION_TRIAL_COUNT} clean trials per task cell`);
+  }
+  if (args.codexModel !== DAEB_PRODUCTION_CODEX_MODEL || args.claudeModel !== DAEB_PRODUCTION_CLAUDE_MODEL) {
+    throw new Error(
+      `DAEB production models are frozen to ${DAEB_PRODUCTION_CODEX_MODEL} and ${DAEB_PRODUCTION_CLAUDE_MODEL}`,
+    );
+  }
+  if (args.skipReset) {
+    throw new Error("DAEB production trials require confirmed cleanup between trials; --skip-reset is not allowed");
   }
   const vendors = args.vendor
     ? [args.vendor]
@@ -2402,7 +2447,7 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
     }
   }
   console.log(`\nCompleted DAEB production rerun workflow → ${runRoot}`);
-  console.log(`Publication bundle command: ax-eval publication-bundle --suite ${suitePath} --run-dir ${runRoot} --out ${resolve(runRoot, "publication-bundle")} --effort-profiles medium --required-effort-profiles medium`);
+  console.log(`Publication bundle command: ax-eval publication-bundle --suite ${suitePath} --run-dir ${runRoot} --out ${resolve(runRoot, "publication-bundle")} --effort-profiles ${DAEB_PRODUCTION_EFFORT} --required-effort-profiles ${DAEB_PRODUCTION_EFFORT}`);
   return 0;
 }
 
@@ -2888,7 +2933,7 @@ function aggregateTaskInvokeGroup(args: {
     .map((paths) => existsSync(paths.resultsPath) ? loadResults(paths.resultsPath) : undefined)
     .filter((result): result is ReturnType<typeof loadResults> => Boolean(result));
   const first = taskResults[0] ?? bootstrapResult;
-  const combinedResults = {
+  const combinedResults: Record<string, unknown> = {
     profile: first?.profile ?? "unknown",
     harness: first?.harness,
     ns: first?.ns,
@@ -2935,14 +2980,39 @@ function aggregateTaskInvokeGroup(args: {
   writeFileSync(args.paths.stdoutPath, joinOrderedArtifacts((paths) => paths.stdoutPath));
   writeFileSync(args.paths.stderrPath, joinOrderedArtifacts((paths) => paths.stderrPath));
 
-  const taskMetas = orderedArtifactPaths
-    .map((paths) => existsSync(paths.metaPath) ? readJsonObject(paths.metaPath) : undefined)
-    .filter((meta): meta is Record<string, unknown> => Boolean(meta));
+  const taskMetaEntries = orderedArtifactPaths
+    .map((paths) => ({ path: paths.metaPath, meta: existsSync(paths.metaPath) ? readJsonObject(paths.metaPath) : undefined }))
+    .filter((entry): entry is { path: string; meta: Record<string, unknown> } => Boolean(entry.meta));
+  const taskMetas = taskMetaEntries.map((entry) => entry.meta);
   const durationMs = taskMetas.reduce((sum, meta) => sum + (typeof meta.durationMs === "number" ? meta.durationMs : 0), 0);
   const transcriptEvents = taskMetas.reduce((sum, meta) => sum + (typeof meta.transcript_event_count === "number" ? meta.transcript_event_count : 0), 0);
   const firstActionValues = taskMetas
     .map((meta) => typeof meta.first_action_latency_ms === "number" ? meta.first_action_latency_ms : undefined)
     .filter((value): value is number => typeof value === "number");
+  const nativeMetrics = taskMetas
+    .map((meta) => meta.metrics)
+    .filter((value): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value)));
+  const metricTokenUsage = nativeMetrics.reduce<Record<string, number> | null>((total, metric) =>
+    mergeTokenUsage(total, metric.token_usage as Record<string, number> | null | undefined), null);
+  const metricCosts = nativeMetrics.flatMap((metric) => typeof metric.cost_usd === "number" ? [metric.cost_usd] : []);
+  const metricTurns = nativeMetrics.flatMap((metric) => typeof metric.num_turns === "number" ? [metric.num_turns] : []);
+  const metricDurations = nativeMetrics.flatMap((metric) => typeof metric.duration_ms === "number" ? [metric.duration_ms] : []);
+  const metricTotalDurations = nativeMetrics.flatMap((metric) => typeof metric.total_duration_ms === "number" ? [metric.total_duration_ms] : []);
+  const versionRaw = [...new Set(nativeMetrics.map((metric) => metric.harness_version_raw).filter((value): value is string => typeof value === "string"))];
+  const versionSemver = [...new Set(nativeMetrics.map((metric) => metric.harness_version_semver).filter((value): value is string => typeof value === "string"))];
+  const runBatchIds = [...new Set(nativeMetrics.map((metric) => metric.run_batch_id).filter((value): value is string => typeof value === "string"))];
+  const combinedMetrics = {
+    harness_version_raw: versionRaw.length === 1 ? versionRaw[0] : null,
+    harness_version_semver: versionSemver.length === 1 ? versionSemver[0] : null,
+    run_batch_id: runBatchIds.length === 1 ? runBatchIds[0] : null,
+    duration_ms: metricDurations.length ? metricDurations.reduce((sum, value) => sum + value, 0) : null,
+    total_duration_ms: metricTotalDurations.reduce((sum, value) => sum + value, 0),
+    cost_usd: metricCosts.length ? metricCosts.reduce((sum, value) => sum + value, 0) : null,
+    token_usage: metricTokenUsage,
+    num_turns: metricTurns.length ? metricTurns.reduce((sum, value) => sum + value, 0) : null,
+  };
+  combinedResults.metrics = combinedMetrics;
+  writeFileSync(args.paths.resultsPath, JSON.stringify(combinedResults, null, 2));
   const combinedMeta = {
     ...(taskMetas[0] ?? {}),
     ok: taskMetas.every((meta) => meta.ok === true),
@@ -2953,6 +3023,11 @@ function aggregateTaskInvokeGroup(args: {
     first_action_latency_ms: firstActionValues.length ? Math.min(...firstActionValues) : null,
     transcript_event_count: transcriptEvents,
     action_occurred: taskMetas.some((meta) => meta.action_occurred === true),
+    metrics: combinedMetrics,
+    task_attempt_metrics: taskMetaEntries.map((entry) => ({
+      meta_path: entry.path,
+      attempts: Array.isArray(entry.meta.attempt_metrics) ? entry.meta.attempt_metrics : [],
+    })),
     promptPath: args.paths.promptPath,
     resultsPath: args.paths.resultsPath,
     tracePath: args.paths.tracePath,
@@ -3206,6 +3281,8 @@ interface InvokeGroup {
               retries: args.invokeRetries,
               env: provisioning.env,
               provisioning: provisioning.meta,
+              harnessDetection: detection,
+              runBatchId: args.runBatchId || basename(resolve(dir)),
             } satisfies Omit<InvokeRunOptions, "pack" | "paths">;
             if (args.executionMode === "task") {
               const provisionForPaths = async (invokePaths: ReturnType<typeof defaultInvokePaths>) => {
@@ -3634,14 +3711,25 @@ function mergeNullableBooleanOr(a: boolean | null | undefined, b: boolean | null
   return null;
 }
 
+function mergeSameString(a: string | null | undefined, b: string | null | undefined): string | null {
+  const values = [a, b].filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (!values.length) return null;
+  return values.every((value) => value === values[0]) ? values[0]! : null;
+}
+
 function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"]): ProfileRun["efficiency"] | undefined {
   if (!a) return b;
   if (!b) return a;
   return {
     latency_ms: sumNullable(a.latency_ms, b.latency_ms),
+    total_duration_ms: sumNullable(a.total_duration_ms, b.total_duration_ms),
     tool_call_count: sumNullable(a.tool_call_count, b.tool_call_count),
     token_usage: mergeTokenUsage(a.token_usage, b.token_usage),
     token_cost: sumNullable(a.token_cost, b.token_cost),
+    cost_usd: sumNullable(a.cost_usd, b.cost_usd),
+    harness_version_raw: mergeSameString(a.harness_version_raw, b.harness_version_raw),
+    harness_version_semver: mergeSameString(a.harness_version_semver, b.harness_version_semver),
+    run_batch_id: mergeSameString(a.run_batch_id, b.run_batch_id),
     validity_status: mergeValidityStatus(a.validity_status, b.validity_status),
     first_action_latency_ms: minNullable(a.first_action_latency_ms, b.first_action_latency_ms),
     transcript_event_count: sumNullable(a.transcript_event_count, b.transcript_event_count),
@@ -3761,13 +3849,27 @@ function transcriptMetrics(path: string | undefined): {
 function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
   const meta = siblingInvokeMeta(resultPath);
   const metrics = transcriptMetrics(transcriptPath);
+  const native = meta?.metrics && typeof meta.metrics === "object" && !Array.isArray(meta.metrics)
+    ? meta.metrics as Record<string, unknown>
+    : undefined;
+  const nativeTokenUsage = native?.token_usage && typeof native.token_usage === "object" && !Array.isArray(native.token_usage)
+    ? native.token_usage as Record<string, number>
+    : null;
+  const nativeCostUsd = typeof native?.cost_usd === "number" ? native.cost_usd : null;
   return {
-    latency_ms: typeof meta?.durationMs === "number" ? meta.durationMs : null,
+    latency_ms: typeof native?.duration_ms === "number"
+      ? native.duration_ms
+      : typeof meta?.durationMs === "number" ? meta.durationMs : null,
+    total_duration_ms: typeof native?.total_duration_ms === "number"
+      ? native.total_duration_ms
+      : typeof meta?.durationMs === "number" ? meta.durationMs : null,
     tool_call_count: metrics.tool_call_count,
-    token_usage: metrics.token_usage,
-    // Cost requires a versioned pricing table. Keep it explicit and nullable
-    // rather than inventing a number from model names.
-    token_cost: null,
+    token_usage: nativeTokenUsage ?? metrics.token_usage,
+    token_cost: nativeCostUsd,
+    cost_usd: nativeCostUsd,
+    harness_version_raw: typeof native?.harness_version_raw === "string" ? native.harness_version_raw : null,
+    harness_version_semver: typeof native?.harness_version_semver === "string" ? native.harness_version_semver : null,
+    run_batch_id: typeof native?.run_batch_id === "string" ? native.run_batch_id : null,
     validity_status: typeof meta?.validity_status === "string" ? meta.validity_status : null,
     first_action_latency_ms: typeof meta?.first_action_latency_ms === "number" ? meta.first_action_latency_ms : null,
     transcript_event_count: typeof meta?.transcript_event_count === "number" ? meta.transcript_event_count : metrics.transcript_event_count,
@@ -4497,6 +4599,8 @@ async function main(): Promise<number> {
       return cmdPublicationBundle(args);
     case "export-publication":
       return cmdExportPublication(args);
+    case "records-diff":
+      return cmdRecordsDiff(args);
     case "daeb-low-pass":
       return await cmdDaebLowPass(args);
     case "daeb-production-rerun":

@@ -79,6 +79,30 @@ describe("cli arg handling", () => {
     expect(out).toContain("axarena-ready JSON dataset");
   });
 
+  it("records-diff writes deterministic Markdown", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-records-diff-"));
+    try {
+      const base = resolve(dir, "base.json");
+      const head = resolve(dir, "head.json");
+      const outPath = resolve(dir, "diff.md");
+      const record = (pass: number) => ({
+        schema: "ax.normalized-result/v1", surface: "api", product: "neon", harness: "codex",
+        standard_set_version: "daeb-v1", generated_at: "2026-07-18T00:00:00.000Z",
+        tasks_total: 7, tasks_passed: Math.round(pass * 7), pass_at_1: pass, pass_at_k: pass,
+        attempts: 1, discovery_score: null, content_quality: null, profiles: ["high"],
+        best_profile: "high", model: "gpt-5.6-terra", summary_kind: "aggregate",
+        task_consistency_at_3: pass, pass_3_tasks: Math.round(pass * 7), pass_3_tasks_total: 7,
+      });
+      writeFileSync(base, JSON.stringify(record(0.5)));
+      writeFileSync(head, JSON.stringify(record(0.75)));
+      const result = runCli(["records-diff", "--base", base, "--head", head, "--out", outPath]);
+      expect(result.code).toBe(0);
+      expect(readFileSync(outPath, "utf8")).toContain("+25.0 pp");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("daeb-low-pass help prints command usage with exit 0", () => {
     const { code, out } = runCli(["daeb-low-pass", "--help"]);
     expect(code).toBe(0);
@@ -162,7 +186,7 @@ describe("cli arg handling", () => {
       expect(manifest.publication_readiness).toBe("draft");
       expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
       expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-      expect(manifest.expected_matrix.effort_profiles).toEqual(["medium"]);
+      expect(manifest.expected_matrix.effort_profiles).toEqual(["high"]);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
       expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
       expect(manifest.layers.static_ax).toBeTruthy();
@@ -204,6 +228,18 @@ describe("cli arg handling", () => {
     ]);
     expect(code).toBe(1);
     expect(out).toContain('surface "sdk" is out of scope');
+  });
+
+  it("daeb-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
+    const model = runCli(["daeb-production-rerun", "--codex-model", "gpt-5.4"]);
+    expect(model.code).toBe(1);
+    expect(model.out).toContain("production models are frozen");
+    const trials = runCli(["daeb-production-rerun", "--trial-count", "2"]);
+    expect(trials.code).toBe(1);
+    expect(trials.out).toContain("exactly 3 clean trials");
+    const reset = runCli(["daeb-production-rerun", "--skip-reset"]);
+    expect(reset.code).toBe(1);
+    expect(reset.out).toContain("--skip-reset is not allowed");
   });
 });
 
