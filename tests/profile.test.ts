@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import { getProfile, profileLabel, profilesAreCrossModel, PROFILES } from "../src/harness/profile.js";
 
 describe("harness profiles", () => {
-  it("low/high share the host model (effort-only spread)", () => {
+  it("retains the historical low/high profiles for compatibility", () => {
     expect(profilesAreCrossModel([PROFILES.low, PROFILES.high])).toBe(false);
+  });
+
+  it("uses medium as the primary live-evaluation profile", () => {
+    expect(getProfile("medium")).toBe(PROFILES.medium);
+    expect(PROFILES.medium.effort).toBe("medium");
+    expect(PROFILES.medium.upperBound).toBe(true);
   });
 
   it("floor/ceiling resolve to low/high as back-compat aliases", () => {
@@ -17,9 +23,9 @@ describe("harness profiles", () => {
   });
 
   it("model profiles carry distinct model labels", () => {
-    expect(getProfile("sonnet").model).toBe("claude-4.6-sonnet");
+    expect(getProfile("sonnet").model).toBe("sonnet");
     expect(getProfile("gpt5").model).toBe("gpt-5.5");
-    expect(profileLabel(PROFILES.sonnet)).toContain("claude-4.6-sonnet");
+    expect(profileLabel(PROFILES.sonnet)).toContain("sonnet");
   });
 
   it("unknown profile throws", () => {
