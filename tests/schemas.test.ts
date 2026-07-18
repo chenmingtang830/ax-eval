@@ -22,3 +22,27 @@ describe("TaskSchema", () => {
     expect(pack.site_url).toBe("");
   });
 });
+
+describe("MCP surface schema", () => {
+  it("requires stdio commands to separate executable and argv", () => {
+    expect(() => TargetPackSchema.parse({
+      name: "unsafe-stdio",
+      surfaces: { mcp: { server: "npx -y @demo/mcp", transport: "stdio" } },
+      tasks: [],
+    })).toThrow(/single executable name/);
+    expect(() => TargetPackSchema.parse({
+      name: "safe-stdio",
+      surfaces: { mcp: { server: "npx", transport: "stdio", args: ["-y", "@demo/mcp"] } },
+      tasks: [],
+    })).not.toThrow();
+  });
+
+  it("restricts inherited HTTP MCP auth to bearer or no-auth APIs", () => {
+    expect(() => TargetPackSchema.parse({
+      name: "api-key-http-mcp",
+      auth: { type: "api-key", env: "API_KEY", header: "x-api-key" },
+      surfaces: { mcp: { server: "https://mcp.example.test", transport: "http", auth: { kind: "inherit" } } },
+      tasks: [],
+    })).toThrow(/requires top-level bearer or none auth/);
+  });
+});

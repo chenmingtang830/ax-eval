@@ -20,6 +20,7 @@
  *        (complete / reschedule / archive)
  */
 import { stringify as yamlStringify } from "yaml";
+import { NS_PLACEHOLDER } from "../constants.js";
 import type { IngestedSpec, CrudResource } from "../ingest/openapi.js";
 import type { Auth, GeneratorProvenance, OracleSpec, ScopeParam, Task, TargetPack } from "../schemas.js";
 import {
@@ -51,7 +52,7 @@ export function newRunId(): string {
  * the same frozen pack never collide on resource names — while the oracle's
  * `expected` stays an exact-match template (verify substitutes the same ns).
  */
-export const NS_PLACEHOLDER = "{ns}";
+export { NS_PLACEHOLDER };
 
 export function probeValue(resource: string): string {
   return `${PROBE_PREFIX} ${resource} ${NS_PLACEHOLDER}`;
@@ -174,9 +175,7 @@ export interface GenerateOptions {
   surfaceTaskPolicies?: SurfaceTaskPolicies;
   /** Additional fully-authored tasks to append after rule-derived generation. */
   curatedTasks?: Task[];
-  /** Resource names to omit from generic deterministic task generation. Useful
-   *  when a product exposes a path structurally shaped like CRUD but it is a
-   *  poor eval target without product-specific curation. */
+  /** Resources to omit from generic deterministic task generation. */
   excludeResources?: string[];
   /** POST-only / stateless operation tasks for APIs that don't expose CRUD
    *  resources for their core value path (e.g. search/content APIs). */
@@ -316,6 +315,7 @@ function restL3Task(
     difficulty: "L3",
     prompt: REST_L3_PROMPTS[index % REST_L3_PROMPTS.length]!(val),
     allowed_surfaces: allowedSurfaces,
+    na: false,
     create_path: res.createPath,
     create_envelope: spec.requestEnvelope ?? undefined,
     depends_on: [],
@@ -345,10 +345,14 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   const env = spec.responseEnvelope;
   const overrides = opts.identityOverrides ?? {};
   const allowedSurfaces = declaredTaskAllowedSurfaces(opts.surfaces);
-  const excludedResources = new Set((opts.excludeResources ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean));
+  const excludedResources = new Set(
+    (opts.excludeResources ?? []).map((name) => name.trim().toLowerCase()).filter(Boolean),
+  );
   /** Read-back identity field for a resource (override → ingest default). */
   const idField = (res: CrudResource): string => overrides[res.name] ?? res.identityField;
-  const generatableResources = spec.resources.filter((res) => !isActionLikeResource(res) && !excludedResources.has(res.name.toLowerCase()));
+  const generatableResources = spec.resources.filter(
+    (res) => !isActionLikeResource(res) && !excludedResources.has(res.name.toLowerCase()),
+  );
   const simpleAll = generatableResources.filter(isSimple);
   const simpleNames = new Set(simpleAll.map((r) => r.name));
   const simpleOrdered = orderByPreference(simpleAll, prefer);
@@ -378,6 +382,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         "simple",
         [res.name],
       ),
+      na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -410,6 +415,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         "nested",
         [parent.name, chain.name],
       ),
+      na: false,
       create_path: chain.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [parent.name],
@@ -424,21 +430,19 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
   // NOT named; the agent must infer that a to-do item ("task") satisfies it. The
   // oracle still reads back a concrete resource, so scoring stays programmatic.
   const l3Candidates = [...simpleOrdered].sort((a, b) => restGoalRank(b) - restGoalRank(a) || a.name.localeCompare(b.name));
-  const l3Pool = l3Candidates.map((res, index) =>
-    restL3Task(
-      res,
-      spec,
-      env,
-      idField(res),
-      index,
-      taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "goal",
-        [res.name],
-      ),
-    )
-  );
+  const l3Pool = l3Candidates.map((res, index) => restL3Task(
+    res,
+    spec,
+    env,
+    idField(res),
+    index,
+    taskAllowedSurfacesForResources(
+      allowedSurfaces,
+      opts.surfaceTaskPolicies,
+      "goal",
+      [res.name],
+    ),
+  ));
 
   // L4 (generic) — full create→update→read-back lifecycle, derived from the spec
   // (no authoring). For each top simple resource whose item path exposes an
@@ -466,6 +470,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         "lifecycle",
         [res.name],
       ),
+      na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -496,6 +501,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         "lifecycle",
         [tmpl.resource],
       ),
+      na: false,
       create_path: res.createPath,
       create_envelope: spec.requestEnvelope ?? undefined,
       depends_on: [],
@@ -535,6 +541,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
         opts.surfaceTaskPolicies,
         tmpl.id,
       ),
+      na: false,
       depends_on: [],
       trace: tmpl.trace ?? [
         { type: "required_call", method: "POST", path: "/search", description: "operate the documented search endpoint" },
@@ -561,6 +568,7 @@ export function generatePack(spec: IngestedSpec, opts: GenerateOptions): TargetP
       ...task,
       title: task.title ?? task.id,
       allowed_surfaces: task.allowed_surfaces.length ? task.allowed_surfaces : allowedSurfaces,
+      na: task.na ?? false,
       depends_on: task.depends_on ?? [],
       trace: task.trace ?? [],
     });

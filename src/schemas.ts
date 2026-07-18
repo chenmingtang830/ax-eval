@@ -43,6 +43,56 @@ export const OracleSpecSchema = z.object({
   readQueryTemplate: z.string().optional(),
   responseEnvelope: z.string().optional(),
   assertField: z.string().optional(),
+  /** `value` is the default read-back assertion. `error` requires the SQL or
+   * HTTP operation itself to fail with the expected error field/code. */
+  assertOutcome: z.enum(["value", "error"]).optional(),
+  expectedHttpStatuses: z.array(z.number().int()).optional(),
+  /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
+   *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
+   *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
+   *  the dotted `assertField` against the first result row. */
+  sqlDialect: z.enum(["postgres", "mysql"]).optional(),
+  sqlQuery: z.string().optional(),
+  /** Optional verifier-issued SQL mutation/read before the main round-trip
+   * assertion. Must be namespace-scoped; used for conflict/deny probes. */
+  probeSqlQuery: z.string().optional(),
+  probeAssertField: z.string().optional(),
+  probeExpected: z.unknown().optional(),
+  probeExpectedAny: z.array(z.unknown()).optional(),
+  /** Require probe execution to return an error object rather than rows. */
+  probeExpectError: z.boolean().optional(),
+  /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
+   *  runs a small declarative read operation against a collection. */
+  mongoQuery: z.object({
+    database: z.string(),
+    collection: z.string(),
+    operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
+    filter: z.unknown().optional(),
+    projection: z.unknown().optional(),
+    sort: z.unknown().optional(),
+    pipeline: z.array(z.unknown()).optional(),
+  }).optional(),
+  /** Identity-scoped (e.g. row-level security) round-trip: the key the
+   *  executor reports THIS check's Bearer credential under (alongside
+   *  `gid`), e.g. "user_a_token". The verifier authenticates as that
+   *  identity instead of the pack's default — needed because the pack's
+   *  admin-level credential typically bypasses row-level security. */
+  authField: z.string().optional(),
+  /** Identity-scoped (SQL variant): the key the executor reports THIS
+   *  check's full alternate connection string under (alongside `gid`),
+   *  e.g. "restored_connection_string" or "reader_connection_string" —
+   *  needed when the resource to verify lives behind a DIFFERENT
+   *  credential than the pack's default sql_conn (e.g. a new branch
+   *  created during restore, or a scoped role created for RBAC testing).
+   *  The executor already has this connection string in hand (it's what
+   *  it just used to do the work); this only asks it to also report it. */
+  sqlConnField: z.string().optional(),
+  /** Identity-scoped SQL verifier role reported by the executor. The verifier
+   * switches to it on the pack's admin connection before executing the check. */
+  sqlRoleField: z.string().optional(),
+  /** Deterministic SQL role name template. `{ns}` is rendered as a
+   * SQL-identifier-safe namespace before the verifier issues SET ROLE. */
+  sqlRoleTemplate: z.string().optional(),
 });
 export type OracleSpec = z.infer<typeof OracleSpecSchema>;
 
@@ -76,6 +126,12 @@ export const TaskSchema = z
     /** Surfaces the executor is allowed to use this task (e.g. ["docs"] hides
      *  the OpenAPI spec to force discovery). Empty = unrestricted. */
     allowed_surfaces: z.array(z.string()).default([]),
+    /** True when this task is structurally impossible for the vendor on ANY
+     *  surface (e.g. no backup API at all) — excluded from execution (the
+     *  executor is never asked to attempt it) and from scoring's denominator.
+     *  Distinct from allowed_surfaces=[] which means "unrestricted" for
+     *  ordinary tasks, not "never runs" — this flag is unambiguous. */
+    na: z.boolean().optional().transform((v) => v ?? false),
     /** Generated-task scaffolding the executor and verifier need at run time. */
     create_path: z.string().optional(),
     create_envelope: z.string().optional(),
@@ -181,10 +237,21 @@ export const SdkSurfaceSchema = z.object({
 });
 export type SdkSurface = z.infer<typeof SdkSurfaceSchema>;
 
+const McpExecutableSchema = z.string().regex(
+  /^[A-Za-z0-9][A-Za-z0-9._/@+-]*$/,
+  "stdio MCP server must be a single executable name; put arguments in args",
+);
+const McpArgumentSchema = z.string().min(1).refine(
+  (value) => !/[\0\n\r]/.test(value),
+  "stdio MCP arguments must not contain null bytes or newlines",
+);
+
 export const McpSurfaceSchema = z.object({
   /** Server command (stdio) or URL (http) the agent's MCP client connects to. */
   server: z.string(),
   transport: z.enum(["stdio", "http"]).default("stdio"),
+  /** Stdio argv. Shell command strings are intentionally unsupported. */
+  args: z.array(McpArgumentSchema).default([]),
   /** How to register/configure the server, shown in the prompt's setup block. */
   setup: z.string().optional(),
   /** MCP docs URL (an authoritative discovery source). */
@@ -195,6 +262,24 @@ export const McpSurfaceSchema = z.object({
   /** Per-surface auth. Hosted OAuth-only servers (Asana/Notion) set
    *  kind="oauth_app"; token-friendly servers (Monday/Linear) set kind="token". */
   auth: SurfaceAuthSchema.optional(),
+}).superRefine((mcp, context) => {
+  if (mcp.transport === "stdio" && !McpExecutableSchema.safeParse(mcp.server).success) {
+    context.addIssue({
+      code: "custom",
+      path: ["server"],
+      message: "stdio MCP server must be a single executable name; put arguments in args",
+    });
+  }
+  if (mcp.transport === "stdio" && mcp.auth?.kind === "oauth_app") {
+    context.addIssue({
+      code: "custom",
+      path: ["auth", "kind"],
+      message: "stdio MCP servers must use inherit or token auth",
+    });
+  }
+  if (mcp.transport === "http" && mcp.args.length > 0) {
+    context.addIssue({ code: "custom", path: ["args"], message: "http MCP servers must not declare args" });
+  }
 });
 export type McpSurface = z.infer<typeof McpSurfaceSchema>;
 
@@ -224,6 +309,11 @@ export const AuthSchema = z.object({
   verify_env_aliases: z.array(z.string()).default([]),
   /** Header name for the credential (default by type: bearer/api-key → Authorization). */
   header: z.string().optional(),
+  /** Some APIs require the SAME credential sent under a second header name in
+   *  addition to the primary auth header — e.g. Supabase's PostgREST rejects
+   *  `Authorization: Bearer <key>` alone with "No API key found in request"
+   *  unless `apikey: <key>` is also present. */
+  extra_header: z.string().optional(),
 });
 export type Auth = z.infer<typeof AuthSchema>;
 
@@ -284,6 +374,25 @@ export const TargetPackSchema = z.object({
   /** Sandbox-isolation parameters the developer provisions (level varies by
    *  product). Empty = a single account/key is the whole sandbox (e.g. Stripe). */
   sandbox_scope: z.array(ScopeParamSchema).default([]),
+  /** Connection info for `OracleSpec.sqlQuery` checks — vendors whose data
+   *  plane is only reachable over the raw Postgres/MySQL wire protocol (no
+   *  REST query endpoint), e.g. CockroachDB, PlanetScale. Absent when the
+   *  pack has no SQL-form oracles. */
+  sql_conn: z
+    .object({
+      dialect: z.enum(["postgres", "mysql"]),
+      /** Env var holding a full connection string/DSN. */
+      connection_string_env: z.string(),
+    })
+    .optional(),
+  mongo_conn: z
+    .object({
+      /** Env var holding a full MongoDB connection string. */
+      connection_string_env: z.string(),
+      /** Default database used by MongoDB oracle checks. */
+      database: z.string().optional(),
+    })
+    .optional(),
   /** Non-API surfaces this target exposes (cli/sdk/mcp). The API surface is
    *  always available via `base_url`/`auth`. Drives `--surface` fan-out. */
   surfaces: SurfaceConfigSchema.optional(),
@@ -309,6 +418,16 @@ export const TargetPackSchema = z.object({
   /** Optional cold-start discovery probe (behavioral AEO). */
   discovery: DiscoverySpecSchema.optional(),
   tasks: z.array(TaskSchema).default([]),
+}).superRefine((pack, context) => {
+  const mcp = pack.surfaces?.mcp;
+  const inheritsHttpAuth = mcp?.transport === "http" && (!mcp.auth || mcp.auth.kind === "inherit");
+  if (inheritsHttpAuth && pack.auth && pack.auth.type !== "bearer" && pack.auth.type !== "none") {
+    context.addIssue({
+      code: "custom",
+      path: ["surfaces", "mcp", "auth", "kind"],
+      message: "HTTP MCP inherit auth requires top-level bearer or none auth",
+    });
+  }
 });
 export type TargetPack = z.infer<typeof TargetPackSchema>;
 

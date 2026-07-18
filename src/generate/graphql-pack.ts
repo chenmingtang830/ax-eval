@@ -326,6 +326,7 @@ function graphqlL3Task(resource: GraphqlResource, index: number, allowedSurfaces
     difficulty: "L3",
     prompt: GRAPHQL_L3_PROMPTS[index % GRAPHQL_L3_PROMPTS.length]!(val),
     allowed_surfaces: allowedSurfaces,
+    na: false,
     depends_on: [],
     trace: [],
     oracles: [graphqlOracle(resource.oracle, val)],
@@ -440,6 +441,7 @@ export function generateGraphqlPack(
         "simple",
         [res.label],
       ),
+      na: false,
       depends_on: [],
       trace: [],
       oracles: [graphqlOracle(res.oracle, expected)],
@@ -470,6 +472,7 @@ export function generateGraphqlPack(
         "nested",
         [parent.label, child.label],
       ),
+      na: false,
       depends_on: [parent.label],
       trace: [],
       oracles: [graphqlOracle(child.oracle, childVal)],
@@ -480,18 +483,16 @@ export function generateGraphqlPack(
   const l3Candidates = simpleAll
     .filter(isL3Eligible)
     .sort((a, b) => graphqlGoalRank(b) - graphqlGoalRank(a) || a.label.localeCompare(b.label));
-  const l3Pool = l3Candidates.map((resource, index) =>
-    graphqlL3Task(
-      resource,
-      index,
-      taskAllowedSurfacesForResources(
-        allowedSurfaces,
-        opts.surfaceTaskPolicies,
-        "goal",
-        [resource.label],
-      ),
-    )
-  );
+  const l3Pool = l3Candidates.map((resource, index) => graphqlL3Task(
+    resource,
+    index,
+    taskAllowedSurfacesForResources(
+      allowedSurfaces,
+      opts.surfaceTaskPolicies,
+      "goal",
+      [resource.label],
+    ),
+  ));
 
   // L4 — generic lifecycle: create then update/rename the same resource, derived
   // from update-like mutations whose input accepts id + identity field.
@@ -514,6 +515,7 @@ export function generateGraphqlPack(
         `Create one ${res.label} ${valuePrompt(res.identityField, before)} using the GraphQL API you discovered, then ` +
         `update that same ${res.label} so its ${res.identityField} is "${after}". Report its id.`,
       allowed_surfaces: allowedLifecycleSurfaces,
+      na: false,
       depends_on: [],
       trace: [],
       oracles: [graphqlOracle(res.oracle, after)],
