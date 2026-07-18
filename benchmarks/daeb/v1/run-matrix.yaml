@@ -11,7 +11,10 @@ surface_scope:
 harnesses:
   - codex
   - claude-code
-effort: medium
+models:
+  codex: gpt-5.6-terra
+  claude-code: claude-sonnet-5
+effort: high
 trials: 3
 vendors:
   - neon
