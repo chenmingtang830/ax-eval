@@ -976,6 +976,10 @@ changes with file movement unless tests prove parity independently.
 
 ### Phase 4: Quarantine arena implementation in-repository
 
+The private `ax-arena/benchmark/` npm workspace and import guard land first as
+an inert boundary. Canonical DAEB files and commands remain in place until the
+following artifact and behavior relocation slices pass parity checks.
+
 **Changes**
 
 - Move DAEB suite synthesis, support matrices, extraction ledgers, production

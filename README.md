@@ -87,6 +87,18 @@ Approvals created before this field was introduced remain valid for legacy
 commands, but `cell run` requires the operator to review and approve the exact
 pack again; ax-eval never upgrades that human decision automatically.
 
+### Private arena workspace
+
+The repository now contains a private `@ax-arena/benchmark` workspace at
+`ax-arena/benchmark/`. It establishes the one-way package boundary and the
+future `ax-arena benchmark` CLI without moving benchmark behavior in the same
+change. Arena source may consume only public `ax-eval` exports; CI rejects
+core-to-arena imports and private `ax-eval/src/**` imports.
+
+Canonical DAEB artifacts and existing `ax-eval` commands remain at their current
+paths until their dedicated relocation PRs. Root `npm test`, `npm run typecheck`,
+`npm run build`, and `npm run pack:check` validate both packages.
+
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
 (`codex` or `claude-code`) to turn it into a product-quality pack. Use
@@ -405,6 +417,7 @@ src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
 targets/            tool-layer example packs (see targets/README.md)
 benchmarks/daeb/    AXArena DAEB publication contract (suite, extracts, packs)
+ax-arena/benchmark/ private arena workspace; canonical artifacts move later
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots
