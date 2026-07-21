@@ -1,6 +1,7 @@
 # Separating `ax-eval` (core) from `ax-arena` (database benchmark)
 
-Status: proposal / plan. No behavior change yet.
+Status: plan, partially implemented. The oracle-provider seam (see "Verification:
+pluggable oracles") is already landed on this branch; the rest is proposal.
 
 ## Why this exists
 
@@ -62,20 +63,47 @@ which product it is, it is **core**.
 
 ## Target architecture
 
+"ax-arena = ax-eval run x times" is directionally right but too coarse — arena
+is not just a for-loop. It has three layers, and only the middle one is
+ax-eval:
+
 ```
-ax-arena  (frozen DB benchmark: roster → suite → per-vendor packs →
-           N-trial matrix → cross-vendor scores → publication)
-   │  imports ONLY the ax-eval public API
-   ▼
-ax-eval   (spec → pack → run(api|cli|sdk|mcp) → read-back verify →
-           report + normalized record), single product, vendor-agnostic
+arena-authoring   roster → canonical suite → capability extracts →
+                  per-vendor pack composition (frozen, comparable packs)
+      │  produces TargetPacks
+      ▼
+   ax-eval        ONE pack × harness × surface × trial → execute →
+                  read-back verify → report + normalized record
+      ▲  called per cell (library import or CLI subprocess)
+      │
+arena-runtime     vendor × surface × harness cross-product, DAEB run
+                  layout, cross-vendor scoring, freeze + publication
 ```
 
-ax-arena's core loop becomes literally: for each vendor in the suite, compose a
-`TargetPack`, then call ax-eval's `execPlan` + `verifyGeneratedPack` +
-`normalizeResult`; then aggregate the normalized records across vendors/trials
-and publish. That is the "ax-eval run x times" shape, made real by a dependency
-edge instead of shared-directory osmosis.
+Key point: what arena reuses from ax-eval is **the execution cell and the
+record/report primitives** — not task generation. The canonical suite pipeline
+(arena-authoring) is deliberately *not* ax-eval's `generate`: `generate` asks
+"given MY spec, invent tasks for MY product"; the canonical pipeline asks
+"given ONE fixed vendor-neutral task set, project it onto every vendor so
+scores are comparable and reproducible." Different contract, different owner.
+That pipeline stays in arena permanently — it is what makes the benchmark a
+benchmark.
+
+### The API is local and in-process
+
+The `ax-eval` public API is a **library API, not a service**. ax-arena consumes
+it in the same process via `import { ... } from "ax-eval"`, exactly like any
+npm dependency — no HTTP, no daemon, no hosted component. Arena uses it in two
+local forms, both already present in today's code:
+
+1. **Library import** (in-process function calls) — for orchestration,
+   aggregation, and scoring, where arena needs the returned data structures.
+2. **CLI subprocess** (`spawn("ax-eval", ["exec-plan", ...])`) — for the actual
+   harness runs, where per-run process/env isolation matters. `cli.ts` already
+   does this internally via `runCliSubcommand`.
+
+If a hosted arena ever exists, it wraps *around* this local boundary; the
+boundary itself does not change.
 
 ## Module classification
 
@@ -93,7 +121,9 @@ adds. "Shared" = stays in core, consumed by arena through the public API.
 | Surfaces | `src/surface/*`, `src/generate/surface-policy.ts` |
 | Verification | `src/generate/verify.ts`, `verification-client.ts` (0 vendor coupling) |
 | Discovery / static | `src/generate/discovery.ts`, `src/static/*` |
-| Reporting / records | `src/generate/report.ts`, `record.ts` (minus `standard_set_version`), `records-diff.ts` |
+| Reporting / records | `src/generate/report.ts`, `record.ts` (minus `standard_set_version` semantics), `records-diff.ts` |
+| Trial primitives | `aggregateNormalizedResults`, pass@k / consistency-at-N math, and a generic "run one pack N trials and aggregate" runner (promoted from arena — see note below) |
+| Oracle plugin seam | `src/generate/oracle-provider.ts` (**implemented**) |
 | Ingest | `src/ingest/openapi.ts`, `graphql.ts`, `run.ts`, `spec-summary.ts` |
 | Targets/runtime | `src/target/config.ts`, `reset.ts`, `health-check.ts` |
 | Shared infra | `src/http/client.ts`, `src/util/json-parse.ts`, `src/safety/redaction.ts`, `src/generate/concurrency.ts` |
@@ -108,10 +138,25 @@ adds. "Shared" = stays in core, consumed by arena through the public API.
 | Extraction | `capability-extract.ts`, `surface-extract.ts`, `task-extract.ts`, `extract-advisory.ts`, `extract-audit.ts`, `evidence-strength.ts` |
 | Suite | `suite.ts`, `synthesize-suite.ts`, `suite-audit.ts`, `coverage-gap-check.ts`, `methodology.ts`, `benchmark-paths.ts` |
 | Pack composition | `compose-pack.ts`, `pack-audit.ts`, `database-pack-overrides.ts`, `database-task-fit.ts` |
-| Database grading | `sql-session.ts`, `sql-verify.ts`, `mongo-verify.ts`, `surface-honesty.ts` |
-| Orchestration | `low-pass.ts`, `production-run.ts` |
+| Database oracles | `sql-session.ts`, `sql-verify.ts`, `mongo-verify.ts`, `surface-honesty.ts` — registered as core oracle providers, see below |
+| Matrix orchestration | `low-pass.ts`, `production-run.ts` — the vendor × surface × harness cross-product, DAEB run-directory layout, archive policy |
 | Publication | `publication.ts`, `schemas/normalized-result.v1.json` (published contract) |
 | Data | `benchmarks/daeb/**` (roster, extracts, suite, per-vendor packs, ledgers) |
+
+### Matrix orchestration: what's reusable vs. arena-specific
+
+Trial repetition is *not* inherently an arena concept — a single vendor also
+wants "run my pack 3 times, tell me pass^3 and which tasks are flaky." So the
+bucket splits:
+
+- **Core (reusable):** the trial loop over ONE pack, `aggregateNormalizedResults`,
+  mean/range/pass@k/task-consistency-at-N math, trial/aggregate directory
+  convention for a single target. (`aggregateNormalizedResults` already lives
+  in core `record.ts`; the chain's `production-run.ts` per-cell trial logic
+  gets promoted into a core "trial runner" during Phase 1.)
+- **Arena:** iterating that cell over the vendor roster, the DAEB dated run
+  root (`daeb-v1-YYYYMMDD`), vendor ordering, debug-artifact archive policy,
+  and everything keyed to the frozen benchmark-of-record.
 
 ### Genuinely ambiguous (decide explicitly)
 
@@ -123,6 +168,46 @@ adds. "Shared" = stays in core, consumed by arena through the public API.
   `pg`/SQL). **Proposal:** arena for now; promote a generic core hook later if a
   second vertical needs it.
 - `health-check.ts` / `spec-summary.ts` — no vendor coupling; **core**.
+
+## Verification: pluggable oracles (implemented)
+
+The chain fuses DB verification into core by importing `sql-verify.js` /
+`mongo-verify.js` directly inside `verify.ts` and branching inline on
+`oracle.sqlQuery` / `oracle.mongoQuery`. The decoupled design inverts that:
+**core defines an oracle-provider interface; arena registers SQL/Mongo
+implementations into it.**
+
+This seam is now landed on this branch as
+[src/generate/oracle-provider.ts](./src/generate/oracle-provider.ts):
+
+```ts
+interface OracleProvider {
+  id: string;                                  // "sql", "mongo", ...
+  matches(oracle: OracleSpec): boolean;        // claims a spec
+  verify(oracle, ctx): Promise<OracleResult>;  // runs the read-back
+}
+registerOracleProvider(provider);
+```
+
+`verifyGeneratedPack` consults registered providers first for every oracle;
+unmatched oracles fall through to the built-in HTTP round-trip (REST +
+GraphQL), which remains core's default truth layer. Provider errors are
+contained as failed oracle results. With no providers registered, behavior is
+byte-for-byte unchanged (covered by tests).
+
+When the chain lands, its `verify.ts` edits are replaced by two registrations
+in arena startup code:
+
+```ts
+registerOracleProvider(sqlOracleProvider);    // matches oracle.sqlQuery
+registerOracleProvider(mongoOracleProvider);  // matches oracle.mongoQuery
+```
+
+Schema note: the SQL/Mongo oracle fields (`sqlQuery`, `mongoQuery`,
+`sqlRoleTemplate`, …) already leaked into core `OracleSpecSchema` on `main`
+via #115–#117. They can stay short-term (they're inert without a provider);
+Phase 1 moves them to an arena schema extension and core's `OracleSpecSchema`
+becomes passthrough for provider-owned fields.
 
 ## The minimal `ax-eval` public API
 
@@ -148,8 +233,11 @@ export { execPlan } from "./harness/executor.js";     // build prompt / plan
 export { invokeHarness } from "./harness/invoke.js";  // run a harness
 export { tasksForSurface, taskSupportsSurface } from "./surface/types.js";
 
-// Verification (read-back truth layer)
+// Verification (read-back truth layer + vertical oracle plugins)
 export { verifyGeneratedPack } from "./generate/verify.js";
+export {
+  registerOracleProvider, type OracleProvider, type OracleVerifyContext,
+} from "./generate/oracle-provider.js";
 
 // Reporting + normalized records
 export { renderReport, renderCompetitive } from "./generate/report.js";
@@ -215,12 +303,14 @@ else to core.
 A full two-package split is the destination, but it should not block the
 separation. Do it in phases so each step is reviewable and green.
 
-### Phase 0 — establish the boundary (this branch, cheap, no moves)
+### Phase 0 — establish the boundary (cheap, no moves)
 - Add `src/index.ts` with the public API above; add `package.json` `exports`.
 - Add a lint/CI guard (dependency-cruiser or an ESLint `no-restricted-imports`
   rule) asserting: **no file under an `arena/` path is imported by core**, and
   **arena imports of core go only through `ax-eval` (the barrel)**.
-- No files move yet. This makes the seam *enforceable* before the chain grows.
+- No files move yet. The oracle-provider seam (already landed on this branch)
+  is the first Phase-0 piece; the barrel and guard follow once the chain has
+  merged (see "Strategy vs. the open PR chain").
 
 ### Phase 1 — quarantine arena in-repo (`src/arena/**`)
 - Move the Arena-classified modules into `src/arena/`, the DAEB data stays in
@@ -235,20 +325,46 @@ separation. Do it in phases so each step is reviewable and green.
   `ax-eval`). `benchmarks/daeb/**` and the arena bin move under `ax-arena`.
 - `targets/examples/**` stays with core as reference packs.
 
-### Re-cutting the open PR chain
-The `codex/exready-*` stack (#138→#171) currently slices the *combined* system
-"restore slice N of 34." Re-cut it along the seam instead:
-1. Land Phase 0 (barrel + guard) on `main` first — small, independent.
-2. Rebase the chain so **core-only** slices (runtime/verify/report hardening:
-   e.g. #147–#154 executor/health/transcript/reset) target core and merge first.
-3. Group the **arena** slices (vendor extract, suite synth, compose, database
-   task-fit, production, publication: #138–#146, #155–#171) behind the
-   `src/arena/**` boundary so they can't re-fuse into `src/generate/`.
-4. The DAEB data slices (#161–#166 per-vendor artifacts) land under
-   `benchmarks/daeb/` unchanged.
+### Strategy vs. the open PR chain: merge first, decouple after
 
-The guard from Phase 0 is what keeps every future slice honest: a PR that makes
-core import arena, or arena reach past the barrel, fails CI.
+Two options were considered for the `codex/exready-*` stack (#138→#171):
+
+- **(a) Edit inside the stack** — reroute each slice's imports through the
+  boundary as part of its review.
+- **(b) Merge the stack as-is, then decouple in one follow-up round.**
+
+**Decision: (b).** Rationale:
+
+1. The stack's entire review contract is "the cumulative tip reproduces #137
+   exactly, checked by a parity audit." Refactoring inside the slices destroys
+   the invariant the stack exists to prove, and restarts its review.
+2. Any structural edit at slice k forces a rebase + force-push of every slice
+   above it — up to 33 branches per change, repeatedly. That is where "越弄越乱"
+   actually comes from.
+3. It would mix two unrelated review questions ("was the restoration faithful?"
+   vs "is the architecture right?") in the same PRs.
+
+So the sequencing is:
+
+1. **Chain #138–#171 reviews and merges unchanged.** No new PRs are inserted,
+   no slices are rewritten.
+2. **This branch (`claude/pr-chains-axeval-arena-separation-0sl2tf`) is the
+   single decoupling round**, rebased onto post-merge `main`. It carries this
+   plan, the oracle-provider seam (already implemented here), and then Phase
+   0 + Phase 1: the barrel, the import guard, re-registering `sql-verify` /
+   `mongo-verify` as oracle providers, and quarantining arena modules under
+   `src/arena/**`. One PR total.
+3. Phase 2 (package split) is its own later round, only if/when we want
+   separately publishable packages.
+
+Known cost of this order: the chain rewrites `verify.ts` (inline SQL/Mongo
+branches), so the post-merge rebase of this branch re-applies the provider
+delegation onto the chain's version of `verifyRoundtrip` and converts its
+inline branches into the two provider registrations. That conflict is small,
+localized, and expected — it is the decoupling work itself.
+
+From then on, the Phase-0 import guard keeps every future PR honest: a change
+that makes core import arena, or arena reach past the barrel, fails CI.
 
 ## Definition of done
 
@@ -262,8 +378,14 @@ core import arena, or arena reach past the barrel, fails CI.
 - ax-arena reproduces the DAEB matrix by calling the ax-eval public API per
   vendor, plus its own compile/score/publish.
 
-## First reviewable step
+## Current status / next steps
 
-Phase 0 only: add the barrel + `exports` + import guard, no file moves. It's
-small, it's safe, and it's the thing that makes every later slice enforceably
-separated. Everything else stacks on it.
+1. **Done (this branch):** this plan; the oracle-provider seam
+   (`src/generate/oracle-provider.ts` + `verify.ts` delegation + tests; full
+   suite green, no behavior change without registered providers).
+2. **Next:** review/merge the `codex/exready-*` chain unchanged.
+3. **Then (same branch, post-merge rebase):** barrel + `exports` + import
+   guard; convert the chain's inline SQL/Mongo verify branches into oracle
+   providers; quarantine arena modules under `src/arena/**`; split the CLI;
+   promote the generic trial runner to core.
+4. **Later, optional:** Phase 2 package split.
