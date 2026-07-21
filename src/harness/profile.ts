@@ -8,19 +8,15 @@
  * RunResult records the full profile so a score is never confused with the
  * config that produced it (or with who authored the bank).
  *
- * Named profiles for the fan-out spread:
- *   floor   — deliberately weak baseline.
- *   ceiling — strongest available; doubles as the attribution upper bound
- *             ("even the best agent fails → it's the product/docs"). When the
- *             ceiling shares a model family with an L4 author, label it as a
- *             ceiling/control, not a neutral cross-agent score.
+ * New live evaluations use the single `medium` profile. Low/high and their
+ * floor/ceiling aliases remain only so historical artifacts and explicit legacy
+ * invocations can still be read and reproduced.
  */
 
 /**
  * Fallback label for the host agent's model when nothing better is known. The
- * skill executes inside whatever agent invoked it, so floor and ceiling share
- * THE SAME model — the spread between them is effort/autonomy config, NOT a
- * model swap. True cross-model runs require a host that can spawn
+ * skill executes inside whatever agent invoked it. True cross-model runs require
+ * a host that can spawn
  * alternative-model sub-agents (see profilesAreCrossModel) or the `--model`
  * flag on `exec-plan`.
  *
@@ -33,21 +29,17 @@
 export const HOST_MODEL = "composer-2.5";
 
 /**
- * Controlled turn budget shared by every profile. maxTurns was previously a
- * hidden confound (floor=8 vs ceiling=25): a floor failure could be a turn
- * starvation artifact rather than a capability/effort signal. Holding it
- * constant makes EFFORT the single independent variable in the host-agent
- * fan-out, so the floor↔ceiling spread is attributable.
+ * Controlled turn budget shared by every profile. It remains fixed so an
+ * explicit legacy effort override is never confounded with turn starvation.
  *
  * Sized for the full run: Phase-0 discovery (several searches) + ~12 tasks, each
- * needing create/mutate calls. Kept generous so neither profile is turn-starved;
- * the floor still under-uses it by being low-effort, which is the signal.
+ * needing create/mutate calls. It is kept generous for the standard medium run.
  */
 export const CONTROLLED_MAX_TURNS = 40;
 
-/** Variables held constant across the host-agent fan-out (for the report). */
+/** Variables held constant across a live evaluation (for the report). */
 export const CONTROLLED_VARIABLES = ["model", "maxTurns", "task context/hints"] as const;
-/** The single variable intentionally varied across profiles. */
+/** Legacy multi-effort artifacts may vary this field. */
 export const VARIED_VARIABLE = "effort" as const;
 
 export interface HarnessProfile {
@@ -62,13 +54,12 @@ export interface HarnessProfile {
    *  `--surface`; profiles vary effort/model, not which interface is exposed. */
   surfaces: string[];
   maxTurns: number;
-  /** Marks the attribution upper-bound column (the strongest configured run). */
+  /** Marks the primary live-evaluation configuration. */
   upperBound?: boolean;
 }
 
-/** The default effort sweep is named by EFFORT LEVEL — `low` vs `high` — so the
- *  knob being varied is explicit (the old `floor`/`ceiling` names are accepted
- *  as aliases for back-compat; see PROFILE_ALIASES). */
+/** `medium` is the sole recommended profile for new evaluations. Low/high are
+ * retained for reading historical runs and explicit backwards-compatible use. */
 export const PROFILES: Record<string, HarnessProfile> = {
   low: {
     name: "low",
@@ -87,6 +78,7 @@ export const PROFILES: Record<string, HarnessProfile> = {
     autonomy: "auto",
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
+    upperBound: true,
   },
   high: {
     name: "high",
@@ -95,12 +87,9 @@ export const PROFILES: Record<string, HarnessProfile> = {
     autonomy: "auto",
     surfaces: ["docs", "api"],
     maxTurns: CONTROLLED_MAX_TURNS,
-    upperBound: true,
   },
-  // Cross-model profiles (the matrix-mode set). Unlike low/high — which
-  // share a model so EFFORT is the only variable — these vary the MODEL, so a
-  // run mixing them with low/high is auto-labeled cross-model in the report
-  // (profilesAreCrossModel). `model` is the human-readable label recorded in the
+  // Cross-model profiles (the optional matrix-mode set) vary the MODEL. `model`
+  // is the human-readable label recorded in the
   // RunResult; spawn the matching sub-agent with the slug noted alongside.
   //
   // ⚠ Local CLI hosts (Claude Code, Codex, plain shells) cannot spawn child
@@ -111,7 +100,7 @@ export const PROFILES: Record<string, HarnessProfile> = {
   // minimal harness that calls each model's API directly.
   sonnet: {
     name: "sonnet",
-    model: "claude-4.6-sonnet", // spawn slug: claude-4.6-sonnet-medium-thinking
+    model: "sonnet", // CLI alias; invoked runs stamp the exact reported model.
     effort: "high",
     autonomy: "auto",
     surfaces: ["docs", "api"],
@@ -129,8 +118,8 @@ export const PROFILES: Record<string, HarnessProfile> = {
   },
 };
 
-/** Back-compat: the effort profiles were once named floor/ceiling. Old commands,
- *  saved run files, and tests using those names still resolve to low/high. */
+/** Back-compat: old commands, saved run files, and tests using floor/ceiling
+ * still resolve to their historical low/high profiles. */
 export const PROFILE_ALIASES: Record<string, string> = {
   floor: "low",
   ceiling: "high",
