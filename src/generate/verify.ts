@@ -13,6 +13,7 @@ import type { ObservedRun } from "../harness/transcript.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
+import { providerForOracle, runProviderOracle } from "./oracle-provider.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
 import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
@@ -215,15 +216,17 @@ function applyOracleTemplate(
 }
 
 async function verifyRoundtrip(
+  pack: TargetPack,
   task: Task,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
   ns: string | undefined,
-  fieldSelectParam: string | undefined,
-  apiStyle: ApiStyle,
   sqlConn: SqlConn | null,
   mongoConn: MongoConn | null,
+  trace: TraceStep[],
 ): Promise<OracleResult[]> {
+  const fieldSelectParam = pack.field_select_param;
+  const apiStyle: ApiStyle = pack.api_style;
   const out: OracleResult[] = [];
   // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
   // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
@@ -244,6 +247,13 @@ async function verifyRoundtrip(
     });
 
   for (const oracle of task.oracles) {
+    // Registered providers (e.g. SQL/Mongo read-back for database packs) own
+    // their oracles outright; the built-in HTTP round-trip is the default.
+    const provider = providerForOracle(oracle);
+    if (provider) {
+      out.push(await runProviderOracle(provider, oracle, { pack, task, reported, ns, trace }));
+      continue;
+    }
     if (oracle.type !== "roundtrip") continue;
 
     if (oracle.mongoQuery) {
@@ -470,6 +480,7 @@ export async function verifyGeneratedPack(
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const sqlConn = resolveSqlConn(pack);
   const mongoConn = resolveMongoConn(pack);
+  const trace = Array.isArray(observedRun) ? observedRun : [];
   const honestySurface: SurfaceId =
     surface ?? (executor.surface === "cli" || executor.surface === "sdk" || executor.surface === "mcp" || executor.surface === "api"
       ? executor.surface
@@ -483,14 +494,14 @@ export async function verifyGeneratedPack(
     let error: string | null = null;
     try {
       oracleResults = await verifyRoundtrip(
+        pack,
         task,
         reported,
         client,
         executor.ns,
-        pack.field_select_param,
-        pack.api_style,
         sqlConn,
         mongoConn,
+        trace,
       );
     } catch (err) {
       oracleResults = [];
