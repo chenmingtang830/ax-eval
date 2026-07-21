@@ -1,0 +1,86 @@
+schema: ax.extract-advisory/v1
+vendor: Nile
+slug: nile
+generated_at: 2026-07-10T21:08:18.253Z
+findings:
+  - severity: warn
+    topic: task_fit
+    message: The 'row-level-security' capability (titled 'Tenant Data Isolation
+      (RLS-equivalent)') is marked as supported (idiomatic-pattern), but its own
+      cited evidence states RLS is explicitly NOT supported. A DAEB task
+      requiring Postgres RLS policies cannot be performed on Nile.
+    doc_url: https://thenile.dev/docs/postgres/postgres-compatibility.md
+    quote: Row level security policies are not supported yet
+  - severity: warn
+    topic: self_service
+    message: "'automated-backup' and 'point-in-time-restore' list
+      surfaces_documented as [\"api\",\"cli\"], implying customers can trigger
+      restores programmatically. Verified docs show restore is initiated by
+      emailing/Slacking Nile support, not via any API or CLI call — support_type
+      'managed-surface' is right, but the surfaces list overstates self-service
+      reach."
+    doc_url: https://thenile.dev/docs/support/backup_restore.md
+    quote: Send a message to our team via Slack (if we have set up one for you) or
+      email at support@thenile.dev
+  - severity: warn
+    topic: task_fit
+    message: ~17 capabilities (table-creation, schema-alteration,
+      primary/foreign-key-constraint, database-view,
+      json/array/numeric/temporal/character types, secondary-index,
+      relational-joins, tenant-shared-join, row-insert-update-delete,
+      multi-statement-transaction, shared-table, tenant-partitioned-table) are
+      tagged surfaces_documented:["cli"], but their evidence is generic Postgres
+      SQL syntax executed via psql/SQL clients, not the `nile` CLI binary. The
+      `nile` binary has no DDL/DML subcommands — a DAEB task assuming `nile`
+      itself can run CREATE TABLE/ALTER TABLE would fail; the actual path
+      requires shelling to psql.
+    doc_url: https://thenile.dev/docs/postgres/createtable.md
+    quote: There are no references to the "nile" CLI binary in this documentation...
+      demonstrates direct SQL commands such as CREATE TABLE, ALTER TABLE... that
+      would typically be executed through psql or similar database clients.
+  - severity: warn
+    topic: surface_auth
+    message: "'schema-introspection' evidence includes a pgAdmin quote about
+      UI-editor table-creation restrictions, which neither supports schema
+      introspection nor the CLI surface — pgAdmin is a GUI tool,
+      mismatched/mislabeled as a 'cli' surface."
+    doc_url: https://thenile.dev/docs/postgres/tools/pgadmin.md
+    quote: You cannot create a table through the UI editor. You can create a table
+      through the query editor
+  - severity: warn
+    topic: surface_auth
+    message: "'standard-postgres-tool-connectivity' cites DBeaver documentation but
+      is tagged surfaces_documented:[\"cli\"]. DBeaver is a graphical desktop
+      database client, not a CLI — this is a GUI capability mislabeled as
+      CLI-surfaced."
+    doc_url: https://thenile.dev/docs/postgres/tools/dbeaver.md
+    quote: Generate credentials. Use this if you really want to simplify the access.
+  - severity: warn
+    topic: task_fit
+    message: "'tenant-region-placement', 'tenant-migration', and
+      'tenant-infrastructure-isolation' are marked as supported
+      (idiomatic-pattern/native), but the source doc explicitly says these are
+      unreleased, early-stage features, not currently available for self-service
+      DAEB operations."
+    doc_url: https://thenile.dev/docs/tenant-virtualization/tenant-placement.md
+    quote: We hope to also support the ability to move tenants from one location to
+      another with a simple update statement to the region.
+  - severity: info
+    topic: surface_auth
+    message: "'interactive-cli-login' is browser-based/interactive by design and
+      cannot satisfy headless/CI DAEB operational tasks; only the separate
+      'api-key-authentication' capability (NILE_API_KEY) supports
+      non-interactive automation, consistent with the declared CLI surface auth
+      instructions."
+    doc_url: https://thenile.dev/docs/cli/connect_nile.md
+    quote: nile connect login opens default browser for secure authentication
+  - severity: info
+    topic: self_service
+    message: "'dedicated-compute-provisioning' cites only the raw OpenAPI operation
+      definition; no plan-tier or sales-gating information is present in the
+      cited doc, so self-service availability for this capability cannot be
+      confirmed from the given evidence alone."
+    doc_url: https://thenile.dev/docs/api-reference/databases/create-a-dedicated-compute-instance.md
+    quote: The documentation only includes the OpenAPI specification for the
+      endpoint itself... contains no details about eligibility, plan
+      requirements, or availability restrictions.
