@@ -62,6 +62,10 @@ shape.
 - **Failed live trials must not leak state forward.** Preserve results and
   verification artifacts first, then record namespace cleanup. If cleanup is
   missing, unsupported, or errors, halt the lane before another trial starts.
+- **One cell has no benchmark policy.** `runCell` and `ax-eval cell run` execute
+  one fully specified reviewed pack/surface/harness/model/effort/trial and use
+  the caller-supplied batch id. Roster expansion, trial counts, aggregation,
+  ranking, publication, and cleanup policy belong to the controller.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed. Product presets may add hints and surface-specific task
   shaping, but schema validation and the review gate remain authoritative;

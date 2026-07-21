@@ -50,6 +50,17 @@ describe("BearerClient auth schemes + headers", () => {
     expect(calls[0].headers.Authorization).toBeUndefined();
   });
 
+  it("refuses redirects for authenticated requests", async () => {
+    const fetch = vi.fn(async (_url: URL, init: RequestInit) => {
+      expect(init.redirect).toBe("error");
+      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+    });
+    vi.stubGlobal("fetch", fetch);
+    const c = new BearerClient({ baseUrl: "https://api.test", token: "secret", authScheme: "bearer" });
+    await c.get("/x");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
   it("unwraps the response envelope when configured", async () => {
     stubFetch({ data: { name: "wrapped" } });
     const c = new BearerClient({ baseUrl: "https://api.test", token: "t", responseEnvelope: "data" });

@@ -535,9 +535,11 @@ describe("runInvokeHarness", () => {
     const spawn: AsyncSpawn = async () => {
       calls += 1;
       if (calls === 1) {
-        // First attempt crashes without writing a results file.
+        // First attempt crashes after a partial trace. The retry must not reuse it.
+        writeFileSync(run.paths.tracePath, JSON.stringify([{ note: "stale first attempt" }]));
         return spawnResult({ status: 1, stdout: Buffer.from(""), stderr: Buffer.from("transient") });
       }
+      expect(existsSync(run.paths.tracePath)).toBe(false);
       writeFileSync(
         run.paths.resultsPath,
         JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),

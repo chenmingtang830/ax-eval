@@ -158,11 +158,15 @@ export class BearerClient {
     return h;
   }
 
+  private redirectPolicy(): "follow" | "error" {
+    return this.authScheme === "none" && !this.extraAuthHeader ? "follow" : "error";
+  }
+
   /** GET a path (relative to baseUrl), unwrapping the response envelope. */
   async get<T = unknown>(path: string, query?: Record<string, string>): Promise<T> {
     const url = this.resolveUrl(path);
     if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: this.headers() });
+    const res = await fetch(url, { headers: this.headers(), redirect: this.redirectPolicy() });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
       throw new HttpApiError(`GET ${path}: ${BearerClient.extractErrorMessage(json, res)}`, res.status, json);
@@ -180,6 +184,7 @@ export class BearerClient {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
+      redirect: this.redirectPolicy(),
     });
     const text = await res.text();
     let json: Record<string, unknown> | undefined;
@@ -202,7 +207,7 @@ export class BearerClient {
    *  teardown (reset) can report per-resource failures. */
   async del(path: string): Promise<void> {
     const url = this.resolveUrl(path);
-    const res = await fetch(url, { method: "DELETE", headers: this.headers() });
+    const res = await fetch(url, { method: "DELETE", headers: this.headers(), redirect: this.redirectPolicy() });
     if (!res.ok) {
       let body: unknown;
       try {
@@ -227,6 +232,7 @@ export class BearerClient {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables }),
+      redirect: this.redirectPolicy(),
     });
     const json = (await res.json()) as { data?: T; errors?: Array<{ message?: string }> };
     if (!res.ok) {

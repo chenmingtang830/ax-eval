@@ -13,8 +13,11 @@ export interface HarnessProvisioning {
   meta?: Record<string, unknown>;
 }
 
-function env(name: string | undefined): string | undefined {
-  return name ? process.env[name]?.trim() || undefined : undefined;
+function env(
+  name: string | undefined,
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): string | undefined {
+  return name ? source[name]?.trim() || undefined : undefined;
 }
 
 function tomlString(value: string): string {
@@ -29,13 +32,16 @@ function productSlug(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "target";
 }
 
-function copyCodexAuth(codexDir: string): void {
+function copyCodexAuth(
+  codexDir: string,
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): void {
   // Reuse the operator's own `codex login` session instead of requiring a
   // separate OPENAI_API_KEY: codex CLI stores it in a plain file (unlike
   // claude-code, which is Keychain-based and doesn't transfer to a fresh
   // isolated HOME).
   const realAuthPath = resolve(homedir(), ".codex", "auth.json");
-  if (!process.env.OPENAI_API_KEY && existsSync(realAuthPath)) {
+  if (!source.OPENAI_API_KEY && existsSync(realAuthPath)) {
     copyFileSync(realAuthPath, resolve(codexDir, "auth.json"));
   }
 }
@@ -53,9 +59,12 @@ function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string):
   try { chmodSync(scriptPath, 0o700); } catch { /* best effort */ }
 }
 
-async function exchangeRefreshToken(auth: SurfaceAuth): Promise<string> {
+async function exchangeRefreshToken(
+  auth: SurfaceAuth,
+  source: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<string> {
   if (auth.kind === "token") {
-    const token = env(auth.token_env);
+    const token = env(auth.token_env, source);
     if (!token) throw new Error(`Missing MCP token env ${auth.token_env}`);
     return token;
   }
@@ -66,9 +75,9 @@ async function exchangeRefreshToken(auth: SurfaceAuth): Promise<string> {
   if (!tokenUrl) {
     throw new Error("MCP OAuth auth is missing token_url; cannot exchange refresh token headlessly");
   }
-  const clientId = env(auth.client_id_env);
-  const clientSecret = env(auth.client_secret_env);
-  const refreshToken = env(auth.refresh_token_env);
+  const clientId = env(auth.client_id_env, source);
+  const clientSecret = env(auth.client_secret_env, source);
+  const refreshToken = env(auth.refresh_token_env, source);
   const missing = [
     clientId ? "" : auth.client_id_env,
     clientSecret ? "" : auth.client_secret_env,
@@ -84,6 +93,7 @@ async function exchangeRefreshToken(auth: SurfaceAuth): Promise<string> {
   });
   const res = await fetch(tokenUrl, {
     method: "POST",
+    redirect: "error",
     headers: { "content-type": "application/x-www-form-urlencoded" },
     body,
   });
@@ -103,14 +113,18 @@ function writeCodexMcpHome(opts: {
   paths: InvokePaths;
   cwd: string;
   bearerTokenEnvVar?: string;
+  env?: Readonly<Record<string, string | undefined>>;
+  allowAmbientHarnessAuth?: boolean;
 }): { home: string; configPath: string; serverName: string } {
   const mcp = opts.pack.surfaces?.mcp;
   if (!mcp?.server) throw new Error("Pack does not declare an MCP server");
   const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
-  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-codex-mcp`);
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-${serverName}-codex-mcp`);
   const codexDir = resolve(home, ".codex");
+  rmSync(home, { recursive: true, force: true });
   mkdirSync(codexDir, { recursive: true });
-  copyCodexAuth(codexDir);
+  if (opts.allowAmbientHarnessAuth !== false) copyCodexAuth(codexDir, opts.env);
   const configPath = resolve(codexDir, "config.toml");
   const connection = mcp.transport === "stdio"
     ? (() => {
@@ -148,13 +162,15 @@ function writeCodexMcpHome(opts: {
 function writeCodexNoMcpHome(opts: {
   paths: InvokePaths;
   surface: SurfaceId;
+  env?: Readonly<Record<string, string | undefined>>;
+  allowAmbientHarnessAuth?: boolean;
 }): { home: string; codexDir: string; configPath: string } {
   const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
   const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-codex-${opts.surface}-no-mcp`);
   const codexDir = resolve(home, ".codex");
   rmSync(home, { recursive: true, force: true });
   mkdirSync(codexDir, { recursive: true });
-  copyCodexAuth(codexDir);
+  if (opts.allowAmbientHarnessAuth !== false) copyCodexAuth(codexDir, opts.env);
   const configPath = resolve(codexDir, "config.toml");
   writeFileSync(
     configPath,
@@ -176,8 +192,10 @@ function writeClaudeMcpHome(opts: {
   const mcp = opts.pack.surfaces?.mcp;
   if (!mcp?.server) throw new Error("Pack does not declare an MCP server");
   const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
-  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${serverName}-claude-mcp`);
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-${serverName}-claude-mcp`);
   const claudeDir = resolve(home, ".claude");
+  rmSync(home, { recursive: true, force: true });
   mkdirSync(claudeDir, { recursive: true });
 
   const headersHelperPath = opts.bearerTokenEnvVar
@@ -227,24 +245,53 @@ function writeClaudeMcpHome(opts: {
   return { home, configPath, headersHelperPath, serverName };
 }
 
+function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: string } {
+  const stem = basename(paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(paths.resultsPath), ".invoke-home", `${stem}-claude-no-mcp`);
+  const claudeDir = resolve(home, ".claude");
+  rmSync(home, { recursive: true, force: true });
+  mkdirSync(claudeDir, { recursive: true });
+  writeFileSync(resolve(claudeDir, "settings.json"), `${JSON.stringify({
+    permissions: { defaultMode: "bypassPermissions" },
+  }, null, 2)}\n`, { mode: 0o600 });
+  const configPath = resolve(home, ".claude.json");
+  writeFileSync(configPath, `${JSON.stringify({ projects: {} }, null, 2)}\n`, { mode: 0o600 });
+  return { home, configPath };
+}
+
 function prependPath(dir: string, currentPath = process.env.PATH ?? ""): string {
   return currentPath ? `${dir}:${currentPath}` : dir;
 }
 
-function ensureTursoCli(paths: InvokePaths): { home: string; binDir: string; binaryPath: string } {
+function ensureTursoCli(
+  paths: InvokePaths,
+  source: Readonly<Record<string, string | undefined>> = process.env,
+  allowDownloads = true,
+): { home: string; binDir: string; binaryPath: string } {
   const sharedHome = resolve(dirname(paths.resultsPath), ".invoke-home", "turso-cli-shared");
   const binaryPath = resolve(sharedHome, ".turso", "turso");
   if (existsSync(binaryPath)) {
     return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
+  }
+  if (!allowDownloads) {
+    const found = spawnSync("/usr/bin/which", ["turso"], {
+      env: source as NodeJS.ProcessEnv,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).stdout?.trim();
+    if (found && existsSync(found)) {
+      return { home: source.HOME ?? "", binDir: dirname(found), binaryPath: found };
+    }
+    throw new Error("automatic Turso CLI download is disabled for cell runs; install a pinned turso binary first");
   }
   rmSync(sharedHome, { recursive: true, force: true });
   mkdirSync(sharedHome, { recursive: true });
   const install = spawnSync("/bin/sh", ["-lc", "curl -sSfL https://get.tur.so/install.sh | bash"], {
     cwd: dirname(paths.resultsPath),
     env: {
-      ...process.env,
+      ...source,
       HOME: sharedHome,
-      PATH: process.env.PATH ?? "",
+      PATH: source.PATH ?? "",
     },
     stdio: ["ignore", "pipe", "pipe"],
     encoding: "utf8",
@@ -267,17 +314,49 @@ export async function provisionHarnessForSurface(opts: {
   surface: SurfaceId;
   paths: InvokePaths;
   cwd: string;
+  env?: Readonly<Record<string, string | undefined>>;
+  allowDownloads?: boolean;
+  allowAmbientHarnessAuth?: boolean;
 }): Promise<HarnessProvisioning> {
+  const source = opts.env ?? process.env;
   const tursoCli =
     opts.surface === "cli" && opts.pack.name === "turso"
-      ? ensureTursoCli(opts.paths)
+      ? ensureTursoCli(opts.paths, source, opts.allowDownloads !== false)
       : undefined;
   if (opts.surface !== "mcp") {
+    if (opts.harness === "claude-code") {
+      if (opts.allowAmbientHarnessAuth !== false) {
+        return tursoCli
+          ? {
+              env: { PATH: prependPath(tursoCli.binDir, source.PATH) },
+              meta: {
+                shared_cli_home: tursoCli.home,
+                shared_cli_binary: tursoCli.binaryPath,
+              },
+            }
+          : { env: {} };
+      }
+      const claude = writeClaudeNoMcpHome(opts.paths);
+      return {
+        env: {
+          HOME: claude.home,
+          ...(tursoCli ? { PATH: prependPath(tursoCli.binDir, source.PATH) } : {}),
+        },
+        meta: {
+          claude_home: claude.home,
+          claude_config: claude.configPath,
+          mcp_provisioning: "disabled_for_non_mcp_surface",
+          ...(tursoCli
+            ? { shared_cli_home: tursoCli.home, shared_cli_binary: tursoCli.binaryPath }
+            : {}),
+        },
+      };
+    }
     if (opts.harness !== "codex") {
       return tursoCli
         ? {
             env: {
-              PATH: prependPath(tursoCli.binDir),
+              PATH: prependPath(tursoCli.binDir, source.PATH),
             },
             meta: {
               shared_cli_home: tursoCli.home,
@@ -286,12 +365,17 @@ export async function provisionHarnessForSurface(opts: {
           }
         : { env: {} };
     }
-    const codex = writeCodexNoMcpHome({ paths: opts.paths, surface: opts.surface });
+    const codex = writeCodexNoMcpHome({
+      paths: opts.paths,
+      surface: opts.surface,
+      env: source,
+      allowAmbientHarnessAuth: opts.allowAmbientHarnessAuth,
+    });
     return {
       env: {
         HOME: codex.home,
         CODEX_HOME: codex.codexDir,
-        ...(tursoCli ? { PATH: prependPath(tursoCli.binDir) } : {}),
+        ...(tursoCli ? { PATH: prependPath(tursoCli.binDir, source.PATH) } : {}),
       },
       meta: {
         codex_home: codex.home,
@@ -308,6 +392,18 @@ export async function provisionHarnessForSurface(opts: {
   }
   const mcp = opts.pack.surfaces?.mcp;
   if (!mcp) return { env: {} };
+  const downloadLaunchers = new Set(["npx", "npm", "pnpm", "yarn", "bunx", "uvx"]);
+  if (opts.allowDownloads === false && mcp.transport === "stdio" && downloadLaunchers.has(basename(mcp.server))) {
+    throw new Error(`runtime package launcher ${mcp.server} is disabled for cell runs; declare a pinned preinstalled server command`);
+  }
+  if (
+    opts.allowDownloads === false
+    && mcp.transport === "stdio"
+    && mcp.args.length === 0
+    && mcp.server === "exa-mcp-server"
+  ) {
+    throw new Error("automatic npx MCP download is disabled for cell runs; declare a pinned preinstalled server command");
+  }
   const auth = mcp.auth;
   let bearerToken: string | undefined;
   let bearerTokenEnvVar: string | undefined;
@@ -317,18 +413,20 @@ export async function provisionHarnessForSurface(opts: {
   if (mcp.transport === "stdio") {
     if (auth?.kind === "oauth_app") throw new Error("stdio MCP servers must use inherit or token auth");
     if (auth?.kind === "token") {
-      bearerToken = env(auth.token_env) ?? auth.token_env_aliases.map(env).find(Boolean);
+      bearerToken = env(auth.token_env, source) ?? auth.token_env_aliases.map((name) => env(name, source)).find(Boolean);
       if (!bearerToken || !auth.token_env) throw new Error(`Missing MCP token env ${auth.token_env}`);
       stdioTokenEnv = { [auth.token_env]: bearerToken };
       authMode = "stdio_env_token";
     } else {
       const inheritedEnv = opts.pack.auth?.env;
-      const inheritedToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
+      const inheritedToken = env(inheritedEnv, source)
+        ?? (opts.pack.auth?.env_aliases ?? []).map((name) => env(name, source)).find(Boolean);
       if (inheritedEnv && inheritedToken) stdioTokenEnv = { [inheritedEnv]: inheritedToken };
     }
   } else if (!auth || auth.kind === "inherit") {
     const inheritedEnv = opts.pack.auth?.env;
-    bearerToken = env(inheritedEnv) ?? (opts.pack.auth?.env_aliases ?? []).map(env).find(Boolean);
+    bearerToken = env(inheritedEnv, source)
+      ?? (opts.pack.auth?.env_aliases ?? []).map((name) => env(name, source)).find(Boolean);
     if (bearerToken) {
       bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
       authMode = "inherited_env_bearer_token";
@@ -336,13 +434,20 @@ export async function provisionHarnessForSurface(opts: {
       authMode = "http_no_auth";
     }
   } else {
-    bearerToken = await exchangeRefreshToken(auth);
+    bearerToken = await exchangeRefreshToken(auth, source);
     bearerTokenEnvVar = `AX_EVAL_MCP_BEARER_TOKEN_${productSlug(opts.pack.name.replace(/-generated$/, "")).toUpperCase()}`;
     authMode = auth.kind === "oauth_app" ? "oauth_refresh_to_bearer" : "env_bearer_token";
   }
 
   if (opts.harness === "codex") {
-    const codex = writeCodexMcpHome({ pack: opts.pack, paths: opts.paths, cwd: opts.cwd, bearerTokenEnvVar });
+    const codex = writeCodexMcpHome({
+      pack: opts.pack,
+      paths: opts.paths,
+      cwd: opts.cwd,
+      bearerTokenEnvVar,
+      env: source,
+      allowAmbientHarnessAuth: opts.allowAmbientHarnessAuth,
+    });
     return {
       env: {
         HOME: codex.home,

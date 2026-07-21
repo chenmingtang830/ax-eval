@@ -21,7 +21,7 @@ import {
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
 import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
-import { resolveEnvTemplate } from "../target/config.js";
+import { resolveEnvTemplate, type EnvSource } from "../target/config.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { gradeSurfaceHonesty } from "./surface-honesty.js";
 
@@ -66,6 +66,9 @@ export interface VerifyGeneratedPackOptions {
   trace?: readonly TraceStep[];
   /** Explicit providers for this call. When supplied, global providers are ignored. */
   oracleProviders?: OracleProviderRegistry;
+  /** Explicit environment source for URL templates and built-in compatibility
+   * providers. Legacy callers default to process.env. */
+  env?: EnvSource;
 }
 
 export function loadResults(path: string): ExecutorResults {
@@ -200,8 +203,9 @@ function applyStringTemplates(
   gid: string | undefined,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   encodeGid = true,
+  env: EnvSource = process.env,
 ): string {
-  const withNs = resolveEnvTemplate(ns ? value.split(NS_PLACEHOLDER).join(ns) : value);
+  const withNs = resolveEnvTemplate(ns ? value.split(NS_PLACEHOLDER).join(ns) : value, env);
   return withNs.replace(/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/g, (match, name: string) => {
     if (name === "ns") return ns ?? match;
     if (name === "gid") return gid ? (encodeGid ? encodeURIComponent(gid) : gid) : match;
@@ -215,13 +219,14 @@ function applyOracleTemplate(
   ns: string | undefined,
   gid: string | undefined,
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
+  env: EnvSource = process.env,
 ): unknown {
-  if (typeof value === "string") return applyStringTemplates(value, ns, gid, reported, false);
-  if (Array.isArray(value)) return value.map((entry) => applyOracleTemplate(entry, ns, gid, reported));
+  if (typeof value === "string") return applyStringTemplates(value, ns, gid, reported, false, env);
+  if (Array.isArray(value)) return value.map((entry) => applyOracleTemplate(entry, ns, gid, reported, env));
   if (value !== null && typeof value === "object") {
     const out: Record<string, unknown> = {};
     for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
-      out[key] = applyOracleTemplate(entry, ns, gid, reported);
+      out[key] = applyOracleTemplate(entry, ns, gid, reported, env);
     }
     return out;
   }
@@ -238,6 +243,7 @@ async function verifyRoundtrip(
   mongoConn: MongoConn | null,
   trace: TraceStep[],
   oracleProviders: OracleProviderRegistry | undefined,
+  env: EnvSource,
 ): Promise<OracleResult[]> {
   const fieldSelectParam = pack.field_select_param;
   const apiStyle: ApiStyle = pack.api_style;
@@ -245,7 +251,7 @@ async function verifyRoundtrip(
   // Resolve {ns} (per-run namespace) and ${ENV_VAR} (per-account identity,
   // e.g. Supabase's ${SUPABASE_PROJECT_REF}) in any path/query template.
   const applyNsTemplate = (template: string): string =>
-    applyStringTemplates(template, ns, undefined, undefined);
+    applyStringTemplates(template, ns, undefined, undefined, true, env);
   // Named placeholders beyond {ns}/{gid}: a check can reference a value only
   // the executor knows once it performs the task (e.g. {test_row_id} for an
   // RLS visibility check, or {duplicate_email} for a unique-constraint
@@ -287,7 +293,7 @@ async function verifyRoundtrip(
         out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
         continue;
       }
-      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported) as MongoQuery;
+      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported, env) as MongoQuery;
       const expectedValues = resolveExpectedValues(oracle, ns);
       try {
         const result = await runMongoCheck(mongoConn, query);
@@ -501,8 +507,19 @@ export async function verifyGeneratedPack(
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
-  const sqlConn = resolveSqlConn(pack);
-  const mongoConn = resolveMongoConn(pack);
+  const env = options.env ?? process.env;
+  const usesBuiltIn = (oracle: OracleSpec): boolean => {
+    const provider = options.oracleProviders === undefined
+      ? providerForOracle(oracle)
+      : options.oracleProviders.providerFor(oracle);
+    return provider === undefined;
+  };
+  const sqlConn = tasks.some((task) => task.oracles.some((oracle) => oracle.sqlQuery && usesBuiltIn(oracle)))
+    ? resolveSqlConn(pack, env)
+    : null;
+  const mongoConn = tasks.some((task) => task.oracles.some((oracle) => oracle.mongoQuery && usesBuiltIn(oracle)))
+    ? resolveMongoConn(pack, env)
+    : null;
   const trace = options.trace ? [...options.trace] : Array.isArray(observedRun) ? observedRun : [];
   const objectiveRun = options.observedRun ?? (observedRun && !Array.isArray(observedRun) ? observedRun : undefined);
   const honestySurface: SurfaceId =
@@ -510,7 +527,7 @@ export async function verifyGeneratedPack(
       ? executor.surface
       : "api");
   const honesty = objectiveRun
-    ? gradeSurfaceHonesty(objectiveRun, honestySurface, pack)
+    ? gradeSurfaceHonesty(objectiveRun, honestySurface, pack, env)
     : null;
   for (const task of tasks) {
     const reported = executor.results[task.id];
@@ -527,6 +544,7 @@ export async function verifyGeneratedPack(
         mongoConn,
         trace,
         options.oracleProviders,
+        env,
       );
     } catch (err) {
       oracleResults = [];

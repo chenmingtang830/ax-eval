@@ -68,6 +68,10 @@ export interface InvokeRunOptions {
   /** Env overrides for the harness child process. Used for isolated per-cell
    *  MCP config, not for secrets printed to prompts. */
   env?: Record<string, string>;
+  /** Use `env` as the complete child environment instead of merging the
+   * parent process environment. The one-cell runtime enables this so a cell
+   * cannot see unrelated target or harness credentials. */
+  replaceEnv?: boolean;
   /** Non-secret provisioning metadata written to the invoke meta artifact. */
   provisioning?: Record<string, unknown>;
   /** Result of the already-required harness detection probe. Passing it through
@@ -190,7 +194,13 @@ export type AsyncSpawn = (
   command: string,
   args: string[],
   cwd: string,
-  opts?: { timeoutMs?: number; firstActionTimeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
+  opts?: {
+    timeoutMs?: number;
+    firstActionTimeoutMs?: number;
+    env?: Record<string, string>;
+    replaceEnv?: boolean;
+    successPaths?: string[];
+  },
 ) => Promise<ProcResult>;
 
 export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
@@ -200,7 +210,7 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
       cwd,
       detached: true,
       stdio: ["ignore", "pipe", "pipe"],
-      env: opts?.env ? { ...process.env, ...opts.env } : process.env,
+      env: opts?.replaceEnv ? (opts.env ?? {}) : opts?.env ? { ...process.env, ...opts.env } : process.env,
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
@@ -394,8 +404,8 @@ function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   visit(home);
 }
 
-function detectWith(command: string, spawn: Spawn): InvokeDetection {
-  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+function detectWith(command: string, spawn: Spawn, env?: Record<string, string>): InvokeDetection {
+  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], env });
   if (res.error) {
     const code = (res.error as NodeJS.ErrnoException).code;
     return {
@@ -416,8 +426,16 @@ function detectWith(command: string, spawn: Spawn): InvokeDetection {
   return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
 }
 
-export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_SPAWN): InvokeDetection {
-  return detectWith(commandFor(id), spawn);
+export function detectInvokeHarness(
+  id: InvokeHarnessId,
+  spawn: Spawn = DEFAULT_SPAWN,
+  env?: Record<string, string>,
+  allowAmbientCommandOverride = true,
+): InvokeDetection {
+  const command = allowAmbientCommandOverride
+    ? commandFor(id)
+    : id === "claude-code" ? "claude" : "codex";
+  return detectWith(command, spawn, env);
 }
 
 export function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
@@ -481,7 +499,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     // REAL tool events for --observe discovery scoring, not just a summary blob.
     // Print mode requires --verbose for stream-json.
     return {
-      command: commandFor("claude-code"),
+      command: opts.harnessDetection?.command ?? commandFor("claude-code"),
       args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
     };
   }
@@ -515,7 +533,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // shell write of the exact path. `--json` streams events to stdout so the
   // transcript carries real tool calls for --observe discovery scoring.
   return {
-    command: commandFor("codex"),
+    command: opts.harnessDetection?.command ?? commandFor("codex"),
     args: [
       ...approvalArgs,
       ...mcpArgs,
@@ -725,7 +743,7 @@ function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics):
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   parsed.metrics = metrics;
-  normalizeDiscoveryResult(parsed, opts.pack);
+  normalizeDiscoveryResult(parsed, opts.pack, opts.env);
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
   return { ok: true };
 }
@@ -737,14 +755,18 @@ function looksLikeBaseUrlPlaceholder(value: string): boolean {
   return /<[^>]+>|\{[^}]+\}|\$\{[A-Z0-9_]+\}|\bCONVEX_URL\b|\bdeployment URL\b/i.test(trimmed);
 }
 
-function normalizeDiscoveryResult(parsed: Record<string, unknown>, pack: TargetPack): void {
+function normalizeDiscoveryResult(
+  parsed: Record<string, unknown>,
+  pack: TargetPack,
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): void {
   const discovery = parsed.discovery;
   if (!discovery || typeof discovery !== "object" || Array.isArray(discovery)) return;
   const record = discovery as Record<string, unknown>;
   const baseUrlFound = typeof record.base_url_found === "string" ? record.base_url_found : "";
   if (!looksLikeBaseUrlPlaceholder(baseUrlFound)) return;
   try {
-    record.base_url_found = resolveEnvTemplate(pack.base_url);
+    record.base_url_found = resolveEnvTemplate(pack.base_url, env);
   } catch {
     /* Leave the self-report unchanged when the template cannot be resolved. */
   }
@@ -987,6 +1009,7 @@ export async function runInvokeHarness(
       timeoutMs: opts.timeoutMs,
       firstActionTimeoutMs: opts.firstActionTimeoutMs,
       env: opts.env,
+      replaceEnv: opts.replaceEnv,
       successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
     });
     stdout = text(res.stdout);
@@ -1017,8 +1040,9 @@ export async function runInvokeHarness(
     if (ok || attempt >= maxAttempts) break;
     // Failed and a retry is left: drop any partial results file so the next
     // attempt is scored on its own output, not stale leftovers.
-    if (existsSync(opts.paths.resultsPath)) {
-      try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
+    for (const path of [opts.paths.resultsPath, opts.paths.tracePath]) {
+      if (!existsSync(path)) continue;
+      try { rmSync(path); } catch { /* best effort */ }
     }
   }
   writeRedactedFile(opts.paths.stdoutPath, stdout);

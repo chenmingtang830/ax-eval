@@ -66,9 +66,19 @@ export function packContentHash(pack: TargetPack): string {
   return createHash("sha256").update(JSON.stringify(reviewableContent(pack))).digest("hex").slice(0, 16);
 }
 
+/** Full byte-level digest for immutable cell provenance. Unlike the approval
+ * hash above, this binds every field and comment in the selected pack file. */
+export function packFileContentHash(packPath: string): string {
+  return createHash("sha256").update(readFileSync(packPath)).digest("hex");
+}
+
 export interface Approval {
   standard_set_version: string;
   content_hash: string;
+  /** Full exact-pack digest required by the one-cell runtime. Older approvals
+   * remain valid for legacy commands but must be human-reviewed again before
+   * cell execution. */
+  pack_file_hash?: string;
   approved_by: string;
   approved_at: string;
   task_count: number;
@@ -93,6 +103,7 @@ export function writeApproval(packPath: string, pack: TargetPack, approvedBy: st
   const approval: Approval = {
     standard_set_version: pack.standard_set_version,
     content_hash: packContentHash(pack),
+    pack_file_hash: packFileContentHash(packPath),
     approved_by: approvedBy,
     approved_at: new Date().toISOString(),
     task_count: pack.tasks.length,
@@ -111,6 +122,30 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
     return {
       ok: false,
       reason: `pack changed since approval (approved ${approval.content_hash}, now ${hash}) — re-review required`,
+    };
+  }
+  return { ok: true };
+}
+
+export function checkCellApproval(
+  pack: TargetPack,
+  packPath: string,
+  expectedPackFileHash: string,
+): { ok: boolean; reason?: string } {
+  const legacy = checkApproval(pack, packPath);
+  if (!legacy.ok) return legacy;
+  const approval = readApproval(packPath);
+  if (!approval?.pack_file_hash) {
+    return {
+      ok: false,
+      reason: "approval predates full pack-file binding — re-review and approve this exact pack before cell execution",
+    };
+  }
+  const actual = packFileContentHash(packPath);
+  if (actual !== expectedPackFileHash || approval.pack_file_hash !== actual) {
+    return {
+      ok: false,
+      reason: `exact pack file changed since approval (approved ${approval.pack_file_hash}, now ${actual})`,
     };
   }
   return { ok: true };

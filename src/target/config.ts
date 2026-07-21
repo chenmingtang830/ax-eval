@@ -12,6 +12,8 @@
 import type { TargetPack, ScopeParam, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 
+export type EnvSource = Readonly<Record<string, string | undefined>>;
+
 export class TargetConfigError extends Error {
   constructor(message: string) {
     super(message);
@@ -19,7 +21,8 @@ export class TargetConfigError extends Error {
   }
 }
 
-const env = (name: string): string | undefined => process.env[name]?.trim() || undefined;
+const env = (name: string, source: EnvSource = process.env): string | undefined =>
+  source[name]?.trim() || undefined;
 
 const GLOBAL_ENV_ALIAS_GROUPS: ReadonlyArray<ReadonlyArray<string>> = [
   ["STRIPE_API_KEY", "STRIPE_TOKEN"],
@@ -38,9 +41,13 @@ function envCandidates(primary: string | undefined, aliases: string[] = []): str
   return [...new Set(ordered.filter((name): name is string => Boolean(name)))];
 }
 
-function resolveEnvValue(primary: string | undefined, aliases: string[] = []): string | undefined {
+function resolveEnvValue(
+  primary: string | undefined,
+  aliases: string[] = [],
+  source: EnvSource = process.env,
+): string | undefined {
   for (const name of envCandidates(primary, aliases)) {
-    const value = env(name);
+    const value = env(name, source);
     if (value) return value;
   }
   return undefined;
@@ -80,7 +87,7 @@ function envTemplateNames(value: unknown): string[] {
 /** Resolve the credential the runner uses for verification/oracles. Prefers the
  *  pack's declared `verify_env` then `env`; legacy fallback = ASANA_VERIFY_PAT
  *  → ASANA_PAT so packs without an `auth` block still work. */
-export function resolveToken(pack: TargetPack): string {
+export function resolveToken(pack: TargetPack, source: EnvSource = process.env): string {
   const a = pack.auth;
   if (a?.type === "none") return "";
   const candidates = a?.env
@@ -90,7 +97,7 @@ export function resolveToken(pack: TargetPack): string {
       ].flat()
     : ["ASANA_VERIFY_PAT", "ASANA_PAT"];
   for (const name of candidates) {
-    const v = env(name);
+    const v = env(name, source);
     if (v) return v;
   }
   const named = a?.env
@@ -116,9 +123,9 @@ export function authHeader(pack: TargetPack): string {
  *  Deliberately NOT applied inside loadPack(): approval hashes the pack's
  *  template form, so the hash stays stable across different developers'
  *  env values. Substitution only happens right before a live HTTP call. */
-export function resolveEnvTemplate(text: string): string {
+export function resolveEnvTemplate(text: string, source: EnvSource = process.env): string {
   return text.replace(/\$\{([A-Z0-9_]+)\}/g, (_, name: string) => {
-    const value = env(name);
+    const value = env(name, source);
     if (!value) {
       throw new TargetConfigError(`base_url/path references \${${name}}, but that env var is unset in .env`);
     }
@@ -143,10 +150,10 @@ function extractScopeValue(param: ScopeParam, raw: string): string {
 
 /** Resolve every declared sandbox-scope value from the environment. Throws if a
  *  required one is missing. Returns a `{ name: value }` map. */
-export function resolveScope(pack: TargetPack): Record<string, string> {
+export function resolveScope(pack: TargetPack, source: EnvSource = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   for (const param of pack.sandbox_scope) {
-    const raw = env(param.env);
+    const raw = env(param.env, source);
     if (!raw) {
       if (param.required) {
         const hint = param.instructions ? ` — ${param.instructions}` : "";
@@ -170,7 +177,7 @@ export interface EnvRequirement {
 
 /** Everything the developer must set for this pack, with which vars are present.
  *  Drives a target-agnostic `check-env`. */
-export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
+export function describeRequiredEnv(pack: TargetPack, source: EnvSource = process.env): EnvRequirement[] {
   const reqs: EnvRequirement[] = [];
   const pushUnique = (req: EnvRequirement) => {
     if (reqs.some((existing) => existing.env === req.env && existing.role === req.role)) return;
@@ -185,7 +192,10 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
       role: "auth",
       env: authEnv,
       required: true,
-      set: Boolean(resolveEnvValue(verifyEnv, verifyAliases) || resolveEnvValue(authEnv, authAliases)),
+      set: Boolean(
+        resolveEnvValue(verifyEnv, verifyAliases, source)
+        || resolveEnvValue(authEnv, authAliases, source),
+      ),
       instructions: [
         "the agent's sandbox credential",
         envCandidates(authEnv, authAliases).length > 1 ? `aliases accepted: ${envCandidates(authEnv, authAliases).slice(1).join(", ")}` : "",
@@ -206,7 +216,7 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
       role: "env_template",
       env: name,
       required: true,
-      set: Boolean(env(name)),
+      set: Boolean(env(name, source)),
       instructions: "required by a pack URL or verifier template",
     });
   }
@@ -215,7 +225,7 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
       role: p.name,
       env: p.env,
       required: p.required,
-      set: Boolean(env(p.env)),
+      set: Boolean(env(p.env, source)),
       instructions: p.instructions || undefined,
     });
   }
@@ -224,7 +234,7 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
       role: "sql_conn",
       env: pack.sql_conn.connection_string_env,
       required: true,
-      set: Boolean(env(pack.sql_conn.connection_string_env)),
+      set: Boolean(env(pack.sql_conn.connection_string_env, source)),
       instructions: `${pack.sql_conn.dialect} connection string used by SQL outcome verifiers`,
     });
   }
@@ -233,7 +243,7 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
       role: "mongo_conn",
       env: pack.mongo_conn.connection_string_env,
       required: true,
-      set: Boolean(env(pack.mongo_conn.connection_string_env)),
+      set: Boolean(env(pack.mongo_conn.connection_string_env, source)),
       instructions: "MongoDB connection string used by Mongo outcome verifiers",
     });
   }
@@ -241,8 +251,8 @@ export function describeRequiredEnv(pack: TargetPack): EnvRequirement[] {
 }
 
 /** True if all required env for this pack is present. */
-export function hasRequiredEnv(pack: TargetPack): boolean {
-  return describeRequiredEnv(pack).every((r) => !r.required || r.set);
+export function hasRequiredEnv(pack: TargetPack, source: EnvSource = process.env): boolean {
+  return describeRequiredEnv(pack, source).every((r) => !r.required || r.set);
 }
 
 /** Why a surface can't be evaluated headlessly. `null` = runnable. */
@@ -284,15 +294,22 @@ function apiAuthAliases(pack: TargetPack): string[] {
  * inspects auth env NAMES (never values beyond presence), so it's safe to call
  * anywhere — it never logs or returns a secret.
  */
-export function surfaceAuthStatus(pack: TargetPack, surface: SurfaceId): SurfaceAuthStatus {
+export function surfaceAuthStatus(
+  pack: TargetPack,
+  surface: SurfaceId,
+  source: EnvSource = process.env,
+): SurfaceAuthStatus {
   const a = surfaceAuth(pack, surface);
   const kind = surface === "api" ? "inherit" : (a?.kind ?? "inherit");
   const instructions = a?.instructions;
+  if (kind === "inherit" && pack.auth?.type === "none") {
+    return { surface, kind, requirements: [], blocked: null, missing: [], instructions };
+  }
   const req = (envName: string, role: string): EnvRequirement => ({
     role,
     env: envName,
     required: true,
-    set: Boolean(resolveEnvValue(envName)),
+    set: Boolean(resolveEnvValue(envName, [], source)),
     instructions,
   });
 
@@ -318,7 +335,7 @@ export function surfaceAuthStatus(pack: TargetPack, surface: SurfaceId): Surface
   const role = kind === "token" ? `${surface} token` : "auth";
   const requirement = {
     ...req(envName, role),
-    set: Boolean(resolveEnvValue(envName, aliases)),
+    set: Boolean(resolveEnvValue(envName, aliases, source)),
     instructions: [
       instructions,
       envCandidates(envName, aliases).length > 1 ? `aliases accepted: ${envCandidates(envName, aliases).slice(1).join(", ")}` : "",
