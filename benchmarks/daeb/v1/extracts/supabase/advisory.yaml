@@ -1,0 +1,62 @@
+schema: ax.extract-advisory/v1
+vendor: Supabase
+slug: supabase
+generated_at: 2026-07-10T21:03:31.467Z
+findings:
+  - severity: warn
+    topic: self_service
+    message: RLS is auto-enabled only when a table is created via the Dashboard
+      Table Editor GUI. Tables created headlessly (CLI migrations, raw SQL, API)
+      do NOT get RLS enabled automatically. A DAEB agent driving
+      table-schema-definition/schema-migration via CLI/SQL must explicitly issue
+      ENABLE ROW LEVEL SECURITY — the 'native, cli-documented' RLS capability
+      should not be assumed to apply by default to non-GUI table creation paths.
+    doc_url: https://supabase.com/docs/guides/database/postgres/row-level-security
+    quote: RLS is enabled by default on tables created with the Table Editor in the
+      dashboard. If you create one in raw SQL or with the SQL editor, remember
+      to enable RLS yourself and grant only the permissions each Postgres role
+      needs.
+  - severity: warn
+    topic: surface_auth
+    message: The CLI auth object exposes only SUPABASE_ACCESS_TOKEN (personal access
+      token), but headless database operations that back
+      schema-migration/schema-diff/bulk-data-import-export (db push/pull/dump)
+      require a second secret, SUPABASE_DB_PASSWORD, for direct Postgres
+      connectivity. This second credential is not modeled as a token_env_alias
+      and is easy to miss when wiring up unattended CLI auth.
+    doc_url: https://supabase.com/docs/reference/cli/introduction
+    quote: If you do not want to be prompted for the database password, such as in a
+      CI environment, you may specify it explicitly via the
+      `SUPABASE_DB_PASSWORD` environment variable.
+  - severity: warn
+    topic: sdk_grounding
+    message: The SDK auth instructions describe keys as 'anon key' (client-side) and
+      'service_role key' (server-side), but current supabase-js reference
+      documentation uses the newer 'publishable key' terminology in its
+      createClient example. Extraction's key naming is stale relative to current
+      docs; headless SDK auth setups built from this extraction should confirm
+      current key nomenclature in the project's API settings rather than assume
+      legacy anon/service_role naming still matches dashboard labels.
+    doc_url: https://supabase.com/docs/reference/javascript/initializing
+    quote: const supabase = createClient('https://xyzcompany.supabase.co',
+      'your-publishable-key')
+  - severity: info
+    topic: task_fit
+    message: The database-branching capability's merge step deploys directly to
+      production automatically, with no separate manual approval gate documented
+      in this text. A DAEB task treating branch-merge as a safe/reversible
+      sandbox operation should account for the fact that merging is equivalent
+      to a production deploy.
+    doc_url: https://supabase.com/docs/guides/platform/branching
+    quote: When you merge any branch into your main project, Supabase automatically
+      runs a deployment workflow to deploy your changes to production.
+  - severity: info
+    topic: task_fit
+    message: project-lifecycle-management (pause/restore) is self-service only
+      within a 90-day window; beyond that, Studio/API restore is no longer
+      possible and only manual backup-download-and-reimport recovery remains —
+      still self-service, but a materially different operational path than a
+      simple pause/restore API call implies.
+    doc_url: https://supabase.com/docs/guides/troubleshooting/restore-project-after-90-days-pause
+    quote: Projects paused for more than 90 days can no longer be restored through
+      Supabase Studio.
