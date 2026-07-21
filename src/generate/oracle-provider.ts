@@ -31,6 +31,35 @@ export interface OracleProvider {
   verify(oracle: OracleSpec, ctx: OracleVerifyContext): Promise<OracleResult>;
 }
 
+export interface OracleProviderRegistry {
+  providerFor(oracle: OracleSpec): OracleProvider | undefined;
+}
+
+/** Build an isolated provider registry for one verification or cell run. */
+export function createOracleProviderRegistry(
+  input: readonly OracleProvider[] = [],
+): OracleProviderRegistry {
+  const providers = Object.freeze([...input]);
+  const ids = new Set<string>();
+  for (const provider of providers) {
+    if (!provider.id.trim()) throw new Error("oracle provider id must not be empty");
+    if (ids.has(provider.id)) {
+      throw new Error(`duplicate oracle provider id "${provider.id}"`);
+    }
+    ids.add(provider.id);
+  }
+
+  return Object.freeze({
+    providerFor(oracle: OracleSpec): OracleProvider | undefined {
+      const matches = providers.filter((provider) => provider.matches(oracle));
+      if (matches.length > 1) {
+        throw new Error(`multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`);
+      }
+      return matches[0];
+    },
+  });
+}
+
 const providers: OracleProvider[] = [];
 
 export function registerOracleProvider(provider: OracleProvider): void {

@@ -64,6 +64,8 @@ Implementation progress:
 - The next boundary publishes a typed package root for core contracts and
   verification/record primitives. Harness execution remains private until the
   one-cell API is defined.
+- Per-verification oracle registries are the next runtime step; global provider
+  registration remains only as a compatibility path.
 
 ## 2. Goals
 
