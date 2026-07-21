@@ -162,6 +162,32 @@ describe("buildNormalizedResult", () => {
     expect(mcp.pass_at_1).toBe(1);
     expect(mcp.content_quality).toBe(0.7);
   });
+
+  it("uses fallback harness before grouping normalized cells", () => {
+    const pack = makePack("neon");
+    const cells = buildNormalizedResultCells(
+      pack,
+      [
+        {
+          profile: "low",
+          harness: "codex",
+          surface: "cli",
+          outcomes: [outcome("t1", true, "low"), outcome("t2", false, "low")],
+        },
+        {
+          profile: "high",
+          surface: "cli",
+          outcomes: [outcome("t1", true, "high"), outcome("t2", true, "high")],
+        },
+      ],
+      null,
+      "codex",
+    );
+    expect(cells).toHaveLength(1);
+    expect(cells[0]!.fileStem).toBe("codex.cli");
+    expect(cells[0]!.record.harness).toBe("codex");
+    expect(cells[0]!.record.profiles).toEqual(["low", "high"]);
+  });
 });
 
 describe("renderCompetitiveReport", () => {
