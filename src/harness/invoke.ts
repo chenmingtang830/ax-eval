@@ -1,6 +1,19 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import {
+  closeSync,
+  constants,
+  existsSync,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readFileSync,
+  readdirSync,
+  realpathSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
+import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
@@ -79,6 +92,10 @@ export interface InvokeRunOptions {
   harnessDetection?: InvokeDetection;
   /** Stable identifier shared by comparable runs from the same execution batch. */
   runBatchId?: string;
+  /** Require a valid JSON-array trace before an invocation can succeed. The
+   * one-cell runtime enables this while legacy callers retain result-only
+   * success semantics during the compatibility window. */
+  requireTrace?: boolean;
 }
 
 export interface InvokeHarnessMetrics {
@@ -118,7 +135,8 @@ export type InvokeValidityStatus =
   | "runtime_timeout_no_action"
   | "runtime_timeout_partial"
   | "invoke_failed"
-  | "results_json_invalid";
+  | "results_json_invalid"
+  | "trace_invalid";
 
 export interface InvokeRunResult {
   harness: InvokeHarnessId;
@@ -365,13 +383,110 @@ export function redactHarnessArtifactText(value: string): string {
     .replace(/\[REDACTED\]/g, "<redacted>");
 }
 
+function assertContainedParent(path: string, allowedRoot = dirname(path)): void {
+  const root = resolve(allowedRoot);
+  const parent = resolve(dirname(path));
+  const rootStat = lstatSync(root);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error(`artifact root must be a real directory: ${root}`);
+  }
+  const parentStat = lstatSync(parent);
+  if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
+    throw new Error(`artifact parent must be a real directory: ${parent}`);
+  }
+  const rel = relative(realpathSync(root), realpathSync(parent));
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`artifact parent must resolve inside ${root}`);
+  }
+  let current = root;
+  for (const part of relative(root, parent).split(sep).filter(Boolean)) {
+    current = resolve(current, part);
+    const stat = lstatSync(current);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(`artifact path contains an unsafe parent: ${current}`);
+    }
+  }
+}
+
+interface DirectoryIdentity {
+  realpath: string;
+  dev: number;
+  ino: number;
+}
+
+function directoryIdentity(path: string): DirectoryIdentity {
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`artifact root must be a real directory: ${path}`);
+  }
+  return { realpath: realpathSync(path), dev: stat.dev, ino: stat.ino };
+}
+
+function assertDirectoryIdentity(path: string, expected: DirectoryIdentity): void {
+  const current = directoryIdentity(path);
+  if (current.realpath !== expected.realpath || current.dev !== expected.dev || current.ino !== expected.ino) {
+    throw new Error(`artifact directory identity changed during invocation: ${path}`);
+  }
+}
+
+function replaceFileWithoutFollowing(path: string, value: string, allowedRoot = dirname(path)): void {
+  assertContainedParent(path, allowedRoot);
+  const temporary = `${path}.ax-eval-${process.pid}-${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    writeFileSync(temporary, value, { flag: "wx", mode: 0o600 });
+    renameSync(temporary, path);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+}
+
+function regularFileExists(path: string, allowedRoot = dirname(path)): boolean {
+  try {
+    assertContainedParent(path, allowedRoot);
+    const stat = lstatSync(path);
+    return stat.isFile() && !stat.isSymbolicLink();
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return false;
+    throw error;
+  }
+}
+
+function removePathIfPresent(path: string): void {
+  try {
+    const stat = lstatSync(path);
+    rmSync(path, { recursive: stat.isDirectory() && !stat.isSymbolicLink(), force: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
+function readRegularFileNoFollow(path: string, allowedRoot = dirname(path)): Buffer {
+  assertContainedParent(path, allowedRoot);
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error(`artifact is not a regular file: ${path}`);
+    return readFileSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
+function validTraceFile(path: string): boolean {
+  if (!regularFileExists(path)) return false;
+  try {
+    return Array.isArray(JSON.parse(readRegularFileNoFollow(path).toString("utf8")));
+  } catch {
+    return false;
+  }
+}
+
 function writeRedactedFile(path: string, value: string): void {
-  writeFileSync(path, redactHarnessArtifactText(value));
+  replaceFileWithoutFollowing(path, redactHarnessArtifactText(value));
 }
 
 function redactFileIfExists(path: string): void {
-  if (!existsSync(path)) return;
-  writeRedactedFile(path, readFileSync(path, "utf8"));
+  if (!regularFileExists(path)) return;
+  writeRedactedFile(path, readRegularFileNoFollow(path).toString("utf8"));
 }
 
 function isInvokeHomePath(path: string): boolean {
@@ -380,23 +495,35 @@ function isInvokeHomePath(path: string): boolean {
 
 function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   const home = opts.env?.HOME;
-  if (!home || !isInvokeHomePath(home) || !existsSync(home)) return;
+  if (!home || !isInvokeHomePath(home)) return;
+  const allowedRoot = resolve(dirname(opts.paths.resultsPath), ".invoke-home");
+  const lexicalRel = relative(allowedRoot, resolve(home));
+  if (lexicalRel === ".." || lexicalRel.startsWith(`..${sep}`) || isAbsolute(lexicalRel)) return;
+  try {
+    const rootStat = lstatSync(home);
+    if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) return;
+    const realRel = relative(realpathSync(allowedRoot), realpathSync(home));
+    if (realRel === ".." || realRel.startsWith(`..${sep}`) || isAbsolute(realRel)) return;
+  } catch {
+    return;
+  }
   const visit = (path: string) => {
     let stat;
     try {
-      stat = statSync(path);
+      stat = lstatSync(path);
     } catch {
       return;
     }
+    if (stat.isSymbolicLink()) return;
     if (stat.isDirectory()) {
       for (const entry of readdirSync(path)) visit(resolve(path, entry));
       return;
     }
     if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
     try {
-      const raw = readFileSync(path);
+      const raw = readRegularFileNoFollow(path, allowedRoot);
       if (raw.includes(0)) return;
-      writeRedactedFile(path, raw.toString("utf8"));
+      replaceFileWithoutFollowing(path, redactHarnessArtifactText(raw.toString("utf8")), allowedRoot);
     } catch {
       /* best effort: host CLI caches are evidence, not primary artifacts. */
     }
@@ -506,7 +633,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   if (!opts.paths.codexSchemaPath) {
     throw new Error("codex invocation requires codexSchemaPath");
   }
-  writeFileSync(
+  replaceFileWithoutFollowing(
     opts.paths.codexSchemaPath,
     JSON.stringify(codexOutputSchema(opts.pack, opts.profile, opts.surface, opts.ns), null, 2),
   );
@@ -724,10 +851,12 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
 }
 
 function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics): { ok: boolean; error?: string } {
-  if (!existsSync(opts.paths.resultsPath)) return { ok: true };
+  if (!regularFileExists(opts.paths.resultsPath)) return { ok: true };
   let parsed: Record<string, unknown>;
   try {
-    parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
+    parsed = parseJsonWithRecovery<Record<string, unknown>>(
+      readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8"),
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     writeFailureArtifacts(opts, `results JSON invalid (bare quotes / malformed): ${message}`);
@@ -744,7 +873,7 @@ function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics):
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   parsed.metrics = metrics;
   normalizeDiscoveryResult(parsed, opts.pack, opts.env);
-  writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+  replaceFileWithoutFollowing(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
   return { ok: true };
 }
 
@@ -846,7 +975,7 @@ function recoverCodexAgentMessage(stdout: string): string | undefined {
 }
 
 function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
-  if (existsSync(opts.paths.resultsPath)) return true;
+  if (regularFileExists(opts.paths.resultsPath)) return true;
   const recovered =
     opts.harness === "claude-code"
       ? recoverClaudeWrite(stdout, opts.paths.resultsPath, opts.cwd)
@@ -854,19 +983,19 @@ function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
   if (!recovered) return false;
   const parsed = parseResultPayload(recovered);
   if (!parsed) return false;
-  writeFileSync(opts.paths.resultsPath, `${JSON.stringify(parsed, null, 2)}\n`);
+  replaceFileWithoutFollowing(opts.paths.resultsPath, `${JSON.stringify(parsed, null, 2)}\n`);
   return true;
 }
 
 function recoverTraceFile(opts: InvokeRunOptions, stdout: string): boolean {
-  if (existsSync(opts.paths.tracePath)) return true;
+  if (regularFileExists(opts.paths.tracePath)) return true;
   if (opts.harness !== "claude-code") return false;
   const recovered = recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd);
   if (!recovered) return false;
   try {
     const parsed = JSON.parse(recovered);
     if (!Array.isArray(parsed)) return false;
-    writeFileSync(opts.paths.tracePath, `${JSON.stringify(parsed, null, 2)}\n`);
+    replaceFileWithoutFollowing(opts.paths.tracePath, `${JSON.stringify(parsed, null, 2)}\n`);
     return true;
   } catch {
     return false;
@@ -943,7 +1072,7 @@ function invokeValidityStatus(args: {
 
 function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
   const results = Object.fromEntries(tasksForSurface(opts.pack, opts.surface).map((t) => [t.id, { gid: null }]));
-  writeFileSync(
+  replaceFileWithoutFollowing(
     opts.paths.resultsPath,
     JSON.stringify(
       {
@@ -965,7 +1094,7 @@ function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
       2,
     ),
   );
-  writeFileSync(
+  replaceFileWithoutFollowing(
     opts.paths.tracePath,
     JSON.stringify(
       [
@@ -987,6 +1116,15 @@ export async function runInvokeHarness(
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
   const startedAt = Date.now();
+  const artifactDir = dirname(opts.paths.resultsPath);
+  const artifactIdentity = directoryIdentity(artifactDir);
+  const invokeHomeRoot = resolve(artifactDir, ".invoke-home");
+  let invokeHomeIdentity: DirectoryIdentity | undefined;
+  try {
+    invokeHomeIdentity = directoryIdentity(invokeHomeRoot);
+  } catch {
+    // Legacy invocations may not provision an isolated home.
+  }
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
   const { command, args } = buildInvocation(opts.harness, prompt, opts);
   const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
@@ -1000,8 +1138,10 @@ export async function runInvokeHarness(
   let ok = false;
   let stdout = "";
   let stderr = "";
+  let requiredTraceFailed = false;
   const attemptMetrics: InvokeAttemptMetrics[] = [];
   while (attempt < maxAttempts) {
+    assertDirectoryIdentity(artifactDir, artifactIdentity);
     attempt += 1;
     const attemptStarted = new Date();
     const attemptStartedMs = Date.now();
@@ -1012,13 +1152,16 @@ export async function runInvokeHarness(
       replaceEnv: opts.replaceEnv,
       successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
     });
+    assertDirectoryIdentity(artifactDir, artifactIdentity);
     stdout = text(res.stdout);
     stderr = text(res.stderr);
     recoverResultFile(opts, stdout);
     recoverTraceFile(opts, stdout);
+    requiredTraceFailed = opts.requireTrace === true && !validTraceFile(opts.paths.tracePath);
     ok =
       !res.error &&
-      existsSync(opts.paths.resultsPath) &&
+      regularFileExists(opts.paths.resultsPath) &&
+      !requiredTraceFailed &&
       (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
     const nativeMetrics = parseHarnessMetrics(opts.harness, stdout);
     const attemptFinished = new Date();
@@ -1041,15 +1184,24 @@ export async function runInvokeHarness(
     // Failed and a retry is left: drop any partial results file so the next
     // attempt is scored on its own output, not stale leftovers.
     for (const path of [opts.paths.resultsPath, opts.paths.tracePath]) {
-      if (!existsSync(path)) continue;
-      try { rmSync(path); } catch { /* best effort */ }
+      try { removePathIfPresent(path); } catch { /* best effort */ }
     }
   }
+  if (requiredTraceFailed) {
+    replaceFileWithoutFollowing(opts.paths.tracePath, `${JSON.stringify([{
+      step: 1,
+      taskId: "discovery",
+      action: "invoke harness",
+      note: "required trace artifact was missing or invalid",
+    }], null, 2)}\n`);
+  }
+  assertDirectoryIdentity(artifactDir, artifactIdentity);
   writeRedactedFile(opts.paths.stdoutPath, stdout);
   writeRedactedFile(opts.paths.stderrPath, stderr);
   // Keep a single transcript file path for verify --observe / report evidence.
   // If a harness emits structured JSONL later, this path can hold it directly.
   writeRedactedFile(opts.paths.transcriptPath, stdout || stderr);
+  if (invokeHomeIdentity) assertDirectoryIdentity(invokeHomeRoot, invokeHomeIdentity);
   redactInvokeHomeIfPresent(opts);
 
   const exitCode = res.status ?? null;
@@ -1064,7 +1216,7 @@ export async function runInvokeHarness(
       : undefined);
   const metrics = summarizeInvokeMetrics(opts, attemptMetrics);
   let stamp: { ok: boolean; error?: string } = { ok: true };
-  if (existsSync(opts.paths.resultsPath)) {
+  if (regularFileExists(opts.paths.resultsPath)) {
     stamp = stampResultFile(opts, metrics);
   } else {
     const reason = redactHarnessArtifactText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
@@ -1081,12 +1233,14 @@ export async function runInvokeHarness(
   const finalOk = ok && !stampFailed;
   const validity_status = stampFailed
     ? "results_json_invalid"
+    : requiredTraceFailed
+      ? "trace_invalid"
     : invokeValidityStatus({
     ok: finalOk,
     timedOut,
     actionOccurred: runtimeDiagnostics.action_occurred,
-    resultsExists: existsSync(opts.paths.resultsPath),
-    traceExists: existsSync(opts.paths.tracePath),
+    resultsExists: regularFileExists(opts.paths.resultsPath),
+    traceExists: regularFileExists(opts.paths.tracePath),
     error: stamp.error ?? error,
   });
   const meta: InvokeRunResult = {
@@ -1114,7 +1268,11 @@ export async function runInvokeHarness(
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok ? undefined : redactHarnessArtifactText((error ?? stderr.trim()) || `exit ${exitLabel}`),
+    error: ok
+      ? undefined
+      : redactHarnessArtifactText((requiredTraceFailed
+        ? "required trace artifact was missing or invalid"
+        : error ?? stderr.trim()) || `exit ${exitLabel}`),
   };
   writeRedactedFile(
     opts.paths.metaPath,

@@ -6,6 +6,7 @@ import {
   readFileSync,
   readdirSync,
   realpathSync,
+  renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
@@ -21,7 +22,7 @@ import {
 } from "../generate/oracle-provider.js";
 import {
   loadResults,
-  loadTrace,
+  loadRequiredTrace,
   verifyGeneratedPack,
   type ExecutorResults,
   type RoundtripOutcome,
@@ -36,7 +37,7 @@ import {
   type InvokeRunOptions,
   type InvokeRunResult,
 } from "../harness/invoke.js";
-import { buildExecutorPrompt, resolveNs } from "../harness/executor.js";
+import { buildExecutorPrompt, resolveNs, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
   observedToDiscovery,
@@ -88,7 +89,7 @@ export interface CellRuntimeDependencies {
     executor: ExecutorResults,
     client: BearerClient,
     cell: EvaluationCell,
-    observed: ObservedRun | ReturnType<typeof loadTrace> | undefined,
+    observed: ObservedRun | TraceStep[] | undefined,
     oracleProviders: OracleProviderRegistry,
     credentials: CredentialSource,
   ): Promise<RoundtripOutcome[]>;
@@ -322,7 +323,12 @@ function observedTranscript(
   path: string,
   credentials: CredentialSource,
 ): ObservedRun | undefined {
-  if (!existsSync(path)) return undefined;
+  try {
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.isSymbolicLink()) return undefined;
+  } catch {
+    return undefined;
+  }
   try {
     return parseTranscript(path, {
       baseUrl: resolveEnvTemplate(pack.base_url, credentials),
@@ -332,6 +338,29 @@ function observedTranscript(
     });
   } catch {
     return undefined;
+  }
+}
+
+function requiredTrace(path: string, artifactDir: string): TraceStep[] {
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("required trace artifact must be a regular file");
+  const rel = relative(realpathSync(artifactDir), realpathSync(path));
+  if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+    throw new Error("required trace artifact must resolve inside the artifact directory");
+  }
+  return loadRequiredTrace(path);
+}
+
+function assertRegularCellArtifact(path: string, artifactDir: string, label: string): void {
+  const rootStat = lstatSync(artifactDir);
+  if (rootStat.isSymbolicLink() || !rootStat.isDirectory()) {
+    throw new Error("artifact directory must remain a real directory");
+  }
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${label} must be a regular file`);
+  const rel = relative(realpathSync(artifactDir), realpathSync(path));
+  if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) {
+    throw new Error(`${label} must resolve inside the artifact directory`);
   }
 }
 
@@ -368,11 +397,64 @@ function scrubText(value: string, secrets: readonly string[]): string {
   return redactHarnessArtifactText(scrubbed);
 }
 
+interface ArtifactDirectoryIdentity {
+  realpath: string;
+  dev: number;
+  ino: number;
+}
+
+function artifactDirectoryIdentity(path: string): ArtifactDirectoryIdentity {
+  const stat = lstatSync(path);
+  if (stat.isSymbolicLink() || !stat.isDirectory()) {
+    throw new Error(`artifact directory must be a real directory: ${path}`);
+  }
+  return { realpath: realpathSync(path), dev: stat.dev, ino: stat.ino };
+}
+
+function assertArtifactDirectoryIdentity(path: string, expected: ArtifactDirectoryIdentity): void {
+  const current = artifactDirectoryIdentity(path);
+  if (current.realpath !== expected.realpath || current.dev !== expected.dev || current.ino !== expected.ino) {
+    throw new Error(`artifact directory identity changed during cell execution: ${path}`);
+  }
+}
+
+function replaceFileWithoutFollowing(path: string, value: string): void {
+  const parent = dirname(path);
+  const parentStat = lstatSync(parent);
+  if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
+    throw new Error(`artifact parent must be a real directory: ${parent}`);
+  }
+  const temporary = `${path}.ax-eval-${process.pid}-${Math.random().toString(16).slice(2)}.tmp`;
+  try {
+    writeFileSync(temporary, value, { flag: "wx", mode: 0o600 });
+    renameSync(temporary, path);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
+}
+
+function removeArtifactPath(path: string): void {
+  try {
+    const stat = lstatSync(path);
+    rmSync(path, { recursive: stat.isDirectory() && !stat.isSymbolicLink(), force: true });
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+}
+
 function scrubArtifacts(
   paths: ReturnType<typeof defaultInvokePaths>,
   secrets: readonly string[],
   homePaths: readonly (string | undefined)[] = [],
+  expectedRoot?: ArtifactDirectoryIdentity,
+  expectedHomeRoot?: ArtifactDirectoryIdentity,
 ): void {
+  const artifactRoot = dirname(paths.resultsPath);
+  try {
+    if (expectedRoot) assertArtifactDirectoryIdentity(artifactRoot, expectedRoot);
+  } catch {
+    return;
+  }
   for (const path of [
     paths.resultsPath,
     paths.tracePath,
@@ -381,8 +463,13 @@ function scrubArtifacts(
     paths.transcriptPath,
     paths.metaPath,
   ]) {
-    if (!existsSync(path)) continue;
-    writeFileSync(path, scrubText(readFileSync(path, "utf8"), secrets));
+    try {
+      const stat = lstatSync(path);
+      if (!stat.isFile() || stat.isSymbolicLink()) continue;
+      replaceFileWithoutFollowing(path, scrubText(readFileSync(path, "utf8"), secrets));
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    }
   }
   const visit = (path: string): void => {
     try {
@@ -396,13 +483,18 @@ function scrubArtifacts(
       if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
       const raw = readFileSync(path);
       if (raw.includes(0)) return;
-      writeFileSync(path, scrubText(raw.toString("utf8"), secrets));
+      replaceFileWithoutFollowing(path, scrubText(raw.toString("utf8"), secrets));
     } catch {
       // A harness may remove cache files while exiting; primary artifacts above
       // remain authoritative and must still produce a normalized record.
     }
   };
   const allowedHomeRoot = resolve(dirname(paths.resultsPath), ".invoke-home");
+  try {
+    if (expectedHomeRoot) assertArtifactDirectoryIdentity(allowedHomeRoot, expectedHomeRoot);
+  } catch {
+    return;
+  }
   for (const home of new Set(homePaths.filter((path): path is string => Boolean(path)))) {
     const rel = relative(allowedHomeRoot, resolve(home));
     if (rel === ".." || rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) || isAbsolute(rel)) continue;
@@ -425,7 +517,7 @@ function executionProfileRun(args: {
   cell: EvaluationCell;
   executor: ExecutorResults;
   outcomes: RoundtripOutcome[];
-  trace: ReturnType<typeof loadTrace>;
+  trace: TraceStep[];
   discovery: ProfileRun["discovery"];
   discoverySource: ProfileRun["discoverySource"];
   invoke: InvokeRunResult;
@@ -489,6 +581,8 @@ export async function runCellWithRuntime(
 
   mkdirSync(artifactDir, { recursive: true });
   ensureInvokeHomeRoot(cwd, artifactDir);
+  const artifactIdentity = artifactDirectoryIdentity(artifactDir);
+  const invokeHomeIdentity = artifactDirectoryIdentity(resolve(artifactDir, ".invoke-home"));
   const stem = stableSlug(cell.cell_id, "cell");
   const paths = defaultInvokePaths(artifactDir, stem, cell.harness.id);
   for (const path of [
@@ -501,7 +595,7 @@ export async function runCellWithRuntime(
     paths.metaPath,
     paths.codexSchemaPath,
   ]) {
-    if (path && existsSync(path)) rmSync(path);
+    if (path) removeArtifactPath(path);
   }
   const startedAt = runtime.now().toISOString();
   const credentials = scopedCredentials(cell, options.credentials);
@@ -556,7 +650,7 @@ export async function runCellWithRuntime(
       allowAmbientHarnessAuth: false,
     });
   } catch (error) {
-    scrubArtifacts(paths, Object.values(credentials));
+    scrubArtifacts(paths, Object.values(credentials), [], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -587,7 +681,8 @@ export async function runCellWithRuntime(
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
   });
-  writeFileSync(paths.promptPath, prompt);
+  assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
+  replaceFileWithoutFollowing(paths.promptPath, prompt);
 
   const env = { ...childEnvironment(pack, credentials), ...provisioning.env };
   const failureSecrets = [...Object.values(credentials), ...provisioningSecretValues(provisioning)];
@@ -611,9 +706,10 @@ export async function runCellWithRuntime(
       provisioning: provisioning.meta,
       harnessDetection: detection,
       runBatchId: cell.batch_id,
+      requireTrace: true,
     });
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME]);
+    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -628,14 +724,18 @@ export async function runCellWithRuntime(
   }
 
   if (options.signal?.aborted) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME]);
+    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
     throw options.signal.reason ?? new Error("cell run aborted");
   }
   let executor: ExecutorResults;
+  let trace: TraceStep[];
   try {
+    assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
+    assertRegularCellArtifact(paths.resultsPath, artifactDir, "executor results artifact");
+    trace = requiredTrace(paths.tracePath, artifactDir);
     executor = verifierExecutor(loadResults(paths.resultsPath), cell, ns);
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME]);
+    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -649,7 +749,6 @@ export async function runCellWithRuntime(
     });
   }
 
-  const trace = loadTrace(paths.tracePath);
   const observed = observedTranscript(pack, paths.transcriptPath, credentials);
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
@@ -689,7 +788,7 @@ export async function runCellWithRuntime(
   const secrets = exactSecretValues(pack, credentials, provisioning, executor);
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
-  scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME]);
+  scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
 
   const profileRun = executionProfileRun({
     cell,

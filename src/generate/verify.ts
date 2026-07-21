@@ -6,7 +6,7 @@
  * the resource by id, strip the response envelope, and assert the field the
  * task set. Passing requires real API state, not the executor's self-report.
  */
-import { readFileSync } from "node:fs";
+import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
 import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
 import type { ObservedRun } from "../harness/transcript.js";
@@ -71,18 +71,34 @@ export interface VerifyGeneratedPackOptions {
   env?: EnvSource;
 }
 
+function readRegularFileNoFollow(path: string): string {
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error(`artifact is not a regular file: ${path}`);
+    return readFileSync(fd, "utf8");
+  } finally {
+    closeSync(fd);
+  }
+}
+
 export function loadResults(path: string): ExecutorResults {
-  return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
+  return parseJsonWithRecovery<ExecutorResults>(readRegularFileNoFollow(path));
 }
 
 /** Load a sibling *.trace.json if present (observability); empty if missing. */
 export function loadTrace(path: string): TraceStep[] {
   try {
-    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8"));
+    const parsed = parseJsonWithRecovery(readRegularFileNoFollow(path));
     return Array.isArray(parsed) ? (parsed as TraceStep[]) : [];
   } catch {
     return [];
   }
+}
+
+export function loadRequiredTrace(path: string): TraceStep[] {
+  const parsed = JSON.parse(readRegularFileNoFollow(path)) as unknown;
+  if (!Array.isArray(parsed)) throw new Error("required trace artifact must be a JSON array");
+  return parsed as TraceStep[];
 }
 
 /** Resolve {ns} in a string expected value; pass non-strings through. */

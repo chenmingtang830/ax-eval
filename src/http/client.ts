@@ -158,15 +158,42 @@ export class BearerClient {
     return h;
   }
 
-  private redirectPolicy(): "follow" | "error" {
-    return this.authScheme === "none" && !this.extraAuthHeader ? "follow" : "error";
+  private hasAuthentication(): boolean {
+    return this.authScheme !== "none" || Boolean(this.extraAuthHeader);
+  }
+
+  private async request(url: URL, init: RequestInit): Promise<Response> {
+    if (!this.hasAuthentication()) return fetch(url, { ...init, redirect: "follow" });
+
+    let current = url;
+    let requestInit = { ...init };
+    for (let redirects = 0; ; redirects += 1) {
+      const response = await fetch(current, { ...requestInit, redirect: "manual" });
+      if (![301, 302, 303, 307, 308].includes(response.status)) return response;
+      if (redirects >= 5) throw new Error(`authenticated request exceeded 5 redirects at ${current.origin}`);
+      const location = response.headers.get("location");
+      if (!location) throw new Error(`authenticated redirect from ${current.origin} is missing Location`);
+      const next = new URL(location, current);
+      if (next.origin !== current.origin) {
+        throw new Error(`refusing authenticated cross-origin redirect from ${current.origin} to ${next.origin}`);
+      }
+
+      const method = (requestInit.method ?? "GET").toUpperCase();
+      if (response.status === 303 || ((response.status === 301 || response.status === 302) && method === "POST")) {
+        const headers = new Headers(requestInit.headers);
+        headers.delete("content-type");
+        headers.delete("content-length");
+        requestInit = { ...requestInit, method: "GET", body: undefined, headers };
+      }
+      current = next;
+    }
   }
 
   /** GET a path (relative to baseUrl), unwrapping the response envelope. */
   async get<T = unknown>(path: string, query?: Record<string, string>): Promise<T> {
     const url = this.resolveUrl(path);
     if (query) for (const [k, v] of Object.entries(query)) url.searchParams.set(k, v);
-    const res = await fetch(url, { headers: this.headers(), redirect: this.redirectPolicy() });
+    const res = await this.request(url, { headers: this.headers() });
     const json = (await res.json()) as Record<string, unknown>;
     if (!res.ok) {
       throw new HttpApiError(`GET ${path}: ${BearerClient.extractErrorMessage(json, res)}`, res.status, json);
@@ -180,11 +207,10 @@ export class BearerClient {
    *  e.g. Convex's delete-deployment, return 200 with no body). */
   async post<T = unknown>(path: string, body?: unknown): Promise<T> {
     const url = this.resolveUrl(path);
-    const res = await fetch(url, {
+    const res = await this.request(url, {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
       body: JSON.stringify(body ?? {}),
-      redirect: this.redirectPolicy(),
     });
     const text = await res.text();
     let json: Record<string, unknown> | undefined;
@@ -207,7 +233,7 @@ export class BearerClient {
    *  teardown (reset) can report per-resource failures. */
   async del(path: string): Promise<void> {
     const url = this.resolveUrl(path);
-    const res = await fetch(url, { method: "DELETE", headers: this.headers(), redirect: this.redirectPolicy() });
+    const res = await this.request(url, { method: "DELETE", headers: this.headers() });
     if (!res.ok) {
       let body: unknown;
       try {
@@ -228,11 +254,10 @@ export class BearerClient {
    * SaaS APIs (Linear, Monday) read back created resources through this.
    */
   async graphql<T = unknown>(query: string, variables?: Record<string, unknown>): Promise<T> {
-    const res = await fetch(new URL(this.baseUrl), {
+    const res = await this.request(new URL(this.baseUrl), {
       method: "POST",
       headers: { ...this.headers(), "Content-Type": "application/json" },
       body: JSON.stringify({ query, variables }),
-      redirect: this.redirectPolicy(),
     });
     const json = (await res.json()) as { data?: T; errors?: Array<{ message?: string }> };
     if (!res.ok) {

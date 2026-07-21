@@ -1,5 +1,5 @@
-import { chmodSync, copyFileSync, existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { basename, dirname, resolve } from "node:path";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import { spawnSync } from "node:child_process";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
@@ -263,16 +263,33 @@ function prependPath(dir: string, currentPath = process.env.PATH ?? ""): string 
   return currentPath ? `${dir}:${currentPath}` : dir;
 }
 
+function ensureInvokeHomeRoot(paths: InvokePaths): string {
+  const artifactDir = resolve(dirname(paths.resultsPath));
+  const homeRoot = resolve(artifactDir, ".invoke-home");
+  try {
+    const stat = lstatSync(homeRoot);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(`${homeRoot} must be a real directory`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    mkdirSync(homeRoot, { recursive: false });
+  }
+  const rel = relative(realpathSync(artifactDir), realpathSync(homeRoot));
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
+    throw new Error(`${homeRoot} must resolve inside the artifact directory`);
+  }
+  return homeRoot;
+}
+
 function ensureTursoCli(
   paths: InvokePaths,
+  workspaceRoot: string,
   source: Readonly<Record<string, string | undefined>> = process.env,
   allowDownloads = true,
 ): { home: string; binDir: string; binaryPath: string } {
   const sharedHome = resolve(dirname(paths.resultsPath), ".invoke-home", "turso-cli-shared");
   const binaryPath = resolve(sharedHome, ".turso", "turso");
-  if (existsSync(binaryPath)) {
-    return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
-  }
   if (!allowDownloads) {
     const found = spawnSync("/usr/bin/which", ["turso"], {
       env: source as NodeJS.ProcessEnv,
@@ -280,9 +297,27 @@ function ensureTursoCli(
       stdio: ["ignore", "pipe", "ignore"],
     }).stdout?.trim();
     if (found && existsSync(found)) {
-      return { home: source.HOME ?? "", binDir: dirname(found), binaryPath: found };
+      const resolvedBinary = realpathSync(found);
+      const stat = lstatSync(resolvedBinary);
+      const artifactDir = realpathSync(dirname(paths.resultsPath));
+      const rel = relative(artifactDir, resolvedBinary);
+      const workspaceDir = realpathSync(workspaceRoot);
+      const workspaceRel = relative(workspaceDir, resolvedBinary);
+      if (!stat.isFile() || (stat.mode & 0o111) === 0) {
+        throw new Error(`preinstalled turso binary is not an executable regular file: ${resolvedBinary}`);
+      }
+      if (rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))) {
+        throw new Error("preinstalled turso binary must not resolve inside the writable artifact directory");
+      }
+      if (workspaceRel === "" || (workspaceRel !== ".." && !workspaceRel.startsWith(`..${sep}`) && !isAbsolute(workspaceRel))) {
+        throw new Error("preinstalled turso binary must not resolve inside the writable cell workspace");
+      }
+      return { home: source.HOME ?? "", binDir: dirname(resolvedBinary), binaryPath: resolvedBinary };
     }
     throw new Error("automatic Turso CLI download is disabled for cell runs; install a pinned turso binary first");
+  }
+  if (existsSync(binaryPath)) {
+    return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
   }
   rmSync(sharedHome, { recursive: true, force: true });
   mkdirSync(sharedHome, { recursive: true });
@@ -318,10 +353,11 @@ export async function provisionHarnessForSurface(opts: {
   allowDownloads?: boolean;
   allowAmbientHarnessAuth?: boolean;
 }): Promise<HarnessProvisioning> {
+  ensureInvokeHomeRoot(opts.paths);
   const source = opts.env ?? process.env;
   const tursoCli =
     opts.surface === "cli" && opts.pack.name === "turso"
-      ? ensureTursoCli(opts.paths, source, opts.allowDownloads !== false)
+      ? ensureTursoCli(opts.paths, opts.cwd, source, opts.allowDownloads !== false)
       : undefined;
   if (opts.surface !== "mcp") {
     if (opts.harness === "claude-code") {

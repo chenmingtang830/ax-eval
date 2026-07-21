@@ -50,15 +50,68 @@ describe("BearerClient auth schemes + headers", () => {
     expect(calls[0].headers.Authorization).toBeUndefined();
   });
 
-  it("refuses redirects for authenticated requests", async () => {
-    const fetch = vi.fn(async (_url: URL, init: RequestInit) => {
-      expect(init.redirect).toBe("error");
-      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
-    });
+  it("follows authenticated same-origin redirects without dropping auth", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 308,
+        headers: new Headers({ Location: "/canonical" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        json: async () => ({ ok: true }),
+      } as Response);
     vi.stubGlobal("fetch", fetch);
     const c = new BearerClient({ baseUrl: "https://api.test", token: "secret", authScheme: "bearer" });
     await c.get("/x");
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(fetch.mock.calls[0]?.[1]).toMatchObject({ redirect: "manual" });
+    expect(fetch.mock.calls[1]?.[0].toString()).toBe("https://api.test/canonical");
+    expect((fetch.mock.calls[1]?.[1]?.headers as Record<string, string>).Authorization).toBe("Bearer secret");
+  });
+
+  it("rejects an authenticated cross-origin redirect before sending a second request", async () => {
+    const fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 302,
+      headers: new Headers({ Location: "https://evil.test/collect" }),
+    } as Response);
+    vi.stubGlobal("fetch", fetch);
+    const c = new BearerClient({ baseUrl: "https://api.test", token: "secret", authScheme: "bearer" });
+    await expect(c.get("/x")).rejects.toThrow(/cross-origin redirect/);
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("leaves unauthenticated redirects on native follow behavior", async () => {
+    const fetch = vi.fn(async (_url: URL, init: RequestInit) => {
+      expect(init.redirect).toBe("follow");
+      return { ok: true, status: 200, json: async () => ({ ok: true }) } as Response;
+    });
+    vi.stubGlobal("fetch", fetch);
+    const c = new BearerClient({ baseUrl: "https://api.test", token: "", authScheme: "none" });
+    await c.get("/x");
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  it("preserves POST method and body across an authenticated 307 redirect", async () => {
+    const fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 307,
+        headers: new Headers({ Location: "/canonical" }),
+      } as Response)
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: new Headers(),
+        text: async () => JSON.stringify({ ok: true }),
+      } as Response);
+    vi.stubGlobal("fetch", fetch);
+    const c = new BearerClient({ baseUrl: "https://api.test", token: "secret", authScheme: "bearer" });
+    await c.post("/x", { value: 1 });
+    expect(fetch.mock.calls[1]?.[1]).toMatchObject({ method: "POST", body: JSON.stringify({ value: 1 }) });
   });
 
   it("unwraps the response envelope when configured", async () => {

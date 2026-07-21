@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
@@ -157,6 +157,7 @@ describe("runCell", () => {
       retries: 0,
       runBatchId: "batch-1",
       replaceEnv: true,
+      requireTrace: true,
     });
     expect(invokes[0]!.ns).toContain("batch-1-batch-1-example-api-codex-t2-gpt-example");
     expect(record).toMatchObject({
@@ -258,6 +259,67 @@ describe("runCell", () => {
     };
     const record = await runCellWithRuntime(cell, { credentials: {} }, second);
     expect(record.status).toBe("completed");
+  });
+
+  it("removes dangling artifact symlinks before trusted writes", async () => {
+    const { cell, dir } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    await runCellWithRuntime(cell, { credentials: {} }, runtime(invokes));
+    const outside = resolve(dir, "outside-prompt.txt");
+    rmSync(invokes[0]!.paths.promptPath);
+    symlinkSync(outside, invokes[0]!.paths.promptPath);
+
+    const record = await runCellWithRuntime(cell, { credentials: {} }, runtime([]));
+    expect(record.status).toBe("completed");
+    expect(existsSync(outside)).toBe(false);
+  });
+
+  it("rejects harness-created primary artifact symlinks without rewriting their targets", async () => {
+    const { cell, dir } = fixture();
+    const outside = resolve(dir, "outside-results.json");
+    writeFileSync(outside, "outside-original");
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      rmSync(options.paths.resultsPath);
+      symlinkSync(outside, options.paths.resultsPath);
+      return result;
+    };
+
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.status).toBe("failed");
+    expect(record.error?.stage).toBe("invoke");
+    expect(readFileSync(outside, "utf8")).toBe("outside-original");
+  });
+
+  it("does not follow a swapped invoke-home root while normalizing invocation failure", async () => {
+    const { cell, dir } = fixture();
+    const homeRoot = resolve(dir, "artifacts", ".invoke-home");
+    const home = resolve(homeRoot, "cell-home");
+    const movedHome = resolve(dir, "moved-invoke-home");
+    const outside = resolve(dir, "outside-home");
+    mkdirSync(outside, { recursive: true });
+    const outsideFile = resolve(outside, "credential.txt");
+    writeFileSync(outsideFile, "secret-value");
+    const isolated = runtime([]);
+    isolated.provisionHarness = async () => {
+      mkdirSync(home, { recursive: true });
+      return { env: { HOME: home }, meta: { kind: "fake" } };
+    };
+    isolated.invokeHarness = async () => {
+      renameSync(homeRoot, movedHome);
+      symlinkSync(outside, homeRoot);
+      throw new Error("invoke-home identity changed");
+    };
+
+    const record = await runCellWithRuntime(
+      { ...cell, required_credentials: ["EXAMPLE_TOKEN"] },
+      { credentials: { EXAMPLE_TOKEN: "secret-value" } },
+      isolated,
+    );
+    expect(record.status).toBe("failed");
+    expect(readFileSync(outsideFile, "utf8")).toBe("secret-value");
   });
 
   it("overwrites executor identity with the trusted cell namespace", async () => {
