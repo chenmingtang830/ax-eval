@@ -54,6 +54,14 @@ shape.
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
+- **Runtime recompilation must preserve that approval.** DAEB orchestration may
+  write a run-scoped compiled pack only after proving its reviewable content
+  matches the committed approved pack. Stage the existing human approval and
+  let `exec-plan` check it normally; never add an orchestration-only
+  `--skip-review` bypass.
+- **Failed live trials must not leak state forward.** Preserve results and
+  verification artifacts first, then record namespace cleanup. If cleanup is
+  missing, unsupported, or errors, halt the lane before another trial starts.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed. Product presets may add hints and surface-specific task
   shaping, but schema validation and the review gate remain authoritative;

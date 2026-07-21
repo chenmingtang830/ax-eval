@@ -12,7 +12,7 @@
  * gate re-closes, so an edit can't sneak past a stale approval.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
 import type { OracleSpec, TargetPack, Task } from "../schemas.js";
 
 /** Oracle confidence tier: T1 strong (round-trip), T2 weak
@@ -114,6 +114,31 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
     };
   }
   return { ok: true };
+}
+
+/**
+ * Stage a runtime-generated pack only when its reviewable content is equivalent
+ * to a committed, human-approved pack. The copied sidecar lets the ordinary
+ * exec-plan review gate enforce the same content-addressed approval again.
+ */
+export function stageApprovedEquivalentPack(opts: {
+  approvedPack: TargetPack;
+  approvedPackPath: string;
+  candidatePack: TargetPack;
+  candidatePackPath: string;
+}): string {
+  const approvedStatus = checkApproval(opts.approvedPack, opts.approvedPackPath);
+  if (!approvedStatus.ok) {
+    throw new Error(`Committed pack approval is invalid: ${approvedStatus.reason}`);
+  }
+  const candidateStatus = checkApproval(opts.candidatePack, opts.approvedPackPath);
+  if (!candidateStatus.ok) {
+    throw new Error(`Runtime-generated pack does not match the approved committed pack: ${candidateStatus.reason}`);
+  }
+  const sourceApprovalPath = approvalPath(opts.approvedPackPath);
+  const candidateApprovalPath = approvalPath(opts.candidatePackPath);
+  copyFileSync(sourceApprovalPath, candidateApprovalPath);
+  return candidateApprovalPath;
 }
 
 export interface PackQaIssue {

@@ -1,7 +1,9 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { stringify as yamlStringify } from "yaml";
+import { loadPack } from "../src/config.js";
 import { TargetPackSchema } from "../src/schemas.js";
 import {
   approvalPath,
@@ -10,6 +12,7 @@ import {
   packQaIssues,
   packContentHash,
   reviewSummary,
+  stageApprovedEquivalentPack,
   writeApproval,
 } from "../src/generate/review.js";
 
@@ -74,6 +77,41 @@ describe("review gate", () => {
 
   it("approval sidecar sits next to the pack", () => {
     expect(approvalPath("/x/generated.pack.yaml")).toBe("/x/generated.pack.approval.json");
+  });
+
+  it("stages an equivalent runtime pack with the committed human approval", () => {
+    const approvedPack = pack();
+    const candidatePath = join(dir, "run", "compiled.pack.yaml");
+    mkdirSync(join(dir, "run"), { recursive: true });
+    writeFileSync(candidatePath, yamlStringify(approvedPack));
+    writeApproval(packPath, approvedPack, "tester");
+    const serializedCandidate = loadPack(candidatePath);
+
+    const stagedApproval = stageApprovedEquivalentPack({
+      approvedPack,
+      approvedPackPath: packPath,
+      candidatePack: serializedCandidate,
+      candidatePackPath: candidatePath,
+    });
+
+    expect(stagedApproval).toBe(approvalPath(candidatePath));
+    expect(existsSync(stagedApproval)).toBe(true);
+    expect(checkApproval(loadPack(candidatePath), candidatePath).ok).toBe(true);
+  });
+
+  it("refuses to stage runtime pack content that differs from the approval", () => {
+    const approvedPack = pack();
+    const candidatePath = join(dir, "candidate.pack.yaml");
+    writeFileSync(candidatePath, "name: t\n");
+    writeApproval(packPath, approvedPack, "tester");
+
+    expect(() => stageApprovedEquivalentPack({
+      approvedPack,
+      approvedPackPath: packPath,
+      candidatePack: pack({ tasks: [{ id: "changed", prompt: "changed", oracles: [] }] }),
+      candidatePackPath: candidatePath,
+    })).toThrow(/does not match the approved committed pack/);
+    expect(existsSync(approvalPath(candidatePath))).toBe(false);
   });
 
   it("summary flags a task with no oracle", () => {
