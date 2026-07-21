@@ -114,7 +114,7 @@ Production lane constraints:
 
 - Surfaces: `api` and `cli` only
 - Harnesses: Codex and Claude Code
-- Effort: `medium`; pinned models per harness
+- Effort: `high`; Codex `gpt-5.6-terra`, Claude Code `claude-sonnet-5`
 - Trials: three isolated trials + `aggregate/` mean/range per cell
 - SDK / MCP: research evidence only for v1 scoring denominator
 
@@ -122,9 +122,7 @@ When production is unblocked:
 
 ```bash
 npm run ax-eval -- daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml \
-  --codex-model gpt-5.4 \
-  --claude-model sonnet
+  --suite benchmarks/daeb/v1/suite.yaml
 ```
 
 ## Publication bundle and export
@@ -137,8 +135,8 @@ npm run ax-eval -- publication-bundle \
   --vendors neon,cockroachdb,turso,supabase,insforge,nile \
   --run-dir results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle \
-  --effort-profiles medium \
-  --required-effort-profiles medium
+  --effort-profiles high \
+  --required-effort-profiles high
 
 npm run ax-eval -- export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \

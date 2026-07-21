@@ -1,19 +1,63 @@
 # Architecture
 
-`ax-eval` is a pack-centered, surface-aware agent usability eval system.
+`ax-eval` is a pack-centered, surface-aware agent usability eval system. It is
+both:
 
-At a high level, it turns a product spec or docs surface into a reviewed task
-pack, runs that same pack through one or more agent harnesses and product
-surfaces, verifies real sandbox state with read-back oracles, and renders the
-result as a report plus normalized records.
+- a **local engineering tool** for evaluating one product across API / CLI / SDK /
+  MCP, and
+- the **tooling foundation** for AXArena publication-grade benchmarks (DAEB-1
+  first).
 
-The core data flow is:
+Both tracks converge on the same contracts and runtime: a reviewed `TargetPack`,
+a harness × surface execution matrix, read-back oracles, and report / record
+interpretation.
+
+## Dual-track overview
 
 ```text
-spec/docs
-  -> ingest
-  -> generate (rule seed + preset hints + LLM authoring + validator/repair, or deterministic fallback)
-  -> reviewed TargetPack
+Tool track                              Benchmark track (DAEB)
+─────────                               ─────────────────────
+OpenAPI / GraphQL / docs                vendor cards + extracts
+  -> ingest / generate                    -> synthesize suite
+  -> TargetPack draft                     -> compose-pack per vendor
+       \                                 /
+        \                               /
+         v                             v
+              reviewed TargetPack
+                       |
+                       v
+         exec-plan (harness x surface)
+                       |
+                       v
+              verify (live read-back)
+                       |
+                       v
+         normalized records + HTML report
+                       |
+                       v  (benchmark only, when unblocked)
+         publication-bundle -> export-publication
+```
+
+| | **Tool track** | **Benchmark track** |
+|---|---|---|
+| Audience | Product team evaluating one SaaS | AXArena / DAEB publication |
+| Source of truth | Per-product pack | Canonical `suite.yaml` + ledger |
+| Packs live under | `targets/examples/` (shipped) or local `targets/` | `benchmarks/daeb/v1/packs/<vendor>/` |
+| Authoring | `ingest` → `generate` → `review` | extract → synthesize → compose → `review` |
+| Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex `gpt-5.6-terra` + Claude Code `claude-sonnet-5`, high, 3 trials |
+| Extra gates | Content-hash approval | Ledger, audit-suite, trace-review, publication freeze |
+
+Deep DAEB artifact detail lives in
+[`benchmarks/daeb/README.md`](./benchmarks/daeb/README.md). Maintainer status
+(authoring freeze vs deferred production) lives in gitignored
+`docs/latest_plan.md`.
+
+## Shared data flow
+
+The engine data flow is the same once a pack exists:
+
+```text
+reviewed TargetPack
   -> exec-plan per harness x surface x effort
   -> results + trace + transcript
   -> round-trip verification
@@ -21,29 +65,61 @@ spec/docs
   -> HTML report / competitive report
 ```
 
+Tool-track authoring reaches that pack via:
+
+```text
+spec/docs -> ingest -> generate (LLM-assisted or --deterministic) -> review
+```
+
+Benchmark-track authoring reaches that pack via suite synthesis and
+`compose-pack` (see DAEB README). Re-synthesis or pack edits invalidate
+content-hash approvals on both tracks.
+
+## Shared vs DAEB-only
+
+| Layer | Shared? | Tool source | Benchmark source |
+|---|---|---|---|
+| `TargetPack` / `Task` / `OracleSpec` | yes | `generate` from ingest | `compose-pack` from suite + extracts |
+| Review gate (`pack.approval.json`) | yes | `review --approve` | same on compiled packs |
+| `exec-plan` / harness / transcript | yes | generic matrix | narrowed production matrix |
+| Verify / records / report | yes | pack-declared oracles | pack + extract oracles |
+| Vendor-selection ledger | DAEB-only | — | `vendor-selection-ledger.yaml` |
+| Suite synthesis / audit-suite | DAEB-only | — | `synthesize-suite`, `audit-suite` |
+| Trace-review memo | DAEB-only | — | `suite.trace-review.yaml` |
+| `daeb-production-rerun` | DAEB-only | — | 3-trial production lane |
+| `publication-bundle` / `export-publication` | DAEB-only | — | freeze → AXArena export |
+
+## Lifecycle phases (benchmark)
+
+```text
+mutable authoring
+  -> authoring freeze (suite + packs + completed trace-review)
+  -> production 3-trial matrix          (deferred until team review)
+  -> publication freeze (complete bundle)
+  -> export-publication -> AXArena site
+```
+
+Until publication freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+overwrites the same suite; git SHAs and content hashes identify exact states;
+suite version numbers are not authoring iteration counters. Benchmark-of-record
+results begin only after human freeze. Research-lane tasks stay out of the
+scored denominator.
+
+**Current public contract:** authoring freeze is done for the 6-vendor core
+cohort; production and publication are deferred. Treat production commands as
+the eventual path, not the default next step.
+
 ## System overview
 
-The system is organized into four layers:
+The runtime is organized into four layers:
 
-1. **Contracts**
-   - Shared schemas for packs, tasks, surfaces, auth, and oracle specs.
-   - This is the stable center of the system: most modules consume or emit a
-     `TargetPack`.
-2. **Planning and orchestration**
-   - CLI commands coordinate ingest, generate, review, exec, verify, reset, and
-     competitive reporting.
-   - This layer decides which surfaces and harnesses to run, and where artifacts
-     land on disk.
-   - Product-specific generation presets live outside the CLI so the runtime
-     stays generic and the frozen pack remains the only execution handoff.
-3. **Harness and surface runtime**
-   - Surface adapters change how the agent discovers and acts.
-   - Harness runners manage subprocess invocation, MCP provisioning, transcript
-     recovery, and result capture for Claude Code and Codex.
-4. **Verification and interpretation**
-   - Read-back oracles decide success from live product state.
-   - Reports and normalized records convert raw run artifacts into a usable
-     product-level narrative.
+1. **Contracts** — shared schemas; most modules consume or emit a `TargetPack`.
+2. **Planning and orchestration** — CLI coordinates authoring, exec, verify,
+   reset, reporting, and (for DAEB) publication.
+3. **Harness and surface runtime** — surface adapters + Claude Code / Codex
+   invoke, MCP provision, transcript recovery.
+4. **Verification and interpretation** — live read-back oracles, reports,
+   normalized records.
 
 ## Core contracts
 
@@ -67,28 +143,110 @@ The most important types are:
 This contract-first design is what makes the runner largely target-agnostic.
 Most SaaS additions should be a new pack, not a code change.
 
+### Review and approval gate
+
+`review --approve` writes `pack.approval.json` keyed on a sha256 of reviewable
+fields. Any edit to the pack re-closes the gate on both tracks. `exec-plan`
+refuses an un-reviewed or edited pack unless `--skip-review`. Do not bypass this
+in code.
+
+## Tool track
+
+Layout:
+
+- `targets/examples/<product>/` — shipped npm baselines (Notion, Stripe, Linear,
+  Exa, Monday, Asana, …) with `pack.yaml` + `pack.approval.json`
+- local / generated packs under `targets/<product>/` (not necessarily published)
+
+Authoring path:
+
+```text
+ingest -> generate -> review --approve
+  -> init / check-env
+  -> exec-plan [--invoke]
+  -> verify-generated
+  -> render-generated / competitive
+  -> reset   (only after verify)
+```
+
+Also useful: `probe`, `check-env`, static readiness under `src/static/`.
+Default `generate` is LLM-assisted after a rule-derived seed; `--deterministic`
+is the keyless fixture path. Neither replaces human review.
+
+See [`targets/README.md`](./targets/README.md), [`SKILL.md`](./SKILL.md), and
+[`CONTRIBUTING.md`](./CONTRIBUTING.md).
+
+### Reference target (Stripe)
+
+[`targets/examples/stripe/pack.yaml`](./targets/examples/stripe/pack.yaml) is the
+flagship four-surface example (API, SDK, CLI, official MCP). It forced several
+abstractions to become real:
+
+- surface-aware task selection (`tasksForSurface`) so MCP is not scored against
+  API-only operations
+- harness hardening (Codex sandbox/network, transcript recovery, MCP isolation)
+- report maturity (matrix narrative, MCP denominator footnotes)
+
+Those design lessons apply to both tracks; Stripe is the concrete tool-track
+reference artifact.
+
+## Benchmark track (summary)
+
+DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
+`benchmarks/daeb/v1/`:
+
+- `suite.yaml` — shared task bank (not a pack)
+- `vendor-selection-ledger.yaml` — core / research / excluded cohort
+- `extracts/<vendor>/` — reproducibility contract (capabilities, surfaces, oracles)
+- `packs/<vendor>/` — **compiled** execution artifacts, not independently authored
+  benchmarks. Include `discovery:` (Agent Discovery Score) and `static` /
+  `openapi_url` inputs for Discoverability & Readiness; those scores never
+  alter the usability pass-rate denominator.
+- `suite.trace-review.yaml` — fixed-sample review memo (freeze gate)
+
+The production lane (`daeb-production-rerun`) is narrower than the generic
+engine: `api` and `cli` only, Codex `gpt-5.6-terra` and Claude Code
+`claude-sonnet-5` at high effort, three clean trials plus aggregate per
+supported cell. SDK evidence is research-only for v1 scoring.
+
+Hosted live execution is a manual `workflow_dispatch` behind the protected
+`trusted-sandbox` environment. Required reviewers approve the selected ref
+before environment secrets become available. Pull requests have a separate
+keyless fixture-diff workflow and never receive those secrets.
+
+Invocation metadata preserves every retry attempt. The normalized public record
+uses successful-attempt latency, retry-inclusive total duration/tokens/native
+cost, raw + semver harness version, and run batch identity. Production
+aggregation uses median trial latency and total consumption. `pass_hat_3`
+(mean cubed) is deprecated; ranking uses exact tasks passing all three trials.
+
+Publication exports keep harnesses independent. Within one harness, tasks are
+averaged inside each surface and Overall is the equal-weight macro-average of
+participating surfaces. The pass³ tie-break is the exact eligible
+task×surface-cell ratio, with numerator and denominator published.
+
+Publication boundary: `publication-bundle` then `export-publication`. `ax-eval`
+owns benchmark truth and artifacts; an `axarena` app imports exported indexes
+rather than recomputing scores from raw run directories.
+
+Full tree, authoring commands, gates, and hygiene:
+[`benchmarks/daeb/README.md`](./benchmarks/daeb/README.md).
+
 ## Execution model
 
 The main orchestrator is [src/cli.ts](./src/cli.ts).
 
 Important command groups:
 
-- **Authoring**
-  - `ingest`
-  - `generate`
-  - `review`
-- **Execution**
-  - `exec-plan`
-  - `probe`
-  - `check-env`
-  - `init`
-- **Verification and reporting**
-  - `verify`
-  - `verify-generated`
-  - `competitive`
-  - `trace-diff`
-- **Maintenance**
-  - `reset`
+- **Authoring (tool)** — `ingest`, `generate`, `review`; `automate-report`
+  orchestrates these steps but still stops at manual review/configuration gates
+- **Authoring (DAEB)** — extract / synthesize / audit / compose (see DAEB README)
+- **Execution** — `exec-plan`, `probe`, `check-env`, `init`
+- **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
+  `trace-diff`, `records-diff`
+- **Publication (DAEB)** — `publication-bundle`, `export-publication`,
+  `daeb-production-rerun`
+- **Maintenance** — `reset` (after verify, never before)
 
 The CLI does not embed target logic. Instead, it:
 
@@ -114,8 +272,8 @@ The surface abstraction lives in:
 - `sdk`
 - `mcp`
 
-The key idea is that a task bank is authored once, then each surface gets the
-subset it can actually support. Surface adapters still change:
+The key idea is that a task bank is shared across surfaces, but each surface
+changes:
 
 1. **how discovery works**
    - API: web/docs search
@@ -130,24 +288,17 @@ subset it can actually support. Surface adapters still change:
 
 ### Surface-aware task selection
 
-This became more explicit with the Stripe work.
-
-[src/surface/types.ts](./src/surface/types.ts) now defines:
+[src/surface/types.ts](./src/surface/types.ts) defines:
 
 - `taskExecutionSurfaces`
 - `taskSupportsSurface`
 - `tasksForSurface`
 
-This means a pack can declare a superset task bank, while generation and
-execution together keep each selected surface on the tasks that actually apply
-to it. In practice, generation can now drop MCP from tasks whose create/update
-shape is not exposed by the MCP tool surface, instead of waiting for execution
-to discover the mismatch the hard way.
-
-That is especially important for MCP. A product's MCP server is often a partial
-operational surface, not a perfect mirror of the public API. Without
-surface-aware filtering, MCP reports would overcount "missing tool coverage" as
-task failure.
+A pack can declare a superset task bank, while a selected surface only runs the
+tasks that actually apply to it. That is especially important for MCP: a
+product's MCP server is often a partial operational surface, not a perfect
+mirror of the public API. Without surface-aware filtering, MCP reports would
+overcount "missing tool coverage" as task failure.
 
 ## Prompt and harness runtime
 
@@ -245,13 +396,12 @@ The executor only reports ids. The verifier then:
 This is the truth layer of the system. It keeps evaluation grounded in actual
 product state instead of agent narration.
 
-With the Stripe work, verification also became explicitly surface-aware:
+Verification is surface-aware:
 
 - `verifyGeneratedPack(..., surface?)`
 - when a surface is provided, verification only checks `tasksForSurface(pack, surface)`
 
-That change aligned verification semantics with prompt semantics and report
-semantics.
+That aligns verification with prompt semantics and report semantics.
 
 ## Reporting and normalized records
 
@@ -268,8 +418,7 @@ It does more than template HTML. It also:
 - renders TLDR, scorecards, discovery, content quality, scores, robustness, and
   appendix sections
 
-The report is now explicitly framed around **agent usability**, not just
-readiness.
+The report is framed around **agent usability**, not just readiness.
 
 ### Normalized records
 
@@ -297,63 +446,6 @@ separates:
 - execution and verification
 - interpretation and comparison
 
-## The Stripe and MCP architecture changes
-
-The Stripe work was important because it forced several abstractions to become
-real rather than aspirational.
-
-### 1. A complete four-surface target
-
-[targets/stripe/pack.yaml](./targets/stripe/pack.yaml) is the first flagship
-target that exercises:
-
-- API
-- SDK
-- CLI
-- official MCP
-
-That gives the repo a concrete, product-level reference artifact rather than
-only API-first examples.
-
-### 2. Surface-aware MCP semantics
-
-Before this change, MCP could be judged against tasks for operations the MCP
-surface did not expose. After this change:
-
-- prompt generation is surface-aware
-- Codex schema generation is surface-aware
-- failure artifact generation is surface-aware
-- verification is surface-aware
-- report scoring can explain narrower MCP denominators
-
-This is a substantial semantic improvement: MCP results now describe what the
-MCP surface can actually operate, not what the product API can do in general.
-
-### 3. Harness hardening
-
-The Stripe matrix also pushed the runtime to absorb real-world harness issues:
-
-- Codex non-interactive approval configuration
-- network-enabled workspace-write sandbox config
-- transcript/result recovery
-- lingering subprocess cleanup
-- Claude MCP isolated config and permission mode
-
-These are not product features, but they are necessary infrastructure for a
-reliable eval system.
-
-### 4. Report maturity
-
-The report layer now has a clearer architecture too:
-
-- usability-first TLDR
-- matrix-native narrative for multi-surface / multi-harness runs
-- trace-derived process quality
-- MCP score footnotes for surface-aware subsets
-
-That makes the output more credible as a shareable artifact and less dependent
-on verbal explanation from the maintainer.
-
 ## Design principles
 
 Several architectural choices are load-bearing:
@@ -370,39 +462,40 @@ Several architectural choices are load-bearing:
 - **Blocked, not fake-failed**
   - missing surface auth should render as blocked configuration state, not a
     misleading 0%
+- **Two freezes for publication benchmarks**
+  - authoring freeze (suite/packs/trace-review) is not the same as publication
+    freeze (complete bundle); do not conflate them
 
-## Where to look in the code
+## Where to look
 
-- CLI orchestration:
-  - [src/cli.ts](./src/cli.ts)
-- Shared contracts:
-  - [src/schemas.ts](./src/schemas.ts)
-- Surface model:
-  - [src/surface/](./src/surface/)
-- Prompt builder:
-  - [src/harness/executor.ts](./src/harness/executor.ts)
-- Harness runtime:
-  - [src/harness/invoke.ts](./src/harness/invoke.ts)
-- MCP provisioning:
-  - [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts)
-- Transcript parsing:
-  - [src/harness/transcript.ts](./src/harness/transcript.ts)
-- Verification:
-  - [src/generate/verify.ts](./src/generate/verify.ts)
-- Normalized records:
-  - [src/generate/record.ts](./src/generate/record.ts)
-- Report rendering:
-  - [src/generate/report.ts](./src/generate/report.ts)
+**Engine**
+
+- CLI orchestration: [src/cli.ts](./src/cli.ts)
+- Shared contracts: [src/schemas.ts](./src/schemas.ts)
+- Surface model: [src/surface/](./src/surface/)
+- Prompt builder: [src/harness/executor.ts](./src/harness/executor.ts)
+- Harness runtime: [src/harness/invoke.ts](./src/harness/invoke.ts)
+- MCP provisioning: [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts)
+- Transcript parsing: [src/harness/transcript.ts](./src/harness/transcript.ts)
+- Verification: [src/generate/verify.ts](./src/generate/verify.ts)
+- Normalized records: [src/generate/record.ts](./src/generate/record.ts)
+- Report rendering: [src/generate/report.ts](./src/generate/report.ts)
+- Static readiness: [src/static/](./src/static/)
+
+**Tracks**
+
+- Tool packs: [targets/examples/](./targets/examples/), [targets/README.md](./targets/README.md)
+- DAEB: [benchmarks/daeb/](./benchmarks/daeb/), especially `v1/`
+- Workflow skill: [SKILL.md](./SKILL.md)
+- Contributor conventions: [CONTRIBUTING.md](./CONTRIBUTING.md)
 
 ## Current shape
 
 Today, the architecture is best understood as:
 
-**a reviewed benchmark pack + a surface-aware execution matrix + a read-back
-truth layer + a report/record interpretation layer.**
+**two authoring tracks → one reviewed pack → a surface-aware execution matrix →
+a read-back truth layer → report/record interpretation → (optionally)
+publication export.**
 
-That separation is what lets `ax-eval` be both:
-
-- a local engineering tool for one product team
-- and the foundation for a broader cross-product, cross-surface, and eventually
-  cross-harness evaluation plane
+That separation is what lets `ax-eval` be both a local engineering tool and the
+foundation for a cross-product, cross-surface, cross-harness evaluation plane.
