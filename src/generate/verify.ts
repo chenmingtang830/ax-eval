@@ -480,6 +480,7 @@ export async function verifyGeneratedPack(
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const sqlConn = resolveSqlConn(pack);
   const mongoConn = resolveMongoConn(pack);
+  const trace = Array.isArray(observedRun) ? observedRun : [];
   const honestySurface: SurfaceId =
     surface ?? (executor.surface === "cli" || executor.surface === "sdk" || executor.surface === "mcp" || executor.surface === "api"
       ? executor.surface

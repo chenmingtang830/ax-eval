@@ -88,7 +88,8 @@ describe("oracle providers", () => {
       ns: "ns-1",
       results: { "db-sql-task": { gid: "7" }, "http-task": { gid: "1" } },
     };
-    const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }));
+    const trace = [{ step: 1, taskId: "db-sql-task", action: "query" }];
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }), undefined, trace);
 
     const sql = out.find((o) => o.taskId === "db-sql-task")!;
     expect(sql.success).toBe(true);
@@ -99,6 +100,7 @@ describe("oracle providers", () => {
     expect(seen[0]!.task.id).toBe("db-sql-task");
     expect(seen[0]!.reported).toEqual({ gid: "7" });
     expect(seen[0]!.ns).toBe("ns-1");
+    expect(seen[0]!.trace).toEqual(trace);
     // The plain HTTP oracle still went through the built-in round-trip path.
     const http = out.find((o) => o.taskId === "http-task")!;
     expect(http.success).toBe(true);
