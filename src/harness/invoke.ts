@@ -1,10 +1,13 @@
 import { spawn, spawnSync, type SpawnSyncReturns } from "node:child_process";
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
-import { tmpdir } from "node:os";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
+import { namedFieldsFor } from "./executor.js";
+import { resolveEnvTemplate } from "../target/config.js";
+import { parseJsonWithRecovery } from "../util/json-parse.js";
+import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -48,13 +51,15 @@ export interface InvokeRunOptions {
   model?: string;
   /** Canonical effort level. Translated to each harness's native convention at
    *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
-   *  convention); claude-code applies effort at the prompt level (no CLI knob),
-   *  so this is informational there. */
+   *  convention); claude-code → `--effort <level>` on modern Claude Code. */
   effort?: "low" | "medium" | "high";
   /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
    *  exceeds it, it is killed and the attempt counts as a timeout failure
    *  (eligible for a retry). 0 / undefined disables the cap. */
   timeoutMs?: number;
+  /** Optional early cap for runs that never take a tool/action. Once an action
+   *  is observed, only the normal wall-clock timeout applies. */
+  firstActionTimeoutMs?: number;
   /** How many times to retry a failed or timed-out invocation before giving up.
    *  Default 1 (one retry → up to two attempts total); 0 disables retries. A
    *  retry re-runs the same prompt from a clean slate (any partial results file
@@ -65,13 +70,61 @@ export interface InvokeRunOptions {
   env?: Record<string, string>;
   /** Non-secret provisioning metadata written to the invoke meta artifact. */
   provisioning?: Record<string, unknown>;
+  /** Result of the already-required harness detection probe. Passing it through
+   *  avoids a second `--version` call and makes the detected version durable. */
+  harnessDetection?: InvokeDetection;
+  /** Stable identifier shared by comparable runs from the same execution batch. */
+  runBatchId?: string;
 }
+
+export interface InvokeHarnessMetrics {
+  harness_version_raw: string | null;
+  harness_version_semver: string | null;
+  run_batch_id: string | null;
+  /** Successful attempt wall time (or the final failed attempt when none pass). */
+  duration_ms: number | null;
+  /** Wall time consumed by every attempt, including failed retries. */
+  total_duration_ms: number;
+  /** Native harness-reported dollars. Codex is intentionally null. */
+  cost_usd: number | null;
+  /** Native token counters summed across every attempt. */
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+}
+
+export interface InvokeAttemptMetrics {
+  attempt: number;
+  started_at: string;
+  finished_at: string;
+  duration_ms: number;
+  ok: boolean;
+  exit_code: number | null;
+  signal: NodeJS.Signals | null;
+  timed_out: boolean;
+  timeout_reason?: "wall" | "first-action";
+  cost_usd: number | null;
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+  harness_duration_ms: number | null;
+}
+
+export type InvokeValidityStatus =
+  | "valid"
+  | "partial"
+  | "runtime_timeout_no_action"
+  | "runtime_timeout_partial"
+  | "invoke_failed"
+  | "results_json_invalid";
 
 export interface InvokeRunResult {
   harness: InvokeHarnessId;
   ok: boolean;
   exitCode: number | null;
   signal: NodeJS.Signals | null;
+  profile?: string;
+  surface?: SurfaceId;
+  requestedModel?: string;
+  effort?: InvokeRunOptions["effort"];
   stdoutPath: string;
   stderrPath: string;
   transcriptPath: string;
@@ -83,6 +136,17 @@ export interface InvokeRunResult {
   attempts?: number;
   /** True when the final attempt was killed by the timeout cap. */
   timedOut?: boolean;
+  timeoutReason?: "wall" | "first-action";
+  /** Wall-clock duration for the full harness invocation, including retries. */
+  durationMs?: number;
+  /** Runtime-validity diagnostics. No-action timeouts are harness/runtime
+   *  validity failures, not product capability failures. */
+  validity_status?: InvokeValidityStatus;
+  first_action_latency_ms?: number | null;
+  transcript_event_count?: number;
+  action_occurred?: boolean;
+  metrics?: InvokeHarnessMetrics;
+  attempt_metrics?: InvokeAttemptMetrics[];
 }
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -99,12 +163,6 @@ const DEFAULT_SPAWN: Spawn = (command, args, options) =>
     maxBuffer: 50 * 1024 * 1024,
   });
 
-function defaultHarnessHome(harness: string, hint: string): string {
-  const base = resolve(tmpdir(), "ax-eval-homes");
-  mkdirSync(base, { recursive: true });
-  return mkdtempSync(resolve(base, `${harness}-${hint}-`));
-}
-
 /** The outcome of a finished child process — the subset runInvokeHarness needs.
  *  (Same shape whether produced by sync spawnSync or the async runner.) */
 export interface ProcResult {
@@ -116,6 +174,8 @@ export interface ProcResult {
   /** True when the child was killed by the wall-clock timeout cap rather than
    *  exiting on its own. */
   timedOut?: boolean;
+  timeoutReason?: "wall" | "first-action";
+  firstActionLatencyMs?: number | null;
 }
 
 /** Async spawn — runs the harness without blocking the event loop, so multiple
@@ -130,11 +190,12 @@ export type AsyncSpawn = (
   command: string,
   args: string[],
   cwd: string,
-  opts?: { timeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
+  opts?: { timeoutMs?: number; firstActionTimeoutMs?: number; env?: Record<string, string>; successPaths?: string[] },
 ) => Promise<ProcResult>;
 
 export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
+    const startedAt = Date.now();
     const child = spawn(command, args, {
       cwd,
       detached: true,
@@ -144,11 +205,14 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     const out: Buffer[] = [];
     const err: Buffer[] = [];
     let timedOut = false;
+    let timeoutReason: ProcResult["timeoutReason"] | undefined;
     let completedAfterOutputs = false;
     let killTimer: NodeJS.Timeout | undefined;
     let timer: NodeJS.Timeout | undefined;
+    let firstActionTimer: NodeJS.Timeout | undefined;
     let outputPoll: NodeJS.Timeout | undefined;
     let outputReadyTimer: NodeJS.Timeout | undefined;
+    let firstActionLatencyMs: number | null = null;
     const successPaths = opts?.successPaths?.filter(Boolean) ?? [];
     const outputsReady = () => successPaths.length > 0 && successPaths.every((p) => existsSync(p));
     const killChild = (signal: NodeJS.Signals) => {
@@ -169,10 +233,20 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     if (opts?.timeoutMs && opts.timeoutMs > 0) {
       timer = setTimeout(() => {
         timedOut = true;
+        timeoutReason = "wall";
         killChild("SIGTERM");
         // If it ignores SIGTERM, hard-kill so the pool slot is freed.
         killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
       }, opts.timeoutMs);
+    }
+    if (opts?.firstActionTimeoutMs && opts.firstActionTimeoutMs > 0) {
+      firstActionTimer = setTimeout(() => {
+        if (firstActionLatencyMs !== null || timedOut) return;
+        timedOut = true;
+        timeoutReason = "first-action";
+        killChild("SIGTERM");
+        killTimer = setTimeout(() => killChild("SIGKILL"), 5000);
+      }, opts.firstActionTimeoutMs);
     }
     if (successPaths.length > 0) {
       outputPoll = setInterval(() => {
@@ -198,14 +272,36 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     }
     const finish = (r: ProcResult) => {
       if (timer) clearTimeout(timer);
+      if (firstActionTimer) clearTimeout(firstActionTimer);
       if (killTimer) clearTimeout(killTimer);
       if (outputPoll) clearInterval(outputPoll);
       if (outputReadyTimer) clearTimeout(outputReadyTimer);
-      resolve(r);
+      resolve({ ...r, firstActionLatencyMs, timeoutReason: r.timeoutReason ?? timeoutReason });
     };
-    child.stdout?.on("data", (d: Buffer) => out.push(d));
+    const observeAction = (d: Buffer) => {
+      if (firstActionLatencyMs !== null) return;
+      const s = d.toString("utf8");
+      if (
+        s.includes('"tool_use"') ||
+        s.includes('"command_execution"') ||
+        s.includes('"web_search"') ||
+        s.includes('"Bash"') ||
+        s.includes('"WebFetch"') ||
+        s.includes('"WebSearch"')
+      ) {
+        firstActionLatencyMs = Date.now() - startedAt;
+        if (firstActionTimer) {
+          clearTimeout(firstActionTimer);
+          firstActionTimer = undefined;
+        }
+      }
+    };
+    child.stdout?.on("data", (d: Buffer) => {
+      out.push(d);
+      observeAction(d);
+    });
     child.stderr?.on("data", (d: Buffer) => err.push(d));
-    child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut }));
+    child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut, timeoutReason }));
     child.on("close", (status, signal) => {
       const afterOutputs = completedAfterOutputs && outputsReady();
       finish({
@@ -214,12 +310,17 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
         status: afterOutputs ? 0 : status,
         signal: afterOutputs ? null : (signal ?? null),
         timedOut,
+        timeoutReason,
       });
     });
   });
 
+// AX_EVAL_CLAUDE_BIN / AX_EVAL_CODEX_BIN let callers bypass a PATH-shadowing
+// wrapper (corp shims that inject env/behavior and break in isolated
+// processes) — same escape hatch as generate/harness.ts's invokeHarness.
 function commandFor(id: InvokeHarnessId): string {
-  return id === "claude-code" ? "claude" : "codex";
+  if (id === "claude-code") return process.env.AX_EVAL_CLAUDE_BIN || "claude";
+  return process.env.AX_EVAL_CODEX_BIN || "codex";
 }
 
 function text(buf: Buffer | string | null | undefined): string {
@@ -227,77 +328,126 @@ function text(buf: Buffer | string | null | undefined): string {
   return Buffer.isBuffer(buf) ? buf.toString("utf8") : String(buf);
 }
 
+const SECRET_ENV_NAME =
+  /([A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DB_URL|DATABASE_URL|CONNECTION_STRING|URI|DSN|PRIVATE_KEY|JWT)[A-Z0-9_]*\s*=\s*)(["']?)[^\s"',}]+/gi;
+const SECRET_JSON_FIELD =
+  /(["']?(?:dsn|token|apiKey|api_key|secret|password|privateKey|private_key|accessToken|access_token)["']?\s*[:=]\s*)(["'])([^"']{12,})\2/gi;
+const URL_USERINFO =
+  /\b(https?:\/\/)[A-Za-z0-9._~%!$&'()*+,;=:-]{8,}@([A-Za-z0-9.-]+(?::\d+)?[^\s"'<>)]*)/gi;
+
+/** Redact common credential shapes before writing harness artifacts. Recovery
+ *  still uses raw in-memory stdout so structured result extraction remains
+ *  lossless, but persisted logs/traces/meta must never carry live secrets. */
+export function redactHarnessArtifactText(value: string): string {
+  return redactCommonSensitiveText(value
+    .replace(/\b(?:(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/)[^\s"'<>]+/gi, "<redacted-dsn>")
+    .replace(URL_USERINFO, "$1<redacted>@$2")
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, "Bearer <redacted>")
+    .replace(/\bnapi_[A-Za-z0-9_]*(?:(?:\\n|\s)+[A-Za-z0-9_]{8,})+/g, "<redacted-token>")
+    .replace(/\bnapi_[A-Za-z0-9_]*(?:\s+[A-Za-z0-9_]{8,})+/g, "<redacted-token>")
+    .replace(/\bnapi_[A-Za-z0-9_]{20,}/g, "<redacted-token>")
+    .replace(/<redacted-token>(?:(?:\\n|\s)+[A-Za-z0-9_]{20,})/g, "<redacted-token>")
+    .replace(/<redacted-token>\s+[A-Za-z0-9_]{20,}/g, "<redacted-token>")
+    .replace(/\bsbp_[A-Za-z0-9_]{20,}/g, "<redacted-token>")
+    .replace(/\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/g, "<redacted-jwt>")
+    .replace(SECRET_ENV_NAME, "$1$2<redacted>")
+    .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2"))
+    .replace(/\[REDACTED\]/g, "<redacted>");
+}
+
+function writeRedactedFile(path: string, value: string): void {
+  writeFileSync(path, redactHarnessArtifactText(value));
+}
+
+function redactFileIfExists(path: string): void {
+  if (!existsSync(path)) return;
+  writeRedactedFile(path, readFileSync(path, "utf8"));
+}
+
+function isInvokeHomePath(path: string): boolean {
+  return path.split(/[\\/]/).includes(".invoke-home");
+}
+
+function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
+  const home = opts.env?.HOME;
+  if (!home || !isInvokeHomePath(home) || !existsSync(home)) return;
+  const visit = (path: string) => {
+    let stat;
+    try {
+      stat = statSync(path);
+    } catch {
+      return;
+    }
+    if (stat.isDirectory()) {
+      for (const entry of readdirSync(path)) visit(resolve(path, entry));
+      return;
+    }
+    if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
+    try {
+      const raw = readFileSync(path);
+      if (raw.includes(0)) return;
+      writeRedactedFile(path, raw.toString("utf8"));
+    } catch {
+      /* best effort: host CLI caches are evidence, not primary artifacts. */
+    }
+  };
+  visit(home);
+}
+
 function detectWith(command: string, spawn: Spawn): InvokeDetection {
-  const tempHome = command === "claude" ? defaultHarnessHome("claude", "detect") : undefined;
-  const env = tempHome ? { ...process.env, HOME: tempHome } : undefined;
-  try {
-    const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], env });
-    if (res.error) {
-      const code = (res.error as NodeJS.ErrnoException).code;
-      return {
-        ok: false,
-        command,
-        reason: code === "ENOENT" ? "missing-harness" : "detect-failed",
-        detail: res.error.message,
-      };
-    }
-    if ((res.status ?? 1) !== 0) {
-      return {
-        ok: false,
-        command,
-        reason: "detect-failed",
-        detail: text(res.stderr) || `exit ${res.status}`,
-      };
-    }
-    return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
-  } finally {
-    if (tempHome) {
-      try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* best effort */ }
-    }
+  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"] });
+  if (res.error) {
+    const code = (res.error as NodeJS.ErrnoException).code;
+    return {
+      ok: false,
+      command,
+      reason: code === "ENOENT" ? "missing-harness" : "detect-failed",
+      detail: res.error.message,
+    };
   }
+  if ((res.status ?? 1) !== 0) {
+    return {
+      ok: false,
+      command,
+      reason: "detect-failed",
+      detail: text(res.stderr) || `exit ${res.status}`,
+    };
+  }
+  return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
 }
 
 export function detectInvokeHarness(id: InvokeHarnessId, spawn: Spawn = DEFAULT_SPAWN): InvokeDetection {
   return detectWith(commandFor(id), spawn);
 }
 
-function taskResultKeys(task: TargetPack["tasks"][number]): string[] {
-  const keys = new Set<string>(["gid"]);
-  const scan = (template: string | undefined) => {
-    if (!template) return;
-    for (const match of template.matchAll(/\{([^}]+)\}/g)) {
-      const key = match[1];
-      if (key && key !== "gid") keys.add(key);
-    }
-  };
-  scan(task.create_path);
-  for (const oracle of task.oracles) scan(oracle.readPathTemplate);
-  return [...keys];
-}
-
-function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
+export function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
   // OpenAI strict structured-output (codex `--output-schema`) requires EVERY
   // object to set `additionalProperties: false` and list ALL its properties in
   // `required`. A permissive (`additionalProperties: true`) or partially-required
   // object 400s with `invalid_json_schema` before the agent does anything — so the
   // discovery sub-object is fully specified rather than left free-form.
   const tasks = tasksForSurface(pack, surface);
-  const taskProps = Object.fromEntries(tasks.map((t) => [t.id, {
-    type: "object",
-    additionalProperties: false,
-    properties: Object.fromEntries(
-      taskResultKeys(t).map((key) => [key, { anyOf: [{ type: "string" }, { type: "null" }] }]),
-    ),
-    required: taskResultKeys(t),
-  }]));
+  const scalar = { anyOf: [{ type: "string" }, { type: "number" }, { type: "boolean" }, { type: "null" }] };
+  const taskProps = Object.fromEntries(tasks.map((t) => {
+    const extra = namedFieldsFor(t);
+    return [t.id, {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        gid: { anyOf: [{ type: "string" }, { type: "null" }] },
+        ...Object.fromEntries(extra.map((field) => [field, scalar])),
+      },
+      required: ["gid", ...extra],
+    }];
+  }));
   const strArray = { type: "array", items: { type: "string" } };
   return {
     type: "object",
     additionalProperties: false,
     properties: {
-      profile: { type: "string" },
-      ns: { type: "string" },
-      surface: { type: "string" },
+      profile: { type: "string", enum: [profile] },
+      ns: { type: "string", enum: [ns] },
+      surface: { type: "string", enum: [surface] },
       discovery: {
         type: "object",
         additionalProperties: false,
@@ -325,14 +475,14 @@ function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId
 function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOptions): { command: string; args: string[] } {
   if (id === "claude-code") {
     const modelArgs = opts.model ? ["--model", opts.model] : [];
+    const effortArgs = opts.effort ? ["--effort", opts.effort] : [];
     // stream-json emits the full event stream (assistant tool_use, tool_result,
     // …) to stdout, ending with a `type:result` line — so the transcript carries
     // REAL tool events for --observe discovery scoring, not just a summary blob.
-    // Print mode requires --verbose for stream-json. (Claude Code has no
-    // reasoning-effort CLI knob, so effort is applied at the prompt level.)
+    // Print mode requires --verbose for stream-json.
     return {
-      command: "claude",
-      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs],
+      command: commandFor("claude-code"),
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
     };
   }
   if (!opts.paths.codexSchemaPath) {
@@ -340,7 +490,7 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   }
   writeFileSync(
     opts.paths.codexSchemaPath,
-    JSON.stringify(codexOutputSchema(opts.pack, `${id}:${opts.profile}`, opts.surface, opts.ns), null, 2),
+    JSON.stringify(codexOutputSchema(opts.pack, opts.profile, opts.surface, opts.ns), null, 2),
   );
   const modelArgs = opts.model ? ["-m", opts.model] : [];
   // Codex/GPT convention: reasoning effort is a model config knob, passed via -c.
@@ -350,6 +500,10 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // flag shape. If we leave the default in place, remote MCP write-tool calls
   // can collapse into "user cancelled MCP tool call" in headless runs.
   const approvalArgs = ["-c", 'approval_policy="never"'];
+  // Non-MCP benchmark surfaces should not inherit the operator's global MCP
+  // servers. A broken unrelated MCP login can otherwise stall API/CLI/SDK cells
+  // and turn the benchmark into a local-config test.
+  const mcpArgs = opts.surface === "mcp" ? [] : ["-c", "mcp_servers={}"];
   // The eval REQUIRES outbound network (the agent calls the product's API / MCP
   // server and web-searches in discovery). codex's `workspace-write` sandbox
   // denies network by default (`network_access: false`) — every curl then fails
@@ -361,9 +515,10 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // shell write of the exact path. `--json` streams events to stdout so the
   // transcript carries real tool calls for --observe discovery scoring.
   return {
-    command: "codex",
+    command: commandFor("codex"),
     args: [
       ...approvalArgs,
+      ...mcpArgs,
       "exec",
       "--sandbox", "workspace-write",
       ...networkArgs,
@@ -394,6 +549,119 @@ function modelFromJson(json: Record<string, unknown>): string | undefined {
   }
   if (typeof json.model === "string") return json.model;
   return undefined;
+}
+
+function finiteNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+function addMetric(target: Record<string, number>, key: string, value: unknown): void {
+  const n = finiteNumber(value);
+  if (n !== undefined) target[key] = (target[key] ?? 0) + n;
+}
+
+function tokenUsageFrom(value: unknown): Record<string, number> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const out: Record<string, number> = {};
+  addMetric(out, "input_tokens", record.input_tokens ?? record.inputTokens);
+  addMetric(out, "output_tokens", record.output_tokens ?? record.outputTokens);
+  addMetric(out, "cached_input_tokens", record.cached_input_tokens ?? record.cachedInputTokens);
+  addMetric(out, "cache_read_input_tokens", record.cache_read_input_tokens ?? record.cacheReadInputTokens);
+  addMetric(out, "cache_creation_input_tokens", record.cache_creation_input_tokens ?? record.cacheCreationInputTokens);
+  addMetric(out, "total_tokens", record.total_tokens ?? record.totalTokens);
+  if (out.total_tokens === undefined && (out.input_tokens !== undefined || out.output_tokens !== undefined)) {
+    out.total_tokens = (out.input_tokens ?? 0) + (out.output_tokens ?? 0);
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function mergeUsage(
+  target: Record<string, number>,
+  source: Record<string, number> | null | undefined,
+): void {
+  if (!source) return;
+  for (const [key, value] of Object.entries(source)) target[key] = (target[key] ?? 0) + value;
+}
+
+function claudeUsage(json: Record<string, unknown>): Record<string, number> | null {
+  const direct = tokenUsageFrom(json.usage);
+  if (direct) return direct;
+  const modelUsage = json.modelUsage;
+  if (!modelUsage || typeof modelUsage !== "object" || Array.isArray(modelUsage)) return null;
+  const total: Record<string, number> = {};
+  for (const usage of Object.values(modelUsage as Record<string, unknown>)) mergeUsage(total, tokenUsageFrom(usage));
+  return Object.keys(total).length ? total : null;
+}
+
+interface ParsedHarnessMetrics {
+  model?: string;
+  cost_usd: number | null;
+  token_usage: Record<string, number> | null;
+  num_turns: number | null;
+  harness_duration_ms: number | null;
+}
+
+/** Parse each harness's native event shape once. Claude's final result carries
+ *  cost, usage, duration and turns. Codex emits token usage on turn.completed
+ *  but does not report dollars, so cost_usd remains explicitly null. */
+function parseHarnessMetrics(harness: InvokeHarnessId, raw: string): ParsedHarnessMetrics {
+  let model: string | undefined;
+  let costUsd: number | null = null;
+  let numTurns: number | null = null;
+  let harnessDurationMs: number | null = null;
+  const usage: Record<string, number> = {};
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let event: Record<string, unknown>;
+    try {
+      event = JSON.parse(trimmed) as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    model = modelFromJson(event) ?? model;
+    if (harness === "claude-code" && event.type === "result") {
+      costUsd = finiteNumber(event.total_cost_usd) ?? costUsd;
+      numTurns = finiteNumber(event.num_turns) ?? numTurns;
+      harnessDurationMs = finiteNumber(event.duration_ms) ?? harnessDurationMs;
+      mergeUsage(usage, claudeUsage(event));
+    }
+    if (harness === "codex" && event.type === "turn.completed") {
+      mergeUsage(usage, tokenUsageFrom(event.usage));
+    }
+  }
+  return {
+    model,
+    cost_usd: harness === "claude-code" ? costUsd : null,
+    token_usage: Object.keys(usage).length ? usage : null,
+    num_turns: numTurns,
+    harness_duration_ms: harnessDurationMs,
+  };
+}
+
+function semverFromVersion(raw: string | undefined): string | null {
+  if (!raw) return null;
+  return raw.match(/\bv?(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?)\b/)?.[1] ?? null;
+}
+
+function summarizeInvokeMetrics(opts: InvokeRunOptions, attempts: InvokeAttemptMetrics[]): InvokeHarnessMetrics {
+  const selected = [...attempts].reverse().find((attempt) => attempt.ok) ?? attempts.at(-1);
+  const tokenUsage: Record<string, number> = {};
+  for (const attempt of attempts) mergeUsage(tokenUsage, attempt.token_usage);
+  const costs = attempts.flatMap((attempt) => typeof attempt.cost_usd === "number" ? [attempt.cost_usd] : []);
+  const turns = attempts.flatMap((attempt) => typeof attempt.num_turns === "number" ? [attempt.num_turns] : []);
+  const rawVersion = opts.harnessDetection?.version?.trim() || null;
+  return {
+    harness_version_raw: rawVersion,
+    harness_version_semver: semverFromVersion(rawVersion ?? undefined),
+    run_batch_id: opts.runBatchId?.trim() || null,
+    duration_ms: selected?.duration_ms ?? null,
+    total_duration_ms: attempts.reduce((sum, attempt) => sum + attempt.duration_ms, 0),
+    cost_usd: opts.harness === "claude-code" && costs.length ? costs.reduce((sum, value) => sum + value, 0) : null,
+    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
+    num_turns: turns.length ? turns.reduce((sum, value) => sum + value, 0) : null,
+  };
 }
 
 /** Read the model the harness ACTUALLY ran as out of its stdout, so the report
@@ -437,19 +705,49 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
-function stampResultFile(opts: InvokeRunOptions): void {
-  if (!existsSync(opts.paths.resultsPath)) return;
-  const parsed = JSON.parse(readFileSync(opts.paths.resultsPath, "utf8")) as Record<string, unknown>;
+function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics): { ok: boolean; error?: string } {
+  if (!existsSync(opts.paths.resultsPath)) return { ok: true };
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = parseJsonWithRecovery<Record<string, unknown>>(readFileSync(opts.paths.resultsPath, "utf8"));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    writeFailureArtifacts(opts, `results JSON invalid (bare quotes / malformed): ${message}`);
+    return { ok: false, error: message };
+  }
   parsed.harness = opts.harness;
-  parsed.profile = String(parsed.profile ?? opts.profile);
-  parsed.surface = opts.surface;
-  parsed.ns = parsed.ns ?? opts.ns;
+  parsed.profile = typeof parsed.profile === "string" && parsed.profile.trim() ? parsed.profile : opts.profile;
+  parsed.surface = typeof parsed.surface === "string" && parsed.surface.trim() ? parsed.surface : opts.surface;
+  parsed.ns = typeof parsed.ns === "string" && parsed.ns.trim() ? parsed.ns : opts.ns;
   // Ground-truth model: what the harness reported running > what we requested.
   // Never the hardcoded profile default — that's the bug we're fixing. Codex
   // doesn't carry the model in its output, so fall back to its stderr banner.
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
   parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
+  parsed.metrics = metrics;
+  normalizeDiscoveryResult(parsed, opts.pack);
   writeFileSync(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
+  return { ok: true };
+}
+
+function looksLikeBaseUrlPlaceholder(value: string): boolean {
+  const trimmed = value.trim();
+  if (!trimmed) return true;
+  if (/^https?:\/\/[^<>{}\s]+$/i.test(trimmed) && !/\$\{[A-Z0-9_]+\}/.test(trimmed)) return false;
+  return /<[^>]+>|\{[^}]+\}|\$\{[A-Z0-9_]+\}|\bCONVEX_URL\b|\bdeployment URL\b/i.test(trimmed);
+}
+
+function normalizeDiscoveryResult(parsed: Record<string, unknown>, pack: TargetPack): void {
+  const discovery = parsed.discovery;
+  if (!discovery || typeof discovery !== "object" || Array.isArray(discovery)) return;
+  const record = discovery as Record<string, unknown>;
+  const baseUrlFound = typeof record.base_url_found === "string" ? record.base_url_found : "";
+  if (!looksLikeBaseUrlPlaceholder(baseUrlFound)) return;
+  try {
+    record.base_url_found = resolveEnvTemplate(pack.base_url);
+  } catch {
+    /* Leave the self-report unchanged when the template cannot be resolved. */
+  }
 }
 
 function parseResultPayload(text: string): Record<string, unknown> | undefined {
@@ -571,6 +869,56 @@ function transcriptShowsSuccess(harness: InvokeHarnessId, stdout: string): boole
   return false;
 }
 
+function transcriptRuntimeDiagnostics(raw: string, firstActionLatencyMs: number | null | undefined): {
+  transcript_event_count: number;
+  action_occurred: boolean;
+  first_action_latency_ms: number | null;
+} {
+  let transcript_event_count = 0;
+  let action_occurred = firstActionLatencyMs !== null && firstActionLatencyMs !== undefined;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      transcript_event_count += 1;
+      const item = event.item as { type?: unknown } | undefined;
+      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
+        action_occurred = true;
+      }
+      const message = event.message as { content?: unknown } | undefined;
+      if (Array.isArray(message?.content) && message.content.some((block) =>
+        block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
+      )) {
+        action_occurred = true;
+      }
+    } catch {
+      /* Plain stderr/stdout lines are not structured transcript events. */
+    }
+  }
+  return {
+    transcript_event_count,
+    action_occurred,
+    first_action_latency_ms: firstActionLatencyMs ?? null,
+  };
+}
+
+function invokeValidityStatus(args: {
+  ok: boolean;
+  timedOut: boolean;
+  actionOccurred: boolean;
+  resultsExists: boolean;
+  traceExists: boolean;
+  error?: string;
+}): InvokeValidityStatus {
+  if (args.timedOut && !args.actionOccurred) return "runtime_timeout_no_action";
+  if (args.timedOut && args.actionOccurred) return "runtime_timeout_partial";
+  if (args.ok) return "valid";
+  if (args.actionOccurred || args.resultsExists || args.traceExists) return "partial";
+  if (args.error) return "invoke_failed";
+  return "partial";
+}
+
 function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
   const results = Object.fromEntries(tasksForSurface(opts.pack, opts.surface).map((t) => [t.id, { gid: null }]));
   writeFileSync(
@@ -616,6 +964,7 @@ export async function runInvokeHarness(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
+  const startedAt = Date.now();
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
   const { command, args } = buildInvocation(opts.harness, prompt, opts);
   const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
@@ -629,75 +978,121 @@ export async function runInvokeHarness(
   let ok = false;
   let stdout = "";
   let stderr = "";
-  const childEnv = { ...(opts.env ?? {}) };
-  let tempHome: string | undefined;
-  if (opts.harness === "claude-code" && !childEnv.HOME) {
-    tempHome = defaultHarnessHome("claude", opts.profile);
-    childEnv.HOME = tempHome;
-  }
-  try {
-    while (attempt < maxAttempts) {
-      attempt += 1;
-      res = await spawnAsync(command, args, opts.cwd, {
-        timeoutMs: opts.timeoutMs,
-        env: childEnv,
-        successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
-      });
-      stdout = text(res.stdout);
-      stderr = text(res.stderr);
-      recoverResultFile(opts, stdout);
-      recoverTraceFile(opts, stdout);
-      ok =
-        !res.error &&
-        existsSync(opts.paths.resultsPath) &&
-        (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
-      if (ok || attempt >= maxAttempts) break;
-      // Failed and a retry is left: drop any partial results file so the next
-      // attempt is scored on its own output, not stale leftovers.
-      if (existsSync(opts.paths.resultsPath)) {
-        try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
-      }
+  const attemptMetrics: InvokeAttemptMetrics[] = [];
+  while (attempt < maxAttempts) {
+    attempt += 1;
+    const attemptStarted = new Date();
+    const attemptStartedMs = Date.now();
+    res = await spawnAsync(command, args, opts.cwd, {
+      timeoutMs: opts.timeoutMs,
+      firstActionTimeoutMs: opts.firstActionTimeoutMs,
+      env: opts.env,
+      successPaths: [opts.paths.resultsPath, opts.paths.tracePath],
+    });
+    stdout = text(res.stdout);
+    stderr = text(res.stderr);
+    recoverResultFile(opts, stdout);
+    recoverTraceFile(opts, stdout);
+    ok =
+      !res.error &&
+      existsSync(opts.paths.resultsPath) &&
+      (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
+    const nativeMetrics = parseHarnessMetrics(opts.harness, stdout);
+    const attemptFinished = new Date();
+    attemptMetrics.push({
+      attempt,
+      started_at: attemptStarted.toISOString(),
+      finished_at: attemptFinished.toISOString(),
+      duration_ms: Date.now() - attemptStartedMs,
+      ok,
+      exit_code: res.status ?? null,
+      signal: res.signal ?? null,
+      timed_out: res.timedOut ?? false,
+      timeout_reason: res.timeoutReason,
+      cost_usd: nativeMetrics.cost_usd,
+      token_usage: nativeMetrics.token_usage,
+      num_turns: nativeMetrics.num_turns,
+      harness_duration_ms: nativeMetrics.harness_duration_ms,
+    });
+    if (ok || attempt >= maxAttempts) break;
+    // Failed and a retry is left: drop any partial results file so the next
+    // attempt is scored on its own output, not stale leftovers.
+    if (existsSync(opts.paths.resultsPath)) {
+      try { rmSync(opts.paths.resultsPath); } catch { /* best effort */ }
     }
-  } finally {
-    if (tempHome) {
-      try { rmSync(tempHome, { recursive: true, force: true }); } catch { /* best effort */ }
-    }
   }
-  writeFileSync(opts.paths.stdoutPath, stdout);
-  writeFileSync(opts.paths.stderrPath, stderr);
+  writeRedactedFile(opts.paths.stdoutPath, stdout);
+  writeRedactedFile(opts.paths.stderrPath, stderr);
   // Keep a single transcript file path for verify --observe / report evidence.
   // If a harness emits structured JSONL later, this path can hold it directly.
-  writeFileSync(opts.paths.transcriptPath, stdout || stderr);
+  writeRedactedFile(opts.paths.transcriptPath, stdout || stderr);
+  redactInvokeHomeIfPresent(opts);
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
   const timedOut = res.timedOut ?? false;
+  const timeoutReason = res.timeoutReason;
   const error = res.error?.message
-    ?? (timedOut ? `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})` : undefined);
+    ?? (timedOut
+      ? timeoutReason === "first-action"
+        ? `harness ${opts.harness} timed out before first action after ${Math.round((opts.firstActionTimeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
+        : `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
+      : undefined);
+  const metrics = summarizeInvokeMetrics(opts, attemptMetrics);
+  let stamp: { ok: boolean; error?: string } = { ok: true };
   if (existsSync(opts.paths.resultsPath)) {
-    stampResultFile(opts);
+    stamp = stampResultFile(opts, metrics);
   } else {
-    const reason = error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`;
+    const reason = redactHarnessArtifactText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
     writeFailureArtifacts(opts, reason);
+    stamp = stampResultFile(opts, metrics);
   }
+  redactFileIfExists(opts.paths.resultsPath);
+  redactFileIfExists(opts.paths.tracePath);
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
+  const durationMs = Date.now() - startedAt;
+  const runtimeDiagnostics = transcriptRuntimeDiagnostics(stdout || stderr, res.firstActionLatencyMs);
+  const stampFailed = stamp.ok === false;
+  const finalOk = ok && !stampFailed;
+  const validity_status = stampFailed
+    ? "results_json_invalid"
+    : invokeValidityStatus({
+    ok: finalOk,
+    timedOut,
+    actionOccurred: runtimeDiagnostics.action_occurred,
+    resultsExists: existsSync(opts.paths.resultsPath),
+    traceExists: existsSync(opts.paths.tracePath),
+    error: stamp.error ?? error,
+  });
   const meta: InvokeRunResult = {
     harness: opts.harness,
-    ok,
+    ok: finalOk,
     exitCode,
     signal,
+    profile: opts.profile,
+    surface: opts.surface,
+    requestedModel: opts.model,
+    effort: opts.effort,
     attempts: attempt,
     timedOut,
+    timeoutReason,
+    durationMs,
+    validity_status,
+    first_action_latency_ms: runtimeDiagnostics.first_action_latency_ms,
+    transcript_event_count: runtimeDiagnostics.transcript_event_count,
+    action_occurred: runtimeDiagnostics.action_occurred,
+    metrics,
+    attempt_metrics: attemptMetrics,
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok ? undefined : (error ?? stderr.trim()) || `exit ${exitLabel}`,
+    error: ok ? undefined : redactHarnessArtifactText((error ?? stderr.trim()) || `exit ${exitLabel}`),
   };
-  writeFileSync(
+  writeRedactedFile(
     opts.paths.metaPath,
     JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2),
   );
