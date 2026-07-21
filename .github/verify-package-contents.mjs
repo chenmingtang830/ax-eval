@@ -20,6 +20,8 @@ const required = new Set([
   "README.md",
   "SKILL.md",
   "dist/cli.js",
+  "dist/index.js",
+  "dist/index.d.ts",
   "schemas/normalized-result.v1.json",
   "targets/README.md",
   "benchmarks/daeb/README.md",
@@ -64,6 +66,22 @@ if (missing.length || forbidden.length) {
     missing.length ? `missing required package files: ${missing.join(", ")}` : "",
     forbidden.length ? `forbidden package files: ${forbidden.join(", ")}` : "",
   ].filter(Boolean).join("; "));
+}
+
+// A package self-reference exercises package.json exports, not only the file.
+const publicApi = await import("ax-eval");
+const requiredExports = [
+  "TargetPackSchema",
+  "checkApproval",
+  "verifyGeneratedPack",
+  "registerOracleProvider",
+  "aggregateNormalizedResults",
+  "SURFACE_IDS",
+  "INVOKE_HARNESS_IDS",
+];
+const missingExports = requiredExports.filter((name) => !(name in publicApi));
+if (missingExports.length) {
+  throw new Error(`missing public API exports: ${missingExports.join(", ")}`);
 }
 
 console.log(`Verified ${files.size} package files (${report.filename}).`);

@@ -40,6 +40,25 @@ npm run ax-eval -- audit --offline
 npm test
 ```
 
+### Library API
+
+`ax-eval` also exposes a typed ESM entry point for orchestration code that needs
+to validate reviewed packs, select surface-compatible tasks, verify results, or
+consume normalized records without importing private `src/` paths:
+
+```ts
+import {
+  TargetPackSchema,
+  checkApproval,
+  tasksForSurface,
+  verifyGeneratedPack,
+} from "ax-eval";
+```
+
+The initial public API intentionally does not expose raw harness orchestration.
+That execution path remains behind the CLI until the one-cell runtime contract
+can carry complete harness, credential, provenance, and extension inputs.
+
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
 (`codex` or `claude-code`) to turn it into a product-quality pack. Use

@@ -1,6 +1,6 @@
 # ax-eval / ax-arena Separation Migration Design
 
-**Status:** Proposed migration design
+**Status:** Migration in progress
 
 **Scope:** Separate the reusable `ax-eval` execution engine from DAEB/arena policy,
 orchestration, aggregation, and publication
@@ -57,6 +57,13 @@ ax-eval
 This should be implemented incrementally. A repository split before the API,
 schema, and extension boundaries are stable would move the coupling rather than
 remove it.
+
+Implementation progress:
+
+- PR #172 established the first oracle-provider seam and merged this design.
+- The next boundary publishes a typed package root for core contracts and
+  verification/record primitives. Harness execution remains private until the
+  one-cell API is defined.
 
 ## 2. Goals
 
