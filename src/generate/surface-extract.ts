@@ -19,7 +19,7 @@ import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
-import { daebSurfacesPath } from "./benchmark-paths.js";
+import { daebReadSurfacesPath, daebSurfacesPath, type DaebPathInput } from "./benchmark-paths.js";
 
 const SURFACE_EXTRACT_SCHEMA_VERSION = "ax.surface-extract/v1" as const;
 
@@ -195,7 +195,7 @@ export async function extractSurfaces(
   });
 }
 
-export function surfaceExtractPath(root: string, slug: string): string {
+export function surfaceExtractPath(root: DaebPathInput, slug: string): string {
   return daebSurfacesPath(root, slug);
 }
 
@@ -238,15 +238,15 @@ export function auditSurfaceExtract(result: z.input<typeof SurfaceExtractResultS
   });
 }
 
-export function writeSurfaceExtract(root: string, result: SurfaceExtractResult): string {
+export function writeSurfaceExtract(root: DaebPathInput, result: SurfaceExtractResult): string {
   const path = surfaceExtractPath(root, result.slug);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${SURFACE_EXTRACT_HEADER}${yamlStringify(auditSurfaceExtract(result))}`);
   return path;
 }
 
-export function loadSurfaceExtract(root: string, slug: string): SurfaceExtractResult | null {
-  const path = surfaceExtractPath(root, slug);
+export function loadSurfaceExtract(root: DaebPathInput, slug: string): SurfaceExtractResult | null {
+  const path = daebReadSurfacesPath(root, slug);
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
   const result = SurfaceExtractResultSchema.safeParse(yamlParse(raw));

@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { stringify as yamlStringify } from "yaml";
@@ -10,13 +10,14 @@ import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
+const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
 
 /** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
-function runCli(args: string[], env: Record<string, string> = {}): { code: number; out: string } {
+function runCli(args: string[], env: Record<string, string> = {}, cwd: string = ROOT): { code: number; out: string } {
   try {
-    const out = execFileSync("node", ["--import", "tsx", CLI, ...args], {
-      cwd: ROOT,
+    const out = execFileSync("node", ["--import", TSX_LOADER, CLI, ...args], {
+      cwd,
       encoding: "utf8",
       env: {
         ...process.env,
@@ -167,6 +168,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("usage: ax-eval publication-bundle");
     expect(out).toContain("--suite <suite.yaml>");
     expect(out).toContain("--effort-profiles <a,b,c>");
+    expect(out).toContain("--benchmark-root <dir>");
   });
 
   it("export-publication help prints command usage with exit 0", () => {
@@ -209,6 +211,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("--codex-model <slug>");
     expect(out).toContain("--claude-model <slug>");
     expect(out).toContain("--skip-reset");
+    expect(out).toContain("--benchmark-root <dir>");
   });
 
   it("daeb-production-rerun help prints command usage with exit 0", () => {
@@ -218,6 +221,52 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("--trial-count 3");
     expect(out).toContain("--invoke-timeout seconds");
     expect(out).toContain("--skip-archive");
+    expect(out).toContain("--benchmark-root <dir>");
+  });
+
+  it("requires a value for --benchmark-root", () => {
+    const { code, out } = runCli(["audit-extracts", "--benchmark-root"]);
+    expect(code).toBe(1);
+    expect(out).toContain("flag --benchmark-root requires a value");
+  });
+
+  it("fails ambiguous benchmark roots unless --benchmark-root selects one", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-benchmark-root-"));
+    try {
+      mkdirSync(resolve(dir, "ax-arena", "benchmark", "daeb"), { recursive: true });
+      mkdirSync(resolve(dir, "benchmarks", "daeb"), { recursive: true });
+
+      const ambiguous = runCli(["audit-extracts"], {}, dir);
+      expect(ambiguous.code).toBe(1);
+      expect(ambiguous.out).toMatch(/ambiguous benchmark roots.*--benchmark-root/);
+
+      const explicit = runCli([
+        "audit-extracts",
+        "--benchmark-root", "ax-arena/benchmark/daeb",
+      ], {}, dir);
+      expect(explicit.code).toBe(0);
+      expect(explicit.out).toContain("0 vendor(s)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a legacy synthesize-suite writer destination", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-benchmark-writer-"));
+    try {
+      mkdirSync(resolve(dir, "benchmarks", "daeb"), { recursive: true });
+      const result = runCli([
+        "synthesize-suite",
+        "--category", "database",
+        "--benchmark-root", "benchmarks/daeb",
+        "--out", "benchmarks/daeb/v1/suite.yaml",
+        "--deterministic",
+      ], {}, dir);
+      expect(result.code).toBe(1);
+      expect(result.out).toMatch(/writers use only the canonical benchmark root/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("generate without --from or --suite errors with a helpful usage hint", () => {
@@ -229,7 +278,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   it("generate without --from but with --suite + no --product errors", () => {
     const { code, out } = runCli([
       "generate",
-      "--suite", "benchmarks/daeb/v1/suite.yaml",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
     ]);
     expect(code).not.toBe(0);
     expect(out).toMatch(/--product is required/);
@@ -238,7 +287,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   it("extract-tasks infers category from the suite when --category is omitted", () => {
     const { code, out } = runCli([
       "extract-tasks",
-      "--suite", "benchmarks/daeb/v1/suite.yaml",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
       "--vendor", "definitely-not-a-real-vendor",
     ]);
     expect(code).not.toBe(0);
@@ -271,7 +320,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     try {
       const { code, out } = runCli([
         "publication-bundle",
-        "--suite", "benchmarks/daeb/v1/suite.yaml",
+        "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
         "--vendors", "supabase",
         "--run-dir", "results/runs/does-not-exist",
         "--out", outDir,
@@ -309,7 +358,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {
     const { code, out } = runCli([
       "daeb-low-pass",
-      "--suite", "benchmarks/daeb/v1/suite.yaml",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -320,7 +369,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   it("daeb-production-rerun rejects sdk because DAEB/database v1 scope is api+cli", () => {
     const { code, out } = runCli([
       "daeb-production-rerun",
-      "--suite", "benchmarks/daeb/v1/suite.yaml",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);

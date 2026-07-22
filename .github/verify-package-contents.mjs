@@ -26,21 +26,6 @@ const required = new Set([
   "schemas/evaluation-cell.v1.json",
   "schemas/normalized-cell-record.v1.json",
   "targets/README.md",
-  "benchmarks/daeb/README.md",
-  "benchmarks/daeb/v1/suite.yaml",
-  "benchmarks/daeb/v1/suite.methodology.yaml",
-  "benchmarks/daeb/v1/suite.concept-universe.yaml",
-  "benchmarks/daeb/v1/suite.coverage-matrix.yaml",
-  "benchmarks/daeb/v1/suite.selection-ledger.yaml",
-  "benchmarks/daeb/v1/suite.support-matrix.yaml",
-  "benchmarks/daeb/v1/suite.grader-ledger.yaml",
-  "benchmarks/daeb/v1/suite.failure-taxonomy.yaml",
-  "benchmarks/daeb/v1/suite.trace-review.yaml",
-  "benchmarks/daeb/v1/suite.audit-notes.md",
-  "benchmarks/daeb/v1/suite.synthesis.md",
-  "benchmarks/daeb/v1/suite.support-summary.md",
-  "benchmarks/daeb/v1/run-matrix.yaml",
-  "benchmarks/daeb/v1/vendor-selection-ledger.yaml",
 ]);
 for (const entry of readdirSync(resolve(process.cwd(), "targets", "examples"), { withFileTypes: true })) {
   if (!entry.isDirectory()) continue;
@@ -49,18 +34,13 @@ for (const entry of readdirSync(resolve(process.cwd(), "targets", "examples"), {
     if (existsSync(resolve(process.cwd(), path))) required.add(path);
   }
 }
-for (const entry of readdirSync(resolve(process.cwd(), "benchmarks", "daeb", "v1", "packs"), { withFileTypes: true })) {
-  if (!entry.isDirectory()) continue;
-  required.add(`benchmarks/daeb/v1/packs/${entry.name}/pack.yaml`);
-  required.add(`benchmarks/daeb/v1/packs/${entry.name}/pack.approval.json`);
-}
-
 const missing = [...required].filter((path) => !files.has(path));
 const forbidden = [...files].filter((path) =>
   path === ".env"
   || path.startsWith("docs/")
   || path.startsWith("results/")
   || path.startsWith("ax-arena/")
+  || path.startsWith("benchmarks/daeb/")
   || path.includes("/_archive/")
   || path.startsWith("node_modules/"),
 );

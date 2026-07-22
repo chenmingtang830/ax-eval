@@ -13,7 +13,11 @@ import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import { daebVendorCardPath } from "./benchmark-paths.js";
+import {
+  daebReadVendorCardPath,
+  daebVendorCardPath,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
 
 const ResolveResultSchema = z.object({
   vendor: z.string(),
@@ -127,12 +131,12 @@ export async function resolveVendor(
 }
 
 /** Path where a resolved vendor card is persisted. */
-export function vendorCardPath(root: string, slug: string): string {
+export function vendorCardPath(root: DaebPathInput, slug: string): string {
   return daebVendorCardPath(root, slug);
 }
 
 /** Write a vendor card to disk as YAML. */
-export function writeVendorCard(root: string, result: ResolveResult): string {
+export function writeVendorCard(root: DaebPathInput, result: ResolveResult): string {
   const path = vendorCardPath(root, result.slug);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, yamlStringify(result));
@@ -140,8 +144,8 @@ export function writeVendorCard(root: string, result: ResolveResult): string {
 }
 
 /** Load a previously-resolved vendor card. */
-export function loadVendorCard(root: string, slug: string): ResolveResult | null {
-  const path = vendorCardPath(root, slug);
+export function loadVendorCard(root: DaebPathInput, slug: string): ResolveResult | null {
+  const path = daebReadVendorCardPath(root, slug);
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
   const parsed = yamlParse(raw);

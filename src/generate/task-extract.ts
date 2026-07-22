@@ -41,7 +41,7 @@ import { mapSettledLimit } from "./concurrency.js";
 import type { SupportMatrix } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite, SuiteTask } from "./suite.js";
-import { daebOraclesPath } from "./benchmark-paths.js";
+import { daebOraclesPath, daebReadOraclesPath, type DaebPathInput } from "./benchmark-paths.js";
 
 // Models reliably reach for "postgresql" (the more common spelling) despite
 // the prompt/schema calling for "postgres" — normalize instead of retrying
@@ -1245,12 +1245,12 @@ export async function extractOraclesAll(
 }
 
 /** Path where an oracle-extract result is persisted (DAEB v1: oracles.yaml). */
-export function oracleExtractPath(root: string, slug: string, _suiteName: string): string {
+export function oracleExtractPath(root: DaebPathInput, slug: string, _suiteName: string): string {
   return daebOraclesPath(root, slug);
 }
 
 /** Write an oracle-extract to disk as YAML. */
-export function writeOracleExtract(root: string, result: OracleExtractResult): string {
+export function writeOracleExtract(root: DaebPathInput, result: OracleExtractResult): string {
   const path = oracleExtractPath(root, result.slug, result.suite_name);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, yamlStringify(result));
@@ -1258,8 +1258,8 @@ export function writeOracleExtract(root: string, result: OracleExtractResult): s
 }
 
 /** Load a previously-written oracle-extract. */
-export function loadOracleExtract(root: string, slug: string, suiteName: string): OracleExtractResult | null {
-  const path = oracleExtractPath(root, slug, suiteName);
+export function loadOracleExtract(root: DaebPathInput, slug: string, suiteName: string): OracleExtractResult | null {
+  const path = daebReadOraclesPath(root, slug);
   if (!existsSync(path)) return null;
   const raw = readFileSync(path, "utf8");
   const result = OracleExtractResultSchema.safeParse(yamlParse(raw));
