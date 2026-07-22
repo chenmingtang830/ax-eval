@@ -100,7 +100,7 @@ no environment override.
 
 `ax-arena benchmark export-publication` provides offline parity for converting
 a sealed `ax.publication-bundle/v2` directory into the seven axarena JSON
-indexes. It validates canonical batch/completion provenance, completed cell and
-nested evidence seals, and recomputed aggregate scores before an atomic output
-write. This does not activate the trusted `publish` command, which remains
-fail-closed.
+indexes. It validates canonical batch/completion provenance, derives task and
+trial outputs from completed records, binds snapshot outcomes to exact cell
+evidence, and recomputes aggregate scores before an atomic output write. This
+does not activate the trusted `publish` command, which remains fail-closed.

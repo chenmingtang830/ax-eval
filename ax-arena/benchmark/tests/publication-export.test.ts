@@ -58,6 +58,7 @@ function record(input: {
     profiles: ["high"],
     best_profile: "high",
     model: input.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
+    harness_version_raw: input.harness === "codex" ? "codex-cli 1.2.3" : "claude-code 2.3.4",
     harness_version_semver: input.harness === "codex" ? "1.2.3" : "2.3.4",
     run_batch_id: "batch-1",
     validity_status: "valid",
@@ -312,25 +313,24 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     }));
     recordPathsByVendor[product]!.push(path);
   }
-  const snapshotCell = completion.cells.find((cell) => cell.key === "alpha/api/codex/trial-1")!;
-  writeJson(resolve(bundle, "snapshots/alpha.json"), {
-    runs: [{
-      profile: "high",
-      harness: "codex",
-      surface: "api",
-      model: "gpt-5.6-terra",
-      outcomes: [
-        { taskId: "db-create", success: true, status: "pass" },
-        { taskId: "db-query", success: false, status: "fail" },
-      ],
-      evidence: {
-        results: [snapshotCell.artifacts.find((artifact) => artifact.name === "results")!.path],
-        trace: [snapshotCell.artifacts.find((artifact) => artifact.name === "trace")!.path],
-        transcript: snapshotCell.artifacts.find((artifact) => artifact.name === "transcript")!.path,
-      },
-    }],
-  });
-  artifactPaths.push("snapshots/alpha.json");
+  for (const vendor of Object.keys(vendorSurfaces)) {
+    const runs = completion.cells.filter((cell) => cell.key.startsWith(`${vendor}/`)).map((cell) => {
+      const completedRecord = JSON.parse(readFileSync(resolve(bundle, cell.record_path), "utf8"));
+      return {
+        profile: completedRecord.best_profile,
+        harness: completedRecord.harness,
+        surface: completedRecord.surface,
+        model: completedRecord.model,
+        outcomes: completedRecord.task_results,
+        evidence: {
+          results: [cell.artifacts.find((artifact) => artifact.name === "results")!.path],
+          trace: [cell.artifacts.find((artifact) => artifact.name === "trace")!.path],
+          transcript: cell.artifacts.find((artifact) => artifact.name === "transcript")!.path,
+        },
+      };
+    });
+    artifactJson(`snapshots/${vendor}.json`, { runs });
+  }
   artifactText("reports/alpha.html", "<html>alpha</html>\n");
   artifactText("suite/daeb-1.yaml", "name: DAEB-1\nversion: 1\n");
   artifactText("methodology.md", "# Methodology\n");
@@ -368,7 +368,7 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
         expected_surfaces: vendorSurfaces.beta,
         artifacts: {
           normalized_records: recordPathsByVendor.beta,
-          snapshots: [],
+          snapshots: ["snapshots/beta.json"],
           report_htmls: [],
         },
       },
@@ -404,6 +404,34 @@ function resealArtifact(root: string, path: string): void {
   writeJson(manifestPath, manifest);
 }
 
+function resealCompletedRecord(root: string, path: string): void {
+  resealArtifact(root, path);
+  const manifestPath = resolve(root, "bundle/manifest.json");
+  const manifest = parse(manifestPath);
+  const recordEntry = manifest.integrity.files.find((candidate: { path: string }) => candidate.path === path);
+  const completionPath = manifest.integrity.batch_completion_path;
+  const completion = parse(resolve(root, "bundle", completionPath));
+  const cell = completion.cells.find((candidate: { record_path: string }) => candidate.record_path === path);
+  cell.record_hash = recordEntry.sha256;
+  const cleanup = parse(resolve(root, "bundle", cell.cleanup_path));
+  cleanup.record_sha256 = recordEntry.sha256;
+  writeJson(resolve(root, "bundle", cell.cleanup_path), cleanup);
+  const cleanupBytes = readFileSync(resolve(root, "bundle", cell.cleanup_path));
+  const cleanupHash = createHash("sha256").update(cleanupBytes).digest("hex");
+  const cleanupEntry = manifest.integrity.files.find((candidate: { path: string }) => candidate.path === cell.cleanup_path);
+  cleanupEntry.bytes = cleanupBytes.length;
+  cleanupEntry.sha256 = cleanupHash;
+  cell.cleanup_hash = cleanupHash;
+  writeJson(resolve(root, "bundle", completionPath), completion);
+  const completionBytes = readFileSync(resolve(root, "bundle", completionPath));
+  const completionHash = createHash("sha256").update(completionBytes).digest("hex");
+  const completionEntry = manifest.integrity.files.find((candidate: { path: string }) => candidate.path === completionPath);
+  completionEntry.bytes = completionBytes.length;
+  completionEntry.sha256 = completionHash;
+  manifest.integrity.batch_completion_sha256 = completionHash;
+  writeJson(manifestPath, manifest);
+}
+
 function initializeRepository(root: string): void {
   writeFileSync(resolve(root, ".gitignore"), "*-out\n");
   const git = (...args: string[]) => execFileSync("git", args, { cwd: root, stdio: "ignore" });
@@ -428,7 +456,7 @@ function withoutGeneratedAt(value: unknown): unknown {
 }
 
 describe("arena publication export", () => {
-  it("writes all seven indexes with legacy semantic parity and deterministic time", async () => {
+  it("writes all seven indexes with ranking parity and sealed task provenance", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-export-"));
     try {
       createBundle(root);
@@ -444,8 +472,8 @@ describe("arena publication export", () => {
       const codex = leaderboard.agents.find((agent: { harness: string }) => agent.harness === "codex");
       expect(codex.views.overall.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["beta", "alpha"]);
       expect(codex.views.overall.rows.find((row: { vendor: string }) => row.vendor === "alpha").mean_pass_at_1).toBe(0.7);
-      expect(parse(resolve(root, "arena-out/failures.json")).failures[0].task_id).toBe("db-query");
-      expect(parse(resolve(root, "arena-out/tasks.json")).tasks).toHaveLength(2);
+      expect(parse(resolve(root, "arena-out/failures.json")).failures[0].task_id).toBe("task-081");
+      expect(parse(resolve(root, "arena-out/tasks.json")).tasks).toHaveLength(100);
       const cells = parse(resolve(root, "arena-out/cells.json"));
       expect(cells.generated_at).toBe(GENERATED_AT.toISOString());
       expect(cells.cells).toHaveLength(8);
@@ -455,10 +483,12 @@ describe("arena publication export", () => {
         "--import", TSX_LOADER, CORE_CLI,
         "export-publication", "--from", "bundle", "--out", "core-out",
       ], { cwd: root, stdio: "pipe" });
-      for (const name of manifest.files.map((file) => file.path)) {
+      for (const name of ["leaderboard.json", "cells.json", "methodology-index.json"]) {
         expect(withoutGeneratedAt(parse(resolve(root, "arena-out", name))))
           .toEqual(withoutGeneratedAt(parse(resolve(root, "core-out", name))));
       }
+      expect(parse(resolve(root, "arena-out/trials.json")).task_results[0].evidence.record)
+        .toContain("provenance/cells/");
       expect(parse(resolve(root, "arena-out/manifest.json")).source_integrity)
         .toEqual(parse(resolve(root, "bundle/manifest.json")).integrity);
 
@@ -514,13 +544,32 @@ describe("arena publication export", () => {
         .toThrow(/production batch provenance/);
 
       createBundle(root);
+      const cellRecordPath = "provenance/cells/alpha/api/codex/trial-1/record.json";
+      const cellRecord = parse(resolve(root, "bundle", cellRecordPath));
+      cellRecord.pass_at_1 = 1;
+      cellRecord.pass_at_k = 1;
+      writeJson(resolve(root, "bundle", cellRecordPath), cellRecord);
+      resealCompletedRecord(root, cellRecordPath);
+      expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "cell-score-out" }))
+        .toThrow(/completed record identity/);
+
+      createBundle(root);
       const snapshotPath = "snapshots/alpha.json";
       const snapshot = parse(resolve(root, "bundle", snapshotPath));
       snapshot.runs[0].evidence.results = ["methodology.md"];
       writeJson(resolve(root, "bundle", snapshotPath), snapshot);
       resealArtifact(root, snapshotPath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "evidence-out" }))
-        .toThrow(/outside the completed batch/);
+        .toThrow(/outside.*completed batch/);
+
+      createBundle(root);
+      const outcomeSnapshotPath = "snapshots/alpha.json";
+      const outcomeSnapshot = parse(resolve(root, "bundle", outcomeSnapshotPath));
+      outcomeSnapshot.runs[0].outcomes[0].success = false;
+      writeJson(resolve(root, "bundle", outcomeSnapshotPath), outcomeSnapshot);
+      resealArtifact(root, outcomeSnapshotPath);
+      expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "snapshot-out" }))
+        .toThrow(/does not match completed batch cell/);
 
       createBundle(root);
       const aggregatePath = "records/alpha-api-codex.aggregate.json";
@@ -546,6 +595,22 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", scorePath), score);
       resealArtifact(root, scorePath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "score-out" }))
+        .toThrow(/aggregate metrics do not match completed trials/);
+
+      createBundle(root);
+      const labelManifest = parse(resolve(root, "bundle/manifest.json"));
+      for (const vendor of labelManifest.vendors) {
+        for (const aggregatePath of vendor.artifacts.normalized_records) {
+          const aggregate = parse(resolve(root, "bundle", aggregatePath));
+          if (aggregate.harness !== "codex") continue;
+          aggregate.model = "falsely-labeled-model";
+          aggregate.harness_version_raw = "fake 9.9.9";
+          aggregate.harness_version_semver = "9.9.9";
+          writeJson(resolve(root, "bundle", aggregatePath), aggregate);
+          resealArtifact(root, aggregatePath);
+        }
+      }
+      expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "label-out" }))
         .toThrow(/aggregate metrics do not match completed trials/);
     } finally {
       rmSync(root, { recursive: true, force: true });

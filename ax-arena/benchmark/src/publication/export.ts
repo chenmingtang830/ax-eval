@@ -15,7 +15,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, isAbsolute, posix, relative, resolve } from "node:path";
+import { dirname, isAbsolute, posix, relative, resolve } from "node:path";
 import {
   NORMALIZED_RESULT_SCHEMA,
   NormalizedCellRecordSchema,
@@ -442,7 +442,19 @@ function loadCompletedCellRecords(
     const pack = batch.configuration.packs.find((candidate) => candidate.vendor === configured?.vendor);
     const harness = batch.configuration.harnesses.find((candidate) => candidate.harness === configured?.harness);
     const key = `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`;
-    const artifactNames = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, basename(artifact.path)]));
+    const artifactPaths = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, artifact.path]));
+    const endsWithPath = (value: string, suffix: string): boolean => {
+      const normalizedValue = value.replaceAll("\\", "/");
+      const normalizedSuffix = suffix.replaceAll("\\", "/");
+      return normalizedValue === normalizedSuffix || normalizedValue.endsWith(`/${normalizedSuffix}`);
+    };
+    const providerPins = (record.provider_provenance ?? [])
+      .map((provider) => JSON.stringify([provider.kind, provider.id, provider.version])).sort();
+    const configuredPins = (configured?.provider_pins ?? [])
+      .map((provider) => JSON.stringify([provider.kind, provider.id, provider.version])).sort();
+    const scoredTasks = record.task_results.filter((task) => !task.na);
+    const passedTasks = scoredTasks.filter((task) => task.success);
+    const derivedPassRate = scoredTasks.length ? passedTasks.length / scoredTasks.length : 0;
     if (!configured || !pack || !harness || key !== cell.key
       || record.record_id !== cell.record_id || record.cell_id !== cell.record_id
       || record.batch_id !== batch.batch_id || record.run_batch_id !== batch.batch_id
@@ -460,17 +472,23 @@ function loadCompletedCellRecords(
       || record.harness_version_semver !== harness.version_semver
       || record.trial !== configured.trial || record.status !== "completed"
       || record.blocked !== undefined || record.error !== null || record.validity_status !== "valid"
+      || record.attempts !== 1 || !sameNumber(record.pass_at_1, derivedPassRate)
+      || !sameNumber(record.pass_at_k, derivedPassRate)
       || cleanup.cell_id !== record.cell_id || cleanup.record_sha256 !== cell.record_hash
       || cleanup.status !== cell.cleanup_status || cleanup.status !== "confirmed"
       || cleanup.namespace !== record.execution_namespace
       || cleanup.provider?.id !== configured.reset_provider?.id
       || cleanup.provider?.version !== configured.reset_provider?.version
-      || record.tasks_total !== record.task_results.filter((task) => !task.na).length
-      || record.tasks_passed !== record.task_results.filter((task) => !task.na && task.success).length
-      || record.artifacts.results !== artifactNames.results
-      || record.artifacts.trace !== artifactNames.trace
-      || record.artifacts.transcript !== artifactNames.transcript
-      || record.artifacts.invoke_metadata !== artifactNames.invoke_metadata) {
+      || !endsWithPath(cleanup.record_path, cell.record_path)
+      || record.tasks_total !== scoredTasks.length || record.tasks_passed !== passedTasks.length
+      || providerPins.join("\0") !== configuredPins.join("\0")
+      || cell.harness !== configured.harness || cell.requested_model !== configured.model
+      || cell.actual_model !== configured.model || cell.harness_version_raw !== harness.version_raw
+      || cell.harness_version_semver !== harness.version_semver
+      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.results), artifactPaths.results!)
+      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.trace), artifactPaths.trace!)
+      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.transcript), artifactPaths.transcript!)
+      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.invoke_metadata), artifactPaths.invoke_metadata!)) {
       throw new Error(`completed record identity does not match sealed batch cell ${cell.key}`);
     }
     records.set(cell.record_path, record);
@@ -520,6 +538,15 @@ function assertAggregateSourceBinding(
       ? "all_pass"
       : sources.every((source) => source.pass_at_1 <= 0) ? "all_fail" : "inconsistent";
     if (record.trial_count !== sources.length
+      || record.product !== vendor || record.surface !== sources[0]!.surface
+      || record.harness !== sources[0]!.harness
+      || record.standard_set_version !== sources[0]!.standard_set_version
+      || record.run_batch_id !== batch.batch_id || record.validity_status !== "valid"
+      || record.model !== sources[0]!.model
+      || record.harness_version_raw !== sources[0]!.harness_version_raw
+      || record.harness_version_semver !== sources[0]!.harness_version_semver
+      || record.best_profile !== sources[0]!.best_profile
+      || record.profiles.length !== 1 || record.profiles[0] !== sources[0]!.profiles[0]
       || record.trial_values?.length !== trialValues.length
       || record.trial_values.some((value, index) => !sameNumber(value, trialValues[index]))
       || !sameNumber(record.mean_pass_rate, mean) || !sameNumber(record.pass_at_1, mean)
@@ -540,12 +567,16 @@ function assertAggregateSourceBinding(
 function assertNestedEvidenceCoverage(
   bundle: ArenaPublicationBundle,
   completion: ArenaBatchCompletion,
+  completedCellRecords: ReadonlyMap<string, NormalizedCellRecord>,
   normalizedRecords: ReadonlyMap<string, NormalizedResult>,
   snapshots: ReadonlyMap<string, unknown>,
 ): void {
   const entries = integrityEntries(bundle);
   const completedRecords = new Set(completion.cells.map((cell) => cell.record_path));
-  const completedArtifacts = new Set(completion.cells.flatMap((cell) => cell.artifacts.map((artifact) => artifact.path)));
+  const cellsByEvidence = new Map(completion.cells.map((cell) => {
+    const artifacts = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, artifact.path]));
+    return [JSON.stringify([artifacts.results, artifacts.trace, artifacts.transcript]), cell] as const;
+  }));
   for (const [path, record] of normalizedRecords) {
     for (const source of record.source_records ?? []) {
       requireIntegrityEntry(entries, source, `source record referenced by ${path}`);
@@ -554,63 +585,68 @@ function assertNestedEvidenceCoverage(
       }
     }
   }
+  const seenCells = new Set<string>();
   for (const [snapshotPath, snapshot] of snapshots) {
-    if (!snapshot || typeof snapshot !== "object" || !Array.isArray((snapshot as { runs?: unknown }).runs)) continue;
-    for (const run of (snapshot as { runs: unknown[] }).runs) {
-      if (!run || typeof run !== "object") continue;
-      const evidence = (run as { evidence?: unknown }).evidence;
-      if (!evidence || typeof evidence !== "object") continue;
-      const value = evidence as { results?: unknown; trace?: unknown; transcript?: unknown };
-      const referenced = [
-        ...(Array.isArray(value.results) ? value.results : []),
-        ...(Array.isArray(value.trace) ? value.trace : []),
-        ...(typeof value.transcript === "string" ? [value.transcript] : []),
-      ];
-      for (const reference of referenced) {
-        if (typeof reference !== "string") {
-          throw new Error(`snapshot ${snapshotPath} contains a non-string evidence path`);
-        }
-        requireIntegrityEntry(entries, reference, `evidence referenced by ${snapshotPath}`);
-        if (!completedArtifacts.has(reference)) {
-          throw new Error(`snapshot ${snapshotPath} references evidence outside the completed batch: ${reference}`);
-        }
-      }
+    if (!snapshot || typeof snapshot !== "object" || !Array.isArray((snapshot as { runs?: unknown }).runs)) {
+      throw new Error(`snapshot ${snapshotPath} must contain a runs array`);
     }
+    for (const run of (snapshot as { runs: unknown[] }).runs) {
+      if (!run || typeof run !== "object") throw new Error(`snapshot ${snapshotPath} contains an invalid run`);
+      const valueRun = run as Record<string, unknown>;
+      const evidence = valueRun.evidence;
+      if (!evidence || typeof evidence !== "object") throw new Error(`snapshot ${snapshotPath} run is missing evidence`);
+      const value = evidence as { results?: unknown; trace?: unknown; transcript?: unknown };
+      if (!Array.isArray(value.results) || value.results.length !== 1 || typeof value.results[0] !== "string"
+        || !Array.isArray(value.trace) || value.trace.length !== 1 || typeof value.trace[0] !== "string"
+        || typeof value.transcript !== "string" || !Array.isArray(valueRun.outcomes)) {
+        throw new Error(`snapshot ${snapshotPath} run must carry one exact completed-cell evidence set and outcomes`);
+      }
+      const referenced = [value.results[0], value.trace[0], value.transcript];
+      for (const reference of referenced) {
+        requireIntegrityEntry(entries, reference, `evidence referenced by ${snapshotPath}`);
+      }
+      const cell = cellsByEvidence.get(JSON.stringify(referenced));
+      const record = cell ? completedCellRecords.get(cell.record_path) : undefined;
+      if (!cell || !record) throw new Error(`snapshot ${snapshotPath} references evidence outside one completed batch cell`);
+      if (seenCells.has(cell.key)) throw new Error(`snapshot ${snapshotPath} duplicates completed batch cell ${cell.key}`);
+      if (valueRun.profile !== record.best_profile || valueRun.harness !== record.harness
+        || valueRun.surface !== record.surface || valueRun.model !== record.model
+        || JSON.stringify(valueRun.outcomes) !== JSON.stringify(record.task_results)) {
+        throw new Error(`snapshot ${snapshotPath} does not match completed batch cell ${cell.key}`);
+      }
+      seenCells.add(cell.key);
+    }
+  }
+  const missingCells = completion.cells.filter((cell) => !seenCells.has(cell.key));
+  if (missingCells.length) {
+    throw new Error(`publication snapshots do not cover completed batch cell(s): ${missingCells.map((cell) => cell.key).join(", ")}`);
   }
 }
 
-function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array<Record<string, unknown>> {
-  if (!snapshot || typeof snapshot !== "object") return [];
-  const runs = (snapshot as { runs?: unknown }).runs;
-  if (!Array.isArray(runs)) return [];
+function taskResultsFromCompletedCells(
+  completion: ArenaBatchCompletion,
+  records: ReadonlyMap<string, NormalizedCellRecord>,
+): Array<Record<string, unknown>> {
   const out: Array<Record<string, unknown>> = [];
-  for (const run of runs) {
-    if (!run || typeof run !== "object") continue;
-    const record = run as {
-      profile?: unknown;
-      harness?: unknown;
-      surface?: unknown;
-      model?: unknown;
-      outcomes?: unknown;
-      evidence?: { results?: unknown; trace?: unknown; transcript?: unknown };
-    };
-    if (!Array.isArray(record.outcomes)) continue;
-    for (const outcome of record.outcomes) {
-      if (!outcome || typeof outcome !== "object") continue;
-      const value = outcome as Record<string, unknown>;
+  for (const cell of completion.cells) {
+    const record = records.get(cell.record_path)!;
+    const artifacts = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, artifact.path]));
+    for (const task of record.task_results) {
       out.push({
-        task_id: value.taskId ?? value.task_id ?? value.id ?? null,
-        success: typeof value.success === "boolean" ? value.success : null,
-        status: value.status ?? null,
-        profile: record.profile ?? null,
-        harness: record.harness ?? null,
-        surface: record.surface ?? null,
-        model: record.model ?? null,
+        vendor: record.product,
+        task_id: task.taskId,
+        success: task.na ? null : task.success,
+        status: task.na ? "na" : task.success ? "pass" : "fail",
+        profile: record.best_profile,
+        harness: record.harness,
+        surface: record.surface,
+        model: record.model,
+        trial: record.trial,
         evidence: {
-          snapshot: snapshotPath,
-          results: Array.isArray(record.evidence?.results) ? record.evidence.results : [],
-          trace: Array.isArray(record.evidence?.trace) ? record.evidence.trace : [],
-          transcript: typeof record.evidence?.transcript === "string" ? record.evidence.transcript : null,
+          record: cell.record_path,
+          results: [artifacts.results],
+          trace: [artifacts.trace],
+          transcript: artifacts.transcript,
         },
       });
     }
@@ -790,11 +826,11 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
       ));
     }
   }
-  assertNestedEvidenceCoverage(bundle, completion, normalizedRecords, snapshots);
+  assertNestedEvidenceCoverage(bundle, completion, completedRecords, normalizedRecords, snapshots);
 
   const leaderboardRecords: Array<{ vendor: string; record: NormalizedResult }> = [];
   const cells: Array<Record<string, unknown>> = [];
-  const taskResults: Array<Record<string, unknown>> = [];
+  const taskResults = taskResultsFromCompletedCells(completion, completedRecords);
   const evidence: Array<Record<string, unknown>> = [];
   for (const vendor of bundle.vendors) {
     for (const recordPath of vendor.artifacts.normalized_records) {
@@ -803,7 +839,6 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
       evidence.push({ kind: "normalized_record", vendor: vendor.slug, surface: record.surface, harness: record.harness, path: recordPath });
     }
     for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
-      taskResults.push(...taskResultsFromSnapshot(snapshotPath, snapshots.get(snapshotPath)).map((result) => ({ vendor: vendor.slug, ...result })));
       evidence.push({ kind: "snapshot", vendor: vendor.slug, path: snapshotPath });
     }
     for (const reportPath of vendor.artifacts.report_htmls ?? []) {

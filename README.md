@@ -345,7 +345,8 @@ quality gates passing.
 
 Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
 envelope. It binds aggregate scores to the canonical production batch and
-completion, revalidates all completed cell records and nested evidence, and
+completion, derives trial scores and task drilldowns from sealed task outcomes,
+binds every snapshot run to one exact completed-cell evidence set, and
 recomputes the scored three-trial fields before writing. The legacy core bundle
 command remains draft-only until the hardened arena bundle writer lands; an
 unsealed historical v2 bundle cannot be promoted through this command.
