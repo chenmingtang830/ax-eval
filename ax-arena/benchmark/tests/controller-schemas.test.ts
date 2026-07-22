@@ -329,13 +329,21 @@ describe("arena runtime report schema", () => {
       schema: "ax.arena-runtime-report/v1",
       batch_id: "batch-1",
       configuration_hash: "a".repeat(64),
+      source_commit_sha: "b".repeat(40),
+      batch_manifest_sha256: "c".repeat(64),
+      batch_completion_sha256: "d".repeat(64),
+      execution: { runtime_backend: "native", trust_level: "local" },
+      sandbox_provenance: null,
       generated_at: "2026-07-21T00:00:00.000Z",
       surface_reports: [{
         vendor: "neon",
         surface: "api",
         snapshot_path: "neon/api/reporting/generated-eval.snapshot.json",
+        snapshot_sha256: "e".repeat(64),
         html_path: "neon/api/reporting/generated-eval.html",
+        html_sha256: "f".repeat(64),
         failure_review_path: "neon/api/reporting/failure-review.md",
+        failure_review_sha256: "0".repeat(64),
       }],
       aggregates: [{
         vendor: "neon",
@@ -343,11 +351,32 @@ describe("arena runtime report schema", () => {
         harness: "codex",
         trial_count: 1,
         aggregate_record_path: "neon/api/codex/aggregate/result.json",
+        aggregate_record_sha256: "1".repeat(64),
         trial_manifest_path: "neon/api/codex/aggregate/trials.json",
+        trial_manifest_sha256: "2".repeat(64),
       }],
     };
     expect(ArenaRuntimeReportSchema.safeParse(report).success).toBe(true);
     expect(validate(report)).toBe(true);
+    const pinned = {
+      ...report,
+      execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
+      sandbox_provenance: {
+        id: "ax-arena-bubblewrap",
+        version: "ax.arena-bubblewrap/v2",
+        runtime_lock_sha256: "3".repeat(64),
+        implementation_sha256: "4".repeat(64),
+        policy_sha256: "5".repeat(64),
+      },
+    };
+    expect(ArenaRuntimeReportSchema.safeParse(pinned).success).toBe(true);
+    expect(validate(pinned)).toBe(true);
+    expect(ArenaRuntimeReportSchema.safeParse({ ...report, source_commit_sha: undefined }).success).toBe(false);
+    expect(validate({ ...report, source_commit_sha: undefined })).toBe(false);
+    expect(ArenaRuntimeReportSchema.safeParse({ ...report, execution: pinned.execution }).success).toBe(false);
+    expect(validate({ ...report, execution: pinned.execution })).toBe(false);
+    expect(ArenaRuntimeReportSchema.safeParse({ ...pinned, sandbox_provenance: null }).success).toBe(false);
+    expect(validate({ ...pinned, sandbox_provenance: null })).toBe(false);
     expect(ArenaRuntimeReportSchema.safeParse({ ...report, extra: true }).success).toBe(false);
     expect(validate({ ...report, extra: true })).toBe(false);
     for (const path of ["/absolute.json", "../escape.json", "nested/./ambiguous.json", "nested\\windows.json"]) {

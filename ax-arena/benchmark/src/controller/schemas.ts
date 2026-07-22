@@ -448,17 +448,32 @@ export const ArenaBatchCompletionSchema = z.object({
 export type ArenaBatchCompletion = z.infer<typeof ArenaBatchCompletionSchema>;
 
 export const ARENA_RUNTIME_REPORT_SCHEMA = "ax.arena-runtime-report/v1" as const;
+const ArenaRuntimeSandboxProvenanceSchema = z.object({
+  id: z.literal("ax-arena-bubblewrap"),
+  version: z.literal("ax.arena-bubblewrap/v2"),
+  runtime_lock_sha256: Sha256,
+  implementation_sha256: Sha256,
+  policy_sha256: Sha256,
+}).strict();
 export const ArenaRuntimeReportSchema = z.object({
   schema: z.literal(ARENA_RUNTIME_REPORT_SCHEMA),
   batch_id: NonBlank,
   configuration_hash: Sha256,
+  source_commit_sha: SourceSha,
+  batch_manifest_sha256: Sha256,
+  batch_completion_sha256: Sha256,
+  execution: ArenaExecutionModeSchema,
+  sandbox_provenance: ArenaRuntimeSandboxProvenanceSchema.nullable(),
   generated_at: Timestamp,
   surface_reports: z.array(z.object({
     vendor: ArenaVendorSchema,
     surface: Surface,
     snapshot_path: ReportPath,
+    snapshot_sha256: Sha256,
     html_path: ReportPath,
+    html_sha256: Sha256,
     failure_review_path: ReportPath,
+    failure_review_sha256: Sha256,
   }).strict()).min(1).max(1_024),
   aggregates: z.array(z.object({
     vendor: ArenaVendorSchema,
@@ -466,7 +481,16 @@ export const ArenaRuntimeReportSchema = z.object({
     harness: Harness,
     trial_count: z.number().int().positive(),
     aggregate_record_path: ReportPath,
+    aggregate_record_sha256: Sha256,
     trial_manifest_path: ReportPath,
+    trial_manifest_sha256: Sha256,
   }).strict()).min(1).max(2_048),
-}).strict();
+}).strict().superRefine((report, context) => {
+  if (report.execution.runtime_backend === "pinned-oci" && !report.sandbox_provenance) {
+    context.addIssue({ code: "custom", path: ["sandbox_provenance"], message: "pinned-oci reports require sandbox provenance" });
+  }
+  if (report.execution.runtime_backend === "native" && report.sandbox_provenance) {
+    context.addIssue({ code: "custom", path: ["sandbox_provenance"], message: "native reports cannot claim pinned sandbox provenance" });
+  }
+});
 export type ArenaRuntimeReport = z.infer<typeof ArenaRuntimeReportSchema>;
