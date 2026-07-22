@@ -22,7 +22,6 @@ import {
   type SurfaceId,
   type TargetPack,
 } from "ax-eval";
-import { assertBatchManifest } from "./batch.js";
 import { arenaCellId } from "./cell.js";
 import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
@@ -31,6 +30,8 @@ import {
   ArenaBatchManifestSchema,
   ArenaCellCleanupSchema,
   ArenaRuntimeReportSchema,
+  arenaBatchConfigurationHash,
+  arenaExecutionMode,
   type ArenaBatchManifest,
   type ArenaCellCleanupRecord,
   type ArenaRuntimeReport,
@@ -84,6 +85,14 @@ function parseCanonical<T>(bytes: Buffer, parse: (input: unknown) => T, label: s
   return parsed;
 }
 
+function jsonBytes(value: unknown): Buffer {
+  return Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+}
+
+function sha256(bytes: Buffer): string {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
 function prepareOutput(runRoot: string, path: string): void {
   const root = resolve(runRoot);
   const lexical = relative(root, resolve(path));
@@ -115,7 +124,7 @@ function assertOutputAvailable(runRoot: string, path: string): void {
 
 function exclusiveJson(runRoot: string, path: string, value: unknown): void {
   prepareOutput(runRoot, path);
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, { flag: "wx", mode: 0o600 });
+  writeFileSync(path, jsonBytes(value), { flag: "wx", mode: 0o600 });
 }
 
 function exclusiveText(runRoot: string, path: string, value: string): void {
@@ -296,8 +305,13 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     throw new Error("runtime reporting minPassRate must be a finite number from 0 to 1");
   }
   const runRoot = resolve(options.runRoot);
-  const batch = ArenaBatchManifestSchema.parse(options.batch);
-  assertBatchManifest(runRoot, batch);
+  const requestedBatch = ArenaBatchManifestSchema.parse(options.batch);
+  const batchFile = readRunFile(runRoot, "batch.json", "batch manifest");
+  const batch = parseCanonical(batchFile.bytes, (input) => ArenaBatchManifestSchema.parse(input), "batch manifest");
+  if (JSON.stringify(batch) !== JSON.stringify(requestedBatch)
+    || batch.configuration_hash !== arenaBatchConfigurationHash(batch.configuration)) {
+    throw new Error("immutable arena batch manifest changed during reporting");
+  }
   const completionFile = readRunFile(runRoot, "batch-completion.json", "batch completion");
   const completion = parseCanonical(completionFile.bytes, (input) => ArenaBatchCompletionSchema.parse(input), "batch completion");
   if (completion.batch_id !== batch.batch_id
@@ -430,17 +444,22 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       minPassRate,
       generatedAt,
     };
+    const html = renderGeneratedSnapshot(snapshot);
+    const review = failureReview(selected.map(({ record }) => record));
     outputs.push(
       { kind: "json", path: snapshotPath, value: snapshot },
-      { kind: "text", path: htmlPath, value: renderGeneratedSnapshot(snapshot) },
-      { kind: "text", path: reviewPath, value: failureReview(selected.map(({ record }) => record)) },
+      { kind: "text", path: htmlPath, value: html },
+      { kind: "text", path: reviewPath, value: review },
     );
     surfaceReports.push({
       vendor,
       surface,
       snapshot_path: relative(runRoot, snapshotPath).replaceAll("\\", "/"),
+      snapshot_sha256: sha256(jsonBytes(snapshot)),
       html_path: relative(runRoot, htmlPath).replaceAll("\\", "/"),
+      html_sha256: sha256(Buffer.from(html)),
       failure_review_path: relative(runRoot, reviewPath).replaceAll("\\", "/"),
+      failure_review_sha256: sha256(Buffer.from(review)),
     });
     for (const harness of ["codex", "claude-code"] as const) {
       const trials = selected.filter(({ record }) => record.harness === harness)
@@ -458,8 +477,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       aggregate.task_consistency_at_3 = consistency?.rate ?? null;
       aggregate.pass_3_tasks = consistency?.count ?? null;
       aggregate.pass_3_tasks_total = consistency?.total ?? null;
-      outputs.push({ kind: "json", path: aggregatePath, value: aggregate });
-      outputs.push({ kind: "json", path: trialManifestPath, value: {
+      const trialManifest = {
         schema: "ax.arena-runtime-trials/v1",
         batch_id: batch.batch_id,
         vendor,
@@ -471,14 +489,18 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
           record_path: recordPath,
           record_hash: cell.record_hash,
         })),
-      } });
+      };
+      outputs.push({ kind: "json", path: aggregatePath, value: aggregate });
+      outputs.push({ kind: "json", path: trialManifestPath, value: trialManifest });
       aggregates.push({
         vendor,
         surface,
         harness,
         trial_count: trials.length,
         aggregate_record_path: relative(runRoot, aggregatePath).replaceAll("\\", "/"),
+        aggregate_record_sha256: sha256(jsonBytes(aggregate)),
         trial_manifest_path: relative(runRoot, trialManifestPath).replaceAll("\\", "/"),
+        trial_manifest_sha256: sha256(jsonBytes(trialManifest)),
       });
     }
   }
@@ -486,6 +508,17 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     schema: ARENA_RUNTIME_REPORT_SCHEMA,
     batch_id: batch.batch_id,
     configuration_hash: batch.configuration_hash,
+    source_commit_sha: batch.source_commit_sha,
+    batch_manifest_sha256: sha256(batchFile.bytes),
+    batch_completion_sha256: sha256(completionFile.bytes),
+    execution: arenaExecutionMode(batch.configuration),
+    sandbox_provenance: batch.configuration.sandbox ? {
+      id: BUBBLEWRAP_SANDBOX_ID,
+      version: batch.configuration.sandbox.policy_version,
+      runtime_lock_sha256: batch.configuration.sandbox.runtime_lock_sha256,
+      implementation_sha256: batch.configuration.sandbox.executable_sha256,
+      policy_sha256: bubblewrapPolicyHash(batch.configuration.sandbox),
+    } : null,
     generated_at: generatedAt,
     surface_reports: surfaceReports,
     aggregates,

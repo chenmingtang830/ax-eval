@@ -4,21 +4,29 @@
   "title": "AXArena runtime reporting bundle v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "batch_id", "configuration_hash", "generated_at", "surface_reports", "aggregates"],
+  "required": ["schema", "batch_id", "configuration_hash", "source_commit_sha", "batch_manifest_sha256", "batch_completion_sha256", "execution", "sandbox_provenance", "generated_at", "surface_reports", "aggregates"],
   "properties": {
     "schema": { "const": "ax.arena-runtime-report/v1" },
     "batch_id": { "$ref": "#/$defs/nonBlank" },
-    "configuration_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "configuration_hash": { "$ref": "#/$defs/sha256" },
+    "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "batch_manifest_sha256": { "$ref": "#/$defs/sha256" },
+    "batch_completion_sha256": { "$ref": "#/$defs/sha256" },
+    "execution": { "$ref": "#/$defs/execution" },
+    "sandbox_provenance": {
+      "oneOf": [{ "$ref": "#/$defs/sandboxProvenance" }, { "type": "null" }]
+    },
     "generated_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
     "surface_reports": {
       "type": "array", "minItems": 1, "maxItems": 1024,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["vendor", "surface", "snapshot_path", "html_path", "failure_review_path"],
+        "required": ["vendor", "surface", "snapshot_path", "snapshot_sha256", "html_path", "html_sha256", "failure_review_path", "failure_review_sha256"],
         "properties": {
           "vendor": { "$ref": "#/$defs/vendor" }, "surface": { "$ref": "#/$defs/surface" },
-          "snapshot_path": { "$ref": "#/$defs/reportPath" }, "html_path": { "$ref": "#/$defs/reportPath" },
-          "failure_review_path": { "$ref": "#/$defs/reportPath" }
+          "snapshot_path": { "$ref": "#/$defs/reportPath" }, "snapshot_sha256": { "$ref": "#/$defs/sha256" },
+          "html_path": { "$ref": "#/$defs/reportPath" }, "html_sha256": { "$ref": "#/$defs/sha256" },
+          "failure_review_path": { "$ref": "#/$defs/reportPath" }, "failure_review_sha256": { "$ref": "#/$defs/sha256" }
         }
       }
     },
@@ -26,19 +34,79 @@
       "type": "array", "minItems": 1, "maxItems": 2048,
       "items": {
         "type": "object", "additionalProperties": false,
-        "required": ["vendor", "surface", "harness", "trial_count", "aggregate_record_path", "trial_manifest_path"],
+        "required": ["vendor", "surface", "harness", "trial_count", "aggregate_record_path", "aggregate_record_sha256", "trial_manifest_path", "trial_manifest_sha256"],
         "properties": {
           "vendor": { "$ref": "#/$defs/vendor" }, "surface": { "$ref": "#/$defs/surface" },
           "harness": { "enum": ["codex", "claude-code"] }, "trial_count": { "type": "integer", "minimum": 1 },
-          "aggregate_record_path": { "$ref": "#/$defs/reportPath" }, "trial_manifest_path": { "$ref": "#/$defs/reportPath" }
+          "aggregate_record_path": { "$ref": "#/$defs/reportPath" }, "aggregate_record_sha256": { "$ref": "#/$defs/sha256" },
+          "trial_manifest_path": { "$ref": "#/$defs/reportPath" }, "trial_manifest_sha256": { "$ref": "#/$defs/sha256" }
         }
       }
     }
   },
   "$defs": {
     "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_backend", "trust_level"],
+      "properties": {
+        "runtime_backend": { "enum": ["native", "pinned-oci"] },
+        "trust_level": { "enum": ["local", "hosted-trusted"] }
+      },
+      "not": {
+        "properties": {
+          "runtime_backend": { "const": "native" },
+          "trust_level": { "const": "hosted-trusted" }
+        },
+        "required": ["runtime_backend", "trust_level"]
+      }
+    },
+    "sandboxProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "runtime_lock_sha256", "implementation_sha256", "policy_sha256"],
+      "properties": {
+        "id": { "const": "ax-arena-bubblewrap" },
+        "version": { "const": "ax.arena-bubblewrap/v2" },
+        "runtime_lock_sha256": { "$ref": "#/$defs/sha256" },
+        "implementation_sha256": { "$ref": "#/$defs/sha256" },
+        "policy_sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
     "vendor": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
     "reportPath": { "type": "string", "maxLength": 4096, "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._/-]+$" },
     "surface": { "enum": ["api", "cli", "sdk", "mcp"] }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "execution": {
+            "type": "object",
+            "properties": { "runtime_backend": { "const": "pinned-oci" } },
+            "required": ["runtime_backend"]
+          }
+        },
+        "required": ["execution"]
+      },
+      "then": { "type": "object", "properties": { "sandbox_provenance": { "$ref": "#/$defs/sandboxProvenance" } } }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "execution": {
+            "type": "object",
+            "properties": { "runtime_backend": { "const": "native" } },
+            "required": ["runtime_backend"]
+          }
+        },
+        "required": ["execution"]
+      },
+      "then": { "type": "object", "properties": { "sandbox_provenance": { "type": "null" } } }
+    }
+  ]
 }
