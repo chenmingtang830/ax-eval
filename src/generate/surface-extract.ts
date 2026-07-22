@@ -58,7 +58,7 @@ const McpExtractSchema = z.object({
   auth: SurfaceAuthExtractSchema,
 });
 
-const SurfaceExtractResultSchema = z.object({
+export const SurfaceExtractResultSchema = z.object({
   schema: z.literal(SURFACE_EXTRACT_SCHEMA_VERSION).default(SURFACE_EXTRACT_SCHEMA_VERSION),
   vendor: z.string(),
   slug: z.string(),

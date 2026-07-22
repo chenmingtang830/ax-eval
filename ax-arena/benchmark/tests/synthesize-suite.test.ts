@@ -10,10 +10,15 @@ import {
   proposeClustersFromUniverse,
   resolveConceptDifficulty,
   synthesizeSuite,
+  type Cluster,
   type SynthesizedTask,
-} from "../src/generate/synthesize-suite.js";
-import { defaultSuiteMethodology, type ConceptUniverse } from "../src/generate/methodology.js";
-import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
+} from "../src/authoring/synthesize-suite.js";
+import {
+  defaultSuiteMethodology,
+  type CapabilityExtractResult,
+  type ConceptUniverse,
+  type CoverageMatrix,
+} from "ax-eval";
 
 describe("synthesize-suite helpers", () => {
   it("infers suite version from the output stem", () => {
@@ -42,10 +47,13 @@ describe("synthesize-suite helpers", () => {
     };
     const extracts: CapabilityExtractResult[] = [
       {
+        schema: "ax.capability-inventory/v1",
         vendor: "Acme",
         slug: "acme",
         category: "database",
         extracted_at: "2026-01-01T00:00:00.000Z",
+        audit_status: "candidate",
+        audit_notes: [],
         capabilities: [{
           capability_name: "schema-migration",
           title: "Schema migration",
@@ -60,10 +68,13 @@ describe("synthesize-suite helpers", () => {
         }],
       },
       {
+        schema: "ax.capability-inventory/v1",
         vendor: "Bravo",
         slug: "bravo",
         category: "database",
         extracted_at: "2026-01-01T00:00:00.000Z",
+        audit_status: "candidate",
+        audit_notes: [],
         capabilities: [{
           capability_name: "schema-migration",
           title: "Schema migration",
@@ -164,10 +175,13 @@ describe("synthesize-suite helpers", () => {
       extraction_provenance: { source: "official-docs" as const, extracted_at: "2026-01-01T00:00:00.000Z", extractor: "test" },
     }));
     const extracts: CapabilityExtractResult[] = [{
+      schema: "ax.capability-inventory/v1",
       vendor: "Cockroachdb",
       slug: "cockroachdb",
       category: "database",
       extracted_at: "2026-01-01T00:00:00.000Z",
+      audit_status: "candidate",
+      audit_notes: [],
       capabilities,
     }];
     const universe: ConceptUniverse = {
@@ -200,7 +214,7 @@ describe("synthesize-suite helpers", () => {
       target_task_count: 1,
       min_vendor_coverage_pct: 0.5,
     };
-    const coverageMatrix = {
+    const coverageMatrix: CoverageMatrix = {
       schema: "ax.coverage-matrix/v1" as const,
       category: "database",
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -276,7 +290,7 @@ describe("synthesize-suite helpers", () => {
       target_task_count: 1,
       min_vendor_coverage_pct: 0.5,
     };
-    const coverageMatrix = {
+    const coverageMatrix: CoverageMatrix = {
       schema: "ax.coverage-matrix/v1" as const,
       category: "database",
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -358,7 +372,7 @@ describe("synthesize-suite helpers", () => {
       target_task_count: 4,
       min_vendor_coverage_pct: 0.5,
     };
-    const coverageMatrix = {
+    const coverageMatrix: CoverageMatrix = {
       schema: "ax.coverage-matrix/v1" as const,
       category: "database",
       generated_at: "2026-01-01T00:00:00.000Z",
@@ -419,7 +433,7 @@ describe("synthesize-suite helpers", () => {
         coverage: [],
       },
     ];
-    const selectedClusters = [
+    const selectedClusters: Cluster[] = [
       { cluster_name: "evolve-schema", title: "Evolve Schema", difficulty: "L3", rationale: "Selected.", coverage: [] },
       { cluster_name: "backup-and-restore", title: "Backup And Restore", difficulty: "L4", rationale: "Selected.", coverage: [] },
     ];
@@ -446,10 +460,13 @@ describe("synthesize-suite helpers", () => {
 
   it("persists the execution-learning failure taxonomy used for DAEB-1 hardening", async () => {
     const result = await synthesizeSuite("database", [{
+      schema: "ax.capability-inventory/v1",
       vendor: "Acme",
       slug: "acme",
       category: "database",
       extracted_at: "2026-01-01T00:00:00.000Z",
+      audit_status: "candidate",
+      audit_notes: [],
       capabilities: [{
         capability_name: "create-table",
         title: "Create table",
@@ -496,7 +513,7 @@ describe("synthesize-suite helpers", () => {
         },
       ],
     };
-    const coverageMatrix = {
+    const coverageMatrix: CoverageMatrix = {
       schema: "ax.coverage-matrix/v1" as const,
       category: "database",
       generated_at: "2026-01-01T00:00:00.000Z",

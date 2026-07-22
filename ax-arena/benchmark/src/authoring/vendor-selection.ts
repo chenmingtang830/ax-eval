@@ -1,9 +1,12 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parse as yamlParse } from "yaml";
 import { z } from "zod";
-import { daebReadVendorSelectionLedgerPath, type DaebPathInput } from "./benchmark-paths.js";
-import { loadCapabilityExtract } from "./capability-extract.js";
-import { loadSurfaceExtract } from "./surface-extract.js";
+import {
+  daebReadVendorSelectionLedgerPath,
+  loadCapabilityExtract,
+  loadSurfaceExtract,
+  type DaebPathInput,
+} from "ax-eval";
 
 const EligibilitySchema = z.object({
   managed_service: z.boolean(),

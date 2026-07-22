@@ -1,8 +1,11 @@
 import { existsSync } from "node:fs";
-import { loadPack } from "../config.js";
-import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
-import type { OracleExtractResult } from "./task-extract.js";
-import type { SupportMatrix } from "./methodology.js";
+import {
+  daebReadCompiledPackPath,
+  loadPack,
+  type DaebPathInput,
+  type OracleExtractResult,
+  type SupportMatrix,
+} from "ax-eval";
 
 export interface PackAuditFinding {
   severity: "error" | "warn";

@@ -11,18 +11,16 @@ import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
   auditCapabilityInventory,
+  auditSurfaceExtract,
+  daebReadExtractsDir,
   loadCapabilityInventory,
-  writeCapabilityInventory,
+  loadSurfaceExtract,
   type CapabilityInventory,
   type CapabilityInventoryEntry,
-} from "./methodology.js";
-import {
-  auditSurfaceExtract,
-  loadSurfaceExtract,
-  writeSurfaceExtract,
+  type DaebPathInput,
   type SurfaceExtractResult,
-} from "./surface-extract.js";
-import { daebReadExtractsDir, type DaebPathInput } from "./benchmark-paths.js";
+} from "ax-eval";
+import { writeCapabilityInventory, writeSurfaceExtract } from "./artifact-writers.js";
 
 export type ExtractFindingSeverity = "error" | "warn" | "info";
 

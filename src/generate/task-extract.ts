@@ -143,7 +143,7 @@ const VendorConfigSchema = z.object({
 });
 type VendorConfig = z.infer<typeof VendorConfigSchema>;
 
-const OracleExtractResultSchema = z.object({
+export const OracleExtractResultSchema = z.object({
   vendor: z.string(),
   category: z.string(),
   slug: z.string(),

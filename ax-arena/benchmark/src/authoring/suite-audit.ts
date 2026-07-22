@@ -8,7 +8,7 @@
  * suite name/version metadata and can re-run a seed-only synthesize after
  * mapping fixes land in coverage-gap-check.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import {
@@ -16,22 +16,27 @@ import {
   deriveCandidateUniverseDeterministic,
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
-import { loadCapabilityExtract } from "./capability-extract.js";
-import { loadSuite } from "./suite.js";
 import {
+  assertCanonicalDaebWritePath,
+  daebRepositoryRoot,
+  daebReadVendorsDir,
+  daebRoot,
+  loadCapabilityExtract,
   loadCoverageMatrix,
+  loadOracleExtract,
   loadSelectionLedger,
+  loadSuite,
   loadSupportMatrix,
   loadTraceReview,
+  loadVendorCard,
   type CoverageMatrix,
+  type DaebPathInput,
   type SupportMatrix,
-} from "./methodology.js";
-import { daebReadVendorsDir, type DaebPathInput } from "./benchmark-paths.js";
+} from "ax-eval";
 import { readdirSync } from "node:fs";
-import { loadVendorCard } from "./vendor-resolve.js";
+import { writeContainedText } from "./artifact-filesystem.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
-import { loadOracleExtract } from "./task-extract.js";
 import { auditCorePacks } from "./pack-audit.js";
 
 export type SuiteFindingSeverity = "error" | "warn" | "info";
@@ -494,9 +499,11 @@ export function formatSuiteAuditReport(report: SuiteAuditReport): string {
  * Apply metadata autofixes (name/version). Mapping fixes live in code
  * (DATABASE_DETERMINISTIC_RULES); caller should re-synthesize after --apply.
  */
-export function applySuiteAudit(root: string, suitePath: string, report: SuiteAuditReport): string[] {
+export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: SuiteAuditReport): string[] {
   const written: string[] = [];
-  const abs = resolve(root, suitePath);
+  const abs = assertCanonicalDaebWritePath(root, suitePath);
+  const repositoryRoot = daebRepositoryRoot(root);
+  const writeRoot = daebRoot(root);
   if (!existsSync(abs)) return written;
   const raw = loadYaml(abs) as Record<string, unknown>;
   let changed = false;
@@ -507,11 +514,14 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
   }
   if (changed) {
     const header = `# Canonical task suite (draft until human freeze).\n# Autofixed by audit-suite --apply.\n`;
-    writeFileSync(abs, `${header}${yamlStringify(raw)}`);
+    writeContainedText(repositoryRoot, writeRoot, abs, `${header}${yamlStringify(raw)}`, "suite audit autofix");
     written.push(abs);
   }
   // Sibling methodology artifacts keep the stem; rename note for humans.
-  const notePath = resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`);
+  const notePath = assertCanonicalDaebWritePath(
+    root,
+    resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
+  );
   const notes = [
     "# Suite audit autofix notes",
     "",
@@ -521,14 +531,14 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
     "Mapping / coverage autofixes require re-running:",
     "",
     "```bash",
-    `npm run ax-eval -- synthesize-suite --category database --out ${suitePath} --deterministic --task-count 10`,
-    "npm run ax-eval -- audit-suite --suite " + suitePath,
+    `npm run ax-arena -- benchmark synthesize-suite --category database --out ${suitePath} --deterministic --task-count 10`,
+    "npm run ax-arena -- benchmark audit-suite --suite " + suitePath,
     "```",
     "",
     ...report.findings.map((f) => `- **${f.severity}/${f.code}**: ${f.message}`),
     "",
   ];
-  writeFileSync(notePath, notes.join("\n"));
+  writeContainedText(repositoryRoot, writeRoot, notePath, notes.join("\n"), "suite audit notes");
   written.push(notePath);
   return written;
 }
