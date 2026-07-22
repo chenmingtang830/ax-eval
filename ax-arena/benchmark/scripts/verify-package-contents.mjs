@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const npm = process.env.npm_execpath
@@ -24,11 +25,15 @@ if (missing.length || forbidden.length) {
   ].filter(Boolean).join("; "));
 }
 
-const installedBin = spawnSync(resolve(process.cwd(), "..", "..", "node_modules", ".bin", "ax-arena"), ["benchmark", "--help"], {
+const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+if (packageJson.bin?.["ax-arena"] !== "./dist/cli.js") {
+  throw new Error("arena package ax-arena bin must target ./dist/cli.js");
+}
+const builtBin = spawnSync(process.execPath, [resolve(process.cwd(), "dist", "cli.js"), "benchmark", "--help"], {
   encoding: "utf8",
 });
-if (installedBin.error || installedBin.status !== 0 || !installedBin.stdout.includes("usage: ax-arena benchmark")) {
-  throw new Error(installedBin.error?.message || installedBin.stderr || "installed ax-arena binary did not print benchmark help");
+if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage: ax-arena benchmark")) {
+  throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
 }
 
 console.log(`Verified ${files.size} arena package files (${report.filename}).`);
