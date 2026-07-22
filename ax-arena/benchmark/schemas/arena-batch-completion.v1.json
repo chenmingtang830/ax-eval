@@ -19,7 +19,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["key", "record_id", "record_path", "record_hash", "cleanup_path", "cleanup_hash", "harness", "requested_model", "actual_model", "harness_version_raw", "harness_version_semver", "status", "cleanup_status"],
+        "required": ["key", "record_id", "record_path", "record_hash", "cleanup_path", "cleanup_hash", "artifacts", "harness", "requested_model", "actual_model", "harness_version_raw", "harness_version_semver", "status", "cleanup_status"],
         "properties": {
           "key": { "$ref": "#/$defs/nonBlank" },
           "record_id": { "$ref": "#/$defs/nonBlank" },
@@ -27,6 +27,10 @@
           "record_hash": { "$ref": "#/$defs/sha256" },
           "cleanup_path": { "$ref": "#/$defs/nonBlank" },
           "cleanup_hash": { "$ref": "#/$defs/sha256" },
+          "artifacts": {
+            "type": "array", "minItems": 4, "maxItems": 4,
+            "items": { "$ref": "#/$defs/artifactSeal" }
+          },
           "harness": { "enum": ["codex", "claude-code"] },
           "requested_model": { "$ref": "#/$defs/nonBlank" },
           "actual_model": { "$ref": "#/$defs/nonBlank" },
@@ -41,6 +45,14 @@
   "$defs": {
     "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" }
+    "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
+    "artifactSeal": {
+      "type": "object", "additionalProperties": false, "required": ["name", "path", "sha256"],
+      "properties": {
+        "name": { "enum": ["invoke_metadata", "results", "trace", "transcript"] },
+        "path": { "$ref": "#/$defs/nonBlank" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    }
   }
 }

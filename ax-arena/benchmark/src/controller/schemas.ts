@@ -73,11 +73,23 @@ export type ArenaCellCleanupRecord = z.infer<typeof ArenaCellCleanupSchema>;
 const SourceSha = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 const Surface = z.enum(["api", "cli", "sdk", "mcp"]);
 const Harness = z.enum(["codex", "claude-code"]);
+const ProviderKind = z.enum(["oracle", "provisioning", "health-check", "target-adapter"]);
 const Semver = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/).max(256);
 const EnvironmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).max(256);
 const Names = z.array(EnvironmentName).max(256).superRefine((names, context) => {
   if (new Set(names).size !== names.length) {
     context.addIssue({ code: "custom", message: "credential and scope names must be unique" });
+  }
+});
+const ProviderIdentitySchema = z.object({ id: NonBlank, version: NonBlank }).strict();
+const ProviderPinSchema = ProviderIdentitySchema.extend({ kind: ProviderKind }).strict();
+const ProviderPinsSchema = z.array(ProviderPinSchema).max(128).superRefine((pins, context) => {
+  const identities = pins.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`);
+  if (new Set(identities).size !== identities.length) {
+    context.addIssue({ code: "custom", message: "provider pins must be unique" });
+  }
+  if (identities.some((identity, index) => index > 0 && identities[index - 1]! > identity)) {
+    context.addIssue({ code: "custom", message: "provider pins must be canonically sorted" });
   }
 });
 
@@ -97,6 +109,8 @@ const ArenaBatchCellSchema = z.object({
   verification_credential_names: Names,
   reset_credential_names: Names,
   sandbox_scope_names: Names,
+  provider_pins: ProviderPinsSchema,
+  reset_provider: ProviderIdentitySchema.nullable(),
 }).strict();
 
 export const ArenaBatchConfigurationSchema = z.object({
@@ -110,7 +124,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     vendor: NonBlank,
     file_hash: Sha256,
     standard_set_version: NonBlank,
-    surfaces: z.array(Surface).max(4),
+    surfaces: z.array(Surface).min(1).max(4),
     host_credential_names: Names,
     verification_credential_names: Names,
     reset_credential_names: Names,
@@ -130,6 +144,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     install_root: NonBlank,
     version: NonBlank,
     sha256: Sha256,
+    provisioner: ProviderIdentitySchema,
   }).strict().optional(),
 }).strict().superRefine((configuration, context) => {
   const keys = configuration.cells.map((cell) => cell.key);
@@ -145,6 +160,10 @@ export const ArenaBatchConfigurationSchema = z.object({
       context.addIssue({ code: "custom", path: ["packs", index, "surfaces"], message: "pack surfaces must be unique" });
     }
     const cells = configuration.cells.filter((cell) => cell.vendor === pack.vendor);
+    if (!cells.length) {
+      context.addIssue({ code: "custom", path: ["packs", index], message: "every configured pack must have cells" });
+      continue;
+    }
     const union = (select: (cell: (typeof cells)[number]) => string[]) =>
       [...new Set(cells.flatMap(select))].sort().join("\0");
     const same = (left: readonly string[], right: readonly string[]) =>
@@ -175,6 +194,83 @@ export const ArenaBatchConfigurationSchema = z.object({
       message: "harness pins must uniquely and exactly cover the configured cell harnesses",
     });
   }
+  const exactHarnesses = [...pinnedHarnesses].sort().join("\0") === "claude-code\0codex";
+  if (!exactHarnesses) {
+    context.addIssue({
+      code: "custom",
+      path: ["harnesses"],
+      message: "DAEB batches require both Codex and Claude Code harness pins",
+    });
+  }
+  const trials = [...new Set(configuration.cells.map((cell) => cell.trial))].sort((left, right) => left - right);
+  if (trials.some((trial, index) => trial !== index + 1)) {
+    context.addIssue({ code: "custom", path: ["cells"], message: "batch trials must be contiguous from 1" });
+  }
+  const dimensions = new Map<string, number>();
+  for (const [index, cell] of configuration.cells.entries()) {
+    const canonicalKey = `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${cell.trial}`;
+    if (cell.key !== canonicalKey) {
+      context.addIssue({ code: "custom", path: ["cells", index, "key"], message: `cell key must equal ${canonicalKey}` });
+    }
+    const dimension = `${cell.vendor}\0${cell.surface}\0${cell.harness}\0${cell.trial}`;
+    dimensions.set(dimension, (dimensions.get(dimension) ?? 0) + 1);
+  }
+  for (const [packIndex, pack] of configuration.packs.entries()) {
+    for (const surface of pack.surfaces) {
+      for (const harness of pinnedHarnesses) {
+        for (const trial of trials) {
+          const dimension = `${pack.vendor}\0${surface}\0${harness}\0${trial}`;
+          if (dimensions.get(dimension) !== 1) {
+            context.addIssue({
+              code: "custom",
+              path: ["packs", packIndex, "surfaces"],
+              message: "packs, surfaces, harnesses, and trials must form a complete Cartesian matrix",
+            });
+          }
+        }
+      }
+    }
+  }
+  for (const harness of pinnedHarnesses) {
+    const policies = new Set(configuration.cells
+      .filter((cell) => cell.harness === harness)
+      .map((cell) => `${cell.profile}\0${cell.effort}\0${cell.model}`));
+    if (policies.size !== 1) {
+      context.addIssue({
+        code: "custom",
+        path: ["cells"],
+        message: `all ${harness} cells must use one profile, effort, and model policy`,
+      });
+    }
+  }
+  if (configuration.reset_required && configuration.cells.some((cell) => cell.reset_provider === null)) {
+    context.addIssue({ code: "custom", path: ["cells"], message: "reset-required batches must pin every reset provider" });
+  }
+  if (configuration.command === "daeb-production-rerun") {
+    const exactTrials = JSON.stringify(trials) === "[1,2,3]";
+    const canonicalPolicy = configuration.cells.every((cell) => cell.profile === "high"
+      && cell.effort === "high"
+      && cell.model === (cell.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5"));
+    const scopedSurfaces = configuration.packs.every((pack) =>
+      pack.surfaces.every((surface) => surface === "api" || surface === "cli"));
+    if (!exactHarnesses || !exactTrials || !configuration.reset_required || !canonicalPolicy || !scopedSurfaces) {
+      context.addIssue({
+        code: "custom",
+        path: ["command"],
+        message: "production reruns require both canonical harnesses/models, high effort, three trials, reset, and API/CLI scope",
+      });
+    }
+  } else {
+    const lowPassPolicy = JSON.stringify(trials) === "[1]"
+      && configuration.cells.every((cell) => cell.profile === "medium" && cell.effort === "medium");
+    if (!lowPassPolicy) {
+      context.addIssue({
+        code: "custom",
+        path: ["command"],
+        message: "low-pass batches require one medium-profile, medium-effort trial per matrix cell",
+      });
+    }
+  }
   const needsTursoCli = configuration.cells.some((cell) => cell.vendor === "turso" && cell.surface === "cli");
   if (needsTursoCli !== Boolean(configuration.turso_cli)) {
     context.addIssue({
@@ -182,6 +278,20 @@ export const ArenaBatchConfigurationSchema = z.object({
       path: ["turso_cli"],
       message: "a Turso CLI pin is required exactly when the batch contains Turso CLI cells",
     });
+  }
+  if (configuration.turso_cli) {
+    for (const [index, cell] of configuration.cells.entries()) {
+      if (cell.vendor !== "turso" || cell.surface !== "cli") continue;
+      const expected = configuration.turso_cli.provisioner;
+      if (!cell.provider_pins.some((pin) => pin.kind === "provisioning"
+        && pin.id === expected.id && pin.version === expected.version)) {
+        context.addIssue({
+          code: "custom",
+          path: ["cells", index, "provider_pins"],
+          message: "Turso CLI cells must pin the configured provisioner identity and version",
+        });
+      }
+    }
   }
 });
 export type ArenaBatchConfiguration = z.infer<typeof ArenaBatchConfigurationSchema>;
@@ -220,6 +330,12 @@ export const ArenaBatchManifestSchema = z.object({
 });
 export type ArenaBatchManifest = z.infer<typeof ArenaBatchManifestSchema>;
 
+const ArtifactSealSchema = z.object({
+  name: z.enum(["results", "trace", "transcript", "invoke_metadata"]),
+  path: NonBlank,
+  sha256: Sha256,
+}).strict();
+
 export const ArenaBatchCompletionCellSchema = z.object({
   key: NonBlank,
   record_id: NonBlank,
@@ -227,6 +343,13 @@ export const ArenaBatchCompletionCellSchema = z.object({
   record_hash: Sha256,
   cleanup_path: NonBlank,
   cleanup_hash: Sha256,
+  artifacts: z.array(ArtifactSealSchema).length(4).superRefine((artifacts, context) => {
+    const names = artifacts.map((artifact) => artifact.name);
+    const expected = ["invoke_metadata", "results", "trace", "transcript"];
+    if (names.some((name, index) => name !== expected[index])) {
+      context.addIssue({ code: "custom", message: "artifact seals must contain every artifact in canonical order" });
+    }
+  }),
   harness: Harness,
   requested_model: NonBlank,
   actual_model: NonBlank,

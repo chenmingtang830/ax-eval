@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { isAbsolute, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   EvaluationCellSchema,
@@ -48,6 +48,8 @@ function configuration(): ArenaBatchConfiguration {
         verification_credential_names: ["DATABASE_URL"],
         reset_credential_names: ["DATABASE_URL"],
         sandbox_scope_names: [],
+        provider_pins: [],
+        reset_provider: { id: "reset", version: "1.0.0" },
       },
       {
         key: "neon/api/claude-code/trial-1",
@@ -62,6 +64,8 @@ function configuration(): ArenaBatchConfiguration {
         verification_credential_names: ["DATABASE_URL"],
         reset_credential_names: ["DATABASE_URL"],
         sandbox_scope_names: [],
+        provider_pins: [],
+        reset_provider: { id: "reset", version: "1.0.0" },
       },
     ],
     harnesses: [
@@ -72,6 +76,22 @@ function configuration(): ArenaBatchConfiguration {
     invoke_timeout_seconds: 900,
     first_action_timeout_seconds: 180,
     invoke_retries: 0,
+  };
+}
+
+function productionConfiguration(): ArenaBatchConfiguration {
+  const base = configuration();
+  return {
+    ...base,
+    command: "daeb-production-rerun",
+    cells: base.cells.flatMap((cell) => [1, 2, 3].map((trial) => ({
+      ...cell,
+      key: `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${trial}`,
+      profile: "high" as const,
+      effort: "high" as const,
+      model: cell.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
+      trial,
+    }))),
   };
 }
 
@@ -96,8 +116,14 @@ function tursoConfiguration(root: string): { configuration: ArenaBatchConfigurat
         key: `turso/cli/${cell.harness}/trial-1`,
         vendor: "turso",
         surface: "cli" as const,
+        provider_pins: [{ kind: "provisioning" as const, id: "ax-arena-turso-cli", version: "1.0.0" }],
       })),
-      turso_cli: { install_root: installRoot, version: "0.100.0", sha256 },
+      turso_cli: {
+        install_root: installRoot,
+        version: "0.100.0",
+        sha256,
+        provisioner: { id: "ax-arena-turso-cli", version: "1.0.0" },
+      },
     },
   };
 }
@@ -113,6 +139,10 @@ function execution(
   const configuredPack = batch.configuration.packs.find((pack) => pack.vendor === configured.vendor)!;
   const directory = resolve(root, configured.vendor, configured.surface, harness, "trial-1");
   mkdirSync(resolve(directory, "artifacts"), { recursive: true });
+  writeFileSync(resolve(directory, "artifacts", "results.json"), "{}");
+  writeFileSync(resolve(directory, "artifacts", "trace.json"), "[]");
+  writeFileSync(resolve(directory, "artifacts", "transcript.jsonl"), "");
+  writeFileSync(resolve(directory, "artifacts", "invoke.json"), "{}");
   const recordPath = resolve(directory, "record.json");
   const cleanupPath = resolve(directory, "cleanup.json");
   const pack = TargetPackSchema.parse({
@@ -192,9 +222,7 @@ function execution(
     completed_at: "2026-07-21T00:00:01.000Z",
     status: "completed",
     error: null,
-    ...(configured.vendor === "turso" && configured.surface === "cli"
-      ? { provider_provenance: [{ kind: "provisioning", id: "ax-arena-turso-cli", version: "1.0.0" }] }
-      : {}),
+    ...(configured.provider_pins.length ? { provider_provenance: configured.provider_pins } : {}),
     task_results: [],
     artifacts: {
       base_dir: resolve(directory, "artifacts"),
@@ -223,7 +251,7 @@ function execution(
     record_sha256: recordSha256,
     generated_at: "2026-07-21T00:00:02.000Z",
     status: "confirmed",
-    provider: { id: "reset", version: "1.0.0" },
+    provider: configured.reset_provider!,
     namespace: `ns-${harness}`,
     plan: { summary: "one", resources: [`resource:ns-${harness}`] },
     evidence: {
@@ -265,6 +293,13 @@ function execution(
   };
 }
 
+function rewriteExecutionSidecars(value: ArenaCellExecution): void {
+  const recordBytes = `${JSON.stringify(value.record, null, 2)}\n`;
+  value.cleanup.record_sha256 = createHash("sha256").update(recordBytes).digest("hex");
+  writeFileSync(value.recordPath, recordBytes);
+  writeFileSync(value.cleanupPath, `${JSON.stringify(value.cleanup, null, 2)}\n`);
+}
+
 describe("arena batch comparability", () => {
   it("persists one batch identity and rejects source or configuration drift", () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-"));
@@ -302,6 +337,23 @@ describe("arena batch comparability", () => {
       packs: [{ ...config.packs[0]!, host_credential_names: ["A\0B"] }],
       cells: config.cells.map((cell) => ({ ...cell, host_credential_names: ["A", "B"] })),
     })).toThrow();
+    expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-empty-pack-")), "a".repeat(40), new Date(), {
+      ...config,
+      packs: [...config.packs, {
+        ...config.packs[0]!,
+        vendor: "empty-vendor",
+        file_hash: "f".repeat(64),
+        host_credential_names: [],
+        verification_credential_names: [],
+        reset_credential_names: [],
+      }],
+    })).toThrow(/must have cells|union|Cartesian/);
+    expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-incomplete-matrix-")), "a".repeat(40), new Date(), {
+      ...config,
+      cells: [config.cells[0]!],
+      harnesses: [config.harnesses[0]!],
+      packs: [{ ...config.packs[0]!, host_credential_names: ["OPENAI_API_KEY"] }],
+    })).toThrow(/both Codex and Claude Code|Cartesian/);
   });
 
   it("rejects forged, inconsistent, or symlinked manifests", () => {
@@ -330,6 +382,28 @@ describe("arena batch comparability", () => {
     }
   });
 
+  it("enforces the complete production command matrix", () => {
+    const valid = productionConfiguration();
+    expect(resolveBatchIdentity(
+      mkdtempSync(resolve(tmpdir(), "ax-arena-production-valid-")),
+      "a".repeat(40),
+      new Date(),
+      valid,
+    ).expected_cells).toHaveLength(6);
+    for (const configuration of [
+      { ...valid, cells: valid.cells.slice(0, -1) },
+      { ...valid, reset_required: false },
+      { ...valid, cells: valid.cells.map((cell, index) => index === 0 ? { ...cell, model: "other" } : cell) },
+    ]) {
+      expect(() => resolveBatchIdentity(
+        mkdtempSync(resolve(tmpdir(), "ax-arena-production-invalid-")),
+        "a".repeat(40),
+        new Date(),
+        configuration,
+      )).toThrow(/production reruns|Cartesian|profile, effort, and model/);
+    }
+  });
+
   it("accepts only the exact comparable cell set", () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-completion-"));
     const batch = resolveBatchIdentity(root, "a".repeat(40), new Date(), configuration());
@@ -337,7 +411,13 @@ describe("arena batch comparability", () => {
       execution(root, batch, "codex", "model-codex"),
       execution(root, batch, "claude-code", "model-claude"),
     ];
-    expect(buildBatchCompletion(root, batch, executions, new Date()).cells).toHaveLength(2);
+    const completion = buildBatchCompletion(root, batch, executions, new Date());
+    expect(completion.cells).toHaveLength(2);
+    expect(completion.cells[0]!.artifacts.map((artifact) => artifact.name)).toEqual([
+      "invoke_metadata", "results", "trace", "transcript",
+    ]);
+    expect(completion.cells[0]!.artifacts.every((artifact) =>
+      !isAbsolute(artifact.path) && /^[a-f0-9]{64}$/.test(artifact.sha256))).toBe(true);
     expect(() => buildBatchCompletion(root, batch, executions.slice(0, 1), new Date())).toThrow(/incomplete or non-comparable/);
     expect(() => buildBatchCompletion(root, batch, [executions[0]!, executions[0]!], new Date())).toThrow(/incomplete or non-comparable/);
 
@@ -407,6 +487,13 @@ describe("arena batch comparability", () => {
       ...fixture.configuration,
       turso_cli: undefined,
     })).toThrow(/Turso CLI pin/);
+    expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-turso-provider-pin-")), "a".repeat(40), new Date(), {
+      ...fixture.configuration,
+      turso_cli: {
+        ...fixture.configuration.turso_cli!,
+        provisioner: { id: "ax-arena-turso-cli", version: "different" },
+      },
+    })).toThrow(/provisioner identity and version/);
     const runRoot = resolve(root, "run");
     const batch = resolveBatchIdentity(runRoot, "a".repeat(40), new Date(), fixture.configuration);
     const executions = [
@@ -416,6 +503,60 @@ describe("arena batch comparability", () => {
     expect(buildBatchCompletion(runRoot, batch, executions, new Date()).cells).toHaveLength(2);
     writeFileSync(fixture.binary, "tampered-binary");
     expect(() => buildBatchCompletion(runRoot, batch, executions, new Date())).toThrow(/SHA-256 pin/);
+  });
+
+  it("pins providers and confines every sealed artifact to the run root", () => {
+    const providerRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-provider-pins-"));
+    const providerConfiguration = configuration();
+    providerConfiguration.cells = providerConfiguration.cells.map((cell) => ({
+      ...cell,
+      provider_pins: [{ kind: "health-check", id: "health", version: "1.0.0" }],
+    }));
+    const providerBatch = resolveBatchIdentity(providerRoot, "a".repeat(40), new Date(), providerConfiguration);
+    const providerExecutions = [
+      execution(providerRoot, providerBatch, "codex", "model-codex"),
+      execution(providerRoot, providerBatch, "claude-code", "model-claude"),
+    ];
+    expect(buildBatchCompletion(providerRoot, providerBatch, providerExecutions, new Date()).cells).toHaveLength(2);
+    providerExecutions[0]!.record.provider_provenance = [
+      { kind: "health-check", id: "different", version: "1.0.0" },
+    ];
+    rewriteExecutionSidecars(providerExecutions[0]!);
+    expect(() => buildBatchCompletion(providerRoot, providerBatch, providerExecutions, new Date()))
+      .toThrow(/immutable configuration and sidecars/);
+
+    const resetRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-reset-pin-"));
+    const resetBatch = resolveBatchIdentity(resetRoot, "a".repeat(40), new Date(), configuration());
+    const resetExecutions = [
+      execution(resetRoot, resetBatch, "codex", "model-codex"),
+      execution(resetRoot, resetBatch, "claude-code", "model-claude"),
+    ];
+    resetExecutions[0]!.cleanup.provider = { id: "different", version: "1.0.0" };
+    rewriteExecutionSidecars(resetExecutions[0]!);
+    expect(() => buildBatchCompletion(resetRoot, resetBatch, resetExecutions, new Date()))
+      .toThrow(/immutable configuration and sidecars/);
+
+    const artifactRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-artifact-root-"));
+    const artifactBatch = resolveBatchIdentity(artifactRoot, "a".repeat(40), new Date(), configuration());
+    const artifactExecutions = [
+      execution(artifactRoot, artifactBatch, "codex", "model-codex"),
+      execution(artifactRoot, artifactBatch, "claude-code", "model-claude"),
+    ];
+    const outside = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-artifacts-outside-"));
+    const outsideArtifacts = resolve(outside, "artifacts");
+    mkdirSync(outsideArtifacts);
+    for (const [name, contents] of [
+      ["results.json", "{}"],
+      ["trace.json", "[]"],
+      ["transcript.jsonl", ""],
+      ["invoke.json", "{}"],
+    ] as const) writeFileSync(resolve(outsideArtifacts, name), contents);
+    artifactExecutions[0]!.cell.run_context.cwd = outside;
+    artifactExecutions[0]!.cell.run_context.artifact_dir = "artifacts";
+    artifactExecutions[0]!.record.artifacts.base_dir = outsideArtifacts;
+    rewriteExecutionSidecars(artifactExecutions[0]!);
+    expect(() => buildBatchCompletion(artifactRoot, artifactBatch, artifactExecutions, new Date()))
+      .toThrow(/outside the arena run root/);
   });
 
   it("writes completion once and refuses manifest tampering or overwrite", () => {

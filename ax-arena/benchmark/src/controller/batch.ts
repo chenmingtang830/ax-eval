@@ -44,13 +44,25 @@ function sameStringSet(left: readonly string[], right: readonly string[]): boole
     && [...left].sort().every((value, index) => value === [...right].sort()[index]);
 }
 
+function sameProviderPins(
+  left: readonly { kind: string; id: string; version: string }[],
+  right: readonly { kind: string; id: string; version: string }[],
+): boolean {
+  return sameStringSet(
+    left.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`),
+    right.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`),
+  );
+}
+
 function manifestBytes(manifest: ArenaBatchManifest): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
 function assertRegularFile(path: string, label: string): void {
   const stat = lstatSync(path);
-  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${label} must be a regular file: ${path}`);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.nlink !== 1) {
+    throw new Error(`${label} must be a single-linked regular file: ${path}`);
+  }
 }
 
 function pathEntryExists(path: string): boolean {
@@ -135,7 +147,9 @@ function assertTursoToolAttestation(
   pin: NonNullable<ArenaBatchConfiguration["turso_cli"]>,
 ): void {
   const provider = record.provider_provenance?.find((entry) =>
-    entry.kind === "provisioning" && entry.id === "ax-arena-turso-cli");
+    entry.kind === "provisioning"
+      && entry.id === pin.provisioner.id
+      && entry.version === pin.provisioner.version);
   if (!provider) throw new Error("Turso CLI batch cell is missing pinned provisioning provenance");
   const metadataPath = resolve(record.artifacts.base_dir, record.artifacts.invoke_metadata);
   const metadataFile = readPersistedSidecar(runRoot, metadataPath, "Turso invoke metadata");
@@ -157,6 +171,8 @@ function assertTursoToolAttestation(
     : {};
   if (extensionProvider.id !== provider.id
     || extensionProvider.version !== provider.version
+    || provider.id !== pin.provisioner.id
+    || provider.version !== pin.provisioner.version
     || metadata.cli_version !== pin.version
     || metadata.cli_sha256 !== pin.sha256
     || typeof metadata.cli_binary !== "string") {
@@ -174,6 +190,38 @@ function assertTursoToolAttestation(
   }
   const actualHash = createHash("sha256").update(readFileSync(metadata.cli_binary)).digest("hex");
   if (actualHash !== pin.sha256) throw new Error("Turso tool binary no longer matches its immutable SHA-256 pin");
+}
+
+const ARTIFACT_NAMES = ["invoke_metadata", "results", "trace", "transcript"] as const;
+
+function sealedRecordArtifacts(
+  runRoot: string,
+  execution: ArenaCellExecution,
+  record: ReturnType<typeof NormalizedCellRecordSchema.parse>,
+): Array<{ name: (typeof ARTIFACT_NAMES)[number]; path: string; sha256: string }> {
+  const expectedRoot = resolve(execution.cell.run_context.cwd, execution.cell.run_context.artifact_dir);
+  if (resolve(record.artifacts.base_dir) !== expectedRoot) {
+    throw new Error(`cell artifact root does not match its immutable run context: ${execution.cell.cell_id}`);
+  }
+  const durableSidecars = new Set([resolve(execution.recordPath), resolve(execution.cleanupPath)]);
+  const artifacts = ARTIFACT_NAMES.map((name) => {
+    const fileName = record.artifacts[name];
+    if (isAbsolute(fileName) || basename(fileName) !== fileName || fileName === "." || fileName === "..") {
+      throw new Error(`record artifact ${name} must be a direct relative file name`);
+    }
+    const absolute = resolve(record.artifacts.base_dir, fileName);
+    if (durableSidecars.has(absolute)) throw new Error(`record artifact ${name} overlaps a durable cell sidecar`);
+    const artifact = readPersistedSidecar(runRoot, absolute, `record artifact ${name}`);
+    return {
+      name,
+      path: artifact.relativePath,
+      sha256: createHash("sha256").update(artifact.contents).digest("hex"),
+    };
+  });
+  if (new Set(artifacts.map((artifact) => artifact.path)).size !== artifacts.length) {
+    throw new Error(`record artifact files must be distinct: ${execution.cell.cell_id}`);
+  }
+  return artifacts;
 }
 
 function readBatchManifest(path: string): ArenaBatchManifest {
@@ -329,8 +377,14 @@ export function buildBatchCompletion(
       || record.harness !== configured.harness
       || record.trial !== configured.trial
       || record.requested_model !== configured.model
+      || !sameProviderPins(record.provider_provenance ?? [], configured.provider_pins)
       || cleanup.cell_id !== record.cell_id
       || cleanup.record_sha256 !== recordHash
+      || (cleanup.status === "confirmed"
+        ? !cleanup.provider || !configured.reset_provider
+          || cleanup.provider.id !== configured.reset_provider.id
+          || cleanup.provider.version !== configured.reset_provider.version
+        : cleanup.provider !== undefined)
       || cleanup.namespace !== record.execution_namespace
       || resolve(cleanup.record_path) !== resolve(execution.recordPath)) {
       throw new Error(`arena batch execution ${key} does not match its immutable configuration and sidecars`);
@@ -338,6 +392,7 @@ export function buildBatchCompletion(
     if (configured.vendor === "turso" && configured.surface === "cli") {
       assertTursoToolAttestation(runRoot, record, parsedBatch.configuration.turso_cli!);
     }
+    const artifacts = sealedRecordArtifacts(runRoot, execution, record);
     return ArenaBatchCompletionCellSchema.parse({
       key,
       record_id: record.record_id,
@@ -345,6 +400,7 @@ export function buildBatchCompletion(
       record_hash: recordHash,
       cleanup_path: cleanupFile.relativePath,
       cleanup_hash: createHash("sha256").update(cleanupFile.contents).digest("hex"),
+      artifacts,
       harness: execution.cell.harness.id,
       requested_model: execution.cell.harness.model,
       actual_model: record.model,
