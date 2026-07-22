@@ -176,7 +176,7 @@ function profileRun(
   record: NormalizedCellRecord,
   cleanup: ArenaCellCleanupRecord,
   artifacts: VerifiedArtifacts,
-): ProfileRun {
+): ProfileRun & { cell_key: string; trial: number } {
   const { results, trace, transcript } = artifacts;
   const observed = parseTranscriptContent(transcript.bytes.toString("utf8"), {
     baseUrl: pack.base_url.includes("${") ? undefined : pack.base_url,
@@ -186,6 +186,8 @@ function profileRun(
     mcpServer: pack.surfaces?.mcp?.server,
   });
   return {
+    cell_key: `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`,
+    trial: record.trial,
     profile: record.best_profile ?? record.profiles[0]!,
     harness: record.harness,
     model: record.model ?? record.requested_model,
@@ -267,6 +269,23 @@ function taskConsistency(records: readonly NormalizedCellRecord[]) {
   const count = [...taskIds].filter((taskId) => records.every((record) =>
     record.task_results.some((task) => task.taskId === taskId && !task.na && task.success))).length;
   return { rate: count / taskIds.size, count, total: taskIds.size };
+}
+
+export function aggregateArenaCellRecords(
+  records: readonly NormalizedCellRecord[],
+  recordPaths: readonly string[],
+  generatedAt: string,
+): NormalizedResult {
+  if (records.length !== recordPaths.length || records.length === 0) {
+    throw new Error("arena aggregation requires one source path per completed cell record");
+  }
+  const aggregate = aggregateNormalizedResults(records.map(normalizedResult), [...recordPaths]);
+  aggregate.generated_at = generatedAt;
+  const consistency = taskConsistency(records);
+  aggregate.task_consistency_at_3 = consistency?.rate ?? null;
+  aggregate.pass_3_tasks = consistency?.count ?? null;
+  aggregate.pass_3_tasks_total = consistency?.total ?? null;
+  return aggregate;
 }
 
 function failureReview(records: readonly NormalizedCellRecord[]): string {
@@ -468,15 +487,11 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       const aggregateDir = resolve(runRoot, vendor, surface, harness, "aggregate");
       const aggregatePath = resolve(aggregateDir, `${harness}.${surface}.aggregate.normalized.json`);
       const trialManifestPath = resolve(aggregateDir, "trial-manifest.json");
-      const aggregate = aggregateNormalizedResults(
-        trials.map(({ record }) => normalizedResult(record)),
+      const aggregate = aggregateArenaCellRecords(
+        trials.map(({ record }) => record),
         trials.map(({ recordPath }) => recordPath),
+        generatedAt,
       );
-      aggregate.generated_at = generatedAt;
-      const consistency = taskConsistency(trials.map(({ record }) => record));
-      aggregate.task_consistency_at_3 = consistency?.rate ?? null;
-      aggregate.pass_3_tasks = consistency?.count ?? null;
-      aggregate.pass_3_tasks_total = consistency?.total ?? null;
       const trialManifest = {
         schema: "ax.arena-runtime-trials/v1",
         batch_id: batch.batch_id,

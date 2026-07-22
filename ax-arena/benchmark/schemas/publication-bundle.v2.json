@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/ax-arena/benchmark/schemas/publication-bundle.v2.json",
+  "title": "AXArena publication bundle v2",
+  "type": "object",
+  "required": [
+    "schema",
+    "benchmark",
+    "category",
+    "suite",
+    "suite_version",
+    "generated_at",
+    "publication_readiness",
+    "expected_matrix",
+    "quality_gates",
+    "layers",
+    "vendors",
+    "competitive_report",
+    "missing",
+    "notes",
+    "integrity"
+  ],
+  "properties": {
+    "schema": { "const": "ax.publication-bundle/v2" },
+    "benchmark": { "$ref": "#/$defs/nonBlank" },
+    "category": { "$ref": "#/$defs/nonBlank" },
+    "suite": { "$ref": "#/$defs/artifactPath" },
+    "suite_version": { "type": "integer", "minimum": 0 },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "publication_readiness": { "const": "publication_ready" },
+    "expected_matrix": {
+      "type": "object",
+      "required": ["surfaces", "harnesses", "effort_profiles", "required_effort_profiles", "expected_cells"],
+      "properties": {
+        "surfaces": { "type": "array", "items": { "type": "string" } },
+        "harnesses": { "type": "array", "items": { "type": "string" } },
+        "effort_profiles": { "type": "array", "items": { "type": "string" } },
+        "required_effort_profiles": { "type": "array", "items": { "type": "string" } },
+        "expected_cells": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "quality_gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "label", "status", "detail"],
+        "properties": {
+          "id": { "type": "string" },
+          "label": { "type": "string" },
+          "status": { "enum": ["pass", "warn", "fail"] },
+          "detail": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "layers": {
+      "type": "object",
+      "required": ["static_ax", "behavioral"],
+      "properties": {
+        "static_ax": { "$ref": "#/$defs/layer" },
+        "behavioral": { "$ref": "#/$defs/layer" }
+      },
+      "additionalProperties": false
+    },
+    "vendors": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["slug", "pack", "expected_surfaces", "missing", "validation_errors", "artifacts"],
+        "properties": {
+          "slug": { "$ref": "#/$defs/nonBlank" },
+          "pack": { "$ref": "#/$defs/artifactPath" },
+          "expected_surfaces": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 4,
+            "items": { "enum": ["api", "cli", "sdk", "mcp"] }
+          },
+          "missing": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } },
+          "validation_errors": { "type": "array", "items": { "type": "string" } },
+          "artifacts": { "$ref": "#/$defs/artifacts" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "competitive_report": { "$ref": "#/$defs/artifactPath" },
+    "missing": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } },
+    "notes": { "type": "array", "items": { "type": "string" } },
+    "integrity": { "$ref": "#/$defs/integrity" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonBlank": { "type": "string", "pattern": ".*\\S.*" },
+    "artifactPath": { "type": "string", "minLength": 1, "maxLength": 4096 },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "layer": {
+      "type": "object",
+      "required": ["description", "methodology_artifacts"],
+      "properties": {
+        "description": { "type": "string" },
+        "methodology_artifacts": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } }
+      },
+      "additionalProperties": false
+    },
+    "artifacts": {
+      "type": "object",
+      "required": ["normalized_records"],
+      "properties": {
+        "vendor_card": { "$ref": "#/$defs/artifactPath" },
+        "oracle_extract": { "$ref": "#/$defs/artifactPath" },
+        "compiled_pack": { "$ref": "#/$defs/artifactPath" },
+        "approval": { "$ref": "#/$defs/artifactPath" },
+        "support_matrix": { "$ref": "#/$defs/artifactPath" },
+        "snapshot": { "$ref": "#/$defs/artifactPath" },
+        "snapshots": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } },
+        "report_html": { "$ref": "#/$defs/artifactPath" },
+        "report_htmls": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } },
+        "normalized_records": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } }
+      },
+      "additionalProperties": false
+    },
+    "integrity": {
+      "type": "object",
+      "required": [
+        "schema",
+        "source_commit_sha",
+        "batch_id",
+        "configuration_hash",
+        "batch_manifest_path",
+        "batch_manifest_sha256",
+        "batch_completion_path",
+        "batch_completion_sha256",
+        "runtime_report_path",
+        "runtime_report_sha256",
+        "attestation",
+        "files"
+      ],
+      "properties": {
+        "schema": { "const": "ax.publication-integrity/v1" },
+        "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+        "batch_id": { "$ref": "#/$defs/nonBlank" },
+        "configuration_hash": { "$ref": "#/$defs/sha256" },
+        "batch_manifest_path": { "$ref": "#/$defs/artifactPath" },
+        "batch_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "batch_completion_path": { "$ref": "#/$defs/artifactPath" },
+        "batch_completion_sha256": { "$ref": "#/$defs/sha256" },
+        "runtime_report_path": { "$ref": "#/$defs/artifactPath" },
+        "runtime_report_sha256": { "$ref": "#/$defs/sha256" },
+        "attestation": { "$ref": "#/$defs/attestation" },
+        "files": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "required": ["path", "sha256", "bytes"],
+            "properties": {
+              "path": { "$ref": "#/$defs/artifactPath" },
+              "sha256": { "$ref": "#/$defs/sha256" },
+              "bytes": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+              "source_path": { "$ref": "#/$defs/artifactPath" }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "attestation": {
+      "type": "object",
+      "required": [
+        "schema",
+        "subject_path",
+        "subject_sha256",
+        "detached_bundles_path",
+        "detached_bundles_sha256",
+        "repository",
+        "signer_workflow",
+        "workflow_ref",
+        "workflow_sha",
+        "run_id",
+        "run_attempt"
+      ],
+      "properties": {
+        "schema": { "const": "ax.github-oidc-attestation-verification/v1" },
+        "subject_path": { "$ref": "#/$defs/artifactPath" },
+        "subject_sha256": { "$ref": "#/$defs/sha256" },
+        "detached_bundles_path": { "$ref": "#/$defs/artifactPath" },
+        "detached_bundles_sha256": { "$ref": "#/$defs/sha256" },
+        "repository": { "const": "chenmingtang830/ax-eval" },
+        "signer_workflow": { "const": "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml" },
+        "workflow_ref": { "const": "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main" },
+        "workflow_sha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "run_id": { "type": "string", "pattern": "^\\d+$" },
+        "run_attempt": { "type": "string", "pattern": "^[1-9]\\d*$" }
+      },
+      "additionalProperties": false
+    }
+  }
+}
