@@ -305,9 +305,14 @@ approved packs; authoring freeze (approvals + completed trace review) is already
 done for the 6-vendor core cohort.
 
 ```bash
-ax-eval daeb-production-rerun \
+ax-arena benchmark daeb-production-rerun \
   --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
+
+Direct runtime execution is intentionally fail-closed until the trusted
+workflow supplies and attests the OS sandbox. The existing
+`ax-eval daeb-production-rerun` command remains active until the private arena
+package is publishable; its one-minor delegation clock has not started.
 
 For hosted execution, dispatch **Trusted sandbox production records** only
 after the repository's `trusted-sandbox` environment has required reviewers

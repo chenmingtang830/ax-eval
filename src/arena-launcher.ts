@@ -34,7 +34,6 @@ export function executeArenaLaunch(launch: ArenaLaunch): number {
   if (child.signal) console.error(`ax-arena terminated by signal ${child.signal}`);
   return arenaChildExitCode(child.status, child.signal);
 }
-
 /** Build a shell-free launch plan for one allowlisted compatibility command. */
 export function resolveArenaLaunch(
   command: string,

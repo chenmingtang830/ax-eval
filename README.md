@@ -268,6 +268,20 @@ The `resolve-vendor`, `import-registry`, extract, audit, `compose-pack`, and
 `ax-eval` spellings remain shell-free deprecation launchers for one minor
 release and preserve the arena command exit status.
 
+Arena runtime commands use the same boundary: `plan` freezes an explicit batch
+configuration, `aggregate` consumes a completed batch, and `execute`/`publish`
+remain fail-closed from direct local invocation until trusted-workflow
+activation. The legacy `ax-eval daeb-low-pass` and
+`ax-eval daeb-production-rerun` implementations remain active until the private
+arena package passes its publication gate; only then does the one-minor
+shell-free delegation window begin.
+
+The npm `prepublishOnly` release gate enforces that ordering: `ax-eval` cannot
+be published with delegated aliases until the arena package is public and pins
+the release version of `ax-eval`. The dependency remains one-way; users of the
+temporary aliases install the now-available arena package explicitly. Dry-run
+package inspection remains available during the private workspace migration.
+
 Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
 overwrites the same suite and invalidates content-hash approvals. Git SHAs and
 artifact content hashes identify exact draft states; draft iterations do not
@@ -292,7 +306,7 @@ SDK evidence is research-only for v1.
 When production is unblocked, run the production lane with:
 
 ```bash
-npm run ax-eval -- daeb-production-rerun \
+npm run ax-arena -- benchmark daeb-production-rerun \
   --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
 
