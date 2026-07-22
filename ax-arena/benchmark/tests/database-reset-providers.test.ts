@@ -14,8 +14,10 @@ import {
 
 const pgMock = vi.hoisted(() => ({
   tables: [] as Array<{ table_name: string }>,
-  functions: [] as Array<{ proname: string; identity_arguments: string }>,
+  functions: [] as Array<{ oid: number; proname: string; identity_arguments: string; drop_statement?: string }>,
+  roles: [] as Array<{ rolname: string }>,
   executed: [] as string[],
+  failStatements: new Set<string>(),
 }));
 
 const mongoMock = vi.hoisted(() => ({
@@ -27,10 +29,16 @@ vi.mock("pg", () => ({
   Client: class {
     async connect() {}
     async end() {}
-    async query(sql: string) {
+    async query(sql: string, params?: unknown[]) {
       if (sql.includes("information_schema.tables")) return { rows: pgMock.tables };
+      if (sql.includes("SELECT format")) {
+        const found = pgMock.functions.find((entry) => String(entry.oid) === String(params?.[0]) && entry.proname === params?.[1]);
+        return { rows: found ? [{ statement: found.drop_statement ?? `DROP FUNCTION IF EXISTS "public"."${found.proname}"(${found.identity_arguments})` }] : [] };
+      }
       if (sql.includes("pg_proc")) return { rows: pgMock.functions };
+      if (sql.includes("pg_roles")) return { rows: pgMock.roles };
       pgMock.executed.push(sql);
+      if (pgMock.failStatements.has(sql)) throw new Error("role owns unrelated object");
       return { rows: [] };
     }
   },
@@ -83,21 +91,42 @@ const cell = EvaluationCellSchema.parse({
   },
 });
 
-function context(pack: TargetPack, credentials: Record<string, string>, dryRun = false): ResetContext {
-  return { cell, pack, credentials, scope: {}, namespace: "ns-keep", dryRun };
+function context(pack: TargetPack, credentials: Record<string, string>, dryRun = false, namespace = "ns-keep"): ResetContext {
+  return { cell, pack, credentials, scope: {}, namespace, dryRun };
 }
 
 describe("arena database reset providers", () => {
   beforeEach(() => {
     pgMock.tables = [];
     pgMock.functions = [];
+    pgMock.roles = [];
     pgMock.executed = [];
+    pgMock.failStatements = new Set();
     mongoMock.collections = [];
     mongoMock.dropped = [];
     vi.unstubAllGlobals();
   });
 
-  it("plans and deletes only namespaced Postgres tables and routines", async () => {
+  it("leaves a namespaced role unconfirmed instead of cascading into unrelated owned objects", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "neon",
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      tasks: [],
+    });
+    pgMock.roles = [{ rolname: "axarena_acl_denied_ns_keep" }];
+    const statement = 'DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"';
+    pgMock.failStatements.add(statement);
+    const ctx = context(pack, { DATABASE_URL: "postgres://redacted.invalid/db" });
+    const plan = await postgresResetProvider.plan(ctx);
+    const evidence = await postgresResetProvider.execute(plan, ctx);
+
+    expect(evidence.deleted).toEqual([]);
+    expect(evidence.errors).toEqual([expect.stringContaining("failed to delete")]);
+    expect(pgMock.executed).toEqual([statement]);
+    expect(pgMock.executed.join(" ")).not.toContain("DROP OWNED");
+  });
+
+  it("plans and deletes only namespaced Postgres tables, routines, and roles", async () => {
     const pack = TargetPackSchema.parse({
       name: "neon",
       sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
@@ -108,18 +137,38 @@ describe("arena database reset providers", () => {
       { table_name: "axarena_acl_ns-keep-2" },
       { table_name: "axarena_acl_other" },
     ];
-    pgMock.functions = [{ proname: "axarena_echo_ns-keep", identity_arguments: "text" }];
+    pgMock.functions = [{ oid: 42, proname: "axarena_echo_ns-keep", identity_arguments: "text" }];
+    pgMock.roles = [
+      { rolname: "axarena_acl_denied_ns_keep" },
+      { rolname: "axarena_acl_denied_other" },
+    ];
     const ctx = context(pack, { DATABASE_URL: "postgres://redacted.invalid/db" });
 
     const plan = await postgresResetProvider.plan(ctx);
-    expect(plan.resources).toHaveLength(2);
+    expect(plan.resources).toHaveLength(3);
     const evidence = await postgresResetProvider.execute(plan, ctx);
 
     expect(evidence.errors).toEqual([]);
     expect(pgMock.executed).toEqual([
-      'DROP TABLE IF EXISTS "public"."axarena_acl_ns-keep" CASCADE',
-      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"(text) CASCADE',
+      'DROP TABLE IF EXISTS "public"."axarena_acl_ns-keep"',
+      'DROP FUNCTION IF EXISTS "public"."axarena_echo_ns-keep"(text)',
+      'DROP ROLE IF EXISTS "axarena_acl_denied_ns_keep"',
     ]);
+    expect(pgMock.executed.join(" ")).not.toContain("CASCADE");
+  });
+
+  it("never interpolates externally supplied Postgres function arguments", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "neon",
+      sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
+      tasks: [],
+    });
+    const ctx = context(pack, { DATABASE_URL: "postgres://redacted.invalid/db" });
+    await expect(postgresResetProvider.execute({
+      summary: "forged",
+      resources: ["postgres:function:42:axarena_echo_ns-keep:text)%3B%20DROP%20TABLE%20customer_data%3B--"],
+    }, ctx)).rejects.toThrow(/invalid Postgres cleanup resource/);
+    expect(pgMock.executed).toEqual([]);
   });
 
   it("keeps MongoDB collection cleanup when Search index listing is unavailable", async () => {
@@ -163,6 +212,27 @@ describe("arena database reset providers", () => {
     const evidence = await tursoResetProvider.execute(plan, ctx);
     expect(evidence.deleted).toEqual(plan.resources);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("accepts the dotted namespace produced by the current gpt-5.6-terra runtime", async () => {
+    const namespace = "daeb-high-batch-gpt-5.6-terra-t1";
+    const pack = TargetPackSchema.parse({
+      name: "turso",
+      auth: { type: "bearer", env: "TURSO_TOKEN" },
+      base_url: "https://${TURSO_DATABASE}.turso.io",
+      tasks: [],
+    });
+    vi.stubGlobal("fetch", vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        results: [{ response: { result: { rows: [[{ value: `axarena_table_${namespace}` }]] } } }],
+      }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 })));
+    const ctx = context(pack, { TURSO_TOKEN: "secret", TURSO_DATABASE: "sandbox" }, false, namespace);
+    const plan = await tursoResetProvider.plan(ctx);
+    await expect(tursoResetProvider.execute(plan, ctx)).resolves.toMatchObject({
+      deleted: [`turso:table:axarena_table_${namespace}`],
+      errors: [],
+    });
   });
 
   it("revalidates a Convex preview matched through previewIdentifier before deleting", async () => {

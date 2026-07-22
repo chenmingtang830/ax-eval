@@ -1,4 +1,6 @@
-import { mkdtempSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -52,25 +54,37 @@ describe("Turso CLI provisioning provider", () => {
     const cwd = freshDir();
     const artifactDir = resolve(cwd, "artifacts");
     mkdirSync(artifactDir);
-    const binDir = resolve(freshDir(), "bin");
-    mkdirSync(binDir);
-    const binary = resolve(binDir, "turso");
-    writeFileSync(binary, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    const canonicalBinary = realpathSync(binary);
-    const canonicalBinDir = realpathSync(binDir);
-    const provider = createTursoCliProvisioningProvider({ searchPath: binDir, home: "/controller/home" });
+    const canonicalBinary = realpathSync(existsSync("/usr/bin/git")
+      ? "/usr/bin/git"
+      : execFileSync("which", ["git"], { encoding: "utf8" }).trim());
+    const canonicalBinDir = resolve(canonicalBinary, "..");
+    const executableName = canonicalBinary.split("/").pop()!;
+    const expectedVersion = execFileSync(canonicalBinary, ["--version"], { encoding: "utf8" }).trim();
+    const expectedSha256 = createHash("sha256").update(readFileSync(canonicalBinary)).digest("hex");
+    const options = {
+      searchPath: canonicalBinDir,
+      home: "/controller/home",
+      trustedInstallRoot: canonicalBinDir,
+      expectedVersion,
+      expectedSha256,
+      executableName,
+    };
+    const provider = createTursoCliProvisioningProvider(options);
+    options.expectedSha256 = "0".repeat(64);
     const context = target(cwd, artifactDir);
 
     await expect(provider.inspect(context)).resolves.toEqual({ ready: true });
     await expect(provider.provision({ ...context, credentials: {} })).resolves.toEqual({
-      env: { AX_ARENA_TURSO_BIN: canonicalBinary },
-      pathEntries: [canonicalBinDir],
-      metadata: {
-        cli_binary: canonicalBinary,
-        cli_bin_dir: canonicalBinDir,
-        cli_home: "/controller/home",
-        provisioning: "preinstalled-pinned-binary",
-      },
+        env: { AX_ARENA_TURSO_BIN: canonicalBinary },
+        pathEntries: [canonicalBinDir],
+        metadata: {
+          cli_binary: canonicalBinary,
+          cli_bin_dir: canonicalBinDir,
+          cli_version: expectedVersion,
+          cli_sha256: expectedSha256,
+          cli_home: "/controller/home",
+          provisioning: "preinstalled-pinned-binary",
+        },
     });
   });
 
@@ -84,15 +98,51 @@ describe("Turso CLI provisioning provider", () => {
     const binDir = resolve(freshDir(), "bin");
     mkdirSync(binDir);
     symlinkSync(planted, resolve(binDir, "turso"));
-    const provider = createTursoCliProvisioningProvider({ searchPath: binDir });
+    const provider = createTursoCliProvisioningProvider({
+      searchPath: binDir,
+      trustedInstallRoot: binDir,
+      expectedVersion: "turso 1.2.3",
+      expectedSha256: "0".repeat(64),
+    });
     const context = target(cwd, artifactDir);
 
     await expect(provider.inspect(context)).resolves.toEqual({
       ready: false,
-      detail: "preinstalled turso binary must not resolve inside the writable artifact directory",
+      detail: "pinned turso executable must not be a symlink",
     });
     await expect(provider.provision({ ...context, credentials: {} }))
-      .rejects.toThrow(/writable artifact directory/);
+      .rejects.toThrow(/must not be a symlink/);
+  });
+
+  it("rejects a checksum-pinned binary or install directory writable by the controller user", async () => {
+    const cwd = freshDir();
+    const artifactDir = resolve(cwd, "artifacts");
+    mkdirSync(artifactDir);
+    const binDir = resolve(freshDir(), "bin");
+    mkdirSync(binDir);
+    const binary = resolve(binDir, "turso");
+    writeFileSync(binary, "#!/bin/sh\necho 'turso 1.2.3'\n", { mode: 0o755 });
+    const provider = createTursoCliProvisioningProvider({
+      searchPath: binDir,
+      trustedInstallRoot: binDir,
+      expectedVersion: "turso 1.2.3",
+      expectedSha256: createHash("sha256").update(readFileSync(binary)).digest("hex"),
+    });
+    await expect(provider.inspect(target(cwd, artifactDir))).resolves.toMatchObject({
+      ready: false,
+      detail: expect.stringContaining("writable by the controller user"),
+    });
+    chmodSync(binary, 0o555);
+    chmodSync(binDir, 0o555);
+    try {
+      await expect(provider.inspect(target(cwd, artifactDir))).resolves.toMatchObject({
+        ready: false,
+        detail: expect.stringContaining("writable by the controller user"),
+      });
+    } finally {
+      chmodSync(binDir, 0o755);
+      chmodSync(binary, 0o755);
+    }
   });
 
   it("matches only the Turso CLI surface", () => {

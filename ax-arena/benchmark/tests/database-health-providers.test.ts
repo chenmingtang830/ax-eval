@@ -12,7 +12,7 @@ import {
   tursoHealthCheckProvider,
 } from "../src/providers/database-health.js";
 
-const pgMock = vi.hoisted(() => ({ count: 0, connectError: false }));
+const pgMock = vi.hoisted(() => ({ tableCount: 0, functionCount: 0, roleCount: 0, connectError: false }));
 const mongoMock = vi.hoisted(() => ({ collections: [] as string[] }));
 
 vi.mock("pg", () => ({
@@ -22,7 +22,10 @@ vi.mock("pg", () => ({
     }
     async end() {}
     async query(sql: string) {
-      return sql.includes("COUNT(*)") ? { rows: [{ count: pgMock.count }] } : { rows: [{ "?column?": 1 }] };
+      if (sql.includes("information_schema.tables")) return { rows: [{ count: pgMock.tableCount }] };
+      if (sql.includes("pg_proc")) return { rows: [{ count: pgMock.functionCount }] };
+      if (sql.includes("pg_roles")) return { rows: [{ count: pgMock.roleCount }] };
+      return { rows: [{ "?column?": 1 }] };
     }
   },
 }));
@@ -68,7 +71,9 @@ function context(pack: TargetPack, credentials: Record<string, string>): HealthC
 
 describe("arena database health providers", () => {
   beforeEach(() => {
-    pgMock.count = 0;
+    pgMock.tableCount = 0;
+    pgMock.functionCount = 0;
+    pgMock.roleCount = 0;
     pgMock.connectError = false;
     mongoMock.collections = [];
     vi.unstubAllGlobals();
@@ -80,7 +85,8 @@ describe("arena database health providers", () => {
       sql_conn: { dialect: "postgres", connection_string_env: "DATABASE_URL" },
       tasks: [],
     });
-    pgMock.count = 2;
+    pgMock.tableCount = 1;
+    pgMock.roleCount = 1;
     await expect(postgresHealthCheckProvider.check(context(pack, { DATABASE_URL: "secret" })))
       .resolves.toEqual([
         { status: "pass", message: "Postgres connection is reachable" },

@@ -68,20 +68,35 @@ function postgresTableResource(name: string): string {
   return `postgres:table:${encodeURIComponent(name)}`;
 }
 
-function postgresFunctionResource(name: string, args: string): string {
-  return `postgres:function:${encodeURIComponent(name)}:${encodeURIComponent(args)}`;
+function postgresFunctionResource(oid: string | number, name: string): string {
+  return `postgres:function:${encodeURIComponent(String(oid))}:${encodeURIComponent(name)}`;
+}
+
+function postgresRoleResource(name: string): string {
+  return `postgres:role:${encodeURIComponent(name)}`;
+}
+
+function postgresRoleMatchesNamespace(name: unknown, namespace: string): name is string {
+  const suffix = namespace.replaceAll("-", "_");
+  return typeof name === "string" && name.startsWith("axarena_") && name.endsWith(`_${suffix}`);
 }
 
 function parsePostgresResource(resource: string):
   | { kind: "table"; name: string }
-  | { kind: "function"; name: string; args: string } {
-  const [scheme, kind, encodedName, encodedArgs, ...extra] = resource.split(":");
-  if (scheme !== "postgres" || extra.length || !encodedName) throw new Error("invalid Postgres cleanup resource");
-  if (kind === "table" && encodedArgs === undefined) {
-    return { kind, name: decodeURIComponent(encodedName) };
+  | { kind: "function"; name: string; oid: string }
+  | { kind: "role"; name: string } {
+  const [scheme, kind, first, second, ...extra] = resource.split(":");
+  if (scheme !== "postgres" || extra.length || !first) throw new Error("invalid Postgres cleanup resource");
+  if (kind === "table" && second === undefined) {
+    return { kind, name: decodeURIComponent(first) };
   }
-  if (kind === "function" && encodedArgs !== undefined) {
-    return { kind, name: decodeURIComponent(encodedName), args: decodeURIComponent(encodedArgs) };
+  if (kind === "function" && second !== undefined) {
+    const oid = decodeURIComponent(first);
+    if (!/^\d+$/.test(oid)) throw new Error("invalid Postgres function identity");
+    return { kind, oid, name: decodeURIComponent(second) };
+  }
+  if (kind === "role" && second === undefined) {
+    return { kind, name: decodeURIComponent(first) };
   }
   throw new Error("invalid Postgres cleanup resource");
 }
@@ -105,8 +120,11 @@ export const postgresResetProvider: ResetProvider = {
       const tableRows = await client.query<{ table_name: string }>(
         "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name LIKE 'axarena\\_%' ESCAPE '\\'",
       );
-      const functionRows = await client.query<{ proname: string; identity_arguments: string }>(
-        "SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS identity_arguments FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'axarena\\_%' ESCAPE '\\'",
+      const functionRows = await client.query<{ oid: string | number; proname: string }>(
+        "SELECT p.oid, p.proname FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'axarena\\_%' ESCAPE '\\'",
+      );
+      const roleRows = await client.query<{ rolname: string }>(
+        "SELECT rolname FROM pg_roles WHERE rolname LIKE 'axarena\\_%' ESCAPE '\\'",
       );
       const resources = [
         ...tableRows.rows
@@ -115,7 +133,11 @@ export const postgresResetProvider: ResetProvider = {
           .map(postgresTableResource),
         ...functionRows.rows
           .filter((row) => isArenaName(row.proname, namespace))
-          .map((row) => postgresFunctionResource(row.proname, row.identity_arguments)),
+          .map((row) => postgresFunctionResource(row.oid, row.proname)),
+        ...roleRows.rows
+          .map((row) => row.rolname)
+          .filter((name) => postgresRoleMatchesNamespace(name, namespace))
+          .map(postgresRoleResource),
       ];
       return boundedPlan(`Delete ${resources.length} namespaced Postgres resource(s)`, resources);
     } finally {
@@ -130,7 +152,9 @@ export const postgresResetProvider: ResetProvider = {
       return { supported: false, message: "pack does not declare a Postgres connection", deleted: [], errors: [] };
     }
     const parsed = plan.resources.map(parsePostgresResource);
-    if (parsed.some((resource) => !isArenaName(resource.name, namespace))) {
+    if (parsed.some((resource) => resource.kind === "role"
+      ? !postgresRoleMatchesNamespace(resource.name, namespace)
+      : !isArenaName(resource.name, namespace))) {
       throw new Error("Postgres cleanup plan contains a resource outside the cell namespace");
     }
     if (context.dryRun) {
@@ -144,24 +168,23 @@ export const postgresResetProvider: ResetProvider = {
     try {
       for (const [index, resource] of parsed.entries()) {
         const id = plan.resources[index]!;
-        const statement = resource.kind === "table"
-          ? `DROP TABLE IF EXISTS "public".${quotePostgresIdentifier(resource.name)} CASCADE`
-          : `DROP FUNCTION IF EXISTS "public".${quotePostgresIdentifier(resource.name)}(${resource.args}) CASCADE`;
+        let statement = resource.kind === "table"
+          ? `DROP TABLE IF EXISTS "public".${quotePostgresIdentifier(resource.name)}`
+          : resource.kind === "function"
+            ? ""
+            : `DROP ROLE IF EXISTS ${quotePostgresIdentifier(resource.name)}`;
         try {
+          if (resource.kind === "function") {
+            const current = await client.query<{ statement: string }>(
+              "SELECT format('DROP FUNCTION IF EXISTS %I.%I(%s)', n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)) AS statement FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE p.oid = $1::oid AND n.nspname = 'public' AND p.proname = $2",
+              [resource.oid, resource.name],
+            );
+            statement = current.rows[0]?.statement ?? "";
+            if (!statement) throw new Error("function no longer matches the cleanup plan");
+          }
           await client.query(statement);
           deleted.push(id);
-        } catch (error) {
-          const message = error instanceof Error ? error.message : String(error);
-          if (/drop(?: function)? cascade is not supported|drop function.*cascade.*not supported/i.test(message)) {
-            try {
-              await client.query(statement.replace(/ CASCADE$/, ""));
-              deleted.push(id);
-              continue;
-            } catch {
-              errors.push(`failed to delete ${id} without CASCADE`);
-              continue;
-            }
-          }
+        } catch {
           errors.push(`failed to delete ${id}`);
         }
       }
@@ -321,7 +344,7 @@ export const tursoResetProvider: ResetProvider = {
         throw new Error("invalid Turso cleanup resource");
       }
       const name = decodeURIComponent(encodedName);
-      if (!isArenaName(name, namespace) || !/^[A-Za-z0-9_-]+$/.test(name)) {
+      if (!isArenaName(name, namespace) || !/^[A-Za-z0-9._-]+$/.test(name)) {
         throw new Error("Turso cleanup plan contains a resource outside the cell namespace");
       }
       return name;

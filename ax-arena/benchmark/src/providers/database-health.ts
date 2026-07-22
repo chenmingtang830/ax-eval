@@ -47,10 +47,18 @@ export const postgresHealthCheckProvider: HealthCheckProvider = {
     try {
       await client.connect();
       await client.query("SELECT 1");
-      const result = await client.query<{ count: string | number }>(
+      const tables = await client.query<{ count: string | number }>(
         "SELECT COUNT(*) AS count FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name LIKE 'axarena\\_%' ESCAPE '\\'",
       );
-      const count = Number(result.rows[0]?.count ?? 0);
+      const functions = await client.query<{ count: string | number }>(
+        "SELECT COUNT(*) AS count FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'axarena\\_%' ESCAPE '\\'",
+      );
+      const roles = await client.query<{ count: string | number }>(
+        "SELECT COUNT(*) AS count FROM pg_roles WHERE rolname LIKE 'axarena\\_%' ESCAPE '\\'",
+      );
+      const count = [tables, functions, roles]
+        .map((result) => Number(result.rows[0]?.count ?? 0))
+        .reduce((sum, value) => sum + (Number.isFinite(value) ? value : 0), 0);
       return inventoryEvidence("Postgres", Number.isFinite(count) ? count : 0);
     } catch {
       return [{ status: "fail", message: "Postgres health check failed" }];

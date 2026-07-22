@@ -198,6 +198,11 @@ read-back credentials through `verificationCredentials`. Only the latter reach
 health checks, verification clients, and oracle providers; they never enter the
 harness environment or provisioning context.
 
+Arena database reset providers never use broad cascade cleanup. Postgres drops
+only exact namespace-matched tables, server-revalidated functions, and roles;
+dependencies leave cleanup unconfirmed. Turso CLI attestation binds an exact
+version and SHA-256 and rejects writable executable or ancestor paths.
+
 The normalized record's optional `provider_provenance` lists only selected or
 invoked oracle, provisioning, health-check, and adapter identities. Reset is
 not represented there because `runCell` never cleans up. The controller must

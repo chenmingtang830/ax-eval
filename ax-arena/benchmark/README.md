@@ -18,6 +18,13 @@ ambient state. Activation by the low-pass and production controllers, followed
 by removal of the transitional core database fallbacks, is the next stack
 slice.
 
+Provider cleanup is namespace-bounded and non-cascading. Postgres revalidates
+function identities server-side and includes exact DAEB-created roles; cleanup
+remains unconfirmed when unrelated dependencies prevent a drop. Turso CLI
+provisioning requires `AX_ARENA_TURSO_INSTALL_ROOT`,
+`AX_ARENA_TURSO_CLI_VERSION`, and `AX_ARENA_TURSO_CLI_SHA256`; the executable
+and its full ancestor chain must be non-writable by the controller user.
+
 Runtime-shared pack composition, database prompt overrides, task extraction,
 and artifact readers remain temporary public `ax-eval` compatibility seams;
 the runtime and publication stack slices remove those residuals without
