@@ -533,7 +533,7 @@ function cmdAuditSuite(args: AuthoringArgs): number {
   if (args.apply) {
     const path = assertCanonicalDaebWritePath(paths, args.suite);
     console.log("\nApplying autofixes…");
-    const written = applySuiteAudit(root, path, report);
+    const written = applySuiteAudit(paths, path, report);
     for (const output of written) console.log(`  wrote ${output}`);
     if (report.findings.some((finding) =>
       finding.code === "underfilled_task_bank" || finding.code === "mapping_would_cover" || finding.code === "seed_eligible_ok")) {

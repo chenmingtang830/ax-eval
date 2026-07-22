@@ -3,12 +3,13 @@
  * and suite audits remain the only blocking gates. Findings are persisted as
  * a review artifact and never mutate inventories, support matrices, or packs.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import {
   assertCanonicalDaebWritePath,
+  daebRepositoryRoot,
+  daebRoot,
   daebVendorExtractDir,
   extractJsonObjectWithRepair,
   invokeGenerator,
@@ -18,6 +19,7 @@ import {
   type Effort,
   type HarnessId,
 } from "ax-eval";
+import { writeContainedText } from "./artifact-filesystem.js";
 
 const AdvisoryFindingSchema = z.object({
   severity: z.enum(["info", "warn"]),
@@ -90,7 +92,11 @@ export function writeExtractAdvisory(root: DaebPathInput, advisory: ExtractAdvis
     root,
     resolve(daebVendorExtractDir(root, advisory.slug), "advisory.yaml"),
   );
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(advisory));
-  return path;
+  return writeContainedText(
+    daebRepositoryRoot(root),
+    daebRoot(root),
+    path,
+    yamlStringify(advisory),
+    "extract advisory",
+  );
 }

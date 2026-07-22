@@ -12,14 +12,16 @@
  * — they reason over already-extracted, cited text rather than researching new
  * facts. Every claim still traces back to specific capability inventory entries.
  */
-import { mkdirSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
+  assertCanonicalDaebWritePath,
   CANONICAL_SURFACE_SCOPE,
+  daebRepositoryRoot,
+  daebRoot,
   defaultSuiteMethodology,
   extractJsonObjectWithRepair,
   invokeGenerator,
@@ -43,6 +45,7 @@ import {
   type FailureTaxonomy,
   type TraceReviewMemo,
 } from "ax-eval";
+import { writeContainedText } from "./artifact-filesystem.js";
 
 const CoverageSchema = z.object({ vendor: z.string(), capability_name: z.string() });
 
@@ -1171,11 +1174,12 @@ export function renderSynthesisDoc(name: string, category: string, result: Synth
 }
 
 export function writeSuiteFiles(root: string, path: string, suiteYaml: string, synthesisDoc: string): { suitePath: string; synthesisPath: string } {
-  const suitePath = resolve(root, path);
-  const synthesisPath = suitePath.replace(/\.yaml$/, ".synthesis.md");
-  mkdirSync(dirname(suitePath), { recursive: true });
-  writeFileSync(suitePath, suiteYaml);
-  writeFileSync(synthesisPath, synthesisDoc);
+  const suitePath = assertCanonicalDaebWritePath(root, resolve(root, path));
+  const synthesisPath = assertCanonicalDaebWritePath(root, suitePath.replace(/\.yaml$/, ".synthesis.md"));
+  const repositoryRoot = daebRepositoryRoot(root);
+  const writeRoot = daebRoot(root);
+  writeContainedText(repositoryRoot, writeRoot, suitePath, suiteYaml, "canonical suite");
+  writeContainedText(repositoryRoot, writeRoot, synthesisPath, synthesisDoc, "suite synthesis");
   return { suitePath, synthesisPath };
 }
 
@@ -1247,13 +1251,22 @@ export function renderSupportSummaryMarkdown(
 export function writeSuiteArtifacts(root: string, suitePath: string, result: SynthesizeResult): string[] {
   const stem = suitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
   const benchmark = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
-  const supportSummaryPath = resolve(root, suitePath).replace(/\.yaml$/i, ".support-summary.md");
-  writeFileSync(supportSummaryPath, renderSupportSummaryMarkdown(
-    benchmark,
-    result.tasks,
-    { ...result.supportMatrix, benchmark },
-    result.selectionLedger,
-  ));
+  const supportSummaryPath = assertCanonicalDaebWritePath(
+    root,
+    resolve(root, suitePath).replace(/\.yaml$/i, ".support-summary.md"),
+  );
+  writeContainedText(
+    daebRepositoryRoot(root),
+    daebRoot(root),
+    supportSummaryPath,
+    renderSupportSummaryMarkdown(
+      benchmark,
+      result.tasks,
+      { ...result.supportMatrix, benchmark },
+      result.selectionLedger,
+    ),
+    "suite support summary",
+  );
   return [
     writeMethodology(root, suitePath, result.methodology),
     writeConceptUniverse(root, suitePath, result.conceptUniverse),

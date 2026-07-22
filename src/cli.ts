@@ -147,7 +147,7 @@ import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
 import { EvaluationCellSchema } from "./cell/schema.js";
 import { runCell } from "./cell/run.js";
-import { resolveArenaLaunch } from "./arena-launcher.js";
+import { arenaChildExitCode, resolveArenaLaunch } from "./arena-launcher.js";
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -270,7 +270,7 @@ function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly 
     console.error(`ax-arena terminated by signal ${child.signal}`);
     return 1;
   }
-  return child.status ?? 1;
+  return arenaChildExitCode(child.status, child.signal);
 }
 
 function isHelpToken(value: string | undefined): boolean {

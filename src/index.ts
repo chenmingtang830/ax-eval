@@ -272,6 +272,8 @@ export { probeHarness } from "./harness/probe.js";
 export {
   assertCanonicalDaebWritePath,
   createDaebPathContext,
+  daebRepositoryRoot,
+  daebRoot,
   daebReadCompiledPackPath,
   daebReadExtractsDir,
   daebReadSuitePath,

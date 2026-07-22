@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { constants as osConstants } from "node:os";
 import { dirname, resolve } from "node:path";
 
 export interface ArenaLaunch {
@@ -13,6 +14,11 @@ export interface ResolveArenaLaunchOptions {
   sourceTsconfig?: string;
   installedPackageJson?: string;
   env?: NodeJS.ProcessEnv;
+}
+
+export function arenaChildExitCode(status: number | null, signal: NodeJS.Signals | null): number {
+  if (signal) return 128 + (osConstants.signals[signal] ?? 0);
+  return status ?? 1;
 }
 
 /** Build a shell-free launch plan for one allowlisted compatibility command. */

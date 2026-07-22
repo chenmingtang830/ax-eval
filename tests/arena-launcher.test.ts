@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { resolveArenaLaunch } from "../src/arena-launcher.js";
+import { arenaChildExitCode, resolveArenaLaunch } from "../src/arena-launcher.js";
 
 describe("arena compatibility launcher", () => {
   it("invokes an installed arena package CLI through Node without a shell", () => {
@@ -49,5 +49,11 @@ describe("arena compatibility launcher", () => {
     expect(() => resolveArenaLaunch("audit-suite", [], {
       sourceCli: resolve(tmpdir(), "missing-ax-arena-source.ts"),
     })).toThrow(/could not locate the installed @ax-arena\/benchmark package/);
+  });
+
+  it("preserves conventional signal-derived exit status", () => {
+    expect(arenaChildExitCode(null, "SIGINT")).toBe(130);
+    expect(arenaChildExitCode(null, "SIGTERM")).toBe(143);
+    expect(arenaChildExitCode(7, null)).toBe(7);
   });
 });

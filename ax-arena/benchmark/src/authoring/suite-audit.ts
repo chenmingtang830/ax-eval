@@ -8,7 +8,7 @@
  * suite name/version metadata and can re-run a seed-only synthesize after
  * mapping fixes land in coverage-gap-check.
  */
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import {
@@ -17,7 +17,10 @@ import {
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
 import {
+  assertCanonicalDaebWritePath,
+  daebRepositoryRoot,
   daebReadVendorsDir,
+  daebRoot,
   loadCapabilityExtract,
   loadCoverageMatrix,
   loadOracleExtract,
@@ -31,6 +34,7 @@ import {
   type SupportMatrix,
 } from "ax-eval";
 import { readdirSync } from "node:fs";
+import { writeContainedText } from "./artifact-filesystem.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import { auditCorePacks } from "./pack-audit.js";
@@ -495,9 +499,11 @@ export function formatSuiteAuditReport(report: SuiteAuditReport): string {
  * Apply metadata autofixes (name/version). Mapping fixes live in code
  * (DATABASE_DETERMINISTIC_RULES); caller should re-synthesize after --apply.
  */
-export function applySuiteAudit(root: string, suitePath: string, report: SuiteAuditReport): string[] {
+export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: SuiteAuditReport): string[] {
   const written: string[] = [];
-  const abs = resolve(root, suitePath);
+  const abs = assertCanonicalDaebWritePath(root, suitePath);
+  const repositoryRoot = daebRepositoryRoot(root);
+  const writeRoot = daebRoot(root);
   if (!existsSync(abs)) return written;
   const raw = loadYaml(abs) as Record<string, unknown>;
   let changed = false;
@@ -508,11 +514,14 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
   }
   if (changed) {
     const header = `# Canonical task suite (draft until human freeze).\n# Autofixed by audit-suite --apply.\n`;
-    writeFileSync(abs, `${header}${yamlStringify(raw)}`);
+    writeContainedText(repositoryRoot, writeRoot, abs, `${header}${yamlStringify(raw)}`, "suite audit autofix");
     written.push(abs);
   }
   // Sibling methodology artifacts keep the stem; rename note for humans.
-  const notePath = resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`);
+  const notePath = assertCanonicalDaebWritePath(
+    root,
+    resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
+  );
   const notes = [
     "# Suite audit autofix notes",
     "",
@@ -529,7 +538,7 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
     ...report.findings.map((f) => `- **${f.severity}/${f.code}**: ${f.message}`),
     "",
   ];
-  writeFileSync(notePath, notes.join("\n"));
+  writeContainedText(repositoryRoot, writeRoot, notePath, notes.join("\n"), "suite audit notes");
   written.push(notePath);
   return written;
 }
