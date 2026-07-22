@@ -641,11 +641,10 @@ function assertRecordMatchesCell(
     ["effort", record.effort, cell.harness.effort],
     ["requested_model", record.requested_model, cell.harness.model],
     ["profiles", JSON.stringify(record.profiles), JSON.stringify([cell.harness.profile])],
-  ].filter(([, actual, expected]) => actual !== expected);
+  ].filter(([, actual, expected]) => actual !== expected)
+    .map(([field]) => field);
   if (mismatches.length) {
-    throw new Error(`runCell returned a record outside the immutable cell identity: ${mismatches
-      .map(([field, actual, expected]) => `${field}=${String(actual)} (expected ${String(expected)})`)
-      .join(", ")}`);
+    throw new Error(`runCell returned a record outside the immutable cell identity: ${mismatches.join(", ")}`);
   }
   if (record.best_profile !== null && record.best_profile !== cell.harness.profile) {
     throw new Error("runCell returned a best_profile outside the immutable cell identity");
@@ -893,7 +892,11 @@ export async function executeArenaCellWithInjectedRuntime(
       sourcePackPath: packPath,
     },
   });
-  const record = NormalizedCellRecordSchema.parse(returnedRecord);
+  const parsedRecord = NormalizedCellRecordSchema.safeParse(returnedRecord);
+  if (!parsedRecord.success) {
+    throw new Error("runCell returned an invalid normalized record");
+  }
+  const record = parsedRecord.data;
   assertRecordMatchesCell(record, cell, credentialSecrets);
   assertRecordArtifacts(record, runtimeArtifactDir, runtimeArtifactIdentity);
   const recordSha256 = createHash("sha256").update(canonicalJson(record)).digest("hex");

@@ -1018,6 +1018,37 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     expect(existsSync(spec.cleanupPath)).toBe(false);
   });
 
+  it.each([
+    ["schema", "host-secret"],
+    ["identity", "zz"],
+  ] as const)("keeps %s validation failures free of returned credential values", async (mode, secret) => {
+    const cwd = mkdtempSync(resolve(tmpdir(), `ax-arena-controller-record-${mode}-`));
+    const { packPath, sourceCommitSha } = writeCommittedPack(cwd);
+    const spec = cellSpec(cwd, packPath, sourceCommitSha, `record-${mode}`);
+    let thrown: unknown;
+    try {
+      await executeArenaCell(spec, {
+        credentials: { OPENAI_API_KEY: secret },
+        now: () => new Date(),
+        async createRegistry() {
+          return createRuntimeExtensionRegistry();
+        },
+        async runCell(cell) {
+          const record = fakeRecord(cell);
+          return (mode === "schema"
+            ? { ...record, status: secret }
+            : { ...record, batch_id: secret }) as never;
+        },
+      });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(String(thrown)).toMatch(mode === "schema" ? /invalid normalized record/ : /batch_id/);
+    expect(String(thrown)).not.toContain(secret);
+    expect(existsSync(spec.recordPath)).toBe(false);
+    expect(existsSync(spec.cleanupPath)).toBe(false);
+  });
+
   it.each(["set", "profiles", "best", "namespace", "failed-namespace"] as const)(
     "binds completed record provenance: %s",
     async (mode) => {
