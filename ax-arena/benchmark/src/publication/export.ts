@@ -136,6 +136,17 @@ export interface BuildArenaPublicationExportOptions {
   generatedAt?: Date;
 }
 
+export interface LoadArenaPublicationCohortOptions {
+  root: string;
+  bundleDir: string;
+}
+
+export interface VerifiedArenaPublicationCohort {
+  bundle: ArenaPublicationBundle;
+  batch: ArenaBatchManifest;
+  records: Array<{ vendor: string; path: string; record: NormalizedResult }>;
+}
+
 function inside(root: string, candidate: string): boolean {
   const path = relative(root, candidate);
   return path !== "" && path !== ".." && !path.startsWith("../") && !path.startsWith("..\\") && !isAbsolute(path);
@@ -778,18 +789,12 @@ function assertComparableLeaderboardRecords(
   }
 }
 
-export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOptions): ArenaPublicationExportManifest {
+function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions) {
   const root = resolve(opts.root);
   canonicalDirectory(root, "publication export root");
   const bundleRoot = resolveContained(root, opts.bundleDir, "publication bundle");
   assertNoSymlinkChain(root, bundleRoot, "publication bundle");
   canonicalDirectory(bundleRoot, "publication bundle");
-  const outRoot = resolveContained(root, opts.outDir, "publication export output");
-  assertSafeOutput(root, bundleRoot, outRoot);
-  const generatedAt = opts.generatedAt ?? new Date();
-  if (!Number.isFinite(generatedAt.getTime())) throw new Error("publication export generatedAt must be a valid date");
-  const generatedAtIso = generatedAt.toISOString();
-
   const manifestPath = safeBundleFile(bundleRoot, "manifest.json", "publication manifest");
   const bundle = ArenaPublicationBundleSchema.parse(readBoundedJson(bundleRoot, "manifest.json", "publication manifest"));
   const retainedJsonPaths = new Set(bundle.vendors.flatMap((vendor) => [
@@ -820,22 +825,18 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
       ) as NormalizedResult);
     }
     for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
-      snapshots.set(snapshotPath, readPublicationJson(
-        snapshotPath,
-        `snapshot ${snapshotPath}`,
-      ));
+      snapshots.set(snapshotPath, readPublicationJson(snapshotPath, `snapshot ${snapshotPath}`));
     }
   }
   assertNestedEvidenceCoverage(bundle, completion, completedRecords, normalizedRecords, snapshots);
 
-  const leaderboardRecords: Array<{ vendor: string; record: NormalizedResult }> = [];
-  const cells: Array<Record<string, unknown>> = [];
+  const leaderboardRecords: Array<{ vendor: string; path: string; record: NormalizedResult }> = [];
   const taskResults = taskResultsFromCompletedCells(completion, completedRecords);
   const evidence: Array<Record<string, unknown>> = [];
   for (const vendor of bundle.vendors) {
     for (const recordPath of vendor.artifacts.normalized_records) {
       const record = normalizedRecords.get(recordPath)!;
-      leaderboardRecords.push({ vendor: vendor.slug, record });
+      leaderboardRecords.push({ vendor: vendor.slug, path: recordPath, record });
       evidence.push({ kind: "normalized_record", vendor: vendor.slug, surface: record.surface, harness: record.harness, path: recordPath });
     }
     for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
@@ -846,21 +847,64 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
     }
   }
 
-  const selectedRecords = new Map<string, { vendor: string; record: NormalizedResult }>();
+  const selectedRecords = new Map<string, { vendor: string; path: string; record: NormalizedResult }>();
   for (const entry of leaderboardRecords) {
-    if (entry.record.blocked) continue;
-    if (entry.record.summary_kind !== "aggregate") continue;
+    if (entry.record.blocked || entry.record.summary_kind !== "aggregate") continue;
     const key = JSON.stringify([entry.vendor, entry.record.harness, entry.record.surface]);
     if (selectedRecords.has(key)) throw new Error(`publication bundle contains duplicate aggregate cohort ${key}`);
     selectedRecords.set(key, entry);
   }
   assertComparableLeaderboardRecords(bundle, batch, selectedRecords);
   assertAggregateSourceBinding(batch, completion, completedRecords, selectedRecords);
-  for (const { vendor, record } of leaderboardRecords) {
+  return {
+    root,
+    bundleRoot,
+    manifestPath,
+    bundle,
+    batch,
+    completion,
+    completedRecords,
+    normalizedRecords,
+    snapshots,
+    leaderboardRecords,
+    selectedRecords,
+    taskResults,
+    evidence,
+  };
+}
+
+export function loadArenaPublicationCohort(
+  opts: LoadArenaPublicationCohortOptions,
+): VerifiedArenaPublicationCohort {
+  const source = loadVerifiedPublicationSource(opts);
+  return {
+    bundle: source.bundle,
+    batch: source.batch,
+    records: [...source.selectedRecords.values()].map(({ vendor, path, record }) => ({ vendor, path, record })),
+  };
+}
+
+export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOptions): ArenaPublicationExportManifest {
+  const source = loadVerifiedPublicationSource(opts);
+  const {
+    root,
+    bundleRoot,
+    manifestPath,
+    bundle,
+    leaderboardRecords,
+    selectedRecords,
+    taskResults,
+    evidence,
+  } = source;
+  const outRoot = resolveContained(root, opts.outDir, "publication export output");
+  assertSafeOutput(root, bundleRoot, outRoot);
+  const generatedAt = opts.generatedAt ?? new Date();
+  if (!Number.isFinite(generatedAt.getTime())) throw new Error("publication export generatedAt must be a valid date");
+  const generatedAtIso = generatedAt.toISOString();
+  const cells: Array<Record<string, unknown>> = [];
+  for (const { vendor, path: recordPath, record } of leaderboardRecords) {
     const key = JSON.stringify([vendor, record.harness, record.surface]);
     if (selectedRecords.get(key)?.record !== record) continue;
-    const recordPath = bundle.vendors.find((candidate) => candidate.slug === vendor)!.artifacts.normalized_records
-      .find((candidate) => normalizedRecords.get(candidate) === record)!;
     cells.push({
       id: `${vendor}/${record.surface}/${record.harness}`,
       vendor,

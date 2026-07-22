@@ -21,7 +21,7 @@ import {
   ArenaBatchManifestSchema,
   arenaBatchConfigurationHash,
 } from "../src/controller/schemas.js";
-import { buildArenaPublicationExport } from "../src/publication/export.js";
+import { buildArenaPublicationExport, loadArenaPublicationCohort } from "../src/publication/export.js";
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const CORE_CLI = resolve(REPOSITORY_ROOT, "src", "cli.ts");
@@ -466,6 +466,9 @@ describe("arena publication export", () => {
         outDir: "arena-out",
         generatedAt: GENERATED_AT,
       });
+      const cohort = loadArenaPublicationCohort({ root, bundleDir: "bundle" });
+      expect(cohort.batch.batch_id).toBe("batch-1");
+      expect(cohort.records).toHaveLength(8);
       expect(manifest.files).toHaveLength(7);
       for (const file of manifest.files) expect(existsSync(resolve(root, "arena-out", file.path))).toBe(true);
       const leaderboard = parse(resolve(root, "arena-out/leaderboard.json"));

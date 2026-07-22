@@ -95,10 +95,10 @@ try {
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaRuntimeReportSchema, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, writeRuntimeReportingBundle } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaRuntimeReportSchema, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, loadArenaPublicationCohort, writeRuntimeReportingBundle } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
-      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || " +
+      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
       "!ArenaBatchManifestSchema || !ArenaCellCleanupSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaRuntimeReportSchema) process.exit(1);",
   ], {
     cwd: smokeRoot,
