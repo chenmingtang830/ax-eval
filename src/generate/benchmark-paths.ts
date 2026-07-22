@@ -240,7 +240,7 @@ export function daebReadVersionDir(root: DaebPathInput, version: string = DAEB_A
 }
 
 export function daebSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "suite.yaml");
+  return assertCanonicalDaebWritePath(root, resolve(daebVersionDir(root, version), "suite.yaml"));
 }
 
 export function daebReadSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
@@ -248,7 +248,10 @@ export function daebReadSuitePath(root: DaebPathInput, version: string = DAEB_AC
 }
 
 export function daebVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "vendor-selection-ledger.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVersionDir(root, version), "vendor-selection-ledger.yaml"),
+  );
 }
 
 export function daebReadVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
@@ -272,7 +275,10 @@ export function daebReadVendorExtractDir(root: DaebPathInput, slug: string, vers
 }
 
 export function daebCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVendorExtractDir(root, slug, version), "capability-inventory.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
+  );
 }
 
 export function daebReadCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
@@ -280,7 +286,10 @@ export function daebReadCapabilityInventoryPath(root: DaebPathInput, slug: strin
 }
 
 export function daebLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVendorExtractDir(root, slug, version), "capabilities.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorExtractDir(root, slug, version), "capabilities.yaml"),
+  );
 }
 
 export function daebReadLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
@@ -288,7 +297,10 @@ export function daebReadLegacyCapabilitiesPath(root: DaebPathInput, slug: string
 }
 
 export function daebSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVendorExtractDir(root, slug, version), "surfaces.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorExtractDir(root, slug, version), "surfaces.yaml"),
+  );
 }
 
 export function daebReadSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
@@ -296,7 +308,10 @@ export function daebReadSurfacesPath(root: DaebPathInput, slug: string, version:
 }
 
 export function daebOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVendorExtractDir(root, slug, version), "oracles.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorExtractDir(root, slug, version), "oracles.yaml"),
+  );
 }
 
 export function daebReadOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
@@ -312,7 +327,10 @@ export function daebReadPacksDir(root: DaebPathInput, version: string = DAEB_ACT
 }
 
 export function daebCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
+  );
 }
 
 export function daebReadCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
@@ -320,7 +338,10 @@ export function daebReadCompiledPackPath(root: DaebPathInput, slug: string, vers
 }
 
 export function daebVendorCardPath(root: DaebPathInput, slug: string): string {
-  return resolve(daebVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`);
+  return assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`),
+  );
 }
 
 export function daebReadVendorCardPath(root: DaebPathInput, slug: string): string {
