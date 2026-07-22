@@ -2,7 +2,9 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "rootDir": ".",
-    "paths": {}
+    "paths": {
+      "ax-eval": ["../../dist/index.d.ts"]
+    }
   },
   "include": ["src"]
 }

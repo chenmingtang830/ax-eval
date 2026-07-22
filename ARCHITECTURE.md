@@ -188,6 +188,11 @@ providers may add environment keys, but cannot replace scoped credentials or
 the core harness environment (including PATH). Tool binaries must be pinned and
 preinstalled outside the writable cell workspace.
 
+Controllers pass host-agent credentials through `credentials` and independent
+read-back credentials through `verificationCredentials`. Only the latter reach
+health checks, verification clients, and oracle providers; they never enter the
+harness environment or provisioning context.
+
 The normalized record's optional `provider_provenance` lists only selected or
 invoked oracle, provisioning, health-check, and adapter identities. Reset is
 not represented there because `runCell` never cleans up. The controller must

@@ -92,6 +92,7 @@ const registry = createRuntimeExtensionRegistry({
 });
 const record = await runCell(cell, {
   credentials,
+  verificationCredentials,
   extensions: { registry },
 });
 ```
@@ -104,7 +105,10 @@ persist the verified record, then plan and execute bounded cleanup and persist
 its separate evidence. Global oracle registration remains only for direct
 `verifyGeneratedPack` compatibility.
 
-Provisioning never receives verifier-only credentials, cannot replace PATH or
+Pass controller-only read-back secrets through `verificationCredentials`; they
+are available to health checks, verification clients, and oracle providers but
+never copied into the harness child. Provisioning never receives verifier-only
+credentials, cannot replace PATH or
 any scoped/core environment key, and all environment values it adds are treated
 as secrets during artifact and error redaction. Required tools must already be
 pinned outside the writable cell workspace.
