@@ -15,9 +15,21 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, posix, relative, resolve } from "node:path";
-import { NORMALIZED_RESULT_SCHEMA, type NormalizedResult } from "ax-eval";
+import { basename, dirname, isAbsolute, posix, relative, resolve } from "node:path";
+import {
+  NORMALIZED_RESULT_SCHEMA,
+  NormalizedCellRecordSchema,
+  type NormalizedCellRecord,
+  type NormalizedResult,
+} from "ax-eval";
 import { z } from "zod";
+import {
+  ArenaBatchCompletionSchema,
+  ArenaBatchManifestSchema,
+  ArenaCellCleanupSchema,
+  type ArenaBatchCompletion,
+  type ArenaBatchManifest,
+} from "../controller/schemas.js";
 import {
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
@@ -230,6 +242,18 @@ function parseBoundedJsonBytes(bytes: Buffer, label: string): unknown {
   }
 }
 
+function parseCanonicalJson<T>(
+  bytes: Buffer,
+  parse: (value: unknown) => T,
+  label: string,
+): T {
+  const parsed = parse(parseBoundedJsonBytes(bytes, label));
+  if (bytes.toString("utf8") !== `${JSON.stringify(parsed, null, 2)}\n`) {
+    throw new Error(`${label} is not in canonical persisted form`);
+  }
+  return parsed;
+}
+
 function assertSafeOutput(root: string, bundleRoot: string, outRoot: string): void {
   if (!inside(root, outRoot)) throw new Error("publication export output must resolve inside the repository root");
   if (existsSync(outRoot)) throw new Error("publication export output must not already exist");
@@ -323,6 +347,238 @@ function verifyPublicationIntegrity(
   return retained;
 }
 
+function integrityEntries(bundle: ArenaPublicationBundle): Map<string, { path: string; sha256: string; bytes: number }> {
+  return new Map(bundle.integrity.files.map((entry) => [entry.path, entry]));
+}
+
+function requireIntegrityEntry(
+  entries: ReadonlyMap<string, { path: string; sha256: string; bytes: number }>,
+  path: string,
+  label: string,
+): { path: string; sha256: string; bytes: number } {
+  const entry = entries.get(path);
+  if (!entry) throw new Error(`publication integrity does not cover ${label}: ${path}`);
+  return entry;
+}
+
+function verifyBatchBinding(
+  bundle: ArenaPublicationBundle,
+  verifiedJson: ReadonlyMap<string, Buffer>,
+): { batch: ArenaBatchManifest; completion: ArenaBatchCompletion } {
+  const entries = integrityEntries(bundle);
+  const batchEntry = requireIntegrityEntry(entries, bundle.integrity.batch_manifest_path, "the batch manifest");
+  const completionEntry = requireIntegrityEntry(entries, bundle.integrity.batch_completion_path, "the batch completion");
+  if (batchEntry.sha256 !== bundle.integrity.batch_manifest_sha256
+    || completionEntry.sha256 !== bundle.integrity.batch_completion_sha256) {
+    throw new Error("publication integrity batch hashes do not match their covered artifacts");
+  }
+  const batchBytes = verifiedJson.get(bundle.integrity.batch_manifest_path);
+  const completionBytes = verifiedJson.get(bundle.integrity.batch_completion_path);
+  if (!batchBytes || !completionBytes) throw new Error("publication integrity did not retain batch provenance");
+  const batch = parseCanonicalJson(batchBytes, (value) => ArenaBatchManifestSchema.parse(value), "publication batch manifest");
+  const completion = parseCanonicalJson(
+    completionBytes,
+    (value) => ArenaBatchCompletionSchema.parse(value),
+    "publication batch completion",
+  );
+  if (batch.configuration.command !== "daeb-production-rerun"
+    || batch.batch_id !== bundle.integrity.batch_id
+    || batch.source_commit_sha !== bundle.integrity.source_commit_sha
+    || batch.configuration_hash !== bundle.integrity.configuration_hash
+    || completion.batch_id !== batch.batch_id
+    || completion.source_commit_sha !== batch.source_commit_sha
+    || completion.configuration_hash !== batch.configuration_hash) {
+    throw new Error("publication integrity does not match its production batch provenance");
+  }
+  const expectedKeys = [...batch.expected_cells].sort();
+  const completionKeys = completion.cells.map((cell) => cell.key).sort();
+  if (new Set(completionKeys).size !== completionKeys.length
+    || expectedKeys.length !== completionKeys.length
+    || expectedKeys.some((key, index) => key !== completionKeys[index])) {
+    throw new Error("publication batch completion does not contain the exact configured cell set");
+  }
+  for (const cell of completion.cells) {
+    const record = requireIntegrityEntry(entries, cell.record_path, `completed record ${cell.key}`);
+    const cleanup = requireIntegrityEntry(entries, cell.cleanup_path, `cleanup evidence ${cell.key}`);
+    if (record.sha256 !== cell.record_hash || cleanup.sha256 !== cell.cleanup_hash) {
+      throw new Error(`publication integrity sidecar hash does not match batch completion cell ${cell.key}`);
+    }
+    if (batch.configuration.reset_required && cell.cleanup_status !== "confirmed") {
+      throw new Error(`publication batch cleanup is not confirmed for ${cell.key}`);
+    }
+    for (const artifact of cell.artifacts) {
+      const entry = requireIntegrityEntry(entries, artifact.path, `${artifact.name} artifact ${cell.key}`);
+      if (entry.sha256 !== artifact.sha256) {
+        throw new Error(`publication integrity artifact hash does not match batch completion cell ${cell.key}`);
+      }
+    }
+  }
+  return { batch, completion };
+}
+
+function loadCompletedCellRecords(
+  bundleRoot: string,
+  bundle: ArenaPublicationBundle,
+  batch: ArenaBatchManifest,
+  completion: ArenaBatchCompletion,
+): Map<string, NormalizedCellRecord> {
+  const entries = integrityEntries(bundle);
+  const records = new Map<string, NormalizedCellRecord>();
+  for (const cell of completion.cells) {
+    const entry = requireIntegrityEntry(entries, cell.record_path, `completed record ${cell.key}`);
+    const bytes = verifyIntegrityFile(bundleRoot, entry, true)!;
+    const record = parseCanonicalJson(
+      bytes,
+      (value) => NormalizedCellRecordSchema.parse(value),
+      `completed record ${cell.key}`,
+    );
+    const cleanupEntry = requireIntegrityEntry(entries, cell.cleanup_path, `cleanup evidence ${cell.key}`);
+    const cleanup = parseCanonicalJson(
+      verifyIntegrityFile(bundleRoot, cleanupEntry, true)!,
+      (value) => ArenaCellCleanupSchema.parse(value),
+      `cleanup evidence ${cell.key}`,
+    );
+    const configured = batch.configuration.cells.find((candidate) => candidate.key === cell.key);
+    const pack = batch.configuration.packs.find((candidate) => candidate.vendor === configured?.vendor);
+    const harness = batch.configuration.harnesses.find((candidate) => candidate.harness === configured?.harness);
+    const key = `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`;
+    const artifactNames = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, basename(artifact.path)]));
+    if (!configured || !pack || !harness || key !== cell.key
+      || record.record_id !== cell.record_id || record.cell_id !== cell.record_id
+      || record.batch_id !== batch.batch_id || record.run_batch_id !== batch.batch_id
+      || record.source_commit_sha !== batch.source_commit_sha
+      || record.evaluation_set_id !== batch.configuration.suite.name
+      || record.evaluation_set_version !== pack.standard_set_version
+      || record.standard_set_version !== pack.standard_set_version
+      || record.pack_content_hash !== pack.file_hash
+      || record.product !== configured.vendor || record.target_id !== configured.vendor
+      || record.surface !== configured.surface || record.harness !== configured.harness
+      || record.profiles.length !== 1 || record.profiles[0] !== configured.profile
+      || record.best_profile !== configured.profile || record.effort !== configured.effort
+      || record.requested_model !== configured.model || record.model !== configured.model
+      || record.harness_version_raw !== harness.version_raw
+      || record.harness_version_semver !== harness.version_semver
+      || record.trial !== configured.trial || record.status !== "completed"
+      || record.blocked !== undefined || record.error !== null || record.validity_status !== "valid"
+      || cleanup.cell_id !== record.cell_id || cleanup.record_sha256 !== cell.record_hash
+      || cleanup.status !== cell.cleanup_status || cleanup.status !== "confirmed"
+      || cleanup.namespace !== record.execution_namespace
+      || cleanup.provider?.id !== configured.reset_provider?.id
+      || cleanup.provider?.version !== configured.reset_provider?.version
+      || record.tasks_total !== record.task_results.filter((task) => !task.na).length
+      || record.tasks_passed !== record.task_results.filter((task) => !task.na && task.success).length
+      || record.artifacts.results !== artifactNames.results
+      || record.artifacts.trace !== artifactNames.trace
+      || record.artifacts.transcript !== artifactNames.transcript
+      || record.artifacts.invoke_metadata !== artifactNames.invoke_metadata) {
+      throw new Error(`completed record identity does not match sealed batch cell ${cell.key}`);
+    }
+    records.set(cell.record_path, record);
+  }
+  return records;
+}
+
+function sameNumber(left: number | null | undefined, right: number | null | undefined): boolean {
+  if (left === null || left === undefined || right === null || right === undefined) return left === right;
+  return Math.abs(left - right) <= 1e-12;
+}
+
+function average(values: readonly number[]): number | null {
+  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
+}
+
+function assertAggregateSourceBinding(
+  batch: ArenaBatchManifest,
+  completion: ArenaBatchCompletion,
+  completedRecords: ReadonlyMap<string, NormalizedCellRecord>,
+  selected: ReadonlyMap<string, { vendor: string; record: NormalizedResult }>,
+): void {
+  const completionByKey = new Map(completion.cells.map((cell) => [cell.key, cell]));
+  for (const { vendor, record } of selected.values()) {
+    const configured = batch.configuration.cells
+      .filter((cell) => cell.vendor === vendor && cell.surface === record.surface && cell.harness === record.harness)
+      .sort((left, right) => left.trial - right.trial);
+    const expectedPaths = configured.map((cell) => completionByKey.get(cell.key)!.record_path);
+    if (!record.source_records || record.source_records.length !== expectedPaths.length
+      || record.source_records.some((path, index) => path !== expectedPaths[index])) {
+      throw new Error(`publication aggregate ${vendor}/${record.surface}/${record.harness} does not cite its exact completed trials`);
+    }
+    const sources = expectedPaths.map((path) => completedRecords.get(path)!);
+    const trialValues = sources.map((source) => source.pass_at_1);
+    const mean = average(trialValues)!;
+    const passAtK = average(sources.map((source) => source.pass_at_k))!;
+    const attempts = Math.max(...sources.map((source) => source.attempts));
+    const discovery = average(sources.flatMap((source) => source.discovery_score === null ? [] : [source.discovery_score]));
+    const content = average(sources.flatMap((source) => source.content_quality === null ? [] : [source.content_quality]));
+    const taskIds = new Set(sources.flatMap((source) => source.task_results
+      .filter((task) => !task.na).map((task) => task.taskId)));
+    const consistentTasks = [...taskIds].filter((taskId) => sources.every((source) =>
+      source.task_results.some((task) => task.taskId === taskId && !task.na && task.success))).length;
+    const consistency = taskIds.size ? consistentTasks / taskIds.size : null;
+    const allPass = sources.every((source) => source.pass_at_1 >= 1) ? 1 : 0;
+    const stability = sources.every((source) => source.pass_at_1 >= 1)
+      ? "all_pass"
+      : sources.every((source) => source.pass_at_1 <= 0) ? "all_fail" : "inconsistent";
+    if (record.trial_count !== sources.length
+      || record.trial_values?.length !== trialValues.length
+      || record.trial_values.some((value, index) => !sameNumber(value, trialValues[index]))
+      || !sameNumber(record.mean_pass_rate, mean) || !sameNumber(record.pass_at_1, mean)
+      || !sameNumber(record.pass_at_k, passAtK) || record.attempts !== attempts
+      || record.tasks_total !== sources[0]!.tasks_total
+      || record.tasks_passed !== Math.round(mean * sources[0]!.tasks_total)
+      || record.range_pass_rate?.min !== Math.min(...trialValues)
+      || record.range_pass_rate?.max !== Math.max(...trialValues)
+      || !sameNumber(record.discovery_score, discovery) || !sameNumber(record.content_quality, content)
+      || !sameNumber(record.task_consistency_at_3, consistency)
+      || record.pass_3_tasks !== consistentTasks || record.pass_3_tasks_total !== taskIds.size
+      || record.pass_all_3 !== allPass || record.trial_stability_at_3 !== stability) {
+      throw new Error(`publication aggregate metrics do not match completed trials for ${vendor}/${record.surface}/${record.harness}`);
+    }
+  }
+}
+
+function assertNestedEvidenceCoverage(
+  bundle: ArenaPublicationBundle,
+  completion: ArenaBatchCompletion,
+  normalizedRecords: ReadonlyMap<string, NormalizedResult>,
+  snapshots: ReadonlyMap<string, unknown>,
+): void {
+  const entries = integrityEntries(bundle);
+  const completedRecords = new Set(completion.cells.map((cell) => cell.record_path));
+  const completedArtifacts = new Set(completion.cells.flatMap((cell) => cell.artifacts.map((artifact) => artifact.path)));
+  for (const [path, record] of normalizedRecords) {
+    for (const source of record.source_records ?? []) {
+      requireIntegrityEntry(entries, source, `source record referenced by ${path}`);
+      if (!completedRecords.has(source)) {
+        throw new Error(`normalized record ${path} references a source outside the completed batch: ${source}`);
+      }
+    }
+  }
+  for (const [snapshotPath, snapshot] of snapshots) {
+    if (!snapshot || typeof snapshot !== "object" || !Array.isArray((snapshot as { runs?: unknown }).runs)) continue;
+    for (const run of (snapshot as { runs: unknown[] }).runs) {
+      if (!run || typeof run !== "object") continue;
+      const evidence = (run as { evidence?: unknown }).evidence;
+      if (!evidence || typeof evidence !== "object") continue;
+      const value = evidence as { results?: unknown; trace?: unknown; transcript?: unknown };
+      const referenced = [
+        ...(Array.isArray(value.results) ? value.results : []),
+        ...(Array.isArray(value.trace) ? value.trace : []),
+        ...(typeof value.transcript === "string" ? [value.transcript] : []),
+      ];
+      for (const reference of referenced) {
+        if (typeof reference !== "string") {
+          throw new Error(`snapshot ${snapshotPath} contains a non-string evidence path`);
+        }
+        requireIntegrityEntry(entries, reference, `evidence referenced by ${snapshotPath}`);
+        if (!completedArtifacts.has(reference)) {
+          throw new Error(`snapshot ${snapshotPath} references evidence outside the completed batch: ${reference}`);
+        }
+      }
+    }
+  }
+}
+
 function taskResultsFromSnapshot(snapshotPath: string, snapshot: unknown): Array<Record<string, unknown>> {
   if (!snapshot || typeof snapshot !== "object") return [];
   const runs = (snapshot as { runs?: unknown }).runs;
@@ -367,7 +623,7 @@ function writePinnedJson(
   name: string,
   value: unknown,
   assertPinnedDirectory: () => void,
-): void {
+): { name: string; identity: { dev: number; ino: number }; size: number; mtimeMs: number; ctimeMs: number } {
   assertPinnedDirectory();
   const path = resolve(directory, name);
   const descriptor = openSync(
@@ -375,6 +631,7 @@ function writePinnedJson(
     constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
     0o600,
   );
+  let completed: ReturnType<typeof fstatSync> | undefined;
   try {
     const opened = fstatSync(descriptor);
     assertPinnedDirectory();
@@ -384,10 +641,24 @@ function writePinnedJson(
     }
     writeFileSync(descriptor, JSON.stringify(value, null, 2) + "\n");
     fsyncSync(descriptor);
+    completed = fstatSync(descriptor);
   } finally {
     closeSync(descriptor);
   }
   assertPinnedDirectory();
+  const current = lstatSync(path);
+  if (!completed || !current.isFile() || current.isSymbolicLink() || current.nlink !== 1
+    || !sameIdentity(completed, current) || current.size !== completed.size
+    || current.mtimeMs !== completed.mtimeMs || current.ctimeMs !== completed.ctimeMs) {
+    throw new Error(`publication export staging file ${name} changed during write`);
+  }
+  return {
+    name,
+    identity: { dev: Number(completed.dev), ino: Number(completed.ino) },
+    size: completed.size,
+    mtimeMs: completed.mtimeMs,
+    ctimeMs: completed.ctimeMs,
+  };
 }
 
 function slash(path: string): string {
@@ -396,6 +667,7 @@ function slash(path: string): string {
 
 function assertComparableLeaderboardRecords(
   bundle: ArenaPublicationBundle,
+  batch: ArenaBatchManifest,
   selected: ReadonlyMap<string, { vendor: string; record: NormalizedResult }>,
 ): void {
   const expectedProfiles = [...new Set(bundle.expected_matrix.required_effort_profiles)].sort();
@@ -407,9 +679,36 @@ function assertComparableLeaderboardRecords(
   if (bundle.quality_gates.some((gate) => gate.status === "fail")) {
     throw new Error("publication export requires every blocking quality gate to pass");
   }
+  const vendorSlugs = bundle.vendors.map((vendor) => vendor.slug);
+  const batchVendors = batch.configuration.packs.map((pack) => pack.vendor);
+  if (new Set(vendorSlugs).size !== vendorSlugs.length
+    || [...vendorSlugs].sort().join("\0") !== [...batchVendors].sort().join("\0")) {
+    throw new Error("publication vendors must uniquely and exactly match the sealed batch");
+  }
+  const batchHarnesses = batch.configuration.harnesses.map((pin) => pin.harness).sort();
+  const matrixHarnesses = [...bundle.expected_matrix.harnesses].sort();
+  const batchSurfaces = [...new Set(batch.configuration.packs.flatMap((pack) => pack.surfaces))].sort();
+  const matrixSurfaces = [...new Set(bundle.expected_matrix.surfaces)].sort();
+  if (matrixHarnesses.join("\0") !== batchHarnesses.join("\0")
+    || matrixSurfaces.join("\0") !== batchSurfaces.join("\0")
+    || new Set(bundle.expected_matrix.harnesses).size !== bundle.expected_matrix.harnesses.length
+    || new Set(bundle.expected_matrix.surfaces).size !== bundle.expected_matrix.surfaces.length) {
+    throw new Error("publication expected matrix does not match the sealed batch dimensions");
+  }
+  for (const vendor of bundle.vendors) {
+    const pack = batch.configuration.packs.find((candidate) => candidate.vendor === vendor.slug)!;
+    if (new Set(vendor.expected_surfaces).size !== vendor.expected_surfaces.length
+      || [...vendor.expected_surfaces].sort().join("\0") !== [...pack.surfaces].sort().join("\0")) {
+      throw new Error(`publication vendor ${vendor.slug} surfaces do not match the sealed batch`);
+    }
+  }
+  if (bundle.suite_version !== batch.configuration.suite.version
+    || bundle.benchmark !== batch.configuration.suite.name) {
+    throw new Error("publication suite identity does not match the sealed batch");
+  }
   const expectedKeys = bundle.vendors.flatMap((vendor) =>
     bundle.expected_matrix.harnesses.flatMap((harness) =>
-      bundle.expected_matrix.surfaces.map((surface) => JSON.stringify([vendor.slug, harness, surface]))));
+      vendor.expected_surfaces.map((surface) => JSON.stringify([vendor.slug, harness, surface]))));
   if (new Set(expectedKeys).size !== expectedKeys.length
     || bundle.expected_matrix.expected_cells !== expectedKeys.length
     || selected.size !== expectedKeys.length
@@ -423,7 +722,10 @@ function assertComparableLeaderboardRecords(
     || record.best_profile !== PUBLICATION_EFFORT
     || record.profiles.length !== 1
     || record.profiles[0] !== PUBLICATION_EFFORT
-    || record.trial_count !== 3)) {
+    || record.trial_count !== 3
+    || record.source_records?.length !== 3
+    || new Set(record.source_records).size !== 3
+    || record.validity_status !== "valid")) {
     throw new Error("publication aggregate identity does not match the sealed batch and high-effort cohort");
   }
   if (new Set(records.map(({ record }) => record.standard_set_version)).size !== 1) {
@@ -457,8 +759,13 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
   const retainedJsonPaths = new Set(bundle.vendors.flatMap((vendor) => [
     ...vendor.artifacts.normalized_records,
     ...(vendor.artifacts.snapshots ?? []),
+  ]).concat([
+    bundle.integrity.batch_manifest_path,
+    bundle.integrity.batch_completion_path,
   ]));
   const verifiedJson = verifyPublicationIntegrity(bundleRoot, bundle, retainedJsonPaths);
+  const { batch, completion } = verifyBatchBinding(bundle, verifiedJson);
+  const completedRecords = loadCompletedCellRecords(bundleRoot, bundle, batch, completion);
   for (const artifact of publicationArtifactPaths(bundle)) {
     safeBundleFile(bundleRoot, artifact, `publication artifact ${artifact}`);
   }
@@ -483,6 +790,7 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
       ));
     }
   }
+  assertNestedEvidenceCoverage(bundle, completion, normalizedRecords, snapshots);
 
   const leaderboardRecords: Array<{ vendor: string; record: NormalizedResult }> = [];
   const cells: Array<Record<string, unknown>> = [];
@@ -492,40 +800,6 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
     for (const recordPath of vendor.artifacts.normalized_records) {
       const record = normalizedRecords.get(recordPath)!;
       leaderboardRecords.push({ vendor: vendor.slug, record });
-      cells.push({
-        id: `${vendor.slug}/${record.surface}/${record.harness}`,
-        vendor: vendor.slug,
-        surface: record.surface,
-        harness: record.harness,
-        model: record.model,
-        profiles: record.profiles,
-        task_count: record.tasks_total,
-        tasks_passed: record.tasks_passed,
-        mean_success_rate: record.mean_pass_rate ?? record.pass_at_1,
-        range_success_rate: record.range_pass_rate ?? null,
-        trial_count: record.trial_count ?? null,
-        trial_values: record.trial_values ?? null,
-        pass_all_3: record.pass_all_3 ?? null,
-        pass_3_rate: record.task_consistency_at_3 ?? null,
-        pass_3_count: record.pass_3_tasks ?? null,
-        pass_3_total: record.pass_3_tasks_total ?? null,
-        trial_stability_at_3: record.trial_stability_at_3 ?? null,
-        latency_ms: record.latency_ms ?? null,
-        total_duration_ms: record.total_duration_ms ?? null,
-        first_action_latency_ms: record.first_action_latency_ms ?? null,
-        tool_call_count: record.tool_call_count ?? null,
-        token_usage: record.token_usage ?? null,
-        token_cost: record.token_cost ?? null,
-        cost_usd: record.cost_usd ?? null,
-        tokens_in: record.tokens_in ?? null,
-        tokens_out: record.tokens_out ?? null,
-        harness_version_raw: record.harness_version_raw ?? null,
-        harness_version_semver: record.harness_version_semver ?? null,
-        run_batch_id: record.run_batch_id ?? null,
-        validity_status: record.validity_status ?? null,
-        normalized_record: recordPath,
-        source_records: record.source_records ?? [],
-      });
       evidence.push({ kind: "normalized_record", vendor: vendor.slug, surface: record.surface, harness: record.harness, path: recordPath });
     }
     for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
@@ -545,7 +819,48 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
     if (selectedRecords.has(key)) throw new Error(`publication bundle contains duplicate aggregate cohort ${key}`);
     selectedRecords.set(key, entry);
   }
-  assertComparableLeaderboardRecords(bundle, selectedRecords);
+  assertComparableLeaderboardRecords(bundle, batch, selectedRecords);
+  assertAggregateSourceBinding(batch, completion, completedRecords, selectedRecords);
+  for (const { vendor, record } of leaderboardRecords) {
+    const key = JSON.stringify([vendor, record.harness, record.surface]);
+    if (selectedRecords.get(key)?.record !== record) continue;
+    const recordPath = bundle.vendors.find((candidate) => candidate.slug === vendor)!.artifacts.normalized_records
+      .find((candidate) => normalizedRecords.get(candidate) === record)!;
+    cells.push({
+      id: `${vendor}/${record.surface}/${record.harness}`,
+      vendor,
+      surface: record.surface,
+      harness: record.harness,
+      model: record.model,
+      profiles: record.profiles,
+      task_count: record.tasks_total,
+      tasks_passed: record.tasks_passed,
+      mean_success_rate: record.mean_pass_rate ?? record.pass_at_1,
+      range_success_rate: record.range_pass_rate ?? null,
+      trial_count: record.trial_count ?? null,
+      trial_values: record.trial_values ?? null,
+      pass_all_3: record.pass_all_3 ?? null,
+      pass_3_rate: record.task_consistency_at_3 ?? null,
+      pass_3_count: record.pass_3_tasks ?? null,
+      pass_3_total: record.pass_3_tasks_total ?? null,
+      trial_stability_at_3: record.trial_stability_at_3 ?? null,
+      latency_ms: record.latency_ms ?? null,
+      total_duration_ms: record.total_duration_ms ?? null,
+      first_action_latency_ms: record.first_action_latency_ms ?? null,
+      tool_call_count: record.tool_call_count ?? null,
+      token_usage: record.token_usage ?? null,
+      token_cost: record.token_cost ?? null,
+      cost_usd: record.cost_usd ?? null,
+      tokens_in: record.tokens_in ?? null,
+      tokens_out: record.tokens_out ?? null,
+      harness_version_raw: record.harness_version_raw ?? null,
+      harness_version_semver: record.harness_version_semver ?? null,
+      run_batch_id: record.run_batch_id ?? null,
+      validity_status: record.validity_status ?? null,
+      normalized_record: recordPath,
+      source_records: record.source_records ?? [],
+    });
+  }
   const makeView = (harness: string, surface: string | null) => {
     const rows = bundle.vendors.flatMap((vendor) => {
       const records = [...selectedRecords.values()]
@@ -697,13 +1012,27 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
         throw new Error("publication export staging directory changed during export");
       }
     };
+    const stagedFiles: Array<ReturnType<typeof writePinnedJson>> = [];
+    const assertPinnedFiles = (directory: string): void => {
+      for (const file of stagedFiles) {
+        const path = resolve(directory, file.name);
+        const current = lstatSync(path);
+        if (!current.isFile() || current.isSymbolicLink() || current.nlink !== 1
+          || !sameIdentity(file.identity, current) || current.size !== file.size
+          || current.mtimeMs !== file.mtimeMs || current.ctimeMs !== file.ctimeMs) {
+          throw new Error(`publication export staging file ${file.name} changed before publication`);
+        }
+      }
+    };
     assertPinnedStaging();
     for (const [name, value] of Object.entries(outputs)) {
-      writePinnedJson(staging, name, value, assertPinnedStaging);
+      stagedFiles.push(writePinnedJson(staging, name, value, assertPinnedStaging));
     }
-    writePinnedJson(staging, "manifest.json", exportManifest, assertPinnedStaging);
+    stagedFiles.push(writePinnedJson(staging, "manifest.json", exportManifest, assertPinnedStaging));
+    assertPinnedFiles(staging);
     fsyncSync(stagingDescriptor);
     assertPinnedStaging();
+    assertPinnedFiles(staging);
     assertPinnedParent();
     if (existsSync(outRoot)) throw new Error("publication export output appeared during export");
     renameSync(staging, outRoot);
@@ -714,6 +1043,7 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
       || !inside(realOutParent, realpathSync(outRoot))) {
       throw new Error("publication export output escaped its pinned parent");
     }
+    assertPinnedFiles(outRoot);
   } catch (error) {
     if (staging && existsSync(staging)) {
       const current = lstatSync(staging);

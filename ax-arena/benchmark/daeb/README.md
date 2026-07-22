@@ -147,9 +147,10 @@ The bundle ties together suite, vendor cards, extracts, compiled packs,
 approvals, snapshots, normalized records, and competitive report. Missing live
 artifacts are listed explicitly. Arena export additionally requires the final
 bundle to carry and satisfy a complete `ax.publication-integrity/v1` envelope;
-legacy unsealed v2 bundles remain draft-only. `ax-eval` owns truth generation;
-the AXArena website imports exported JSON indexes rather than recomputing
-scores.
+the envelope binds canonical production batch/completion bytes, all completed
+cell sidecars and nested evidence, and recomputable three-trial aggregates.
+Legacy unsealed v2 bundles remain draft-only. `ax-eval` owns truth generation;
+the AXArena website imports exported JSON indexes rather than recomputing scores.
 
 ## Hygiene
 

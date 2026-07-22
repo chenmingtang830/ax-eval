@@ -28,7 +28,9 @@ export const ArenaPublicationIntegritySchema = z.object({
   source_commit_sha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/),
   batch_id: z.string().min(1).regex(/\S/),
   configuration_hash: Sha256Schema,
+  batch_manifest_path: ArtifactPathSchema,
   batch_manifest_sha256: Sha256Schema,
+  batch_completion_path: ArtifactPathSchema,
   batch_completion_sha256: Sha256Schema,
   files: z.array(z.object({
     path: ArtifactPathSchema,
@@ -75,6 +77,7 @@ export const ArenaPublicationBundleSchema = z.object({
   }).passthrough(),
   vendors: z.array(z.object({
     slug: z.string().min(1),
+    expected_surfaces: z.array(z.enum(["api", "cli", "sdk", "mcp"])).min(1).max(4),
     artifacts: ArtifactSchema,
   }).passthrough()),
   competitive_report: ArtifactPathSchema.optional(),
@@ -82,10 +85,14 @@ export const ArenaPublicationBundleSchema = z.object({
 }).passthrough();
 export type ArenaPublicationBundle = z.infer<typeof ArenaPublicationBundleSchema>;
 
-/** All files whose bytes affect the publication export. `manifest.json` is
- * excluded because embedding its own digest would be self-referential. */
+/** Direct manifest references whose bytes affect the publication export.
+ * Nested cell/source/evidence references are discovered from verified JSON and
+ * required separately. `manifest.json` is excluded because embedding its own
+ * digest would be self-referential. */
 export function publicationArtifactPaths(bundle: ArenaPublicationBundle): string[] {
   const paths = [
+    bundle.integrity.batch_manifest_path,
+    bundle.integrity.batch_completion_path,
     bundle.suite,
     ...bundle.layers.static_ax.methodology_artifacts,
     ...bundle.layers.behavioral.methodology_artifacts,

@@ -365,6 +365,11 @@ npm run ax-arena -- benchmark export-publication \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```
 
+The seal must include canonical `batch.json` and `batch-completion.json`, every
+completed record/cleanup/artifact, every normalized source record, and every
+nested snapshot evidence path. Export rejects aggregates whose scores cannot be
+recomputed from the three completed trials.
+
 This keeps the repo boundary clean: `ax-eval` owns generic single-product
 execution and verification, while `ax-arena` owns benchmark aggregation,
 publication exports, and the eventual curated website handoff. The legacy
