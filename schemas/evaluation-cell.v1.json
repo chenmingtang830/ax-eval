@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/schemas/evaluation-cell.v1.json",
+  "title": "ax evaluation cell v1",
+  "description": "One fully specified reviewed-pack × target × surface × harness × model × effort × trial evaluation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "cell_id", "batch_id", "evaluation_set_id",
+    "evaluation_set_version", "target_id", "pack", "surface", "harness",
+    "trial", "source_commit_sha", "required_credentials", "run_context"
+  ],
+  "properties": {
+    "schema": { "const": "ax.evaluation-cell/v1" },
+    "cell_id": { "$ref": "#/$defs/nonBlank" },
+    "batch_id": { "$ref": "#/$defs/nonBlank" },
+    "evaluation_set_id": { "$ref": "#/$defs/nonBlank" },
+    "evaluation_set_version": { "$ref": "#/$defs/nonBlank" },
+    "target_id": { "$ref": "#/$defs/nonBlank" },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "content_hash"],
+      "properties": {
+        "path": { "$ref": "#/$defs/nonBlank" },
+        "content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+    "harness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "profile", "model", "effort"],
+      "properties": {
+        "id": { "enum": ["claude-code", "codex"] },
+        "profile": { "enum": ["low", "medium", "high"] },
+        "model": { "$ref": "#/$defs/nonBlank" },
+        "effort": { "enum": ["low", "medium", "high"] }
+      }
+    },
+    "trial": { "type": "integer", "minimum": 1 },
+    "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "required_credentials": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" }
+    },
+    "run_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cwd", "artifact_dir", "invoke_timeout_ms",
+        "first_action_timeout_ms", "invoke_retries"
+      ],
+      "properties": {
+        "cwd": { "$ref": "#/$defs/nonBlank" },
+        "artifact_dir": { "$ref": "#/$defs/nonBlank" },
+        "invoke_timeout_ms": { "type": "integer", "minimum": 0 },
+        "first_action_timeout_ms": { "type": "integer", "minimum": 0 },
+        "invoke_retries": { "type": "integer", "minimum": 0 }
+      }
+    }
+  },
+  "$defs": {
+    "nonBlank": { "type": "string", "pattern": ".*\\S.*" }
+  }
+}

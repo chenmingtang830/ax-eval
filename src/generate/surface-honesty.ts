@@ -4,7 +4,7 @@
  */
 import type { TargetPack } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
-import { resolveEnvTemplate } from "../target/config.js";
+import { resolveEnvTemplate, type EnvSource } from "../target/config.js";
 
 export interface SurfaceHonestyInput {
   wireSignals: string[];
@@ -18,9 +18,9 @@ export interface SurfaceHonestyGrade {
   controlPlaneCalls: number;
 }
 
-function packApiHost(pack: TargetPack): string {
+function packApiHost(pack: TargetPack, env: EnvSource = process.env): string {
   try {
-    return new URL(resolveEnvTemplate(pack.base_url)).host.toLowerCase();
+    return new URL(resolveEnvTemplate(pack.base_url, env)).host.toLowerCase();
   } catch {
     try {
       return new URL(pack.base_url).host.toLowerCase();
@@ -57,6 +57,7 @@ export function gradeSurfaceHonesty(
   run: SurfaceHonestyInput,
   surface: SurfaceId,
   pack: TargetPack,
+  env: EnvSource = process.env,
 ): SurfaceHonestyGrade {
   if (surface !== "api") {
     return {
@@ -66,7 +67,7 @@ export function gradeSurfaceHonesty(
       controlPlaneCalls: 0,
     };
   }
-  const host = packApiHost(pack);
+  const host = packApiHost(pack, env);
   const wireSignals = [...(run.wireSignals ?? [])];
   const controlPlaneCalls = host
     ? run.apiCalls.filter((c) => c.host.toLowerCase() === host).length

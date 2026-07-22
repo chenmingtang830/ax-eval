@@ -158,6 +158,26 @@ fields, so any later edit re-closes the gate and forces re-approval (no
 AI-approves-AI). The committed example packs ship pre-approved (`*.approval.json`);
 `exec-plan` refuses an un-reviewed/changed pack unless you pass `--skip-review`.
 
+### Controller-owned one-cell execution
+
+When a controller already owns the product/surface/harness/model/effort/trial
+matrix, use the stable one-cell process contract instead of `exec-plan` fan-out:
+
+```bash
+ax-eval cell run --input cell.json --output record.json
+```
+
+The `ax.evaluation-cell/v1` input must carry an approved pack path and the full
+SHA-256 of that exact file, explicit evaluation-set and batch identity, model,
+effort, trial, full
+source commit SHA, required credential names, and runtime paths/timeouts. Supply
+credential values only through the process environment; never serialize them in
+the cell or record. The runner invokes exactly one harness and surface and
+returns one `ax.normalized-cell-record/v1` record with task/oracle results. It never derives a batch
+id, chooses benchmark defaults, aggregates trials, publishes rankings, or runs
+cleanup. Verify/live read-back completes before the record is returned; cleanup
+is a separate explicit controller step.
+
 ### 3. Emit the medium-effort prompt
 
 ```bash

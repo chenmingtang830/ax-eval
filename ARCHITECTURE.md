@@ -148,12 +148,23 @@ Most SaaS additions should be a new pack, not a code change.
 The supported library entry point is `src/index.ts`, published as the package
 root (`import { ... } from "ax-eval"`). It exposes pack validation and approval,
 surface and harness identifiers, verification/provider contracts, and
-normalized-record primitives. Consumers must not import `ax-eval/src/**` or
-private `dist/**` chunks; those paths may change without compatibility aliases.
+normalized-record primitives. It also exposes `EvaluationCellSchema`,
+`NormalizedCellRecordSchema`, and `runCell` as the supported one-cell execution
+boundary. Consumers must not import `ax-eval/src/**` or private `dist/**`
+chunks; those paths may change without compatibility aliases.
 
-Harness invocation is deliberately not part of the initial public surface. A
-later runtime layer will expose one fully specified evaluation cell rather than
-publishing the current CLI's internal orchestration functions independently.
+`runCell` accepts exactly one explicit reviewed-pack × target × surface ×
+harness × model × effort × trial × source-revision identity. It validates the
+content-addressed approval plus the exact pack-file digest, passes the
+controller's batch id through unchanged,
+invokes one harness, verifies live state, and emits one normalized record. It
+does not choose benchmark defaults, fan out a matrix, aggregate trials, rank,
+publish, or clean up. The CLI process boundary consumes the same schema:
+`ax-eval cell run --input cell.json --output record.json`.
+Cell output uses `ax.normalized-cell-record/v1`; the strict historical
+`ax.normalized-result/v1` schema is not widened and remains the compatibility
+format for existing report/aggregation commands.
+
 This keeps the dependency direction suitable for AXArena:
 
 ```text
@@ -161,7 +172,8 @@ ax-arena -> public ax-eval API -> private ax-eval implementation
 ```
 
 Library callers should pass `createOracleProviderRegistry([...])` through
-`verifyGeneratedPack` options when they need vertical read-back providers. The
+`runCell` extensions (or `verifyGeneratedPack` options for legacy flows) when
+they need vertical read-back providers. The
 registry is isolated to that call and rejects duplicate IDs or ambiguous
 matches. Global `registerOracleProvider` remains a compatibility bridge for
 existing CLI integrations; new orchestration must not depend on ambient
