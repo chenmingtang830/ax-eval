@@ -5,6 +5,7 @@ import {
   registerOracleProvider,
   type OracleProvider,
   type OracleVerifyContext,
+  type VersionedOracleProvider,
 } from "../src/generate/oracle-provider.js";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
 import { HttpApiError } from "../src/http/client.js";
@@ -72,7 +73,7 @@ function fakeClient(store: Record<string, Record<string, unknown>>) {
 
 const matchesSql = (oracle: OracleSpec) => typeof oracle.sqlQuery === "string";
 
-function sqlProvider(id: string, detail: string): OracleProvider {
+function sqlProvider(id: string, detail: string): VersionedOracleProvider {
   return {
     id,
     version: "1.0.0",
@@ -268,7 +269,7 @@ describe("oracle providers", () => {
 
   it("snapshots providers and freezes provider inputs", async () => {
     let contextWasFrozen = false;
-    const source: OracleProvider = {
+    const source: VersionedOracleProvider = {
       id: "sql",
       version: "1.0.0",
       matches: matchesSql,
@@ -354,20 +355,18 @@ describe("oracle providers", () => {
   });
 
   it("accepts an unversioned provider only through the deprecated global registry", async () => {
-    registerOracleProvider({
+    const legacyProvider: OracleProvider = {
       id: "legacy-sql",
       matches: matchesSql,
       async verify(oracle) {
         return { type: oracle.type, passed: true, detail: "legacy compatibility" };
       },
-    });
-    expect(() => createOracleProviderRegistry([{
-      id: "unversioned-explicit",
-      matches: matchesSql,
-      async verify(oracle) {
-        return { type: oracle.type, passed: true, detail: "invalid" };
-      },
-    } as OracleProvider])).toThrow(/version must not be empty/);
+    };
+    registerOracleProvider(legacyProvider);
+    expect(() => {
+      // @ts-expect-error Explicit immutable registries require versioned providers.
+      createOracleProviderRegistry([legacyProvider]);
+    }).toThrow(/version must not be empty/);
 
     const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
     const out = await verifyGeneratedPack(pack, exec, fakeClient({}));

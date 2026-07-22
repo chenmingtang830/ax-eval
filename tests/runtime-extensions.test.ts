@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { EvaluationCell } from "../src/cell/schema.js";
-import type { OracleProvider } from "../src/generate/oracle-provider.js";
+import type { VersionedOracleProvider } from "../src/generate/oracle-provider.js";
 import {
   createResetProviderRegistry,
   createRuntimeExtensionRegistry,
@@ -107,7 +107,7 @@ describe("runtime extension registries", () => {
   });
 
   it("composes adapter providers and reports sorted versioned provenance", () => {
-    const oracle: OracleProvider = {
+    const oracle: VersionedOracleProvider = {
       id: "sql",
       version: "2.1.0",
       matches: () => true,

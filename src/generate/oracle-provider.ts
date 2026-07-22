@@ -33,7 +33,7 @@ function immutableCopy<T>(value: T): T {
   return deepFreeze(structuredClone(value));
 }
 
-function snapshotOracleProvider(provider: OracleProvider): OracleProvider {
+function snapshotOracleProvider(provider: VersionedOracleProvider): VersionedOracleProvider {
   const snapshot: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(provider)) {
     if (typeof value !== "function") snapshot[name] = immutableCopy(value);
@@ -43,7 +43,7 @@ function snapshotOracleProvider(provider: OracleProvider): OracleProvider {
   }
   snapshot.matches = provider.matches.bind(snapshot);
   snapshot.verify = provider.verify.bind(snapshot);
-  return Object.freeze(snapshot) as unknown as OracleProvider;
+  return Object.freeze(snapshot) as unknown as VersionedOracleProvider;
 }
 
 export interface OracleVerifyContext {
@@ -62,26 +62,30 @@ export interface OracleVerifyContext {
 export interface OracleProvider {
   /** Stable id (e.g. "sql", "mongo"). Registering the same id replaces. */
   id: string;
-  /** Provider implementation version recorded in cell provenance. */
-  version: string;
+  /** Optional only for the deprecated process-global compatibility API. */
+  version?: string;
   /** True if this provider owns the given oracle spec. */
   matches(oracle: OracleSpec): boolean;
   /** Run the read-back check for one oracle this provider matched. */
   verify(oracle: OracleSpec, ctx: OracleVerifyContext): Promise<OracleResult>;
 }
 
-/** @deprecated Compatibility shape for the process-global registration API.
- * Immutable per-run registries require a real version. */
-export type LegacyOracleProvider = Omit<OracleProvider, "version"> & { version?: string };
+/** Immutable per-run providers require a concrete provenance version. */
+export interface VersionedOracleProvider extends OracleProvider {
+  version: string;
+}
+
+/** @deprecated Use OracleProvider directly for legacy global registration. */
+export type LegacyOracleProvider = OracleProvider;
 
 export interface OracleProviderRegistry {
-  readonly providers: readonly OracleProvider[];
-  providerFor(oracle: OracleSpec): OracleProvider | undefined;
+  readonly providers: readonly VersionedOracleProvider[];
+  providerFor(oracle: OracleSpec): VersionedOracleProvider | undefined;
 }
 
 /** Build an isolated provider registry for one verification or cell run. */
 export function createOracleProviderRegistry(
-  input: readonly OracleProvider[] = [],
+  input: readonly VersionedOracleProvider[] = [],
 ): OracleProviderRegistry {
   const providers = Object.freeze(input.map((provider) => {
     if (typeof provider.id !== "string" || !provider.id.trim()) {
@@ -99,44 +103,50 @@ export function createOracleProviderRegistry(
     }
     ids.add(provider.id);
   }
-  const selections = new WeakMap<object, OracleProvider | null | undefined>();
+  const selections = new WeakMap<object, {
+    provider?: VersionedOracleProvider;
+    error?: string;
+  }>();
 
   return Object.freeze({
     providers,
-    providerFor(oracle: OracleSpec): OracleProvider | undefined {
-      if (selections.has(oracle)) {
-        const selected = selections.get(oracle);
-        if (selected === null) throw new Error("oracle provider selection failed");
-        return selected;
+    providerFor(oracle: OracleSpec): VersionedOracleProvider | undefined {
+      const cached = selections.get(oracle);
+      if (cached) {
+        if (cached.error) throw new Error(cached.error);
+        return cached.provider;
       }
       const descriptor = immutableCopy(oracle);
-      let matches: OracleProvider[];
+      let matches: VersionedOracleProvider[];
       try {
         matches = providers.filter((provider) => {
           return provider.matches(descriptor);
         });
       } catch {
-        selections.set(oracle, null);
-        throw new Error("oracle provider selection failed");
+        const error = "oracle provider selection failed";
+        selections.set(oracle, { error });
+        throw new Error(error);
       }
       if (matches.length > 1) {
-        throw new Error(`multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`);
+        const error = `multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`;
+        selections.set(oracle, { error });
+        throw new Error(error);
       }
       const selected = matches[0];
-      selections.set(oracle, selected);
+      selections.set(oracle, { provider: selected });
       return selected;
     },
   });
 }
 
-const providers: OracleProvider[] = [];
+const providers: VersionedOracleProvider[] = [];
 
 export function registerOracleProvider(provider: LegacyOracleProvider): void {
   if (typeof provider.id !== "string" || !provider.id.trim()) {
     throw new Error("oracle provider id must not be empty");
   }
-  const normalized: OracleProvider = typeof provider.version === "string" && provider.version.trim()
-    ? provider as OracleProvider
+  const normalized: VersionedOracleProvider = typeof provider.version === "string" && provider.version.trim()
+    ? provider as VersionedOracleProvider
     : {
         id: provider.id,
         version: "legacy-unversioned",
@@ -149,7 +159,7 @@ export function registerOracleProvider(provider: LegacyOracleProvider): void {
 }
 
 /** First registered provider claiming the spec, in registration order. */
-export function providerForOracle(oracle: OracleSpec): OracleProvider | undefined {
+export function providerForOracle(oracle: OracleSpec): VersionedOracleProvider | undefined {
   const descriptor = immutableCopy(oracle);
   return providers.find((provider) => {
     try {
@@ -168,7 +178,7 @@ export function clearOracleProviders(): void {
 /** Delegate one oracle to its provider; a throwing provider becomes a failed
  *  result rather than aborting the surrounding task's verification. */
 export async function runProviderOracle(
-  provider: OracleProvider,
+  provider: VersionedOracleProvider,
   oracle: OracleSpec,
   ctx: OracleVerifyContext,
 ): Promise<OracleResult> {

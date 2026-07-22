@@ -549,6 +549,55 @@ describe("runCell", () => {
     expect(record.task_results.find((result) => result.taskId === "task-2")?.success).toBe(true);
   });
 
+  it("caches ambiguous matcher failures across provenance and verification", async () => {
+    const { cell } = fixture();
+    const calls = { a: 0, b: 0 };
+    const isolated = runtime([]);
+    isolated.verify = (pack, executor, client, currentCell, observed, trace, oracleProviders, credentials) =>
+      verifyGeneratedPack(pack, executor, client, currentCell.surface, observed, {
+        trace,
+        oracleProviders,
+        credentials,
+        env: credentials,
+      });
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [
+        {
+          id: "ambiguous-a",
+          version: "1.0.0",
+          matches() {
+            calls.a += 1;
+            return true;
+          },
+          async verify(oracle) {
+            return { type: oracle.type, passed: true, detail: "unused" };
+          },
+        },
+        {
+          id: "ambiguous-b",
+          version: "1.0.0",
+          matches() {
+            calls.b += 1;
+            return calls.b === 1;
+          },
+          async verify(oracle) {
+            return { type: oracle.type, passed: true, detail: "must not run" };
+          },
+        },
+      ],
+    });
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: {},
+      extensions: { registry },
+    }, isolated);
+
+    expect(calls).toEqual({ a: 1, b: 1 });
+    expect(record.task_results[0]!.oracleResults).toEqual([
+      { type: "roundtrip", passed: false, detail: "oracle provider selection failed" },
+    ]);
+  });
+
   it("blocks before invocation when an explicit verifier credential map is incomplete", async () => {
     const { cell, dir, pack } = fixture();
     pack.auth_method = "pat";

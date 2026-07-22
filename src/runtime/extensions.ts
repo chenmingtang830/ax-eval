@@ -1,8 +1,8 @@
 import type { EvaluationCell } from "../cell/schema.js";
 import {
   createOracleProviderRegistry,
-  type OracleProvider,
   type OracleProviderRegistry,
+  type VersionedOracleProvider,
 } from "../generate/oracle-provider.js";
 import type { TargetPack } from "../schemas.js";
 
@@ -101,7 +101,7 @@ export interface TargetAdapter extends ProviderIdentity {
   matches(target: TargetDescriptor): boolean;
   /** Prompt and verification-transport hooks are added only when runCell can
    * execute them; this slice limits adapters to composing narrower providers. */
-  readonly oracleProviders?: readonly OracleProvider[];
+  readonly oracleProviders?: readonly VersionedOracleProvider[];
   readonly resetProviders?: readonly ResetProvider[];
   readonly provisioningProviders?: readonly ProvisioningProvider[];
   readonly healthCheckProviders?: readonly HealthCheckProvider[];
@@ -127,7 +127,7 @@ export interface RuntimeExtensionRegistry {
 }
 
 export interface RuntimeExtensionInput {
-  readonly oracleProviders?: readonly OracleProvider[];
+  readonly oracleProviders?: readonly VersionedOracleProvider[];
   readonly resetProviders?: readonly ResetProvider[];
   readonly provisioningProviders?: readonly ProvisioningProvider[];
   readonly healthCheckProviders?: readonly HealthCheckProvider[];

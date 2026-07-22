@@ -16,8 +16,8 @@ import type { DiscoveryResult } from "./discovery.js";
 import {
   providerForOracle,
   runProviderOracle,
-  type OracleProvider,
   type OracleProviderRegistry,
+  type VersionedOracleProvider,
 } from "./oracle-provider.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
@@ -262,7 +262,7 @@ async function verifyRoundtrip(
   sqlConn: SqlConn | null,
   mongoConn: MongoConn | null,
   trace: TraceStep[],
-  selectProvider: (oracle: OracleSpec) => OracleProvider | null | undefined,
+  selectProvider: (oracle: OracleSpec) => VersionedOracleProvider | null | undefined,
   env: EnvSource,
   credentials: Readonly<Record<string, string | undefined>>,
 ): Promise<OracleResult[]> {
@@ -532,10 +532,10 @@ export async function verifyGeneratedPack(
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const env = options.env ?? process.env;
-  const providerSelections = new Map<OracleSpec, OracleProvider | null | undefined>();
-  const selectProvider = (oracle: OracleSpec): OracleProvider | null | undefined => {
+  const providerSelections = new Map<OracleSpec, VersionedOracleProvider | null | undefined>();
+  const selectProvider = (oracle: OracleSpec): VersionedOracleProvider | null | undefined => {
     if (providerSelections.has(oracle)) return providerSelections.get(oracle);
-    let provider: OracleProvider | null | undefined;
+    let provider: VersionedOracleProvider | null | undefined;
     try {
       provider = options.oracleProviders === undefined
         ? providerForOracle(oracle)

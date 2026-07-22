@@ -81,6 +81,7 @@ export type {
   OracleProvider,
   OracleProviderRegistry,
   OracleVerifyContext,
+  VersionedOracleProvider,
 } from "./generate/oracle-provider.js";
 export { verifyGeneratedPack } from "./generate/verify.js";
 export type {
