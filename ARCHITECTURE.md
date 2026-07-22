@@ -202,6 +202,9 @@ sealed-artifact export, and detached-subject construction live under
 `ax-arena/benchmark/scripts/`. GitHub keeps only its required launcher under
 `.github/workflows/`; that YAML binds environments and credentials to the
 arena-owned implementations.
+`prepare-trusted-tools.sh` is the pre-credential orchestrator: it creates the
+verified OCI sysroot, installs/builds with that sysroot's Node and repository
+lock, then invokes the exact runtime-tool sealer as root.
 Target adapters may override only construction of the verification transport;
 the cell runner still owns trace parsing, oracle execution, record validation,
 and ordering. The adapter receives frozen explicit context rather than ambient
