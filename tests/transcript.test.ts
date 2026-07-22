@@ -36,6 +36,19 @@ describe("transcript objective capture", () => {
       path: "mcp__linear__create_issue",
     })]);
 
+    const codexMcp = parseTranscriptContent(codexItem({
+      type: "mcp_tool_call",
+      server: "linear",
+      tool: "create_issue",
+      arguments: { token: "must-not-persist" },
+      result: { secret: "must-not-persist" },
+    }), { mcpServer: "linear" });
+    expect(observedToTrace(codexMcp, "mcp")).toEqual([expect.objectContaining({
+      method: "MCP",
+      path: "linear.create_issue",
+    })]);
+    expect(JSON.stringify(codexMcp)).not.toContain("must-not-persist");
+
     const sdk = parseTranscriptContent(evt([{
       type: "tool_use",
       name: "Bash",

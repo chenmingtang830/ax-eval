@@ -306,6 +306,19 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
       else run.searches.push(q);
     } else if (itype === "command_execution" && typeof item.command === "string") {
       scanCommand(item.command);
+    } else if (itype === "mcp_tool_call") {
+      const server = typeof item.server === "string" ? item.server : "";
+      const tool = typeof item.tool === "string" ? item.tool : "";
+      const configured = opts.mcpServer;
+      const inScope = !configured || !server || server.includes(configured) || configured.includes(server);
+      if (!inScope || !tool) return;
+      if (/^(?:tools\/list|list_tools)$/i.test(tool)) {
+        run.mcpToolsListed = true;
+      } else {
+        // Retain only the native provider/tool identity. Arguments and results
+        // may contain credentials or product data and never enter reporting.
+        run.mcpToolCalls.push([server, tool].filter(Boolean).join("."));
+      }
     }
   };
 
