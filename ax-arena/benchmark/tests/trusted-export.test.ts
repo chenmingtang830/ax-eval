@@ -56,6 +56,7 @@ function fixture() {
     batch_id: "batch-1",
     source_commit_sha: source,
     configuration_hash: "e".repeat(64),
+    runtime_manifest_sha256: sha256(canonical(runtimeManifest)),
     completed_at: "2026-07-22T00:00:00.000Z",
     cells: [{
       key: "neon/api/codex/trial-1",

@@ -557,6 +557,7 @@ export const ArenaBatchCompletionSchema = z.object({
   batch_id: NonBlank,
   source_commit_sha: SourceSha,
   configuration_hash: Sha256,
+  runtime_manifest_sha256: Sha256.nullable(),
   completed_at: Timestamp,
   cells: z.array(ArenaBatchCompletionCellSchema).min(1).max(16_384),
 }).strict();

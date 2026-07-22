@@ -35,11 +35,11 @@
   ],
   "scripts": {
     "ax-arena": "node --import tsx src/cli.ts",
-    "build": "tsup src/cli.ts src/index.ts src/trusted-worker.ts src/assemble-trusted-completion.ts --platform node --target node22 --format esm --dts --clean --external ax-eval --tsconfig tsconfig.build.json",
+    "build": "tsup src/cli.ts src/index.ts src/trusted-plan.ts src/trusted-worker.ts src/assemble-trusted-completion.ts --platform node --target node22 --format esm --dts --clean --external ax-eval --tsconfig tsconfig.build.json",
     "pack:check": "node scripts/verify-package-contents.mjs",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "trusted:cell": "node --import tsx scripts/trusted-cell.ts",
+    "trusted:plan": "node dist/trusted-plan.js",
     "trusted:worker": "node dist/trusted-worker.js",
     "trusted:assemble": "node dist/assemble-trusted-completion.js"
   },

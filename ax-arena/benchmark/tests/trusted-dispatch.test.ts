@@ -24,7 +24,7 @@ function commit(root: string, message: string): string {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
-function fixture(mainTrustDrift = false) {
+function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = false) {
   const root = mkdtempSync(resolve(tmpdir(), "ax-trusted-dispatch-"));
   const daeb = resolve(root, "ax-arena", "benchmark", "daeb", "v1");
   const packDir = resolve(daeb, "packs", "neon");
@@ -36,6 +36,9 @@ function fixture(mainTrustDrift = false) {
   cpSync(resolve(repositoryRoot, "ax-arena/benchmark/trusted-runtime/harness/package-lock.json"), resolve(runtimeDir, "harness/package-lock.json"));
   writeFileSync(resolve(root, "package.json"), "{}\n");
   writeFileSync(resolve(root, "package-lock.json"), "{}\n");
+  if (mainTrustDrift === "removed-tsup-config") {
+    writeFileSync(resolve(root, "tsup.config.ts"), "throw new Error('historical build drift');\n");
+  }
   const suite = "name: DAEB-1\nversion: 1\ncategory: database\ntasks: []\n";
   const pack = "name: neon\nstandard_set_version: database-v1\nbase_url: https://example.invalid\ntasks: []\n";
   writeFileSync(resolve(daeb, "suite.yaml"), suite);
@@ -112,7 +115,10 @@ function fixture(mainTrustDrift = false) {
   git(root, ["init", "--quiet", "--initial-branch=main"]);
   const sourceSha = commit(root, "protected source");
   writeFileSync(resolve(root, "later-main-note.txt"), "protected descendant\n");
-  if (mainTrustDrift) writeFileSync(resolve(root, "package.json"), "{\"drift\":true}\n");
+  if (mainTrustDrift === "package") writeFileSync(resolve(root, "package.json"), "{\"drift\":true}\n");
+  if (mainTrustDrift === "removed-tsup-config") {
+    execFileSync("git", ["rm", "--quiet", "tsup.config.ts"], { cwd: root });
+  }
   commit(root, "protected main descendant");
   git(root, ["checkout", "--quiet", "--detach", sourceSha]);
   const env = {
@@ -154,7 +160,14 @@ describe("trusted dispatch validator", () => {
   });
 
   it("rejects protected descendants that changed trust-critical runtime code or locks", () => {
-    const test = fixture(true);
+    const test = fixture("package");
+    const result = spawnSync(process.execPath, [validator], { cwd: test.root, env: test.env, encoding: "utf8" });
+    expect(result.status).not.toBe(0);
+    expect(result.stderr).toContain("trust");
+  });
+
+  it("rejects a historical build config even when protected main removed it", () => {
+    const test = fixture("removed-tsup-config");
     const result = spawnSync(process.execPath, [validator], { cwd: test.root, env: test.env, encoding: "utf8" });
     expect(result.status).not.toBe(0);
     expect(result.stderr).toContain("trust");

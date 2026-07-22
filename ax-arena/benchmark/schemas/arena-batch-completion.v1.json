@@ -5,12 +5,15 @@
   "$comment": "This schema validates the portable structure. Exact cell-set, manifest identity, model, harness-version, cleanup, persisted-sidecar, and pinned-tool checks MUST be performed by buildBatchCompletion or writeBatchCompletion.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "batch_id", "source_commit_sha", "configuration_hash", "completed_at", "cells"],
+  "required": ["schema", "batch_id", "source_commit_sha", "configuration_hash", "runtime_manifest_sha256", "completed_at", "cells"],
   "properties": {
     "schema": { "const": "ax.arena-batch-completion/v1" },
     "batch_id": { "$ref": "#/$defs/nonBlank" },
     "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
     "configuration_hash": { "$ref": "#/$defs/sha256" },
+    "runtime_manifest_sha256": {
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
     "completed_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
     "cells": {
       "type": "array",

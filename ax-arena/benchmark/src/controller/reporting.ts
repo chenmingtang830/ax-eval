@@ -22,7 +22,7 @@ import {
   type SurfaceId,
   type TargetPack,
 } from "ax-eval";
-import { arenaCellId } from "./cell.js";
+import { arenaCellId, arenaCellWorkspaceArtifactDirectory } from "./cell.js";
 import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
   ARENA_RUNTIME_REPORT_SCHEMA,
@@ -132,11 +132,11 @@ function exclusiveText(runRoot: string, path: string, value: string): void {
   writeFileSync(path, value, { flag: "wx", mode: 0o600 });
 }
 
-function artifactPath(runRoot: string, record: NormalizedCellRecord, name: string, label: string) {
+function artifactPath(runRoot: string, artifactRoot: string, name: string, label: string) {
   if (isAbsolute(name) || dirname(name) !== "." || name === "." || name === "..") {
     throw new Error(`${label} name must be a direct relative file name`);
   }
-  const base = resolve(record.artifacts.base_dir);
+  const base = resolve(artifactRoot);
   const baseStat = lstatSync(base);
   if (!baseStat.isDirectory() || baseStat.isSymbolicLink()) throw new Error(`${label} base must be a regular directory`);
   const candidate = resolve(base, name);
@@ -154,14 +154,23 @@ type VerifiedArtifacts = Record<ArtifactName, { bytes: Buffer; relativePath: str
 
 function verifyArtifactSeals(
   runRoot: string,
+  cellKey: string,
   record: NormalizedCellRecord,
   seals: readonly { name: ArtifactName; path: string; sha256: string }[],
 ): VerifiedArtifacts {
   const verified = {} as VerifiedArtifacts;
+  const canonicalRoot = arenaCellWorkspaceArtifactDirectory(runRoot, cellKey);
+  let artifactRoot = canonicalRoot;
+  try {
+    lstatSync(canonicalRoot);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    artifactRoot = resolve(record.artifacts.base_dir);
+  }
   for (const name of ARTIFACT_NAMES) {
     const seal = seals.find((candidate) => candidate.name === name);
     if (!seal) throw new Error(`batch completion is missing the ${name} artifact seal`);
-    const file = artifactPath(runRoot, record, record.artifacts[name], `${name} artifact`);
+    const file = artifactPath(runRoot, artifactRoot, record.artifacts[name], `${name} artifact`);
     const hash = createHash("sha256").update(file.bytes).digest("hex");
     if (file.relativePath !== seal.path || hash !== seal.sha256) {
       throw new Error(`completed batch ${name} artifact hash drifted`);
@@ -356,7 +365,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     }
     const record = parseCanonical(recordFile.bytes, (input) => NormalizedCellRecordSchema.parse(input), `record ${cell.key}`);
     const cleanup = parseCanonical(cleanupFile.bytes, (input) => ArenaCellCleanupSchema.parse(input), `cleanup ${cell.key}`);
-    const artifacts = verifyArtifactSeals(runRoot, record, cell.artifacts);
+    const artifacts = verifyArtifactSeals(runRoot, cell.key, record, cell.artifacts);
     const key = `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`;
     const configured = batch.configuration.cells.find((candidate) => candidate.key === cell.key);
     const configuredPack = batch.configuration.packs.find((candidate) => candidate.vendor === record.target_id);
