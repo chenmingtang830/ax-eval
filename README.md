@@ -343,11 +343,19 @@ records, and competitive report. Missing live artifacts are listed explicitly;
 a publication-ready DAEB-1 v1 bundle has no missing references and all required
 quality gates passing.
 
+Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
+envelope. It binds aggregate scores to the canonical production batch and
+completion, derives trial scores and task drilldowns from sealed task outcomes,
+binds every snapshot run to one exact completed-cell evidence set, and
+recomputes the scored three-trial fields before writing. The legacy core bundle
+command remains draft-only until the hardened arena bundle writer lands; an
+unsealed historical v2 bundle cannot be promoted through this command.
+
 `ax-eval` remains the tooling layer. The AXArena website should consume an
 exported dataset instead of learning runner internals or recomputing scores:
 
 ```bash
-npm run ax-eval -- export-publication \
+npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```
@@ -357,6 +365,8 @@ drilldowns, trial outcomes, evidence links, methodology metadata, and failure
 review placeholders. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
+The former `ax-eval export-publication` implementation remains available during
+the private-workspace compatibility period; it is not yet a delegated alias.
 
 Compare two normalized-record sets without decoding HTML:
 

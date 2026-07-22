@@ -138,15 +138,19 @@ npm run ax-eval -- publication-bundle \
   --effort-profiles high \
   --required-effort-profiles high
 
-npm run ax-eval -- export-publication \
+npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```
 
 The bundle ties together suite, vendor cards, extracts, compiled packs,
 approvals, snapshots, normalized records, and competitive report. Missing live
-artifacts are listed explicitly. `ax-eval` owns truth generation; the AXArena
-website imports exported JSON indexes rather than recomputing scores.
+artifacts are listed explicitly. Arena export additionally requires the final
+bundle to carry and satisfy a complete `ax.publication-integrity/v1` envelope;
+the envelope binds canonical production batch/completion bytes, all completed
+cell sidecars and nested evidence, and recomputable three-trial aggregates.
+Legacy unsealed v2 bundles remain draft-only. `ax-eval` owns truth generation;
+the AXArena website imports exported JSON indexes rather than recomputing scores.
 
 ## Hygiene
 

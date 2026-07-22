@@ -356,18 +356,25 @@ be executed or scored. Do not publication-freeze while
 `suite.trace-review.yaml` is pending (it is already `completed` for the current
 authoring freeze).
 
-After freezing a publication bundle, export website data with:
+After freezing and integrity-sealing a publication bundle, export website data
+with:
 
 ```bash
-ax-eval export-publication \
+npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```
 
-This keeps the repo boundary clean: `ax-eval` owns suite compilation,
-execution, verification, aggregation, redaction, bundles, and public JSON
-exports; `axarena` owns the curated website, leaderboard presentation, result
-interpretation, and paper-style appendix.
+The seal must include canonical `batch.json` and `batch-completion.json`, every
+completed record/cleanup/artifact, every normalized source record, and every
+nested snapshot evidence path. Export rejects aggregates whose scores cannot be
+recomputed from the three completed trials.
+
+This keeps the repo boundary clean: `ax-eval` owns generic single-product
+execution and verification, while `ax-arena` owns benchmark aggregation,
+publication exports, and the eventual curated website handoff. The legacy
+`ax-eval export-publication` command remains active during the private-workspace
+compatibility period and is not yet a delegated alias.
 
 ## Rules
 

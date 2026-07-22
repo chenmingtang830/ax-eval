@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import { resolveBatchIdentity } from "../controller/batch.js";
 import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
 import { writeRuntimeReportingBundle } from "../controller/reporting.js";
+import { buildArenaPublicationExport } from "../publication/export.js";
 import {
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
@@ -14,6 +15,7 @@ export const RUNTIME_COMMANDS = [
   "execute",
   "aggregate",
   "publish",
+  "export-publication",
   "daeb-low-pass",
   "daeb-production-rerun",
 ] as const;
@@ -39,6 +41,9 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
   }
   if (command === "publish") {
     return "usage: ax-arena benchmark publish --run-root <dir>\n  Publication remains fail-closed until trusted workflow activation.";
+  }
+  if (command === "export-publication") {
+    return "usage: ax-arena benchmark export-publication --from <publication-bundle-dir> --out <dir> [--generated-at <UTC ISO>]";
   }
   if (command === "daeb-low-pass") {
     return [
@@ -144,6 +149,23 @@ export async function runRuntimeCommand(
     const configuration = ArenaBatchConfigurationSchema.parse(readBoundedJson(configurationPath, "batch configuration"));
     const manifest = resolveBatchIdentity(runRoot, sourceSha, new Date(), configuration);
     io.stdout(`${manifest.batch_id}\n${resolve(runRoot, "batch.json")}`);
+    return 0;
+  }
+  if (command === "export-publication") {
+    assertOnly(values, ["--from", "--out", "--generated-at"]);
+    const bundleDir = one(values, "--from", true)!;
+    const outDir = one(values, "--out", true)!;
+    const generatedAtValue = one(values, "--generated-at");
+    const generatedAt = generatedAtValue === undefined ? new Date() : new Date(generatedAtValue);
+    if (!Number.isFinite(generatedAt.getTime())
+      || generatedAtValue !== undefined && generatedAt.toISOString() !== generatedAtValue) {
+      throw new Error("--generated-at must be an exact UTC ISO timestamp");
+    }
+    assertArenaOutputRoot(cwd, resolve(cwd, outDir));
+    const manifest = buildArenaPublicationExport({ root: cwd, bundleDir, outDir, generatedAt });
+    io.stdout(`Saved axarena export → ${outDir}`);
+    io.stdout(`Saved manifest → ${resolve(cwd, outDir, "manifest.json")}`);
+    io.stdout(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
     return 0;
   }
   assertOnly(values, ["--run-root", "--pack", "--generated-at", "--min-pass-rate"]);
