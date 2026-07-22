@@ -205,7 +205,12 @@ export async function runProviderOracle(
             entry.detail,
           );
       return {
-        type: entry.type,
+        // Providers may emit the original oracle result plus a verifier probe.
+        // Other type labels are not trusted record fields and collapse to the
+        // reviewed oracle type instead of becoming a covert data channel.
+        type: entry.type === oracle.type || entry.type === "verifier-probe"
+          ? entry.type
+          : oracle.type,
         passed: entry.passed,
         detail: redactSensitiveText(detail),
       };

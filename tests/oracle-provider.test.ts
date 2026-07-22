@@ -107,7 +107,7 @@ describe("oracle providers", () => {
 
     expect(out[0]?.success).toBe(false);
     expect(out[0]?.oracleResults).toEqual([
-      expect.objectContaining({ passed: false, detail: expect.stringContaining("returned no oracle evidence") }),
+      expect.objectContaining({ passed: false, detail: 'oracle provider "empty" failed' }),
     ]);
   });
 

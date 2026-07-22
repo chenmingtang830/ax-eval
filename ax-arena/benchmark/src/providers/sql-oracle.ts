@@ -1,8 +1,8 @@
 import type {
-  OracleProvider,
   OracleResult,
   OracleSpec,
   OracleVerifyContext,
+  VersionedOracleProvider,
 } from "ax-eval";
 import {
   applyStringTemplates,
@@ -19,7 +19,11 @@ export interface SqlConnection {
   connectionString: string;
 }
 
-export type SqlQueryRunner = (connection: SqlConnection, query: string) => Promise<unknown>;
+export type SqlQueryRunner = (
+  connection: SqlConnection,
+  query: string,
+  role?: string,
+) => Promise<unknown>;
 
 function sqlError(error: unknown): Record<string, unknown> {
   const value = error as { code?: string; message?: string; errno?: number; sqlState?: string };
@@ -33,14 +37,23 @@ function sqlError(error: unknown): Record<string, unknown> {
 
 /** Execute a verifier query through a fresh connection. Arena owns these
  * database drivers; core only sees the OracleProvider result. */
-export async function runSqlQuery(connection: SqlConnection, query: string): Promise<unknown> {
+export async function runSqlQuery(
+  connection: SqlConnection,
+  query: string,
+  role?: string,
+): Promise<unknown> {
   if (connection.dialect === "postgres") {
     const { Client } = await import("pg");
     const client = new Client({ connectionString: connection.connectionString });
     client.on?.("error", () => {});
     await client.connect();
     try {
-      const result = await client.query(`RESET ROLE; ${query}`);
+      await client.query("RESET ROLE");
+      if (role) {
+        if (!/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) throw new Error("invalid PostgreSQL verifier role");
+        await client.query(`SET ROLE "${role.replaceAll('"', '""')}"`);
+      }
+      const result = await client.query(query);
       return result.rows;
     } catch (error) {
       return sqlError(error);
@@ -52,6 +65,7 @@ export async function runSqlQuery(connection: SqlConnection, query: string): Pro
   const mysql = await import("mysql2/promise");
   const client = await mysql.createConnection(connection.connectionString);
   try {
+    if (role) throw new Error("SQL verifier roles are supported only for PostgreSQL");
     const [rows] = await client.execute(query);
     return rows;
   } catch (error) {
@@ -81,7 +95,7 @@ async function verifySql(
   run: SqlQueryRunner,
 ): Promise<readonly OracleResult[]> {
   let connection: SqlConnection | undefined;
-  let rolePrefix = "";
+  let verifierRole: string | undefined;
   const safeNs = (ctx.ns ?? "").replace(/[^a-zA-Z0-9_]/g, "_");
   const role = oracle.sqlRoleTemplate
     ? oracle.sqlRoleTemplate.replace(/\{ns\}/g, safeNs)
@@ -93,7 +107,7 @@ async function verifySql(
       const source = oracle.sqlRoleTemplate ? `"${oracle.sqlRoleTemplate}"` : `"${oracle.sqlRoleField}"`;
       return [failed(`no valid SQL role resolved from ${source}`)];
     }
-    rolePrefix = `SET ROLE "${role}"; `;
+    verifierRole = role;
   } else if (oracle.sqlConnField) {
     const reportedConnection = ctx.reported?.[oracle.sqlConnField];
     if (typeof reportedConnection !== "string" || !reportedConnection) {
@@ -130,7 +144,7 @@ async function verifySql(
     if (!passed) return outcomes;
   }
 
-  const result = await run(connection, rolePrefix + applyStringTemplates(oracle.sqlQuery!, ctx, false));
+  const result = await run(connection, applyStringTemplates(oracle.sqlQuery!, ctx, false), verifierRole);
   const isError = !Array.isArray(result) && Boolean(errorMessageFromResult(result));
   const field = oracle.assertOutcome === "error" ? (oracle.assertField ?? "code") : oracle.assertField;
   const actual = resolveDotted(result, field);
@@ -148,7 +162,7 @@ async function verifySql(
   return outcomes;
 }
 
-export function createSqlOracleProvider(run: SqlQueryRunner = runSqlQuery): OracleProvider {
+export function createSqlOracleProvider(run: SqlQueryRunner = runSqlQuery): VersionedOracleProvider {
   return {
     id: "arena-sql",
     version: "1.0.0",

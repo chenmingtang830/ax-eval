@@ -1,8 +1,8 @@
 import type {
-  OracleProvider,
   OracleResult,
   OracleSpec,
   OracleVerifyContext,
+  VersionedOracleProvider,
 } from "ax-eval";
 import {
   applyOracleTemplates,
@@ -99,7 +99,7 @@ async function verifyMongo(
   };
 }
 
-export function createMongoOracleProvider(run: MongoQueryRunner = runMongoQuery): OracleProvider {
+export function createMongoOracleProvider(run: MongoQueryRunner = runMongoQuery): VersionedOracleProvider {
   return {
     id: "arena-mongo",
     version: "1.0.0",

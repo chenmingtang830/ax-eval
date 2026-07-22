@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TargetPackSchema,
   createOracleProviderRegistry,
@@ -9,10 +9,28 @@ import {
 import {
   createMongoOracleProvider,
   createSqlOracleProvider,
+  runSqlQuery,
   type MongoConnection,
   type MongoQuery,
   type SqlConnection,
 } from "../src/providers/index.js";
+
+const postgresDriver = vi.hoisted(() => ({ query: vi.fn() }));
+
+vi.mock("pg", () => ({
+  Client: class {
+    on(): void {}
+    async connect(): Promise<void> {}
+    async query(...args: unknown[]): Promise<unknown> {
+      return postgresDriver.query(...args);
+    }
+    async end(): Promise<void> {}
+  },
+}));
+
+beforeEach(() => {
+  postgresDriver.query.mockReset();
+});
 
 function packWith(override: Record<string, unknown>): TargetPack {
   return TargetPackSchema.parse({
@@ -71,7 +89,7 @@ describe("arena SQL oracle provider", () => {
       "cli",
       undefined,
       {
-        env: { SQL_URL: "postgres://cell-a.example.test/db" },
+        credentials: { SQL_URL: "postgres://cell-a.example.test/db" },
         oracleProviders: createOracleProviderRegistry([provider]),
       },
     );
@@ -94,7 +112,7 @@ describe("arena SQL oracle provider", () => {
   });
 
   it("uses a namespace-safe role and requires a real driver error for error assertions", async () => {
-    const queries: string[] = [];
+    const calls: Array<{ query: string; role: string | undefined }> = [];
     const pack = packWith({
       sql_conn: { dialect: "postgres", connection_string_env: "SQL_URL" },
       tasks: [{
@@ -112,8 +130,8 @@ describe("arena SQL oracle provider", () => {
       }],
     });
     const registry = createOracleProviderRegistry([
-      createSqlOracleProvider(async (_connection, query) => {
-        queries.push(query);
+      createSqlOracleProvider(async (_connection, query, role) => {
+        calls.push({ query, role });
         return { code: "42501", message: "permission denied" };
       }),
     ]);
@@ -124,13 +142,17 @@ describe("arena SQL oracle provider", () => {
       {} as never,
       "cli",
       undefined,
-      { env: { SQL_URL: "postgres://admin.example.test/db" }, oracleProviders: registry },
+      {
+        credentials: { SQL_URL: "postgres://admin.example.test/db" },
+        oracleProviders: registry,
+      },
     );
 
     expect(outcomes[0]?.success).toBe(true);
-    expect(queries).toEqual([
-      'SET ROLE "denied_role_role_with_dashes"; SELECT secret FROM protected',
-    ]);
+    expect(calls).toEqual([{
+      query: "SELECT secret FROM protected",
+      role: "denied_role_role_with_dashes",
+    }]);
   });
 
   it("uses an executor-reported alternate connection without reading ambient env", async () => {
@@ -201,15 +223,34 @@ describe("arena SQL oracle provider", () => {
       "cli",
       undefined,
       {
-        env: { SQL_URL: "postgres://admin:super-secret@example.test/db" },
+        credentials: { SQL_URL: "postgres://admin:super-secret@example.test/db" },
         oracleProviders: registry,
       },
     );
 
     expect(outcomes[0]?.success).toBe(false);
-    expect(outcomes[0]?.oracleResults[0]?.detail).toContain("oracle provider \"arena-sql\"");
-    expect(outcomes[0]?.oracleResults[0]?.detail).toContain("[REDACTED]");
+    expect(outcomes[0]?.oracleResults[0]?.detail).toBe('oracle provider "arena-sql" failed');
     expect(JSON.stringify(outcomes)).not.toContain("super-secret");
+  });
+
+  it("runs PostgreSQL role setup and verification as separate statements", async () => {
+    postgresDriver.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [] })
+      .mockResolvedValueOnce({ rows: [{ value: 1 }] });
+
+    const result = await runSqlQuery(
+      { dialect: "postgres", connectionString: "postgres://cell.example.test/db" },
+      "SELECT 1 AS value",
+      "verified_role",
+    );
+
+    expect(result).toEqual([{ value: 1 }]);
+    expect(postgresDriver.query.mock.calls).toEqual([
+      ["RESET ROLE"],
+      ['SET ROLE "verified_role"'],
+      ["SELECT 1 AS value"],
+    ]);
   });
 });
 
@@ -249,7 +290,7 @@ describe("arena Mongo oracle provider", () => {
       "cli",
       undefined,
       {
-        env: {
+        credentials: {
           MONGO_URL: "mongodb://cell.example.test/db",
           COLLECTION_SUFFIX: "verified",
         },
@@ -301,11 +342,11 @@ describe("arena Mongo oracle provider", () => {
 
     const [cellA, cellB] = await Promise.all([
       verifyGeneratedPack(pack, executor("mongo-isolation"), {} as never, "cli", undefined, {
-        env: { MONGO_URL: "mongodb://cell-a.example.test/db" },
+        credentials: { MONGO_URL: "mongodb://cell-a.example.test/db" },
         oracleProviders: registry,
       }),
       verifyGeneratedPack(pack, executor("mongo-isolation"), {} as never, "cli", undefined, {
-        env: { MONGO_URL: "mongodb://cell-b.example.test/db" },
+        credentials: { MONGO_URL: "mongodb://cell-b.example.test/db" },
         oracleProviders: registry,
       }),
     ]);
