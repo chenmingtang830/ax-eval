@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
 import {
+  closeSync,
+  constants,
   existsSync,
+  fstatSync,
   lstatSync,
   mkdirSync,
+  openSync,
   readFileSync,
   readdirSync,
   realpathSync,
@@ -89,7 +93,8 @@ export interface CellRuntimeDependencies {
     executor: ExecutorResults,
     client: BearerClient,
     cell: EvaluationCell,
-    observed: ObservedRun | TraceStep[] | undefined,
+    observed: ObservedRun | undefined,
+    trace: readonly TraceStep[],
     oracleProviders: OracleProviderRegistry,
     credentials: CredentialSource,
   ): Promise<RoundtripOutcome[]>;
@@ -102,8 +107,12 @@ const DEFAULT_RUNTIME: CellRuntimeDependencies = {
   invokeHarness: runInvokeHarness,
   verificationClient: (pack, executor, credentials) =>
     new BearerClient(buildVerificationClientOptions(pack, executor, credentials)),
-  verify: (pack, executor, client, cell, observed, oracleProviders, credentials) =>
-    verifyGeneratedPack(pack, executor, client, cell.surface, observed, { oracleProviders, env: credentials }),
+  verify: (pack, executor, client, cell, observed, trace, oracleProviders, credentials) =>
+    verifyGeneratedPack(pack, executor, client, cell.surface, observed, {
+      oracleProviders,
+      env: credentials,
+      trace,
+    }),
 };
 
 const SAFE_PARENT_ENV = [
@@ -291,11 +300,11 @@ function failedOutcomes(pack: TargetPack, cell: EvaluationCell, message: string)
 }
 
 function providerOwnsConnectionRole(
-  pack: TargetPack,
+  tasks: readonly TargetPack["tasks"][number][],
   providers: OracleProviderRegistry,
   role: "sql_conn" | "mongo_conn",
 ): boolean {
-  const relevant = pack.tasks.flatMap((task) => task.oracles).filter((oracle) =>
+  const relevant = tasks.flatMap((task) => task.oracles).filter((oracle) =>
     role === "sql_conn" ? Boolean(oracle.sqlQuery) : Boolean(oracle.mongoQuery)
   );
   return relevant.length > 0 && relevant.every((oracle) => providers.providerFor(oracle) !== undefined);
@@ -381,19 +390,24 @@ function exactSecretValues(
       }
     }
   }
-  return [...values].filter((value) => value.length >= 4).sort((a, b) => b.length - a.length);
+  return [...values].filter(Boolean).sort((a, b) => b.length - a.length);
 }
 
 function provisioningSecretValues(provisioning: HarnessProvisioning): string[] {
   const secretName = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
   return Object.entries(provisioning.env)
-    .filter(([name, value]) => secretName.test(name) && value.length >= 4)
+    .filter(([name, value]) => secretName.test(name) && value.length > 0)
     .map(([, value]) => value);
 }
 
 function scrubText(value: string, secrets: readonly string[]): string {
+  if (secrets.some((secret) => secret.length < 4 && value.includes(secret))) {
+    return "<redacted-sensitive-text>";
+  }
   let scrubbed = value;
-  for (const secret of secrets) scrubbed = scrubbed.split(secret).join("<redacted>");
+  for (const secret of secrets) {
+    if (secret.length >= 4) scrubbed = scrubbed.split(secret).join("<redacted>");
+  }
   return redactHarnessArtifactText(scrubbed);
 }
 
@@ -442,6 +456,16 @@ function removeArtifactPath(path: string): void {
   }
 }
 
+function readRegularFileNoFollow(path: string): Buffer {
+  const fd = openSync(path, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+  try {
+    if (!fstatSync(fd).isFile()) throw new Error(`artifact is not a regular file: ${path}`);
+    return readFileSync(fd);
+  } finally {
+    closeSync(fd);
+  }
+}
+
 function scrubArtifacts(
   paths: ReturnType<typeof defaultInvokePaths>,
   secrets: readonly string[],
@@ -466,7 +490,7 @@ function scrubArtifacts(
     try {
       const stat = lstatSync(path);
       if (!stat.isFile() || stat.isSymbolicLink()) continue;
-      replaceFileWithoutFollowing(path, scrubText(readFileSync(path, "utf8"), secrets));
+      replaceFileWithoutFollowing(path, scrubText(readRegularFileNoFollow(path).toString("utf8"), secrets));
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
     }
@@ -481,7 +505,7 @@ function scrubArtifacts(
         return;
       }
       if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
-      const raw = readFileSync(path);
+      const raw = readRegularFileNoFollow(path);
       if (raw.includes(0)) return;
       replaceFileWithoutFollowing(path, scrubText(raw.toString("utf8"), secrets));
     } catch {
@@ -601,10 +625,14 @@ export async function runCellWithRuntime(
   const credentials = scopedCredentials(cell, options.credentials);
   const oracleProviders = options.extensions?.oracleProviders ?? createOracleProviderRegistry();
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
-  const missingPack = describeRequiredEnv(pack, credentials)
+  const selectedTasks = tasksForSurface(pack, cell.surface);
+  const missingPack = describeRequiredEnv(pack, credentials, {
+    tasks: selectedTasks,
+    includeAuth: false,
+  })
     .filter((requirement) => !(
       (requirement.role === "sql_conn" || requirement.role === "mongo_conn")
-      && providerOwnsConnectionRole(pack, oracleProviders, requirement.role)
+      && providerOwnsConnectionRole(selectedTasks, oracleProviders, requirement.role)
     ))
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
@@ -754,7 +782,7 @@ export async function runCellWithRuntime(
   let verifyError: string | undefined;
   try {
     const client = runtime.verificationClient(pack, executor, credentials);
-    outcomes = await runtime.verify(pack, executor, client, cell, observed ?? trace, oracleProviders, credentials);
+    outcomes = await runtime.verify(pack, executor, client, cell, observed, trace, oracleProviders, credentials);
   } catch (error) {
     verifyError = safeMessage(error, Object.values(credentials));
     outcomes = failedOutcomes(pack, cell, verifyError);

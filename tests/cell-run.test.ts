@@ -335,6 +335,21 @@ describe("runCell", () => {
     await runCellWithRuntime(cell, { credentials: {} }, isolated);
   });
 
+  it("passes the required trace independently from the parsed transcript", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    const verify = isolated.verify;
+    isolated.verify = async (...args) => {
+      expect(args[4]).toBeDefined();
+      expect(args[5]).toEqual([
+        { step: 1, taskId: "task-1", action: "POST", method: "POST", path: "/examples" },
+      ]);
+      return verify(...args);
+    };
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.status).toBe("completed");
+  });
+
   it("scrubs opaque credentials from successful artifacts and oracle details", async () => {
     const { cell } = fixture();
     const isolated = runtime([]);
@@ -365,6 +380,67 @@ describe("runCell", () => {
     const results = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8");
     const trace = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.trace), "utf8");
     expect(`${results}\n${trace}`).not.toContain("secret-value");
+  });
+
+  it("fails closed when a short credential appears in persisted text", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
+      payload.opaque = "123";
+      writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
+      writeFileSync(options.paths.tracePath, JSON.stringify([{ step: 1, taskId: "task-1", action: "used 123" }]));
+      return result;
+    };
+    isolated.verify = async (_pack, executor) => [{
+      taskId: "task-1",
+      difficulty: "L1",
+      profile: executor.profile,
+      success: false,
+      oracleResults: [{ type: "roundtrip", passed: false, detail: "provider returned 123" }],
+      error: null,
+      na: false,
+    }];
+    const record = await runCellWithRuntime(
+      { ...cell, required_credentials: ["EXAMPLE_PIN"] },
+      { credentials: { EXAMPLE_PIN: "123" } },
+      isolated,
+    );
+    expect(JSON.stringify(record)).not.toContain("123");
+    const results = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8");
+    const trace = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.trace), "utf8");
+    expect(`${results}\n${trace}`).not.toContain("123");
+  });
+
+  it("does not require top-level API auth for an independently authenticated CLI cell", async () => {
+    const { cell, pack, dir } = fixture();
+    pack.auth_method = "pat";
+    pack.auth = { type: "bearer", env: "API_TOKEN", env_aliases: [], verify_env_aliases: [] };
+    pack.surfaces = {
+      cli: {
+        bin: "example-cli",
+        auth: { kind: "token", token_env: "CLI_TOKEN", token_env_aliases: [] },
+      },
+    };
+    pack.tasks[0]!.allowed_surfaces = ["cli"];
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    const cliCell: EvaluationCell = {
+      ...cell,
+      surface: "cli",
+      pack: { path: "pack.yaml", content_hash: packFileContentHash(packPath) },
+      required_credentials: ["CLI_TOKEN"],
+    };
+
+    const record = await runCellWithRuntime(
+      cliCell,
+      { credentials: { CLI_TOKEN: "cli-secret" } },
+      runtime([]),
+    );
+    expect(record.status).toBe("completed");
   });
 
   it("rejects pack and artifact paths that escape the declared working directory", async () => {

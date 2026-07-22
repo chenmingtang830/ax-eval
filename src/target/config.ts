@@ -175,10 +175,22 @@ export interface EnvRequirement {
   instructions?: string;
 }
 
+export interface DescribeRequiredEnvOptions {
+  /** Restrict verifier-template and connection requirements to selected tasks. */
+  tasks?: ReadonlyArray<TargetPack["tasks"][number]>;
+  /** Surface-specific callers validate auth separately with surfaceAuthStatus. */
+  includeAuth?: boolean;
+}
+
 /** Everything the developer must set for this pack, with which vars are present.
  *  Drives a target-agnostic `check-env`. */
-export function describeRequiredEnv(pack: TargetPack, source: EnvSource = process.env): EnvRequirement[] {
+export function describeRequiredEnv(
+  pack: TargetPack,
+  source: EnvSource = process.env,
+  options: DescribeRequiredEnvOptions = {},
+): EnvRequirement[] {
   const reqs: EnvRequirement[] = [];
+  const tasks = options.tasks ?? pack.tasks;
   const pushUnique = (req: EnvRequirement) => {
     if (reqs.some((existing) => existing.env === req.env && existing.role === req.role)) return;
     reqs.push(req);
@@ -187,7 +199,7 @@ export function describeRequiredEnv(pack: TargetPack, source: EnvSource = proces
   const authAliases = pack.auth?.env_aliases ?? [];
   const verifyEnv = pack.auth?.verify_env;
   const verifyAliases = pack.auth?.verify_env_aliases ?? [];
-  if (pack.auth?.type !== "none") {
+  if (options.includeAuth !== false && pack.auth?.type !== "none") {
     pushUnique({
       role: "auth",
       env: authEnv,
@@ -204,7 +216,7 @@ export function describeRequiredEnv(pack: TargetPack, source: EnvSource = proces
   }
   for (const name of envTemplateNames([
     pack.base_url,
-    pack.tasks.flatMap((task) => task.oracles.map((oracle) => [
+    tasks.flatMap((task) => task.oracles.map((oracle) => [
       oracle.readPathTemplate,
       oracle.readBodyTemplate,
       oracle.readQueryTemplate,
@@ -229,7 +241,10 @@ export function describeRequiredEnv(pack: TargetPack, source: EnvSource = proces
       instructions: p.instructions || undefined,
     });
   }
-  if (pack.sql_conn?.connection_string_env) {
+  if (
+    pack.sql_conn?.connection_string_env
+    && (options.tasks === undefined || tasks.some((task) => task.oracles.some((oracle) => oracle.sqlQuery)))
+  ) {
     pushUnique({
       role: "sql_conn",
       env: pack.sql_conn.connection_string_env,
@@ -238,7 +253,10 @@ export function describeRequiredEnv(pack: TargetPack, source: EnvSource = proces
       instructions: `${pack.sql_conn.dialect} connection string used by SQL outcome verifiers`,
     });
   }
-  if (pack.mongo_conn?.connection_string_env) {
+  if (
+    pack.mongo_conn?.connection_string_env
+    && (options.tasks === undefined || tasks.some((task) => task.oracles.some((oracle) => oracle.mongoQuery)))
+  ) {
     pushUnique({
       role: "mongo_conn",
       env: pack.mongo_conn.connection_string_env,
