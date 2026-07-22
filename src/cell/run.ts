@@ -947,6 +947,10 @@ export async function runCellWithRuntime(
         tasks: selectedTasks,
         includeAuth: true,
       })
+      .filter((requirement) => !(
+        (requirement.role === "sql_conn" || requirement.role === "mongo_conn")
+        && providerOwnsConnectionRole(selectedTasks, oracleProviders, requirement.role)
+      ))
       .filter((requirement) => requirement.required && !requirement.set)
       .map((requirement) => requirement.role === "auth"
         ? pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT"

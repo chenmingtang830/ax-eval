@@ -806,6 +806,39 @@ describe("runCell", () => {
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
+  it("does not require a built-in verifier connection owned by a custom provider", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "owned-sql-verifier",
+        version: "1.0.0",
+        matches: (oracle) => Boolean(oracle.sqlQuery),
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "provider-owned connection" };
+        },
+      }],
+    });
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = vi.fn(invoke);
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: {},
+      verificationCredentials: {},
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.status).toBe("completed");
+    expect(isolated.invokeHarness).toHaveBeenCalledOnce();
+    expect(record.error).toBeNull();
+  });
+
   it("keeps inherited SQL CLI control-plane auth verifier-only", async () => {
     const { cell, dir, pack } = fixture();
     pack.auth_method = "pat";
