@@ -30,6 +30,16 @@ and artifact readers remain temporary public `ax-eval` compatibility seams;
 the runtime and publication stack slices remove those residuals without
 duplicating policy between packages.
 
+`executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
+verifier, and reset credentials; runs against an isolated pack copy; validates
+and durably persists the normalized record; then performs namespace-bounded
+cleanup and persists strict `ax.arena-cell-cleanup/v1` evidence. Cleanup never
+precedes record persistence. The public execution entry point fails closed
+until the trusted workflow slice supplies an OS-level filesystem sandbox. A
+source-only injected-runtime seam is used exclusively by offline contract tests
+and is not exported by the built package. No live or credentialed evaluation is
+enabled by this migration slice.
+
 For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
 only when this canonical root is absent and emit a deprecation warning. If both
 roots exist, pass `--benchmark-root <dir>` explicitly. Writers use only
