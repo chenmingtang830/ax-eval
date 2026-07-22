@@ -766,6 +766,20 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("DELETE /widgets/123");
   });
 
+  it("does not invent task-scoped diffs for unattributed native calls", () => {
+    const pack = makePack([{ id: "create", difficulty: "L1", prompt: "create", create_path: "/native" }]);
+    const html = renderGeneratedReport(pack, [{
+      profile: "medium",
+      surface: "api",
+      outcomes: [outcome("create", "L1", "medium", true)],
+      traceAttribution: "unattributed",
+      trace: [{ step: 1, taskId: "observed", action: "native", method: "POST", path: "/native" }],
+    }]);
+    expect(html).toContain("native calls captured without trustworthy task attribution");
+    expect(html).not.toContain("Missing required call POST /native");
+    expect(html).not.toContain("1 mismatch");
+  });
+
   it("surfaces evidence file paths (results / trace / transcript) when provided", () => {
     const pack = makePack([{ id: "t1", difficulty: "L1", prompt: "do a thing" }]);
     const runs: ProfileRun[] = [

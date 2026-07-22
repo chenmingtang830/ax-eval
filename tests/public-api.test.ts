@@ -15,6 +15,8 @@ import {
   createOracleProviderRegistry,
   createRuntimeExtensionRegistry,
   registerOracleProvider,
+  renderGeneratedSnapshot,
+  loadRequiredTrace,
   runCell,
   runCellWithRuntime,
   verifyGeneratedPack,
@@ -39,6 +41,8 @@ describe("public API", () => {
     expect(createRuntimeExtensionRegistry).toBeTypeOf("function");
     expect(registerOracleProvider).toBeTypeOf("function");
     expect(aggregateNormalizedResults).toBeTypeOf("function");
+    expect(renderGeneratedSnapshot).toBeTypeOf("function");
+    expect(loadRequiredTrace).toBeTypeOf("function");
     expect(runCell).toBeTypeOf("function");
     expect(runCellWithRuntime).toBeTypeOf("function");
   });

@@ -25,6 +25,7 @@ const required = [
   "package.json",
   "schemas/arena-batch-completion.v1.json",
   "schemas/arena-batch.v1.json",
+  "schemas/arena-runtime-report.v1.json",
   "schemas/arena-cell-cleanup.v1.json",
 ];
 function requireTree(directory, prefix) {
@@ -92,10 +93,11 @@ try {
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, createArenaRuntimeExtensionRegistry, executeArenaCell } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaRuntimeReportSchema, createArenaRuntimeExtensionRegistry, executeArenaCell, writeRuntimeReportingBundle } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
-      "typeof executeArenaCell !== 'function' || !ArenaBatchManifestSchema || !ArenaCellCleanupSchema) process.exit(1);",
+      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || " +
+      "!ArenaBatchManifestSchema || !ArenaCellCleanupSchema || !ArenaRuntimeReportSchema) process.exit(1);",
   ], {
     cwd: smokeRoot,
     encoding: "utf8",

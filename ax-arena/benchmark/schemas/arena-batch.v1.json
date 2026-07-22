@@ -48,12 +48,14 @@
         }
       }
     },
-    "expected_cells": { "type": "array", "minItems": 1, "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "#/$defs/nonBlank" } }
+    "expected_cells": { "type": "array", "minItems": 1, "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "#/$defs/cellKey" } }
   },
   "$defs": {
     "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "sourceSha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "vendor": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+    "cellKey": { "type": "string", "maxLength": 256, "pattern": "^[a-z0-9][a-z0-9._-]{0,127}/(?:api|cli|sdk|mcp)/(?:codex|claude-code)/trial-[1-9]\\d*$" },
     "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
     "names": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "type": "string", "maxLength": 256, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" } },
     "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
@@ -86,7 +88,7 @@
       "additionalProperties": false,
       "required": ["vendor", "file_hash", "standard_set_version", "surfaces", "host_credential_names", "verification_credential_names", "reset_credential_names", "sandbox_scope_names"],
       "properties": {
-        "vendor": { "$ref": "#/$defs/nonBlank" },
+        "vendor": { "$ref": "#/$defs/vendor" },
         "file_hash": { "$ref": "#/$defs/sha256" },
         "standard_set_version": { "$ref": "#/$defs/nonBlank" },
         "surfaces": { "type": "array", "minItems": 1, "maxItems": 4, "uniqueItems": true, "items": { "$ref": "#/$defs/surface" } },
@@ -101,8 +103,8 @@
       "additionalProperties": false,
       "required": ["key", "vendor", "surface", "harness", "profile", "effort", "model", "trial", "host_credential_names", "verification_credential_names", "reset_credential_names", "sandbox_scope_names", "provider_pins", "reset_provider"],
       "properties": {
-        "key": { "$ref": "#/$defs/nonBlank" },
-        "vendor": { "$ref": "#/$defs/nonBlank" },
+        "key": { "$ref": "#/$defs/cellKey" },
+        "vendor": { "$ref": "#/$defs/vendor" },
         "surface": { "$ref": "#/$defs/surface" },
         "harness": { "enum": ["codex", "claude-code"] },
         "profile": { "enum": ["medium", "high"] },
