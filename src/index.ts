@@ -293,6 +293,7 @@ export { probeHarness } from "./harness/probe.js";
 export type { HarnessProbe } from "./harness/probe.js";
 export { renderGeneratedSnapshot } from "./generate/snapshot.js";
 export type { GeneratedReportSnapshot } from "./generate/snapshot.js";
+export { REPORT_STYLE } from "./report-style.js";
 
 // Transitional compatibility seams used while DAEB runtime/publication move
 // in the following stack slices. Arena is their only in-repo consumer.

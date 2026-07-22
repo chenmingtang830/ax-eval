@@ -444,9 +444,12 @@ npm run ax-eval -- reset --pack <pack.yaml> --ns <run-namespace> [--dry-run]
 npm run ax-eval -- audit --site <url>
 npm run ax-eval -- discover --site <url>
 npm run ax-eval -- smells --openapi <url>
-npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
+npm run ax-arena -- benchmark competitive --from <sealed-publication-bundle> --html <ignored-output.html>
 npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
+
+The legacy `ax-eval competitive` command remains active while the arena
+workspace is private; it is not yet a delegated alias.
 
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
