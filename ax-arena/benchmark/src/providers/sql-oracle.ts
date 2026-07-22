@@ -48,24 +48,30 @@ export async function runSqlQuery(
     client.on?.("error", () => {});
     await client.connect();
     try {
-      await client.query("RESET ROLE");
-      if (role) {
-        if (!/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) throw new Error("invalid PostgreSQL verifier role");
-        await client.query(`SET ROLE "${role.replaceAll('"', '""')}"`);
+      try {
+        await client.query("RESET ROLE");
+        if (role) {
+          if (!/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) throw new Error("invalid PostgreSQL verifier role");
+          await client.query(`SET ROLE "${role.replaceAll('"', '""')}"`);
+        }
+      } catch {
+        throw new Error("PostgreSQL verifier role setup failed");
       }
-      const result = await client.query(query);
-      return result.rows;
-    } catch (error) {
-      return sqlError(error);
+      try {
+        const result = await client.query(query);
+        return result.rows;
+      } catch (error) {
+        return sqlError(error);
+      }
     } finally {
       await client.end();
     }
   }
 
+  if (role) throw new Error("SQL verifier roles are supported only for PostgreSQL");
   const mysql = await import("mysql2/promise");
   const client = await mysql.createConnection(connection.connectionString);
   try {
-    if (role) throw new Error("SQL verifier roles are supported only for PostgreSQL");
     const [rows] = await client.execute(query);
     return rows;
   } catch (error) {

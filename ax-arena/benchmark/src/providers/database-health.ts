@@ -107,7 +107,12 @@ function tursoRows(body: unknown): unknown[][] {
 }
 
 function authCredential(pack: TargetPack, context: HealthCheckContext): string | undefined {
-  const names = [pack.auth?.verify_env, pack.auth?.env].filter((name): name is string => Boolean(name));
+  const names = [
+    pack.auth?.verify_env,
+    ...(pack.auth?.verify_env_aliases ?? []),
+    pack.auth?.env,
+    ...(pack.auth?.env_aliases ?? []),
+  ].filter((name): name is string => Boolean(name));
   for (const name of names) {
     const value = credential(context, name);
     if (value) return value;

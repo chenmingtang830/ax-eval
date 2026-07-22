@@ -3,9 +3,24 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { EvaluationCellSchema, TargetPackSchema } from "ax-eval";
 import { createTursoCliProvisioningProvider } from "../src/providers/turso-provisioning.js";
+
+const versionProbe = vi.hoisted(() => ({ environments: [] as Array<NodeJS.ProcessEnv | undefined> }));
+
+vi.mock("node:child_process", async () => {
+  const actual = await vi.importActual<typeof import("node:child_process")>("node:child_process");
+  return {
+    ...actual,
+    execFileSync(file: string, args: readonly string[], options: Record<string, unknown> = {}) {
+      if (args[0] === "--version") {
+        versionProbe.environments.push(options.env as NodeJS.ProcessEnv | undefined);
+      }
+      return actual.execFileSync(file, [...args], options);
+    },
+  };
+});
 
 const dirs: string[] = [];
 
@@ -17,6 +32,8 @@ function freshDir(): string {
 
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  versionProbe.environments.length = 0;
+  vi.unstubAllEnvs();
 });
 
 function target(cwd: string, artifactDir: string) {
@@ -72,8 +89,11 @@ describe("Turso CLI provisioning provider", () => {
     const provider = createTursoCliProvisioningProvider(options);
     options.expectedSha256 = "0".repeat(64);
     const context = target(cwd, artifactDir);
+    versionProbe.environments.length = 0;
+    vi.stubEnv("AX_ARENA_AMBIENT_SENTINEL", "must-not-reach-version-probe");
 
     await expect(provider.inspect(context)).resolves.toEqual({ ready: true });
+    expect(versionProbe.environments).toEqual([{}]);
     await expect(provider.provision({ ...context, credentials: {} })).resolves.toEqual({
         env: { AX_ARENA_TURSO_BIN: canonicalBinary },
         pathEntries: [canonicalBinDir],

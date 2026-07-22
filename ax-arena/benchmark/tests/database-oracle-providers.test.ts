@@ -252,6 +252,88 @@ describe("arena SQL oracle provider", () => {
       ["SELECT 1 AS value"],
     ]);
   });
+
+  it("cannot satisfy an expected query error with a failed role setup", async () => {
+    const setupError = Object.assign(new Error("permission denied"), { code: "42501" });
+    postgresDriver.query
+      .mockResolvedValueOnce({ rows: [] })
+      .mockRejectedValueOnce(setupError);
+    const pack = packWith({
+      sql_conn: { dialect: "postgres", connection_string_env: "SQL_URL" },
+      tasks: [{
+        id: "access",
+        title: "Access",
+        allowed_surfaces: ["cli"],
+        oracles: [{
+          type: "roundtrip",
+          sqlQuery: "SELECT secret FROM protected",
+          sqlRoleTemplate: "denied_role_{ns}",
+          assertOutcome: "error",
+          assertField: "code",
+          expected: "42501",
+        }],
+      }],
+    });
+
+    const outcomes = await verifyGeneratedPack(
+      pack,
+      executor("access", {}, "role-test"),
+      {} as never,
+      "cli",
+      undefined,
+      {
+        credentials: { SQL_URL: "postgres://admin.example.test/db" },
+        oracleProviders: createOracleProviderRegistry([createSqlOracleProvider()]),
+      },
+    );
+
+    expect(outcomes[0]?.success).toBe(false);
+    expect(outcomes[0]?.oracleResults).toEqual([{
+      type: "roundtrip",
+      passed: false,
+      detail: 'oracle provider "arena-sql" failed',
+    }]);
+    expect(postgresDriver.query.mock.calls).toEqual([
+      ["RESET ROLE"],
+      ['SET ROLE "denied_role_role_test"'],
+    ]);
+  });
+
+  it("scrubs executor-reported connection strings during direct verification", async () => {
+    const reportedUri = "mysql://reported:opaque-secret@example.test/db";
+    const pack = packWith({
+      tasks: [{
+        id: "restore",
+        title: "Restore",
+        allowed_surfaces: ["cli"],
+        oracles: [{
+          type: "roundtrip",
+          sqlDialect: "mysql",
+          sqlQuery: "SELECT 1",
+          sqlConnField: "restored_connection",
+          assertField: "missing",
+          expected: 1,
+        }],
+      }],
+    });
+    const provider = createSqlOracleProvider(async () => ({
+      code: "ECONNREFUSED",
+      message: `could not connect to ${reportedUri}`,
+    }));
+
+    const outcomes = await verifyGeneratedPack(
+      pack,
+      executor("restore", { restored_connection: reportedUri }),
+      {} as never,
+      "cli",
+      undefined,
+      { oracleProviders: createOracleProviderRegistry([provider]) },
+    );
+
+    expect(outcomes[0]?.success).toBe(false);
+    expect(outcomes[0]?.oracleResults[0]?.detail).toContain("<redacted>");
+    expect(JSON.stringify(outcomes)).not.toContain("opaque-secret");
+  });
 });
 
 describe("arena Mongo oracle provider", () => {

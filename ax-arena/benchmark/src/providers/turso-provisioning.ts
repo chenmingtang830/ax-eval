@@ -103,6 +103,7 @@ function inspectBinary(
       if (cliSha256 !== expectedSha256) throw new Error("pinned turso binary SHA-256 does not match controller policy");
       const cliVersion = execFileSync(binaryPath, ["--version"], {
         encoding: "utf8",
+        env: {},
         stdio: ["ignore", "pipe", "ignore"],
         timeout: 5_000,
       }).trim();

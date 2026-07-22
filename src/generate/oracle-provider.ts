@@ -194,7 +194,12 @@ export async function runProviderOracle(
       || typeof entry.detail !== "string")) {
       throw new Error("provider returned invalid oracle evidence");
     }
-    const secrets = Object.values(ctx.credentials)
+    const reportedSecrets = [oracle.authField, oracle.sqlConnField]
+      .flatMap((field) => {
+        const value = field ? ctx.reported?.[field] : undefined;
+        return typeof value === "string" ? [value] : [];
+      });
+    const secrets = [...Object.values(ctx.credentials), ...reportedSecrets]
       .filter((value): value is string => typeof value === "string" && value.length > 0)
       .sort((a, b) => b.length - a.length);
     return results.map((entry) => {

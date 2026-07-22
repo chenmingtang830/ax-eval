@@ -138,6 +138,33 @@ describe("arena database health providers", () => {
     expect(evidence[1]?.status).toBe("warn");
   });
 
+  it("accepts Turso verifier auth aliases in declared priority order", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "turso",
+      auth: {
+        type: "bearer",
+        env: "TURSO_TOKEN",
+        env_aliases: ["TURSO_TOKEN_ALIAS"],
+        verify_env: "TURSO_VERIFY_TOKEN",
+        verify_env_aliases: ["TURSO_VERIFY_TOKEN_ALIAS"],
+      },
+      base_url: "https://${TURSO_DATABASE}.turso.io",
+      tasks: [],
+    });
+    const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) => new Response(JSON.stringify({
+      results: [{ response: { result: { rows: [] } } }],
+    }), { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const evidence = await tursoHealthCheckProvider.check(context(pack, {
+      TURSO_VERIFY_TOKEN_ALIAS: "alias-secret",
+      TURSO_DATABASE: "sandbox",
+    }));
+
+    expect(evidence[0]).toEqual({ status: "pass", message: "Turso connection is reachable" });
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ Authorization: "Bearer alias-secret" });
+  });
+
   it("warns instead of blocking Convex when optional management health is unavailable", async () => {
     const pack = TargetPackSchema.parse({ name: "convex", base_url: "https://sandbox.convex.cloud", tasks: [] });
     await expect(convexHealthCheckProvider.check(context(pack, {}))).resolves.toEqual([
