@@ -23,6 +23,7 @@ function fixture() {
     name: "neon",
     standard_set_version: "database-v1",
     auth: { type: "none" },
+    base_url: "https://api.example.test",
     tasks: [],
   });
   writeFileSync(packPath, yamlStringify(pack));
@@ -206,7 +207,15 @@ function fixture() {
     now: new Date("2026-07-21T00:00:04.000Z"),
     ...(minPassRate === undefined ? {} : { minPassRate }),
   });
-  return { runRoot, recordPath, cleanupPath, completionPath: resolve(runRoot, "batch-completion.json"), run };
+  return {
+    runRoot,
+    recordPath,
+    cleanupPath,
+    tracePath: resolve(artifacts, "trace.json"),
+    transcriptPath: resolve(artifacts, "transcript.jsonl"),
+    completionPath: resolve(runRoot, "batch-completion.json"),
+    run,
+  };
 }
 
 describe("arena runtime reporting", () => {
@@ -224,6 +233,39 @@ describe("arena runtime reporting", () => {
       .toContain("failed_tasks: none");
     const snapshot = JSON.parse(readFileSync(resolve(test.runRoot, report.surface_reports[0]!.snapshot_path), "utf8"));
     expect(snapshot.runs[0].evidence.results[0]).not.toMatch(/^\//);
+  });
+
+  it.each([
+    ["Codex", JSON.stringify({
+      type: "item.completed",
+      item: { type: "command_execution", command: "curl -X POST https://api.example.test/native" },
+    })],
+    ["Claude Code", JSON.stringify({
+      message: {
+        content: [{
+          type: "tool_use",
+          name: "Bash",
+          input: { command: "curl -X POST https://api.example.test/native" },
+        }],
+      },
+    })],
+  ])("derives process evidence from the native %s transcript", (_harness, event) => {
+    const test = fixture();
+    writeFileSync(test.tracePath, JSON.stringify([
+      { step: 1, taskId: "forged", action: "GET", method: "GET", path: "/model-authored" },
+    ]));
+    writeFileSync(test.transcriptPath, `${event}\n`);
+
+    const report = test.run();
+    const snapshot = JSON.parse(readFileSync(
+      resolve(test.runRoot, report.surface_reports[0]!.snapshot_path),
+      "utf8",
+    ));
+    expect(snapshot.runs[0].trace).toEqual([expect.objectContaining({
+      method: "POST",
+      path: "/native",
+    })]);
+    expect(JSON.stringify(snapshot.runs[0].trace)).not.toContain("model-authored");
   });
 
   it("rejects post-completion record drift", () => {

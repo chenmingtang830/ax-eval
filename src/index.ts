@@ -71,6 +71,7 @@ export {
 } from "./harness/invoke.js";
 export type { InvokeHarnessId } from "./harness/invoke.js";
 export type { TraceStep } from "./harness/executor.js";
+export { observedToTrace, parseTranscriptContent } from "./harness/transcript.js";
 export type { ObservedRun } from "./harness/transcript.js";
 
 export {

@@ -11,8 +11,9 @@ import {
   NormalizedCellRecordSchema,
   aggregateNormalizedResults,
   loadPack,
-  loadRequiredTrace,
+  observedToTrace,
   packFileContentHash,
+  parseTranscriptContent,
   renderGeneratedSnapshot,
   type GeneratedReportSnapshot,
   type HarnessProbe,
@@ -141,15 +142,21 @@ function artifactPath(runRoot: string, record: NormalizedCellRecord, name: strin
 
 function profileRun(
   runRoot: string,
+  pack: TargetPack,
   record: NormalizedCellRecord,
   cleanup: ArenaCellCleanupRecord,
 ): ProfileRun {
   const results = artifactPath(runRoot, record, record.artifacts.results, "results artifact");
   const trace = artifactPath(runRoot, record, record.artifacts.trace, "trace artifact");
   const transcript = artifactPath(runRoot, record, record.artifacts.transcript, "transcript artifact");
-  const parsedTrace = loadRequiredTrace(resolve(runRoot, trace.relativePath));
-  const traceAfter = readRunFile(runRoot, resolve(runRoot, trace.relativePath), "trace artifact");
-  if (!trace.bytes.equals(traceAfter.bytes)) throw new Error("trace artifact changed while reporting");
+  const observed = parseTranscriptContent(transcript.bytes.toString("utf8"), {
+    baseUrl: pack.base_url.includes("${") ? undefined : pack.base_url,
+    cliBin: pack.surfaces?.cli?.bin,
+    sdkPackage: pack.surfaces?.sdk?.package,
+    mcpServer: pack.surfaces?.mcp?.server,
+  });
+  const transcriptAfter = readRunFile(runRoot, resolve(runRoot, transcript.relativePath), "transcript artifact");
+  if (!transcript.bytes.equals(transcriptAfter.bytes)) throw new Error("transcript artifact changed while reporting");
   return {
     profile: record.best_profile ?? record.profiles[0]!,
     harness: record.harness,
@@ -157,7 +164,10 @@ function profileRun(
     surface: record.surface,
     ns: cleanup.namespace,
     outcomes: record.task_results,
-    trace: parsedTrace,
+    // Process diagnostics must come from the harness-native event stream. The
+    // executor trace remains linked below for review, but is model-authored and
+    // therefore cannot be trusted as evidence of which calls actually ran.
+    trace: observedToTrace(observed),
     discovery: record.discovery,
     discoverySource: record.discovery_source,
     efficiency: {
@@ -367,7 +377,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     const snapshot: GeneratedReportSnapshot = {
       schema: "ax.generated-report-snapshot/v1",
       pack: packs.get(vendor)!,
-      runs: selected.map(({ record, cleanup }) => profileRun(runRoot, record, cleanup)),
+      runs: selected.map(({ record, cleanup }) => profileRun(runRoot, packs.get(vendor)!, record, cleanup)),
       harness: options.harness,
       warnings: [],
       minPassRate,
