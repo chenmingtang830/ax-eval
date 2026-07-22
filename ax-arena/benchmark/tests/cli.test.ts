@@ -53,14 +53,26 @@ describe("ax-arena benchmark CLI scaffold", () => {
       suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
       packs: [{
         vendor: "neon", file_hash: "2".repeat(64), standard_set_version: "database-v1", surfaces: ["api"],
-        host_credential_names: ["OPENAI_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
+        host_credential_names: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
       }],
-      cells: [{
-        key: "neon/api/codex/trial-1", vendor: "neon", surface: "api", harness: "codex",
-        profile: "medium", effort: "medium", model: "model-codex", trial: 1,
-        host_credential_names: ["OPENAI_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
-      }],
-      harnesses: [{ harness: "codex", version_raw: "codex 1.2.3", version_semver: "1.2.3" }],
+      cells: [
+        {
+          key: "neon/api/codex/trial-1", vendor: "neon", surface: "api", harness: "codex",
+          profile: "medium", effort: "medium", model: "model-codex", trial: 1,
+          host_credential_names: ["OPENAI_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
+          provider_pins: [], reset_provider: { id: "reset", version: "1.0.0" },
+        },
+        {
+          key: "neon/api/claude-code/trial-1", vendor: "neon", surface: "api", harness: "claude-code",
+          profile: "medium", effort: "medium", model: "model-claude", trial: 1,
+          host_credential_names: ["ANTHROPIC_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
+          provider_pins: [], reset_provider: { id: "reset", version: "1.0.0" },
+        },
+      ],
+      harnesses: [
+        { harness: "codex", version_raw: "codex 1.2.3", version_semver: "1.2.3" },
+        { harness: "claude-code", version_raw: "claude-code 1.2.3", version_semver: "1.2.3" },
+      ],
       reset_required: true,
       invoke_timeout_seconds: 900,
       first_action_timeout_seconds: 180,
