@@ -192,7 +192,7 @@ describe("arena database reset providers", () => {
   it("uses context credentials to inventory and delete Turso tables", async () => {
     const pack = TargetPackSchema.parse({
       name: "turso",
-      auth: { type: "bearer", env: "TURSO_TOKEN" },
+      auth: { type: "bearer", env: "TURSO_TOKEN", env_aliases: ["TURSO_TOKEN_ALIAS"] },
       base_url: "https://${TURSO_DATABASE}.turso.io",
       tasks: [],
     });
@@ -205,13 +205,14 @@ describe("arena database reset providers", () => {
       }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ results: [] }), { status: 200 }));
     vi.stubGlobal("fetch", fetchMock);
-    const ctx = context(pack, { TURSO_TOKEN: "secret", TURSO_DATABASE: "sandbox" });
+    const ctx = context(pack, { TURSO_TOKEN_ALIAS: "secret", TURSO_DATABASE: "sandbox" });
 
     const plan = await tursoResetProvider.plan(ctx);
     expect(plan.resources).toEqual(["turso:table:axarena_table_ns-keep"]);
     const evidence = await tursoResetProvider.execute(plan, ctx);
     expect(evidence.deleted).toEqual(plan.resources);
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({ Authorization: "Bearer secret" });
   });
 
   it("accepts the dotted namespace produced by the current gpt-5.6-terra runtime", async () => {

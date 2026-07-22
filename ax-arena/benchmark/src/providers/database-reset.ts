@@ -311,9 +311,12 @@ function tursoEndpoint(pack: TargetPack, credentials: Readonly<Record<string, st
 }
 
 function tursoToken(context: ResetContext): string {
-  const name = context.pack.auth?.env;
-  if (!name) throw new Error("Turso pack does not declare an auth credential");
-  return credential(context, name);
+  const names = [context.pack.auth?.env, ...(context.pack.auth?.env_aliases ?? [])]
+    .filter((name): name is string => Boolean(name));
+  if (!names.length) throw new Error("Turso pack does not declare an auth credential");
+  const selected = names.find((name) => context.credentials[name]?.trim());
+  if (!selected) throw new Error(`required cleanup credential ${names.join(" or ")} is missing`);
+  return credential(context, selected);
 }
 
 export const tursoResetProvider: ResetProvider = {
