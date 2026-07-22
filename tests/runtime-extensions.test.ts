@@ -147,6 +147,15 @@ describe("runtime extension registries", () => {
       matches(descriptor: TargetDescriptor): boolean {
         return descriptor.pack.name === "example" && this.id === "class-adapter";
       }
+
+      verificationClientOptions() {
+        return {
+          baseUrl: `https://${this.id}.example.invalid`,
+          token: "",
+          authScheme: "none" as const,
+          apiStyle: "rest" as const,
+        };
+      }
     }
 
     const resolved = resolveRuntimeExtensions(
@@ -154,6 +163,12 @@ describe("runtime extension registries", () => {
       target,
     );
     expect(resolved.targetAdapter).toMatchObject({ id: "class-adapter", version: "1.0.0" });
+    expect(resolved.targetAdapter?.verificationClientOptions?.({
+      ...target,
+      executor: { profile: "test", results: {} },
+      credentials: {},
+      trace: [],
+    })).toMatchObject({ baseUrl: "https://class-adapter.example.invalid" });
   });
 
   it("keeps independently resolved registries isolated under concurrent use", async () => {

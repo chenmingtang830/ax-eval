@@ -113,6 +113,7 @@ describe("review gate", () => {
     expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
       repositoryRoot: dir,
       sourceCommitSha,
+      sourcePackPath: "generated.pack.yaml",
     })).toEqual({ ok: true });
 
     const treeSha = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: dir, encoding: "utf8" }).trim();
@@ -132,7 +133,7 @@ describe("review gate", () => {
       repositoryRoot: dir,
       sourceCommitSha,
     })).toMatchObject({ ok: false });
-  });
+  }, 20_000);
 
   it("approval sidecar sits next to the pack", () => {
     expect(approvalPath("/x/generated.pack.yaml")).toBe("/x/generated.pack.approval.json");

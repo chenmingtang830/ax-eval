@@ -155,7 +155,7 @@ export function checkCellApproval(
 
 function committedBlob(root: string, sourceCommitSha: string, path: string): Buffer {
   const realRoot = realpathSync(root);
-  const absolute = realpathSync(resolve(path));
+  const absolute = realpathSync(isAbsolute(path) ? path : resolve(realRoot, path));
   const rel = relative(realRoot, absolute);
   if (!rel || rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel)) {
     throw new Error("approval-bound file must be inside the source repository");
@@ -220,7 +220,8 @@ export function checkCommittedLegacyCellApproval(
       const current = readFileSync(path);
       const committed = committedBlob(root, options.sourceCommitSha, sourcePath);
       if (current.length !== committed.length || !current.equals(committed)) {
-        return { ok: false, reason: `${relative(root, realpathSync(sourcePath))} bytes do not match source commit ${options.sourceCommitSha}` };
+        const absoluteSource = isAbsolute(sourcePath) ? sourcePath : resolve(root, sourcePath);
+        return { ok: false, reason: `${relative(root, realpathSync(absoluteSource))} bytes do not match source commit ${options.sourceCommitSha}` };
       }
     }
     return { ok: true };

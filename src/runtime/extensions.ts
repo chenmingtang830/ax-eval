@@ -111,8 +111,10 @@ export interface TargetAdapter extends ProviderIdentity {
   verificationClientOptions?(context: TargetDescriptor & {
     readonly executor: ExecutorResults;
     readonly credentials: Readonly<Record<string, string>>;
-    /** Objective harness evidence available before independent read-back. */
-    readonly observed?: ObservedRun | readonly TraceStep[];
+    /** Objective harness transcript evidence available before read-back. */
+    readonly observed?: ObservedRun;
+    /** Required executor trace kept separate from the harness transcript. */
+    readonly trace: readonly TraceStep[];
   }): BearerClientOptions;
   readonly oracleProviders?: readonly VersionedOracleProvider[];
   readonly resetProviders?: readonly ResetProvider[];
@@ -204,6 +206,7 @@ function snapshotProvider<T extends ProviderIdentity>(
   provider: T,
   methods: readonly ProviderMethod[],
   excludedProperties: readonly string[] = [],
+  optionalMethods: readonly string[] = [],
 ): T {
   assertIdentity(kind, provider);
   const snapshot: Record<string, unknown> = {};
@@ -220,6 +223,12 @@ function snapshotProvider<T extends ProviderIdentity>(
     const fn = provider[method as keyof T];
     if (typeof fn !== "function") throw new Error(`${kind} provider "${provider.id}" is missing ${method}()`);
     if (typeof snapshot[method] !== "function") snapshot[method] = fn.bind(snapshot);
+  }
+  for (const method of optionalMethods) {
+    const fn = provider[method as keyof T];
+    if (typeof fn === "function" && typeof snapshot[method] !== "function") {
+      snapshot[method] = fn.bind(snapshot);
+    }
   }
   return Object.freeze(snapshot) as T;
 }
@@ -283,7 +292,7 @@ export function createTargetAdapterRegistry(input: readonly TargetAdapter[] = []
       "resetProviders",
       "provisioningProviders",
       "healthCheckProviders",
-    ]);
+    ], ["verificationClientOptions"]);
     return Object.freeze({
       ...snapshot,
       oracleProviders: adapter.oracleProviders

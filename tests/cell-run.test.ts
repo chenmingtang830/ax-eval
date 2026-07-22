@@ -343,6 +343,15 @@ describe("runCell", () => {
       id: "dynamic-endpoint-adapter",
       version: "1.0.0",
     });
+    const adapterContext = contexts[0] as {
+      observed?: { apiCalls: unknown[] };
+      trace: Array<{ taskId: string; path?: string }>;
+    };
+    expect(Object.isFrozen(adapterContext)).toBe(true);
+    expect(adapterContext.observed).toMatchObject({ apiCalls: [] });
+    expect(adapterContext.trace).toEqual([
+      expect.objectContaining({ taskId: "task-1", path: "/examples" }),
+    ]);
   });
 
   it("blocks on a failed health extension before provisioning or invocation", async () => {
@@ -768,6 +777,32 @@ describe("runCell", () => {
       error: { stage: "preflight" },
     });
     expect(record.error?.message).toContain("VERIFY_TOKEN");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("does not satisfy verifier connection requirements from host credentials", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.required_credentials = ["DATABASE_URL"];
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { DATABASE_URL: "postgres://host-only.example.test/db" },
+      verificationCredentials: {},
+    }, isolated);
+
+    expect(record).toMatchObject({
+      status: "blocked",
+      blocked: "missing-credential",
+      error: { stage: "preflight" },
+    });
+    expect(record.error?.message).toContain("DATABASE_URL");
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 

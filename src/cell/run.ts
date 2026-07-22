@@ -556,7 +556,8 @@ function cellVerificationClient(
   executor: ExecutorResults,
   credentials: Record<string, string>,
   targetAdapter: TargetAdapter | undefined,
-  observed: ObservedRun | TraceStep[] | undefined,
+  observed: ObservedRun | undefined,
+  trace: readonly TraceStep[],
 ): BearerClient {
   if (!targetAdapter?.verificationClientOptions) {
     return runtime.verificationClient(pack, executor, credentials);
@@ -567,6 +568,7 @@ function cellVerificationClient(
     executor,
     credentials,
     observed,
+    trace,
   })));
   return new BearerClient(options);
 }
@@ -939,18 +941,20 @@ export async function runCellWithRuntime(
     ))
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
-  const missingVerifierAuth = options.verificationCredentials === undefined
+  const missingVerifierRequirements = options.verificationCredentials === undefined
     ? []
     : describeRequiredEnv(pack, verificationCredentials, {
         tasks: selectedTasks,
         includeAuth: true,
       })
-      .filter((requirement) => requirement.role === "auth" && requirement.required && !requirement.set)
-      .map(() => pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT");
+      .filter((requirement) => requirement.required && !requirement.set)
+      .map((requirement) => requirement.role === "auth"
+        ? pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT"
+        : requirement.env);
   const auth = connectionDataPlaneCli
     ? { blocked: null, missing: [] }
     : surfaceAuthStatus(pack, cell.surface, credentials);
-  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierAuth, ...auth.missing])];
+  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierRequirements, ...auth.missing])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
       cell,
@@ -1193,7 +1197,8 @@ export async function runCellWithRuntime(
       executor,
       verificationCredentials,
       targetAdapter,
-      observed ?? trace,
+      observed,
+      trace,
     );
     outcomes = await runtime.verify(
       pack,
@@ -1214,7 +1219,16 @@ export async function runCellWithRuntime(
   let discoverySource: ProfileRun["discoverySource"];
   if (pack.discovery?.product) {
     try {
-      const client = cellVerificationClient(runtime, cell, pack, executor, verificationCredentials, targetAdapter, observed ?? trace);
+      const client = cellVerificationClient(
+        runtime,
+        cell,
+        pack,
+        executor,
+        verificationCredentials,
+        targetAdapter,
+        observed,
+        trace,
+      );
       if (observed) {
         discovery = await scoreDiscovery(
           pack.discovery,
