@@ -272,6 +272,9 @@ export { probeHarness } from "./harness/probe.js";
 export {
   assertCanonicalDaebWritePath,
   createDaebPathContext,
+  daebCapabilityInventoryPath,
+  daebCompiledPackPath,
+  daebOraclesPath,
   daebRepositoryRoot,
   daebRoot,
   daebReadCompiledPackPath,
@@ -279,6 +282,8 @@ export {
   daebReadSuitePath,
   daebReadVendorSelectionLedgerPath,
   daebReadVendorsDir,
+  daebSurfacesPath,
+  daebVendorCardPath,
   daebVendorExtractDir,
 } from "./generate/benchmark-paths.js";
 export type { DaebPathContext, DaebPathInput } from "./generate/benchmark-paths.js";

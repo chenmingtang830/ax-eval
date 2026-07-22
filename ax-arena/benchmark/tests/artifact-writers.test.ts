@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { writeExtractAdvisory, type ExtractAdvisory } from "../src/authoring/extract-advisory.js";
+import { writeVendorCard } from "../src/authoring/artifact-writers.js";
 
 const roots: string[] = [];
 
@@ -63,5 +64,28 @@ describe("canonical arena artifact writers", () => {
 
     expect(() => writeExtractAdvisory(root, advisory)).toThrow(/single-link/);
     expect(readFileSync(outsideFile, "utf8")).toBe("outside-original");
+  });
+
+  it("protects command-owned vendor cards from hard-linked outputs", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-vendor-writer-"));
+    roots.push(root);
+    const vendorDir = resolve(root, "ax-arena", "benchmark", "daeb", "vendors");
+    const outside = resolve(root, "outside.txt");
+    const cardPath = resolve(vendorDir, "vendor.discovered.yaml");
+    mkdirSync(vendorDir, { recursive: true });
+    writeFileSync(outside, "outside-original");
+    linkSync(outside, cardPath);
+
+    expect(() => writeVendorCard(root, {
+      vendor: "Vendor",
+      slug: "vendor",
+      category: "database",
+      discovered_at: "2026-01-01T00:00:00.000Z",
+      resolver: { method: "official-docs" },
+      site_url: "https://vendor.example",
+      docs_url: "https://vendor.example/docs",
+      http_status: 200,
+    })).toThrow(/single-link/);
+    expect(readFileSync(outside, "utf8")).toBe("outside-original");
   });
 });

@@ -15,13 +15,12 @@ import {
   daebReadExtractsDir,
   loadCapabilityInventory,
   loadSurfaceExtract,
-  writeCapabilityInventory,
-  writeSurfaceExtract,
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   type DaebPathInput,
   type SurfaceExtractResult,
 } from "ax-eval";
+import { writeCapabilityInventory, writeSurfaceExtract } from "./artifact-writers.js";
 
 export type ExtractFindingSeverity = "error" | "warn" | "info";
 

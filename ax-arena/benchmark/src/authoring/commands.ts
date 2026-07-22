@@ -22,15 +22,17 @@ import {
   registryToSurfaceExtract,
   registryToVendorCard,
   resolveVendors,
+  type DaebPathContext,
+  type OracleSpec,
+  type ResolveResult,
+} from "ax-eval";
+import {
   writeCapabilityExtract,
   writeComposedPack,
   writeOracleExtract,
   writeSurfaceExtract,
   writeVendorCard,
-  type DaebPathContext,
-  type OracleSpec,
-  type ResolveResult,
-} from "ax-eval";
+} from "./artifact-writers.js";
 import { adviseVendorExtract, writeExtractAdvisory } from "./extract-advisory.js";
 import {
   applyExtractAudit,

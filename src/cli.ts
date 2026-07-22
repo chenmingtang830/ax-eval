@@ -147,7 +147,7 @@ import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
 import { EvaluationCellSchema } from "./cell/schema.js";
 import { runCell } from "./cell/run.js";
-import { arenaChildExitCode, resolveArenaLaunch } from "./arena-launcher.js";
+import { executeArenaLaunch, resolveArenaLaunch } from "./arena-launcher.js";
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -257,20 +257,7 @@ function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly 
     installedPackageJson,
   });
 
-  const child = spawnSync(launch.executable, launch.args, {
-    cwd: process.cwd(),
-    env: launch.env,
-    shell: false,
-    stdio: "inherit",
-  });
-  if (child.error) {
-    throw new Error(`could not launch ax-arena: ${child.error.message}`);
-  }
-  if (child.signal) {
-    console.error(`ax-arena terminated by signal ${child.signal}`);
-    return 1;
-  }
-  return arenaChildExitCode(child.status, child.signal);
+  return executeArenaLaunch(launch);
 }
 
 function isHelpToken(value: string | undefined): boolean {

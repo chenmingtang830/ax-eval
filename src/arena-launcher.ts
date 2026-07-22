@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { constants as osConstants } from "node:os";
 import { dirname, resolve } from "node:path";
 
@@ -19,6 +20,19 @@ export interface ResolveArenaLaunchOptions {
 export function arenaChildExitCode(status: number | null, signal: NodeJS.Signals | null): number {
   if (signal) return 128 + (osConstants.signals[signal] ?? 0);
   return status ?? 1;
+}
+
+/** Execute an already-resolved compatibility launch without a shell. */
+export function executeArenaLaunch(launch: ArenaLaunch): number {
+  const child = spawnSync(launch.executable, launch.args, {
+    cwd: process.cwd(),
+    env: launch.env,
+    shell: false,
+    stdio: "inherit",
+  });
+  if (child.error) throw new Error(`could not launch ax-arena: ${child.error.message}`);
+  if (child.signal) console.error(`ax-arena terminated by signal ${child.signal}`);
+  return arenaChildExitCode(child.status, child.signal);
 }
 
 /** Build a shell-free launch plan for one allowlisted compatibility command. */

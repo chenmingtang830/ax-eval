@@ -3,7 +3,7 @@ import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { arenaChildExitCode, resolveArenaLaunch } from "../src/arena-launcher.js";
+import { arenaChildExitCode, executeArenaLaunch, resolveArenaLaunch } from "../src/arena-launcher.js";
 
 describe("arena compatibility launcher", () => {
   it("invokes an installed arena package CLI through Node without a shell", () => {
@@ -55,5 +55,21 @@ describe("arena compatibility launcher", () => {
     expect(arenaChildExitCode(null, "SIGINT")).toBe(130);
     expect(arenaChildExitCode(null, "SIGTERM")).toBe(143);
     expect(arenaChildExitCode(7, null)).toBe(7);
+  });
+
+  it("preserves the signal status through the executed compatibility launch", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-signal-launch-"));
+    try {
+      const cli = resolve(root, "arena-signal.js");
+      writeFileSync(cli, 'process.kill(process.pid, "SIGTERM");\n');
+      const status = executeArenaLaunch({
+        executable: process.execPath,
+        args: [cli],
+        env: process.env,
+      });
+      expect(status).toBe(143);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });
