@@ -26,7 +26,7 @@ export function createArenaRuntimeExtensionRegistry(
  * state is explicit so providers never read process.env and cells cannot share
  * mutable registrations. */
 export function createDatabaseRuntimeExtensionRegistry(
-  tursoCli: TursoCliProvisioningOptions,
+  tursoCli?: TursoCliProvisioningOptions,
   input: RuntimeExtensionInput = {},
 ): RuntimeExtensionRegistry {
   return createRuntimeExtensionRegistry({
@@ -40,7 +40,7 @@ export function createDatabaseRuntimeExtensionRegistry(
       ...(input.resetProviders ?? []),
     ],
     provisioningProviders: [
-      createTursoCliProvisioningProvider(tursoCli),
+      ...(tursoCli ? [createTursoCliProvisioningProvider(tursoCli)] : []),
       ...(input.provisioningProviders ?? []),
     ],
     healthCheckProviders: [
@@ -55,6 +55,7 @@ export * from "./providers/index.js";
 export {
   ARENA_CELL_CLEANUP_SCHEMA,
   ArenaCellCleanupSchema,
+  assertArenaOutputRoot,
   arenaCellId,
   cellCredentialNames,
   cellResetCredentialNames,
@@ -71,6 +72,7 @@ export type {
 } from "./controller/cell.js";
 export * from "./controller/batch.js";
 export * from "./controller/reporting.js";
+export * from "./controller/sandbox.js";
 export {
   ARENA_BATCH_COMPLETION_SCHEMA,
   ARENA_BATCH_SCHEMA,
@@ -78,14 +80,20 @@ export {
   ArenaBatchCompletionSchema,
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaExecutionModeSchema,
+  ArenaRuntimeBackendSchema,
+  ArenaTrustLevelSchema,
   ARENA_RUNTIME_REPORT_SCHEMA,
   ArenaRuntimeReportSchema,
   arenaBatchConfigurationHash,
+  arenaExecutionMode,
+  isPublicationEligibleExecutionMode,
 } from "./controller/schemas.js";
 export type {
   ArenaBatchCompletion,
   ArenaBatchCompletionCell,
   ArenaBatchConfiguration,
+  ArenaExecutionMode,
   ArenaBatchManifest,
   ArenaRuntimeReport,
 } from "./controller/schemas.js";

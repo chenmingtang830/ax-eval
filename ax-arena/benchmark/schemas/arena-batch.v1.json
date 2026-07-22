@@ -18,6 +18,15 @@
       "required": ["command", "suite", "packs", "cells", "harnesses", "reset_required", "invoke_timeout_seconds", "first_action_timeout_seconds", "invoke_retries"],
       "properties": {
         "command": { "enum": ["daeb-low-pass", "daeb-production-rerun"] },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["runtime_backend", "trust_level"],
+          "properties": {
+            "runtime_backend": { "enum": ["native", "pinned-oci"] },
+            "trust_level": { "enum": ["local", "hosted-trusted"] }
+          }
+        },
         "suite": {
           "type": "object",
           "additionalProperties": false,
@@ -45,8 +54,88 @@
             "sha256": { "$ref": "#/$defs/sha256" },
             "provisioner": { "$ref": "#/$defs/providerIdentity" }
           }
+        },
+        "sandbox": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "policy_version", "runtime_lock_sha256", "sysroot", "executable", "executable_sha256", "runtime_roots"],
+          "properties": {
+            "kind": { "const": "bubblewrap" },
+            "policy_version": { "const": "ax.arena-bubblewrap/v2" },
+            "runtime_lock_sha256": { "$ref": "#/$defs/sha256" },
+            "sysroot": { "const": "/opt/ax-arena-runtime/rootfs" },
+            "executable": { "type": "string", "pattern": "^/", "maxLength": 4096 },
+            "executable_sha256": { "$ref": "#/$defs/sha256" },
+            "runtime_roots": {
+              "type": "array",
+              "prefixItems": [{ "const": "/usr" }, { "const": "/opt/ax-arena-tools" }],
+              "items": false,
+              "minItems": 2,
+              "maxItems": 2
+            }
+          }
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "type": "object",
+            "required": ["execution"],
+            "properties": {
+              "execution": {
+                "type": "object",
+                "required": ["runtime_backend"],
+                "properties": { "runtime_backend": { "const": "pinned-oci" } }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "required": ["sandbox"],
+            "properties": { "sandbox": {} }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["sandbox"],
+            "properties": { "sandbox": {} }
+          },
+          "then": {
+            "type": "object",
+            "required": ["execution"],
+            "properties": {
+              "execution": {
+                "type": "object",
+                "required": ["runtime_backend"],
+                "properties": { "runtime_backend": { "const": "pinned-oci" } }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "type": "object",
+            "required": ["execution"],
+            "properties": {
+              "execution": {
+                "type": "object",
+                "required": ["trust_level"],
+                "properties": { "trust_level": { "const": "hosted-trusted" } }
+              }
+            }
+          },
+          "then": {
+            "type": "object",
+            "properties": {
+              "execution": {
+                "type": "object",
+                "properties": { "runtime_backend": { "const": "pinned-oci" } }
+              }
+            }
+          }
+        }
+      ]
     },
     "expected_cells": { "type": "array", "minItems": 1, "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "#/$defs/cellKey" } }
   },

@@ -248,7 +248,7 @@ describe("arena cell controller", () => {
     expect(isRelativePathEscape("nested/inside")).toBe(false);
   });
 
-  it("fails closed for Claude before creating a workspace or invoking a harness", async () => {
+  it("rejects native hosted-trusted execution before creating a workspace", async () => {
     const cwd = mkdtempSync(resolve(tmpdir(), "ax-arena-controller-claude-"));
     const artifactDir = resolve(cwd, "results", "cell");
     let invoked = false;
@@ -275,6 +275,7 @@ describe("arena cell controller", () => {
       skipReset: false,
     }, {
       credentials: {},
+      execution: { runtime_backend: "native", trust_level: "hosted-trusted" },
       now: () => new Date(),
       async createRegistry() {
         throw new Error("must not create a registry");
@@ -283,13 +284,13 @@ describe("arena cell controller", () => {
         invoked = true;
         throw new Error("must not invoke");
       },
-    })).rejects.toThrow(/trusted workflow OS sandbox/);
+    })).rejects.toThrow(/hosted-trusted execution requires the pinned-oci runtime backend/);
 
     expect(invoked).toBe(false);
     expect(existsSync(artifactDir)).toBe(false);
   });
 
-  it("fails closed for direct Codex execution until trusted workflow isolation lands", async () => {
+  it("requires callers to select a runtime backend and trust level explicitly", async () => {
     const cwd = mkdtempSync(resolve(tmpdir(), "ax-arena-controller-direct-codex-"));
     const artifactDir = resolve(cwd, "results", "cell");
     await expect(executeArenaCellPublic({
@@ -317,7 +318,7 @@ describe("arena cell controller", () => {
       now: () => new Date(),
       createRegistry: async () => createRuntimeExtensionRegistry(),
       runCell,
-    })).rejects.toThrow(/trusted workflow OS sandbox/);
+    })).rejects.toThrow(/explicit runtime backend and trust level/);
     expect(existsSync(artifactDir)).toBe(false);
   });
 });

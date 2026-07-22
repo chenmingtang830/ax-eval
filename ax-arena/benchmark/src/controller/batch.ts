@@ -15,6 +15,7 @@ import {
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { NormalizedCellRecordSchema } from "ax-eval";
 import { assertArenaRecordIdentity, type ArenaCellExecution } from "./cell.js";
+import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
   ARENA_BATCH_COMPLETION_SCHEMA,
   ARENA_BATCH_SCHEMA,
@@ -350,6 +351,13 @@ export function buildBatchCompletion(
     const key = `${execution.cell.target_id}/${execution.cell.surface}/${execution.cell.harness.id}/trial-${execution.cell.trial}`;
     const configured = parsedBatch.configuration.cells.find((cell) => cell.key === key);
     const configuredPack = parsedBatch.configuration.packs.find((pack) => pack.vendor === execution.cell.target_id);
+    const configuredSandbox = parsedBatch.configuration.sandbox;
+    const sandboxMatches = configuredSandbox
+      ? record.sandbox_provenance?.id === BUBBLEWRAP_SANDBOX_ID
+        && record.sandbox_provenance.version === configuredSandbox.policy_version
+        && record.sandbox_provenance.implementation_sha256 === configuredSandbox.executable_sha256
+        && record.sandbox_provenance.policy_sha256 === bubblewrapPolicyHash(configuredSandbox)
+      : record.sandbox_provenance === undefined;
     if (!configured
       || execution.cell.batch_id !== parsedBatch.batch_id
       || execution.cell.source_commit_sha !== parsedBatch.source_commit_sha
@@ -386,6 +394,7 @@ export function buildBatchCompletion(
       || record.harness !== configured.harness
       || record.trial !== configured.trial
       || record.requested_model !== configured.model
+      || !sandboxMatches
       || !sameProviderPins(record.provider_provenance ?? [], configured.provider_pins)
       || cleanup.cell_id !== record.cell_id
       || cleanup.record_sha256 !== recordHash

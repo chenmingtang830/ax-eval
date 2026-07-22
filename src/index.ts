@@ -122,6 +122,7 @@ export {
   EvaluationCellSchema,
   NormalizedCellRecordSchema,
   ProviderProvenanceSchema,
+  SandboxProvenanceSchema,
   ReviewedPackReferenceSchema,
 } from "./cell/schema.js";
 export type {
@@ -135,6 +136,12 @@ export type {
   CredentialSource,
   RunCellOptions,
 } from "./cell/run.js";
+export type {
+  ChildProcessSandbox,
+  ChildSandboxInvocation,
+  ChildSandboxProvenance,
+  SandboxedChildInvocation,
+} from "./harness/child-sandbox.js";
 export {
   createHealthCheckProviderRegistry,
   createProvisioningProviderRegistry,
