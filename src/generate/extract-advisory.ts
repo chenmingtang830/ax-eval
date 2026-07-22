@@ -10,7 +10,11 @@ import { z } from "zod";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import { loadCapabilityExtract } from "./capability-extract.js";
 import { loadSurfaceExtract } from "./surface-extract.js";
-import { daebVendorExtractDir } from "./benchmark-paths.js";
+import {
+  assertCanonicalDaebWritePath,
+  daebVendorExtractDir,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
 import type { Effort, HarnessId } from "./harness.js";
 
 const AdvisoryFindingSchema = z.object({
@@ -32,7 +36,7 @@ export type ExtractAdvisory = z.infer<typeof AdvisoryResultSchema> & {
 };
 
 export async function adviseVendorExtract(
-  root: string,
+  root: DaebPathInput,
   slug: string,
   opts: { harness?: HarnessId; model?: string; effort?: Effort } = {},
 ): Promise<ExtractAdvisory> {
@@ -79,8 +83,11 @@ export async function adviseVendorExtract(
   };
 }
 
-export function writeExtractAdvisory(root: string, advisory: ExtractAdvisory): string {
-  const path = resolve(daebVendorExtractDir(root, advisory.slug), "advisory.yaml");
+export function writeExtractAdvisory(root: DaebPathInput, advisory: ExtractAdvisory): string {
+  const path = assertCanonicalDaebWritePath(
+    root,
+    resolve(daebVendorExtractDir(root, advisory.slug), "advisory.yaml"),
+  );
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, yamlStringify(advisory));
   return path;

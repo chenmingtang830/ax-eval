@@ -22,9 +22,13 @@ import {
   type CapabilityInventoryEntry,
   ExtractionProvenanceSchema,
   capabilityInventoryPath,
-  legacyCapabilityExtractPath,
   writeCapabilityInventory,
 } from "./methodology.js";
+import {
+  daebReadCapabilityInventoryPath,
+  daebReadLegacyCapabilitiesPath,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
 const CanonicalSurfaceSchema = z.enum(["api", "sdk", "cli"]);
@@ -312,18 +316,18 @@ export async function extractCapabilitiesAll(
   });
 }
 
-export function capabilityExtractPath(root: string, slug: string): string {
+export function capabilityExtractPath(root: DaebPathInput, slug: string): string {
   return capabilityInventoryPath(root, slug);
 }
 
-export function writeCapabilityExtract(root: string, result: CapabilityExtractResult): string {
+export function writeCapabilityExtract(root: DaebPathInput, result: CapabilityExtractResult): string {
   const newPath = writeCapabilityInventory(root, result);
   return newPath;
 }
 
-export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = capabilityInventoryPath(root, slug);
-  const legacyPath = legacyCapabilityExtractPath(root, slug);
+export function loadCapabilityExtract(root: DaebPathInput, slug: string): CapabilityExtractResult | null {
+  const inventoryPath = daebReadCapabilityInventoryPath(root, slug);
+  const legacyPath = daebReadLegacyCapabilitiesPath(root, slug);
 
   if (existsSync(inventoryPath)) {
     const inventoryRaw = readFileSync(inventoryPath, "utf8");

@@ -97,13 +97,12 @@ Use this before opening a PR:
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).
 - `targets/` — target-pack index; example target packs live under
   `targets/examples/` (Notion, Stripe, Linear, Exa, Monday, Asana) with approvals.
-- `benchmarks/daeb/` — canonical DAEB-1 suite, extracts, and compiled packs
+- `ax-arena/benchmark/daeb/` — canonical DAEB-1 suite, extracts, and compiled packs
   (separate from single-vendor `targets/examples/`). For current DAEB status
   (authoring freeze vs deferred production), maintainers use
-  `docs/latest_plan.md`; facts live under `benchmarks/daeb/v1/`.
-- `ax-arena/benchmark/` — private workspace boundary for arena-owned code. The
-  workspace is a scaffold until the dependency-ordered relocation PRs move the
-  canonical DAEB files and controller behavior.
+  `docs/latest_plan.md`; facts live under `ax-arena/benchmark/daeb/v1/`.
+- `ax-arena/benchmark/` — private workspace boundary for arena-owned code and
+  canonical DAEB files; controller behavior moves in dependency-ordered PRs.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
   `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),

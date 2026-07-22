@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
@@ -93,12 +93,31 @@ describe("vendor-resolve (v3: llm-search batch)", () => {
     expect(loaded?.docs_url).toBe("https://example.com/docs");
   });
 
+  it("rejects a nested symlink through the real vendor-card writer", async () => {
+    writeFileSync(fixturePath, JSON.stringify([
+      { vendor: "ZzzExample99", site_url: "https://example.com", docs_url: "https://example.com/docs" },
+    ]));
+    process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
+    const result = await resolveVendor("ZzzExample99", "database", { harness: "claude-code" });
+    const daeb = resolve(tmpRoot, "ax-arena", "benchmark", "daeb");
+    const outside = resolve(tmpRoot, "outside");
+    mkdirSync(daeb, { recursive: true });
+    mkdirSync(outside);
+    symlinkSync(outside, resolve(daeb, "vendors"), "dir");
+
+    expect(() => writeVendorCard(tmpRoot, result)).toThrow(/cannot traverse a symlink/);
+    expect(existsSync(resolve(outside, "zzzexample99.discovered.yaml"))).toBe(false);
+    rmSync(resolve(daeb, "vendors"));
+    symlinkSync(resolve(tmpRoot, "missing"), resolve(daeb, "vendors"), "dir");
+    expect(() => writeVendorCard(tmpRoot, result)).toThrow(/cannot traverse a symlink/);
+  });
+
   it("loadVendorCard returns null when no card exists", () => {
     expect(loadVendorCard(tmpRoot, "nope")).toBeNull();
   });
 
   it("loadVendorCard errors on malformed YAML on disk", () => {
-    mkdirSync(resolve(tmpRoot, "benchmarks", "daeb", "vendors"), { recursive: true });
+    mkdirSync(resolve(tmpRoot, "ax-arena", "benchmark", "daeb", "vendors"), { recursive: true });
     writeFileSync(vendorCardPath(tmpRoot, "bad"), "vendor: Bad\ncategory: db\n");
     expect(() => loadVendorCard(tmpRoot, "bad")).toThrow(/malformed/);
   });

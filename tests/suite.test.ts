@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "../src/generate/suite.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const DAEB1 = resolve(ROOT, "benchmarks", "daeb", "v1", "suite.yaml");
+const DAEB1 = resolve(ROOT, "ax-arena", "benchmark", "daeb", "v1", "suite.yaml");
 
 describe("canonical task suite", () => {
   it("loads and validates the shipped DAEB-1 suite", () => {
@@ -35,14 +35,14 @@ describe("canonical task suite", () => {
       "failure-taxonomy.yaml",
       "trace-review.yaml",
     ]) {
-      expect(readFileSync(resolve(ROOT, "benchmarks", "daeb", "v1", `suite.${suffix}`), "utf8"))
+      expect(readFileSync(resolve(ROOT, "ax-arena", "benchmark", "daeb", "v1", `suite.${suffix}`), "utf8"))
         .toMatch(/^benchmark: DAEB-1$/m);
     }
   });
 
   it("publishes a human-readable support matrix summary", () => {
     const summary = readFileSync(
-      resolve(ROOT, "benchmarks", "daeb", "v1", "suite.support-summary.md"),
+      resolve(ROOT, "ax-arena", "benchmark", "daeb", "v1", "suite.support-summary.md"),
       "utf8",
     );
     expect(summary).toContain("# DAEB-1 — Support Summary");

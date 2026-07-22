@@ -230,18 +230,26 @@ cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 3-trial reruns, publication freeze, and website export are **deferred** until
 after team review; do not treat the commands below as the default next step.
 Research-lane tasks (e.g. backup/CDC/integrity) stay out of the scored
-denominator. Core facts live under [`benchmarks/daeb/v1/`](./benchmarks/daeb/v1/).
+denominator. Core facts live under
+[`ax-arena/benchmark/daeb/v1/`](./ax-arena/benchmark/daeb/v1/).
 
-The canonical benchmark contract is [`benchmarks/daeb/v1/suite.yaml`](./benchmarks/daeb/v1/suite.yaml).
+The canonical benchmark contract is
+[`ax-arena/benchmark/daeb/v1/suite.yaml`](./ax-arena/benchmark/daeb/v1/suite.yaml).
 Its purposive-stratified core/research/excluded cohort is recorded separately in
-[`benchmarks/daeb/v1/vendor-selection-ledger.yaml`](./benchmarks/daeb/v1/vendor-selection-ledger.yaml);
+[`ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml`](./ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml);
 vendor inclusion is fixed before task outcomes and requires a persistent free
 managed sandbox plus documented headless API/CLI access for the core cohort.
-Each database vendor has a compiled pack under `benchmarks/daeb/v1/packs/<vendor>/pack.yaml`,
+Each database vendor has a compiled pack under
+`ax-arena/benchmark/daeb/v1/packs/<vendor>/pack.yaml`,
 but those packs are execution artifacts, not independently authored benchmark
 definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
+
+During the one-minor-release relocation window, DAEB readers fall back to the
+former `benchmarks/daeb/` root only when the canonical arena root is absent and
+emit a deprecation warning. If both roots exist, pass `--benchmark-root <dir>`
+to choose explicitly. Writers always use `ax-arena/benchmark/daeb/`.
 
 Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
 overwrites the same suite and invalidates content-hash approvals. Git SHAs and
@@ -268,7 +276,7 @@ When production is unblocked, run the production lane with:
 
 ```bash
 npm run ax-eval -- daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml
+  --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
 
 Maintainers can run the same command through the **Trusted sandbox production
@@ -291,7 +299,7 @@ running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
 npm run ax-eval -- publication-bundle \
-  --suite benchmarks/daeb/v1/suite.yaml \
+  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
   --run-dir results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle \
   --effort-profiles high \
@@ -451,8 +459,7 @@ src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
 targets/            tool-layer example packs (see targets/README.md)
-benchmarks/daeb/    AXArena DAEB publication contract (suite, extracts, packs)
-ax-arena/benchmark/ private arena workspace; canonical artifacts move later
+ax-arena/benchmark/ private arena workspace and DAEB publication contract
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots

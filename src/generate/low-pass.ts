@@ -4,7 +4,7 @@ import type { GeneratedReportSnapshot } from "./snapshot.js";
 import { tasksForSurface, type SurfaceId } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
 import type { ResetResult } from "../target/reset.js";
-import { daebCompiledPackPath } from "./benchmark-paths.js";
+import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
 
 export const DAEB_LOW_PASS_SCHEMA = "ax.low-coverage-pass/v1" as const;
 export const DAEB_VENDOR_ORDER = [
@@ -163,8 +163,8 @@ export function daebVendorOrder(): string[] {
   return [...DAEB_VENDOR_ORDER];
 }
 
-export function daebPackPath(root: string, vendor: string): string {
-  return daebCompiledPackPath(root, vendor);
+export function daebPackPath(root: DaebPathInput, vendor: string): string {
+  return daebReadCompiledPackPath(root, vendor);
 }
 
 export function daebFreshPackPath(runRoot: string, vendor: string, suitePath: string): string {

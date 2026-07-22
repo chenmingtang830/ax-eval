@@ -16,10 +16,11 @@ import {
   traceReviewPath,
 } from "./methodology.js";
 import {
-  daebCompiledPackPath,
-  daebOraclesPath,
-  daebPacksDir,
-  daebVendorCardPath,
+  daebReadCompiledPackPath,
+  daebReadOraclesPath,
+  daebReadPacksDir,
+  daebReadVendorCardPath,
+  type DaebPathInput,
 } from "./benchmark-paths.js";
 import {
   DAEB_PRODUCTION_CLAUDE_MODEL,
@@ -107,6 +108,7 @@ export type BuildPublicationBundleOptions = {
   outDir: string;
   effortProfiles?: string[];
   requiredEffortProfiles?: string[];
+  benchmarkPaths?: DaebPathInput;
 };
 
 export type AxArenaExportFile = {
@@ -276,15 +278,20 @@ function addGate(gates: PublicationQualityGate[], gate: PublicationQualityGate):
   gates.push(gate);
 }
 
-export function discoverPublicationVendors(root: string, _suite: Suite): string[] {
-  const packsDir = daebPacksDir(root);
+export function discoverPublicationVendors(
+  root: string,
+  _suite: Suite,
+  benchmarkPaths: DaebPathInput = root,
+): string[] {
+  const packsDir = daebReadPacksDir(benchmarkPaths);
   if (!existsSync(packsDir)) return [];
   return readdirSync(packsDir)
-    .filter((slug) => existsSync(daebCompiledPackPath(root, slug)))
+    .filter((slug) => existsSync(daebReadCompiledPackPath(benchmarkPaths, slug)))
     .sort();
 }
 
 export function buildPublicationBundle(opts: BuildPublicationBundleOptions): PublicationManifest {
+  const benchmarkPaths = opts.benchmarkPaths ?? opts.root;
   const suiteFile = `${opts.suite.name.toLowerCase()}.yaml`;
   const outRoot = resolve(opts.root, opts.outDir);
   mkdirSync(outRoot, { recursive: true });
@@ -312,7 +319,7 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
 
   const vendors = opts.vendors.map((slug): PublicationVendor => {
     const missing: string[] = [];
-    const sourcePack = daebCompiledPackPath(opts.root, slug);
+    const sourcePack = daebReadCompiledPackPath(benchmarkPaths, slug);
     const destVendorDir = resolve(outRoot, "vendors", slug);
     const runVendorDir = resolve(opts.root, opts.runDir, slug);
 
@@ -359,12 +366,12 @@ export function buildPublicationBundle(opts: BuildPublicationBundleOptions): Pub
 
     const artifacts = {
       vendor_card: copyIfExists(
-        daebVendorCardPath(opts.root, slug),
+        daebReadVendorCardPath(benchmarkPaths, slug),
         resolve(destVendorDir, "vendor.discovered.yaml"),
         missing,
       ),
       oracle_extract: copyIfExists(
-        daebOraclesPath(opts.root, slug),
+        daebReadOraclesPath(benchmarkPaths, slug),
         resolve(destVendorDir, "oracle-extract.yaml"),
         missing,
       ),
