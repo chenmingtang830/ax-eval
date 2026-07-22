@@ -10,7 +10,7 @@
     "cell_id": { "$ref": "#/$defs/nonBlank" },
     "record_path": { "$ref": "#/$defs/nonBlank" },
     "record_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-    "generated_at": { "type": "string", "format": "date-time" },
+    "generated_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
     "status": { "enum": ["confirmed", "skipped", "unconfirmed"] },
     "provider": {
       "type": "object", "additionalProperties": false, "required": ["id", "version"],
