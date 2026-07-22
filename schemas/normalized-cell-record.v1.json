@@ -31,6 +31,29 @@
     "pass_at_k": { "$ref": "#/$defs/rate" },
     "attempts": { "type": "integer", "minimum": 1 },
     "discovery_score": { "$ref": "#/$defs/nullableRate" },
+    "discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["hops", "metrics"],
+      "properties": {
+        "ns": { "$ref": "#/$defs/nonBlank" },
+        "hops": { "type": "integer", "minimum": 0 },
+        "metrics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "passed", "detail"],
+            "properties": {
+              "id": { "enum": ["official", "canonical", "hops", "misled", "auth", "outcome"] },
+              "passed": { "type": "boolean" },
+              "detail": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "discovery_source": { "enum": ["observed", "self-report"] },
     "content_quality": { "$ref": "#/$defs/nullableRate" },
     "profiles": { "type": "array", "items": { "type": "string" } },
     "best_profile": { "type": ["string", "null"] },
@@ -63,6 +86,7 @@
     "evaluation_set_version": { "$ref": "#/$defs/nonBlank" },
     "pack_content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "execution_namespace": { "$ref": "#/$defs/nonBlank" },
     "target_id": { "$ref": "#/$defs/nonBlank" },
     "trial": { "type": "integer", "minimum": 1 },
     "effort": { "enum": ["low", "medium", "high"] },

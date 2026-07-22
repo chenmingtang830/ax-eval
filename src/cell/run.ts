@@ -18,7 +18,11 @@ import { basename, delimiter, dirname, isAbsolute, relative, resolve } from "nod
 import { loadPack } from "../config.js";
 import { scoreDiscovery } from "../generate/discovery.js";
 import { buildBlockedResult, buildNormalizedResult } from "../generate/record.js";
-import { checkCellApproval, packFileContentHash } from "../generate/review.js";
+import {
+  checkCellApproval,
+  checkCommittedLegacyCellApproval,
+  packFileContentHash,
+} from "../generate/review.js";
 import { buildVerificationClientOptions } from "../generate/verification-client.js";
 import {
   type OracleProviderRegistry,
@@ -40,7 +44,7 @@ import {
   type InvokeRunOptions,
   type InvokeRunResult,
 } from "../harness/invoke.js";
-import { buildExecutorPrompt, resolveNs, type TraceStep } from "../harness/executor.js";
+import { buildExecutorPrompt, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
   observedToDiscovery,
@@ -86,14 +90,21 @@ export type CredentialSource = EnvSource;
 export interface RunCellOptions {
   /** Values are supplied out-of-band and are never serialized into the cell or record. */
   credentials: CredentialSource;
-  /** Controller-only verifier credentials. These are available to read-back
-   * providers and health checks, but never copied into the harness child. */
+  /** Controller-only values for verification, health checks, and dynamic
+   * read-back transports. These are never copied into the harness child env. */
   verificationCredentials?: CredentialSource;
   extensions?: {
     /** Immutable, per-cell registry. Arena/controller code should use this path. */
     registry?: RuntimeExtensionRegistry;
     /** @deprecated Compatibility for callers predating the combined registry. */
     oracleProviders?: OracleProviderRegistry;
+  };
+  approval?: {
+    /** One-release arena compatibility for approvals whose exact pack and
+     * sidecar bytes are committed at the cell's immutable source SHA. */
+    allowCommittedLegacy?: boolean;
+    sourceRepositoryRoot?: string;
+    sourcePackPath?: string;
   };
   signal?: AbortSignal;
 }
@@ -354,6 +365,7 @@ function terminalRecord(args: {
   stage: "preflight" | "provision" | "invoke" | "verify";
   message: string;
   status?: "failed" | "blocked";
+  executionNamespace?: string;
   providerProvenance?: readonly CellProviderReference[];
 }): NormalizedCellRecord {
   const base = buildBlockedResult(
@@ -376,6 +388,7 @@ function terminalRecord(args: {
     evaluation_set_version: args.cell.evaluation_set_version,
     pack_content_hash: args.cell.pack.content_hash,
     source_commit_sha: args.cell.source_commit_sha,
+    ...(args.executionNamespace ? { execution_namespace: args.executionNamespace } : {}),
     target_id: args.cell.target_id,
     trial: args.cell.trial,
     effort: args.cell.harness.effort,
@@ -392,7 +405,13 @@ function terminalRecord(args: {
   return NormalizedCellRecordSchema.parse(record);
 }
 
-function assertCellMatchesPack(cell: EvaluationCell, pack: TargetPack, packPath: string): void {
+function assertCellMatchesPack(
+  cell: EvaluationCell,
+  pack: TargetPack,
+  packPath: string,
+  cwd: string,
+  options: RunCellOptions,
+): void {
   const targetId = pack.name.replace(/-generated$/, "");
   if (cell.target_id !== targetId) {
     throw new Error(`cell target_id ${cell.target_id} does not match reviewed pack target ${targetId}`);
@@ -406,7 +425,14 @@ function assertCellMatchesPack(cell: EvaluationCell, pack: TargetPack, packPath:
   if (cell.pack.content_hash !== actualHash) {
     throw new Error(`reviewed pack content hash mismatch (cell ${cell.pack.content_hash}, actual ${actualHash})`);
   }
-  const approval = checkCellApproval(pack, packPath, cell.pack.content_hash);
+  let approval = checkCellApproval(pack, packPath, cell.pack.content_hash);
+  if (!approval.ok && options.approval?.allowCommittedLegacy) {
+    approval = checkCommittedLegacyCellApproval(pack, packPath, cell.pack.content_hash, {
+      repositoryRoot: options.approval.sourceRepositoryRoot ?? cwd,
+      sourceCommitSha: cell.source_commit_sha,
+      ...(options.approval.sourcePackPath ? { sourcePackPath: options.approval.sourcePackPath } : {}),
+    });
+  }
   if (!approval.ok) throw new Error(`reviewed pack approval is invalid: ${approval.reason}`);
   resolveSurfaceSelection(pack, cell.surface);
   getProfile(cell.harness.profile);
@@ -434,6 +460,37 @@ function stableSlug(value: string, fallback: string): string {
   const slug = value.toLowerCase().replace(/[^a-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || fallback;
   const digest = createHash("sha256").update(value).digest("hex").slice(0, 10);
   return `${slug}-${digest}`;
+}
+
+/** Keep live resource identifiers below PostgreSQL's 63-byte identifier limit.
+ * The digest binds the full immutable cell identity while the short prefix
+ * remains recognizable in sandbox inventories. */
+function executionNamespace(pack: TargetPack, cell: EvaluationCell): string {
+  const prefix = (pack.run_id || pack.name || "cell")
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 12) || "cell";
+  const harness = cell.harness.id === "codex" ? "cdx" : "cld";
+  const digest = createHash("sha256")
+    .update(JSON.stringify([
+      cell.batch_id,
+      cell.cell_id,
+      cell.evaluation_set_id,
+      cell.evaluation_set_version,
+      cell.target_id,
+      cell.pack.content_hash,
+      cell.surface,
+      cell.harness.id,
+      cell.harness.profile,
+      cell.harness.model,
+      cell.harness.effort,
+      String(cell.trial),
+      cell.source_commit_sha,
+    ]))
+    .digest("hex")
+    .slice(0, 24);
+  return `${prefix}-${harness}-${cell.harness.effort[0]}-${digest}`;
 }
 
 function failedOutcomes(pack: TargetPack, cell: EvaluationCell, message: string): RoundtripOutcome[] {
@@ -468,6 +525,13 @@ function providerOwnsConnectionRole(
   });
 }
 
+function connectionDataPlaneCliOwnsAuth(pack: TargetPack, cell: EvaluationCell): boolean {
+  const auth = pack.surfaces?.cli?.auth;
+  return cell.surface === "cli"
+    && Boolean(pack.sql_conn || pack.mongo_conn)
+    && (!auth || auth.kind === "inherit");
+}
+
 function verifierExecutor(executor: ExecutorResults, cell: EvaluationCell, ns: string): ExecutorResults {
   if (!executor.results || typeof executor.results !== "object" || Array.isArray(executor.results)) {
     throw new Error("executor results must be an object");
@@ -483,6 +547,30 @@ function verifierExecutor(executor: ExecutorResults, cell: EvaluationCell, ns: s
       return [taskId, reported];
     })),
   };
+}
+
+function cellVerificationClient(
+  runtime: CellRuntimeDependencies,
+  cell: EvaluationCell,
+  pack: TargetPack,
+  executor: ExecutorResults,
+  credentials: Record<string, string>,
+  targetAdapter: TargetAdapter | undefined,
+  observed: ObservedRun | undefined,
+  trace: readonly TraceStep[],
+): BearerClient {
+  if (!targetAdapter?.verificationClientOptions) {
+    return runtime.verificationClient(pack, executor, credentials);
+  }
+  const options = targetAdapter.verificationClientOptions(deepFreeze(structuredClone({
+    cell,
+    pack,
+    executor,
+    credentials,
+    observed,
+    trace,
+  })));
+  return new BearerClient(options);
 }
 
 function observedTranscript(
@@ -700,6 +788,20 @@ function scrubOutcomes(outcomes: RoundtripOutcome[], secrets: readonly string[])
   }));
 }
 
+function scrubDiscovery(
+  discovery: ProfileRun["discovery"],
+  secrets: readonly string[],
+): ProfileRun["discovery"] {
+  if (!discovery) return discovery;
+  return {
+    ...discovery,
+    metrics: discovery.metrics.map((metric) => ({
+      ...metric,
+      detail: scrubText(metric.detail, secrets),
+    })),
+  };
+}
+
 function executionProfileRun(args: {
   cell: EvaluationCell;
   executor: ExecutorResults;
@@ -751,7 +853,7 @@ export async function runCell(
   return runCellWithRuntime(input, options, DEFAULT_RUNTIME);
 }
 
-/** Internal dependency-injected entry used by keyless/offline contract tests. */
+/** Dependency-injected form for controllers that need an explicit runtime boundary. */
 export async function runCellWithRuntime(
   input: EvaluationCell,
   options: RunCellOptions,
@@ -764,7 +866,7 @@ export async function runCellWithRuntime(
   const packPath = resolveWithin(cwd, cell.pack.path, "pack.path");
   const artifactDir = resolveWithin(cwd, cell.run_context.artifact_dir, "run_context.artifact_dir");
   const pack = deepFreeze(loadPack(packPath));
-  assertCellMatchesPack(cell, pack, packPath);
+  assertCellMatchesPack(cell, pack, packPath, cwd, options);
 
   mkdirSync(artifactDir, { recursive: true });
   ensureInvokeHomeRoot(cwd, artifactDir);
@@ -827,6 +929,7 @@ export async function runCellWithRuntime(
     });
   }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const connectionDataPlaneCli = connectionDataPlaneCliOwnsAuth(pack, cell);
   const selectedTasks = tasksForSurface(pack, cell.surface);
   const missingPack = describeRequiredEnv(pack, resolutionCredentials, {
     tasks: selectedTasks,
@@ -838,16 +941,24 @@ export async function runCellWithRuntime(
     ))
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
-  const missingVerifierAuth = options.verificationCredentials === undefined
+  const missingVerifierRequirements = options.verificationCredentials === undefined
     ? []
     : describeRequiredEnv(pack, verificationCredentials, {
         tasks: selectedTasks,
         includeAuth: true,
       })
-      .filter((requirement) => requirement.role === "auth" && requirement.required && !requirement.set)
-      .map(() => pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT");
-  const auth = surfaceAuthStatus(pack, cell.surface, credentials);
-  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierAuth, ...auth.missing])];
+      .filter((requirement) => !(
+        (requirement.role === "sql_conn" || requirement.role === "mongo_conn")
+        && providerOwnsConnectionRole(selectedTasks, oracleProviders, requirement.role)
+      ))
+      .filter((requirement) => requirement.required && !requirement.set)
+      .map((requirement) => requirement.role === "auth"
+        ? pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT"
+        : requirement.env);
+  const auth = connectionDataPlaneCli
+    ? { blocked: null, missing: [] }
+    : surfaceAuthStatus(pack, cell.surface, credentials);
+  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierRequirements, ...auth.missing])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
       cell,
@@ -994,11 +1105,7 @@ export async function runCellWithRuntime(
     model: cell.harness.model,
     effort: cell.harness.effort,
   };
-  const namespaceLabel = stableSlug(
-    `${cell.batch_id}-${cell.cell_id}-${cell.harness.model}`,
-    "cell",
-  );
-  const ns = resolveNs(pack.run_id, namespaceLabel, cell.trial);
+  const ns = executionNamespace(pack, cell);
   const prompt = buildExecutorPrompt({
     pack,
     profile,
@@ -1049,6 +1156,7 @@ export async function runCellWithRuntime(
       blocked: "invoke-failed",
       stage: "invoke",
       status: "failed",
+      executionNamespace: ns,
       message: safeMessage(error, failureSecrets),
       providerProvenance,
     });
@@ -1076,6 +1184,7 @@ export async function runCellWithRuntime(
       blocked: "invoke-failed",
       stage: "invoke",
       status: "failed",
+      executionNamespace: ns,
       message: safeMessage(error, failureSecrets),
       providerProvenance,
     });
@@ -1085,7 +1194,16 @@ export async function runCellWithRuntime(
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
   try {
-    const client = runtime.verificationClient(pack, executor, verificationCredentials);
+    const client = cellVerificationClient(
+      runtime,
+      cell,
+      pack,
+      executor,
+      verificationCredentials,
+      targetAdapter,
+      observed,
+      trace,
+    );
     outcomes = await runtime.verify(
       pack,
       executor,
@@ -1105,7 +1223,16 @@ export async function runCellWithRuntime(
   let discoverySource: ProfileRun["discoverySource"];
   if (pack.discovery?.product) {
     try {
-      const client = runtime.verificationClient(pack, executor, verificationCredentials);
+      const client = cellVerificationClient(
+        runtime,
+        cell,
+        pack,
+        executor,
+        verificationCredentials,
+        targetAdapter,
+        observed,
+        trace,
+      );
       if (observed) {
         discovery = await scoreDiscovery(
           pack.discovery,
@@ -1135,6 +1262,7 @@ export async function runCellWithRuntime(
   );
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
+  discovery = scrubDiscovery(discovery, secrets);
   scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
 
   const profileRun = executionProfileRun({
@@ -1163,6 +1291,9 @@ export async function runCellWithRuntime(
     evaluation_set_version: cell.evaluation_set_version,
     pack_content_hash: cell.pack.content_hash,
     source_commit_sha: cell.source_commit_sha,
+    execution_namespace: ns,
+    ...(discovery ? { discovery } : {}),
+    ...(discoverySource ? { discovery_source: discoverySource } : {}),
     target_id: cell.target_id,
     trial: cell.trial,
     effort: cell.harness.effort,

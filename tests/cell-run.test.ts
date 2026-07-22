@@ -8,6 +8,8 @@ import { verifyGeneratedPack } from "../src/generate/verify.js";
 import type { InvokeRunOptions } from "../src/harness/invoke.js";
 import type { OracleResult, TargetPack } from "../src/schemas.js";
 import { TargetPackSchema } from "../src/schemas.js";
+import { BearerClient } from "../src/http/client.js";
+import { buildVerificationClientOptions } from "../src/generate/verification-client.js";
 import { createRuntimeExtensionRegistry } from "../src/runtime/extensions.js";
 import {
   runCellWithRuntime,
@@ -161,7 +163,8 @@ describe("runCell", () => {
       replaceEnv: true,
       requireTrace: true,
     });
-    expect(invokes[0]!.ns).toContain("batch-1-batch-1-example-api-codex-t2-gpt-example");
+    expect(invokes[0]!.ns).toMatch(/^example-run-cdx-h-[a-f0-9]{24}$/);
+    expect(Buffer.byteLength(`axarena_acl_denied_${invokes[0]!.ns}`)).toBeLessThanOrEqual(63);
     expect(record).toMatchObject({
       schema: "ax.normalized-cell-record/v1",
       record_id: cell.cell_id,
@@ -189,6 +192,36 @@ describe("runCell", () => {
     });
     expect(record.task_results[0]?.oracleResults[0]?.detail).toBe("name matched");
     expect(record).not.toHaveProperty("provider_provenance");
+  });
+
+  it("keeps namespaces bounded and collision-resistant for large trial values", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    await runCellWithRuntime(cell, { credentials: {} }, runtime(invokes));
+    await runCellWithRuntime({
+      ...cell,
+      trial: Number.MAX_SAFE_INTEGER,
+    }, { credentials: {} }, runtime(invokes));
+
+    expect(invokes[0]!.ns).not.toBe(invokes[1]!.ns);
+    expect(Buffer.byteLength(`axarena_acl_denied_${invokes[1]!.ns}`)).toBeLessThanOrEqual(63);
+  });
+
+  it("does not alias delimiter-bearing cell identities", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    await runCellWithRuntime({
+      ...cell,
+      batch_id: "x\0y",
+      cell_id: "z",
+    }, { credentials: {} }, runtime(invokes));
+    await runCellWithRuntime({
+      ...cell,
+      batch_id: "x",
+      cell_id: "y\0z",
+    }, { credentials: {} }, runtime(invokes));
+
+    expect(invokes[0]!.ns).not.toBe(invokes[1]!.ns);
   });
 
   it("runs health and additive provisioning extensions before invoke and records selected provenance", async () => {
@@ -272,6 +305,53 @@ describe("runCell", () => {
     ]);
     expect(resetPlan).not.toHaveBeenCalled();
     expect(resetExecute).not.toHaveBeenCalled();
+  });
+
+  it("lets a selected target adapter own verification transport without core target policy", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.verificationClient = vi.fn();
+    const contexts: unknown[] = [];
+    const registry = createRuntimeExtensionRegistry({
+      targetAdapters: [{
+        id: "dynamic-endpoint-adapter",
+        version: "1.0.0",
+        matches: () => true,
+        verificationClientOptions(context) {
+          contexts.push(context);
+          return {
+            baseUrl: "https://preview.example.invalid",
+            token: "",
+            authScheme: "none",
+            apiStyle: "rest",
+          };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: {}, extensions: { registry } },
+      isolated,
+    );
+
+    expect(record.status).toBe("completed");
+    expect(isolated.verificationClient).not.toHaveBeenCalled();
+    expect(contexts).toHaveLength(1);
+    expect(record.provider_provenance).toContainEqual({
+      kind: "target-adapter",
+      id: "dynamic-endpoint-adapter",
+      version: "1.0.0",
+    });
+    const adapterContext = contexts[0] as {
+      observed?: { apiCalls: unknown[] };
+      trace: Array<{ taskId: string; path?: string }>;
+    };
+    expect(Object.isFrozen(adapterContext)).toBe(true);
+    expect(adapterContext.observed).toMatchObject({ apiCalls: [] });
+    expect(adapterContext.trace).toEqual([
+      expect.objectContaining({ taskId: "task-1", path: "/examples" }),
+    ]);
   });
 
   it("blocks on a failed health extension before provisioning or invocation", async () => {
@@ -700,6 +780,112 @@ describe("runCell", () => {
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
+  it("does not satisfy verifier connection requirements from host credentials", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.required_credentials = ["DATABASE_URL"];
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { DATABASE_URL: "postgres://host-only.example.test/db" },
+      verificationCredentials: {},
+    }, isolated);
+
+    expect(record).toMatchObject({
+      status: "blocked",
+      blocked: "missing-credential",
+      error: { stage: "preflight" },
+    });
+    expect(record.error?.message).toContain("DATABASE_URL");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("does not require a built-in verifier connection owned by a custom provider", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "owned-sql-verifier",
+        version: "1.0.0",
+        matches: (oracle) => Boolean(oracle.sqlQuery),
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "provider-owned connection" };
+        },
+      }],
+    });
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = vi.fn(invoke);
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: {},
+      verificationCredentials: {},
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.status).toBe("completed");
+    expect(isolated.invokeHarness).toHaveBeenCalledOnce();
+    expect(record.error).toBeNull();
+  });
+
+  it("keeps inherited SQL CLI control-plane auth verifier-only", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.auth_method = "pat";
+    pack.auth = { type: "bearer", env: "DATABASE_API_KEY", env_aliases: [] };
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.surfaces = { cli: { bin: "psql", auth: { kind: "inherit" } } };
+    pack.tasks[0]!.allowed_surfaces = ["cli"];
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const updatedPack = TargetPackSchema.parse(pack);
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(updatedPack));
+    writeApproval(packPath, updatedPack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.surface = "cli";
+    cell.required_credentials = ["OPENAI_API_KEY", "DATABASE_URL"];
+    const isolated = runtime([]);
+    isolated.verificationClient = (verifiedPack, executor, credentials) =>
+      new BearerClient(buildVerificationClientOptions(verifiedPack, executor, credentials));
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      expect(options.env.OPENAI_API_KEY).toBe("host-key");
+      expect(options.env.DATABASE_URL).toBe("postgres://sandbox");
+      expect(options.env.DATABASE_API_KEY).toBeUndefined();
+      return invoke(options);
+    };
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "sql-provider",
+        version: "1.0.0",
+        matches: (oracle) => Boolean(oracle.sqlQuery),
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "verified" };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { OPENAI_API_KEY: "host-key", DATABASE_URL: "postgres://sandbox" },
+      verificationCredentials: {
+        DATABASE_API_KEY: "verifier-control-plane-key",
+        DATABASE_URL: "postgres://sandbox",
+      },
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.status).toBe("completed");
+  });
   it("returns a schema-valid failed record when invocation fails", async () => {
     const { cell } = fixture();
     const record = await runCellWithRuntime(cell, { credentials: {} }, runtime([], false));
@@ -757,6 +943,7 @@ describe("runCell", () => {
     const record = await runCellWithRuntime(cell, { credentials: {} }, failing);
     expect(record.status).toBe("failed");
     expect(record.error).toEqual({ stage: "invoke", message: "subprocess rejected" });
+    expect(record.execution_namespace).toMatch(/^example-run-/);
   });
 
   it("clears deterministic artifacts before retrying the same immutable cell", async () => {
@@ -844,7 +1031,8 @@ describe("runCell", () => {
       expect(args[1]).toMatchObject({ profile: "medium", harness: "codex", surface: "api" });
       return verify(...args);
     };
-    await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.execution_namespace).toBe(invokes[0]!.ns);
   });
 
   it("passes the required trace independently from the parsed transcript", async () => {
@@ -955,6 +1143,49 @@ describe("runCell", () => {
     expect(record.status).toBe("completed");
   });
 
+  it("scrubs credentials from persisted discovery evidence", async () => {
+    const { cell, dir, pack } = fixture();
+    const packPath = resolve(dir, "pack.yaml");
+    pack.discovery = {
+      product: "Example",
+      goal: "Create an example",
+      official_domains: [],
+      canonical_endpoint: "POST /examples",
+      deprecated_markers: [],
+      auth_scheme: "Bearer token",
+    };
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
+      payload.discovery = {
+        endpoint_used: "POST /examples",
+        auth_scheme_found: "Bearer verifier-secret",
+      };
+      writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
+      rmSync(options.paths.transcriptPath);
+      return result;
+    };
+
+    const record = await runCellWithRuntime(
+      { ...cell, required_credentials: ["SHARED_TOKEN"] },
+      {
+        credentials: { SHARED_TOKEN: "host-secret" },
+        verificationCredentials: { SHARED_TOKEN: "verifier-secret" },
+      },
+      isolated,
+    );
+
+    expect(record.discovery_source).toBe("self-report");
+    expect(JSON.stringify(record)).not.toContain("host-secret");
+    expect(JSON.stringify(record)).not.toContain("verifier-secret");
+    expect(record.discovery?.metrics.find((metric) => metric.id === "auth")?.detail)
+      .toContain("<redacted>");
+  });
   it("treats every provisioning environment value as secret regardless of its key name", async () => {
     const { cell } = fixture();
     const isolated = runtime([]);

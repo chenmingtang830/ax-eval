@@ -11,15 +11,18 @@ import {
   aggregateNormalizedResults,
   checkApproval,
   checkCellApproval,
+  checkCommittedLegacyCellApproval,
   createOracleProviderRegistry,
   createRuntimeExtensionRegistry,
   registerOracleProvider,
   runCell,
+  runCellWithRuntime,
   verifyGeneratedPack,
 } from "../src/index.js";
 
 describe("public API", () => {
   it("exports the initial engine contracts without exposing private paths", () => {
+    expect(BearerClient).toBeTypeOf("function");
     expect(TargetPackSchema).toBeDefined();
     expect(BearerClient).toBeTypeOf("function");
     expect(SURFACE_IDS).toEqual(["api", "cli", "sdk", "mcp"]);
@@ -30,11 +33,13 @@ describe("public API", () => {
     expect(EvaluationCellSchema).toBeDefined();
     expect(checkApproval).toBeTypeOf("function");
     expect(checkCellApproval).toBeTypeOf("function");
+    expect(checkCommittedLegacyCellApproval).toBeTypeOf("function");
     expect(verifyGeneratedPack).toBeTypeOf("function");
     expect(createOracleProviderRegistry).toBeTypeOf("function");
     expect(createRuntimeExtensionRegistry).toBeTypeOf("function");
     expect(registerOracleProvider).toBeTypeOf("function");
     expect(aggregateNormalizedResults).toBeTypeOf("function");
     expect(runCell).toBeTypeOf("function");
+    expect(runCellWithRuntime).toBeTypeOf("function");
   });
 });
