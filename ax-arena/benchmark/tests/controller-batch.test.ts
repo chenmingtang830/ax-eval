@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { isAbsolute, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -354,6 +354,13 @@ describe("arena batch comparability", () => {
       harnesses: [config.harnesses[0]!],
       packs: [{ ...config.packs[0]!, host_credential_names: ["OPENAI_API_KEY"] }],
     })).toThrow(/both Codex and Claude Code|Cartesian/);
+    expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-provider-control-")), "a".repeat(40), new Date(), {
+      ...config,
+      cells: config.cells.map((cell) => ({
+        ...cell,
+        provider_pins: [{ kind: "oracle" as const, id: "provider\0alias", version: "1.0.0" }],
+      })),
+    })).toThrow(/control characters/);
   });
 
   it("rejects forged, inconsistent, or symlinked manifests", () => {
@@ -567,6 +574,8 @@ describe("arena batch comparability", () => {
       execution(root, batch, "claude-code", "model-claude"),
     ];
     expect(writeBatchCompletion(root, batch, executions, new Date()).batch_id).toBe(batch.batch_id);
+    expect(lstatSync(resolve(root, "batch.json")).nlink).toBe(1);
+    expect(lstatSync(resolve(root, "batch-completion.json")).nlink).toBe(1);
     expect(() => writeBatchCompletion(root, batch, executions, new Date())).toThrow(/EEXIST|exist/i);
 
     const manifestPath = resolve(root, "batch.json");

@@ -81,10 +81,11 @@ const Names = z.array(EnvironmentName).max(256).superRefine((names, context) => 
     context.addIssue({ code: "custom", message: "credential and scope names must be unique" });
   }
 });
-const ProviderIdentitySchema = z.object({ id: NonBlank, version: NonBlank }).strict();
+const ProviderText = NonBlank.refine((value) => !/[\u0000-\u001f\u007f]/.test(value), "provider identity cannot contain control characters");
+const ProviderIdentitySchema = z.object({ id: ProviderText, version: ProviderText }).strict();
 const ProviderPinSchema = ProviderIdentitySchema.extend({ kind: ProviderKind }).strict();
 const ProviderPinsSchema = z.array(ProviderPinSchema).max(128).superRefine((pins, context) => {
-  const identities = pins.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`);
+  const identities = pins.map((pin) => JSON.stringify([pin.kind, pin.id, pin.version]));
   if (new Set(identities).size !== identities.length) {
     context.addIssue({ code: "custom", message: "provider pins must be unique" });
   }
@@ -212,14 +213,14 @@ export const ArenaBatchConfigurationSchema = z.object({
     if (cell.key !== canonicalKey) {
       context.addIssue({ code: "custom", path: ["cells", index, "key"], message: `cell key must equal ${canonicalKey}` });
     }
-    const dimension = `${cell.vendor}\0${cell.surface}\0${cell.harness}\0${cell.trial}`;
+    const dimension = JSON.stringify([cell.vendor, cell.surface, cell.harness, cell.trial]);
     dimensions.set(dimension, (dimensions.get(dimension) ?? 0) + 1);
   }
   for (const [packIndex, pack] of configuration.packs.entries()) {
     for (const surface of pack.surfaces) {
       for (const harness of pinnedHarnesses) {
         for (const trial of trials) {
-          const dimension = `${pack.vendor}\0${surface}\0${harness}\0${trial}`;
+          const dimension = JSON.stringify([pack.vendor, surface, harness, trial]);
           if (dimensions.get(dimension) !== 1) {
             context.addIssue({
               code: "custom",

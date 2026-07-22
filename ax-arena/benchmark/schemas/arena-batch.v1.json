@@ -59,16 +59,17 @@
     "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
     "providerIdentity": {
       "type": "object", "additionalProperties": false, "required": ["id", "version"],
-      "properties": { "id": { "$ref": "#/$defs/nonBlank" }, "version": { "$ref": "#/$defs/nonBlank" } }
+      "properties": { "id": { "$ref": "#/$defs/providerText" }, "version": { "$ref": "#/$defs/providerText" } }
     },
     "providerPin": {
       "type": "object", "additionalProperties": false, "required": ["kind", "id", "version"],
       "properties": {
         "kind": { "enum": ["oracle", "provisioning", "health-check", "target-adapter"] },
-        "id": { "$ref": "#/$defs/nonBlank" },
-        "version": { "$ref": "#/$defs/nonBlank" }
+        "id": { "$ref": "#/$defs/providerText" },
+        "version": { "$ref": "#/$defs/providerText" }
       }
     },
+    "providerText": { "allOf": [{ "$ref": "#/$defs/nonBlank" }, { "type": "string", "pattern": "^[^\\u0000-\\u001f\\u007f]+$" }] },
     "providerPins": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/$defs/providerPin" } },
     "harnessPin": {
       "type": "object",

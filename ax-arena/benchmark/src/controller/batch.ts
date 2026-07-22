@@ -49,8 +49,8 @@ function sameProviderPins(
   right: readonly { kind: string; id: string; version: string }[],
 ): boolean {
   return sameStringSet(
-    left.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`),
-    right.map((pin) => `${pin.kind}\0${pin.id}\0${pin.version}`),
+    left.map((pin) => JSON.stringify([pin.kind, pin.id, pin.version])),
+    right.map((pin) => JSON.stringify([pin.kind, pin.id, pin.version])),
   );
 }
 
@@ -90,6 +90,7 @@ function exclusiveDurableWrite(path: string, contents: string): void {
     closeSync(descriptor);
     descriptor = undefined;
     linkSync(temporary, path);
+    unlinkSync(temporary);
     const directory = openSync(parent, constants.O_RDONLY);
     try {
       fsyncSync(directory);
@@ -98,7 +99,15 @@ function exclusiveDurableWrite(path: string, contents: string): void {
     }
   } finally {
     if (descriptor !== undefined) closeSync(descriptor);
-    if (pathEntryExists(temporary)) unlinkSync(temporary);
+    if (pathEntryExists(temporary)) {
+      unlinkSync(temporary);
+      const directory = openSync(parent, constants.O_RDONLY);
+      try {
+        fsyncSync(directory);
+      } finally {
+        closeSync(directory);
+      }
+    }
   }
 }
 
