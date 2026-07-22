@@ -37,6 +37,19 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects detached arena database packages in the core manifest", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "package.json"), JSON.stringify({
+      exports: { ".": "./dist/index.js" },
+      optionalDependencies: { "@neondatabase/serverless": "1.1.0" },
+      peerDependencies: { supabase: "2.109.0" },
+    }));
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("@neondatabase/serverless"),
+      expect.stringContaining("supabase"),
+    ]);
+  });
+
   it("rejects arena imports that escape the workspace or bypass public exports", () => {
     const root = fixture();
     const source = resolve(root, "ax-arena", "benchmark", "src", "arena.ts");
