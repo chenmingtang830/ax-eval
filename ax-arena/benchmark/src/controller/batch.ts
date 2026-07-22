@@ -18,16 +18,22 @@ import { assertArenaRecordIdentity, type ArenaCellExecution } from "./cell.js";
 import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
   ARENA_BATCH_COMPLETION_SCHEMA,
+  ARENA_BATCH_PLAN_SCHEMA,
   ARENA_BATCH_SCHEMA,
   ArenaBatchCompletionCellSchema,
   ArenaBatchCompletionSchema,
+  ArenaBatchConfigurationSourceSchema,
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaBatchPlanSchema,
   ArenaCellCleanupSchema,
   arenaBatchConfigurationHash,
+  arenaExecutionMode,
   type ArenaBatchCompletion,
   type ArenaBatchConfiguration,
+  type ArenaBatchConfigurationSource,
   type ArenaBatchManifest,
+  type ArenaBatchPlan,
 } from "./schemas.js";
 
 function canonical(value: unknown): unknown {
@@ -57,6 +63,10 @@ function sameProviderPins(
 
 function manifestBytes(manifest: ArenaBatchManifest): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
+}
+
+function planBytes(plan: ArenaBatchPlan): string {
+  return `${JSON.stringify(plan, null, 2)}\n`;
 }
 
 function assertRegularFile(path: string, label: string): void {
@@ -252,13 +262,34 @@ function readBatchManifest(path: string): ArenaBatchManifest {
   return parsed.data;
 }
 
+function readBatchPlan(path: string): ArenaBatchPlan {
+  assertRegularFile(path, "arena batch plan");
+  const contents = readFileSync(path, "utf8");
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(contents);
+  } catch {
+    throw new Error(`${path} is not valid JSON`);
+  }
+  const parsed = ArenaBatchPlanSchema.safeParse(decoded);
+  if (!parsed.success) throw new Error(`${path} is not a valid immutable arena batch plan`);
+  if (contents !== planBytes(parsed.data)) {
+    throw new Error(`${path} is not in the canonical immutable arena batch plan format`);
+  }
+  return parsed.data;
+}
+
 export function resolveBatchIdentity(
   runRoot: string,
   sourceCommitSha: string,
   now: Date,
   configuration: ArenaBatchConfiguration,
+  configurationSource?: ArenaBatchConfigurationSource,
 ): ArenaBatchManifest {
   const parsedConfiguration = ArenaBatchConfigurationSchema.parse(configuration);
+  const parsedConfigurationSource = configurationSource === undefined
+    ? undefined
+    : ArenaBatchConfigurationSourceSchema.parse(configurationSource);
   mkdirSync(runRoot, { recursive: true });
   const runRootStat = lstatSync(runRoot);
   if (!runRootStat.isDirectory() || runRootStat.isSymbolicLink()) {
@@ -274,6 +305,7 @@ export function resolveBatchIdentity(
       );
     }
     if (existing.configuration_hash !== currentHash
+      || JSON.stringify(existing.configuration_source) !== JSON.stringify(parsedConfigurationSource)
       || JSON.stringify(canonical(existing.configuration)) !== JSON.stringify(canonical(parsedConfiguration))) {
       throw new Error(
         `run root batch configuration mismatch (recorded ${existing.configuration_hash}, current ${currentHash}); choose a new --run-dir`,
@@ -282,14 +314,13 @@ export function resolveBatchIdentity(
     return existing;
   }
 
-  const stem = basename(resolve(runRoot)).replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^-+|-+$/g, "") || "arena";
-  const timestamp = now.toISOString().replace(/[^0-9]/g, "").slice(0, 14);
   const manifest = ArenaBatchManifestSchema.parse({
     schema: ARENA_BATCH_SCHEMA,
-    batch_id: `${stem}-${timestamp}-${randomUUID()}`,
+    batch_id: `batch-${randomUUID()}`,
     source_commit_sha: sourceCommitSha,
     created_at: now.toISOString(),
     configuration_hash: currentHash,
+    ...(parsedConfigurationSource ? { configuration_source: parsedConfigurationSource } : {}),
     configuration: parsedConfiguration,
     expected_cells: parsedConfiguration.cells.map((cell) => cell.key),
   });
@@ -300,6 +331,7 @@ export function resolveBatchIdentity(
     if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
     const existing = readBatchManifest(path);
     if (existing.source_commit_sha !== sourceCommitSha || existing.configuration_hash !== currentHash
+      || JSON.stringify(existing.configuration_source) !== JSON.stringify(parsedConfigurationSource)
       || JSON.stringify(canonical(existing.configuration)) !== JSON.stringify(canonical(parsedConfiguration))) {
       throw new Error("concurrent arena batch creation produced a different immutable identity");
     }
@@ -315,6 +347,99 @@ export function assertBatchManifest(runRoot: string, batch: ArenaBatchManifest):
   if (manifestBytes(persisted) !== manifestBytes(parsed)) {
     throw new Error("immutable arena batch manifest changed during execution");
   }
+}
+
+export function loadBatchManifest(runRoot: string): ArenaBatchManifest {
+  return readBatchManifest(resolve(runRoot, "batch.json"));
+}
+
+export function buildBatchPlan(batch: ArenaBatchManifest): ArenaBatchPlan {
+  const parsedBatch = ArenaBatchManifestSchema.parse(batch);
+  assertManifestIntegrity(parsedBatch);
+  const packs = new Map(parsedBatch.configuration.packs.map((pack) => [pack.vendor, pack]));
+  const harnesses = new Map(parsedBatch.configuration.harnesses.map((pin) => [pin.harness, pin]));
+  const cells = parsedBatch.configuration.cells.map((cell) => {
+    const pack = packs.get(cell.vendor);
+    const harness = harnesses.get(cell.harness);
+    if (!pack || !harness) {
+      throw new Error(`arena batch cell ${cell.key} is missing its immutable pack or harness pin`);
+    }
+    const tursoCli = cell.vendor === "turso" && cell.surface === "cli"
+      ? parsedBatch.configuration.turso_cli
+      : undefined;
+    return {
+      key: cell.key,
+      batch_id: parsedBatch.batch_id,
+      source_commit_sha: parsedBatch.source_commit_sha,
+      configuration_hash: parsedBatch.configuration_hash,
+      vendor: cell.vendor,
+      surface: cell.surface,
+      harness: cell.harness,
+      profile: cell.profile,
+      effort: cell.effort,
+      model: cell.model,
+      trial: cell.trial,
+      pack_file_hash: pack.file_hash,
+      standard_set_version: pack.standard_set_version,
+      harness_version_raw: harness.version_raw,
+      harness_version_semver: harness.version_semver,
+      execution: arenaExecutionMode(parsedBatch.configuration),
+      host_credential_names: [...cell.host_credential_names],
+      verification_credential_names: [...cell.verification_credential_names],
+      reset_credential_names: [...cell.reset_credential_names],
+      sandbox_scope_names: [...cell.sandbox_scope_names],
+      provider_pins: cell.provider_pins.map((pin) => ({ ...pin })),
+      reset_provider: cell.reset_provider ? { ...cell.reset_provider } : null,
+      reset_required: parsedBatch.configuration.reset_required,
+      invoke_timeout_seconds: parsedBatch.configuration.invoke_timeout_seconds,
+      first_action_timeout_seconds: parsedBatch.configuration.first_action_timeout_seconds,
+      invoke_retries: parsedBatch.configuration.invoke_retries,
+      ...(tursoCli ? { turso_cli: { ...tursoCli } } : {}),
+      ...(parsedBatch.configuration.sandbox ? {
+        sandbox: {
+          ...parsedBatch.configuration.sandbox,
+          runtime_roots: [...parsedBatch.configuration.sandbox.runtime_roots],
+        },
+      } : {}),
+    };
+  });
+  return ArenaBatchPlanSchema.parse({
+    schema: ARENA_BATCH_PLAN_SCHEMA,
+    batch_id: parsedBatch.batch_id,
+    source_commit_sha: parsedBatch.source_commit_sha,
+    configuration_hash: parsedBatch.configuration_hash,
+    ...(parsedBatch.configuration_source ? { configuration_source: parsedBatch.configuration_source } : {}),
+    batch_manifest_sha256: createHash("sha256").update(manifestBytes(parsedBatch)).digest("hex"),
+    expected_cells: [...parsedBatch.expected_cells],
+    cells,
+  });
+}
+
+export function writeBatchPlan(runRoot: string, batch: ArenaBatchManifest): ArenaBatchPlan {
+  assertBatchManifest(runRoot, batch);
+  const plan = buildBatchPlan(batch);
+  const path = resolve(runRoot, "batch-plan.json");
+  if (pathEntryExists(path)) return loadBatchPlan(runRoot, batch);
+  try {
+    exclusiveDurableWrite(path, planBytes(plan));
+    return plan;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
+    return loadBatchPlan(runRoot, batch);
+  }
+}
+
+export function loadBatchPlan(runRoot: string, batch?: ArenaBatchManifest): ArenaBatchPlan {
+  const persistedBatch = readBatchManifest(resolve(runRoot, "batch.json"));
+  if (batch && manifestBytes(ArenaBatchManifestSchema.parse(batch)) !== manifestBytes(persistedBatch)) {
+    throw new Error("immutable arena batch manifest changed before loading its plan");
+  }
+  const expected = buildBatchPlan(persistedBatch);
+  const plan = readBatchPlan(resolve(runRoot, "batch-plan.json"));
+  if (planBytes(plan) !== planBytes(expected)) {
+    throw new Error("immutable arena batch plan drifted from its canonical batch manifest");
+  }
+  return plan;
 }
 
 export function buildBatchCompletion(
@@ -481,9 +606,11 @@ export function writeBatchCompletion(
   batch: ArenaBatchManifest,
   executions: readonly ArenaCellExecution[],
   now: Date,
+  validate?: (completion: ArenaBatchCompletion) => void,
 ): ArenaBatchCompletion {
   assertBatchManifest(runRoot, batch);
   const completion = buildBatchCompletion(runRoot, batch, executions, now);
+  validate?.(completion);
   exclusiveDurableWrite(
     resolve(runRoot, "batch-completion.json"),
     `${JSON.stringify(completion, null, 2)}\n`,
