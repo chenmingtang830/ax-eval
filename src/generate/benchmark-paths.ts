@@ -20,14 +20,18 @@ export interface DaebBenchmarkRootOptions {
 }
 
 export interface DaebPathContext {
+  readonly [DAEB_PATH_CONTEXT]: true;
   readonly repositoryRoot: string;
   readonly readRoot: string;
   readonly writeRoot: string;
+  readonly explicitReadRoot: boolean;
+  readonly readRootKind: "canonical" | "legacy" | "explicit";
 }
 
 export type DaebPathInput = string | DaebPathContext;
 
 const warnedLegacyRoots = new Set<string>();
+const DAEB_PATH_CONTEXT: unique symbol = Symbol("ax-arena.daeb-path-context");
 
 function absoluteRoot(repositoryRoot: string, path: string): string {
   return isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
@@ -58,6 +62,40 @@ function assertRealDirectory(path: string, label: string): void {
   }
 }
 
+function assertRealInRepositoryPath(repositoryRoot: string, path: string, label: string): void {
+  const root = resolve(repositoryRoot);
+  const candidate = resolve(path);
+  if (!contained(root, candidate)) throw new Error(`${label} must stay inside repository root: ${candidate}`);
+  assertRealDirectory(root, "repository root");
+  let current = root;
+  for (const segment of relative(root, candidate).split(sep).filter(Boolean)) {
+    current = resolve(current, segment);
+    let stat: ReturnType<typeof lstatSync>;
+    try {
+      stat = lstatSync(current);
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === "ENOENT") return;
+      throw error;
+    }
+    if (stat.isSymbolicLink() || !stat.isDirectory()) {
+      throw new Error(`${label} cannot traverse a symlink or non-directory: ${current}`);
+    }
+  }
+}
+
+function warnLegacyRoot(
+  legacy: string,
+  canonical: string,
+  warn?: (message: string) => void,
+): void {
+  const message = `deprecated benchmark root ${legacy}; move artifacts to ${canonical} (legacy reads are removed after one minor release)`;
+  if (warn) warn(message);
+  else if (!warnedLegacyRoots.has(legacy)) {
+    warnedLegacyRoots.add(legacy);
+    console.warn(message);
+  }
+}
+
 export function resolveDaebBenchmarkRoot(
   repositoryRoot: string,
   options: DaebBenchmarkRootOptions,
@@ -65,8 +103,8 @@ export function resolveDaebBenchmarkRoot(
   const root = resolve(repositoryRoot);
   const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
   const legacy = resolve(root, DAEB_LEGACY_BENCHMARK_ROOT);
-  assertRealDirectory(canonical, "canonical benchmark root");
-  assertRealDirectory(legacy, "legacy benchmark root");
+  assertRealInRepositoryPath(root, canonical, "canonical benchmark root");
+  assertRealInRepositoryPath(root, legacy, "legacy benchmark root");
 
   if (options.access === "write") {
     if (options.explicitRoot && absoluteRoot(root, options.explicitRoot) !== canonical) {
@@ -78,6 +116,7 @@ export function resolveDaebBenchmarkRoot(
   if (options.explicitRoot) {
     const explicit = absoluteRoot(root, options.explicitRoot);
     assertRealDirectory(explicit, "explicit benchmark root");
+    if (explicit === legacy) warnLegacyRoot(legacy, canonical, options.warn);
     return explicit;
   }
   const hasCanonical = existsSync(canonical);
@@ -88,12 +127,7 @@ export function resolveDaebBenchmarkRoot(
     );
   }
   if (hasLegacy) {
-    const message = `deprecated benchmark root ${legacy}; move artifacts to ${canonical} (legacy reads are removed after one minor release)`;
-    if (options.warn) options.warn(message);
-    else if (!warnedLegacyRoots.has(legacy)) {
-      warnedLegacyRoots.add(legacy);
-      console.warn(message);
-    }
+    warnLegacyRoot(legacy, canonical, options.warn);
     return legacy;
   }
   return canonical;
@@ -104,32 +138,78 @@ export function createDaebPathContext(
   options: Omit<DaebBenchmarkRootOptions, "access"> = {},
 ): DaebPathContext {
   const root = resolve(repositoryRoot);
-  return Object.freeze({
+  const readRoot = resolveDaebBenchmarkRoot(root, { ...options, access: "read" });
+  const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
+  const context = {
     repositoryRoot: root,
-    readRoot: resolveDaebBenchmarkRoot(root, { ...options, access: "read" }),
+    readRoot,
     writeRoot: resolveDaebBenchmarkRoot(root, { access: "write" }),
-  });
+    explicitReadRoot: options.explicitRoot !== undefined,
+    readRootKind: options.explicitRoot !== undefined
+      ? "explicit" as const
+      : readRoot === canonical
+        ? "canonical" as const
+        : "legacy" as const,
+  } as DaebPathContext;
+  Object.defineProperty(context, DAEB_PATH_CONTEXT, { value: true });
+  return Object.freeze(context);
+}
+
+function assertPathContext(input: DaebPathContext): DaebPathContext {
+  if (input[DAEB_PATH_CONTEXT] !== true) {
+    throw new Error("DAEB path context must be created by createDaebPathContext");
+  }
+  const repositoryRoot = resolve(input.repositoryRoot);
+  const expectedWriteRoot = resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
+  if (resolve(input.writeRoot) !== expectedWriteRoot) {
+    throw new Error(`DAEB path context write root must be canonical: ${expectedWriteRoot}`);
+  }
+  const expectedReadRoot = input.readRootKind === "canonical"
+    ? resolve(repositoryRoot, DAEB_BENCHMARK_ROOT)
+    : input.readRootKind === "legacy"
+      ? resolve(repositoryRoot, DAEB_LEGACY_BENCHMARK_ROOT)
+      : resolve(input.readRoot);
+  if (resolve(input.readRoot) !== expectedReadRoot) {
+    throw new Error(`DAEB path context read root no longer matches root policy: ${expectedReadRoot}`);
+  }
+  if (input.readRootKind === "explicit") assertRealDirectory(expectedReadRoot, "explicit benchmark root");
+  else assertRealInRepositoryPath(repositoryRoot, expectedReadRoot, `${input.readRootKind} benchmark root`);
+  return input;
 }
 
 function readRoot(input: DaebPathInput): string {
   return typeof input === "string"
     ? resolveDaebBenchmarkRoot(input, { access: "read" })
-    : input.readRoot;
+    : assertPathContext(input).readRoot;
+}
+
+export function daebRepositoryRoot(input: DaebPathInput): string {
+  return resolve(typeof input === "string" ? input : assertPathContext(input).repositoryRoot);
 }
 
 function writeRoot(input: DaebPathInput): string {
-  return typeof input === "string"
-    ? resolveDaebBenchmarkRoot(input, { access: "write" })
-    : input.writeRoot;
+  const repositoryRoot = daebRepositoryRoot(input);
+  if (typeof input === "string") resolveDaebBenchmarkRoot(repositoryRoot, { access: "read" });
+  else assertPathContext(input);
+  return resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
 }
 
 /** Resolve an explicit writer destination and reject paths outside canonical DAEB. */
 export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string): string {
   const root = writeRoot(input);
-  const repositoryRoot = typeof input === "string" ? resolve(input) : input.repositoryRoot;
+  const repositoryRoot = daebRepositoryRoot(input);
   const candidate = isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
   if (!contained(root, candidate)) {
     throw new Error(`writers use only the canonical benchmark root: ${root}`);
+  }
+  assertRealInRepositoryPath(repositoryRoot, resolve(candidate, ".."), "canonical benchmark writer parent");
+  try {
+    const target = lstatSync(candidate);
+    if (target.isSymbolicLink() || !target.isFile()) {
+      throw new Error(`canonical benchmark writer target must be a regular non-symlink file: ${candidate}`);
+    }
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
   }
   return candidate;
 }

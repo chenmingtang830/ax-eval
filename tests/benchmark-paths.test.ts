@@ -12,6 +12,7 @@ import {
   daebVendorCardPath,
   daebVersionDir,
   resolveDaebBenchmarkRoot,
+  type DaebPathContext,
 } from "../src/generate/benchmark-paths.js";
 
 const roots: string[] = [];
@@ -57,8 +58,19 @@ describe("DAEB benchmark root compatibility", () => {
       .toThrow(/ambiguous benchmark roots.*--benchmark-root/);
     expect(resolveDaebBenchmarkRoot(root, { access: "read", explicitRoot: DAEB_BENCHMARK_ROOT }))
       .toBe(canonical);
-    expect(resolveDaebBenchmarkRoot(root, { access: "read", explicitRoot: legacy }))
+    const warnings: string[] = [];
+    expect(resolveDaebBenchmarkRoot(root, {
+      access: "read",
+      explicitRoot: legacy,
+      warn: (message) => warnings.push(message),
+    }))
       .toBe(legacy);
+    expect(warnings).toEqual([expect.stringMatching(/deprecated benchmark root/)]);
+    expect(() => assertCanonicalDaebWritePath(root, resolve(canonical, "v1", "suite.yaml")))
+      .toThrow(/ambiguous benchmark roots/);
+    const explicit = createDaebPathContext(root, { explicitRoot: DAEB_BENCHMARK_ROOT });
+    expect(assertCanonicalDaebWritePath(explicit, resolve(canonical, "v1", "suite.yaml")))
+      .toBe(resolve(canonical, "v1", "suite.yaml"));
   });
 
   it("routes every write to canonical and rejects an explicit legacy write root", () => {
@@ -97,7 +109,7 @@ describe("DAEB benchmark root compatibility", () => {
     symlinkSync(target, resolve(root, DAEB_BENCHMARK_ROOT), "dir");
 
     expect(() => resolveDaebBenchmarkRoot(root, { access: "read" }))
-      .toThrow(/must be a real directory, not a symlink or file/);
+      .toThrow(/symlink/);
   });
 
   it("rejects dangling benchmark-root symlinks", () => {
@@ -106,7 +118,43 @@ describe("DAEB benchmark root compatibility", () => {
     symlinkSync(resolve(root, "missing-target"), resolve(root, DAEB_BENCHMARK_ROOT), "dir");
 
     expect(() => resolveDaebBenchmarkRoot(root, { access: "read" }))
-      .toThrow(/must be a real directory, not a symlink or file/);
+      .toThrow(/symlink/);
+  });
+
+  it("rejects intermediate and dangling ancestor symlinks", () => {
+    for (const mode of ["linked", "dangling"] as const) {
+      const root = freshRoot();
+      const target = resolve(root, "target");
+      if (mode === "linked") mkdirSync(resolve(target, "benchmark", "daeb"), { recursive: true });
+      symlinkSync(mode === "linked" ? target : resolve(root, "missing"), resolve(root, "ax-arena"), "dir");
+      expect(() => resolveDaebBenchmarkRoot(root, { access: "read" })).toThrow(/symlink/);
+    }
+  });
+
+  it("rejects nested symlinks in canonical writer parents", () => {
+    const root = freshRoot();
+    const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
+    const outside = resolve(root, "outside");
+    mkdirSync(resolve(canonical, "v1"), { recursive: true });
+    mkdirSync(outside);
+    symlinkSync(outside, resolve(canonical, "v1", "packs"), "dir");
+
+    expect(() => assertCanonicalDaebWritePath(
+      root,
+      resolve(canonical, "v1", "packs", "vendor", "pack.yaml"),
+    )).toThrow(/cannot traverse a symlink/);
+  });
+
+  it("rejects structurally forged path contexts", () => {
+    const root = freshRoot();
+    const forged = {
+      repositoryRoot: root,
+      readRoot: resolve(root, "outside"),
+      writeRoot: resolve(root, DAEB_BENCHMARK_ROOT),
+      explicitReadRoot: true,
+      readRootKind: "explicit",
+    } as unknown as DaebPathContext;
+    expect(() => daebReadSuitePath(forged)).toThrow(/created by createDaebPathContext/);
   });
 
   it("rejects traversal in slug- and version-derived paths", () => {
