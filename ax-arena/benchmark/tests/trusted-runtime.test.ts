@@ -52,15 +52,16 @@ describe("trusted runtime lock and workflow", () => {
 
   it("keeps credentialed execution after verified sysroot preparation and signing in a separate job", () => {
     const workflow = readFileSync(resolve(repositoryRoot, ".github/workflows/trusted-sandbox-records.yml"), "utf8");
+    const preparation = readFileSync(resolve(repositoryRoot, "ax-arena/benchmark/scripts/prepare-trusted-tools.sh"), "utf8");
     const runtime = readTrustedRuntime(repositoryRoot);
     const image = `${runtime.lock.container.image}@${runtime.lock.container.digest}`;
     expect(workflow).toContain(`TRUSTED_CONTAINER_IMAGE: ${image}`);
     expect(workflow).toContain("git merge-base --is-ancestor");
-    expect(workflow).toContain("prepare-trusted-sysroot.sh");
-    expect(workflow).toContain("docker");
-    expect(workflow).toContain("sudo --preserve-env");
+    expect(workflow).toContain("prepare-trusted-tools.sh");
+    expect(preparation).toContain("prepare-trusted-sysroot.sh");
+    expect(preparation).toContain("sudo --preserve-env");
     expect(workflow).toContain("node-version: \"22.23.1\"");
-    expect(workflow).toContain("npm\" ci --ignore-scripts");
+    expect(preparation).toContain('npm" ci --ignore-scripts');
     expect(workflow).not.toContain("seccomp=unconfined");
     expect(workflow).not.toContain("--privileged");
     expect(workflow).not.toContain("ubuntu-latest");
@@ -72,7 +73,7 @@ describe("trusted runtime lock and workflow", () => {
     expect(workflow).toContain("export-trusted-run.mjs");
     expect(workflow).toContain("path: ${{ runner.temp }}/trusted-arena-export-");
     expect(workflow).not.toContain("path: results/runs/trusted-");
-    const prepare = workflow.indexOf("prepare-trusted-runtime.mjs");
+    const prepare = workflow.indexOf("prepare-trusted-tools.sh");
     const firstSecret = workflow.indexOf("secrets.");
     expect(prepare).toBeGreaterThan(0);
     expect(firstSecret).toBeGreaterThan(prepare);

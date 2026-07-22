@@ -71,6 +71,9 @@ Trusted dispatch validation, OCI/sysroot and exact-tool preparation, the real
 Bubblewrap smoke, sealed-artifact export, and detached-subject construction are
 arena-owned under `scripts/`. The repository-root workflow YAML is only the
 GitHub-required launcher and environment/credential binding surface.
+`scripts/prepare-trusted-tools.sh` sequences verified sysroot extraction,
+lockfile-only repository installation, build, and exact tool sealing before
+the workflow exposes credentials.
 
 For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
 only when this canonical root is absent and emit a deprecation warning. If both

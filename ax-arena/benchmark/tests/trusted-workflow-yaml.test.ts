@@ -12,6 +12,7 @@ function workflow(name: string): string {
 describe("trusted arena workflow launcher", () => {
   it("keeps benchmark policy in arena-owned scripts and only bindings in GitHub YAML", () => {
     const source = workflow("trusted-sandbox-records.yml");
+    const preparation = readFileSync(resolve(REPOSITORY_ROOT, "ax-arena", "benchmark", "scripts", "prepare-trusted-tools.sh"), "utf8");
     expect(source).toContain("workflow_dispatch:");
     expect(source).toContain("environment: trusted-sandbox");
     expect(source).toContain("git merge-base --is-ancestor");
@@ -22,18 +23,19 @@ describe("trusted arena workflow launcher", () => {
     expect(source).toContain('node-version: "22.23.1"');
     expect(source).not.toContain("apt-get");
     expect(source).not.toContain("npm install --global");
-    expect(source).toContain('npm" ci --ignore-scripts');
+    expect(preparation).toContain('npm" ci --ignore-scripts');
     expect(source).not.toContain("seccomp=unconfined");
     expect(source).not.toContain("--privileged");
     for (const script of [
       "validate-trusted-dispatch.mjs",
-      "prepare-trusted-sysroot.sh",
-      "prepare-trusted-runtime.mjs",
+      "prepare-trusted-tools.sh",
       "smoke-trusted-runtime.mjs",
       "trusted-cell.ts",
       "trusted-attestation.mjs",
       "export-trusted-run.mjs",
     ]) expect(source).toContain(`ax-arena/benchmark/scripts/${script}`);
+    expect(preparation).toContain("prepare-trusted-sysroot.sh");
+    expect(preparation).toContain("prepare-trusted-runtime.mjs");
     expect(source).not.toMatch(/\.github\/(?:validate|prepare|smoke|trusted|export)[^\s]*/);
     expect(source).toContain("path: ${{ runner.temp }}/trusted-arena-export-");
     expect(source).not.toContain("path: results/runs/trusted-");
