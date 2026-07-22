@@ -55,6 +55,13 @@ export interface RoundtripOutcome {
   na: boolean;
 }
 
+export interface VerifyGeneratedPackOptions {
+  /** Objective harness transcript used for surface-honesty grading. */
+  observedRun?: ObservedRun;
+  /** Validated execution trace supplied independently of the transcript. */
+  trace?: readonly TraceStep[];
+}
+
 export function loadResults(path: string): ExecutorResults {
   return parseJsonWithRecovery<ExecutorResults>(readFileSync(path, "utf8"));
 }
@@ -249,7 +256,13 @@ async function verifyRoundtrip(
   for (const oracle of task.oracles) {
     // Registered providers (e.g. SQL/Mongo read-back for database packs) own
     // their oracles outright; the built-in HTTP round-trip is the default.
-    const provider = providerForOracle(oracle);
+    let provider: ReturnType<typeof providerForOracle>;
+    try {
+      provider = providerForOracle(oracle);
+    } catch {
+      out.push({ type: oracle.type, passed: false, detail: "oracle provider selection failed" });
+      continue;
+    }
     if (provider) {
       out.push(await runProviderOracle(provider, oracle, { pack, task, reported, ns, trace }));
       continue;
@@ -475,18 +488,20 @@ export async function verifyGeneratedPack(
   client: BearerClient,
   surface?: SurfaceId,
   observedRun?: ObservedRun | TraceStep[],
+  options: VerifyGeneratedPackOptions = {},
 ): Promise<RoundtripOutcome[]> {
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const sqlConn = resolveSqlConn(pack);
   const mongoConn = resolveMongoConn(pack);
-  const trace = Array.isArray(observedRun) ? observedRun : [];
+  const trace = options.trace ? [...options.trace] : Array.isArray(observedRun) ? observedRun : [];
+  const objectiveRun = options.observedRun ?? (observedRun && !Array.isArray(observedRun) ? observedRun : undefined);
   const honestySurface: SurfaceId =
     surface ?? (executor.surface === "cli" || executor.surface === "sdk" || executor.surface === "mcp" || executor.surface === "api"
       ? executor.surface
       : "api");
-  const honesty = observedRun && !Array.isArray(observedRun)
-    ? gradeSurfaceHonesty(observedRun, honestySurface, pack)
+  const honesty = objectiveRun
+    ? gradeSurfaceHonesty(objectiveRun, honestySurface, pack)
     : null;
   for (const task of tasks) {
     const reported = executor.results[task.id];

@@ -119,7 +119,52 @@ describe("oracle providers", () => {
     const sql = out.find((o) => o.taskId === "db-sql-task")!;
     expect(sql.success).toBe(false);
     expect(sql.error).toBeNull();
-    expect(sql.oracleResults[0]!.detail).toMatch(/oracle provider "sql": connection refused/);
+    expect(sql.oracleResults[0]!.detail).toBe('oracle provider "sql" failed');
+    expect(JSON.stringify(out)).not.toContain("connection refused");
+  });
+
+  it("contains matcher failures per oracle without erasing other evidence", async () => {
+    registerOracleProvider({
+      id: "throwing-matcher",
+      matches(oracle) {
+        if (oracle.readPathTemplate) throw new Error("postgres://user:secret@example.test/db");
+        return false;
+      },
+      async verify(oracle) {
+        return { type: oracle.type, passed: true, detail: "unused" };
+      },
+    });
+    const exec: ExecutorResults = {
+      profile: "floor",
+      results: { "db-sql-task": { gid: "7" }, "http-task": { gid: "1" } },
+    };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }));
+    expect(out.find((entry) => entry.taskId === "db-sql-task")!.oracleResults).not.toHaveLength(0);
+    expect(out.find((entry) => entry.taskId === "http-task")!.oracleResults).toEqual([
+      { type: "roundtrip", passed: false, detail: "oracle provider selection failed" },
+    ]);
+    expect(JSON.stringify(out)).not.toContain("secret");
+  });
+
+  it("passes trace evidence independently from the observed transcript", async () => {
+    const seen: OracleVerifyContext[] = [];
+    registerOracleProvider({
+      id: "sql",
+      matches: matchesSql,
+      async verify(oracle, ctx) {
+        seen.push(ctx);
+        return { type: oracle.type, passed: true, detail: "ok" };
+      },
+    });
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const trace = [{ step: 1, taskId: "db-sql-task", action: "query" }];
+    const observedRun = {
+      searches: [], urlsFetched: [], apiCalls: [], filesWritten: [], sawBearer: false,
+      cliCommands: [], cliHelpInspected: false, sdkUsage: [], mcpToolCalls: [],
+      mcpToolsListed: false, wireSignals: [],
+    };
+    await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, observedRun, { trace });
+    expect(seen[0]!.trace).toEqual(trace);
   });
 
   it("re-registering the same id replaces the provider", async () => {

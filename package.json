@@ -24,6 +24,16 @@
   "bugs": {
     "url": "https://github.com/chenmingtang830/ax-eval/issues"
   },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/normalized-result.v1.json": "./schemas/normalized-result.v1.json",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "ax-eval": "./dist/cli.js"
   },
@@ -63,7 +73,7 @@
   ],
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
-    "build": "tsup src/cli.ts --format esm --clean",
+    "build": "tsup src/cli.ts src/index.ts --format esm --dts --clean",
     "prepublishOnly": "npm run build",
     "pack:check": "node .github/verify-package-contents.mjs",
     "test": "vitest run tests",

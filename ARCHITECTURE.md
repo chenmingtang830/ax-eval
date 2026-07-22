@@ -143,6 +143,23 @@ The most important types are:
 This contract-first design is what makes the runner largely target-agnostic.
 Most SaaS additions should be a new pack, not a code change.
 
+### Public package boundary
+
+The supported library entry point is `src/index.ts`, published as the package
+root (`import { ... } from "ax-eval"`). It exposes pack validation and approval,
+surface and harness identifiers, verification/provider contracts, and
+normalized-record primitives. Consumers must not import `ax-eval/src/**` or
+private `dist/**` chunks; those paths may change without compatibility aliases.
+
+Harness invocation is deliberately not part of the initial public surface. A
+later runtime layer will expose one fully specified evaluation cell rather than
+publishing the current CLI's internal orchestration functions independently.
+This keeps the dependency direction suitable for AXArena:
+
+```text
+ax-arena -> public ax-eval API -> private ax-eval implementation
+```
+
 ### Review and approval gate
 
 `review --approve` writes `pack.approval.json` keyed on a sha256 of reviewable
