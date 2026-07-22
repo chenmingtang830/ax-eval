@@ -47,17 +47,15 @@ const SOURCE_PATHS = [
   ".git",
   ".hg",
   ".svn",
+  ".github",
   "package.json",
   "package-lock.json",
   "tsconfig.json",
   "src",
   "schemas",
-  "ax-arena/benchmark/package.json",
-  "ax-arena/benchmark/tsconfig.json",
-  "ax-arena/benchmark/src",
-  "ax-arena/benchmark/schemas",
-  "ax-arena/benchmark/daeb",
-  "ax-arena/benchmark/scripts",
+  "targets",
+  "tests",
+  "ax-arena/benchmark",
 ] as const;
 
 export interface ArenaCellSpec {
@@ -183,12 +181,44 @@ function assertSafeParentChain(root: string, path: string, label: string): void 
   }
 }
 
+export function assertArenaOutputRoot(cwd: string, outputRoot: string): void {
+  assertRepositoryRoot(cwd);
+  const outputRelative = relativeInside(cwd, outputRoot, "arena output root");
+  assertSafeParentChain(cwd, outputRoot, "arena output root");
+  const tracked = execFileSync("git", ["ls-files", "-z"], {
+    cwd,
+    encoding: "buffer",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).toString("utf8").split("\0").filter(Boolean);
+  const protectedRoots = new Set<string>([
+    ...SOURCE_PATHS,
+    ...tracked.map((path) => path.split("/")[0]!),
+  ]);
+  for (const sourcePath of protectedRoots) {
+    const protectedPath = resolve(cwd, sourcePath);
+    const outputUnderSource = relative(protectedPath, outputRoot);
+    const sourceUnderOutput = relative(outputRoot, protectedPath);
+    const overlaps = (rel: string) => rel === "" || !isRelativePathEscape(rel);
+    if (overlaps(outputUnderSource) || overlaps(sourceUnderOutput)) {
+      throw new Error(`arena output root must not overlap protected source path ${sourcePath}`);
+    }
+  }
+  try {
+    execFileSync("git", ["check-ignore", "--quiet", "--no-index", "--", outputRelative], {
+      cwd,
+      stdio: "ignore",
+    });
+  } catch {
+    throw new Error("arena output root must be inside a repository-ignored result directory");
+  }
+}
+
 function assertRunArtifactPaths(
   cwd: string,
   artifactDir: string,
   paths: readonly [string, string][],
 ): void {
-  relativeInside(cwd, artifactDir, "cell artifact directory");
+  assertArenaOutputRoot(cwd, artifactDir);
   for (const [path, label] of paths) relativeInside(artifactDir, path, label);
   const byLabel = Object.fromEntries(paths.map(([path, label]) => [label, path]));
   const recordPath = byLabel["record path"]!;
@@ -199,15 +229,6 @@ function assertRunArtifactPaths(
     const rel = relative(workspace, path);
     if (rel === "" || !isRelativePathEscape(rel)) {
       throw new Error(`${label} path must remain outside the harness-writable workspace`);
-    }
-  }
-  for (const sourcePath of SOURCE_PATHS) {
-    const protectedPath = resolve(cwd, sourcePath);
-    const artifactUnderSource = relative(protectedPath, artifactDir);
-    const sourceUnderArtifact = relative(artifactDir, protectedPath);
-    const overlaps = (rel: string) => rel === "" || !isRelativePathEscape(rel);
-    if (overlaps(artifactUnderSource) || overlaps(sourceUnderArtifact)) {
-      throw new Error(`cell artifact directory must not overlap protected source path ${sourcePath}`);
     }
   }
 }
@@ -817,7 +838,6 @@ export async function executeArenaCellWithInjectedRuntime(
   if (spec.harness === "claude-code") {
     throw new Error("claude-code arena cells require the trusted workflow filesystem sandbox, which is not available in this slice");
   }
-  assertRepositoryRoot(cwd);
   relativeInside(cwd, packPath, "canonical pack path");
   assertRunArtifactPaths(cwd, artifactDir, [
     [recordPath, "record path"],

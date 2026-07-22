@@ -337,11 +337,12 @@ Important command groups:
   orchestrates these steps but still stops at manual review/configuration gates
 - **Authoring (DAEB)** — arena-owned extract / synthesize / audit / compose via
   `ax-arena benchmark` (legacy `ax-eval` aliases are one-minor launchers)
-- **Execution** — `exec-plan`, `probe`, `check-env`, `init`
+- **Execution** — generic `exec-plan`, `probe`, `check-env`, `init`; arena-owned
+  `plan` / `execute` (direct `execute` stays fail-closed until trusted workflow activation)
 - **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
   `trace-diff`, `records-diff`
-- **Publication (DAEB)** — `publication-bundle`, `export-publication`,
-  `daeb-production-rerun`
+- **Publication (DAEB)** — arena-owned `aggregate` / `publish` command surface;
+  legacy `publication-bundle`, `export-publication`, and production aliases remain during migration
 - **Maintenance** — `reset` (after verify, never before)
 
 The CLI does not embed target logic. Instead, it:
