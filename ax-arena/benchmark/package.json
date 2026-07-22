@@ -23,6 +23,7 @@
   },
   "files": [
     "dist",
+    ".env.example",
     "README.md",
     "TRUSTED_EXECUTION_DESIGN.md",
     "daeb",
