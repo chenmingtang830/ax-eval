@@ -429,7 +429,16 @@ function providerOwnsConnectionRole(
   const relevant = tasks.flatMap((task) => task.oracles).filter((oracle) =>
     role === "sql_conn" ? Boolean(oracle.sqlQuery) : Boolean(oracle.mongoQuery)
   );
-  return relevant.length > 0 && relevant.every((oracle) => providers.providerFor(oracle) !== undefined);
+  return relevant.length > 0 && relevant.every((oracle) => {
+    try {
+      return providers.providerFor(oracle) !== undefined;
+    } catch {
+      // Verification treats a cached selection failure as a contained oracle
+      // failure and does not fall back to the built-in DB verifier. Do not
+      // require an otherwise-unused built-in connection credential here.
+      return true;
+    }
+  });
 }
 
 function verifierExecutor(executor: ExecutorResults, cell: EvaluationCell, ns: string): ExecutorResults {

@@ -498,6 +498,14 @@ describe("runCell", () => {
         expected: "other",
       }],
     });
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.tasks[0]!.oracles = [{
+      type: "roundtrip",
+      description: "SQL evidence",
+      sqlQuery: "SELECT name FROM examples WHERE id = {gid}",
+      assertField: "name",
+      expected: "example",
+    }];
     const packPath = resolve(dir, "pack.yaml");
     writeFileSync(packPath, yamlStringify(pack));
     writeApproval(packPath, pack, "cell-test");
@@ -524,12 +532,16 @@ describe("runCell", () => {
         credentials,
         env: credentials,
       });
+    let matcherCalls = 0;
     const registry = createRuntimeExtensionRegistry({
       oracleProviders: [{
         id: "partial-matcher",
         version: "1.0.0",
         matches(oracle) {
-          if (oracle.readPathTemplate?.startsWith("/examples/")) throw new Error("opaque matcher failure");
+          if (oracle.sqlQuery) {
+            matcherCalls += 1;
+            throw new Error("opaque matcher failure");
+          }
           return false;
         },
         async verify(oracle) {
@@ -547,6 +559,7 @@ describe("runCell", () => {
     expect(record.task_results.find((result) => result.taskId === "task-1")?.oracleResults)
       .toEqual([{ type: "roundtrip", passed: false, detail: "oracle provider selection failed" }]);
     expect(record.task_results.find((result) => result.taskId === "task-2")?.success).toBe(true);
+    expect(matcherCalls).toBe(1);
   });
 
   it("caches ambiguous matcher failures across provenance and verification", async () => {
