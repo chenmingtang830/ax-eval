@@ -143,8 +143,10 @@ The plan belongs to `ax-arena`.
 
 A normalized cell record is the stable output of one `ax-eval` cell. It contains
 input identity, execution provenance, task-level outcomes, scores, trace-derived
-evidence, cleanup evidence, and errors. It must not contain a leaderboard rank
-or claim that a benchmark batch is complete.
+evidence, and errors. The verified record is durably persisted before cleanup;
+arena cleanup evidence is written afterward as a separate sidecar bound to the
+record hash. The normalized record must not contain a leaderboard rank or claim
+that a benchmark batch is complete.
 
 ### 4.4 Aggregate and publication artifacts
 
@@ -551,7 +553,8 @@ Rules:
 - dry-run returns the exact planned resource scope;
 - destructive scope must be bounded by pack-declared sandbox identity;
 - automatic fallback from an unknown target to a database reset is forbidden;
-- cleanup evidence is attached to the cell record or its sidecar artifact;
+- cleanup evidence is an arena-owned sidecar written only after the verified
+  normalized cell record has been durably persisted;
 - target-specific naming conventions live in the provider.
 
 ### 7.4 Provisioning providers

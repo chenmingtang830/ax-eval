@@ -1,4 +1,4 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
@@ -72,6 +72,7 @@ if (missing.length || forbidden.length) {
 const publicApi = await import("ax-eval");
 const requiredExports = [
   "TargetPackSchema",
+  "BearerClient",
   "checkApproval",
   "verifyGeneratedPack",
   "registerOracleProvider",
@@ -82,6 +83,19 @@ const requiredExports = [
 const missingExports = requiredExports.filter((name) => !(name in publicApi));
 if (missingExports.length) {
   throw new Error(`missing public API exports: ${missingExports.join(", ")}`);
+}
+
+const declaration = readFileSync(resolve(process.cwd(), "dist", "index.d.ts"), "utf8");
+const declarationExports = declaration.match(/export\s*\{[^}]+\}/gs)?.join("\n") ?? "";
+for (const name of ["BearerClientOptions", "DiscoveryResult", "ObservedRun", "ProfileRun"]) {
+  if (!new RegExp(`\\b${name}\\b`).test(declarationExports)) {
+    throw new Error(`missing public declaration type: ${name}`);
+  }
+}
+
+const schemaUrl = import.meta.resolve("ax-eval/schemas/normalized-result.v1.json");
+if (!schemaUrl.endsWith("/schemas/normalized-result.v1.json")) {
+  throw new Error("normalized-result schema subpath did not resolve through package exports");
 }
 
 console.log(`Verified ${files.size} package files (${report.filename}).`);

@@ -55,6 +55,20 @@ export {
 } from "./harness/invoke.js";
 export type { InvokeHarnessId } from "./harness/invoke.js";
 export type { TraceStep } from "./harness/executor.js";
+export type { ObservedRun } from "./harness/transcript.js";
+
+export {
+  BearerClient,
+  HttpApiError,
+} from "./http/client.js";
+export type {
+  ApiStyle,
+  AuthScheme,
+  BearerClientOptions,
+} from "./http/client.js";
+
+export type { DiscoveryResult } from "./generate/discovery.js";
+export type { ProfileRun } from "./generate/report.js";
 
 export { registerOracleProvider } from "./generate/oracle-provider.js";
 export type {
@@ -65,6 +79,7 @@ export { verifyGeneratedPack } from "./generate/verify.js";
 export type {
   ExecutorResults,
   RoundtripOutcome,
+  VerifyGeneratedPackOptions,
 } from "./generate/verify.js";
 
 export {
