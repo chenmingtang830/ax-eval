@@ -1,11 +1,12 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { resolveBatchIdentity } from "../controller/batch.js";
-import { resolveSourceCommitSha } from "../controller/cell.js";
+import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
 import { writeRuntimeReportingBundle } from "../controller/reporting.js";
 import {
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaVendorSchema,
 } from "../controller/schemas.js";
 
 export const RUNTIME_COMMANDS = [
@@ -133,6 +134,7 @@ export async function runRuntimeCommand(
     assertOnly(values, ["--configuration", "--run-root", "--source-sha"]);
     const configurationPath = resolve(cwd, one(values, "--configuration", true)!);
     const runRoot = resolve(cwd, one(values, "--run-root", true)!);
+    assertArenaOutputRoot(cwd, runRoot);
     const currentSourceSha = resolveSourceCommitSha(cwd);
     const requestedSourceSha = one(values, "--source-sha");
     if (requestedSourceSha && requestedSourceSha !== currentSourceSha) {
@@ -146,12 +148,13 @@ export async function runRuntimeCommand(
   }
   assertOnly(values, ["--run-root", "--pack", "--generated-at", "--min-pass-rate"]);
   const runRoot = resolve(cwd, one(values, "--run-root", true)!);
+  assertArenaOutputRoot(cwd, runRoot);
   const packPaths: Record<string, string> = Object.create(null) as Record<string, string>;
   for (const entry of values.get("--pack") ?? []) {
     const separator = entry.indexOf("=");
     if (separator <= 0 || separator === entry.length - 1) throw new Error("--pack must use vendor=pack.yaml");
     const vendor = entry.slice(0, separator);
-    if (!/^[a-z0-9][a-z0-9._-]{0,127}$/.test(vendor)) throw new Error(`invalid --pack vendor ${vendor}`);
+    if (!ArenaVendorSchema.safeParse(vendor).success) throw new Error(`invalid --pack vendor ${vendor}`);
     if (vendor in packPaths) throw new Error(`duplicate --pack vendor ${vendor}`);
     packPaths[vendor] = resolve(cwd, entry.slice(separator + 1));
   }

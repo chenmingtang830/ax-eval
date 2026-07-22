@@ -47,7 +47,7 @@ describe("ax-arena benchmark CLI scaffold", () => {
   it("plans an immutable batch from an explicit configuration", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-runtime-plan-"));
     const configurationPath = resolve(root, "configuration.json");
-    const runRoot = resolve(root, "run");
+    const runRoot = resolve(root, "results", "run");
     writeFileSync(configurationPath, JSON.stringify({
       command: "daeb-low-pass",
       suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
@@ -83,18 +83,44 @@ describe("ax-arena benchmark CLI scaffold", () => {
     git("config", "user.name", "Arena Test");
     git("config", "user.email", "arena@example.invalid");
     writeFileSync(resolve(root, "package.json"), "{}\n");
+    writeFileSync(resolve(root, ".gitignore"), "results/\n");
     git("add", ".");
     git("-c", "commit.gpgSign=false", "commit", "-m", "fixture");
     const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+    for (const protectedRoot of [
+      root,
+      resolve(root, ".git", "refs", "heads", "arena-batch"),
+      resolve(root, ".github", "arena-batch"),
+      resolve(root, "src", "arena-batch"),
+    ]) {
+      const protectedOutput = capture();
+      await expect(runArenaCli([
+        "benchmark", "plan",
+        "--configuration", configurationPath,
+        "--run-root", protectedRoot,
+        "--source-sha", sourceSha,
+      ], protectedOutput.io, root)).resolves.toBe(1);
+      expect(protectedOutput.stderr[0]).toMatch(/must resolve inside|must not overlap protected source path/);
+      expect(existsSync(resolve(protectedRoot, "batch.json"))).toBe(false);
+    }
+    const protectedAggregate = capture();
+    const protectedAggregateRoot = resolve(root, ".github", "arena-aggregate");
+    await expect(runArenaCli([
+      "benchmark", "aggregate",
+      "--run-root", protectedAggregateRoot,
+      "--pack", `neon=${configurationPath}`,
+    ], protectedAggregate.io, root)).resolves.toBe(1);
+    expect(protectedAggregate.stderr[0]).toContain("must not overlap protected source path .github");
+    expect(existsSync(protectedAggregateRoot)).toBe(false);
     const mismatch = capture();
     await expect(runArenaCli([
       "benchmark", "plan",
       "--configuration", configurationPath,
-      "--run-root", resolve(root, "bad-run"),
+      "--run-root", resolve(root, "results", "bad-run"),
       "--source-sha", "b".repeat(40),
     ], mismatch.io, root)).resolves.toBe(1);
     expect(mismatch.stderr[0]).toContain("does not match checked-out HEAD");
-    expect(existsSync(resolve(root, "bad-run"))).toBe(false);
+    expect(existsSync(resolve(root, "results", "bad-run"))).toBe(false);
     const output = capture();
     await expect(runArenaCli([
       "benchmark", "plan",
@@ -113,7 +139,7 @@ describe("ax-arena benchmark CLI scaffold", () => {
       "--generated-at", "2026-07-21T00:00:00.000Z",
     ], extraPack.io, root)).resolves.toBe(1);
     expect(extraPack.stderr[0]).toContain("--pack vendors must exactly match the batch");
-  });
+  }, 20_000);
 
   it("exposes runtime help and fails execution closed", async () => {
     const help = capture();

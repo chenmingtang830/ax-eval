@@ -43,6 +43,7 @@ function commitFixture(cwd: string): string {
   git("init");
   git("config", "user.name", "Arena Test");
   git("config", "user.email", "arena@example.invalid");
+  writeFileSync(resolve(cwd, ".gitignore"), "results/\n");
   git("add", ".");
   git("-c", "commit.gpgSign=false", "commit", "-m", "arena lifecycle fixture");
   return execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
@@ -435,6 +436,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     git("init");
     git("config", "user.name", "Arena Test");
     git("config", "user.email", "arena@example.invalid");
+    writeFileSync(resolve(cwd, ".gitignore"), "results/\n");
     git("add", ".");
     git("-c", "commit.gpgSign=false", "commit", "-m", "canonical pack fixture");
     const sourceCommitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();

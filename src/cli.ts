@@ -148,6 +148,7 @@ import { resetPack } from "./target/reset.js";
 import { EvaluationCellSchema } from "./cell/schema.js";
 import { runCell } from "./cell/run.js";
 import { executeArenaLaunch, resolveArenaLaunch } from "./arena-launcher.js";
+import ARENA_COMPATIBILITY_MAP from "./arena-compatibility-map.json" with { type: "json" };
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -205,27 +206,18 @@ const COMMANDS = [
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
 
-const LEGACY_ARENA_COMMANDS = [
-  "resolve-vendor",
-  "import-registry",
-  "extract-tasks",
-  "compose-pack",
-  "extract-surfaces",
-  "extract-capabilities",
-  "audit-extracts",
-  "audit-suite",
-  "synthesize-suite",
-] as const;
-type LegacyArenaCommand = (typeof LEGACY_ARENA_COMMANDS)[number];
+type LegacyArenaCommand = keyof typeof ARENA_COMPATIBILITY_MAP;
+const LEGACY_ARENA_COMMANDS = Object.keys(ARENA_COMPATIBILITY_MAP) as LegacyArenaCommand[];
 const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
 
 function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
   return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
 }
 
-function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): number {
+function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): Promise<number> {
+  const arenaCommand = ARENA_COMPATIBILITY_MAP[command];
   console.error(
-    `warning: ax-eval ${command} is deprecated; use ax-arena benchmark ${command} instead.`,
+    `warning: ax-eval ${command} is deprecated; use ax-arena benchmark ${arenaCommand} instead.`,
   );
 
   const arenaSourceCli = resolve(HERE, "..", "ax-arena", "benchmark", "src", "cli.ts");
@@ -250,7 +242,7 @@ function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly 
     }
   }
 
-  const launch = resolveArenaLaunch(command, argv, {
+  const launch = resolveArenaLaunch(arenaCommand, argv, {
     sourceCli: arenaSourceCli,
     sourceLoader,
     sourceTsconfig: resolve(HERE, "..", "ax-arena", "benchmark", "tsconfig.json"),
@@ -4157,7 +4149,7 @@ async function main(): Promise<number> {
     return 2;
   }
   if (isLegacyArenaCommand(command)) {
-    return delegateLegacyArenaCommand(command, argv.slice(1));
+    return await delegateLegacyArenaCommand(command, argv.slice(1));
   }
   if (argv.slice(1).some(isHelpToken)) {
     console.log(commandUsage(command));

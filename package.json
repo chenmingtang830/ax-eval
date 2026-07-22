@@ -63,7 +63,7 @@
     "build:core": "tsup src/cli.ts src/index.ts --format esm --dts --clean",
     "build:arena": "npm run build --workspace @ax-arena/benchmark",
     "build": "npm run build:core && npm run build:arena",
-    "prepublishOnly": "node .github/verify-arena-release-gate.mjs && npm run build:core",
+    "prepublishOnly": "npm run build:arena && node .github/verify-arena-release-gate.mjs && npm run build:core",
     "pack:check:core": "node .github/verify-package-contents.mjs",
     "pack:check:arena": "npm run pack:check --workspace @ax-arena/benchmark",
     "pack:check": "npm run pack:check:core && npm run pack:check:arena",
