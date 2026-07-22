@@ -1112,6 +1112,12 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 - DAEB normalized-record schema additions that are not part of the generic cell
   contract.
 
+Current stack status: DAEB roster, coverage/task-fit, synthesis, extract/suite
+audit, and their CLI handlers live under `ax-arena/benchmark/src/authoring/`.
+The nine former `ax-eval` authoring commands are one-minor process launchers;
+runtime-shared pack composition and artifact readers move with the runtime and
+publication slices to avoid duplicate policy implementations.
+
 ### 12.3 Split by responsibility
 
 - **Vendor/product resolution:** generic resolver in core; DAEB roster decisions

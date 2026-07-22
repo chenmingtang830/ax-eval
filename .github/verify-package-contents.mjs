@@ -68,6 +68,14 @@ const requiredExports = [
   "runCell",
   "SURFACE_IDS",
   "INVOKE_HARNESS_IDS",
+  "CapabilityInventorySchema",
+  "SurfaceExtractResultSchema",
+  "OracleExtractResultSchema",
+  "ResolveResultSchema",
+  "createDaebPathContext",
+  "extractCapabilities",
+  "loadSuite",
+  "resolveVendors",
 ];
 const missingExports = requiredExports.filter((name) => !(name in publicApi));
 if (missingExports.length) {

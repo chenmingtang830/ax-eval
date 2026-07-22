@@ -7,15 +7,17 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
-import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import { loadCapabilityExtract } from "./capability-extract.js";
-import { loadSurfaceExtract } from "./surface-extract.js";
 import {
   assertCanonicalDaebWritePath,
   daebVendorExtractDir,
+  extractJsonObjectWithRepair,
+  invokeGenerator,
+  loadCapabilityExtract,
+  loadSurfaceExtract,
   type DaebPathInput,
-} from "./benchmark-paths.js";
-import type { Effort, HarnessId } from "./harness.js";
+  type Effort,
+  type HarnessId,
+} from "ax-eval";
 
 const AdvisoryFindingSchema = z.object({
   severity: z.enum(["info", "warn"]),

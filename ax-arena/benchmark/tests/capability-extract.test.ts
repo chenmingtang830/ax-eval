@@ -1,17 +1,25 @@
 import { describe, expect, it } from "vitest";
-import { buildCapabilityPrompt, normalizeSurfacesDocumented } from "../src/generate/capability-extract.js";
+import { ResolveResultSchema, buildCapabilityPrompt, normalizeSurfacesDocumented } from "ax-eval";
+import { DATABASE_CAPABILITY_COVERAGE_REQUIREMENTS } from "../src/authoring/database-policy.js";
 
 describe("capability extraction prompt", () => {
+  const databaseVendor = () => ResolveResultSchema.parse({
+    vendor: "AcmeDB",
+    slug: "acmedb",
+    category: "database",
+    discovered_at: "2026-01-01T00:00:00.000Z",
+    resolver: { method: "official-docs" },
+    docs_url: "https://docs.example.com",
+    site_url: "https://example.com",
+    http_status: 200,
+  });
+
   it("requires baseline database ops in the inventory contract", () => {
-    const prompt = buildCapabilityPrompt({
-      vendor: "AcmeDB",
-      slug: "acmedb",
-      category: "database",
-      docs_url: "https://docs.example.com",
-      site_url: "https://example.com",
-    });
+    const prompt = buildCapabilityPrompt(databaseVendor(), undefined, DATABASE_CAPABILITY_COVERAGE_REQUIREMENTS);
 
     expect(prompt).toMatch(/baseline operational capabilities/i);
+    expect(prompt).toMatch(/Do not over-index/i);
+    expect(prompt).toMatch(/When docs expose SQL/i);
     expect(prompt).toMatch(/create table\/collection/i);
     expect(prompt).toMatch(/insert rows\/documents/i);
     expect(prompt).toMatch(/filtered reads\/querying/i);
@@ -20,15 +28,16 @@ describe("capability extraction prompt", () => {
     expect(prompt).toMatch(/Coverage checklist to close before you stop:/);
   });
 
+  it("keeps core prompting category-neutral until the arena injects policy", () => {
+    const prompt = buildCapabilityPrompt(databaseVendor());
+    expect(prompt).not.toMatch(/Coverage checklist to close before you stop:/);
+    expect(prompt).not.toMatch(/baseline operational capabilities/i);
+    expect(prompt).not.toMatch(/When docs expose SQL/i);
+  });
+
   it("seeds from OpenAPI ops but still requires WebFetch gap-fill", () => {
     const prompt = buildCapabilityPrompt(
-      {
-        vendor: "AcmeDB",
-        slug: "acmedb",
-        category: "database",
-        docs_url: "https://docs.example.com",
-        site_url: "https://example.com",
-      },
+      databaseVendor(),
       "GET /v1/projects\nPOST /v1/projects/{id}/query",
     );
 

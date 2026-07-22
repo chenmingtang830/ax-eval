@@ -13,10 +13,14 @@
  * vs. true absence" ambiguity mechanically, for any category, every time.
  */
 import { z } from "zod";
-import type { Effort, HarnessId } from "./harness.js";
-import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import type { CapabilityExtractResult } from "./capability-extract.js";
-import { mapSettledLimit } from "./concurrency.js";
+import {
+  extractJsonObjectWithRepair,
+  invokeGenerator,
+  mapSettledLimit,
+  type CapabilityExtractResult,
+  type Effort,
+  type HarnessId,
+} from "ax-eval";
 
 const CandidateConceptClusterSchema = z.object({
   concept_name: z.string(),

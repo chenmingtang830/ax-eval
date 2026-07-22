@@ -6,8 +6,14 @@ depends on the supported `ax-eval` package API; `ax-eval` must never import it.
 
 The workspace composes immutable runtime-extension registries through the
 public `ax-eval` package specifier and owns canonical DAEB artifacts under
-`daeb/`. Existing `ax-eval` commands retain their current behavior while their
-dedicated arena replacements are developed.
+`daeb/`. DAEB authoring policy and its nine commands now live under
+`src/authoring/`; the old `ax-eval` spellings delegate here with a one-minor
+deprecation warning.
+
+Runtime-shared pack composition, database prompt overrides, task extraction,
+and artifact readers remain temporary public `ax-eval` compatibility seams;
+the runtime and publication stack slices remove those residuals without
+duplicating policy between packages.
 
 For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
 only when this canonical root is absent and emit a deprecation warning. If both
@@ -23,4 +29,5 @@ documentation use the canonical path above.
 
 ```bash
 npm run ax-arena -- benchmark --help
+npm run ax-arena -- benchmark synthesize-suite --help
 ```

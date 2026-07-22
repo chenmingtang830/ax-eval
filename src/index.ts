@@ -31,7 +31,7 @@ export type {
   TraceConstraint,
 } from "./schemas.js";
 
-export { loadPack } from "./config.js";
+export { loadDotenv, loadPack } from "./config.js";
 export {
   approvalPath,
   checkApproval,
@@ -156,3 +156,174 @@ export type {
   NormalizedResult,
   NormalizedResultCell,
 } from "./generate/record.js";
+
+// Supported authoring contracts consumed by the arena workspace. Policy-heavy
+// DAEB modules themselves live in arena; a few runtime-shared compatibility
+// seams remain below until the following stack slices move their callers.
+export {
+  SuiteSchema,
+  SuiteTaskSchema,
+  loadSuite,
+  suitePromptFragment,
+  validatePackAgainstSuite,
+} from "./generate/suite.js";
+export type { Suite, SuiteTask } from "./generate/suite.js";
+export {
+  extractJsonObjectWithRepair,
+  invokeGenerator,
+} from "./generate/harness.js";
+export type {
+  Effort,
+  HarnessId,
+  InvokeGeneratorOptions,
+  RepairJsonOptions,
+} from "./generate/harness.js";
+export { mapSettledLimit } from "./generate/concurrency.js";
+export {
+  ResolveResultSchema,
+  resolveVendor,
+  resolveVendors,
+  slugify,
+} from "./generate/vendor-resolve.js";
+export type {
+  ResolveResult,
+  ResolveVendorOptions,
+} from "./generate/vendor-resolve.js";
+export {
+  CapabilityExtractResultSchema,
+  buildCapabilityPrompt,
+  extractCapabilities,
+  extractCapabilitiesAll,
+  normalizeSurfacesDocumented,
+} from "./generate/capability-extract.js";
+export type {
+  Capability,
+  CapabilityExtractResult,
+  CapabilityOutcome,
+  ExtractCapabilitiesOptions,
+} from "./generate/capability-extract.js";
+export {
+  SurfaceExtractResultSchema,
+  auditSurfaceExtract,
+  extractSurfaces,
+} from "./generate/surface-extract.js";
+export type {
+  ExtractSurfacesOptions,
+  SurfaceExtractResult,
+} from "./generate/surface-extract.js";
+export {
+  OracleExtractResultSchema,
+} from "./generate/task-extract.js";
+export type {
+  ExtractOraclesOptions,
+  ExtractOutcome,
+  OracleCheck,
+  OracleExtractItem,
+  OracleExtractResult,
+} from "./generate/task-extract.js";
+export {
+  BehavioralMethodologySchema,
+  CANONICAL_SURFACE_SCOPE,
+  CapabilityEvidenceSchema,
+  CapabilityInventoryEntrySchema,
+  CapabilityInventorySchema,
+  ConceptUniverseSchema,
+  CoverageMatrixSchema,
+  ExtractionContextSchema,
+  ExtractionProvenanceSchema,
+  FailureTaxonomySchema,
+  GraderLedgerSchema,
+  SelectionLedgerSchema,
+  StaticAxMethodologySchema,
+  SuiteMethodologySchema,
+  SupportMatrixSchema,
+  TraceReviewMemoSchema,
+} from "./generate/methodology.js";
+export type {
+  CapabilityInventory,
+  CapabilityInventoryEntry,
+  ConceptUniverse,
+  CoverageDecision,
+  CoverageMatrix,
+  FailureTaxonomy,
+  GraderLedger,
+  SelectionLedger,
+  SuiteMethodology,
+  SupportMatrix,
+  TraceReviewMemo,
+} from "./generate/methodology.js";
+export {
+  fetchRegistrySurface,
+  registryOpenApiUrl,
+  registryToSurfaceExtract,
+  registryToVendorCard,
+} from "./ingest/registry.js";
+export type {
+  FetchRegistryOptions,
+  RegistryMapOptions,
+  RegistrySurface,
+} from "./ingest/registry.js";
+export { fetchSpecSummary } from "./ingest/spec-summary.js";
+export { NS_PLACEHOLDER, newRunId } from "./generate/pack.js";
+export { probeHarness } from "./harness/probe.js";
+
+// Transitional compatibility seams used while DAEB runtime/publication move
+// in the following stack slices. Arena is their only in-repo consumer.
+export {
+  assertCanonicalDaebWritePath,
+  createDaebPathContext,
+  daebReadCompiledPackPath,
+  daebReadExtractsDir,
+  daebReadSuitePath,
+  daebReadVendorSelectionLedgerPath,
+  daebReadVendorsDir,
+  daebVendorExtractDir,
+} from "./generate/benchmark-paths.js";
+export type { DaebPathContext, DaebPathInput } from "./generate/benchmark-paths.js";
+export {
+  loadCapabilityExtract,
+  writeCapabilityExtract,
+} from "./generate/capability-extract.js";
+export {
+  loadSurfaceExtract,
+  writeSurfaceExtract,
+} from "./generate/surface-extract.js";
+export {
+  extractOracles,
+  extractOraclesAll,
+  loadOracleExtract,
+  writeOracleExtract,
+} from "./generate/task-extract.js";
+export {
+  loadVendorCard,
+  writeVendorCard,
+} from "./generate/vendor-resolve.js";
+export {
+  composePack,
+  writeComposedPack,
+} from "./generate/compose-pack.js";
+export {
+  auditCapabilityInventory,
+  defaultSuiteMethodology,
+  coverageMatrixPath,
+  failureTaxonomyPath,
+  graderLedgerPath,
+  loadCoverageMatrix,
+  loadCapabilityInventory,
+  loadSelectionLedger,
+  loadSupportMatrix,
+  loadTraceReview,
+  methodologyPath,
+  selectionLedgerPath,
+  supportMatrixPath,
+  traceReviewPath,
+  writeConceptUniverse,
+  writeCapabilityInventory,
+  writeCoverageMatrix,
+  writeFailureTaxonomy,
+  writeGraderLedger,
+  writeMethodology,
+  writeSelectionLedger,
+  writeSupportMatrix,
+  writeTraceReview,
+} from "./generate/methodology.js";

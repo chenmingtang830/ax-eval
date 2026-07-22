@@ -16,13 +16,23 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
-import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import type { CapabilityExtractResult } from "./capability-extract.js";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
-import { mapSettledLimit } from "./concurrency.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
   CANONICAL_SURFACE_SCOPE,
+  defaultSuiteMethodology,
+  extractJsonObjectWithRepair,
+  invokeGenerator,
+  mapSettledLimit,
+  writeConceptUniverse,
+  writeCoverageMatrix,
+  writeFailureTaxonomy,
+  writeGraderLedger,
+  writeMethodology,
+  writeSelectionLedger,
+  writeSupportMatrix,
+  writeTraceReview,
+  type CapabilityExtractResult,
   type ConceptUniverse,
   type CoverageMatrix,
   type CoverageDecision,
@@ -32,16 +42,7 @@ import {
   type GraderLedger,
   type FailureTaxonomy,
   type TraceReviewMemo,
-  defaultSuiteMethodology,
-  writeConceptUniverse,
-  writeCoverageMatrix,
-  writeFailureTaxonomy,
-  writeGraderLedger,
-  writeMethodology,
-  writeSelectionLedger,
-  writeSupportMatrix,
-  writeTraceReview,
-} from "./methodology.js";
+} from "ax-eval";
 
 const CoverageSchema = z.object({ vendor: z.string(), capability_name: z.string() });
 

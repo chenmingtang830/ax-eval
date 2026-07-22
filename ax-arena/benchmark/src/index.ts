@@ -13,3 +13,13 @@ export function createArenaRuntimeExtensionRegistry(
 ): RuntimeExtensionRegistry {
   return createRuntimeExtensionRegistry(input);
 }
+
+export * from "./authoring/coverage-gap-check.js";
+export * from "./authoring/database-task-fit.js";
+export * from "./authoring/database-policy.js";
+export * from "./authoring/extract-advisory.js";
+export * from "./authoring/extract-audit.js";
+export * from "./authoring/pack-audit.js";
+export * from "./authoring/suite-audit.js";
+export * from "./authoring/synthesize-suite.js";
+export * from "./authoring/vendor-selection.js";

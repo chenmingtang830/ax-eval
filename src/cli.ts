@@ -69,32 +69,15 @@ import {
   type NormalizedResult,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { TargetPackSchema, type OracleSpec, type TargetPack, type Task } from "./schemas.js";
+import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, stageApprovedEquivalentPack, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
-import { coreVendorSlugs } from "./generate/vendor-selection.js";
-import {
-  fetchRegistrySurface,
-  registryToVendorCard,
-  registryToSurfaceExtract,
-  registryOpenApiUrl,
-} from "./ingest/registry.js";
-import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
-import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
-import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
-import {
-  auditAllExtracts,
-  applyExtractAudit,
-  formatExtractAuditReport,
-} from "./generate/extract-audit.js";
-import { adviseVendorExtract, writeExtractAdvisory } from "./generate/extract-advisory.js";
-import { fetchSpecSummary } from "./ingest/spec-summary.js";
-import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
-import { auditSuite, applySuiteAudit, formatSuiteAuditReport } from "./generate/suite-audit.js";
-import { composePack, writeComposedPack } from "./generate/compose-pack.js";
+import { loadVendorCard } from "./generate/vendor-resolve.js";
+import { loadOracleExtract } from "./generate/task-extract.js";
+import { loadSurfaceExtract } from "./generate/surface-extract.js";
+import { composePack } from "./generate/compose-pack.js";
 import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
 import {
@@ -136,10 +119,8 @@ import {
 } from "./generate/production-run.js";
 import { loadSupportMatrix } from "./generate/methodology.js";
 import {
-  assertCanonicalDaebWritePath,
   createDaebPathContext,
   daebReadSuitePath,
-  daebReadVendorsDir,
   type DaebPathContext,
 } from "./generate/benchmark-paths.js";
 import { stringify as yamlStringify } from "yaml";
@@ -166,6 +147,7 @@ import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
 import { EvaluationCellSchema } from "./cell/schema.js";
 import { runCell } from "./cell/run.js";
+import { resolveArenaLaunch } from "./arena-launcher.js";
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -223,6 +205,74 @@ const COMMANDS = [
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
 
+const LEGACY_ARENA_COMMANDS = [
+  "resolve-vendor",
+  "import-registry",
+  "extract-tasks",
+  "compose-pack",
+  "extract-surfaces",
+  "extract-capabilities",
+  "audit-extracts",
+  "audit-suite",
+  "synthesize-suite",
+] as const;
+type LegacyArenaCommand = (typeof LEGACY_ARENA_COMMANDS)[number];
+const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
+
+function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
+  return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
+}
+
+function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): number {
+  console.error(
+    `warning: ax-eval ${command} is deprecated; use ax-arena benchmark ${command} instead.`,
+  );
+
+  const arenaSourceCli = resolve(HERE, "..", "ax-arena", "benchmark", "src", "cli.ts");
+  let sourceLoader: string | undefined;
+  let installedPackageJson: string | undefined;
+
+  // A source checkout does not require the private workspace to be built first.
+  // Resolve tsx only on this development path so published ax-eval installs do
+  // not acquire a runtime dependency on it.
+  if (existsSync(arenaSourceCli)) {
+    try {
+      sourceLoader = fileURLToPath(import.meta.resolve("tsx"));
+    } catch {
+      // Installed distributions use the separately installed ax-arena binary.
+    }
+  }
+  if (!sourceLoader) {
+    try {
+      installedPackageJson = fileURLToPath(import.meta.resolve("@ax-arena/benchmark/package.json"));
+    } catch {
+      // resolveArenaLaunch fails closed when neither trusted entrypoint exists.
+    }
+  }
+
+  const launch = resolveArenaLaunch(command, argv, {
+    sourceCli: arenaSourceCli,
+    sourceLoader,
+    sourceTsconfig: resolve(HERE, "..", "ax-arena", "benchmark", "tsconfig.json"),
+    installedPackageJson,
+  });
+
+  const child = spawnSync(launch.executable, launch.args, {
+    cwd: process.cwd(),
+    env: launch.env,
+    shell: false,
+    stdio: "inherit",
+  });
+  if (child.error) {
+    throw new Error(`could not launch ax-arena: ${child.error.message}`);
+  }
+  if (child.signal) {
+    console.error(`ax-arena terminated by signal ${child.signal}`);
+    return 1;
+  }
+  return child.status ?? 1;
+}
+
 function isHelpToken(value: string | undefined): boolean {
   return value === "--help" || value === "-h" || value === "help";
 }
@@ -271,106 +321,6 @@ function commandUsage(command: string | undefined): string {
       return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
     case "reset":
       return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
-    case "resolve-vendor":
-      return [
-        "usage: ax-eval resolve-vendor --vendor <name> --category <category>",
-        "                              --vendors <a,b,c> --category <category>",
-        "                              [--harness claude-code|codex] [--effort low|medium|high]",
-        "                              [--benchmark-root <dir>]",
-        "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
-        "  under ax-arena/benchmark/daeb/vendors/<slug>.discovered.yaml.",
-      ].join("\n");
-    case "import-registry":
-      return [
-        "usage: ax-eval import-registry --category <category>",
-        "                               --domain <example.com> [--vendor <Name>] [--slug <slug>]",
-        "                               --vendors <slug=domain,slug=domain,...>",
-        "                               [--benchmark-root <dir>]",
-        "  Seed the authoring pipeline from the integrations.sh public registry",
-        "  (MIT). Fetches GET integrations.sh/api/<domain>/surface and writes a",
-        "  vendor card + surface extract (CLI/MCP + auth) without a grounded LLM",
-        "  discovery call. Prints the OpenAPI spec URL to feed `ingest` when the",
-        "  registry knows one. Domains missing from the registry are reported so",
-        "  they can fall back to resolve-vendor/extract-surfaces.",
-      ].join("\n");
-    case "extract-tasks":
-      return [
-        "usage: ax-eval extract-tasks --suite <path> --category <category>",
-        "                             [--vendor <slug>] [--vendors <a,b,c>]",
-        "                             [--harness claude-code|codex] [--effort low|medium|high]",
-        "                             [--benchmark-root <dir>]",
-        "  LLM-extracts ONLY the oracle read-back path + vendor auth config for each",
-        "  suite task (no prompt rewriting). Writes YAML to ax-arena/benchmark/daeb/v1/extracts/<slug>/.",
-      ].join("\n");
-    case "compose-pack":
-      return [
-        "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
-        "                           [--benchmark-root <dir>]",
-        "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
-        "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
-        "  Also folds in a surface extract (ax-arena/benchmark/daeb/v1/extracts/<slug>/surfaces.yaml) if",
-        "  present, from extract-surfaces. No LLM call. Writes ax-arena/benchmark/daeb/v1/packs/<slug>/pack.yaml.",
-      ].join("\n");
-    case "extract-surfaces":
-      return [
-        "usage: ax-eval extract-surfaces [--vendor <slug>] [--vendors <a,b,c>]",
-        "                                [--harness claude-code|codex] [--effort low|medium|high]",
-        "                                [--benchmark-root <dir>]",
-        "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
-        "  REST API is the implicit default surface and is not written to this file.",
-        "  The round-trip oracle never changes per surface — this only affects how the",
-        "  agent is told to act on non-API surfaces. Writes ax-arena/benchmark/daeb/v1/extracts/<slug>/surfaces.yaml.",
-      ].join("\n");
-    case "extract-capabilities":
-      return [
-        "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
-        "                                    [--harness claude-code|codex] [--effort low|medium|high]",
-        "                                    [--specs <slug=openapi-url,...>]",
-        "                                    [--benchmark-root <dir>]",
-        "  Layer 0a of suite authoring: per-vendor benchmark-grade capability",
-        "  inventory with structured evidence. Vendors with a known OpenAPI spec",
-        "  (the vendor card's openapi_url from import-registry, or a --specs",
-        "  override) seed the candidate surface from those operations, then",
-        "  WebFetch docs to gap-fill; vendors without a spec are grounded from",
-        "  docs alone. Runs at concurrency 3. Writes",
-        "  ax-arena/benchmark/daeb/v1/extracts/<slug>/capability-inventory.yaml.",
-      ].join("\n");
-    case "audit-extracts":
-      return [
-        "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply] [--advisory]",
-        "                             [--benchmark-root <dir>]",
-        "  Post-extract gate after extract-capabilities / extract-surfaces.",
-        "  Deterministic checks: strength mislabels (METHOD /path → direct),",
-        "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
-        "  mismatch, incomplete headless auth. Default is report-only;",
-        "  --apply writes deterministic autofixes. --advisory runs an opt-in WebFetch-grounded",
-        "  LLM review and writes advisory.yaml; it never changes artifacts or blocks the default gate.",
-      ].join("\n");
-    case "audit-suite":
-      return [
-        "usage: ax-eval audit-suite --suite <suite.yaml> [--apply]",
-        "                           [--benchmark-root <dir>]",
-        "  Post-synthesize gate after synthesize-suite. Deterministic checks:",
-        "  underfilled task bank, generic suite name, difficulty gaps, near-miss",
-        "  coverage, concept-mapping misses vs inventories. Default report-only;",
-        "  --apply rewrites suite name/version + writes *.audit-notes.md, then",
-        "  re-run synthesize-suite --deterministic to refresh selection.",
-      ].join("\n");
-    case "synthesize-suite":
-      return [
-        "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
-        "                                [--task-count N] [--harness claude-code|codex]",
-        "                                [--deterministic] [--gap-check-assist]",
-        "                                [--benchmark-root <dir>]",
-        "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
-        "  universe, closes coverage gaps, selects the canonical suite, and drafts",
-        "  suite tasks. Default = deterministic seed + LLM concept-refine assist",
-        "  (seed fallback on timeout/failure), inventory-only coverage, then human",
-        "  review — same pattern as extract-surfaces (registry seed + LLM assist).",
-        "  --deterministic = seed-only (skip LLM assist; for CI/offline).",
-        "  --gap-check-assist = optional grounded LLM gap adjudication (slow).",
-        "  Writes <suite.yaml> + sibling methodology/support artifacts + synthesis.md.",
-      ].join("\n");
     case "publication-bundle":
       return [
         "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
@@ -1567,507 +1517,6 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
     docsUrls: docsUrls ?? [],
     siteUrl: args.site || "",
   };
-}
-
-async function cmdResolveVendor(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  const harness = generatorHarness(args);
-  const vendorList = args.vendors
-    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
-    : args.vendor
-      ? [args.vendor]
-      : [];
-  if (!vendorList.length) {
-    throw new Error("--vendor <name> or --vendors <a,b,c> is required");
-  }
-  console.log(`Resolving ${vendorList.length} vendor(s) via ${harness}…`);
-  const results = await resolveVendors(vendorList, args.category, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-  });
-  const benchmarkPaths = daebPaths(args);
-  for (const result of results) {
-    const path = writeVendorCard(benchmarkPaths, result);
-    console.log(`\n  ${result.vendor} → ${path}`);
-    console.log(`    site_url: ${result.site_url ?? "(none)"}`);
-    console.log(`    docs_url: ${result.docs_url ?? "(none)"}`);
-  }
-  return 0;
-}
-
-async function cmdImportRegistry(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  // Selection: --domain (single, optional --vendor/--slug override) OR
-  // --vendors as slug=domain pairs (bare domains allowed; slug then derived).
-  type Target = { domain: string; vendorName?: string; slug?: string };
-  const targets: Target[] = [];
-  if (args.domain) {
-    targets.push({ domain: args.domain, vendorName: args.vendor || undefined, slug: args.slug || undefined });
-  }
-  if (args.vendors) {
-    for (const raw of args.vendors.split(",").map((v) => v.trim()).filter(Boolean)) {
-      const eq = raw.indexOf("=");
-      if (eq === -1) targets.push({ domain: raw });
-      else targets.push({ slug: raw.slice(0, eq).trim(), domain: raw.slice(eq + 1).trim() });
-    }
-  }
-  if (!targets.length) {
-    throw new Error("provide --domain <example.com> or --vendors <slug=domain,...>");
-  }
-
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const missing: string[] = [];
-  const ingestHints: string[] = [];
-  for (const target of targets) {
-    const surface = await fetchRegistrySurface(target.domain);
-    if (!surface) {
-      missing.push(target.domain);
-      console.log(`\n  ${target.domain} → NOT in registry (fall back to resolve-vendor/extract-surfaces)`);
-      continue;
-    }
-    const mapOpts = { category: args.category, vendorName: target.vendorName, slug: target.slug };
-    const card = registryToVendorCard(surface, mapOpts);
-    const surfaceExtract = registryToSurfaceExtract(surface, mapOpts);
-    const cardPath = writeVendorCard(benchmarkPaths, card);
-    const surfacePath = writeSurfaceExtract(benchmarkPaths, surfaceExtract);
-    const found = [
-      surfaceExtract.cli && `cli(${surfaceExtract.cli.bin})`,
-      surfaceExtract.mcp && "mcp",
-    ].filter(Boolean).join(", ") || "api-only";
-    console.log(`\n  ${card.vendor} (${target.domain}) → ${card.slug}`);
-    console.log(`    vendor card    → ${cardPath}`);
-    console.log(`    surface extract → ${surfacePath} (${found})`);
-    console.log(`    docs_url: ${card.docs_url ?? "(none)"}`);
-    const openapi = registryOpenApiUrl(surface);
-    if (openapi) {
-      console.log(`    openapi spec: ${openapi}`);
-      ingestHints.push(`  ax-eval ingest ${openapi} --out results/${card.slug}-ingest.json   # then: generate --from …`);
-    } else {
-      console.log(`    openapi spec: (none in registry — extract-capabilities will ground from docs)`);
-    }
-  }
-
-  console.log(
-    `\nRegistry surface/auth structure is reliable, but CLI bin/install and auth prose are best-effort` +
-      ` (the registry sometimes names the wrong package or pastes an unrelated auth blurb). Run` +
-      ` extract-surfaces to verify + correct them against live docs before executing the CLI surface:` +
-      `\n  ax-eval extract-surfaces --vendors ${targets.map((t) => t.slug ?? t.domain).join(",")}`,
-  );
-  console.log(
-    `\nThen: extract-capabilities for the imported vendor(s), then synthesize-suite → compose-pack.`,
-  );
-  if (ingestHints.length) {
-    console.log(`\nRegistry-known OpenAPI specs you can ingest directly:\n${ingestHints.join("\n")}`);
-  }
-  if (missing.length) {
-    console.log(
-      `\n${missing.length} domain(s) not in the registry: ${missing.join(", ")}.\n` +
-        `  Resolve them the grounded way:  ax-eval resolve-vendor --vendors "<names>" --category ${args.category}`,
-    );
-  }
-  return 0;
-}
-
-function resolveVendorSelection(args: Parsed, benchmarkPaths: DaebPathContext) {
-  const vendorSlugs = args.vendors
-    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
-    : args.vendor
-      ? [args.vendor]
-      : null;
-  if (vendorSlugs) {
-    return vendorSlugs.map((slug) => {
-      const card = loadVendorCard(benchmarkPaths, slug);
-      if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
-      return card;
-    });
-  }
-  return null;
-}
-
-async function cmdExtractTasks(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.suite) throw new Error("--suite <path> is required");
-  const harness = generatorHarness(args);
-
-  const { loadSuite } = await import("./generate/suite.js");
-  const suite = loadSuite(args.suite);
-  const category = args.category || suite.category;
-  if (!category) throw new Error("--category is required (e.g. --category database)");
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-
-  let vendors = resolveVendorSelection(args, benchmarkPaths);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = daebReadVendorsDir(benchmarkPaths);
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => {
-        const slug = f.replace(".discovered.yaml", "");
-        const card = loadVendorCard(benchmarkPaths, slug);
-        if (!card) throw new Error(`Could not load vendor card for ${slug}`);
-        return card;
-      })
-      .filter((v) => v.category === category);
-  }
-
-  if (!vendors.length) throw new Error(`No vendor cards found for category "${category}".`);
-  console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
-
-  const outcomes = await extractOraclesAll(vendors, suite, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-    supportMatrix: loadSupportMatrix(process.cwd(), args.suite) ?? undefined,
-  });
-
-  let failures = 0;
-  for (const outcome of outcomes) {
-    if (!outcome.ok) {
-      failures++;
-      console.error(`\n  ${outcome.vendor} → FAILED: ${outcome.error}`);
-      continue;
-    }
-    const result = outcome.result;
-    const path = writeOracleExtract(benchmarkPaths, result);
-    const naCount = result.tasks.filter((t) => t.na).length;
-    console.log(`\n  ${result.vendor} → ${path}`);
-    console.log(`    base_url: ${result.vendor_config.base_url}`);
-    console.log(`    tasks: ${result.tasks.length} total, ${naCount} N/A`);
-    for (const task of result.tasks) {
-      const status = task.na
-        ? `N/A (${task.na_reason ?? "no reason"})`
-        : task.checks
-            .map((c) => summarizeExtractCheck(c))
-            .join(" | ");
-      console.log(`    ${task.task_id}: ${status}`);
-    }
-  }
-  if (failures) {
-    console.error(`\n${failures}/${outcomes.length} vendor(s) failed. Re-run extract-tasks --vendor <slug> for each.`);
-  }
-  return failures ? 1 : 0;
-}
-
-function summarizeExtractCheck(check: {
-  read_method?: string;
-  read_path_template?: string;
-  sql_dialect?: string;
-  sql_query?: string;
-  mongo_query?: OracleSpec["mongoQuery"];
-  assert_field: string;
-  expected: unknown;
-}): string {
-  const target = check.sql_query
-    ? `SQL(${check.sql_dialect ?? "unknown"})`
-    : check.mongo_query
-      ? `Mongo(${check.mongo_query.operation} ${check.mongo_query.collection})`
-      : `${check.read_method ?? "GET"} ${check.read_path_template ?? "(missing path)"}`;
-  return `${target} → ${check.assert_field}=${JSON.stringify(check.expected)}`;
-}
-
-async function cmdComposePack(args: Parsed): Promise<number> {
-  if (!args.suite) throw new Error("--suite <path> is required");
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const { loadSuite } = await import("./generate/suite.js");
-  const suite = loadSuite(args.suite);
-
-  let vendors = resolveVendorSelection(args, benchmarkPaths);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = daebReadVendorsDir(benchmarkPaths);
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-
-  for (const vendor of vendors) {
-    const extract = loadOracleExtract(benchmarkPaths, vendor.slug, suite.name);
-    if (!extract) {
-      console.error(`Skipping ${vendor.vendor}: no oracle extract found. Run extract-tasks first.`);
-      continue;
-    }
-    const surfaces = loadSurfaceExtract(benchmarkPaths, vendor.slug) ?? undefined;
-    const pack = composePack(suite, vendor, extract, {
-      surfaces,
-      supportMatrix: loadSupportMatrix(root, args.suite) ?? undefined,
-    });
-    const path = writeComposedPack(benchmarkPaths, vendor.slug, suite.name, pack);
-    const compiledSurfaces = ["api", "sdk", "cli", "mcp"].filter((surface) =>
-      pack.tasks.some((task) => task.allowed_surfaces.includes(surface)),
-    );
-    const surfaceNote = compiledSurfaces.length ? ` [compiled surfaces: ${compiledSurfaces.join(", ")}]` : "";
-    console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)${surfaceNote}`);
-  }
-  return 0;
-}
-
-async function cmdExtractSurfaces(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  let vendors = resolveVendorSelection(args, benchmarkPaths);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = daebReadVendorsDir(benchmarkPaths);
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-  if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
-
-  const harness = generatorHarness(args);
-  const seeded = vendors.filter((v) => loadSurfaceExtract(benchmarkPaths, v.slug)).length;
-  console.log(
-    `Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…` +
-      (seeded ? ` (${seeded} seeded from a prior/registry surface extract — verifying + correcting)` : ""),
-  );
-  const settled = await Promise.allSettled(
-    vendors.map((v) =>
-      extractSurfaces(v, {
-        harness,
-        model: generatorModel(args, harness),
-        effort: generatorEffort(args),
-        // Feed any existing (e.g. registry-seeded) extract in as a prior to
-        // verify/correct against live docs, per the seed+override design.
-        prior: loadSurfaceExtract(benchmarkPaths, v.slug) ?? undefined,
-      }),
-    ),
-  );
-  let failures = 0;
-  settled.forEach((s, i) => {
-    const vendor = vendors![i]!;
-    if (s.status === "rejected") {
-      failures++;
-      console.error(`\n  ${vendor.vendor} → FAILED: ${s.reason instanceof Error ? s.reason.message : s.reason}`);
-      return;
-    }
-    const path = writeSurfaceExtract(benchmarkPaths, s.value);
-    const found = [s.value.cli && "cli", s.value.sdk && "sdk", s.value.mcp && "mcp"].filter(Boolean).join(", ") || "none";
-    console.log(`\n  ${vendor.vendor} → ${path} (${found})`);
-  });
-  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
-  return failures ? 1 : 0;
-}
-
-async function cmdExtractCapabilities(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  let vendors = resolveVendorSelection(args, benchmarkPaths);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = daebReadVendorsDir(benchmarkPaths);
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-  if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
-
-  const harness = generatorHarness(args);
-  // Per-vendor OpenAPI spec URLs: --specs override wins, else the vendor card's
-  // openapi_url (seeded by import-registry). Spec ops seed the candidate surface;
-  // every vendor still WebFetches docs to gap-fill (seed alone is usually
-  // control-plane heavy).
-  const specOverrides = new Map<string, string>();
-  for (const raw of args.specs.split(",").map((s) => s.trim()).filter(Boolean)) {
-    const eq = raw.indexOf("=");
-    if (eq !== -1) specOverrides.set(raw.slice(0, eq).trim(), raw.slice(eq + 1).trim());
-  }
-  const specUrlFor = (v: (typeof vendors)[number]): string | undefined =>
-    specOverrides.get(v.slug) ?? v.openapi_url ?? undefined;
-  const seededCount = vendors.filter((v) => specUrlFor(v)).length;
-  console.log(
-    `Extracting capabilities for ${vendors.length} vendor(s) via ${harness}` +
-      ` (${seededCount} openapi-seeded+grounded, ${vendors.length - seededCount} grounded-only)…`,
-  );
-
-  // Bounded concurrency: heavy grounded crawls all-at-once previously starved
-  // each other and timed out.
-  const CONCURRENCY = 3;
-  let failures = 0;
-  await runPool(vendors, CONCURRENCY, async (vendor) => {
-    const specUrl = specUrlFor(vendor);
-    try {
-      let specSummary: string | undefined;
-      if (specUrl) {
-        try {
-          const summary = await fetchSpecSummary(specUrl);
-          specSummary = summary.text;
-          console.log(`  ${vendor.vendor}: seeding from spec ${specUrl} (${summary.operationCount} ops)`);
-        } catch (e) {
-          console.warn(`  ${vendor.vendor}: spec fetch failed (${e instanceof Error ? e.message : String(e)}); falling back to grounded.`);
-        }
-      }
-      const result = await extractCapabilities(vendor, {
-        harness,
-        model: generatorModel(args, harness),
-        effort: generatorEffort(args),
-        specSummary,
-        specUrl: specSummary ? specUrl : undefined,
-      });
-      const path = writeCapabilityExtract(benchmarkPaths, result);
-      console.log(`\n  ${vendor.vendor} → ${path} (${result.capabilities.length} capabilities)`);
-    } catch (e) {
-      failures++;
-      console.error(`\n  ${vendor.vendor} → FAILED: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
-  return failures ? 1 : 0;
-}
-
-async function cmdAuditExtracts(args: Parsed): Promise<number> {
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const slugs = [
-    ...(args.vendor ? [args.vendor] : []),
-    ...args.vendors.split(",").map((s) => s.trim()).filter(Boolean),
-  ];
-  const report = auditAllExtracts(benchmarkPaths, slugs.length ? slugs : undefined);
-  console.log(formatExtractAuditReport(report));
-  if (args.apply) {
-    console.log(`\nApplying autofixes…`);
-    for (const v of report.vendors) {
-      const paths = applyExtractAudit(benchmarkPaths, v);
-      const wrote = [paths.inventoryPath, paths.surfacesPath].filter(Boolean);
-      if (wrote.length) console.log(`  ${v.slug} → ${wrote.join(", ")}`);
-    }
-  } else {
-    console.log(`\nReport-only. Re-run with --apply to write autofixes.`);
-  }
-  if (args.advisory) {
-    const advisorySlugs = slugs.length
-      ? slugs
-      : report.vendors.map((vendor) => vendor.slug);
-    console.log(`\nRunning ${advisorySlugs.length} WebFetch-grounded advisory audit(s)…`);
-    let advisoryFailures = 0;
-    for (const slug of advisorySlugs) {
-      try {
-        const advisory = await adviseVendorExtract(benchmarkPaths, slug, {
-          harness: generatorHarness(args),
-          model: generatorModel(args, generatorHarness(args)),
-          effort: generatorEffort(args),
-        });
-        const path = writeExtractAdvisory(benchmarkPaths, advisory);
-        console.log(`  ${slug} → ${path} (${advisory.findings.length} advisory finding(s))`);
-      } catch (error) {
-        advisoryFailures++;
-        console.warn(`  ${slug} → advisory failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    if (advisoryFailures) console.warn(`${advisoryFailures} advisory audit(s) failed; deterministic audit result is unchanged.`);
-  }
-  return report.summary.errors ? 1 : 0;
-}
-
-function cmdAuditSuite(args: Parsed): number {
-  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const report = auditSuite(root, args.suite, benchmarkPaths);
-  console.log(formatSuiteAuditReport(report));
-  if (args.apply) {
-    const suiteWritePath = assertCanonicalDaebWritePath(benchmarkPaths, args.suite);
-    console.log(`\nApplying autofixes…`);
-    const written = applySuiteAudit(root, suiteWritePath, report);
-    for (const path of written) console.log(`  wrote ${path}`);
-    if (report.findings.some((f) => f.code === "underfilled_task_bank" || f.code === "mapping_would_cover" || f.code === "seed_eligible_ok")) {
-      console.log(`\nNext: re-run synthesize-suite --deterministic to refresh selection from fixed mappings.`);
-    }
-  } else {
-    console.log(`\nReport-only. Re-run with --apply to write metadata autofixes + audit notes.`);
-  }
-  return report.summary.errors ? 1 : 0;
-}
-
-async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const outPath = assertCanonicalDaebWritePath(benchmarkPaths, args.out);
-
-  let vendors = resolveVendorSelection(args, benchmarkPaths);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = daebReadVendorsDir(benchmarkPaths);
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null)
-      .filter((v) => v.category === args.category);
-    if (args.category === "database") {
-      const coreSlugs = coreVendorSlugs(benchmarkPaths);
-      if (coreSlugs) {
-        const core = new Set(coreSlugs);
-        vendors = vendors.filter((vendor) => core.has(vendor.slug));
-      }
-    }
-  }
-  if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
-
-  const extracts = vendors
-    .map((v) => loadCapabilityExtract(benchmarkPaths, v.slug))
-    .filter((e): e is NonNullable<typeof e> => {
-      if (!e) console.error(`Skipping a vendor: no capability-inventory.yaml found. Run extract-capabilities first.`);
-      return e !== null;
-    });
-  if (extracts.length < 2) throw new Error("Need at least 2 vendors' capability inventories to synthesize a suite.");
-
-  const harness = generatorHarness(args);
-  console.log(
-    `Synthesizing suite from ${extracts.length} vendor(s)' capability extracts` +
-      (args.deterministic
-        ? " (seed-only / --deterministic)…"
-        : args.gapCheckAssist
-          ? " (seed + LLM refine + gap-check assist)…"
-          : " (deterministic seed + LLM concept-refine assist, seed fallback)…"),
-  );
-  const result = await synthesizeSuite(args.category, extracts, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-    deterministic: args.deterministic,
-    gapCheckAssist: args.gapCheckAssist,
-    targetTaskCount: args.taskCount,
-  });
-
-  const suiteStem = outPath.split("/").pop()!.replace(/\.yaml$/, "");
-  // Bare "suite.yaml" is the active DAEB contract path — don't name the suite "SUITE".
-  const suiteName = /^suite$/i.test(suiteStem) ? "DAEB-1" : suiteStem.toUpperCase();
-  // DAEB-1 remains one mutable draft until human freeze. Draft regenerations
-  // overwrite v1; git SHA/content hashes identify exact pre-freeze states.
-  const suiteVersion = /^suite$/i.test(suiteStem) ? 1 : inferSuiteVersionFromStem(suiteStem);
-  const suiteYaml = renderSuiteYaml(suiteName, suiteVersion, args.category, result);
-  const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
-  const { suitePath, synthesisPath } = writeSuiteFiles(root, outPath, suiteYaml, synthesisDoc);
-  const artifactPaths = writeSuiteArtifacts(root, outPath, result);
-
-  console.log(`\n${result.tasks.length} tasks selected.`);
-  for (const t of result.tasks) {
-    const vendorCount = new Set(t.coverage.map((entry) => entry.vendor)).size;
-    console.log(`  [${t.difficulty}] ${t.id} — ${vendorCount} vendor(s)`);
-  }
-  console.log(`\nSuite → ${suitePath}`);
-  console.log(`Synthesis audit trail → ${synthesisPath}`);
-  console.log(`Methodology artifacts → ${artifactPaths.join(", ")}`);
-  console.log(`\nReview both before freezing — this is a draft, not yet approved.`);
-  return 0;
 }
 
 function cmdPublicationBundle(args: Parsed): number {
@@ -4720,6 +4169,9 @@ async function main(): Promise<number> {
     console.error(USAGE);
     return 2;
   }
+  if (isLegacyArenaCommand(command)) {
+    return delegateLegacyArenaCommand(command, argv.slice(1));
+  }
   if (argv.slice(1).some(isHelpToken)) {
     console.log(commandUsage(command));
     return 0;
@@ -4767,24 +4219,6 @@ async function main(): Promise<number> {
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
-    case "resolve-vendor":
-      return cmdResolveVendor(args);
-    case "import-registry":
-      return cmdImportRegistry(args);
-    case "extract-tasks":
-      return cmdExtractTasks(args);
-    case "compose-pack":
-      return cmdComposePack(args);
-    case "extract-surfaces":
-      return cmdExtractSurfaces(args);
-    case "extract-capabilities":
-      return cmdExtractCapabilities(args);
-    case "audit-extracts":
-      return await cmdAuditExtracts(args);
-    case "audit-suite":
-      return cmdAuditSuite(args);
-    case "synthesize-suite":
-      return cmdSynthesizeSuite(args);
     case "publication-bundle":
       return cmdPublicationBundle(args);
     case "export-publication":

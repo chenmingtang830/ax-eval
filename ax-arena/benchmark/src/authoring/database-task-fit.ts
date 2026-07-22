@@ -1,4 +1,4 @@
-import type { CapabilityExtractResult } from "./capability-extract.js";
+import type { CapabilityExtractResult } from "ax-eval";
 
 type Capability = CapabilityExtractResult["capabilities"][number];
 type Surface = "api" | "sdk" | "cli";

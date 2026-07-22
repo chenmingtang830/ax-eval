@@ -16,22 +16,23 @@ import {
   deriveCandidateUniverseDeterministic,
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
-import { loadCapabilityExtract } from "./capability-extract.js";
-import { loadSuite } from "./suite.js";
 import {
+  daebReadVendorsDir,
+  loadCapabilityExtract,
   loadCoverageMatrix,
+  loadOracleExtract,
   loadSelectionLedger,
+  loadSuite,
   loadSupportMatrix,
   loadTraceReview,
+  loadVendorCard,
   type CoverageMatrix,
+  type DaebPathInput,
   type SupportMatrix,
-} from "./methodology.js";
-import { daebReadVendorsDir, type DaebPathInput } from "./benchmark-paths.js";
+} from "ax-eval";
 import { readdirSync } from "node:fs";
-import { loadVendorCard } from "./vendor-resolve.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
-import { loadOracleExtract } from "./task-extract.js";
 import { auditCorePacks } from "./pack-audit.js";
 
 export type SuiteFindingSeverity = "error" | "warn" | "info";
@@ -521,8 +522,8 @@ export function applySuiteAudit(root: string, suitePath: string, report: SuiteAu
     "Mapping / coverage autofixes require re-running:",
     "",
     "```bash",
-    `npm run ax-eval -- synthesize-suite --category database --out ${suitePath} --deterministic --task-count 10`,
-    "npm run ax-eval -- audit-suite --suite " + suitePath,
+    `npm run ax-arena -- benchmark synthesize-suite --category database --out ${suitePath} --deterministic --task-count 10`,
+    "npm run ax-arena -- benchmark audit-suite --suite " + suitePath,
     "```",
     "",
     ...report.findings.map((f) => `- **${f.severity}/${f.code}**: ${f.message}`),

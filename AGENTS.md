@@ -102,7 +102,8 @@ Use this before opening a PR:
   (authoring freeze vs deferred production), maintainers use
   `docs/latest_plan.md`; facts live under `ax-arena/benchmark/daeb/v1/`.
 - `ax-arena/benchmark/` — private workspace boundary for arena-owned code and
-  canonical DAEB files; controller behavior moves in dependency-ordered PRs.
+  canonical DAEB files. `src/authoring/` owns roster, synthesis, audit, and
+  authoring command policy; runtime/controller behavior moves in later slices.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
   `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),
