@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   clearOracleProviders,
+  createOracleProviderRegistry,
   registerOracleProvider,
+  type OracleProvider,
   type OracleVerifyContext,
 } from "../src/generate/oracle-provider.js";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
@@ -69,6 +71,16 @@ function fakeClient(store: Record<string, Record<string, unknown>>) {
 }
 
 const matchesSql = (oracle: OracleSpec) => typeof oracle.sqlQuery === "string";
+
+function sqlProvider(id: string, detail: string): OracleProvider {
+  return {
+    id,
+    matches: matchesSql,
+    async verify(oracle) {
+      return { type: oracle.type, passed: true, detail };
+    },
+  };
+}
 
 afterEach(() => clearOracleProviders());
 
@@ -198,5 +210,78 @@ describe("oracle providers", () => {
     const sql = out.find((o) => o.taskId === "db-sql-task")!;
     expect(sql.success).toBe(false);
     expect(out.find((o) => o.taskId === "http-task")!.success).toBe(true);
+  });
+
+  it("isolates explicit registries across concurrent verification calls", async () => {
+    registerOracleProvider(sqlProvider("global", "global"));
+    const registryA = createOracleProviderRegistry([sqlProvider("sql-a", "registry-a")]);
+    const registryB = createOracleProviderRegistry([sqlProvider("sql-b", "registry-b")]);
+    const exec: ExecutorResults = {
+      profile: "floor",
+      results: { "db-sql-task": { gid: "7" }, "http-task": { gid: "1" } },
+    };
+
+    const [outA, outB] = await Promise.all([
+      verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }), undefined, undefined, {
+        oracleProviders: registryA,
+      }),
+      verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }), undefined, undefined, {
+        oracleProviders: registryB,
+      }),
+    ]);
+
+    expect(outA.find((outcome) => outcome.taskId === "db-sql-task")!.oracleResults[0]!.detail).toBe("registry-a");
+    expect(outB.find((outcome) => outcome.taskId === "db-sql-task")!.oracleResults[0]!.detail).toBe("registry-b");
+  });
+
+  it("uses an explicitly empty registry instead of ambient providers", async () => {
+    registerOracleProvider(sqlProvider("global", "global"));
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, undefined, {
+      oracleProviders: createOracleProviderRegistry(),
+    });
+
+    expect(out[0]!.success).toBe(false);
+    expect(out[0]!.oracleResults[0]!.detail).toContain("pack declares no sql_conn");
+  });
+
+  it("rejects duplicate ids and ambiguous matches", () => {
+    expect(() => createOracleProviderRegistry([
+      sqlProvider("sql", "first"),
+      sqlProvider("sql", "second"),
+    ])).toThrow(/duplicate oracle provider id/);
+
+    const registry = createOracleProviderRegistry([
+      sqlProvider("sql-a", "first"),
+      sqlProvider("sql-b", "second"),
+    ]);
+    expect(() => registry.providerFor(pack.tasks[0]!.oracles[0]!)).toThrow(/multiple oracle providers match: sql-a, sql-b/);
+  });
+
+  it("snapshots providers and freezes provider inputs", async () => {
+    let contextWasFrozen = false;
+    const source: OracleProvider = {
+      id: "sql",
+      matches: matchesSql,
+      async verify(oracle, ctx) {
+        contextWasFrozen = Object.isFrozen(ctx)
+          && Object.isFrozen(ctx.pack)
+          && Object.isFrozen(ctx.task)
+          && Object.isFrozen(oracle);
+        return { type: oracle.type, passed: true, detail: "snapshotted" };
+      },
+    };
+    const registry = createOracleProviderRegistry([source]);
+    source.id = "mutated";
+    source.matches = () => false;
+
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, undefined, {
+      oracleProviders: registry,
+    });
+
+    expect(registry.providers.map((provider) => provider.id)).toEqual(["sql"]);
+    expect(out[0]!.oracleResults[0]!.detail).toBe("snapshotted");
+    expect(contextWasFrozen).toBe(true);
   });
 });

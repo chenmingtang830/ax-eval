@@ -75,6 +75,7 @@ const requiredExports = [
   "BearerClient",
   "checkApproval",
   "verifyGeneratedPack",
+  "createOracleProviderRegistry",
   "registerOracleProvider",
   "aggregateNormalizedResults",
   "SURFACE_IDS",

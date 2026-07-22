@@ -160,6 +160,13 @@ This keeps the dependency direction suitable for AXArena:
 ax-arena -> public ax-eval API -> private ax-eval implementation
 ```
 
+Library callers should pass `createOracleProviderRegistry([...])` through
+`verifyGeneratedPack` options when they need vertical read-back providers. The
+registry is isolated to that call and rejects duplicate IDs or ambiguous
+matches. Global `registerOracleProvider` remains a compatibility bridge for
+existing CLI integrations; new orchestration must not depend on ambient
+provider state.
+
 ### Review and approval gate
 
 `review --approve` writes `pack.approval.json` keyed on a sha256 of reviewable

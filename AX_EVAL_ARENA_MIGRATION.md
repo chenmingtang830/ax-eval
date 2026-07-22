@@ -61,9 +61,11 @@ remove it.
 Implementation progress:
 
 - PR #172 established the first oracle-provider seam and merged this design.
-- The next boundary publishes a typed package root for core contracts and
+- PR #174 publishes a typed package root for core contracts and
   verification/record primitives. Harness execution remains private until the
   one-cell API is defined.
+- PR #175 adds immutable per-verification oracle registries; global provider
+  registration remains only as a temporary compatibility path.
 
 ## 2. Goals
 
