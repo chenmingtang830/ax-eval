@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/ax-arena/benchmark/schemas/arena-batch.v1.json",
+  "title": "AXArena immutable batch v1",
+  "$comment": "This schema validates the portable structure. Cross-field equality, uniqueness by key/vendor/harness, configuration hashing, exact expected-cell ordering, and conditional Turso pin requirements MUST also be validated with ArenaBatchManifestSchema or resolveBatchIdentity.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "batch_id", "source_commit_sha", "created_at", "configuration_hash", "configuration", "expected_cells"],
+  "properties": {
+    "schema": { "const": "ax.arena-batch/v1" },
+    "batch_id": { "$ref": "#/$defs/nonBlank" },
+    "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
+    "created_at": { "type": "string", "format": "date-time", "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$" },
+    "configuration_hash": { "$ref": "#/$defs/sha256" },
+    "configuration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["command", "suite", "packs", "cells", "harnesses", "reset_required", "invoke_timeout_seconds", "first_action_timeout_seconds", "invoke_retries"],
+      "properties": {
+        "command": { "enum": ["daeb-low-pass", "daeb-production-rerun"] },
+        "suite": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "version", "file_hash"],
+          "properties": {
+            "name": { "$ref": "#/$defs/nonBlank" },
+            "version": { "type": "integer", "minimum": 1 },
+            "file_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "packs": { "type": "array", "minItems": 1, "maxItems": 256, "items": { "$ref": "#/$defs/pack" } },
+        "cells": { "type": "array", "minItems": 1, "maxItems": 16384, "items": { "$ref": "#/$defs/cell" } },
+        "harnesses": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/harnessPin" } },
+        "reset_required": { "type": "boolean" },
+        "invoke_timeout_seconds": { "type": "integer", "minimum": 0 },
+        "first_action_timeout_seconds": { "type": "integer", "minimum": 0 },
+        "invoke_retries": { "type": "integer", "minimum": 0 },
+        "turso_cli": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["install_root", "version", "sha256"],
+          "properties": {
+            "install_root": { "$ref": "#/$defs/nonBlank" },
+            "version": { "$ref": "#/$defs/nonBlank" },
+            "sha256": { "$ref": "#/$defs/sha256" }
+          }
+        }
+      }
+    },
+    "expected_cells": { "type": "array", "minItems": 1, "maxItems": 16384, "uniqueItems": true, "items": { "$ref": "#/$defs/nonBlank" } }
+  },
+  "$defs": {
+    "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceSha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+    "names": { "type": "array", "maxItems": 256, "uniqueItems": true, "items": { "type": "string", "maxLength": 256, "pattern": "^[A-Za-z_][A-Za-z0-9_]*$" } },
+    "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
+    "harnessPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["harness", "version_raw", "version_semver"],
+      "properties": {
+        "harness": { "enum": ["codex", "claude-code"] },
+        "version_raw": { "$ref": "#/$defs/nonBlank" },
+        "version_semver": { "$ref": "#/$defs/semver" }
+      }
+    },
+    "pack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["vendor", "file_hash", "standard_set_version", "surfaces", "host_credential_names", "verification_credential_names", "reset_credential_names", "sandbox_scope_names"],
+      "properties": {
+        "vendor": { "$ref": "#/$defs/nonBlank" },
+        "file_hash": { "$ref": "#/$defs/sha256" },
+        "standard_set_version": { "$ref": "#/$defs/nonBlank" },
+        "surfaces": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "$ref": "#/$defs/surface" } },
+        "host_credential_names": { "$ref": "#/$defs/names" },
+        "verification_credential_names": { "$ref": "#/$defs/names" },
+        "reset_credential_names": { "$ref": "#/$defs/names" },
+        "sandbox_scope_names": { "$ref": "#/$defs/names" }
+      }
+    },
+    "cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "vendor", "surface", "harness", "profile", "effort", "model", "trial", "host_credential_names", "verification_credential_names", "reset_credential_names", "sandbox_scope_names"],
+      "properties": {
+        "key": { "$ref": "#/$defs/nonBlank" },
+        "vendor": { "$ref": "#/$defs/nonBlank" },
+        "surface": { "$ref": "#/$defs/surface" },
+        "harness": { "enum": ["codex", "claude-code"] },
+        "profile": { "enum": ["medium", "high"] },
+        "effort": { "enum": ["medium", "high"] },
+        "model": { "$ref": "#/$defs/nonBlank" },
+        "trial": { "type": "integer", "minimum": 1 },
+        "host_credential_names": { "$ref": "#/$defs/names" },
+        "verification_credential_names": { "$ref": "#/$defs/names" },
+        "reset_credential_names": { "$ref": "#/$defs/names" },
+        "sandbox_scope_names": { "$ref": "#/$defs/names" }
+      }
+    }
+  }
+}
