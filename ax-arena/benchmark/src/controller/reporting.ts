@@ -296,7 +296,8 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
   const cells = completion.cells.map((cell) => {
     const recordFile = readRunFile(runRoot, cell.record_path, `record ${cell.key}`);
     const cleanupFile = readRunFile(runRoot, cell.cleanup_path, `cleanup ${cell.key}`);
-    if (createHash("sha256").update(recordFile.bytes).digest("hex") !== cell.record_hash
+    const recordHash = createHash("sha256").update(recordFile.bytes).digest("hex");
+    if (recordHash !== cell.record_hash
       || createHash("sha256").update(cleanupFile.bytes).digest("hex") !== cell.cleanup_hash) {
       throw new Error(`completed batch sidecar hash drifted: ${cell.key}`);
     }
@@ -353,6 +354,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       || cell.cleanup_path !== cleanupFile.relativePath
       || (batch.configuration.reset_required && cleanup.status !== "confirmed")
       || cleanup.cell_id !== record.cell_id
+      || cleanup.record_sha256 !== recordHash
       || cleanup.namespace !== record.execution_namespace
       || resolve(cleanup.record_path) !== resolve(runRoot, cell.record_path)) {
       throw new Error(`runtime reporting sidecars do not match completion cell ${cell.key}`);

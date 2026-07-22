@@ -163,10 +163,12 @@ function fixture() {
       invoke_metadata: "invoke.json",
     },
   });
+  const recordBytes = `${JSON.stringify(record, null, 2)}\n`;
   const cleanup = ArenaCellCleanupSchema.parse({
     schema: "ax.arena-cell-cleanup/v1",
     cell_id: cell.cell_id,
     record_path: recordPath,
+    record_sha256: createHash("sha256").update(recordBytes).digest("hex"),
     generated_at: "2026-07-21T00:00:02.000Z",
     status: "confirmed",
     provider: { id: "reset", version: "1.0.0" },
@@ -176,7 +178,7 @@ function fixture() {
     message: "deleted",
     errors: [],
   });
-  writeFileSync(recordPath, `${JSON.stringify(record, null, 2)}\n`);
+  writeFileSync(recordPath, recordBytes);
   writeFileSync(cleanupPath, `${JSON.stringify(cleanup, null, 2)}\n`);
   writeBatchCompletion(runRoot, batch, [{
     cell,
@@ -304,8 +306,13 @@ describe("arena runtime reporting", () => {
     writeFileSync(resolve(record.artifacts.base_dir, "..", "other-results.json"), "{}");
     const bytes = `${JSON.stringify(record, null, 2)}\n`;
     writeFileSync(test.recordPath, bytes);
+    const cleanup = JSON.parse(readFileSync(test.cleanupPath, "utf8"));
+    cleanup.record_sha256 = createHash("sha256").update(bytes).digest("hex");
+    const cleanupBytes = `${JSON.stringify(cleanup, null, 2)}\n`;
+    writeFileSync(test.cleanupPath, cleanupBytes);
     const completion = JSON.parse(readFileSync(test.completionPath, "utf8"));
     completion.cells[0].record_hash = createHash("sha256").update(bytes).digest("hex");
+    completion.cells[0].cleanup_hash = createHash("sha256").update(cleanupBytes).digest("hex");
     writeFileSync(test.completionPath, `${JSON.stringify(completion, null, 2)}\n`);
     expect(test.run).toThrow(/direct relative file name/);
   });
@@ -317,11 +324,24 @@ describe("arena runtime reporting", () => {
     record.cell_id = "forged-cell";
     cleanup.cell_id = "forged-cell";
     const recordBytes = `${JSON.stringify(record, null, 2)}\n`;
+    cleanup.record_sha256 = createHash("sha256").update(recordBytes).digest("hex");
     const cleanupBytes = `${JSON.stringify(cleanup, null, 2)}\n`;
     writeFileSync(test.recordPath, recordBytes);
     writeFileSync(test.cleanupPath, cleanupBytes);
     const completion = JSON.parse(readFileSync(test.completionPath, "utf8"));
     completion.cells[0].record_hash = createHash("sha256").update(recordBytes).digest("hex");
+    completion.cells[0].cleanup_hash = createHash("sha256").update(cleanupBytes).digest("hex");
+    writeFileSync(test.completionPath, `${JSON.stringify(completion, null, 2)}\n`);
+    expect(test.run).toThrow(/sidecars do not match completion cell/);
+  });
+
+  it("rejects cleanup evidence bound to different record bytes", () => {
+    const test = fixture();
+    const cleanup = JSON.parse(readFileSync(test.cleanupPath, "utf8"));
+    cleanup.record_sha256 = "f".repeat(64);
+    const cleanupBytes = `${JSON.stringify(cleanup, null, 2)}\n`;
+    writeFileSync(test.cleanupPath, cleanupBytes);
+    const completion = JSON.parse(readFileSync(test.completionPath, "utf8"));
     completion.cells[0].cleanup_hash = createHash("sha256").update(cleanupBytes).digest("hex");
     writeFileSync(test.completionPath, `${JSON.stringify(completion, null, 2)}\n`);
     expect(test.run).toThrow(/sidecars do not match completion cell/);
