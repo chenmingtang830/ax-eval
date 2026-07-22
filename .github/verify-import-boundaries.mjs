@@ -46,6 +46,7 @@ function moduleSpecifiers(path) {
   };
   const visit = (node) => {
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) add(node.moduleSpecifier);
+    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) add(node.argument.literal);
     if (ts.isImportEqualsDeclaration(node)
       && ts.isExternalModuleReference(node.moduleReference)) add(node.moduleReference.expression);
     if (ts.isCallExpression(node)) {

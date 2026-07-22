@@ -44,13 +44,15 @@ describe("import boundary verification", () => {
       'export * from "../../../../src/internal.js";',
       'const privateModule = import("ax-eval/src/config.js", { with: { type: "json" } });',
       'import privateApi = require("ax-eval/dist/private.js");',
-      "void privateModule; void privateApi;",
+      'type PrivateApi = import("ax-eval/src/private.js").PrivateApi;',
+      "void privateModule; void privateApi; void (null as unknown as PrivateApi);",
     ].join("\n"));
     const violations = findImportBoundaryViolations(root);
-    expect(violations).toHaveLength(3);
+    expect(violations).toHaveLength(4);
     expect(violations[0]).toContain("escapes its workspace");
     expect(violations[1]).toContain("public ax-eval export");
     expect(violations[2]).toContain("public ax-eval export");
+    expect(violations[3]).toContain("public ax-eval export");
   });
 
   it("rejects symlinked source paths that could escape physical containment", () => {
