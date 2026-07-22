@@ -192,7 +192,12 @@ Supply controller-only read-back secrets through `verificationCredentials`;
 they reach health checks and oracle providers but never the harness child.
 Provisioning providers receive no verifier-only credentials, cannot replace
 PATH or existing environment keys, and every environment value they add is
-redacted as secret material.
+redacted as secret material. They may request additive `pathEntries`; core
+canonicalizes and prepends only real directories that resolve outside the
+writable cell workspace and artifact tree.
+Arena Postgres cleanup is non-cascading and includes exact namespace-derived
+roles. Turso CLI cells require a non-writable install path plus exact version
+and SHA-256 pins in the `AX_ARENA_TURSO_*` environment variables.
 
 ### 3. Emit the medium-effort prompt
 

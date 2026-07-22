@@ -72,6 +72,9 @@ export interface ProvisioningContext extends TargetDescriptor {
 export interface ProvisioningEvidence {
   /** Additive child-process environment. Existing keys may not be replaced. */
   readonly env?: Readonly<Record<string, string>>;
+  /** Trusted executable directories prepended to the child PATH after core
+   * verifies they resolve outside the writable cell and artifact trees. */
+  readonly pathEntries?: readonly string[];
   /** Non-secret data written to invocation metadata and provider provenance. */
   readonly metadata?: Readonly<Record<string, unknown>>;
 }
