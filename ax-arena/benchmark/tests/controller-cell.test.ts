@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import {
   copyFileSync,
   existsSync,
@@ -318,7 +319,9 @@ describe("arena cell controller", () => {
     })).rejects.toThrow(/trusted workflow OS sandbox/);
     expect(existsSync(artifactDir)).toBe(false);
   });
+});
 
+describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_000 }, () => {
   it("rejects uncommitted or symlinked canonical benchmark inputs before invocation", async () => {
     for (const mode of ["changed", "symlink"] as const) {
       const cwd = mkdtempSync(resolve(tmpdir(), `ax-arena-controller-input-${mode}-`));
@@ -379,6 +382,9 @@ describe("arena cell controller", () => {
     for (const artifactDir of [
       resolve(cwd, "src", "cell-output"),
       resolve(cwd, "ax-arena"),
+      resolve(cwd, ".git", "cell-output"),
+      resolve(cwd, ".hg", "cell-output"),
+      resolve(cwd, ".svn", "cell-output"),
     ]) {
       const spec = cellSpec(cwd, packPath, sourceCommitSha, "unused");
       spec.artifactDir = artifactDir;
@@ -931,12 +937,14 @@ describe("arena cell controller", () => {
       },
     })).rejects.toThrow(/source integrity changed during cell execution/);
 
-    expect(JSON.parse(readFileSync(spec.recordPath, "utf8")).schema)
-      .toBe("ax.normalized-cell-record/v1");
+    const recordBytes = readFileSync(spec.recordPath);
+    expect(JSON.parse(recordBytes.toString("utf8")).schema).toBe("ax.normalized-cell-record/v1");
     expect(JSON.parse(readFileSync(spec.cleanupPath, "utf8"))).toMatchObject({
       schema: "ax.arena-cell-cleanup/v1",
-      status: "confirmed",
+      record_sha256: createHash("sha256").update(recordBytes).digest("hex"),
+      status: "unconfirmed",
       plan: { resources: ["resource:cell-ns"] },
+      errors: [expect.stringMatching(/source integrity changed during cell execution/)],
     });
   });
 
@@ -1043,19 +1051,26 @@ describe("arena cell controller", () => {
       const { packPath, sourceCommitSha } = writeCommittedPack(cwd);
       const spec = cellSpec(cwd, packPath, sourceCommitSha, `record-${mode}`);
       const effectiveSecret = mode === "escaped-secret" ? "quote\"line\nsecret" : "host-secret";
-      await expect(executeArenaCell(spec, {
-        credentials: { OPENAI_API_KEY: `  ${effectiveSecret}  ` },
-        now: () => new Date(),
-        async createRegistry() {
-          return createRuntimeExtensionRegistry();
-        },
-        async runCell(cell) {
-          const record = fakeRecord(cell);
-          return mode === "namespace"
-            ? { ...record, execution_namespace: "../outside" }
-            : { ...record, error: { stage: "verify" as const, message: `leaked ${effectiveSecret}` } };
-        },
-      })).rejects.toThrow(mode === "namespace" ? /unbounded execution namespace/ : /credential material/);
+      let thrown: unknown;
+      try {
+        await executeArenaCell(spec, {
+          credentials: { OPENAI_API_KEY: `  ${effectiveSecret}  ` },
+          now: () => new Date(),
+          async createRegistry() {
+            return createRuntimeExtensionRegistry();
+          },
+          async runCell(cell) {
+            const record = fakeRecord(cell);
+            return mode === "namespace"
+              ? { ...record, execution_namespace: "../outside" }
+              : { ...record, error: { stage: "verify" as const, message: `leaked ${effectiveSecret}` } };
+          },
+        });
+      } catch (error) {
+        thrown = error;
+      }
+      expect(String(thrown)).toMatch(mode === "namespace" ? /unbounded execution namespace/ : /credential material/);
+      if (mode !== "namespace") expect(String(thrown)).not.toContain(effectiveSecret);
       expect(existsSync(spec.recordPath)).toBe(false);
     }
   });

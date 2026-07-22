@@ -3,6 +3,7 @@ import { z } from "zod";
 const BoundedText = z.string().max(4_096);
 const NonBlank = BoundedText.refine((value) => /\S/.test(value), "must contain non-whitespace text");
 const Namespace = z.string().regex(/^[a-z0-9-]+$/).max(43);
+const Sha256 = z.string().regex(/^[a-f0-9]{64}$/);
 const CleanupPlanSchema = z.object({
   summary: BoundedText,
   resources: z.array(NonBlank).max(100),
@@ -19,6 +20,7 @@ export const ArenaCellCleanupSchema = z.object({
   schema: z.literal(ARENA_CELL_CLEANUP_SCHEMA),
   cell_id: NonBlank,
   record_path: NonBlank,
+  record_sha256: Sha256,
   generated_at: z.string().datetime(),
   status: z.enum(["confirmed", "skipped", "unconfirmed"]),
   provider: z.object({ id: NonBlank, version: NonBlank }).strict().optional(),

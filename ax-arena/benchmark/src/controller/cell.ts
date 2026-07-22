@@ -44,6 +44,9 @@ export { ARENA_CELL_CLEANUP_SCHEMA, ArenaCellCleanupSchema } from "./schemas.js"
 export type { ArenaCellCleanupRecord } from "./schemas.js";
 
 const SOURCE_PATHS = [
+  ".git",
+  ".hg",
+  ".svn",
   "package.json",
   "package-lock.json",
   "tsconfig.json",
@@ -231,6 +234,10 @@ function fsyncDirectory(path: string): void {
   }
 }
 
+function canonicalJson(value: unknown): string {
+  return `${JSON.stringify(value, null, 2)}\n`;
+}
+
 function atomicWriteJson(root: string, path: string, value: unknown): void {
   assertSafeParentChain(root, path, "persisted artifact");
   const parent = dirname(path);
@@ -248,7 +255,7 @@ function atomicWriteJson(root: string, path: string, value: unknown): void {
       constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
       0o600,
     );
-    writeFileSync(fd, `${JSON.stringify(value, null, 2)}\n`);
+    writeFileSync(fd, canonicalJson(value));
     fsyncSync(fd);
     closeSync(fd);
     fd = undefined;
@@ -410,6 +417,7 @@ function scopeValues(
 function cleanupFailure(
   cellId: string,
   recordPath: string,
+  recordSha256: string,
   now: Date,
   message: string,
   namespace?: string,
@@ -422,6 +430,7 @@ function cleanupFailure(
     schema: ARENA_CELL_CLEANUP_SCHEMA,
     cell_id: cellId,
     record_path: recordPath,
+    record_sha256: recordSha256,
     generated_at: now.toISOString(),
     status: "unconfirmed",
     ...(provider ? { provider } : {}),
@@ -611,6 +620,9 @@ function assertRecordMatchesCell(
   cell: EvaluationCell,
   secrets: readonly string[],
 ): void {
+  if (containsCredentialMaterial(record, secrets.filter((secret) => secret.length >= 4))) {
+    throw new Error("runCell returned a normalized record containing credential material");
+  }
   const mismatches = [
     ["cell_id", record.cell_id, cell.cell_id],
     ["record_id", record.record_id, cell.cell_id],
@@ -651,9 +663,6 @@ function assertRecordMatchesCell(
     && (!/^[a-z0-9-]+$/.test(record.execution_namespace)
       || Buffer.byteLength(record.execution_namespace) > 43)) {
     throw new Error("runCell returned an invalid or unbounded execution namespace");
-  }
-  if (containsCredentialMaterial(record, secrets.filter((secret) => secret.length >= 4))) {
-    throw new Error("runCell returned a normalized record containing credential material");
   }
 }
 
@@ -887,6 +896,7 @@ export async function executeArenaCellWithInjectedRuntime(
   const record = NormalizedCellRecordSchema.parse(returnedRecord);
   assertRecordMatchesCell(record, cell, credentialSecrets);
   assertRecordArtifacts(record, runtimeArtifactDir, runtimeArtifactIdentity);
+  const recordSha256 = createHash("sha256").update(canonicalJson(record)).digest("hex");
   atomicWriteJson(cwd, recordPath, record);
 
   let postRunIntegrityError: string | undefined;
@@ -911,6 +921,7 @@ export async function executeArenaCellWithInjectedRuntime(
       schema: ARENA_CELL_CLEANUP_SCHEMA,
       cell_id: cell.cell_id,
       record_path: recordPath,
+      record_sha256: recordSha256,
       generated_at: cleanupNow.toISOString(),
       status: "skipped",
       ...(namespace ? { namespace } : {}),
@@ -921,6 +932,7 @@ export async function executeArenaCellWithInjectedRuntime(
     cleanup = cleanupFailure(
       cell.cell_id,
       recordPath,
+      recordSha256,
       cleanupNow,
       "no persisted executor namespace is available for bounded cleanup",
       undefined,
@@ -939,6 +951,7 @@ export async function executeArenaCellWithInjectedRuntime(
       cleanup = cleanupFailure(
         cell.cell_id,
         recordPath,
+        recordSha256,
         cleanupNow,
         `reset provider selection failed: ${error instanceof Error ? error.message : String(error)}`,
         namespace,
@@ -950,6 +963,7 @@ export async function executeArenaCellWithInjectedRuntime(
       cleanup ??= cleanupFailure(
           cell.cell_id,
           recordPath,
+          recordSha256,
           cleanupNow,
           "no reset provider is registered for this target",
           namespace,
@@ -1000,6 +1014,7 @@ export async function executeArenaCellWithInjectedRuntime(
           schema: ARENA_CELL_CLEANUP_SCHEMA,
           cell_id: cell.cell_id,
           record_path: recordPath,
+          record_sha256: recordSha256,
           generated_at: cleanupNow.toISOString(),
           status: confirmed ? "confirmed" : "unconfirmed",
           provider,
@@ -1014,6 +1029,7 @@ export async function executeArenaCellWithInjectedRuntime(
         cleanup = cleanupFailure(
           cell.cell_id,
           recordPath,
+          recordSha256,
           cleanupNow,
           `cleanup failed: ${message}`,
           namespace,
@@ -1024,10 +1040,22 @@ export async function executeArenaCellWithInjectedRuntime(
       }
     }
   }
+  if (postRunIntegrityError) {
+    const message = safeCleanupText(
+      `source integrity changed during cell execution: ${postRunIntegrityError}`,
+      secretValues,
+    );
+    cleanup = {
+      ...cleanup,
+      status: "unconfirmed",
+      message,
+      errors: [message, ...cleanup.errors].slice(0, 128),
+    };
+  }
   cleanup = ArenaCellCleanupSchema.parse(cleanup);
   atomicWriteJson(cwd, cleanupPath, cleanup);
   if (postRunIntegrityError) {
-    throw new Error(`source integrity changed during cell execution: ${safeCleanupText(postRunIntegrityError, secretValues)}`);
+    throw new Error(cleanup.message);
   }
   return { cell, pack, record, recordPath, cleanup, cleanupPath };
 }

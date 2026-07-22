@@ -20,6 +20,7 @@ describe("arena cell cleanup schema", () => {
       "schema",
       "cell_id",
       "record_path",
+      "record_sha256",
       "status",
       "message",
       "errors",
@@ -31,6 +32,7 @@ describe("arena cell cleanup schema", () => {
       schema: "ax.arena-cell-cleanup/v1",
       cell_id: "cell-1",
       record_path: "/run/record.json",
+      record_sha256: "0".repeat(64),
       generated_at: "2026-07-21T00:00:01.000Z",
       status: "skipped",
       message: "test",
@@ -39,6 +41,7 @@ describe("arena cell cleanup schema", () => {
     expect(cleanup.status).toBe("skipped");
     expect(ArenaCellCleanupSchema.safeParse({ ...cleanup, unknown: true }).success).toBe(false);
     expect(ArenaCellCleanupSchema.safeParse({ ...cleanup, cell_id: "   " }).success).toBe(false);
+    expect(ArenaCellCleanupSchema.safeParse({ ...cleanup, record_sha256: "short" }).success).toBe(false);
   });
 
   it("rejects evidence-free confirmed cleanup in both runtime and published schemas", () => {
@@ -46,6 +49,7 @@ describe("arena cell cleanup schema", () => {
       schema: "ax.arena-cell-cleanup/v1",
       cell_id: "cell-1",
       record_path: "/run/record.json",
+      record_sha256: "0".repeat(64),
       generated_at: "2026-07-21T00:00:01.000Z",
       status: "confirmed",
       message: "claimed cleanup",

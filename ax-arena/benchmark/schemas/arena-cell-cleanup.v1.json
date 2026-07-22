@@ -4,11 +4,12 @@
   "title": "AXArena cell cleanup v1",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema", "cell_id", "record_path", "generated_at", "status", "message", "errors"],
+  "required": ["schema", "cell_id", "record_path", "record_sha256", "generated_at", "status", "message", "errors"],
   "properties": {
     "schema": { "const": "ax.arena-cell-cleanup/v1" },
     "cell_id": { "$ref": "#/$defs/nonBlank" },
     "record_path": { "$ref": "#/$defs/nonBlank" },
+    "record_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "generated_at": { "type": "string", "format": "date-time" },
     "status": { "enum": ["confirmed", "skipped", "unconfirmed"] },
     "provider": {
