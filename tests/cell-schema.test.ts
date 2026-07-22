@@ -67,6 +67,8 @@ describe("evaluation cell schema", () => {
     for (const field of ["cell_id", "batch_id", "evaluation_set_id", "pack_content_hash", "task_results"]) {
       expect(output.required).toContain(field);
     }
+    expect(output.required).not.toContain("provider_provenance");
+    expect(output.properties.provider_provenance.items.required).toEqual(["kind", "id", "version"]);
     expect(legacy.properties.schema.const).toBe("ax.normalized-result/v1");
     expect(legacy.properties).not.toHaveProperty("cell_id");
   });

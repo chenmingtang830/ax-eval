@@ -17,6 +17,7 @@ import {
   providerForOracle,
   runProviderOracle,
   type OracleProviderRegistry,
+  type VersionedOracleProvider,
 } from "./oracle-provider.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
@@ -69,6 +70,9 @@ export interface VerifyGeneratedPackOptions {
   /** Explicit environment source for URL templates and built-in compatibility
    * providers. Legacy callers default to process.env. */
   env?: EnvSource;
+  /** Explicit verifier-only credentials exposed to extension providers. This
+   * never defaults to process.env. */
+  credentials?: Readonly<Record<string, string | undefined>>;
 }
 
 function readRegularFileNoFollow(path: string): string {
@@ -258,8 +262,9 @@ async function verifyRoundtrip(
   sqlConn: SqlConn | null,
   mongoConn: MongoConn | null,
   trace: TraceStep[],
-  oracleProviders: OracleProviderRegistry | undefined,
+  selectProvider: (oracle: OracleSpec) => VersionedOracleProvider | null | undefined,
   env: EnvSource,
+  credentials: Readonly<Record<string, string | undefined>>,
 ): Promise<OracleResult[]> {
   const fieldSelectParam = pack.field_select_param;
   const apiStyle: ApiStyle = pack.api_style;
@@ -285,17 +290,20 @@ async function verifyRoundtrip(
   for (const oracle of task.oracles) {
     // Registered providers (e.g. SQL/Mongo read-back for database packs) own
     // their oracles outright; the built-in HTTP round-trip is the default.
-    let provider: ReturnType<typeof providerForOracle>;
-    try {
-      provider = oracleProviders === undefined
-        ? providerForOracle(oracle)
-        : oracleProviders.providerFor(oracle);
-    } catch {
+    const provider = selectProvider(oracle);
+    if (provider === null) {
       out.push({ type: oracle.type, passed: false, detail: "oracle provider selection failed" });
       continue;
     }
     if (provider) {
-      out.push(await runProviderOracle(provider, oracle, { pack, task, reported, ns, trace }));
+      out.push(await runProviderOracle(provider, oracle, {
+        pack,
+        task,
+        reported,
+        ns,
+        trace,
+        credentials,
+      }));
       continue;
     }
     if (oracle.type !== "roundtrip") continue;
@@ -524,12 +532,21 @@ export async function verifyGeneratedPack(
   const outcomes: RoundtripOutcome[] = [];
   const tasks = surface ? tasksForSurface(pack, surface) : pack.tasks;
   const env = options.env ?? process.env;
-  const usesBuiltIn = (oracle: OracleSpec): boolean => {
-    const provider = options.oracleProviders === undefined
-      ? providerForOracle(oracle)
-      : options.oracleProviders.providerFor(oracle);
-    return provider === undefined;
+  const providerSelections = new Map<OracleSpec, VersionedOracleProvider | null | undefined>();
+  const selectProvider = (oracle: OracleSpec): VersionedOracleProvider | null | undefined => {
+    if (providerSelections.has(oracle)) return providerSelections.get(oracle);
+    let provider: VersionedOracleProvider | null | undefined;
+    try {
+      provider = options.oracleProviders === undefined
+        ? providerForOracle(oracle)
+        : options.oracleProviders.providerFor(oracle);
+    } catch {
+      provider = null;
+    }
+    providerSelections.set(oracle, provider);
+    return provider;
   };
+  const usesBuiltIn = (oracle: OracleSpec): boolean => selectProvider(oracle) === undefined;
   const sqlConn = tasks.some((task) => task.oracles.some((oracle) => oracle.sqlQuery && usesBuiltIn(oracle)))
     ? resolveSqlConn(pack, env)
     : null;
@@ -559,8 +576,9 @@ export async function verifyGeneratedPack(
         sqlConn,
         mongoConn,
         trace,
-        options.oracleProviders,
+        selectProvider,
         env,
+        options.credentials ?? {},
       );
     } catch (err) {
       oracleResults = [];

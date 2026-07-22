@@ -10,6 +10,7 @@
  */
 import type { TraceStep } from "../harness/executor.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { redactSensitiveText } from "../safety/redaction.js";
 
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -32,7 +33,7 @@ function immutableCopy<T>(value: T): T {
   return deepFreeze(structuredClone(value));
 }
 
-function snapshotOracleProvider(provider: OracleProvider): OracleProvider {
+function snapshotOracleProvider(provider: VersionedOracleProvider): VersionedOracleProvider {
   const snapshot: Record<string, unknown> = {};
   for (const [name, value] of Object.entries(provider)) {
     if (typeof value !== "function") snapshot[name] = immutableCopy(value);
@@ -42,7 +43,7 @@ function snapshotOracleProvider(provider: OracleProvider): OracleProvider {
   }
   snapshot.matches = provider.matches.bind(snapshot);
   snapshot.verify = provider.verify.bind(snapshot);
-  return Object.freeze(snapshot) as unknown as OracleProvider;
+  return Object.freeze(snapshot) as unknown as VersionedOracleProvider;
 }
 
 export interface OracleVerifyContext {
@@ -54,29 +55,44 @@ export interface OracleVerifyContext {
   ns: string | undefined;
   /** Observed trace steps (may be empty). */
   trace: TraceStep[];
+  /** Explicit per-call verifier credentials. Providers must not read process.env. */
+  credentials: Readonly<Record<string, string | undefined>>;
 }
 
 export interface OracleProvider {
   /** Stable id (e.g. "sql", "mongo"). Registering the same id replaces. */
   id: string;
+  /** Optional only for the deprecated process-global compatibility API. */
+  version?: string;
   /** True if this provider owns the given oracle spec. */
   matches(oracle: OracleSpec): boolean;
   /** Run the read-back check for one oracle this provider matched. */
   verify(oracle: OracleSpec, ctx: OracleVerifyContext): Promise<OracleResult>;
 }
 
+/** Immutable per-run providers require a concrete provenance version. */
+export interface VersionedOracleProvider extends OracleProvider {
+  version: string;
+}
+
+/** @deprecated Use OracleProvider directly for legacy global registration. */
+export type LegacyOracleProvider = OracleProvider;
+
 export interface OracleProviderRegistry {
-  readonly providers: readonly OracleProvider[];
-  providerFor(oracle: OracleSpec): OracleProvider | undefined;
+  readonly providers: readonly VersionedOracleProvider[];
+  providerFor(oracle: OracleSpec): VersionedOracleProvider | undefined;
 }
 
 /** Build an isolated provider registry for one verification or cell run. */
 export function createOracleProviderRegistry(
-  input: readonly OracleProvider[] = [],
+  input: readonly VersionedOracleProvider[] = [],
 ): OracleProviderRegistry {
   const providers = Object.freeze(input.map((provider) => {
     if (typeof provider.id !== "string" || !provider.id.trim()) {
       throw new Error("oracle provider id must not be empty");
+    }
+    if (typeof provider.version !== "string" || !provider.version.trim()) {
+      throw new Error("oracle provider version must not be empty");
     }
     return snapshotOracleProvider(provider);
   }));
@@ -87,36 +103,63 @@ export function createOracleProviderRegistry(
     }
     ids.add(provider.id);
   }
+  const selections = new WeakMap<object, {
+    provider?: VersionedOracleProvider;
+    error?: string;
+  }>();
 
   return Object.freeze({
     providers,
-    providerFor(oracle: OracleSpec): OracleProvider | undefined {
-      const descriptor = immutableCopy(oracle);
-      const matches = providers.filter((provider) => {
-        try {
-          return provider.matches(descriptor);
-        } catch {
-          throw new Error(`oracle provider "${provider.id}" match failed`);
-        }
-      });
-      if (matches.length > 1) {
-        throw new Error(`multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`);
+    providerFor(oracle: OracleSpec): VersionedOracleProvider | undefined {
+      const cached = selections.get(oracle);
+      if (cached) {
+        if (cached.error) throw new Error(cached.error);
+        return cached.provider;
       }
-      return matches[0];
+      const descriptor = immutableCopy(oracle);
+      let matches: VersionedOracleProvider[];
+      try {
+        matches = providers.filter((provider) => {
+          return provider.matches(descriptor);
+        });
+      } catch {
+        const error = "oracle provider selection failed";
+        selections.set(oracle, { error });
+        throw new Error(error);
+      }
+      if (matches.length > 1) {
+        const error = `multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`;
+        selections.set(oracle, { error });
+        throw new Error(error);
+      }
+      const selected = matches[0];
+      selections.set(oracle, { provider: selected });
+      return selected;
     },
   });
 }
 
-const providers: OracleProvider[] = [];
+const providers: VersionedOracleProvider[] = [];
 
-export function registerOracleProvider(provider: OracleProvider): void {
-  const existing = providers.findIndex((p) => p.id === provider.id);
-  if (existing >= 0) providers[existing] = provider;
-  else providers.push(provider);
+export function registerOracleProvider(provider: LegacyOracleProvider): void {
+  if (typeof provider.id !== "string" || !provider.id.trim()) {
+    throw new Error("oracle provider id must not be empty");
+  }
+  const normalized: VersionedOracleProvider = typeof provider.version === "string" && provider.version.trim()
+    ? provider as VersionedOracleProvider
+    : {
+        id: provider.id,
+        version: "legacy-unversioned",
+        matches: provider.matches.bind(provider),
+        verify: provider.verify.bind(provider),
+      };
+  const existing = providers.findIndex((p) => p.id === normalized.id);
+  if (existing >= 0) providers[existing] = normalized;
+  else providers.push(normalized);
 }
 
 /** First registered provider claiming the spec, in registration order. */
-export function providerForOracle(oracle: OracleSpec): OracleProvider | undefined {
+export function providerForOracle(oracle: OracleSpec): VersionedOracleProvider | undefined {
   const descriptor = immutableCopy(oracle);
   return providers.find((provider) => {
     try {
@@ -135,13 +178,32 @@ export function clearOracleProviders(): void {
 /** Delegate one oracle to its provider; a throwing provider becomes a failed
  *  result rather than aborting the surrounding task's verification. */
 export async function runProviderOracle(
-  provider: OracleProvider,
+  provider: VersionedOracleProvider,
   oracle: OracleSpec,
   ctx: OracleVerifyContext,
 ): Promise<OracleResult> {
   try {
-    return await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
-  } catch (err) {
+    const result = await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
+    if (!result || typeof result !== "object"
+      || typeof result.passed !== "boolean"
+      || typeof result.detail !== "string") {
+      throw new Error("provider returned invalid oracle evidence");
+    }
+    const secrets = Object.values(ctx.credentials)
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .sort((a, b) => b.length - a.length);
+    const detail = secrets.some((secret) => secret.length < 4 && result.detail.includes(secret))
+      ? "<redacted-sensitive-text>"
+      : secrets.reduce(
+          (value, secret) => secret.length >= 4 ? value.split(secret).join("<redacted>") : value,
+          result.detail,
+        );
+    return {
+      type: oracle.type,
+      passed: result.passed,
+      detail: redactSensitiveText(detail),
+    };
+  } catch {
     return {
       type: oracle.type,
       passed: false,
