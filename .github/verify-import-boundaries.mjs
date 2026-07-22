@@ -4,6 +4,21 @@ import { pathToFileURL } from "node:url";
 import ts from "typescript";
 
 const SOURCE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs"]);
+export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
+  "@neondatabase/api-client",
+  "@neondatabase/serverless",
+  "@supabase/supabase-js",
+  "supabase",
+]);
+
+export function declaredPackageDependencies(packageJson) {
+  return {
+    ...packageJson.dependencies,
+    ...packageJson.devDependencies,
+    ...packageJson.optionalDependencies,
+    ...packageJson.peerDependencies,
+  };
+}
 
 function contained(root, candidate) {
   const rel = relative(root, candidate);
@@ -66,6 +81,13 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
   const publicExports = new Set(Object.keys(packageJson.exports ?? {}));
   const violations = [];
+
+  const coreDependencies = declaredPackageDependencies(packageJson);
+  for (const dependency of DETACHED_ARENA_DATABASE_DEPENDENCIES) {
+    if (dependency in coreDependencies) {
+      violations.push(`package.json core must not declare detached arena dependency ${dependency}`);
+    }
+  }
 
   const coreScan = filesUnder(coreRoot);
   for (const symlink of coreScan.symlinks) {

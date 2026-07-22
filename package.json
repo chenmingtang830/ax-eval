@@ -82,10 +82,7 @@
     "@linear/sdk": "^86.0.0",
     "@modelcontextprotocol/sdk": "^1.29.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
-    "@neondatabase/api-client": "^2.7.3",
-    "@neondatabase/serverless": "^1.1.0",
     "@notionhq/client": "^5.22.0",
-    "@supabase/supabase-js": "^2.110.0",
     "asana": "^3.1.12",
     "mongodb": "^7.4.0",
     "mysql2": "^3.22.5",
@@ -96,7 +93,6 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
-    "supabase": "^2.109.0",
     "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
