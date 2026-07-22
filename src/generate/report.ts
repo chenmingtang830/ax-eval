@@ -48,6 +48,9 @@ export interface ProfileRun {
   discoverySource?: "observed" | "self-report";
   /** Structured step log for observability (optional). */
   trace?: TraceStep[];
+  /** Whether trace events carry trustworthy task IDs. Native harness events are
+   * objective but unattributed, so task-scoped structural diffs must not run. */
+  traceAttribution?: "task-scoped" | "unattributed";
   /** Efficiency diagnostics. These never affect correctness; deterministic
    *  read-back outcomes remain the only pass/fail authority. */
   efficiency?: {
@@ -2034,6 +2037,9 @@ function renderTraceChecks(pack: TargetPack, runs: ProfileRun[]): string {
   const resultCell = (r: ProfileRun): string => {
     const surface = r.surface ?? "api";
     if (surface !== "api") return `<td><span class="ax-mcell__sub">n/a — ${esc(surface.toUpperCase())} tools, oracle-gated</span></td>`;
+    if (r.traceAttribution === "unattributed") {
+      return `<td><span class="ax-mcell__sub">n/a — native calls captured without trustworthy task attribution</span></td>`;
+    }
     const diffs = dedupeDiffs(diffTrace(pack, r.trace!, surface));
     if (!diffs.length) return `<td><span class="ax-pill ax-pill--pass">PASS</span> <span class="ax-mcell__sub">${esc(r.trace!.length)} call(s)</span></td>`;
     diffsByLabel.push({ label: runLabel(r), diffs });

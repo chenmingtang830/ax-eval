@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { observedToDiscovery, parseTranscriptContent } from "../src/harness/transcript.js";
+import { observedToDiscovery, observedToTrace, parseTranscriptContent } from "../src/harness/transcript.js";
 
 const BASE = "https://app.asana.com/api/1.0";
 
@@ -13,6 +13,52 @@ function codexItem(item: Record<string, unknown>): string {
 }
 
 describe("transcript objective capture", () => {
+  it("projects objective calls for every product surface", () => {
+    const cli = parseTranscriptContent(evt([{
+      type: "tool_use",
+      name: "Bash",
+      input: { command: "asana task create --name probe --token literal-secret" },
+    }]), { cliBin: "asana" });
+    expect(observedToTrace(cli, "cli")).toEqual([expect.objectContaining({
+      method: "CLI",
+      path: "asana",
+      taskId: "observed",
+    })]);
+    expect(JSON.stringify(observedToTrace(cli, "cli"))).not.toContain("literal-secret");
+
+    const mcp = parseTranscriptContent(evt([{
+      type: "tool_use",
+      name: "mcp__linear__create_issue",
+      input: { title: "probe" },
+    }]), { mcpServer: "linear" });
+    expect(observedToTrace(mcp, "mcp")).toEqual([expect.objectContaining({
+      method: "MCP",
+      path: "mcp__linear__create_issue",
+    })]);
+
+    const sdk = parseTranscriptContent(evt([{
+      type: "tool_use",
+      name: "Bash",
+      input: { command: "const client = require('@linear/sdk'); client.issues.create({})" },
+    }]), { sdkPackage: "@linear/sdk" });
+    expect(observedToTrace(sdk, "sdk")).toEqual(expect.arrayContaining([expect.objectContaining({
+      method: "SDK",
+      path: expect.stringContaining("client.issues.create"),
+    })]));
+  });
+
+  it("classifies sealed API curl calls when the configured host is templated", () => {
+    const run = parseTranscriptContent(evt([{
+      type: "tool_use",
+      name: "Bash",
+      input: { command: "curl -X POST https://project.supabase.co/rest/v1/items" },
+    }]), { classifyUnknownCurlAsApi: true });
+    expect(observedToTrace(run, "api")).toEqual([expect.objectContaining({
+      method: "POST",
+      path: "/rest/v1/items",
+    })]);
+  });
+
   it("extracts searches, curl calls, auth, and doc fetches", () => {
     const text = [
       evt([{ type: "tool_use", name: "WebSearch", input: { search_term: "asana api docs" } }]),

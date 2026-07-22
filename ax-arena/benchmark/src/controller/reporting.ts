@@ -140,23 +140,43 @@ function artifactPath(runRoot: string, record: NormalizedCellRecord, name: strin
   return file;
 }
 
-function profileRun(
+const ARTIFACT_NAMES = ["invoke_metadata", "results", "trace", "transcript"] as const;
+type ArtifactName = (typeof ARTIFACT_NAMES)[number];
+type VerifiedArtifacts = Record<ArtifactName, { bytes: Buffer; relativePath: string }>;
+
+function verifyArtifactSeals(
   runRoot: string,
+  record: NormalizedCellRecord,
+  seals: readonly { name: ArtifactName; path: string; sha256: string }[],
+): VerifiedArtifacts {
+  const verified = {} as VerifiedArtifacts;
+  for (const name of ARTIFACT_NAMES) {
+    const seal = seals.find((candidate) => candidate.name === name);
+    if (!seal) throw new Error(`batch completion is missing the ${name} artifact seal`);
+    const file = artifactPath(runRoot, record, record.artifacts[name], `${name} artifact`);
+    const hash = createHash("sha256").update(file.bytes).digest("hex");
+    if (file.relativePath !== seal.path || hash !== seal.sha256) {
+      throw new Error(`completed batch ${name} artifact hash drifted`);
+    }
+    verified[name] = file;
+  }
+  return verified;
+}
+
+function profileRun(
   pack: TargetPack,
   record: NormalizedCellRecord,
   cleanup: ArenaCellCleanupRecord,
+  artifacts: VerifiedArtifacts,
 ): ProfileRun {
-  const results = artifactPath(runRoot, record, record.artifacts.results, "results artifact");
-  const trace = artifactPath(runRoot, record, record.artifacts.trace, "trace artifact");
-  const transcript = artifactPath(runRoot, record, record.artifacts.transcript, "transcript artifact");
+  const { results, trace, transcript } = artifacts;
   const observed = parseTranscriptContent(transcript.bytes.toString("utf8"), {
     baseUrl: pack.base_url.includes("${") ? undefined : pack.base_url,
+    classifyUnknownCurlAsApi: record.surface === "api" && pack.base_url.includes("${"),
     cliBin: pack.surfaces?.cli?.bin,
     sdkPackage: pack.surfaces?.sdk?.package,
     mcpServer: pack.surfaces?.mcp?.server,
   });
-  const transcriptAfter = readRunFile(runRoot, resolve(runRoot, transcript.relativePath), "transcript artifact");
-  if (!transcript.bytes.equals(transcriptAfter.bytes)) throw new Error("transcript artifact changed while reporting");
   return {
     profile: record.best_profile ?? record.profiles[0]!,
     harness: record.harness,
@@ -167,7 +187,8 @@ function profileRun(
     // Process diagnostics must come from the harness-native event stream. The
     // executor trace remains linked below for review, but is model-authored and
     // therefore cannot be trusted as evidence of which calls actually ran.
-    trace: observedToTrace(observed),
+    trace: observedToTrace(observed, record.surface),
+    traceAttribution: "unattributed",
     discovery: record.discovery,
     discoverySource: record.discovery_source,
     efficiency: {
@@ -303,6 +324,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     }
     const record = parseCanonical(recordFile.bytes, (input) => NormalizedCellRecordSchema.parse(input), `record ${cell.key}`);
     const cleanup = parseCanonical(cleanupFile.bytes, (input) => ArenaCellCleanupSchema.parse(input), `cleanup ${cell.key}`);
+    const artifacts = verifyArtifactSeals(runRoot, record, cell.artifacts);
     const key = `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`;
     const configured = batch.configuration.cells.find((candidate) => candidate.key === cell.key);
     const configuredPack = batch.configuration.packs.find((candidate) => candidate.vendor === record.target_id);
@@ -359,7 +381,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       || resolve(cleanup.record_path) !== resolve(runRoot, cell.record_path)) {
       throw new Error(`runtime reporting sidecars do not match completion cell ${cell.key}`);
     }
-    return { cell, record, cleanup, recordPath: recordFile.relativePath };
+    return { cell, record, cleanup, artifacts, recordPath: recordFile.relativePath };
   }).sort((left, right) => left.cell.key < right.cell.key ? -1 : left.cell.key > right.cell.key ? 1 : 0);
   const generatedAt = options.now.toISOString();
   const surfaceReports: ArenaRuntimeReport["surface_reports"] = [];
@@ -379,7 +401,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     const snapshot: GeneratedReportSnapshot = {
       schema: "ax.generated-report-snapshot/v1",
       pack: packs.get(vendor)!,
-      runs: selected.map(({ record, cleanup }) => profileRun(runRoot, packs.get(vendor)!, record, cleanup)),
+      runs: selected.map(({ record, cleanup, artifacts }) => profileRun(packs.get(vendor)!, record, cleanup, artifacts)),
       harness: options.harness,
       warnings: [],
       minPassRate,

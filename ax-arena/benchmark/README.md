@@ -54,8 +54,11 @@ require the exported runtime validators and are not implied by JSON Schema
 validation alone.
 
 Runtime reporting consumes only a persisted, hash-bound batch completion. It
-revalidates canonical record and cleanup bytes, loads trace evidence from
-contained regular files, writes per-surface HTML/snapshots/failure reviews, and
+revalidates canonical record and cleanup bytes plus every sealed runtime
+artifact before deriving process evidence from the native Codex or Claude Code
+transcript. Unattributed native calls remain process evidence but never produce
+task-scoped structural diffs. Reporting writes per-surface HTML, snapshots,
+failure reviews, and
 produces per-harness trial aggregates plus one immutable reporting manifest.
 Reporting does not execute cells or relax the trusted-workflow gate.
 
