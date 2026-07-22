@@ -71,6 +71,7 @@ export type {
   ArenaCellSpec,
 } from "./controller/cell.js";
 export * from "./controller/batch.js";
+export * from "./controller/worker.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export {
@@ -100,11 +101,15 @@ export type { WriteArenaCompetitiveReportOptions } from "./publication/competiti
 export * from "./publication/bundle.js";
 export {
   ARENA_BATCH_COMPLETION_SCHEMA,
+  ARENA_BATCH_PLAN_SCHEMA,
   ARENA_BATCH_SCHEMA,
   ArenaBatchCompletionCellSchema,
   ArenaBatchCompletionSchema,
+  ArenaBatchCellDescriptorSchema,
+  ArenaBatchConfigurationSourceSchema,
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaBatchPlanSchema,
   ArenaExecutionModeSchema,
   ArenaRuntimeBackendSchema,
   ArenaTrustLevelSchema,
@@ -117,9 +122,12 @@ export {
 export type {
   ArenaBatchCompletion,
   ArenaBatchCompletionCell,
+  ArenaBatchCellDescriptor,
+  ArenaBatchConfigurationSource,
   ArenaBatchConfiguration,
   ArenaExecutionMode,
   ArenaBatchManifest,
+  ArenaBatchPlan,
   ArenaRuntimeReport,
 } from "./controller/schemas.js";
 

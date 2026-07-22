@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/ax-arena/benchmark/schemas/arena-batch-plan.v1.json",
+  "title": "AXArena immutable batch plan v1",
+  "$comment": "This schema validates the portable structure. Exact descriptor derivation, canonical batch.json SHA-256 binding, and ordered cell-set equality MUST also be validated with ArenaBatchPlanSchema and loadBatchPlan.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "batch_id",
+    "source_commit_sha",
+    "configuration_hash",
+    "batch_manifest_sha256",
+    "expected_cells",
+    "cells"
+  ],
+  "properties": {
+    "schema": { "const": "ax.arena-batch-plan/v1" },
+    "batch_id": { "$ref": "#/$defs/nonBlank" },
+    "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
+    "configuration_hash": { "$ref": "#/$defs/sha256" },
+    "configuration_source": { "$ref": "#/$defs/configurationSource" },
+    "batch_manifest_sha256": { "$ref": "#/$defs/sha256" },
+    "expected_cells": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16384,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/cellKey" }
+    },
+    "cells": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 16384,
+      "items": { "$ref": "#/$defs/cellDescriptor" }
+    }
+  },
+  "$defs": {
+    "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceSha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "vendor": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,127}$" },
+    "cellKey": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}/(?:api|cli|sdk|mcp)/(?:codex|claude-code)/trial-[1-9]\\d*$"
+    },
+    "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+    "names": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256, "pattern": "^[A-Z_][A-Z0-9_]*$" }
+    },
+    "semver": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "configurationSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "file_hash"],
+      "properties": {
+        "path": { "type": "string", "maxLength": 4096, "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._/-]+$" },
+        "file_hash": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "providerText": { "allOf": [{ "$ref": "#/$defs/nonBlank" }, { "type": "string", "pattern": "^[^\\u0000-\\u001f\\u007f]+$" }] },
+    "providerIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/providerText" },
+        "version": { "$ref": "#/$defs/providerText" }
+      }
+    },
+    "providerPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "version"],
+      "properties": {
+        "kind": { "enum": ["oracle", "provisioning", "health-check", "target-adapter"] },
+        "id": { "$ref": "#/$defs/providerText" },
+        "version": { "$ref": "#/$defs/providerText" }
+      }
+    },
+    "providerPins": { "type": "array", "maxItems": 128, "uniqueItems": true, "items": { "$ref": "#/$defs/providerPin" } },
+    "execution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["runtime_backend", "trust_level"],
+      "properties": {
+        "runtime_backend": { "enum": ["native", "pinned-oci"] },
+        "trust_level": { "enum": ["local", "hosted-trusted"] }
+      }
+    },
+    "tursoCliPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["install_root", "version", "sha256", "provisioner"],
+      "properties": {
+        "install_root": { "$ref": "#/$defs/nonBlank" },
+        "version": { "$ref": "#/$defs/nonBlank" },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "provisioner": { "$ref": "#/$defs/providerIdentity" }
+      }
+    },
+    "sandboxPin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "policy_version", "runtime_lock_sha256", "sysroot", "executable", "executable_sha256", "runtime_roots"],
+      "properties": {
+        "kind": { "const": "bubblewrap" },
+        "policy_version": { "const": "ax.arena-bubblewrap/v2" },
+        "runtime_lock_sha256": { "$ref": "#/$defs/sha256" },
+        "sysroot": { "const": "/opt/ax-arena-runtime/rootfs" },
+        "executable": { "type": "string", "pattern": "^/", "maxLength": 4096 },
+        "executable_sha256": { "$ref": "#/$defs/sha256" },
+        "runtime_roots": {
+          "type": "array",
+          "prefixItems": [{ "const": "/usr" }, { "const": "/opt/ax-arena-tools" }],
+          "items": false,
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true
+        }
+      }
+    },
+    "cellDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "batch_id",
+        "source_commit_sha",
+        "configuration_hash",
+        "vendor",
+        "surface",
+        "harness",
+        "profile",
+        "effort",
+        "model",
+        "trial",
+        "pack_file_hash",
+        "standard_set_version",
+        "harness_version_raw",
+        "harness_version_semver",
+        "execution",
+        "host_credential_names",
+        "verification_credential_names",
+        "reset_credential_names",
+        "sandbox_scope_names",
+        "provider_pins",
+        "reset_provider",
+        "reset_required",
+        "invoke_timeout_seconds",
+        "first_action_timeout_seconds",
+        "invoke_retries"
+      ],
+      "properties": {
+        "key": { "$ref": "#/$defs/cellKey" },
+        "batch_id": { "$ref": "#/$defs/nonBlank" },
+        "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
+        "configuration_hash": { "$ref": "#/$defs/sha256" },
+        "vendor": { "$ref": "#/$defs/vendor" },
+        "surface": { "$ref": "#/$defs/surface" },
+        "harness": { "enum": ["codex", "claude-code"] },
+        "profile": { "enum": ["medium", "high"] },
+        "effort": { "enum": ["medium", "high"] },
+        "model": { "$ref": "#/$defs/nonBlank" },
+        "trial": { "type": "integer", "minimum": 1 },
+        "pack_file_hash": { "$ref": "#/$defs/sha256" },
+        "standard_set_version": { "$ref": "#/$defs/nonBlank" },
+        "harness_version_raw": { "$ref": "#/$defs/nonBlank" },
+        "harness_version_semver": { "$ref": "#/$defs/semver" },
+        "execution": { "$ref": "#/$defs/execution" },
+        "host_credential_names": { "$ref": "#/$defs/names" },
+        "verification_credential_names": { "$ref": "#/$defs/names" },
+        "reset_credential_names": { "$ref": "#/$defs/names" },
+        "sandbox_scope_names": { "$ref": "#/$defs/names" },
+        "provider_pins": { "$ref": "#/$defs/providerPins" },
+        "reset_provider": { "oneOf": [{ "$ref": "#/$defs/providerIdentity" }, { "type": "null" }] },
+        "reset_required": { "type": "boolean" },
+        "invoke_timeout_seconds": { "type": "integer", "minimum": 0 },
+        "first_action_timeout_seconds": { "type": "integer", "minimum": 0 },
+        "invoke_retries": { "type": "integer", "minimum": 0 },
+        "turso_cli": { "$ref": "#/$defs/tursoCliPin" },
+        "sandbox": { "$ref": "#/$defs/sandboxPin" }
+      }
+    }
+  }
+}

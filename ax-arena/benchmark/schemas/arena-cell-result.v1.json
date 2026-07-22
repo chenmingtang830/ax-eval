@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/ax-arena/benchmark/schemas/arena-cell-result.v1.json",
+  "title": "AXArena durable worker cell result v1",
+  "$comment": "Portable shape validation. Runtime validation additionally re-hashes the canonical persisted batch plan, cell descriptor, normalized record, and cleanup evidence without following symlinks.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "batch_id",
+    "configuration_hash",
+    "source_commit_sha",
+    "batch_plan_sha256",
+    "cell_descriptor_sha256",
+    "cell_key",
+    "cell",
+    "credential_names",
+    "expected_harness_version_raw",
+    "expected_harness_version_semver",
+    "observed_harness_version_raw",
+    "observed_harness_version_semver",
+    "actual_model",
+    "record_status",
+    "cleanup_status",
+    "record",
+    "cleanup",
+    "artifacts",
+    "generated_at"
+  ],
+  "properties": {
+    "schema": { "const": "ax.arena-cell-result/v1" },
+    "batch_id": { "$ref": "#/$defs/nonBlank" },
+    "configuration_hash": { "$ref": "#/$defs/sha256" },
+    "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
+    "batch_plan_sha256": { "$ref": "#/$defs/sha256" },
+    "cell_descriptor_sha256": { "$ref": "#/$defs/sha256" },
+    "cell_key": { "$ref": "#/$defs/cellKey" },
+    "cell": { "$ref": "#/$defs/evaluationCell" },
+    "credential_names": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host", "verification", "reset", "sandbox_scope"],
+      "properties": {
+        "host": { "$ref": "#/$defs/names" },
+        "verification": { "$ref": "#/$defs/names" },
+        "reset": { "$ref": "#/$defs/names" },
+        "sandbox_scope": { "$ref": "#/$defs/names" }
+      }
+    },
+    "expected_harness_version_raw": { "$ref": "#/$defs/nonBlank" },
+    "expected_harness_version_semver": { "$ref": "#/$defs/semver" },
+    "observed_harness_version_raw": { "$ref": "#/$defs/nonBlank" },
+    "observed_harness_version_semver": { "$ref": "#/$defs/semver" },
+    "actual_model": { "$ref": "#/$defs/nonBlank" },
+    "record_status": { "enum": ["completed", "failed"] },
+    "cleanup_status": { "enum": ["confirmed", "unconfirmed", "skipped"] },
+    "record": { "$ref": "#/$defs/artifact" },
+    "cleanup": { "$ref": "#/$defs/artifact" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/invokeArtifact" },
+        { "$ref": "#/$defs/resultsArtifact" },
+        { "$ref": "#/$defs/traceArtifact" },
+        { "$ref": "#/$defs/transcriptArtifact" }
+      ],
+      "items": false
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$"
+    }
+  },
+  "$defs": {
+    "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "sourceSha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "semver": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$"
+    },
+    "cellKey": {
+      "type": "string",
+      "maxLength": 256,
+      "pattern": "^[a-z0-9][a-z0-9._-]{0,127}/(?:api|cli|sdk|mcp)/(?:codex|claude-code)/trial-[1-9]\\d*$"
+    },
+    "names": {
+      "type": "array",
+      "maxItems": 256,
+      "uniqueItems": true,
+      "items": { "type": "string", "maxLength": 256, "pattern": "^[A-Z_][A-Z0-9_]*$" }
+    },
+    "cellNonBlank": { "type": "string", "pattern": ".*\\S.*" },
+    "cellNames": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[A-Z_][A-Z0-9_]*$" }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sha256"],
+      "properties": {
+        "path": {
+          "type": "string",
+          "maxLength": 4096,
+          "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._/-]+$"
+        },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "runtimeArtifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "path", "sha256"],
+      "properties": {
+        "name": { "enum": ["invoke_metadata", "results", "trace", "transcript"] },
+        "path": { "type": "string", "maxLength": 4096, "pattern": "^(?!/)(?!.*(?:^|/)\\.{1,2}(?:/|$))[A-Za-z0-9._/-]+$" },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "invokeArtifact": { "allOf": [{ "$ref": "#/$defs/runtimeArtifact" }, { "type": "object", "properties": { "name": { "const": "invoke_metadata" } } }] },
+    "resultsArtifact": { "allOf": [{ "$ref": "#/$defs/runtimeArtifact" }, { "type": "object", "properties": { "name": { "const": "results" } } }] },
+    "traceArtifact": { "allOf": [{ "$ref": "#/$defs/runtimeArtifact" }, { "type": "object", "properties": { "name": { "const": "trace" } } }] },
+    "transcriptArtifact": { "allOf": [{ "$ref": "#/$defs/runtimeArtifact" }, { "type": "object", "properties": { "name": { "const": "transcript" } } }] },
+    "evaluationCell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "cell_id",
+        "batch_id",
+        "evaluation_set_id",
+        "evaluation_set_version",
+        "target_id",
+        "pack",
+        "surface",
+        "harness",
+        "trial",
+        "source_commit_sha",
+        "required_credentials",
+        "run_context"
+      ],
+      "properties": {
+        "schema": { "const": "ax.evaluation-cell/v1" },
+        "cell_id": { "$ref": "#/$defs/cellNonBlank" },
+        "batch_id": { "$ref": "#/$defs/cellNonBlank" },
+        "evaluation_set_id": { "$ref": "#/$defs/cellNonBlank" },
+        "evaluation_set_version": { "$ref": "#/$defs/cellNonBlank" },
+        "target_id": { "$ref": "#/$defs/cellNonBlank" },
+        "pack": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["path", "content_hash"],
+          "properties": {
+            "path": { "$ref": "#/$defs/cellNonBlank" },
+            "content_hash": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+        "harness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "profile", "model", "effort"],
+          "properties": {
+            "id": { "enum": ["codex", "claude-code"] },
+            "profile": { "enum": ["low", "medium", "high"] },
+            "model": { "$ref": "#/$defs/cellNonBlank" },
+            "effort": { "enum": ["low", "medium", "high"] }
+          }
+        },
+        "trial": { "type": "integer", "minimum": 1 },
+        "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
+        "required_credentials": { "$ref": "#/$defs/cellNames" },
+        "run_context": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cwd", "artifact_dir", "invoke_timeout_ms", "first_action_timeout_ms", "invoke_retries"],
+          "properties": {
+            "cwd": { "$ref": "#/$defs/cellNonBlank" },
+            "artifact_dir": { "$ref": "#/$defs/cellNonBlank" },
+            "invoke_timeout_ms": { "type": "integer", "minimum": 0 },
+            "first_action_timeout_ms": { "type": "integer", "minimum": 0 },
+            "invoke_retries": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    }
+  }
+}

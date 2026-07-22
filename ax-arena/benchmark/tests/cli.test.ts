@@ -122,14 +122,52 @@ describe("ax-arena benchmark CLI scaffold", () => {
     expect(mismatch.stderr[0]).toContain("does not match checked-out HEAD");
     expect(existsSync(resolve(root, "results", "bad-run"))).toBe(false);
     const output = capture();
+    const planCode = await runArenaCli([
+      "benchmark", "plan",
+      "--configuration", configurationPath,
+      "--run-root", runRoot,
+      "--source-sha", sourceSha,
+    ], output.io, root);
+    expect(output.stderr).toEqual([]);
+    expect(planCode).toBe(0);
+    expect(existsSync(resolve(runRoot, "batch.json"))).toBe(true);
+    expect(existsSync(resolve(runRoot, "batch-plan.json"))).toBe(true);
+    const manifest = JSON.parse(readFileSync(resolve(runRoot, "batch.json"), "utf8"));
+    expect(manifest.source_commit_sha).toBe(sourceSha);
+    expect(manifest.configuration_source).toEqual({
+      path: "configuration.json",
+      file_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+    const plan = JSON.parse(readFileSync(resolve(runRoot, "batch-plan.json"), "utf8"));
+    expect(plan.schema).toBe("ax.arena-batch-plan/v1");
+    expect(plan.configuration_source).toEqual(manifest.configuration_source);
+    expect(plan.expected_cells).toEqual([
+      "neon/api/codex/trial-1",
+      "neon/api/claude-code/trial-1",
+    ]);
+    expect(output.stdout[0]).toContain(resolve(runRoot, "batch-plan.json"));
+    expect(output.stdout[0]?.split("\n").slice(-2)).toEqual([
+      manifest.configuration_source.path,
+      manifest.configuration_source.file_hash,
+    ]);
+    const resumed = capture();
     await expect(runArenaCli([
       "benchmark", "plan",
       "--configuration", configurationPath,
       "--run-root", runRoot,
       "--source-sha", sourceSha,
-    ], output.io, root)).resolves.toBe(0);
-    expect(existsSync(resolve(runRoot, "batch.json"))).toBe(true);
-    expect(JSON.parse(readFileSync(resolve(runRoot, "batch.json"), "utf8")).source_commit_sha).toBe(sourceSha);
+    ], resumed.io, root)).resolves.toBe(0);
+    expect(resumed.stdout[0]?.split("\n")[0]).toBe(output.stdout[0]?.split("\n")[0]);
+    writeFileSync(configurationPath, `${readFileSync(configurationPath, "utf8")}\n`);
+    const uncommitted = capture();
+    await expect(runArenaCli([
+      "benchmark", "plan",
+      "--configuration", configurationPath,
+      "--run-root", resolve(root, "results", "uncommitted-run"),
+      "--source-sha", sourceSha,
+    ], uncommitted.io, root)).resolves.toBe(1);
+    expect(uncommitted.stderr[0]).toContain("must match the immutable source commit");
+    expect(existsSync(resolve(root, "results", "uncommitted-run"))).toBe(false);
     const extraPack = capture();
     await expect(runArenaCli([
       "benchmark", "aggregate",

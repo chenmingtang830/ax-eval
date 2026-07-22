@@ -1,7 +1,9 @@
-import { existsSync, lstatSync, readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
+import { dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveBatchIdentity } from "../controller/batch.js";
+import { resolveBatchIdentity, writeBatchPlan } from "../controller/batch.js";
 import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
 import { writeRuntimeReportingBundle } from "../controller/reporting.js";
 import { buildArenaPublicationExport } from "../publication/export.js";
@@ -113,6 +115,37 @@ function readBoundedJson(path: string, label: string): unknown {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function committedConfigurationSource(
+  repositoryRoot: string,
+  sourceSha: string,
+  path: string,
+): { path: string; file_hash: string; decoded: unknown } {
+  const stat = lstatSync(path);
+  if (!stat.isFile() || stat.isSymbolicLink()) throw new Error("batch configuration must be a regular file");
+  if (stat.size > 16 * 1024 * 1024) throw new Error("batch configuration exceeds the 16 MiB input limit");
+  const relativePath = relative(realpathSync(repositoryRoot), realpathSync(path));
+  if (!relativePath || relativePath === ".." || relativePath.startsWith("../")
+    || relativePath.startsWith("..\\") || isAbsolute(relativePath)) {
+    throw new Error("batch configuration must be a committed file inside the source repository");
+  }
+  const bytes = readFileSync(path);
+  const portablePath = relativePath.replaceAll("\\", "/");
+  const committed = execFileSync("git", ["show", `${sourceSha}:${portablePath}`], {
+    cwd: repositoryRoot,
+    encoding: "buffer",
+    maxBuffer: 16 * 1024 * 1024 + 1,
+    stdio: ["ignore", "pipe", "ignore"],
+  });
+  if (!bytes.equals(committed)) {
+    throw new Error("batch configuration bytes must match the immutable source commit");
+  }
+  return {
+    path: portablePath,
+    file_hash: createHash("sha256").update(bytes).digest("hex"),
+    decoded: JSON.parse(bytes.toString("utf8")),
+  };
+}
+
 function shippedBenchmarkRoot(): string {
   const moduleDirectory = dirname(fileURLToPath(import.meta.url));
   const candidates = [
@@ -168,9 +201,25 @@ export async function runRuntimeCommand(
       throw new Error(`--source-sha ${requestedSourceSha} does not match checked-out HEAD ${currentSourceSha}`);
     }
     const sourceSha = requestedSourceSha ?? currentSourceSha;
-    const configuration = ArenaBatchConfigurationSchema.parse(readBoundedJson(configurationPath, "batch configuration"));
-    const manifest = resolveBatchIdentity(runRoot, sourceSha, new Date(), configuration);
-    io.stdout(`${manifest.batch_id}\n${resolve(runRoot, "batch.json")}`);
+    const repositoryRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    const configurationSource = committedConfigurationSource(repositoryRoot, sourceSha, configurationPath);
+    const configuration = ArenaBatchConfigurationSchema.parse(configurationSource.decoded);
+    const manifest = resolveBatchIdentity(runRoot, sourceSha, new Date(), configuration, {
+      path: configurationSource.path,
+      file_hash: configurationSource.file_hash,
+    });
+    writeBatchPlan(runRoot, manifest);
+    io.stdout([
+      manifest.batch_id,
+      resolve(runRoot, "batch.json"),
+      resolve(runRoot, "batch-plan.json"),
+      configurationSource.path,
+      configurationSource.file_hash,
+    ].join("\n"));
     return 0;
   }
   if (command === "export-publication") {
