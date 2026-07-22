@@ -133,8 +133,6 @@ export type {
   CredentialSource,
   RunCellOptions,
 } from "./cell/run.js";
-export { BearerClient } from "./http/client.js";
-export type { BearerClientOptions } from "./http/client.js";
 export {
   createHealthCheckProviderRegistry,
   createProvisioningProviderRegistry,
