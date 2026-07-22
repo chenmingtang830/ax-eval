@@ -74,6 +74,13 @@ const SourceSha = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 const Surface = z.enum(["api", "cli", "sdk", "mcp"]);
 const Harness = z.enum(["codex", "claude-code"]);
 const ProviderKind = z.enum(["oracle", "provisioning", "health-check", "target-adapter"]);
+const Vendor = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,127}$/);
+const CellKey = z.string()
+  .regex(/^[a-z0-9][a-z0-9._-]{0,127}\/(?:api|cli|sdk|mcp)\/(?:codex|claude-code)\/trial-[1-9]\d*$/)
+  .max(256);
+const ReportPath = z.string()
+  .regex(/^(?!\/)(?!.*(?:^|\/)\.{1,2}(?:\/|$))[A-Za-z0-9._/-]+$/)
+  .max(4_096);
 const Semver = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/).max(256);
 const EnvironmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).max(256);
 const Names = z.array(EnvironmentName).max(256).superRefine((names, context) => {
@@ -98,8 +105,8 @@ export const ARENA_BATCH_SCHEMA = "ax.arena-batch/v1" as const;
 export const ARENA_BATCH_COMPLETION_SCHEMA = "ax.arena-batch-completion/v1" as const;
 
 const ArenaBatchCellSchema = z.object({
-  key: NonBlank,
-  vendor: NonBlank,
+  key: CellKey,
+  vendor: Vendor,
   surface: Surface,
   harness: Harness,
   profile: z.enum(["medium", "high"]),
@@ -122,7 +129,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     file_hash: Sha256,
   }).strict(),
   packs: z.array(z.object({
-    vendor: NonBlank,
+    vendor: Vendor,
     file_hash: Sha256,
     standard_set_version: NonBlank,
     surfaces: z.array(Surface).min(1).max(4),
@@ -151,6 +158,30 @@ export const ArenaBatchConfigurationSchema = z.object({
   const keys = configuration.cells.map((cell) => cell.key);
   if (new Set(keys).size !== keys.length) {
     context.addIssue({ code: "custom", path: ["cells"], message: "cell keys must be unique" });
+  }
+  for (const [index, cell] of configuration.cells.entries()) {
+    const expectedKey = `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${cell.trial}`;
+    if (cell.key !== expectedKey) {
+      context.addIssue({ code: "custom", path: ["cells", index, "key"], message: `cell key must equal ${expectedKey}` });
+    }
+  }
+  const cohorts = new Map<string, typeof configuration.cells>();
+  for (const cell of configuration.cells) {
+    const key = `${cell.vendor}/${cell.surface}/${cell.harness}`;
+    cohorts.set(key, [...(cohorts.get(key) ?? []), cell]);
+  }
+  for (const [key, cells] of cohorts) {
+    const signatures = new Set(cells.map((cell) => `${cell.model}\0${cell.profile}\0${cell.effort}`));
+    const trials = cells.map((cell) => cell.trial).sort((left, right) => left - right);
+    if (signatures.size !== 1
+      || new Set(trials).size !== trials.length
+      || trials.some((trial, index) => trial !== index + 1)) {
+      context.addIssue({
+        code: "custom",
+        path: ["cells"],
+        message: `cohort ${key} must use one model/profile/effort and contiguous unique trials`,
+      });
+    }
   }
   const vendors = configuration.packs.map((pack) => pack.vendor);
   if (new Set(vendors).size !== vendors.length) {
@@ -309,7 +340,7 @@ export const ArenaBatchManifestSchema = z.object({
   created_at: Timestamp,
   configuration_hash: Sha256,
   configuration: ArenaBatchConfigurationSchema,
-  expected_cells: z.array(NonBlank).min(1).max(16_384),
+  expected_cells: z.array(CellKey).min(1).max(16_384),
 }).strict().superRefine((manifest, context) => {
   const computedHash = arenaBatchConfigurationHash(manifest.configuration);
   if (manifest.configuration_hash !== computedHash) {
@@ -338,7 +369,7 @@ const ArtifactSealSchema = z.object({
 }).strict();
 
 export const ArenaBatchCompletionCellSchema = z.object({
-  key: NonBlank,
+  key: CellKey,
   record_id: NonBlank,
   record_path: NonBlank,
   record_hash: Sha256,
@@ -370,3 +401,27 @@ export const ArenaBatchCompletionSchema = z.object({
   cells: z.array(ArenaBatchCompletionCellSchema).min(1).max(16_384),
 }).strict();
 export type ArenaBatchCompletion = z.infer<typeof ArenaBatchCompletionSchema>;
+
+export const ARENA_RUNTIME_REPORT_SCHEMA = "ax.arena-runtime-report/v1" as const;
+export const ArenaRuntimeReportSchema = z.object({
+  schema: z.literal(ARENA_RUNTIME_REPORT_SCHEMA),
+  batch_id: NonBlank,
+  configuration_hash: Sha256,
+  generated_at: Timestamp,
+  surface_reports: z.array(z.object({
+    vendor: Vendor,
+    surface: Surface,
+    snapshot_path: ReportPath,
+    html_path: ReportPath,
+    failure_review_path: ReportPath,
+  }).strict()).min(1).max(1_024),
+  aggregates: z.array(z.object({
+    vendor: Vendor,
+    surface: Surface,
+    harness: Harness,
+    trial_count: z.number().int().positive(),
+    aggregate_record_path: ReportPath,
+    trial_manifest_path: ReportPath,
+  }).strict()).min(1).max(2_048),
+}).strict();
+export type ArenaRuntimeReport = z.infer<typeof ArenaRuntimeReportSchema>;

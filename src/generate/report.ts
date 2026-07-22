@@ -2069,6 +2069,7 @@ export interface ReportGate {
  * Optional report extras the CLI supplies on top of runs/static/probe:
  *
  * - `gate`: CI threshold for the gate banner.
+ * - `generatedAt`: caller-selected timestamp for reproducible persisted reports.
  * - `warnings`: runtime issues the CLI hit while assembling the report (e.g.
  *   "trace file missing for high/a3", "transcript path unreadable",
  *   "static discover skipped: site_url not set"). Surfaced verbatim in
@@ -2078,6 +2079,7 @@ export interface ReportGate {
 export interface ReportOptions {
   gate?: ReportGate;
   warnings?: string[];
+  generatedAt?: string;
 }
 
 export function renderGeneratedReport(
@@ -2090,12 +2092,12 @@ export function renderGeneratedReport(
   // Back-compat: callers pre-warnings passed a bare `ReportGate`. New callers
   // can pass `{ gate, warnings }`. Detect either shape.
   const opts: ReportOptions =
-    gateOrOpts && ("gate" in gateOrOpts || "warnings" in gateOrOpts)
+    gateOrOpts && ("gate" in gateOrOpts || "warnings" in gateOrOpts || "generatedAt" in gateOrOpts)
       ? (gateOrOpts as ReportOptions)
       : { gate: gateOrOpts as ReportGate | undefined };
   const gate = opts.gate;
   const warnings = opts.warnings;
-  const generatedAt = new Date().toISOString();
+  const generatedAt = opts.generatedAt ?? new Date().toISOString();
   const profileOf = (name: string): HarnessProfile | null => {
     try {
       return getProfile(name);

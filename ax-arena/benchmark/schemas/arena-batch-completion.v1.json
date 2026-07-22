@@ -21,7 +21,7 @@
         "additionalProperties": false,
         "required": ["key", "record_id", "record_path", "record_hash", "cleanup_path", "cleanup_hash", "artifacts", "harness", "requested_model", "actual_model", "harness_version_raw", "harness_version_semver", "status", "cleanup_status"],
         "properties": {
-          "key": { "$ref": "#/$defs/nonBlank" },
+          "key": { "$ref": "#/$defs/cellKey" },
           "record_id": { "$ref": "#/$defs/nonBlank" },
           "record_path": { "$ref": "#/$defs/nonBlank" },
           "record_hash": { "$ref": "#/$defs/sha256" },
@@ -44,6 +44,7 @@
   },
   "$defs": {
     "nonBlank": { "type": "string", "maxLength": 4096, "pattern": ".*\\S.*" },
+    "cellKey": { "type": "string", "maxLength": 256, "pattern": "^[a-z0-9][a-z0-9._-]{0,127}/(?:api|cli|sdk|mcp)/(?:codex|claude-code)/trial-[1-9]\\d*$" },
     "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
     "semver": { "type": "string", "maxLength": 256, "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$" },
     "artifactSeal": {
