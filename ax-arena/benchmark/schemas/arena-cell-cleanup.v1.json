@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/ax-arena/benchmark/schemas/arena-cell-cleanup.v1.json",
+  "title": "AXArena cell cleanup v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "cell_id", "record_path", "generated_at", "status", "message", "errors"],
+  "properties": {
+    "schema": { "const": "ax.arena-cell-cleanup/v1" },
+    "cell_id": { "$ref": "#/$defs/nonBlank" },
+    "record_path": { "$ref": "#/$defs/nonBlank" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["confirmed", "skipped", "unconfirmed"] },
+    "provider": {
+      "type": "object", "additionalProperties": false, "required": ["id", "version"],
+      "properties": { "id": { "$ref": "#/$defs/nonBlank" }, "version": { "$ref": "#/$defs/nonBlank" } }
+    },
+    "namespace": { "type": "string", "pattern": "^[a-z0-9-]+$", "maxLength": 43 },
+    "plan": {
+      "type": "object", "additionalProperties": false, "required": ["summary", "resources"],
+      "properties": {
+        "summary": { "type": "string", "maxLength": 4096 },
+        "resources": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/nonBlank" } }
+      }
+    },
+    "evidence": {
+      "type": "object", "additionalProperties": false,
+      "required": ["supported", "message", "deleted", "errors"],
+      "properties": {
+        "supported": { "type": "boolean" }, "message": { "type": "string", "maxLength": 4096 },
+        "deleted": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/nonBlank" } },
+        "errors": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 4096 } }
+      }
+    },
+    "message": { "type": "string", "maxLength": 4096 },
+    "errors": { "type": "array", "maxItems": 128, "items": { "type": "string", "maxLength": 4096 } }
+  },
+  "allOf": [{
+    "if": { "properties": { "status": { "const": "confirmed" } }, "required": ["status"] },
+    "then": {
+      "$comment": "Runtime validation additionally requires evidence.deleted to equal plan.resources as a set.",
+      "required": ["provider", "namespace", "plan", "evidence"],
+      "properties": {
+        "provider": { "type": "object" },
+        "namespace": { "type": "string" },
+        "errors": { "type": "array", "maxItems": 0 },
+        "plan": { "type": "object", "properties": { "resources": { "type": "array", "uniqueItems": true } } },
+        "evidence": {
+          "type": "object",
+          "properties": {
+            "supported": { "const": true },
+            "deleted": { "type": "array", "uniqueItems": true },
+            "errors": { "type": "array", "maxItems": 0 }
+          }
+        }
+      }
+    }
+  }],
+  "$defs": { "nonBlank": { "type": "string", "pattern": ".*\\S.*", "maxLength": 4096 } }
+}

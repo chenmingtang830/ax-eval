@@ -12,6 +12,7 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schemas/arena-cell-cleanup.v1.json": "./schemas/arena-cell-cleanup.v1.json",
     "./package.json": "./package.json"
   },
   "bin": {
@@ -21,7 +22,8 @@
     "dist",
     "README.md",
     "daeb",
-    "!daeb/_archive/**"
+    "!daeb/_archive/**",
+    "schemas"
   ],
   "scripts": {
     "ax-arena": "node --import tsx src/cli.ts",
@@ -44,6 +46,8 @@
   "devDependencies": {
     "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
     "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
