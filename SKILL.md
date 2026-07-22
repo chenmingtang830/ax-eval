@@ -294,6 +294,14 @@ failures. MCP cells still receive their explicit pack-declared MCP provisioning.
 This is one product across harnesses/surfaces — `competitive` is reserved for
 cross-*product* comparison.
 
+Render that cross-product view with `npm run ax-arena -- benchmark competitive
+--from <sealed-publication-bundle> --html <ignored-output.html>`. The verified
+bundle fixes the expected structural-N/A matrix, models, exact harness pins,
+effort, three-trial sources, and completed-cell evidence; mixed, incomplete, or
+resealed-score inputs fail closed. Create the ignored output directory first.
+The legacy `ax-eval`
+command remains active during the private-workspace compatibility period.
+
 When consolidating a report for review, put every cell's artifacts in one run
 directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
 stdout/stderr, invoke metadata, and a small manifest together so reviewers can

@@ -4,6 +4,7 @@ import { resolveBatchIdentity } from "../controller/batch.js";
 import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
 import { writeRuntimeReportingBundle } from "../controller/reporting.js";
 import { buildArenaPublicationExport } from "../publication/export.js";
+import { writeArenaCompetitiveReport } from "../publication/competitive.js";
 import {
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
@@ -14,6 +15,7 @@ export const RUNTIME_COMMANDS = [
   "plan",
   "execute",
   "aggregate",
+  "competitive",
   "publish",
   "export-publication",
   "daeb-low-pass",
@@ -38,6 +40,9 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
       "usage: ax-arena benchmark aggregate --run-root <dir> --pack <vendor=pack.yaml> [--pack ...]",
       "                                    [--generated-at <UTC ISO timestamp>] [--min-pass-rate <0..1>]",
     ].join("\n");
+  }
+  if (command === "competitive") {
+    return "usage: ax-arena benchmark competitive --from <sealed-publication-bundle> [--html out.html] [--generated-at <UTC ISO>]";
   }
   if (command === "publish") {
     return "usage: ax-arena benchmark publish --run-root <dir>\n  Publication remains fail-closed until trusted workflow activation.";
@@ -166,6 +171,20 @@ export async function runRuntimeCommand(
     io.stdout(`Saved axarena export → ${outDir}`);
     io.stdout(`Saved manifest → ${resolve(cwd, outDir, "manifest.json")}`);
     io.stdout(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
+    return 0;
+  }
+  if (command === "competitive") {
+    assertOnly(values, ["--from", "--html", "--generated-at"]);
+    const bundleDir = one(values, "--from", true)!;
+    const outPath = one(values, "--html") ?? "results/competitive.html";
+    const generatedAtValue = one(values, "--generated-at");
+    const generatedAt = generatedAtValue === undefined ? new Date() : new Date(generatedAtValue);
+    if (!Number.isFinite(generatedAt.getTime())
+      || generatedAtValue !== undefined && generatedAt.toISOString() !== generatedAtValue) {
+      throw new Error("--generated-at must be an exact UTC ISO timestamp");
+    }
+    writeArenaCompetitiveReport({ root: cwd, bundleDir, outPath, generatedAt });
+    io.stdout(`Saved competitive report → ${outPath}`);
     return 0;
   }
   assertOnly(values, ["--run-root", "--pack", "--generated-at", "--min-pass-rate"]);

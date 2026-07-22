@@ -104,3 +104,12 @@ indexes. It validates canonical batch/completion provenance, derives task and
 trial outputs from completed records, binds snapshot outcomes to exact cell
 evidence, and recomputes aggregate scores before an atomic output write. This
 does not activate the trusted `publish` command, which remains fail-closed.
+
+`ax-arena benchmark competitive` renders the offline surface × product ×
+harness comparison from high-effort three-trial aggregate records bound to a
+sealed publication bundle. Its canonical batch supplies each vendor's supported
+surfaces, and its completed records bind every displayed score, model, and exact
+harness pin. Structural N/A rows remain explicit. The ignored output directory
+must already exist; the no-follow writer never creates parent directories. The
+legacy `ax-eval` command remains active during the private-workspace
+compatibility period. Pass `--from <sealed-publication-bundle>`.

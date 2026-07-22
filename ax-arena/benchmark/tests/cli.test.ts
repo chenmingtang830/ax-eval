@@ -160,6 +160,10 @@ describe("ax-arena benchmark CLI scaffold", () => {
     ], exportTimestamp.io)).resolves.toBe(1);
     expect(exportTimestamp.stderr[0]).toContain("exact UTC ISO timestamp");
 
+    const competitiveHelp = capture();
+    await expect(runArenaCli(["benchmark", "competitive", "--help"], competitiveHelp.io)).resolves.toBe(0);
+    expect(competitiveHelp.stdout[0]).toContain("--from <sealed-publication-bundle>");
+
     const execute = capture();
     await expect(runArenaCli(["benchmark", "execute", "--run-root", "run"], execute.io)).resolves.toBe(1);
     expect(execute.stderr[0]).toContain("trusted workflow OS sandbox");
