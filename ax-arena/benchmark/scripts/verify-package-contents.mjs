@@ -29,6 +29,7 @@ const required = [
   "schemas/arena-batch.v1.json",
   "schemas/arena-runtime-report.v1.json",
   "schemas/arena-cell-cleanup.v1.json",
+  "schemas/publication-bundle.v2.json",
 ];
 function requireTree(directory, prefix) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -95,12 +96,12 @@ try {
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaRuntimeReportSchema, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, loadArenaPublicationCohort, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeRuntimeReportingBundle } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, buildArenaPublicationBundle, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, loadArenaPublicationCohort, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeRuntimeReportingBundle } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
-      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
+      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
       "typeof renderArenaCompetitiveReport !== 'function' || typeof writeArenaCompetitiveReport !== 'function' || " +
-      "!ArenaBatchManifestSchema || !ArenaCellCleanupSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaRuntimeReportSchema) process.exit(1);",
+      "!ArenaBatchManifestSchema || !ArenaCellCleanupSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema) process.exit(1);",
   ], {
     cwd: smokeRoot,
     encoding: "utf8",

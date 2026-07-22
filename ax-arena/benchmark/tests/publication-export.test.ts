@@ -14,14 +14,31 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runArenaCli, type CliIo } from "../src/cli.js";
+import { aggregateArenaCellRecords } from "../src/controller/reporting.js";
 import {
   ArenaBatchCompletionSchema,
   ArenaBatchManifestSchema,
   arenaBatchConfigurationHash,
 } from "../src/controller/schemas.js";
-import { buildArenaPublicationExport, loadArenaPublicationCohort } from "../src/publication/export.js";
+import { bubblewrapPolicyHash } from "../src/controller/sandbox.js";
+import {
+  buildArenaPublicationExportForTest as buildArenaPublicationExport,
+  loadArenaPublicationCohortForTest as loadArenaPublicationCohort,
+} from "../src/publication/export.js";
+
+const { verifyBundledAttestation } = vi.hoisted(() => ({
+  verifyBundledAttestation: vi.fn((_subject: Buffer, bundles: Buffer) => {
+    if (bundles?.toString("utf8").includes("forged")) throw new Error("detached attestation verification failed");
+    return { sha256: "f".repeat(64), version: "gh version 2.80.0 (test fixture)" };
+  }),
+}));
+
+vi.mock("../src/publication/attestation.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/publication/attestation.js")>();
+  return { ...actual, verifyBundledHostedAttestation: verifyBundledAttestation };
+});
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const CORE_CLI = resolve(REPOSITORY_ROOT, "src", "cli.ts");
@@ -33,55 +50,15 @@ function writeJson(path: string, value: unknown): void {
   writeFileSync(path, JSON.stringify(value, null, 2) + "\n");
 }
 
-function record(input: {
-  product: string;
-  surface: "api" | "cli";
-  harness: "codex" | "claude-code";
-  rate: number;
-  generatedAt: string;
-  sourceRecords: string[];
-}): Record<string, unknown> {
-  return {
-    schema: "ax.normalized-result/v1",
-    surface: input.surface,
-    product: input.product,
-    harness: input.harness,
-    standard_set_version: "DAEB-1-v1",
-    generated_at: input.generatedAt,
-    tasks_total: 100,
-    tasks_passed: Math.round(input.rate * 100),
-    pass_at_1: input.rate,
-    pass_at_k: input.rate,
-    attempts: 1,
-    discovery_score: null,
-    content_quality: null,
-    profiles: ["high"],
-    best_profile: "high",
-    model: input.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
-    harness_version_raw: input.harness === "codex" ? "codex-cli 1.2.3" : "claude-code 2.3.4",
-    harness_version_semver: input.harness === "codex" ? "1.2.3" : "2.3.4",
-    run_batch_id: "batch-1",
-    validity_status: "valid",
-    summary_kind: "aggregate",
-    trial_count: 3,
-    trial_values: [input.rate, input.rate, input.rate],
-    mean_pass_rate: input.rate,
-    range_pass_rate: { min: input.rate, max: input.rate },
-    task_consistency_at_3: input.rate,
-    pass_3_tasks: Math.round(input.rate * 100),
-    pass_3_tasks_total: 100,
-    pass_all_3: input.rate === 1 ? 1 : 0,
-    trial_stability_at_3: input.rate === 1 ? "all_pass" : input.rate === 0 ? "all_fail" : "inconsistent",
-    source_records: input.sourceRecords,
-  };
-}
-
 function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli"> } = {}): string {
   const bundle = resolve(root, "bundle");
   const artifactPaths: string[] = [];
-  const artifactJson = (path: string, value: unknown): void => {
-    writeJson(resolve(bundle, path), value);
+  const artifactJson = (path: string, value: unknown): Buffer => {
+    const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+    mkdirSync(resolve(bundle, path, ".."), { recursive: true });
+    writeFileSync(resolve(bundle, path), bytes);
     artifactPaths.push(path);
+    return bytes;
   };
   const artifactText = (path: string, value: string): void => {
     mkdirSync(resolve(bundle, path, ".."), { recursive: true });
@@ -257,6 +234,16 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
   }
   const configuration = {
     command: "daeb-production-rerun" as const,
+    execution: { runtime_backend: "pinned-oci" as const, trust_level: "hosted-trusted" as const },
+    sandbox: {
+      kind: "bubblewrap" as const,
+      policy_version: "ax.arena-bubblewrap/v2" as const,
+      runtime_lock_sha256: "7".repeat(64),
+      sysroot: "/opt/ax-arena-runtime/rootfs" as const,
+      executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+      executable_sha256: "8".repeat(64),
+      runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
+    },
     suite: { name: "DAEB-1", version: 1, file_hash: "e".repeat(64) },
     packs: Object.entries(vendorSurfaces).map(([vendor, surfaces]) => ({
       vendor,
@@ -303,14 +290,8 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
   for (const [cohort, sources] of sourceRecords) {
     const [product, surface, harness] = cohort.split("/") as [string, "api" | "cli", "codex" | "claude-code"];
     const path = `records/${product}-${surface}-${harness}.aggregate.json`;
-    artifactJson(path, record({
-      product,
-      surface,
-      harness,
-      rate: rates[cohort]!,
-      generatedAt: "2026-07-20T01:30:00.000Z",
-      sourceRecords: sources,
-    }));
+    const cells = sources.map((source) => JSON.parse(readFileSync(resolve(bundle, source), "utf8")));
+    artifactJson(path, aggregateArenaCellRecords(cells, sources, "2026-07-20T01:30:00.000Z"));
     recordPathsByVendor[product]!.push(path);
   }
   for (const vendor of Object.keys(vendorSurfaces)) {
@@ -335,12 +316,95 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
   artifactText("suite/daeb-1.yaml", "name: DAEB-1\nversion: 1\n");
   artifactText("methodology.md", "# Methodology\n");
   artifactText("competitive.html", "<html>competitive</html>\n");
+  const batchBytes = readFileSync(resolve(bundle, "provenance/batch.json"));
+  const completionBytes = readFileSync(resolve(bundle, "provenance/batch-completion.json"));
+  const configurationBytes = artifactJson("provenance/configuration.json", configuration);
+  const runtimeManifestBytes = artifactJson("provenance/runtime-manifest.json", {
+    schema: "ax.arena-trusted-runtime-manifest/v1",
+    platform: "linux/amd64",
+    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+    runtime_lock_sha256: "7".repeat(64),
+    sysroot: "/opt/ax-arena-runtime/rootfs",
+    container: { image: "example.invalid/runtime", digest: `sha256:${"6".repeat(64)}`, node_version: "22.23.1" },
+    node_executable_sha256: "5".repeat(64),
+    tools_tree_sha256: "4".repeat(64),
+    entries: [],
+  });
+  const reportBytes = artifactJson("provenance/runtime-reporting.json", {
+    schema: "ax.arena-runtime-report/v1",
+    batch_id: batch.batch_id,
+    configuration_hash: batch.configuration_hash,
+    source_commit_sha: batch.source_commit_sha,
+    batch_manifest_sha256: createHash("sha256").update(batchBytes).digest("hex"),
+    batch_completion_sha256: createHash("sha256").update(completionBytes).digest("hex"),
+    execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
+    sandbox_provenance: {
+      id: "ax-arena-bubblewrap",
+      version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "7".repeat(64),
+      implementation_sha256: "8".repeat(64),
+      policy_sha256: bubblewrapPolicyHash(configuration.sandbox),
+    },
+    generated_at: "2026-07-20T01:30:00.000Z",
+    surface_reports: [{
+      vendor: "alpha",
+      surface: "api",
+      snapshot_path: "snapshots/alpha.json",
+      snapshot_sha256: digest(resolve(bundle, "snapshots/alpha.json")).sha256,
+      html_path: "reports/alpha.html",
+      html_sha256: digest(resolve(bundle, "reports/alpha.html")).sha256,
+      failure_review_path: "methodology.md",
+      failure_review_sha256: digest(resolve(bundle, "methodology.md")).sha256,
+    }],
+    aggregates: [{
+      vendor: "alpha",
+      surface: "api",
+      harness: "codex",
+      trial_count: 3,
+      aggregate_record_path: "records/alpha-api-codex.aggregate.json",
+      aggregate_record_sha256: digest(resolve(bundle, "records/alpha-api-codex.aggregate.json")).sha256,
+      trial_manifest_path: "provenance/batch-completion.json",
+      trial_manifest_sha256: createHash("sha256").update(completionBytes).digest("hex"),
+    }],
+  });
+  const subjectBytes = artifactJson("provenance/trusted-run-subject.json", {
+    schema: "ax.arena-trusted-run-subject/v1",
+    repository: "chenmingtang830/ax-eval",
+    source_commit_sha: batch.source_commit_sha,
+    protected_default_branch: "main",
+    workflow: {
+      ref: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main",
+      sha: "d".repeat(40),
+      run_id: "12345",
+      run_attempt: "1",
+      environment: "trusted-sandbox",
+    },
+    runtime: {
+      lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+      lock_sha256: "7".repeat(64),
+      container_digest: `sha256:${"6".repeat(64)}`,
+      tools_tree_sha256: "4".repeat(64),
+      manifest: { path: "runtime-manifest.json", sha256: createHash("sha256").update(runtimeManifestBytes).digest("hex") },
+    },
+    configuration: { path: "configuration.json", sha256: createHash("sha256").update(configurationBytes).digest("hex") },
+    batch: {
+      id: batch.batch_id,
+      configuration_hash: batch.configuration_hash,
+      completed_cells: completion.cells.length,
+      manifest: { path: "batch.json", sha256: createHash("sha256").update(batchBytes).digest("hex") },
+      completion: { path: "batch-completion.json", sha256: createHash("sha256").update(completionBytes).digest("hex") },
+    },
+    source_artifacts: [{ path: "ax-arena/benchmark/daeb/v1/suite.yaml", sha256: "e".repeat(64) }],
+  });
+  const detachedBundles = Buffer.from('{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n');
+  artifactText("provenance/github-attestation-bundles.jsonl", detachedBundles.toString("utf8"));
   const manifest = {
     schema: "ax.publication-bundle/v2",
     benchmark: "DAEB-1",
     category: "database",
     suite: "suite/daeb-1.yaml",
     suite_version: 1,
+    generated_at: "2026-07-20T01:30:00.000Z",
     expected_matrix: {
       surfaces: ["api", "cli"],
       harnesses: ["codex", "claude-code"],
@@ -356,7 +420,10 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     vendors: [
       {
         slug: "alpha",
+        pack: "vendors/alpha/compiled-pack.yaml",
         expected_surfaces: vendorSurfaces.alpha,
+        missing: [],
+        validation_errors: [],
         artifacts: {
           normalized_records: recordPathsByVendor.alpha,
           snapshots: ["snapshots/alpha.json"],
@@ -365,7 +432,10 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
       },
       {
         slug: "beta",
+        pack: "vendors/beta/compiled-pack.yaml",
         expected_surfaces: vendorSurfaces.beta,
+        missing: [],
+        validation_errors: [],
         artifacts: {
           normalized_records: recordPathsByVendor.beta,
           snapshots: ["snapshots/beta.json"],
@@ -375,6 +445,8 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     ],
     publication_readiness: "publication_ready",
     competitive_report: "competitive.html",
+    missing: [],
+    notes: [],
     integrity: {
       schema: "ax.publication-integrity/v1",
       source_commit_sha: "a".repeat(40),
@@ -384,6 +456,21 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
       batch_manifest_sha256: createHash("sha256").update(readFileSync(resolve(bundle, "provenance/batch.json"))).digest("hex"),
       batch_completion_path: "provenance/batch-completion.json",
       batch_completion_sha256: createHash("sha256").update(readFileSync(resolve(bundle, "provenance/batch-completion.json"))).digest("hex"),
+      runtime_report_path: "provenance/runtime-reporting.json",
+      runtime_report_sha256: createHash("sha256").update(reportBytes).digest("hex"),
+      attestation: {
+        schema: "ax.github-oidc-attestation-verification/v1",
+        subject_path: "provenance/trusted-run-subject.json",
+        subject_sha256: createHash("sha256").update(subjectBytes).digest("hex"),
+        detached_bundles_path: "provenance/github-attestation-bundles.jsonl",
+        detached_bundles_sha256: createHash("sha256").update(detachedBundles).digest("hex"),
+        repository: "chenmingtang830/ax-eval",
+        signer_workflow: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml",
+        workflow_ref: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main",
+        workflow_sha: "d".repeat(40),
+        run_id: "12345",
+        run_attempt: "1",
+      },
       files: [...new Set(artifactPaths)].sort().map((path) => {
         const bytes = readFileSync(resolve(bundle, path));
         return { path, sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length };
@@ -446,6 +533,11 @@ function parse(path: string): any {
   return JSON.parse(readFileSync(path, "utf8"));
 }
 
+function digest(path: string): { sha256: string; bytes: number } {
+  const value = readFileSync(path);
+  return { sha256: createHash("sha256").update(value).digest("hex"), bytes: value.byteLength };
+}
+
 function withoutGeneratedAt(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(withoutGeneratedAt);
   if (!value || typeof value !== "object") return value;
@@ -456,6 +548,7 @@ function withoutGeneratedAt(value: unknown): unknown {
 }
 
 describe("arena publication export", () => {
+  beforeEach(() => verifyBundledAttestation.mockClear());
   it("writes all seven indexes with ranking parity and sealed task provenance", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-export-"));
     try {
@@ -467,6 +560,8 @@ describe("arena publication export", () => {
         generatedAt: GENERATED_AT,
       });
       const cohort = loadArenaPublicationCohort({ root, bundleDir: "bundle" });
+      expect(verifyBundledAttestation).toHaveBeenCalled();
+      expect(verifyBundledAttestation.mock.calls.at(-1)?.[1]).toBeInstanceOf(Buffer);
       expect(cohort.batch.batch_id).toBe("batch-1");
       expect(cohort.records).toHaveLength(8);
       expect(manifest.files).toHaveLength(7);
@@ -474,7 +569,7 @@ describe("arena publication export", () => {
       const leaderboard = parse(resolve(root, "arena-out/leaderboard.json"));
       const codex = leaderboard.agents.find((agent: { harness: string }) => agent.harness === "codex");
       expect(codex.views.overall.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["beta", "alpha"]);
-      expect(codex.views.overall.rows.find((row: { vendor: string }) => row.vendor === "alpha").mean_pass_at_1).toBe(0.7);
+      expect(codex.views.overall.rows.find((row: { vendor: string }) => row.vendor === "alpha").mean_pass_at_1).toBeCloseTo(0.7);
       expect(parse(resolve(root, "arena-out/failures.json")).failures[0].task_id).toBe("task-081");
       expect(parse(resolve(root, "arena-out/tasks.json")).tasks).toHaveLength(100);
       const cells = parse(resolve(root, "arena-out/cells.json"));
@@ -504,10 +599,10 @@ describe("arena publication export", () => {
         "--from", "bundle",
         "--out", "cli-out",
         "--generated-at", GENERATED_AT.toISOString(),
-      ], io, root)).resolves.toBe(0);
-      expect(stderr).toEqual([]);
-      expect(stdout[2]).toBe("7 export file(s) for DAEB-1.");
-      expect(parse(resolve(root, "cli-out/manifest.json")).generated_at).toBe(GENERATED_AT.toISOString());
+      ], io, root)).resolves.toBe(1);
+      expect(stderr[0]).toMatch(/signed protected-main source artifact|canonical suite/);
+      expect(stdout).toEqual([]);
+      expect(existsSync(resolve(root, "cli-out"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -535,6 +630,30 @@ describe("arena publication export", () => {
     }
   });
 
+  it("rejects a forged self-asserted integrity envelope at the detached-attestation boundary", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-export-forged-attestation-"));
+    try {
+      createBundle(root);
+      const bundlesPath = "provenance/github-attestation-bundles.jsonl";
+      writeFileSync(resolve(root, "bundle", bundlesPath), '{"forged":true}\n');
+      const manifestPath = resolve(root, "bundle/manifest.json");
+      const manifest = parse(manifestPath);
+      const bytes = readFileSync(resolve(root, "bundle", bundlesPath));
+      const digest = createHash("sha256").update(bytes).digest("hex");
+      const entry = manifest.integrity.files.find((candidate: { path: string }) => candidate.path === bundlesPath);
+      entry.bytes = bytes.length;
+      entry.sha256 = digest;
+      manifest.integrity.attestation.detached_bundles_sha256 = digest;
+      writeJson(manifestPath, manifest);
+      expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "forged-out" }))
+        .toThrow(/detached attestation verification failed/);
+      expect(verifyBundledAttestation).toHaveBeenCalledTimes(1);
+      expect(existsSync(resolve(root, "forged-out"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("binds exports to canonical batch provenance and every nested evidence path", () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-export-provenance-"));
     try {
@@ -554,7 +673,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", cellRecordPath), cellRecord);
       resealCompletedRecord(root, cellRecordPath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "cell-score-out" }))
-        .toThrow(/completed record identity/);
+        .toThrow(/completed record identity|runtime trial manifest.*hash|production batch provenance/);
 
       createBundle(root);
       const snapshotPath = "snapshots/alpha.json";
@@ -563,7 +682,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", snapshotPath), snapshot);
       resealArtifact(root, snapshotPath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "evidence-out" }))
-        .toThrow(/outside.*completed batch/);
+        .toThrow(/outside.*completed batch|runtime snapshot.*hash/);
 
       createBundle(root);
       const outcomeSnapshotPath = "snapshots/alpha.json";
@@ -572,7 +691,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", outcomeSnapshotPath), outcomeSnapshot);
       resealArtifact(root, outcomeSnapshotPath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "snapshot-out" }))
-        .toThrow(/does not match completed batch cell/);
+        .toThrow(/does not match completed batch cell|runtime snapshot.*hash/);
 
       createBundle(root);
       const aggregatePath = "records/alpha-api-codex.aggregate.json";
@@ -581,7 +700,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", aggregatePath), aggregate);
       resealArtifact(root, aggregatePath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "source-record-out" }))
-        .toThrow(/source outside the completed batch/);
+        .toThrow(/source outside the completed batch|runtime aggregate.*hash/);
 
       createBundle(root);
       const scorePath = "records/alpha-api-codex.aggregate.json";
@@ -598,7 +717,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", scorePath), score);
       resealArtifact(root, scorePath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "score-out" }))
-        .toThrow(/aggregate metrics do not match completed trials/);
+        .toThrow(/aggregate metrics do not match completed trials|runtime aggregate.*hash/);
 
       createBundle(root);
       const labelManifest = parse(resolve(root, "bundle/manifest.json"));
@@ -614,7 +733,7 @@ describe("arena publication export", () => {
         }
       }
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "label-out" }))
-        .toThrow(/aggregate metrics do not match completed trials/);
+        .toThrow(/aggregate metrics do not match completed trials|runtime aggregate.*hash/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -696,7 +815,7 @@ describe("arena publication export", () => {
       writeFileSync(resolve(root, "bundle/snapshots/alpha.json"), "{");
       resealArtifact(root, "snapshots/alpha.json");
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "invalid-out" }))
-        .toThrow(/not valid JSON/);
+        .toThrow(/not valid JSON|runtime snapshot.*hash/);
       expect(existsSync(resolve(root, "invalid-out"))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });

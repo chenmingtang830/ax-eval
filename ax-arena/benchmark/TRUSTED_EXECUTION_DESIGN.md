@@ -231,10 +231,16 @@ not weaken the source, digest, lock, sandbox, or attestation checks.
 - runtime-lock hash, OCI digest, runtime-manifest hash, and tool-tree hash;
 - exact configuration bytes and configuration hash;
 - batch ID, batch manifest hash, batch completion hash, and cell count.
+- a canonical, sorted hash list of every file under `ax-arena/benchmark/daeb`.
 
 The signing job recalculates every referenced hash before requesting the GitHub
-artifact attestation. Downstream publication must require a valid hosted-trusted
-subject and external attestation; a locally copied JSON file is not sufficient.
+artifact attestation. Both credentialed and signing jobs require the protected
+environment variable `AX_ARENA_APPROVED_SIGNER_SHA` to equal
+`github.workflow_sha`. Downstream verification requires that same independently
+approved SHA and never takes the trust anchor from the signed subject itself.
+Publication also reconstructs canonical reports and metadata and inventories
+every physical file. A locally copied JSON file or self-hashed manifest is not
+sufficient.
 
 ## Threat model
 
