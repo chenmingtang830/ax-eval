@@ -121,6 +121,14 @@ function runtime(
         first_action_latency_ms: 4,
         transcript_event_count: 1,
         action_occurred: true,
+        ...(options.sandbox ? {
+          sandbox_provenance: {
+            id: "test-child-sandbox",
+            version: "1.0.0",
+            implementation_sha256: "8".repeat(64),
+            policy_sha256: "9".repeat(64),
+          },
+        } : {}),
         metrics: {
           harness_version_raw: "codex-cli 1.2.3",
           harness_version_semver: "1.2.3",
@@ -147,6 +155,37 @@ function runtime(
 }
 
 describe("runCell", () => {
+  it("uses one sandbox for detection and invocation and persists its provenance", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    const sandbox = Object.freeze({
+      wrap: (invocation: { command: string; args: readonly string[]; cwd: string }) => ({
+        command: "/sandbox",
+        args: [invocation.command, ...invocation.args],
+        provenance: {
+          id: "test-child-sandbox",
+          version: "1.0.0",
+          implementation_sha256: "8".repeat(64),
+          policy_sha256: "9".repeat(64),
+        },
+      }),
+    });
+    const isolated = runtime(invokes);
+    const detectHarness = vi.fn(isolated.detectHarness);
+    isolated.detectHarness = detectHarness;
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, sandbox }, isolated);
+
+    expect(detectHarness).toHaveBeenCalledWith("codex", expect.any(Object), sandbox, cell.run_context.cwd);
+    expect(invokes[0]!.sandbox).toBe(sandbox);
+    expect(record.sandbox_provenance).toEqual({
+      id: "test-child-sandbox",
+      version: "1.0.0",
+      implementation_sha256: "8".repeat(64),
+      policy_sha256: "9".repeat(64),
+    });
+  });
+
   it("runs exactly one explicit cell and stamps comparable identity", async () => {
     const { cell } = fixture();
     const invokes: InvokeRunOptions[] = [];
@@ -1059,7 +1098,9 @@ describe("runCell", () => {
       const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
       payload.opaque = "secret-value";
       writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
-      writeFileSync(options.paths.tracePath, JSON.stringify([{ note: "secret-value" }]));
+      writeFileSync(options.paths.tracePath, JSON.stringify([{
+        step: 1, taskId: "task-1", action: "POST", note: "secret-value",
+      }]));
       return result;
     };
     isolated.verify = async (_pack, executor) => [{
@@ -1195,7 +1236,9 @@ describe("runCell", () => {
       const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
       payload.session = "opaque-session-value";
       writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
-      writeFileSync(options.paths.tracePath, JSON.stringify([{ note: "opaque-session-value" }]));
+      writeFileSync(options.paths.tracePath, JSON.stringify([{
+        step: 1, taskId: "task-1", action: "POST", note: "opaque-session-value",
+      }]));
       return result;
     };
     isolated.verify = async (_pack, executor) => [{

@@ -153,7 +153,7 @@ fs.writeFileSync(resultPath, JSON.stringify({
   leaked: process.env.UNRELATED_VENDOR_SECRET ?? null,
   results: {}
 }));
-fs.writeFileSync(tracePath, "[]");
+fs.writeFileSync(tracePath, JSON.stringify([{ step: 1, taskId: "task-1", action: "POST" }]));
 console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-test" }));
 `);
       chmodSync(fakeClaude, 0o755);

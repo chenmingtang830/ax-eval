@@ -8,7 +8,7 @@
  */
 import { closeSync, constants, fstatSync, openSync, readFileSync } from "node:fs";
 import { BearerClient, HttpApiError, resolveDotted, type ApiStyle } from "../http/client.js";
-import { applyNs, NS_PLACEHOLDER, type TraceStep } from "../harness/executor.js";
+import { applyNs, NS_PLACEHOLDER, parseRequiredTraceSteps, type TraceStep } from "../harness/executor.js";
 import type { ObservedRun } from "../harness/transcript.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
@@ -101,8 +101,7 @@ export function loadTrace(path: string): TraceStep[] {
 
 export function loadRequiredTrace(path: string): TraceStep[] {
   const parsed = JSON.parse(readRegularFileNoFollow(path)) as unknown;
-  if (!Array.isArray(parsed)) throw new Error("required trace artifact must be a JSON array");
-  return parsed as TraceStep[];
+  return parseRequiredTraceSteps(parsed);
 }
 
 /** Resolve {ns} in a string expected value; pass non-strings through. */

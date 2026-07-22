@@ -44,6 +44,42 @@ export interface TraceStep {
   note?: string;
 }
 
+/** Strict persisted-evidence boundary used by trusted cell execution. */
+export function parseRequiredTraceSteps(input: unknown): TraceStep[] {
+  if (!Array.isArray(input) || input.length === 0 || input.length > 10_000) {
+    throw new Error("required trace artifact must be a non-empty bounded JSON array");
+  }
+  let previousStep = 0;
+  return input.map((value, index) => {
+    if (!value || typeof value !== "object" || Array.isArray(value)) {
+      throw new Error(`required trace step ${index + 1} must be an object`);
+    }
+    const step = value as Record<string, unknown>;
+    const allowed = new Set(["step", "taskId", "action", "method", "path", "status", "note"]);
+    if (Object.keys(step).some((key) => !allowed.has(key))) {
+      throw new Error(`required trace step ${index + 1} contains an unsupported field`);
+    }
+    if (!Number.isSafeInteger(step.step) || (step.step as number) <= previousStep) {
+      throw new Error("required trace steps must use strictly increasing positive integers");
+    }
+    previousStep = step.step as number;
+    for (const field of ["taskId", "action"] as const) {
+      if (typeof step[field] !== "string" || !/\S/.test(step[field]) || step[field].length > 4_096) {
+        throw new Error(`required trace step ${index + 1} has invalid ${field}`);
+      }
+    }
+    for (const field of ["method", "path", "note"] as const) {
+      if (step[field] !== undefined && (typeof step[field] !== "string" || step[field].length > 4_096)) {
+        throw new Error(`required trace step ${index + 1} has invalid ${field}`);
+      }
+    }
+    if (step.status !== undefined && (!Number.isSafeInteger(step.status) || (step.status as number) < 0)) {
+      throw new Error(`required trace step ${index + 1} has invalid status`);
+    }
+    return step as unknown as TraceStep;
+  });
+}
+
 /** Resolve a per-execution namespace.
  *
  * By default the suffix is a short random token, so concurrent runs with the

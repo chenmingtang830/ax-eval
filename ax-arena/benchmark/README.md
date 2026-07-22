@@ -4,6 +4,10 @@ This private workspace is the in-repository ownership boundary for benchmark
 planning, DAEB policy, provider composition, aggregation, and publication. It
 depends on the supported `ax-eval` package API; `ax-eval` must never import it.
 
+**Trusted execution architecture:** read
+[`TRUSTED_EXECUTION_DESIGN.md`](./TRUSTED_EXECUTION_DESIGN.md) before changing
+runtime backends, credentials, sandboxing, source trust, or publication gates.
+
 The workspace composes immutable runtime-extension registries through the
 public `ax-eval` package specifier and owns canonical DAEB artifacts under
 `daeb/`. DAEB authoring policy and its nine commands now live under
@@ -21,9 +25,10 @@ slice.
 Provider cleanup is namespace-bounded and non-cascading. Postgres revalidates
 function identities server-side and includes exact DAEB-created roles; cleanup
 remains unconfirmed when unrelated dependencies prevent a drop. Turso CLI
-provisioning requires `AX_ARENA_TURSO_INSTALL_ROOT`,
-`AX_ARENA_TURSO_CLI_VERSION`, and `AX_ARENA_TURSO_CLI_SHA256`; the executable
-and its full ancestor chain must be non-writable by the controller user.
+provisioning requires an explicit install root, version, and SHA-256. Official
+hosted execution gets those values only from the committed trusted-runtime lock;
+the executable and its full ancestor chain must be non-writable by the
+controller user.
 
 Runtime-shared pack composition, database prompt overrides, task extraction,
 and artifact readers remain temporary public `ax-eval` compatibility seams;
@@ -34,11 +39,11 @@ duplicating policy between packages.
 verifier, and reset credentials; runs against an isolated pack copy; validates
 and durably persists the normalized record; then performs namespace-bounded
 cleanup and persists strict `ax.arena-cell-cleanup/v1` evidence. Cleanup never
-precedes record persistence. The public execution entry point fails closed
-until the trusted workflow slice supplies an OS-level filesystem sandbox. A
+precedes record persistence. Callers must explicitly choose `native` or
+`pinned-oci` and `local` or `hosted-trusted`; only pinned OCI hosted execution is
+publishable, and pinned execution never falls back to native tools. A
 source-only injected-runtime seam is used exclusively by offline contract tests
-and is not exported by the built package. No live or credentialed evaluation is
-enabled by this migration slice.
+and is not exported by the built package.
 
 Immutable batch manifests bind the source SHA, reviewed suite and pack hashes,
 credential-name partitions, model/effort/trial matrix, timeouts, reset policy,

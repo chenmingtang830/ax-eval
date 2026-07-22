@@ -17,10 +17,11 @@ import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { TargetPack } from "../schemas.js";
-import { namedFieldsFor } from "./executor.js";
+import { namedFieldsFor, parseRequiredTraceSteps } from "./executor.js";
 import { resolveEnvTemplate } from "../target/config.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
+import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
 
 export type InvokeHarnessId = "claude-code" | "codex";
 
@@ -96,6 +97,8 @@ export interface InvokeRunOptions {
    * one-cell runtime enables this while legacy callers retain result-only
    * success semantics during the compatibility window. */
   requireTrace?: boolean;
+  /** Controller-owned OS sandbox applied to the harness process and probe. */
+  sandbox?: ChildProcessSandbox;
 }
 
 export interface InvokeHarnessMetrics {
@@ -169,6 +172,7 @@ export interface InvokeRunResult {
   action_occurred?: boolean;
   metrics?: InvokeHarnessMetrics;
   attempt_metrics?: InvokeAttemptMetrics[];
+  sandbox_provenance?: ChildSandboxProvenance;
 }
 
 // Sync spawn — used only for the quick `--version` detection probe.
@@ -474,7 +478,8 @@ function readRegularFileNoFollow(path: string, allowedRoot = dirname(path)): Buf
 function validTraceFile(path: string): boolean {
   if (!regularFileExists(path)) return false;
   try {
-    return Array.isArray(JSON.parse(readRegularFileNoFollow(path).toString("utf8")));
+    parseRequiredTraceSteps(JSON.parse(readRegularFileNoFollow(path).toString("utf8")));
+    return true;
   } catch {
     return false;
   }
@@ -563,6 +568,46 @@ export function detectInvokeHarness(
     ? commandFor(id)
     : id === "claude-code" ? "claude" : "codex";
   return detectWith(command, spawn, env);
+}
+
+/** Run version detection through the same PID/filesystem sandbox as execution.
+ * The controller may already hold verifier and reset credentials. */
+export function detectInvokeHarnessSandboxed(
+  id: InvokeHarnessId,
+  sandbox: ChildProcessSandbox,
+  cwd: string,
+  env?: Record<string, string>,
+  spawn: Spawn = DEFAULT_SPAWN,
+): InvokeDetection {
+  const fallback = id === "claude-code" ? "claude" : "codex";
+  try {
+    const command = commandFor(id);
+    const invocation = sandbox.wrap({ command, args: ["--version"], cwd });
+    const result = spawn(invocation.command, invocation.args, {
+      stdio: ["ignore", "pipe", "pipe"],
+      env,
+      cwd,
+    });
+    if (result.error) {
+      return { ok: false, command, reason: "detect-failed", detail: result.error.message };
+    }
+    if ((result.status ?? 1) !== 0) {
+      return {
+        ok: false,
+        command,
+        reason: "detect-failed",
+        detail: text(result.stderr) || `exit ${result.status}`,
+      };
+    }
+    return { ok: true, command, version: (text(result.stdout) || text(result.stderr)).trim() };
+  } catch (error) {
+    return {
+      ok: false,
+      command: fallback,
+      reason: "detect-failed",
+      detail: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export function codexOutputSchema(pack: TargetPack, profile: string, surface: SurfaceId, ns: string): object {
@@ -1126,7 +1171,12 @@ export async function runInvokeHarness(
     // Legacy invocations may not provision an isolated home.
   }
   const prompt = readFileSync(opts.paths.promptPath, "utf8");
-  const { command, args } = buildInvocation(opts.harness, prompt, opts);
+  const invocation = buildInvocation(opts.harness, prompt, opts);
+  const sandboxed = opts.sandbox
+    ? opts.sandbox.wrap({ command: invocation.command, args: invocation.args, cwd: opts.cwd })
+    : undefined;
+  const command = sandboxed?.command ?? invocation.command;
+  const args = sandboxed?.args ?? invocation.args;
   const maxAttempts = 1 + Math.max(0, opts.retries ?? 1);
 
   // Re-run on failure/timeout up to `retries` times. A clean attempt (exit 0 +
@@ -1262,6 +1312,7 @@ export async function runInvokeHarness(
     action_occurred: runtimeDiagnostics.action_occurred,
     metrics,
     attempt_metrics: attemptMetrics,
+    ...(sandboxed ? { sandbox_provenance: sandboxed.provenance } : {}),
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
