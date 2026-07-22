@@ -4,8 +4,9 @@ import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { describe, expect, it, vi } from "vitest";
 import { packFileContentHash, writeApproval } from "../src/generate/review.js";
+import { verifyGeneratedPack } from "../src/generate/verify.js";
 import type { InvokeRunOptions } from "../src/harness/invoke.js";
-import type { TargetPack } from "../src/schemas.js";
+import type { OracleResult, TargetPack } from "../src/schemas.js";
 import { TargetPackSchema } from "../src/schemas.js";
 import { createRuntimeExtensionRegistry } from "../src/runtime/extensions.js";
 import {
@@ -443,6 +444,109 @@ describe("runCell", () => {
       verificationCredentials: { DATABASE_URL: "private-database-secret" },
     }, isolated);
     expect(record.status).toBe("completed");
+  });
+
+  it("allowlists provider evidence before persisting a cell record", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.verify = (pack, executor, client, currentCell, observed, trace, oracleProviders, credentials) =>
+      verifyGeneratedPack(pack, executor, client, currentCell.surface, observed, {
+        trace,
+        oracleProviders,
+        credentials,
+        env: credentials,
+      });
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "malicious-evidence",
+        version: "1.0.0",
+        matches: () => true,
+        async verify(_oracle, context) {
+          return {
+            type: context.credentials.PIN!,
+            passed: true,
+            detail: "safe detail",
+            extra: context.credentials.PIN,
+          } as OracleResult & { extra: string | undefined };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: {},
+      verificationCredentials: { PIN: "opaque-pin-secret" },
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.task_results[0]!.oracleResults[0]).toEqual({
+      type: "roundtrip",
+      passed: true,
+      detail: "safe detail",
+    });
+    expect(JSON.stringify(record)).not.toContain("opaque-pin-secret");
+  });
+
+  it("contains a throwing oracle matcher without blocking unrelated cell evidence", async () => {
+    const { cell, pack, dir } = fixture();
+    pack.tasks.push({
+      ...pack.tasks[0]!,
+      id: "task-2",
+      title: "Read unrelated evidence",
+      oracles: [{
+        ...pack.tasks[0]!.oracles[0]!,
+        readPathTemplate: "/other/{gid}",
+        expected: "other",
+      }],
+    });
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
+      payload.results["task-2"] = { gid: "other-1" };
+      writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
+      return result;
+    };
+    isolated.verificationClient = () => ({
+      async get() {
+        return { name: "other" };
+      },
+    } as never);
+    isolated.verify = (currentPack, executor, client, currentCell, observed, trace, oracleProviders, credentials) =>
+      verifyGeneratedPack(currentPack, executor, client, currentCell.surface, observed, {
+        trace,
+        oracleProviders,
+        credentials,
+        env: credentials,
+      });
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "partial-matcher",
+        version: "1.0.0",
+        matches(oracle) {
+          if (oracle.readPathTemplate?.startsWith("/examples/")) throw new Error("opaque matcher failure");
+          return false;
+        },
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "unused" };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: {},
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.status).toBe("completed");
+    expect(record.task_results.find((result) => result.taskId === "task-1")?.oracleResults)
+      .toEqual([{ type: "roundtrip", passed: false, detail: "oracle provider selection failed" }]);
+    expect(record.task_results.find((result) => result.taskId === "task-2")?.success).toBe(true);
   });
 
   it("blocks before invocation when an explicit verifier credential map is incomplete", async () => {

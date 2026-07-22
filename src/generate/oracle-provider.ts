@@ -70,6 +70,10 @@ export interface OracleProvider {
   verify(oracle: OracleSpec, ctx: OracleVerifyContext): Promise<OracleResult>;
 }
 
+/** @deprecated Compatibility shape for the process-global registration API.
+ * Immutable per-run registries require a real version. */
+export type LegacyOracleProvider = Omit<OracleProvider, "version"> & { version?: string };
+
 export interface OracleProviderRegistry {
   readonly providers: readonly OracleProvider[];
   providerFor(oracle: OracleSpec): OracleProvider | undefined;
@@ -95,38 +99,53 @@ export function createOracleProviderRegistry(
     }
     ids.add(provider.id);
   }
+  const selections = new WeakMap<object, OracleProvider | null | undefined>();
 
   return Object.freeze({
     providers,
     providerFor(oracle: OracleSpec): OracleProvider | undefined {
+      if (selections.has(oracle)) {
+        const selected = selections.get(oracle);
+        if (selected === null) throw new Error("oracle provider selection failed");
+        return selected;
+      }
       const descriptor = immutableCopy(oracle);
-      const matches = providers.filter((provider) => {
-        try {
+      let matches: OracleProvider[];
+      try {
+        matches = providers.filter((provider) => {
           return provider.matches(descriptor);
-        } catch {
-          throw new Error(`oracle provider "${provider.id}" match failed`);
-        }
-      });
+        });
+      } catch {
+        selections.set(oracle, null);
+        throw new Error("oracle provider selection failed");
+      }
       if (matches.length > 1) {
         throw new Error(`multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`);
       }
-      return matches[0];
+      const selected = matches[0];
+      selections.set(oracle, selected);
+      return selected;
     },
   });
 }
 
 const providers: OracleProvider[] = [];
 
-export function registerOracleProvider(provider: OracleProvider): void {
+export function registerOracleProvider(provider: LegacyOracleProvider): void {
   if (typeof provider.id !== "string" || !provider.id.trim()) {
     throw new Error("oracle provider id must not be empty");
   }
-  if (typeof provider.version !== "string" || !provider.version.trim()) {
-    throw new Error("oracle provider version must not be empty");
-  }
-  const existing = providers.findIndex((p) => p.id === provider.id);
-  if (existing >= 0) providers[existing] = provider;
-  else providers.push(provider);
+  const normalized: OracleProvider = typeof provider.version === "string" && provider.version.trim()
+    ? provider as OracleProvider
+    : {
+        id: provider.id,
+        version: "legacy-unversioned",
+        matches: provider.matches.bind(provider),
+        verify: provider.verify.bind(provider),
+      };
+  const existing = providers.findIndex((p) => p.id === normalized.id);
+  if (existing >= 0) providers[existing] = normalized;
+  else providers.push(normalized);
 }
 
 /** First registered provider claiming the spec, in registration order. */
@@ -155,6 +174,11 @@ export async function runProviderOracle(
 ): Promise<OracleResult> {
   try {
     const result = await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
+    if (!result || typeof result !== "object"
+      || typeof result.passed !== "boolean"
+      || typeof result.detail !== "string") {
+      throw new Error("provider returned invalid oracle evidence");
+    }
     const secrets = Object.values(ctx.credentials)
       .filter((value): value is string => typeof value === "string" && value.length > 0)
       .sort((a, b) => b.length - a.length);
@@ -164,7 +188,11 @@ export async function runProviderOracle(
           (value, secret) => secret.length >= 4 ? value.split(secret).join("<redacted>") : value,
           result.detail,
         );
-    return { ...result, detail: redactSensitiveText(detail) };
+    return {
+      type: oracle.type,
+      passed: result.passed,
+      detail: redactSensitiveText(detail),
+    };
   } catch {
     return {
       type: oracle.type,

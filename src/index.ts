@@ -77,6 +77,7 @@ export {
   registerOracleProvider,
 } from "./generate/oracle-provider.js";
 export type {
+  LegacyOracleProvider,
   OracleProvider,
   OracleProviderRegistry,
   OracleVerifyContext,

@@ -8,7 +8,7 @@ import {
 } from "../src/generate/oracle-provider.js";
 import { verifyGeneratedPack, type ExecutorResults } from "../src/generate/verify.js";
 import { HttpApiError } from "../src/http/client.js";
-import type { OracleSpec, TargetPack } from "../src/schemas.js";
+import type { OracleResult, OracleSpec, TargetPack } from "../src/schemas.js";
 
 const pack: TargetPack = {
   name: "t",
@@ -331,10 +331,11 @@ describe("oracle providers", () => {
       async verify(oracle, ctx) {
         received = ctx.credentials;
         return {
-          type: oracle.type,
+          type: ctx.credentials.DATABASE_URL!,
           passed: true,
           detail: `connected with ${ctx.credentials.DATABASE_URL}`,
-        };
+          extra: ctx.credentials.DATABASE_URL,
+        } as OracleResult & { extra: string | undefined };
       },
     }]);
     const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
@@ -344,7 +345,32 @@ describe("oracle providers", () => {
     });
 
     expect(received).toEqual({ DATABASE_URL: "opaque-db-secret" });
-    expect(out[0]!.oracleResults[0]!.detail).toBe("connected with <redacted>");
+    expect(out[0]!.oracleResults[0]).toEqual({
+      type: "roundtrip",
+      passed: true,
+      detail: "connected with <redacted>",
+    });
     expect(JSON.stringify(out)).not.toContain("opaque-db-secret");
+  });
+
+  it("accepts an unversioned provider only through the deprecated global registry", async () => {
+    registerOracleProvider({
+      id: "legacy-sql",
+      matches: matchesSql,
+      async verify(oracle) {
+        return { type: oracle.type, passed: true, detail: "legacy compatibility" };
+      },
+    });
+    expect(() => createOracleProviderRegistry([{
+      id: "unversioned-explicit",
+      matches: matchesSql,
+      async verify(oracle) {
+        return { type: oracle.type, passed: true, detail: "invalid" };
+      },
+    } as OracleProvider])).toThrow(/version must not be empty/);
+
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}));
+    expect(out[0]!.oracleResults[0]!.detail).toBe("legacy compatibility");
   });
 });

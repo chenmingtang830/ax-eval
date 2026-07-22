@@ -214,8 +214,13 @@ function selectedProviderProvenance(
   if (healthCheckProvider) references.push({ kind: "health-check", id: healthCheckProvider.id, version: healthCheckProvider.version });
   for (const task of tasksForSurface(pack, cell.surface)) {
     for (const oracle of task.oracles) {
-      const provider = oracleProviders.providerFor(oracle);
-      if (provider) references.push({ kind: "oracle", id: provider.id, version: provider.version });
+      try {
+        const provider = oracleProviders.providerFor(oracle);
+        if (provider) references.push({ kind: "oracle", id: provider.id, version: provider.version });
+      } catch {
+        // Verification contains matcher failures per oracle. Provenance must
+        // never promote one broken matcher into a cell-wide preflight block.
+      }
     }
   }
   const unique = new Map(references.map((entry) => [`${entry.kind}\0${entry.id}\0${entry.version}`, entry]));
