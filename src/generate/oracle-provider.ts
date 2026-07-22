@@ -67,7 +67,10 @@ export interface OracleProvider {
   /** True if this provider owns the given oracle spec. */
   matches(oracle: OracleSpec): boolean;
   /** Run the read-back check for one oracle this provider matched. */
-  verify(oracle: OracleSpec, ctx: OracleVerifyContext): Promise<OracleResult>;
+  verify(
+    oracle: OracleSpec,
+    ctx: OracleVerifyContext,
+  ): Promise<OracleResult | readonly OracleResult[]>;
 }
 
 /** Immutable per-run providers require a concrete provenance version. */
@@ -181,36 +184,40 @@ export async function runProviderOracle(
   provider: VersionedOracleProvider,
   oracle: OracleSpec,
   ctx: OracleVerifyContext,
-): Promise<OracleResult> {
+): Promise<OracleResult[]> {
   try {
     const result = await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
-    if (!result || typeof result !== "object"
-      || typeof result.passed !== "boolean"
-      || typeof result.detail !== "string") {
+    const results = Array.isArray(result) ? [...result] : [result as OracleResult];
+    if (!results.length || results.some((entry) => !entry
+      || typeof entry.type !== "string"
+      || typeof entry.passed !== "boolean"
+      || typeof entry.detail !== "string")) {
       throw new Error("provider returned invalid oracle evidence");
     }
     const secrets = Object.values(ctx.credentials)
       .filter((value): value is string => typeof value === "string" && value.length > 0)
       .sort((a, b) => b.length - a.length);
-    const detail = secrets.some((secret) => secret.length < 4 && result.detail.includes(secret))
-      ? "<redacted-sensitive-text>"
-      : secrets.reduce(
-          (value, secret) => secret.length >= 4 ? value.split(secret).join("<redacted>") : value,
-          result.detail,
-        );
-    return {
-      type: oracle.type,
-      passed: result.passed,
-      detail: redactSensitiveText(detail),
-    };
+    return results.map((entry) => {
+      const detail = secrets.some((secret) => secret.length < 4 && entry.detail.includes(secret))
+        ? "<redacted-sensitive-text>"
+        : secrets.reduce(
+            (value, secret) => secret.length >= 4 ? value.split(secret).join("<redacted>") : value,
+            entry.detail,
+          );
+      return {
+        type: entry.type,
+        passed: entry.passed,
+        detail: redactSensitiveText(detail),
+      };
+    });
   } catch {
-    return {
+    return [{
       type: oracle.type,
       passed: false,
       // Provider exceptions may embed credentials or connection strings. The
       // provider boundary is not a trusted diagnostic channel, so fail closed
       // without copying exception text into records or reports.
       detail: `oracle provider "${provider.id}" failed`,
-    };
+    }];
   }
 }

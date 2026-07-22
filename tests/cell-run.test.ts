@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { delimiter, dirname, resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { describe, expect, it, vi } from "vitest";
 import { packFileContentHash, writeApproval } from "../src/generate/review.js";
@@ -346,6 +346,63 @@ describe("runCell", () => {
     const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
     expect(record).toMatchObject({ status: "blocked", error: { stage: "provision" } });
     expect(record.error?.message).toContain("attempted to replace environment key(s): CELL_ONLY");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("prepends validated external provisioning directories to the harness PATH", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "external-tool-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { pathEntries: [dirname(process.execPath)] };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: {}, extensions: { registry } },
+      runtime(invokes),
+    );
+
+    expect(record.status).toBe("completed");
+    expect(invokes[0]?.env.PATH?.split(delimiter)[0]).toBe(dirname(process.execPath));
+  });
+
+  it("rejects provisioning PATH entries inside the writable cell workspace", async () => {
+    const { cell, dir } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const planted = resolve(dir, "planted-bin");
+    mkdirSync(planted);
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "planted-tool-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { pathEntries: [planted] };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: {}, extensions: { registry } },
+      isolated,
+    );
+
+    expect(record.error?.message).toContain("outside the writable cell workspace");
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 

@@ -87,6 +87,30 @@ function sqlProvider(id: string, detail: string): VersionedOracleProvider {
 afterEach(() => clearOracleProviders());
 
 describe("oracle providers", () => {
+  it("fails a provider-owned oracle when the provider returns no evidence", async () => {
+    const registry = createOracleProviderRegistry([{
+      id: "empty",
+      version: "1.0.0",
+      matches: matchesSql,
+      async verify() {
+        return [];
+      },
+    }]);
+    const out = await verifyGeneratedPack(
+      pack,
+      { profile: "test", results: { "db-sql-task": { gid: "7" } } },
+      fakeClient({}),
+      undefined,
+      undefined,
+      { oracleProviders: registry },
+    );
+
+    expect(out[0]?.success).toBe(false);
+    expect(out[0]?.oracleResults).toEqual([
+      expect.objectContaining({ passed: false, detail: expect.stringContaining("returned no oracle evidence") }),
+    ]);
+  });
+
   it("delegates matched oracles to the provider and leaves HTTP oracles to core", async () => {
     const seen: OracleVerifyContext[] = [];
     registerOracleProvider({
@@ -104,7 +128,14 @@ describe("oracle providers", () => {
       results: { "db-sql-task": { gid: "7" }, "http-task": { gid: "1" } },
     };
     const trace = [{ step: 1, taskId: "db-sql-task", action: "query" }];
-    const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }), undefined, trace);
+    const out = await verifyGeneratedPack(
+      pack,
+      exec,
+      fakeClient({ "1": { name: "hello" } }),
+      undefined,
+      trace,
+      { env: { SQL_URL: "postgres://cell.example.test/db" } },
+    );
 
     const sql = out.find((o) => o.taskId === "db-sql-task")!;
     expect(sql.success).toBe(true);

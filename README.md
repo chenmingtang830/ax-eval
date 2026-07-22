@@ -110,8 +110,10 @@ are available to health checks, verification clients, and oracle providers but
 never copied into the harness child. Provisioning never receives verifier-only
 credentials, cannot replace PATH or
 any scoped/core environment key, and all environment values it adds are treated
-as secrets during artifact and error redaction. Required tools must already be
-pinned outside the writable cell workspace.
+as secrets during artifact and error redaction. Providers may request additive
+`pathEntries`; core canonicalizes and prepends only real directories outside
+the writable cell workspace and artifact tree. Required tools must already be
+pinned in those external directories.
 
 The pack reference carries a full SHA-256 of the exact pack file in addition to
 the existing approval sidecar check, so executable surface/auth changes cannot
