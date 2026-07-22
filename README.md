@@ -343,6 +343,11 @@ records, and competitive report. Missing live artifacts are listed explicitly;
 a publication-ready DAEB-1 v1 bundle has no missing references and all required
 quality gates passing.
 
+Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
+envelope and verifies every referenced file before writing. The legacy core
+bundle command remains draft-only until the hardened arena bundle writer lands;
+an unsealed historical v2 bundle cannot be promoted through this command.
+
 `ax-eval` remains the tooling layer. The AXArena website should consume an
 exported dataset instead of learning runner internals or recomputing scores:
 

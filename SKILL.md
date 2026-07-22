@@ -356,7 +356,8 @@ be executed or scored. Do not publication-freeze while
 `suite.trace-review.yaml` is pending (it is already `completed` for the current
 authoring freeze).
 
-After freezing a publication bundle, export website data with:
+After freezing and integrity-sealing a publication bundle, export website data
+with:
 
 ```bash
 npm run ax-arena -- benchmark export-publication \

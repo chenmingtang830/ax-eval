@@ -145,8 +145,11 @@ npm run ax-arena -- benchmark export-publication \
 
 The bundle ties together suite, vendor cards, extracts, compiled packs,
 approvals, snapshots, normalized records, and competitive report. Missing live
-artifacts are listed explicitly. `ax-eval` owns truth generation; the AXArena
-website imports exported JSON indexes rather than recomputing scores.
+artifacts are listed explicitly. Arena export additionally requires the final
+bundle to carry and satisfy a complete `ax.publication-integrity/v1` envelope;
+legacy unsealed v2 bundles remain draft-only. `ax-eval` owns truth generation;
+the AXArena website imports exported JSON indexes rather than recomputing
+scores.
 
 ## Hygiene
 

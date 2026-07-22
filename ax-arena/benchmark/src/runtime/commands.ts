@@ -161,6 +161,7 @@ export async function runRuntimeCommand(
       || generatedAtValue !== undefined && generatedAt.toISOString() !== generatedAtValue) {
       throw new Error("--generated-at must be an exact UTC ISO timestamp");
     }
+    assertArenaOutputRoot(cwd, resolve(cwd, outDir));
     const manifest = buildArenaPublicationExport({ root: cwd, bundleDir, outDir, generatedAt });
     io.stdout(`Saved axarena export → ${outDir}`);
     io.stdout(`Saved manifest → ${resolve(cwd, outDir, "manifest.json")}`);
