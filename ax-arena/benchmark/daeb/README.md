@@ -138,7 +138,7 @@ npm run ax-eval -- publication-bundle \
   --effort-profiles high \
   --required-effort-profiles high
 
-npm run ax-eval -- export-publication \
+npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```

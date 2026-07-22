@@ -347,7 +347,7 @@ quality gates passing.
 exported dataset instead of learning runner internals or recomputing scores:
 
 ```bash
-npm run ax-eval -- export-publication \
+npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
   --out results/runs/daeb-1-v1-production/axarena-export
 ```
@@ -357,6 +357,8 @@ drilldowns, trial outcomes, evidence links, methodology metadata, and failure
 review placeholders. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
+The former `ax-eval export-publication` implementation remains available during
+the private-workspace compatibility period; it is not yet a delegated alias.
 
 Compare two normalized-record sets without decoding HTML:
 
