@@ -1043,7 +1043,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     } catch (error) {
       thrown = error;
     }
-    expect(String(thrown)).toMatch(mode === "schema" ? /invalid normalized record/ : /batch_id/);
+    expect(String(thrown)).toMatch(mode === "schema" ? /invalid normalized record/ : /credential material/);
     expect(String(thrown)).not.toContain(secret);
     expect(existsSync(spec.recordPath)).toBe(false);
     expect(existsSync(spec.cleanupPath)).toBe(false);
@@ -1077,11 +1077,13 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
   );
 
   it("rejects unbounded namespaces and credential material in returned records", async () => {
-    for (const mode of ["namespace", "secret", "escaped-secret"] as const) {
+    for (const mode of ["namespace", "secret", "escaped-secret", "short-secret"] as const) {
       const cwd = mkdtempSync(resolve(tmpdir(), `ax-arena-controller-record-${mode}-`));
       const { packPath, sourceCommitSha } = writeCommittedPack(cwd);
       const spec = cellSpec(cwd, packPath, sourceCommitSha, `record-${mode}`);
-      const effectiveSecret = mode === "escaped-secret" ? "quote\"line\nsecret" : "host-secret";
+      const effectiveSecret = mode === "escaped-secret"
+        ? "quote\"line\nsecret"
+        : mode === "short-secret" ? "zz" : "host-secret";
       let thrown: unknown;
       try {
         await executeArenaCell(spec, {

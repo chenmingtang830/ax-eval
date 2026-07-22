@@ -620,7 +620,7 @@ function assertRecordMatchesCell(
   cell: EvaluationCell,
   secrets: readonly string[],
 ): void {
-  if (containsCredentialMaterial(record, secrets.filter((secret) => secret.length >= 4))) {
+  if (containsCredentialMaterial(record, secrets)) {
     throw new Error("runCell returned a normalized record containing credential material");
   }
   const mismatches = [
