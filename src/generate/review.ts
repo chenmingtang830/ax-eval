@@ -157,7 +157,7 @@ function committedBlob(root: string, sourceCommitSha: string, path: string): Buf
   const realRoot = realpathSync(root);
   const absolute = realpathSync(resolve(path));
   const rel = relative(realRoot, absolute);
-  if (!rel || rel === ".." || rel.startsWith("../") || isAbsolute(rel)) {
+  if (!rel || rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel)) {
     throw new Error("approval-bound file must be inside the source repository");
   }
   return execFileSync("git", ["show", `${sourceCommitSha}:${rel.replaceAll("\\", "/")}`], {

@@ -8,6 +8,8 @@ import { verifyGeneratedPack } from "../src/generate/verify.js";
 import type { InvokeRunOptions } from "../src/harness/invoke.js";
 import type { OracleResult, TargetPack } from "../src/schemas.js";
 import { TargetPackSchema } from "../src/schemas.js";
+import { BearerClient } from "../src/http/client.js";
+import { buildVerificationClientOptions } from "../src/generate/verification-client.js";
 import { createRuntimeExtensionRegistry } from "../src/runtime/extensions.js";
 import {
   runCellWithRuntime,
@@ -767,6 +769,54 @@ describe("runCell", () => {
     });
     expect(record.error?.message).toContain("VERIFY_TOKEN");
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("keeps inherited SQL CLI control-plane auth verifier-only", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.auth_method = "pat";
+    pack.auth = { type: "bearer", env: "DATABASE_API_KEY", env_aliases: [] };
+    pack.sql_conn = { dialect: "postgres", connection_string_env: "DATABASE_URL" };
+    pack.surfaces = { cli: { bin: "psql", auth: { kind: "inherit" } } };
+    pack.tasks[0]!.allowed_surfaces = ["cli"];
+    pack.tasks[0]!.oracles[0]!.sqlQuery = "SELECT 1";
+    const updatedPack = TargetPackSchema.parse(pack);
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(updatedPack));
+    writeApproval(packPath, updatedPack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.surface = "cli";
+    cell.required_credentials = ["OPENAI_API_KEY", "DATABASE_URL"];
+    const isolated = runtime([]);
+    isolated.verificationClient = (verifiedPack, executor, credentials) =>
+      new BearerClient(buildVerificationClientOptions(verifiedPack, executor, credentials));
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      expect(options.env.OPENAI_API_KEY).toBe("host-key");
+      expect(options.env.DATABASE_URL).toBe("postgres://sandbox");
+      expect(options.env.DATABASE_API_KEY).toBeUndefined();
+      return invoke(options);
+    };
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "sql-provider",
+        version: "1.0.0",
+        matches: (oracle) => Boolean(oracle.sqlQuery),
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "verified" };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { OPENAI_API_KEY: "host-key", DATABASE_URL: "postgres://sandbox" },
+      verificationCredentials: {
+        DATABASE_API_KEY: "verifier-control-plane-key",
+        DATABASE_URL: "postgres://sandbox",
+      },
+      extensions: { registry },
+    }, isolated);
+
+    expect(record.status).toBe("completed");
   });
   it("returns a schema-valid failed record when invocation fails", async () => {
     const { cell } = fixture();

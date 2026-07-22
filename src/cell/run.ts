@@ -525,6 +525,13 @@ function providerOwnsConnectionRole(
   });
 }
 
+function connectionDataPlaneCliOwnsAuth(pack: TargetPack, cell: EvaluationCell): boolean {
+  const auth = pack.surfaces?.cli?.auth;
+  return cell.surface === "cli"
+    && Boolean(pack.sql_conn || pack.mongo_conn)
+    && (!auth || auth.kind === "inherit");
+}
+
 function verifierExecutor(executor: ExecutorResults, cell: EvaluationCell, ns: string): ExecutorResults {
   if (!executor.results || typeof executor.results !== "object" || Array.isArray(executor.results)) {
     throw new Error("executor results must be an object");
@@ -920,6 +927,7 @@ export async function runCellWithRuntime(
     });
   }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const connectionDataPlaneCli = connectionDataPlaneCliOwnsAuth(pack, cell);
   const selectedTasks = tasksForSurface(pack, cell.surface);
   const missingPack = describeRequiredEnv(pack, resolutionCredentials, {
     tasks: selectedTasks,
@@ -939,7 +947,9 @@ export async function runCellWithRuntime(
       })
       .filter((requirement) => requirement.role === "auth" && requirement.required && !requirement.set)
       .map(() => pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT");
-  const auth = surfaceAuthStatus(pack, cell.surface, credentials);
+  const auth = connectionDataPlaneCli
+    ? { blocked: null, missing: [] }
+    : surfaceAuthStatus(pack, cell.surface, credentials);
   const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierAuth, ...auth.missing])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
