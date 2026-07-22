@@ -11,6 +11,40 @@
 import type { TraceStep } from "../harness/executor.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 
+function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  if (seen.has(value)) return value;
+  seen.add(value);
+  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested, seen);
+  return Object.freeze(value);
+}
+
+function isDeepFrozen(value: unknown, seen = new WeakSet<object>()): boolean {
+  if (value === null || typeof value !== "object") return true;
+  if (seen.has(value)) return true;
+  if (!Object.isFrozen(value)) return false;
+  seen.add(value);
+  return Object.values(value as Record<string, unknown>).every((nested) => isDeepFrozen(nested, seen));
+}
+
+function immutableCopy<T>(value: T): T {
+  if (value === null || typeof value !== "object" || isDeepFrozen(value)) return value;
+  return deepFreeze(structuredClone(value));
+}
+
+function snapshotOracleProvider(provider: OracleProvider): OracleProvider {
+  const snapshot: Record<string, unknown> = {};
+  for (const [name, value] of Object.entries(provider)) {
+    if (typeof value !== "function") snapshot[name] = immutableCopy(value);
+  }
+  for (const [name, value] of Object.entries(provider)) {
+    if (typeof value === "function") snapshot[name] = value.bind(snapshot);
+  }
+  snapshot.matches = provider.matches.bind(snapshot);
+  snapshot.verify = provider.verify.bind(snapshot);
+  return Object.freeze(snapshot) as unknown as OracleProvider;
+}
+
 export interface OracleVerifyContext {
   pack: TargetPack;
   task: Task;
@@ -32,6 +66,7 @@ export interface OracleProvider {
 }
 
 export interface OracleProviderRegistry {
+  readonly providers: readonly OracleProvider[];
   providerFor(oracle: OracleSpec): OracleProvider | undefined;
 }
 
@@ -39,10 +74,14 @@ export interface OracleProviderRegistry {
 export function createOracleProviderRegistry(
   input: readonly OracleProvider[] = [],
 ): OracleProviderRegistry {
-  const providers = Object.freeze([...input]);
+  const providers = Object.freeze(input.map((provider) => {
+    if (typeof provider.id !== "string" || !provider.id.trim()) {
+      throw new Error("oracle provider id must not be empty");
+    }
+    return snapshotOracleProvider(provider);
+  }));
   const ids = new Set<string>();
   for (const provider of providers) {
-    if (!provider.id.trim()) throw new Error("oracle provider id must not be empty");
     if (ids.has(provider.id)) {
       throw new Error(`duplicate oracle provider id "${provider.id}"`);
     }
@@ -50,8 +89,16 @@ export function createOracleProviderRegistry(
   }
 
   return Object.freeze({
+    providers,
     providerFor(oracle: OracleSpec): OracleProvider | undefined {
-      const matches = providers.filter((provider) => provider.matches(oracle));
+      const descriptor = immutableCopy(oracle);
+      const matches = providers.filter((provider) => {
+        try {
+          return provider.matches(descriptor);
+        } catch {
+          throw new Error(`oracle provider "${provider.id}" match failed`);
+        }
+      });
       if (matches.length > 1) {
         throw new Error(`multiple oracle providers match: ${matches.map((provider) => provider.id).join(", ")}`);
       }
@@ -70,7 +117,14 @@ export function registerOracleProvider(provider: OracleProvider): void {
 
 /** First registered provider claiming the spec, in registration order. */
 export function providerForOracle(oracle: OracleSpec): OracleProvider | undefined {
-  return providers.find((p) => p.matches(oracle));
+  const descriptor = immutableCopy(oracle);
+  return providers.find((provider) => {
+    try {
+      return provider.matches(descriptor);
+    } catch {
+      throw new Error(`oracle provider "${provider.id}" match failed`);
+    }
+  });
 }
 
 /** Test hook: reset the registry. */
@@ -86,7 +140,7 @@ export async function runProviderOracle(
   ctx: OracleVerifyContext,
 ): Promise<OracleResult> {
   try {
-    return await provider.verify(oracle, ctx);
+    return await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
   } catch (err) {
     return {
       type: oracle.type,

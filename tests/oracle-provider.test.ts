@@ -257,4 +257,31 @@ describe("oracle providers", () => {
     ]);
     expect(() => registry.providerFor(pack.tasks[0]!.oracles[0]!)).toThrow(/multiple oracle providers match: sql-a, sql-b/);
   });
+
+  it("snapshots providers and freezes provider inputs", async () => {
+    let contextWasFrozen = false;
+    const source: OracleProvider = {
+      id: "sql",
+      matches: matchesSql,
+      async verify(oracle, ctx) {
+        contextWasFrozen = Object.isFrozen(ctx)
+          && Object.isFrozen(ctx.pack)
+          && Object.isFrozen(ctx.task)
+          && Object.isFrozen(oracle);
+        return { type: oracle.type, passed: true, detail: "snapshotted" };
+      },
+    };
+    const registry = createOracleProviderRegistry([source]);
+    source.id = "mutated";
+    source.matches = () => false;
+
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, undefined, {
+      oracleProviders: registry,
+    });
+
+    expect(registry.providers.map((provider) => provider.id)).toEqual(["sql"]);
+    expect(out[0]!.oracleResults[0]!.detail).toBe("snapshotted");
+    expect(contextWasFrozen).toBe(true);
+  });
 });
