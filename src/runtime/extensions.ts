@@ -5,6 +5,10 @@ import {
   type VersionedOracleProvider,
 } from "../generate/oracle-provider.js";
 import type { TargetPack } from "../schemas.js";
+import type { BearerClientOptions } from "../http/client.js";
+import type { ExecutorResults } from "../generate/verify.js";
+import type { TraceStep } from "../harness/executor.js";
+import type { ObservedRun } from "../harness/transcript.js";
 
 export type RuntimeExtensionKind =
   | "oracle"
@@ -102,8 +106,14 @@ export interface HealthCheckProvider extends ProviderIdentity {
 
 export interface TargetAdapter extends ProviderIdentity {
   matches(target: TargetDescriptor): boolean;
-  /** Prompt and verification-transport hooks are added only when runCell can
-   * execute them; this slice limits adapters to composing narrower providers. */
+  /** Override the independent read-back transport for target-specific dynamic
+   * endpoints while leaving generic HTTP verification in core. */
+  verificationClientOptions?(context: TargetDescriptor & {
+    readonly executor: ExecutorResults;
+    readonly credentials: Readonly<Record<string, string>>;
+    /** Objective harness evidence available before independent read-back. */
+    readonly observed?: ObservedRun | readonly TraceStep[];
+  }): BearerClientOptions;
   readonly oracleProviders?: readonly VersionedOracleProvider[];
   readonly resetProviders?: readonly ResetProvider[];
   readonly provisioningProviders?: readonly ProvisioningProvider[];

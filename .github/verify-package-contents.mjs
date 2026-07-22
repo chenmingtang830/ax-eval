@@ -54,10 +54,12 @@ if (missing.length || forbidden.length) {
 // A package self-reference exercises package.json exports, not only the file.
 const publicApi = await import("ax-eval");
 const requiredExports = [
+  "BearerClient",
   "TargetPackSchema",
   "BearerClient",
   "checkApproval",
   "checkCellApproval",
+  "checkCommittedLegacyCellApproval",
   "verifyGeneratedPack",
   "createOracleProviderRegistry",
   "registerOracleProvider",
@@ -66,6 +68,7 @@ const requiredExports = [
   "NORMALIZED_CELL_RECORD_SCHEMA",
   "NormalizedCellRecordSchema",
   "runCell",
+  "runCellWithRuntime",
   "SURFACE_IDS",
   "INVOKE_HARNESS_IDS",
   "CapabilityInventorySchema",

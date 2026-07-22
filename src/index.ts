@@ -33,12 +33,26 @@ export type {
 
 export { loadDotenv, loadPack } from "./config.js";
 export {
+  describeRequiredEnv,
+  resolveEnvTemplate,
+  resolveScope,
+  surfaceAuthStatus,
+} from "./target/config.js";
+export type {
+  EnvRequirement,
+  EnvSource,
+  SurfaceAuthStatus,
+} from "./target/config.js";
+export { redactSensitiveText } from "./safety/redaction.js";
+export {
   approvalPath,
   checkApproval,
   checkCellApproval,
+  checkCommittedLegacyCellApproval,
   packContentHash,
   packFileContentHash,
   readApproval,
+  writeApproval,
 } from "./generate/review.js";
 export type { Approval } from "./generate/review.js";
 
@@ -113,11 +127,14 @@ export type {
   NormalizedCellRecord,
   ReviewedPackReference,
 } from "./cell/schema.js";
-export { runCell } from "./cell/run.js";
+export { runCell, runCellWithRuntime } from "./cell/run.js";
 export type {
+  CellRuntimeDependencies,
   CredentialSource,
   RunCellOptions,
 } from "./cell/run.js";
+export { BearerClient } from "./http/client.js";
+export type { BearerClientOptions } from "./http/client.js";
 export {
   createHealthCheckProviderRegistry,
   createProvisioningProviderRegistry,

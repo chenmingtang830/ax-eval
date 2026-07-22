@@ -161,7 +161,8 @@ describe("runCell", () => {
       replaceEnv: true,
       requireTrace: true,
     });
-    expect(invokes[0]!.ns).toContain("batch-1-batch-1-example-api-codex-t2-gpt-example");
+    expect(invokes[0]!.ns).toMatch(/^example-run-cdx-h-[a-f0-9]{24}$/);
+    expect(Buffer.byteLength(`axarena_acl_denied_${invokes[0]!.ns}`)).toBeLessThanOrEqual(63);
     expect(record).toMatchObject({
       schema: "ax.normalized-cell-record/v1",
       record_id: cell.cell_id,
@@ -189,6 +190,36 @@ describe("runCell", () => {
     });
     expect(record.task_results[0]?.oracleResults[0]?.detail).toBe("name matched");
     expect(record).not.toHaveProperty("provider_provenance");
+  });
+
+  it("keeps namespaces bounded and collision-resistant for large trial values", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    await runCellWithRuntime(cell, { credentials: {} }, runtime(invokes));
+    await runCellWithRuntime({
+      ...cell,
+      trial: Number.MAX_SAFE_INTEGER,
+    }, { credentials: {} }, runtime(invokes));
+
+    expect(invokes[0]!.ns).not.toBe(invokes[1]!.ns);
+    expect(Buffer.byteLength(`axarena_acl_denied_${invokes[1]!.ns}`)).toBeLessThanOrEqual(63);
+  });
+
+  it("does not alias delimiter-bearing cell identities", async () => {
+    const { cell } = fixture();
+    const invokes: InvokeRunOptions[] = [];
+    await runCellWithRuntime({
+      ...cell,
+      batch_id: "x\0y",
+      cell_id: "z",
+    }, { credentials: {} }, runtime(invokes));
+    await runCellWithRuntime({
+      ...cell,
+      batch_id: "x",
+      cell_id: "y\0z",
+    }, { credentials: {} }, runtime(invokes));
+
+    expect(invokes[0]!.ns).not.toBe(invokes[1]!.ns);
   });
 
   it("runs health and additive provisioning extensions before invoke and records selected provenance", async () => {
@@ -272,6 +303,44 @@ describe("runCell", () => {
     ]);
     expect(resetPlan).not.toHaveBeenCalled();
     expect(resetExecute).not.toHaveBeenCalled();
+  });
+
+  it("lets a selected target adapter own verification transport without core target policy", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.verificationClient = vi.fn();
+    const contexts: unknown[] = [];
+    const registry = createRuntimeExtensionRegistry({
+      targetAdapters: [{
+        id: "dynamic-endpoint-adapter",
+        version: "1.0.0",
+        matches: () => true,
+        verificationClientOptions(context) {
+          contexts.push(context);
+          return {
+            baseUrl: "https://preview.example.invalid",
+            token: "",
+            authScheme: "none",
+            apiStyle: "rest",
+          };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: {}, extensions: { registry } },
+      isolated,
+    );
+
+    expect(record.status).toBe("completed");
+    expect(isolated.verificationClient).not.toHaveBeenCalled();
+    expect(contexts).toHaveLength(1);
+    expect(record.provider_provenance).toContainEqual({
+      kind: "target-adapter",
+      id: "dynamic-endpoint-adapter",
+      version: "1.0.0",
+    });
   });
 
   it("blocks on a failed health extension before provisioning or invocation", async () => {
@@ -699,7 +768,6 @@ describe("runCell", () => {
     expect(record.error?.message).toContain("VERIFY_TOKEN");
     expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
-
   it("returns a schema-valid failed record when invocation fails", async () => {
     const { cell } = fixture();
     const record = await runCellWithRuntime(cell, { credentials: {} }, runtime([], false));
@@ -757,6 +825,7 @@ describe("runCell", () => {
     const record = await runCellWithRuntime(cell, { credentials: {} }, failing);
     expect(record.status).toBe("failed");
     expect(record.error).toEqual({ stage: "invoke", message: "subprocess rejected" });
+    expect(record.execution_namespace).toMatch(/^example-run-/);
   });
 
   it("clears deterministic artifacts before retrying the same immutable cell", async () => {
@@ -844,7 +913,8 @@ describe("runCell", () => {
       expect(args[1]).toMatchObject({ profile: "medium", harness: "codex", surface: "api" });
       return verify(...args);
     };
-    await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.execution_namespace).toBe(invokes[0]!.ns);
   });
 
   it("passes the required trace independently from the parsed transcript", async () => {
@@ -955,6 +1025,49 @@ describe("runCell", () => {
     expect(record.status).toBe("completed");
   });
 
+  it("scrubs credentials from persisted discovery evidence", async () => {
+    const { cell, dir, pack } = fixture();
+    const packPath = resolve(dir, "pack.yaml");
+    pack.discovery = {
+      product: "Example",
+      goal: "Create an example",
+      official_domains: [],
+      canonical_endpoint: "POST /examples",
+      deprecated_markers: [],
+      auth_scheme: "Bearer token",
+    };
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
+      payload.discovery = {
+        endpoint_used: "POST /examples",
+        auth_scheme_found: "Bearer verifier-secret",
+      };
+      writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
+      rmSync(options.paths.transcriptPath);
+      return result;
+    };
+
+    const record = await runCellWithRuntime(
+      { ...cell, required_credentials: ["SHARED_TOKEN"] },
+      {
+        credentials: { SHARED_TOKEN: "host-secret" },
+        verificationCredentials: { SHARED_TOKEN: "verifier-secret" },
+      },
+      isolated,
+    );
+
+    expect(record.discovery_source).toBe("self-report");
+    expect(JSON.stringify(record)).not.toContain("host-secret");
+    expect(JSON.stringify(record)).not.toContain("verifier-secret");
+    expect(record.discovery?.metrics.find((metric) => metric.id === "auth")?.detail)
+      .toContain("<redacted>");
+  });
   it("treats every provisioning environment value as secret regardless of its key name", async () => {
     const { cell } = fixture();
     const isolated = runtime([]);

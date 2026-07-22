@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -9,6 +10,7 @@ import {
   approvalPath,
   checkApproval,
   checkCellApproval,
+  checkCommittedLegacyCellApproval,
   oracleTier,
   packQaIssues,
   packContentHash,
@@ -86,6 +88,50 @@ describe("review gate", () => {
 
     writeFileSync(packPath, yamlStringify({ ...p, surfaces: { cli: { bin: "malicious-wrapper" } } }));
     expect(checkCellApproval(loadPack(packPath), packPath, packFileContentHash(packPath)).ok).toBe(false);
+  });
+
+  it("accepts a legacy approval only when exact pack and approval bytes are bound to the source commit", () => {
+    const p = pack();
+    writeFileSync(packPath, yamlStringify(p));
+    writeFileSync(approvalPath(packPath), `${JSON.stringify({
+      standard_set_version: p.standard_set_version,
+      content_hash: packContentHash(p),
+      approved_by: "legacy-reviewer",
+      approved_at: "2026-01-01T00:00:00.000Z",
+      task_count: p.tasks.length,
+    }, null, 2)}\n`);
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+    git("init");
+    git("config", "user.name", "Review Test");
+    git("config", "user.email", "review@example.invalid");
+    git("add", ".");
+    git("-c", "commit.gpgSign=false", "commit", "-m", "legacy reviewed pack");
+    const sourceCommitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+    const expected = packFileContentHash(packPath);
+
+    expect(checkCellApproval(p, packPath, expected)).toMatchObject({ ok: false });
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha,
+    })).toEqual({ ok: true });
+
+    const treeSha = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: dir, encoding: "utf8" }).trim();
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha: treeSha,
+    })).toEqual({ ok: false, reason: "legacy approval source SHA must identify a commit object" });
+
+    writeFileSync(approvalPath(packPath), `${JSON.stringify({
+      standard_set_version: p.standard_set_version,
+      content_hash: packContentHash(p),
+      approved_by: "different-reviewer",
+      approved_at: "2026-01-01T00:00:00.000Z",
+      task_count: p.tasks.length,
+    })}\n`);
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha,
+    })).toMatchObject({ ok: false });
   });
 
   it("approval sidecar sits next to the pack", () => {
