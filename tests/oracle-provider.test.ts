@@ -75,6 +75,7 @@ const matchesSql = (oracle: OracleSpec) => typeof oracle.sqlQuery === "string";
 function sqlProvider(id: string, detail: string): OracleProvider {
   return {
     id,
+    version: "1.0.0",
     matches: matchesSql,
     async verify(oracle) {
       return { type: oracle.type, passed: true, detail };
@@ -89,6 +90,7 @@ describe("oracle providers", () => {
     const seen: OracleVerifyContext[] = [];
     registerOracleProvider({
       id: "sql",
+      version: "1.0.0",
       matches: matchesSql,
       async verify(oracle, ctx) {
         seen.push(ctx);
@@ -113,6 +115,7 @@ describe("oracle providers", () => {
     expect(seen[0]!.reported).toEqual({ gid: "7" });
     expect(seen[0]!.ns).toBe("ns-1");
     expect(seen[0]!.trace).toEqual(trace);
+    expect(seen[0]!.credentials).toEqual({});
     // The plain HTTP oracle still went through the built-in round-trip path.
     const http = out.find((o) => o.taskId === "http-task")!;
     expect(http.success).toBe(true);
@@ -121,6 +124,7 @@ describe("oracle providers", () => {
   it("contains a throwing provider as a failed oracle, not a crashed task", async () => {
     registerOracleProvider({
       id: "sql",
+      version: "1.0.0",
       matches: matchesSql,
       async verify() {
         throw new Error("connection refused");
@@ -138,6 +142,7 @@ describe("oracle providers", () => {
   it("contains matcher failures per oracle without erasing other evidence", async () => {
     registerOracleProvider({
       id: "throwing-matcher",
+      version: "1.0.0",
       matches(oracle) {
         if (oracle.readPathTemplate) throw new Error("postgres://user:secret@example.test/db");
         return false;
@@ -162,6 +167,7 @@ describe("oracle providers", () => {
     const seen: OracleVerifyContext[] = [];
     registerOracleProvider({
       id: "sql",
+      version: "1.0.0",
       matches: matchesSql,
       async verify(oracle, ctx) {
         seen.push(ctx);
@@ -182,6 +188,7 @@ describe("oracle providers", () => {
   it("re-registering the same id replaces the provider", async () => {
     registerOracleProvider({
       id: "sql",
+      version: "1.0.0",
       matches: matchesSql,
       async verify(oracle) {
         return { type: oracle.type, passed: false, detail: "old" };
@@ -189,6 +196,7 @@ describe("oracle providers", () => {
     });
     registerOracleProvider({
       id: "sql",
+      version: "2.0.0",
       matches: matchesSql,
       async verify(oracle) {
         return { type: oracle.type, passed: true, detail: "new" };
@@ -262,11 +270,13 @@ describe("oracle providers", () => {
     let contextWasFrozen = false;
     const source: OracleProvider = {
       id: "sql",
+      version: "1.0.0",
       matches: matchesSql,
       async verify(oracle, ctx) {
         contextWasFrozen = Object.isFrozen(ctx)
           && Object.isFrozen(ctx.pack)
           && Object.isFrozen(ctx.task)
+          && Object.isFrozen(ctx.credentials)
           && Object.isFrozen(oracle);
         return { type: oracle.type, passed: true, detail: "snapshotted" };
       },
@@ -283,5 +293,58 @@ describe("oracle providers", () => {
     expect(registry.providers.map((provider) => provider.id)).toEqual(["sql"]);
     expect(out[0]!.oracleResults[0]!.detail).toBe("snapshotted");
     expect(contextWasFrozen).toBe(true);
+  });
+
+  it("snapshots nested provider state and contains matcher failures as safe oracle failures", async () => {
+    const original = {
+      ...sqlProvider("stateful", "stateful"),
+      state: { enabled: true },
+      matches(oracle: OracleSpec) {
+        return this.state.enabled && matchesSql(oracle);
+      },
+    };
+    const stable = createOracleProviderRegistry([original]);
+    original.state.enabled = false;
+    expect(stable.providerFor(pack.tasks[0]!.oracles[0]!)?.id).toBe("stateful");
+
+    const throwing = createOracleProviderRegistry([{
+      ...sqlProvider("throwing", "unused"),
+      matches(oracle) {
+        if (matchesSql(oracle)) throw new Error("opaque-matcher-secret");
+        return false;
+      },
+    }]);
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, undefined, {
+      oracleProviders: throwing,
+    });
+    expect(out[0]!.oracleResults[0]!.detail).toBe("oracle provider selection failed");
+    expect(JSON.stringify(out)).not.toContain("opaque-matcher-secret");
+  });
+
+  it("passes only explicit verifier credentials and scrubs them from provider evidence", async () => {
+    let received: OracleVerifyContext["credentials"] | undefined;
+    const registry = createOracleProviderRegistry([{
+      id: "credential-probe",
+      version: "1.0.0",
+      matches: matchesSql,
+      async verify(oracle, ctx) {
+        received = ctx.credentials;
+        return {
+          type: oracle.type,
+          passed: true,
+          detail: `connected with ${ctx.credentials.DATABASE_URL}`,
+        };
+      },
+    }]);
+    const exec: ExecutorResults = { profile: "floor", results: { "db-sql-task": { gid: "7" } } };
+    const out = await verifyGeneratedPack(pack, exec, fakeClient({}), undefined, undefined, {
+      oracleProviders: registry,
+      credentials: { DATABASE_URL: "opaque-db-secret" },
+    });
+
+    expect(received).toEqual({ DATABASE_URL: "opaque-db-secret" });
+    expect(out[0]!.oracleResults[0]!.detail).toBe("connected with <redacted>");
+    expect(JSON.stringify(out)).not.toContain("opaque-db-secret");
   });
 });

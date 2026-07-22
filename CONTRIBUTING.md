@@ -66,6 +66,10 @@ shape.
   one fully specified reviewed pack/surface/harness/model/effort/trial and use
   the caller-supplied batch id. Roster expansion, trial counts, aggregation,
   ranking, publication, and cleanup policy belong to the controller.
+- **Runtime extensions are explicit and versioned.** Build an immutable
+  per-cell registry; do not add ambient provider discovery or target-name
+  dispatch. Health checks precede provisioning, environment changes are
+  additive, and reset remains after verified-record persistence.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed. Product presets may add hints and surface-specific task
   shaping, but schema validation and the review gate remain authoritative;

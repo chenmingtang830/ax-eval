@@ -51,6 +51,7 @@ import {
   EvaluationCellSchema,
   TargetPackSchema,
   checkApproval,
+  createRuntimeExtensionRegistry,
   runCell,
   tasksForSurface,
   verifyGeneratedPack,
@@ -78,10 +79,40 @@ controller such as ax-arena owns those policies and must pass `batch_id`
 unchanged to every cell. Verification reads live state before the record is
 returned; cleanup remains an explicit later lifecycle step.
 
+Controllers compose versioned, per-cell runtime behavior through one immutable
+registry:
+
+```ts
+const registry = createRuntimeExtensionRegistry({
+  oracleProviders,
+  provisioningProviders,
+  healthCheckProviders,
+  resetProviders,
+  targetAdapters,
+});
+const record = await runCell(cell, {
+  credentials,
+  extensions: { registry },
+});
+```
+
+Duplicate IDs and ambiguous matches fail before invocation. Health checks run
+before provisioning, provisioning environment changes are additive, and only
+selected or invoked provider IDs and versions appear in optional
+`provider_provenance`. `runCell` never invokes reset: the controller must first
+persist the verified record, then plan and execute bounded cleanup and persist
+its separate evidence. Global oracle registration remains only for direct
+`verifyGeneratedPack` compatibility.
+
+Provisioning never receives verifier-only credentials, cannot replace PATH or
+any scoped/core environment key, and all environment values it adds are treated
+as secrets during artifact and error redaction. Required tools must already be
+pinned outside the writable cell workspace.
+
 The pack reference carries a full SHA-256 of the exact pack file in addition to
 the existing approval sidecar check, so executable surface/auth changes cannot
 hide behind the narrower legacy approval digest. CLI cells currently use built-in
-extensions only; controllers that inject provider registries should call the
+extensions only; controllers that inject a runtime registry should call the
 library API until the explicit extension-loader CLI seam lands.
 Approvals created before this field was introduced remain valid for legacy
 commands, but `cell run` requires the operator to review and approve the exact

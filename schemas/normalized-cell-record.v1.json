@@ -70,7 +70,7 @@
     "started_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": "string", "format": "date-time" },
     "status": { "enum": ["completed", "failed", "blocked"] },
-    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "invoke-failed"] },
+    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "health-check-failed", "invoke-failed"] },
     "error": {
       "oneOf": [
         { "type": "null" },
@@ -84,6 +84,19 @@
           }
         }
       ]
+    },
+    "provider_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["kind", "id", "version"],
+        "properties": {
+          "kind": { "enum": ["oracle", "provisioning", "health-check", "target-adapter"] },
+          "id": { "$ref": "#/$defs/nonBlank" },
+          "version": { "$ref": "#/$defs/nonBlank" }
+        }
+      }
     },
     "task_results": {
       "type": "array",

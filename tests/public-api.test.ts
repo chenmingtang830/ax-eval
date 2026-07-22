@@ -12,6 +12,7 @@ import {
   checkApproval,
   checkCellApproval,
   createOracleProviderRegistry,
+  createRuntimeExtensionRegistry,
   registerOracleProvider,
   runCell,
   verifyGeneratedPack,
@@ -31,6 +32,7 @@ describe("public API", () => {
     expect(checkCellApproval).toBeTypeOf("function");
     expect(verifyGeneratedPack).toBeTypeOf("function");
     expect(createOracleProviderRegistry).toBeTypeOf("function");
+    expect(createRuntimeExtensionRegistry).toBeTypeOf("function");
     expect(registerOracleProvider).toBeTypeOf("function");
     expect(aggregateNormalizedResults).toBeTypeOf("function");
     expect(runCell).toBeTypeOf("function");

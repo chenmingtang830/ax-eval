@@ -36,4 +36,18 @@ if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage:
   throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
 }
 
+const publicImport = spawnSync(process.execPath, [
+  "--input-type=module",
+  "--eval",
+  "import { createArenaRuntimeExtensionRegistry } from './dist/index.js'; " +
+    "const registry = createArenaRuntimeExtensionRegistry(); " +
+    "if (registry.inspect().length !== 0) process.exit(1);",
+], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+});
+if (publicImport.error || publicImport.status !== 0) {
+  throw new Error(publicImport.error?.message || publicImport.stderr || "built arena package could not import public ax-eval");
+}
+
 console.log(`Verified ${files.size} arena package files (${report.filename}).`);

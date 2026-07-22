@@ -10,6 +10,7 @@
  */
 import type { TraceStep } from "../harness/executor.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
+import { redactSensitiveText } from "../safety/redaction.js";
 
 function deepFreeze<T>(value: T, seen = new WeakSet<object>()): T {
   if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
@@ -54,11 +55,15 @@ export interface OracleVerifyContext {
   ns: string | undefined;
   /** Observed trace steps (may be empty). */
   trace: TraceStep[];
+  /** Explicit per-call verifier credentials. Providers must not read process.env. */
+  credentials: Readonly<Record<string, string | undefined>>;
 }
 
 export interface OracleProvider {
   /** Stable id (e.g. "sql", "mongo"). Registering the same id replaces. */
   id: string;
+  /** Provider implementation version recorded in cell provenance. */
+  version: string;
   /** True if this provider owns the given oracle spec. */
   matches(oracle: OracleSpec): boolean;
   /** Run the read-back check for one oracle this provider matched. */
@@ -77,6 +82,9 @@ export function createOracleProviderRegistry(
   const providers = Object.freeze(input.map((provider) => {
     if (typeof provider.id !== "string" || !provider.id.trim()) {
       throw new Error("oracle provider id must not be empty");
+    }
+    if (typeof provider.version !== "string" || !provider.version.trim()) {
+      throw new Error("oracle provider version must not be empty");
     }
     return snapshotOracleProvider(provider);
   }));
@@ -110,6 +118,12 @@ export function createOracleProviderRegistry(
 const providers: OracleProvider[] = [];
 
 export function registerOracleProvider(provider: OracleProvider): void {
+  if (typeof provider.id !== "string" || !provider.id.trim()) {
+    throw new Error("oracle provider id must not be empty");
+  }
+  if (typeof provider.version !== "string" || !provider.version.trim()) {
+    throw new Error("oracle provider version must not be empty");
+  }
   const existing = providers.findIndex((p) => p.id === provider.id);
   if (existing >= 0) providers[existing] = provider;
   else providers.push(provider);
@@ -140,8 +154,18 @@ export async function runProviderOracle(
   ctx: OracleVerifyContext,
 ): Promise<OracleResult> {
   try {
-    return await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
-  } catch (err) {
+    const result = await provider.verify(immutableCopy(oracle), immutableCopy(ctx));
+    const secrets = Object.values(ctx.credentials)
+      .filter((value): value is string => typeof value === "string" && value.length > 0)
+      .sort((a, b) => b.length - a.length);
+    const detail = secrets.some((secret) => secret.length < 4 && result.detail.includes(secret))
+      ? "<redacted-sensitive-text>"
+      : secrets.reduce(
+          (value, secret) => secret.length >= 4 ? value.split(secret).join("<redacted>") : value,
+          result.detail,
+        );
+    return { ...result, detail: redactSensitiveText(detail) };
+  } catch {
     return {
       type: oracle.type,
       passed: false,

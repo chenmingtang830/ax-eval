@@ -7,6 +7,7 @@ import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 import type { InvokeRunOptions } from "../src/harness/invoke.js";
 import type { TargetPack } from "../src/schemas.js";
 import { TargetPackSchema } from "../src/schemas.js";
+import { createRuntimeExtensionRegistry } from "../src/runtime/extensions.js";
 import {
   runCellWithRuntime,
   type CellRuntimeDependencies,
@@ -186,6 +187,294 @@ describe("runCell", () => {
       error: null,
     });
     expect(record.task_results[0]?.oracleResults[0]?.detail).toBe("name matched");
+    expect(record).not.toHaveProperty("provider_provenance");
+  });
+
+  it("runs health and additive provisioning extensions before invoke and records selected provenance", async () => {
+    const { cell } = fixture();
+    const events: string[] = [];
+    const resetPlan = vi.fn();
+    const resetExecute = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      oracleProviders: [{
+        id: "roundtrip-provider",
+        version: "1.2.0",
+        matches: () => true,
+        async verify(oracle) {
+          return { type: oracle.type, passed: true, detail: "extension verified" };
+        },
+      }],
+      resetProviders: [{
+        id: "cleanup-provider",
+        version: "4.0.0",
+        matches: () => true,
+        plan: resetPlan,
+        execute: resetExecute,
+      }],
+      healthCheckProviders: [{
+        id: "health-provider",
+        version: "2.0.0",
+        matches: () => true,
+        async check() {
+          events.push("health");
+          return [{ status: "pass", message: "ready" }];
+        },
+      }],
+      provisioningProviders: [{
+        id: "tool-provider",
+        version: "3.1.0",
+        matches: () => true,
+        async inspect() {
+          events.push("inspect");
+          return { ready: true };
+        },
+        async provision() {
+          events.push("extension-provision");
+          return { env: { EXTENSION_ONLY: "yes" }, metadata: { tool_version: "3.1.0" } };
+        },
+      }],
+    });
+    const invokes: InvokeRunOptions[] = [];
+    const isolated = runtime(invokes);
+    const provisionHarness = isolated.provisionHarness;
+    isolated.provisionHarness = async (...args) => {
+      events.push("core-provision");
+      return provisionHarness(...args);
+    };
+    const invokeHarness = isolated.invokeHarness;
+    isolated.invokeHarness = async (...args) => {
+      events.push("invoke");
+      return invokeHarness(...args);
+    };
+    const verify = isolated.verify;
+    isolated.verify = async (...args) => {
+      events.push("verify");
+      return verify(...args);
+    };
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: {}, extensions: { registry } },
+      isolated,
+    );
+
+    expect(events).toEqual(["health", "inspect", "extension-provision", "core-provision", "invoke", "verify"]);
+    expect(invokes[0]!.env).toMatchObject({ CELL_ONLY: "yes", EXTENSION_ONLY: "yes" });
+    expect(invokes[0]!.provisioning).toMatchObject({
+      extension_provider: { id: "tool-provider", version: "3.1.0" },
+      extension_metadata: { tool_version: "3.1.0" },
+    });
+    expect(record.provider_provenance).toEqual([
+      { kind: "health-check", id: "health-provider", version: "2.0.0" },
+      { kind: "oracle", id: "roundtrip-provider", version: "1.2.0" },
+      { kind: "provisioning", id: "tool-provider", version: "3.1.0" },
+    ]);
+    expect(resetPlan).not.toHaveBeenCalled();
+    expect(resetExecute).not.toHaveBeenCalled();
+  });
+
+  it("blocks on a failed health extension before provisioning or invocation", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.provisionHarness = vi.fn();
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      healthCheckProviders: [{
+        id: "health-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async check() {
+          return [{ status: "fail", message: "credential scope is inconsistent" }];
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record).toMatchObject({
+      status: "blocked",
+      blocked: "health-check-failed",
+      error: { stage: "preflight" },
+    });
+    expect(record.error?.message).toContain("credential scope is inconsistent");
+    expect(isolated.provisionHarness).not.toHaveBeenCalled();
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("normalizes extension matcher failures without leaking their message", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      healthCheckProviders: [{
+        id: "broken-matcher",
+        version: "1.0.0",
+        matches() {
+          throw new Error("opaque-matcher-secret");
+        },
+        async check() {
+          return [];
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record).toMatchObject({ status: "blocked", error: { stage: "preflight" } });
+    expect(record.error?.message).toBe('health-check provider "broken-matcher" match failed');
+    expect(JSON.stringify(record)).not.toContain("opaque-matcher-secret");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("rejects provisioning environment replacement before invocation", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "unsafe-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { CELL_ONLY: "replacement" } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record).toMatchObject({ status: "blocked", error: { stage: "provision" } });
+    expect(record.error?.message).toContain("attempted to replace environment key(s): CELL_ONLY");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("reserves core environment names even when the parent omitted them", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    vi.stubEnv("PATH", "");
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "path-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { PATH: "/tmp/untrusted-bin" } };
+        },
+      }],
+    });
+
+    try {
+      const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+      expect(record.error?.message).toContain("attempted to replace environment key(s): PATH");
+      expect(isolated.invokeHarness).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it("never exposes verifier-only credentials to provisioning or its harness environment", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.auth_method = "pat";
+    pack.auth = {
+      type: "bearer",
+      env: "AGENT_TOKEN",
+      env_aliases: [],
+      verify_env: "VERIFY_TOKEN",
+      verify_env_aliases: [],
+    };
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.required_credentials = ["AGENT_TOKEN", "VERIFY_TOKEN"];
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "credential-probe",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision(context) {
+          expect(context.credentials).toEqual({ AGENT_TOKEN: "agent-secret" });
+          return { env: { VERIFY_TOKEN: "attempted-leak" } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      {
+        credentials: { AGENT_TOKEN: "agent-secret", VERIFY_TOKEN: "verify-secret" },
+        extensions: { registry },
+      },
+      isolated,
+    );
+    expect(record).toMatchObject({ status: "blocked", error: { stage: "provision" } });
+    expect(record.error?.message).toContain("attempted to replace environment key(s): VERIFY_TOKEN");
+    expect(record.error?.message).not.toContain("verify-secret");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("keeps controller-only verification credentials out of the harness child", async () => {
+    const { cell } = fixture();
+    cell.required_credentials = ["AGENT_TOKEN"];
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      expect(options.env.AGENT_TOKEN).toBe("agent-secret");
+      expect(options.env.DATABASE_URL).toBeUndefined();
+      return invoke(options);
+    };
+    const verify = isolated.verify;
+    isolated.verify = async (...args) => {
+      expect(args[7]).toEqual({ DATABASE_URL: "private-database-secret" });
+      return verify(...args);
+    };
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { AGENT_TOKEN: "agent-secret", DATABASE_URL: "must-not-leak" },
+      verificationCredentials: { DATABASE_URL: "private-database-secret" },
+    }, isolated);
+    expect(record.status).toBe("completed");
+  });
+
+  it("blocks before invocation when an explicit verifier credential map is incomplete", async () => {
+    const { cell, dir, pack } = fixture();
+    pack.auth_method = "pat";
+    pack.auth = {
+      type: "bearer",
+      env: "AGENT_TOKEN",
+      env_aliases: [],
+      verify_env: "VERIFY_TOKEN",
+      verify_env_aliases: [],
+    };
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "cell-test");
+    cell.pack.content_hash = packFileContentHash(packPath);
+    cell.required_credentials = ["AGENT_TOKEN"];
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+
+    const record = await runCellWithRuntime(cell, {
+      credentials: { AGENT_TOKEN: "agent-secret" },
+      verificationCredentials: {},
+    }, isolated);
+
+    expect(record).toMatchObject({
+      status: "blocked",
+      blocked: "missing-credential",
+      error: { stage: "preflight" },
+    });
+    expect(record.error?.message).toContain("VERIFY_TOKEN");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
   it("returns a schema-valid failed record when invocation fails", async () => {
@@ -441,6 +730,48 @@ describe("runCell", () => {
       runtime([]),
     );
     expect(record.status).toBe("completed");
+  });
+
+  it("treats every provisioning environment value as secret regardless of its key name", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    const invoke = isolated.invokeHarness;
+    isolated.invokeHarness = async (options) => {
+      const result = await invoke(options);
+      const payload = JSON.parse(readFileSync(options.paths.resultsPath, "utf8"));
+      payload.session = "opaque-session-value";
+      writeFileSync(options.paths.resultsPath, JSON.stringify(payload));
+      writeFileSync(options.paths.tracePath, JSON.stringify([{ note: "opaque-session-value" }]));
+      return result;
+    };
+    isolated.verify = async (_pack, executor) => [{
+      taskId: "task-1",
+      difficulty: "L1",
+      profile: executor.profile,
+      success: true,
+      oracleResults: [{ type: "roundtrip", passed: true, detail: "verified opaque-session-value" }],
+      error: null,
+      na: false,
+    }];
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "session-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { SESSION: "opaque-session-value" } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record.task_results[0]!.oracleResults[0]!.detail).toBe("verified <redacted>");
+    const results = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8");
+    const trace = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.trace), "utf8");
+    expect(`${results}\n${trace}\n${JSON.stringify(record)}`).not.toContain("opaque-session-value");
   });
 
   it("rejects pack and artifact paths that escape the declared working directory", async () => {

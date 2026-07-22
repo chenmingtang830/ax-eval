@@ -179,13 +179,22 @@ that escape the arena workspace, and arena imports of unpublished `ax-eval`
 subpaths. Canonical files remain under `benchmarks/daeb/` until the artifact-only
 relocation slice so workspace creation does not conceal a semantic move.
 
-Library callers should pass `createOracleProviderRegistry([...])` through
-`runCell` extensions (or `verifyGeneratedPack` options for legacy flows) when
-they need vertical read-back providers. The
-registry is isolated to that call and rejects duplicate IDs or ambiguous
-matches. Global `registerOracleProvider` remains a compatibility bridge for
-existing CLI integrations; new orchestration must not depend on ambient
-provider state.
+Library callers compose `createRuntimeExtensionRegistry({ ... })` and pass it
+through `runCell` options. The immutable registry snapshots versioned oracle,
+provisioning, health-check, reset, and target-adapter providers for that cell;
+adapter-contributed providers pass through the same duplicate and ambiguity
+checks. Health checks execute before provisioning and invocation. Provisioning
+providers may add environment keys, but cannot replace scoped credentials or
+the core harness environment (including PATH). Tool binaries must be pinned and
+preinstalled outside the writable cell workspace.
+
+The normalized record's optional `provider_provenance` lists only selected or
+invoked oracle, provisioning, health-check, and adapter identities. Reset is
+not represented there because `runCell` never cleans up. The controller must
+atomically persist the verified record before calling the selected reset
+provider's `plan` and `execute` methods and persisting cleanup evidence. Global
+`registerOracleProvider` remains a compatibility bridge for direct legacy
+verification; new orchestration must not depend on ambient provider state.
 
 ### Review and approval gate
 
