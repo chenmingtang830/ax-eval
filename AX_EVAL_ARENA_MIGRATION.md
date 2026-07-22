@@ -75,6 +75,11 @@ Implementation progress:
 - The root package no longer declares the unused Neon API/serverless or
   Supabase SDK/CLI packages. Active SQL/Mongo drivers remain temporarily until
   the legacy DAEB runtime entrypoints delegate to arena.
+- Trusted dispatch validation, OCI/sysroot and tool preparation, Bubblewrap
+  smoke tests, sealed-artifact export, detached attestation construction, and
+  their tests are owned under `ax-arena/benchmark/`. The required
+  `.github/workflows/` file remains only the launcher and secret-binding
+  surface.
 
 ## 2. Goals
 

@@ -197,6 +197,11 @@ provider may instead return additive `pathEntries`; core canonicalizes and
 prepends only real directories that resolve outside both the writable cell
 workspace and artifact tree. Tool binaries must be pinned and preinstalled in
 those external directories.
+Trusted dispatch validation, OCI/sysroot preparation, Bubblewrap smoke tests,
+sealed-artifact export, and detached-subject construction live under
+`ax-arena/benchmark/scripts/`. GitHub keeps only its required launcher under
+`.github/workflows/`; that YAML binds environments and credentials to the
+arena-owned implementations.
 Target adapters may override only construction of the verification transport;
 the cell runner still owns trace parsing, oracle execution, record validation,
 and ordering. The adapter receives frozen explicit context rather than ambient
