@@ -95,6 +95,8 @@ describe("trusted runtime lock and workflow", () => {
     expect(source).toContain('docker pull "$TRUSTED_CONTAINER_IMAGE"');
     expect(source).toContain("docker create --platform linux/amd64");
     expect(source).toContain("docker export");
+    expect(source).toContain('docker export --output "$archive"');
+    expect(source).not.toContain('docker export "$container_id" |');
     expect(source).toContain("sudo chown -R root:root");
     expect(source).toContain("sudo chmod -R go-w");
     expect(source.indexOf('docker pull "$TRUSTED_CONTAINER_IMAGE"')).toBeLessThan(source.indexOf("docker export"));

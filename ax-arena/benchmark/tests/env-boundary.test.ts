@@ -49,12 +49,12 @@ describe("environment template ownership", () => {
     const workflowCredentialNames = [...workflow.matchAll(/secrets\.([A-Z][A-Z0-9_]*)/g)]
       .map((match) => match[1]!)
       .filter((name) => !sharedHarnessNames.has(name));
-    const workflowCredentialSet = new Set(workflowCredentialNames);
-    const expectedArenaNames = [...new Set([...packCredentialNames, ...workflowCredentialNames])].sort();
+    const expectedArenaNames = [...new Set(packCredentialNames)].sort();
 
     expect([...arenaTemplate.keys()].sort()).toEqual(expectedArenaNames);
     expect([...arenaTemplate.values()]).toEqual(expectedArenaNames.map(() => ""));
-    for (const name of packCredentialNames) expect(workflowCredentialSet.has(name)).toBe(true);
+    expect(workflowCredentialNames).toEqual(["AX_ARENA_CELL_CREDENTIALS_JSON"]);
+    for (const name of packCredentialNames) expect(arenaTemplate.has(name)).toBe(true);
     for (const name of expectedArenaNames) expect(rootTemplate.has(name)).toBe(false);
     for (const name of sharedHarnessNames) expect(rootTemplate.has(name)).toBe(true);
     for (const obsoleteOverride of [

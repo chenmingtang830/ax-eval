@@ -205,6 +205,11 @@ arena-owned implementations.
 `prepare-trusted-tools.sh` is the pre-credential orchestrator: it creates the
 verified OCI sysroot, installs/builds with that sysroot's Node and repository
 lock, then invokes the exact runtime-tool sealer as root.
+The credential-free global planner and exact per-cell credential parser live in
+the same arena script boundary. Each protected cell job repeats OCI extraction
+and runtime sealing before its credential-bearing step; transferred tool archives
+are not a trust substitute. Core exposes only the generic immutable child-sandbox
+adapter and provenance fields; `ax-eval` does not import or publish arena policy.
 Target adapters may override only construction of the verification transport;
 the cell runner still owns trace parsing, oracle execution, record validation,
 and ordering. The adapter receives frozen explicit context rather than ambient
@@ -333,10 +338,24 @@ after verification. Missing namespaces, unsupported resetters, reset errors,
 or stale runs without confirmed cleanup halt the lane rather than contaminating
 the next trial.
 
-Hosted live execution is a manual `workflow_dispatch` behind the protected
-`trusted-sandbox` environment. Required reviewers approve the selected ref
-before environment secrets become available. Pull requests have a separate
-keyless fixture-diff workflow and never receive those secrets.
+Hosted live execution is a manual `workflow_dispatch`. A credential-free plan
+job validates the full source commit and committed whole-benchmark configuration,
+creates one opaque batch, and emits the exact cell matrix. Each cell runs in a fresh job
+after the planner has enforced the API/CLI-only and 256-cell hosted limits,
+behind the dynamically selected protected environment
+`trusted-sandbox-<vendor>-<surface>-<harness>-trial-<n>`, whose sole secret is an
+exact-name `AX_ARENA_CELL_CREDENTIALS_JSON` object. Required reviewers therefore
+approve one explicit cell scope; the YAML contains no roster, surface policy,
+harness pins, or individual secret bindings.
+
+Before credential injection, every cell runner independently re-pulls the exact
+OCI digest, extracts a root-owned non-writable sysroot, installs exact dependency
+locks, and verifies the runtime manifest. It then uses only that Node/tool tree
+and Bubblewrap, with no native fallback. Workers upload only sealed controller
+artifacts and the per-cell runtime manifest. An environment-free job requires
+one hash-bound result per planned key and byte-identical manifests before
+completion; an isolated OIDC-enabled job reverifies and signs the detached
+subject. Pull requests remain keyless and never receive arena secrets.
 
 Invocation metadata preserves every retry attempt. The normalized public record
 uses successful-attempt latency, retry-inclusive total duration/tokens/native

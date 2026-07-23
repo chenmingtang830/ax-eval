@@ -50,7 +50,7 @@ function git(args: readonly string[], cwd?: string, encoding: "utf8" | "buffer" 
   });
 }
 
-function readPinned(path: string, label: string): Buffer {
+export function readPinned(path: string, label: string): Buffer {
   const descriptor = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW);
   try {
     const before = fstatSync(descriptor);
@@ -254,6 +254,36 @@ export function requiredEnvironment(name: string): string {
   const value = process.env[name]?.trim();
   if (!value) throw new Error(`trusted arena entrypoint requires ${name}`);
   return value;
+}
+
+export function parseExactCredentialBundle(
+  raw: string | undefined,
+  expectedNames: readonly string[],
+): Readonly<Record<string, string>> {
+  if (!raw?.trim()) throw new Error("trusted arena worker requires AX_ARENA_CELL_CREDENTIALS_JSON");
+  if (Buffer.byteLength(raw, "utf8") > 1024 * 1024) throw new Error("trusted arena credential bundle exceeds 1 MiB");
+  let decoded: unknown;
+  try {
+    decoded = JSON.parse(raw);
+  } catch {
+    throw new Error("trusted arena credential bundle must be valid JSON");
+  }
+  if (!decoded || typeof decoded !== "object" || Array.isArray(decoded)) {
+    throw new Error("trusted arena credential bundle must be a JSON object");
+  }
+  const entries = Object.entries(decoded as Record<string, unknown>);
+  if (entries.some(([name, value]) => !/^[A-Z_][A-Z0-9_]*$/.test(name)
+    || typeof value !== "string" || !value.trim())) {
+    throw new Error("trusted arena credential bundle must contain only non-empty named string values");
+  }
+  const expected = [...new Set(expectedNames)].sort();
+  const actual = entries.map(([name]) => name).sort();
+  if (expected.length !== actual.length || expected.some((name, index) => name !== actual[index])) {
+    throw new Error(`trusted arena credential bundle names do not match the cell (expected ${expected.join(", ")})`);
+  }
+  const credentials: Record<string, string> = Object.create(null) as Record<string, string>;
+  for (const [name, value] of entries) credentials[name] = value as string;
+  return Object.freeze(credentials);
 }
 
 function harnessSemver(raw: string): string | undefined {

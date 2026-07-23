@@ -253,6 +253,7 @@ describe("arena batch schemas", () => {
       batch_id: "batch-1",
       source_commit_sha: "a".repeat(40),
       configuration_hash: arenaBatchConfigurationHash(configuration),
+      runtime_manifest_sha256: null,
       completed_at: "2026-07-21T00:00:01.000Z",
       cells: [{
         key: "neon/api/codex/trial-1",

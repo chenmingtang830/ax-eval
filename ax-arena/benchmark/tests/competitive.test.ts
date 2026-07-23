@@ -335,11 +335,25 @@ function createSealedBundle(
     sources.set(cohort, [...(sources.get(cohort) ?? []), recordPath]);
   }
   artifactJson("provenance/batch.json", batch);
+  const runtimeManifest = {
+    schema: "ax.arena-trusted-runtime-manifest/v1",
+    platform: "linux/amd64",
+    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+    runtime_lock_sha256: "7".repeat(64),
+    sysroot: "/opt/ax-arena-runtime/rootfs",
+    container: { image: "example.invalid/runtime", digest: `sha256:${"6".repeat(64)}`, node_version: "22.23.1" },
+    node_executable_sha256: "5".repeat(64),
+    tools_tree_sha256: "4".repeat(64),
+    entries: [],
+  };
   const completion = ArenaBatchCompletionSchema.parse({
     schema: "ax.arena-batch-completion/v1",
     batch_id: batch.batch_id,
     source_commit_sha: batch.source_commit_sha,
     configuration_hash: batch.configuration_hash,
+    runtime_manifest_sha256: createHash("sha256")
+      .update(`${JSON.stringify(runtimeManifest, null, 2)}\n`)
+      .digest("hex"),
     completed_at: "2026-07-20T01:00:00.000Z",
     cells: completionCells,
   });
@@ -381,17 +395,7 @@ function createSealedBundle(
   const batchBytes = readFileSync(resolve(bundle, "provenance/batch.json"));
   const completionBytes = readFileSync(resolve(bundle, "provenance/batch-completion.json"));
   const configurationBytes = artifactJson("provenance/configuration.json", batch.configuration);
-  const runtimeManifestBytes = artifactJson("provenance/runtime-manifest.json", {
-    schema: "ax.arena-trusted-runtime-manifest/v1",
-    platform: "linux/amd64",
-    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
-    runtime_lock_sha256: "7".repeat(64),
-    sysroot: "/opt/ax-arena-runtime/rootfs",
-    container: { image: "example.invalid/runtime", digest: `sha256:${"6".repeat(64)}`, node_version: "22.23.1" },
-    node_executable_sha256: "5".repeat(64),
-    tools_tree_sha256: "4".repeat(64),
-    entries: [],
-  });
+  const runtimeManifestBytes = artifactJson("provenance/runtime-manifest.json", runtimeManifest);
   const aggregatePath = recordsByVendor.alpha![0]!;
   const reportBytes = artifactJson("provenance/runtime-reporting.json", {
     schema: "ax.arena-runtime-report/v1",

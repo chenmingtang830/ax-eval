@@ -34,6 +34,7 @@ import {
 } from "./batch.js";
 import {
   assertArenaRecordIdentity,
+  arenaCellWorkspaceArtifactDirectory,
   executeArenaCell,
   type ArenaCellDependencies,
   type ArenaCellExecution,
@@ -87,6 +88,7 @@ export const ArenaCellResultSchema = z.object({
   source_commit_sha: SourceSha,
   batch_plan_sha256: Sha256,
   cell_descriptor_sha256: Sha256,
+  runtime_manifest_sha256: Sha256.nullable(),
   cell_key: CellKey,
   cell: EvaluationCellSchema,
   credential_names: z.object({
@@ -137,7 +139,12 @@ export interface ArenaBatchResultAssemblyOptions {
   plan: ArenaBatchPlan;
   resultPaths: readonly string[];
   canonicalPackPaths: Readonly<Record<string, string>>;
+  runtimeManifestSha256?: string;
   now: Date;
+}
+
+export interface ArenaWorkerDependencies extends ArenaCellDependencies {
+  runtimeManifestSha256?: string;
 }
 
 function canonical(value: unknown): unknown {
@@ -170,6 +177,12 @@ function entryIfPresent(path: string): ReturnType<typeof lstatSync> | undefined 
 
 function isPathEscape(path: string): boolean {
   return path === ".." || path.startsWith("../") || path.startsWith("..\\") || isAbsolute(path);
+}
+
+function pathEndsWith(value: string, suffix: string): boolean {
+  const normalizedValue = value.replaceAll("\\", "/");
+  const normalizedSuffix = suffix.replaceAll("\\", "/");
+  return normalizedValue === normalizedSuffix || normalizedValue.endsWith(`/${normalizedSuffix}`);
 }
 
 function containedPath(runRoot: string, path: string, label: string): { absolute: string; relative: string } {
@@ -469,8 +482,13 @@ function validateResultArtifacts(runRoot: string, result: ArenaCellResult): {
     (value) => ArenaCellCleanupSchema.parse(value),
     "arena cell result cleanup",
   );
+  const expectedArtifactRoot = arenaCellWorkspaceArtifactDirectory(runRoot, result.cell_key);
   for (const artifact of result.artifacts) {
-    const configuredPath = resolve(record.artifacts.base_dir, record.artifacts[artifact.name]);
+    const fileName = record.artifacts[artifact.name];
+    if (isAbsolute(fileName) || basename(fileName) !== fileName || fileName === "." || fileName === "..") {
+      throw new Error(`arena cell result ${result.cell_key} ${artifact.name} name must be a direct relative file name`);
+    }
+    const configuredPath = resolve(expectedArtifactRoot, fileName);
     const sealed = readContainedFileNoFollow(runRoot, artifact.path, `arena cell result ${artifact.name}`);
     if (sealed.absolutePath !== resolve(configuredPath)
       || createHash("sha256").update(sealed.bytes).digest("hex") !== artifact.sha256) {
@@ -485,7 +503,7 @@ function validateResultArtifacts(runRoot: string, result: ArenaCellResult): {
     || cleanup.status !== result.cleanup_status
     || cleanup.cell_id !== result.cell.cell_id
     || cleanup.namespace !== record.execution_namespace
-    || resolve(dirname(cleanupFile.absolutePath), cleanup.record_path) !== recordFile.absolutePath) {
+    || !pathEndsWith(cleanup.record_path, recordFile.relativePath)) {
     throw new Error(`arena cell result ${result.cell_key} does not match its persisted sidecars`);
   }
   return {
@@ -503,6 +521,7 @@ export function writeArenaCellResult(
   execution: ArenaCellExecution,
   now: Date,
   resultPath = arenaCellResultPath(runRoot, descriptor),
+  runtimeManifestSha256: string | null = null,
 ): ArenaCellResult {
   const parsedBatch = ArenaBatchManifestSchema.parse(batch);
   const parsedDescriptor = exactDescriptor(parsedBatch, descriptor);
@@ -511,6 +530,12 @@ export function writeArenaCellResult(
   const persistedDescriptor = selectArenaWorkerCell(persistedPlan, parsedDescriptor.key);
   if (!canonicalEqual(parsedDescriptor, persistedDescriptor)) {
     throw new Error(`arena worker descriptor ${parsedDescriptor.key} drifted from the persisted batch plan`);
+  }
+  if (parsedDescriptor.execution.runtime_backend === "pinned-oci" && !runtimeManifestSha256) {
+    throw new Error(`pinned-oci arena cell ${parsedDescriptor.key} requires its verified runtime manifest hash`);
+  }
+  if (parsedDescriptor.execution.runtime_backend === "native" && runtimeManifestSha256) {
+    throw new Error(`native arena cell ${parsedDescriptor.key} cannot claim a pinned runtime manifest`);
   }
   assertExecutionIdentity(parsedBatch, parsedDescriptor, execution);
   const recordFile = readContainedFileNoFollow(runRoot, execution.recordPath, "arena worker record");
@@ -540,6 +565,7 @@ export function writeArenaCellResult(
     source_commit_sha: parsedDescriptor.source_commit_sha,
     batch_plan_sha256: canonicalSha256(persistedPlan),
     cell_descriptor_sha256: canonicalSha256(persistedDescriptor),
+    runtime_manifest_sha256: runtimeManifestSha256,
     cell_key: parsedDescriptor.key,
     cell: execution.cell,
     credential_names: {
@@ -570,13 +596,17 @@ export function writeArenaCellResult(
   return result;
 }
 
-export function loadArenaCellResult(runRoot: string, resultPath: string): ArenaCellResult {
+function readArenaCellResultEnvelope(runRoot: string, resultPath: string): ArenaCellResult {
   const resultFile = readContainedFileNoFollow(runRoot, resultPath, "arena cell result envelope");
-  const result = parsedCanonicalJson(
+  return parsedCanonicalJson(
     resultFile,
     (value) => ArenaCellResultSchema.parse(value),
     "arena cell result envelope",
   );
+}
+
+export function loadArenaCellResult(runRoot: string, resultPath: string): ArenaCellResult {
+  const result = readArenaCellResultEnvelope(runRoot, resultPath);
   validateResultArtifacts(runRoot, result);
   return result;
 }
@@ -637,7 +667,18 @@ function executionsFromResults(options: ArenaBatchResultAssemblyOptions): {
   if (!canonicalEqual(plan, expectedPlan) || !canonicalEqual(plan, persistedPlan)) {
     throw new Error("arena batch result assembly requires the exact persisted immutable batch plan");
   }
-  const results = options.resultPaths.map((path) => loadArenaCellResult(options.runRoot, path));
+  const results = options.resultPaths.map((path) => readArenaCellResultEnvelope(options.runRoot, path));
+  const runtimeManifestSha256 = options.runtimeManifestSha256 ?? null;
+  const execution = plan.cells[0]!.execution;
+  if (execution.runtime_backend === "pinned-oci" && !runtimeManifestSha256) {
+    throw new Error("pinned-oci arena result assembly requires the verified runtime manifest hash");
+  }
+  if (execution.runtime_backend === "native" && runtimeManifestSha256) {
+    throw new Error("native arena result assembly cannot claim a pinned runtime manifest");
+  }
+  if (results.some((result) => result.runtime_manifest_sha256 !== runtimeManifestSha256)) {
+    throw new Error("arena cell results do not all match the assembled runtime manifest");
+  }
   const byKey = new Map<string, ArenaCellResult>();
   for (const result of results) {
     if (byKey.has(result.cell_key)) throw new Error(`duplicate arena cell result for ${result.cell_key}`);
@@ -711,6 +752,8 @@ export function buildBatchCompletionFromResults(options: ArenaBatchResultAssembl
     options.batch,
     assembled.executions,
     options.now,
+    options.runtimeManifestSha256 ?? null,
+    false,
   );
   assertCompletionMatchesResults(completion, assembled.results);
   return completion;
@@ -724,6 +767,8 @@ export function writeBatchCompletionFromResults(options: ArenaBatchResultAssembl
     assembled.executions,
     options.now,
     (completion) => assertCompletionMatchesResults(completion, assembled.results),
+    options.runtimeManifestSha256 ?? null,
+    false,
   );
 }
 
@@ -732,7 +777,7 @@ export async function executeArenaWorkerCell(
   descriptor: ArenaBatchCellDescriptor,
   runRoot: string,
   canonicalPackPath: string,
-  dependencies: ArenaCellDependencies,
+  dependencies: ArenaWorkerDependencies,
 ): Promise<ArenaWorkerExecution> {
   const parsedDescriptor = exactDescriptor(batch, descriptor);
   const persistedPlan = loadBatchPlan(runRoot, batch);
@@ -770,6 +815,7 @@ export async function executeArenaWorkerCell(
     execution,
     dependencies.now(),
     resultPath,
+    dependencies.runtimeManifestSha256 ?? null,
   );
   return { spec, execution, result, resultPath };
 }

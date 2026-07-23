@@ -171,6 +171,7 @@ function validateSubject(subject, root, sourceRoot) {
     || batch.batch_id !== completion.batch_id
     || batch.source_commit_sha !== completion.source_commit_sha
     || batch.configuration_hash !== completion.configuration_hash
+    || completion.runtime_manifest_sha256 !== runtimeReference.sha256
     || batch.batch_id !== subject.batch.id
     || batch.configuration_hash !== subject.batch.configuration_hash
     || completion.cells?.length !== subject.batch.completed_cells) {

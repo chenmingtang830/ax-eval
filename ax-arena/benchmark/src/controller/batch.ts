@@ -14,7 +14,11 @@ import {
 } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { NormalizedCellRecordSchema } from "ax-eval";
-import { assertArenaRecordIdentity, type ArenaCellExecution } from "./cell.js";
+import {
+  arenaCellWorkspaceArtifactDirectory,
+  assertArenaRecordIdentity,
+  type ArenaCellExecution,
+} from "./cell.js";
 import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
   ARENA_BATCH_COMPLETION_SCHEMA,
@@ -86,6 +90,15 @@ function pathEntryExists(path: string): boolean {
   }
 }
 
+function portableArtifactRoot(
+  runRoot: string,
+  cellKey: string,
+  record: ReturnType<typeof NormalizedCellRecordSchema.parse>,
+): string {
+  const canonical = arenaCellWorkspaceArtifactDirectory(runRoot, cellKey);
+  return pathEntryExists(canonical) ? canonical : resolve(record.artifacts.base_dir);
+}
+
 function exclusiveDurableWrite(path: string, contents: string): void {
   const parent = dirname(path);
   const temporary = resolve(parent, `.${basename(path)}.${randomUUID()}.tmp`);
@@ -133,6 +146,12 @@ function isPathEscape(path: string): boolean {
   return path === ".." || path.startsWith("../") || path.startsWith("..\\") || isAbsolute(path);
 }
 
+function pathEndsWith(value: string, suffix: string): boolean {
+  const normalizedValue = value.replaceAll("\\", "/");
+  const normalizedSuffix = suffix.replaceAll("\\", "/");
+  return normalizedValue === normalizedSuffix || normalizedValue.endsWith(`/${normalizedSuffix}`);
+}
+
 function readPersistedSidecar(runRoot: string, path: string, label: string): {
   contents: Buffer;
   relativePath: string;
@@ -163,15 +182,24 @@ function readPersistedSidecar(runRoot: string, path: string, label: string): {
 
 function assertTursoToolAttestation(
   runRoot: string,
+  cellKey: string,
   record: ReturnType<typeof NormalizedCellRecordSchema.parse>,
   pin: NonNullable<ArenaBatchConfiguration["turso_cli"]>,
+  revalidateInstalledTools: boolean,
 ): void {
   const provider = record.provider_provenance?.find((entry) =>
     entry.kind === "provisioning"
       && entry.id === pin.provisioner.id
       && entry.version === pin.provisioner.version);
   if (!provider) throw new Error("Turso CLI batch cell is missing pinned provisioning provenance");
-  const metadataPath = resolve(record.artifacts.base_dir, record.artifacts.invoke_metadata);
+  const metadataName = record.artifacts.invoke_metadata;
+  if (isAbsolute(metadataName) || basename(metadataName) !== metadataName || metadataName === "." || metadataName === "..") {
+    throw new Error("Turso invoke metadata must be a direct relative file name");
+  }
+  const metadataPath = resolve(
+    portableArtifactRoot(runRoot, cellKey, record),
+    metadataName,
+  );
   const metadataFile = readPersistedSidecar(runRoot, metadataPath, "Turso invoke metadata");
   let decoded: unknown;
   try {
@@ -198,17 +226,23 @@ function assertTursoToolAttestation(
     || typeof metadata.cli_binary !== "string") {
     throw new Error("Turso invoke metadata does not match the immutable tool pin");
   }
+  const binaryPath = resolve(metadata.cli_binary);
+  const lexicalBinary = relative(resolve(pin.install_root), binaryPath);
+  if (!lexicalBinary || isPathEscape(lexicalBinary)) {
+    throw new Error("Turso tool binary is outside the immutable install root");
+  }
+  if (!revalidateInstalledTools) return;
   const installRootStat = lstatSync(pin.install_root);
-  const binaryStat = lstatSync(metadata.cli_binary);
+  const binaryStat = lstatSync(binaryPath);
   if (!installRootStat.isDirectory() || installRootStat.isSymbolicLink()
     || !binaryStat.isFile() || binaryStat.isSymbolicLink()) {
     throw new Error("Turso tool attestation requires a regular pinned install root and binary");
   }
-  const binaryRelative = relative(realpathSync(pin.install_root), realpathSync(metadata.cli_binary));
+  const binaryRelative = relative(realpathSync(pin.install_root), realpathSync(binaryPath));
   if (!binaryRelative || isPathEscape(binaryRelative)) {
     throw new Error("Turso tool binary is outside the immutable install root");
   }
-  const actualHash = createHash("sha256").update(readFileSync(metadata.cli_binary)).digest("hex");
+  const actualHash = createHash("sha256").update(readFileSync(binaryPath)).digest("hex");
   if (actualHash !== pin.sha256) throw new Error("Turso tool binary no longer matches its immutable SHA-256 pin");
 }
 
@@ -219,17 +253,15 @@ function sealedRecordArtifacts(
   execution: ArenaCellExecution,
   record: ReturnType<typeof NormalizedCellRecordSchema.parse>,
 ): Array<{ name: (typeof ARTIFACT_NAMES)[number]; path: string; sha256: string }> {
-  const expectedRoot = resolve(execution.cell.run_context.cwd, execution.cell.run_context.artifact_dir);
-  if (resolve(record.artifacts.base_dir) !== expectedRoot) {
-    throw new Error(`cell artifact root does not match its immutable run context: ${execution.cell.cell_id}`);
-  }
+  const cellKey = `${execution.cell.target_id}/${execution.cell.surface}/${execution.cell.harness.id}/trial-${execution.cell.trial}`;
+  const expectedRoot = portableArtifactRoot(runRoot, cellKey, record);
   const durableSidecars = new Set([resolve(execution.recordPath), resolve(execution.cleanupPath)]);
   const artifacts = ARTIFACT_NAMES.map((name) => {
     const fileName = record.artifacts[name];
     if (isAbsolute(fileName) || basename(fileName) !== fileName || fileName === "." || fileName === "..") {
       throw new Error(`record artifact ${name} must be a direct relative file name`);
     }
-    const absolute = resolve(record.artifacts.base_dir, fileName);
+    const absolute = resolve(expectedRoot, fileName);
     if (durableSidecars.has(absolute)) throw new Error(`record artifact ${name} overlaps a durable cell sidecar`);
     const artifact = readPersistedSidecar(runRoot, absolute, `record artifact ${name}`);
     return {
@@ -447,9 +479,18 @@ export function buildBatchCompletion(
   batch: ArenaBatchManifest,
   executions: readonly ArenaCellExecution[],
   now: Date,
+  runtimeManifestSha256: string | null = null,
+  revalidateInstalledTools = true,
 ): ArenaBatchCompletion {
   const parsedBatch = ArenaBatchManifestSchema.parse(batch);
   assertManifestIntegrity(parsedBatch);
+  const executionMode = arenaExecutionMode(parsedBatch.configuration);
+  if (executionMode.runtime_backend === "pinned-oci" && !runtimeManifestSha256) {
+    throw new Error("pinned-oci arena batch completion requires the verified runtime manifest hash");
+  }
+  if (executionMode.runtime_backend === "native" && runtimeManifestSha256) {
+    throw new Error("native arena batch completion cannot claim a pinned runtime manifest");
+  }
   const cells = executions.map((execution) => {
     const recordFile = readPersistedSidecar(runRoot, execution.recordPath, "persisted cell record");
     const cleanupFile = readPersistedSidecar(runRoot, execution.cleanupPath, "persisted cleanup evidence");
@@ -529,11 +570,17 @@ export function buildBatchCompletion(
           || cleanup.provider.version !== configured.reset_provider.version
         : cleanup.provider !== undefined)
       || cleanup.namespace !== record.execution_namespace
-      || resolve(cleanup.record_path) !== resolve(execution.recordPath)) {
+      || !pathEndsWith(cleanup.record_path, recordFile.relativePath)) {
       throw new Error(`arena batch execution ${key} does not match its immutable configuration and sidecars`);
     }
     if (configured.vendor === "turso" && configured.surface === "cli") {
-      assertTursoToolAttestation(runRoot, record, parsedBatch.configuration.turso_cli!);
+      assertTursoToolAttestation(
+        runRoot,
+        key,
+        record,
+        parsedBatch.configuration.turso_cli!,
+        revalidateInstalledTools,
+      );
     }
     const artifacts = sealedRecordArtifacts(runRoot, execution, record);
     return ArenaBatchCompletionCellSchema.parse({
@@ -596,6 +643,7 @@ export function buildBatchCompletion(
     batch_id: parsedBatch.batch_id,
     source_commit_sha: parsedBatch.source_commit_sha,
     configuration_hash: parsedBatch.configuration_hash,
+    runtime_manifest_sha256: runtimeManifestSha256,
     completed_at: now.toISOString(),
     cells,
   });
@@ -607,9 +655,18 @@ export function writeBatchCompletion(
   executions: readonly ArenaCellExecution[],
   now: Date,
   validate?: (completion: ArenaBatchCompletion) => void,
+  runtimeManifestSha256: string | null = null,
+  revalidateInstalledTools = true,
 ): ArenaBatchCompletion {
   assertBatchManifest(runRoot, batch);
-  const completion = buildBatchCompletion(runRoot, batch, executions, now);
+  const completion = buildBatchCompletion(
+    runRoot,
+    batch,
+    executions,
+    now,
+    runtimeManifestSha256,
+    revalidateInstalledTools,
+  );
   validate?.(completion);
   exclusiveDurableWrite(
     resolve(runRoot, "batch-completion.json"),

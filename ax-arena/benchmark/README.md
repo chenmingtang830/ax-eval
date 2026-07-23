@@ -41,9 +41,21 @@ and durably persists the normalized record; then performs namespace-bounded
 cleanup and persists strict `ax.arena-cell-cleanup/v1` evidence. Cleanup never
 precedes record persistence. Callers must explicitly choose `native` or
 `pinned-oci` and `local` or `hosted-trusted`; only pinned OCI hosted execution is
-publishable, and pinned execution never falls back to native tools. A
-source-only injected-runtime seam is used exclusively by offline contract tests
-and is not exported by the built package.
+publishable, and pinned execution never falls back to native tools. The protected
+workflow freezes one committed whole-benchmark configuration, derives a bounded
+API/CLI matrix without secrets, and runs exactly one descriptor per fresh
+protected job. Each per-cell environment supplies one exact-name credential JSON
+object. Before that secret is injected, Docker and sudo re-extract the verified
+OCI digest into a root-owned sysroot and seal the exact locked Node, harnesses,
+Bubblewrap, and database tools. Every pinned result binds that runtime-manifest
+hash. After execution, the controller no-follow copies only the result, record,
+cleanup, and four declared evidence files into a fixed-name transfer envelope;
+the harness-writable workspace is never uploaded. A credential-free assembler
+requires the exact transfer tree, exact cell set, and one byte-identical runtime
+manifest; a separate OIDC-enabled job signs only the reverified detached subject.
+The v2 Bubblewrap policy mounts only the OCI `/usr` and root-owned tool tree
+read-only, with no `seccomp=unconfined`. A source-only injected-runtime seam is
+used exclusively by offline contract tests and is not exported by the package.
 
 Immutable batch manifests use an opaque `batch-<UUID>` identity and bind the
 source SHA, reviewed suite and pack hashes, credential-name partitions,
@@ -70,10 +82,10 @@ sealed by contained relative paths and SHA-256. The manifest, plan, cell-result,
 and completion contracts are
 shipped as strict structural JSON schemas; cross-field and persisted-artifact
 guarantees require the exported runtime validators and are not implied by JSON
-Schema validation alone. The existing protected workflow still invokes the
-cohort compatibility entrypoint in this slice. `trusted:worker` and
-`trusted:assemble` are the reviewed controller boundaries for the subsequent
-thin-YAML fan-out cutover; they are not a new live-workflow activation.
+Schema validation alone. `trusted:plan`, `trusted:worker`, and
+`trusted:assemble` are compiled and package-smoked controller boundaries used by
+the thin workflow. The source change remains manual-only and does not run a live
+or credentialed benchmark by itself.
 
 Runtime reporting consumes only a persisted, hash-bound batch completion. It
 revalidates canonical record and cleanup bytes plus every sealed runtime
