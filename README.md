@@ -140,9 +140,11 @@ audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
 may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
 private `ax-eval/src/**` imports. Arena owns its database runtime providers,
 batch aggregation, competitive reporting, publication bundle/export, and trusted
-controller entrypoints; legacy core command and shared-policy compatibility
-paths remain later slices. Root `npm test`, `npm run typecheck`, `npm run build`,
-and `npm run pack:check` validate both packages.
+controller entrypoints. Canonical/legacy DAEB path selection and all benchmark
+authoring persistence are arena-owned; core exposes only generic authoring
+schemas, extraction, and explicit-input transforms. Legacy core commands remain
+later compatibility slices. Root `npm test`, `npm run typecheck`, `npm run
+build`, and `npm run pack:check` validate both packages.
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness

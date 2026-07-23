@@ -181,9 +181,8 @@ export type {
   NormalizedResultCell,
 } from "./generate/record.js";
 
-// Supported authoring contracts consumed by the arena workspace. Policy-heavy
-// DAEB modules themselves live in arena; a few runtime-shared compatibility
-// seams remain below until the following stack slices move their callers.
+// Generic authoring schemas, extraction, and explicit-input transforms consumed
+// by arena. Canonical DAEB paths and persistence live in the arena workspace.
 export {
   SuiteSchema,
   SuiteTaskSchema,
@@ -215,16 +214,19 @@ export type {
 } from "./generate/vendor-resolve.js";
 export {
   CapabilityExtractResultSchema,
+  LegacyCapabilityExtractSchema,
   buildCapabilityPrompt,
   extractCapabilities,
   extractCapabilitiesAll,
   normalizeSurfacesDocumented,
+  normalizeLegacyCapabilityExtract,
 } from "./generate/capability-extract.js";
 export type {
   Capability,
   CapabilityExtractResult,
   CapabilityOutcome,
   ExtractCapabilitiesOptions,
+  LegacyCapabilityExtract,
 } from "./generate/capability-extract.js";
 export {
   SurfaceExtractResultSchema,
@@ -295,66 +297,11 @@ export { renderGeneratedSnapshot } from "./generate/snapshot.js";
 export type { GeneratedReportSnapshot } from "./generate/snapshot.js";
 export { REPORT_STYLE } from "./report-style.js";
 
-// Transitional compatibility seams used while DAEB runtime/publication move
-// in the following stack slices. Arena is their only in-repo consumer.
-export {
-  assertCanonicalDaebWritePath,
-  createDaebPathContext,
-  daebCapabilityInventoryPath,
-  daebCompiledPackPath,
-  daebOraclesPath,
-  daebRepositoryRoot,
-  daebRoot,
-  daebReadCompiledPackPath,
-  daebReadExtractsDir,
-  daebReadSuitePath,
-  daebReadVendorSelectionLedgerPath,
-  daebReadVendorsDir,
-  daebSurfacesPath,
-  daebVendorCardPath,
-  daebVendorExtractDir,
-} from "./generate/benchmark-paths.js";
-export type { DaebPathContext, DaebPathInput } from "./generate/benchmark-paths.js";
-export {
-  loadCapabilityExtract,
-  writeCapabilityExtract,
-} from "./generate/capability-extract.js";
-export {
-  loadSurfaceExtract,
-  writeSurfaceExtract,
-} from "./generate/surface-extract.js";
 export {
   extractOracles,
   extractOraclesAll,
-  loadOracleExtract,
-  writeOracleExtract,
 } from "./generate/task-extract.js";
-export {
-  loadVendorCard,
-  writeVendorCard,
-} from "./generate/vendor-resolve.js";
 export {
   auditCapabilityInventory,
   defaultSuiteMethodology,
-  coverageMatrixPath,
-  failureTaxonomyPath,
-  graderLedgerPath,
-  loadCoverageMatrix,
-  loadCapabilityInventory,
-  loadSelectionLedger,
-  loadSupportMatrix,
-  loadTraceReview,
-  methodologyPath,
-  selectionLedgerPath,
-  supportMatrixPath,
-  traceReviewPath,
-  writeConceptUniverse,
-  writeCapabilityInventory,
-  writeCoverageMatrix,
-  writeFailureTaxonomy,
-  writeGraderLedger,
-  writeMethodology,
-  writeSelectionLedger,
-  writeSupportMatrix,
-  writeTraceReview,
 } from "./generate/methodology.js";

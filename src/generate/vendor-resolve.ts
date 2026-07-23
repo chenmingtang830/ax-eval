@@ -7,17 +7,9 @@
  * vendors vs 8 separate spawns). resolveVendor() is a thin wrapper for the
  * single-vendor CLI use case.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import {
-  daebReadVendorCardPath,
-  daebVendorCardPath,
-  type DaebPathInput,
-} from "./benchmark-paths.js";
 
 export const ResolveResultSchema = z.object({
   vendor: z.string(),
@@ -128,32 +120,4 @@ export async function resolveVendor(
   const results = await resolveVendors([vendor], category, opts);
   if (!results[0]) throw new Error(`vendor-resolve: no result returned for "${vendor}"`);
   return results[0];
-}
-
-/** Path where a resolved vendor card is persisted. */
-export function vendorCardPath(root: DaebPathInput, slug: string): string {
-  return daebVendorCardPath(root, slug);
-}
-
-/** Write a vendor card to disk as YAML. */
-export function writeVendorCard(root: DaebPathInput, result: ResolveResult): string {
-  const path = vendorCardPath(root, result.slug);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(result));
-  return path;
-}
-
-/** Load a previously-resolved vendor card. */
-export function loadVendorCard(root: DaebPathInput, slug: string): ResolveResult | null {
-  const path = daebReadVendorCardPath(root, slug);
-  if (!existsSync(path)) return null;
-  const raw = readFileSync(path, "utf8");
-  const parsed = yamlParse(raw);
-  const result = ResolveResultSchema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error(
-      `vendor card at ${path} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`,
-    );
-  }
-  return result.data;
 }

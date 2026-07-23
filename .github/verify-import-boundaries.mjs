@@ -15,6 +15,7 @@ export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
   "@types/pg",
 ]);
 export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
+  "src/generate/benchmark-paths.ts",
   "src/generate/compose-pack.ts",
   "src/generate/database-pack-overrides.ts",
   "src/generate/low-pass.ts",
@@ -23,6 +24,19 @@ export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
 ]);
 export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/report.ts", identifier: "renderCompetitiveReport" },
+  { path: "src/generate/capability-extract.ts", identifier: "capabilityExtractPath" },
+  { path: "src/generate/capability-extract.ts", identifier: "loadCapabilityExtract" },
+  { path: "src/generate/capability-extract.ts", identifier: "writeCapabilityExtract" },
+  { path: "src/generate/methodology.ts", identifier: "loadCapabilityInventory" },
+  { path: "src/generate/methodology.ts", identifier: "writeCapabilityInventory" },
+  { path: "src/generate/methodology.ts", identifier: "writeMethodology" },
+  { path: "src/generate/methodology.ts", identifier: "writeSupportMatrix" },
+  { path: "src/generate/surface-extract.ts", identifier: "loadSurfaceExtract" },
+  { path: "src/generate/surface-extract.ts", identifier: "writeSurfaceExtract" },
+  { path: "src/generate/task-extract.ts", identifier: "loadOracleExtract" },
+  { path: "src/generate/task-extract.ts", identifier: "writeOracleExtract" },
+  { path: "src/generate/vendor-resolve.ts", identifier: "loadVendorCard" },
+  { path: "src/generate/vendor-resolve.ts", identifier: "writeVendorCard" },
 ]);
 
 export function declaredPackageDependencies(packageJson) {

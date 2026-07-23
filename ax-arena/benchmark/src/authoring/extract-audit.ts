@@ -12,15 +12,17 @@ import { resolve } from "node:path";
 import {
   auditCapabilityInventory,
   auditSurfaceExtract,
-  daebReadExtractsDir,
-  loadCapabilityInventory,
-  loadSurfaceExtract,
   type CapabilityInventory,
   type CapabilityInventoryEntry,
-  type DaebPathInput,
   type SurfaceExtractResult,
 } from "ax-eval";
-import { writeCapabilityInventory, writeSurfaceExtract } from "./artifact-writers.js";
+import { daebReadExtractsDir, type DaebPathInput } from "./benchmark-paths.js";
+import {
+  loadCapabilityInventory,
+  loadSurfaceExtract,
+  writeCapabilityInventory,
+  writeSurfaceExtract,
+} from "./artifact-persistence.js";
 
 export type ExtractFindingSeverity = "error" | "warn" | "info";
 
