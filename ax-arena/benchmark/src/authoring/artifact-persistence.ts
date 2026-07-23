@@ -4,31 +4,33 @@ import type { z } from "zod";
 import {
   CapabilityExtractResultSchema,
   CapabilityInventorySchema,
-  CoverageMatrixSchema,
   LegacyCapabilityExtractSchema,
   OracleExtractResultSchema,
   ResolveResultSchema,
-  SelectionLedgerSchema,
-  SupportMatrixSchema,
   SurfaceExtractResultSchema,
-  TraceReviewMemoSchema,
-  auditCapabilityInventory,
   auditSurfaceExtract,
   normalizeLegacyCapabilityExtract,
   type CapabilityExtractResult,
   type CapabilityInventory,
+  type OracleExtractResult,
+  type ResolveResult,
+  type SuiteMethodology,
+  type SurfaceExtractResult,
+} from "ax-eval";
+import {
+  CoverageMatrixSchema,
+  SelectionLedgerSchema,
+  SupportMatrixSchema,
+  TraceReviewMemoSchema,
   type ConceptUniverse,
   type CoverageMatrix,
   type FailureTaxonomy,
   type GraderLedger,
-  type OracleExtractResult,
-  type ResolveResult,
   type SelectionLedger,
-  type SuiteMethodology,
   type SupportMatrix,
-  type SurfaceExtractResult,
   type TraceReviewMemo,
-} from "ax-eval";
+} from "./artifact-contracts.js";
+import { auditCapabilityInventory } from "./inventory-audit.js";
 import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
   assertCanonicalDaebWritePath,

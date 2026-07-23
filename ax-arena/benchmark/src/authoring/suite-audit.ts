@@ -18,8 +18,6 @@ import {
 } from "./coverage-gap-check.js";
 import {
   loadSuite,
-  type CoverageMatrix,
-  type SupportMatrix,
 } from "ax-eval";
 import {
   assertCanonicalDaebWritePath,
@@ -28,6 +26,7 @@ import {
   daebRoot,
   type DaebPathInput,
 } from "./benchmark-paths.js";
+import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
 import {
   loadCapabilityExtract,
   loadCoverageMatrix,

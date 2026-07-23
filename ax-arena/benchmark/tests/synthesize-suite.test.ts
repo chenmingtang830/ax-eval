@@ -15,9 +15,11 @@ import {
 } from "../src/authoring/synthesize-suite.js";
 import {
   type CapabilityExtractResult,
-  type ConceptUniverse,
-  type CoverageMatrix,
 } from "ax-eval";
+import type {
+  ConceptUniverse,
+  CoverageMatrix,
+} from "../src/authoring/artifact-contracts.js";
 import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 
 describe("synthesize-suite helpers", () => {

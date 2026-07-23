@@ -150,7 +150,10 @@ including Nile database/connection binding, before invocation; generic core
 Canonical/legacy DAEB path selection and all benchmark
 authoring persistence are arena-owned; core exposes only generic authoring
 schemas, single-product capability/surface extraction, and explicit-input
-transforms. Canonical-suite oracle extraction—including grounded prompt,
+transforms. Concept-universe, coverage/selection/support matrix, grader-ledger,
+failure-taxonomy, and trace-review contracts live with the arena, as does the
+database-specific capability-inventory audit; core retains the generic
+capability-inventory and suite-methodology shapes. Canonical-suite oracle extraction—including grounded prompt,
 concurrency, support-matrix, and database seed policy—is arena-owned alongside
 suite methodology defaults. Canonical DAEB artifact assertions run in the arena
 test workspace; core suite-contract tests use synthetic explicit inputs. Legacy core commands remain
