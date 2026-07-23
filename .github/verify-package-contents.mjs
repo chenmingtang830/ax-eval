@@ -149,6 +149,7 @@ const detachedArenaExports = [
   "loadVendorCard",
   "writeCapabilityExtract",
   "writeComposedPack",
+  "writeExtractAdvisory",
   "writeOracleExtract",
   "writeSupportMatrix",
   "writeSurfaceExtract",
