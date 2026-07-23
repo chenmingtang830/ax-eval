@@ -303,5 +303,4 @@ export {
 } from "./generate/task-extract.js";
 export {
   auditCapabilityInventory,
-  defaultSuiteMethodology,
 } from "./generate/methodology.js";

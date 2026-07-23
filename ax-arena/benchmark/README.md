@@ -36,7 +36,9 @@ Canonical/legacy benchmark paths and the artifact persistence wrappers moved
 from core are also arena-owned. They use no-follow, single-link, and inode
 validation under an exclusive trusted-checkout-UID assumption. Remaining
 arena-native direct file I/O is a later hardening seam. Generic task extraction
-and schema validation remain public `ax-eval` contracts.
+and schema validation remain public `ax-eval` contracts. Suite methodology
+defaults live here too; `ax-eval` exports their schemas without choosing DAEB's
+surface denominator, coverage threshold, task count, or publication checkpoints.
 
 `executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
 verifier, and reset credentials; runs against an isolated pack copy; validates

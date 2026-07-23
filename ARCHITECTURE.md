@@ -188,7 +188,10 @@ are absent and emit a deprecation warning. If both roots exist, callers must
 select one with `--benchmark-root`; writers always use the canonical root.
 Path selection and the YAML persistence wrappers moved from core are implemented
 only in arena; the public core boundary provides schemas and pure
-parsers/transforms. Those wrappers reject static symlink/hard-link aliases and
+parsers/transforms. Arena also constructs suite methodology defaults: the core
+validates the artifact shape but does not choose category scoring surfaces,
+coverage thresholds, task counts, or publication checkpoints. Those wrappers
+reject static symlink/hard-link aliases and
 pin parent/file identities while reading or updating. Authoring assumes
 exclusive use by the trusted checkout UID; malicious concurrent same-UID parent
 renames are outside this boundary. Remaining arena-native direct file I/O is a
