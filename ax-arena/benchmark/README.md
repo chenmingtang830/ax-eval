@@ -18,17 +18,20 @@ Arena-owned SQL and Mongo read-back oracles, Postgres/MongoDB/Turso/Convex
 reset providers, database health checks, and no-download Turso CLI attestation
 live under `src/providers/`. `createDatabaseRuntimeExtensionRegistry` creates a
 fresh immutable registry for each worker from explicit controller-selected
-ambient state. Activation by the low-pass and production controllers, followed
-by removal of the transitional core database fallbacks, is the next stack
-slice.
+ambient state. Trusted workers use this registry for each cell; core harness
+provisioning has no Turso-specific lookup, downloader, or PATH fallback. Running
+the core cell API without this arena registry is generic local execution, not a
+trusted or comparable arena result.
 
 Provider cleanup is namespace-bounded and non-cascading. Postgres revalidates
 function identities server-side and includes exact DAEB-created roles; cleanup
 remains unconfirmed when unrelated dependencies prevent a drop. Turso CLI
 provisioning requires an explicit install root, version, and SHA-256. Official
-hosted execution gets those values only from the committed trusted-runtime lock;
-the executable and its full ancestor chain must be non-writable by the
-controller user.
+hosted execution gets those values from the committed trusted-runtime lock and
+the immutable per-cell plan descriptor. The trusted workflow installs the
+explicit executable only when its digest matches; the executable and its full
+ancestor chain must be non-writable by the controller user. These pins are
+policy, not `.env` inputs.
 
 Pack composition and database prompt overrides are arena-owned under
 `src/authoring/`; the core package no longer exports their implementation.
