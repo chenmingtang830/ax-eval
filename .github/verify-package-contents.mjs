@@ -136,6 +136,7 @@ const detachedArenaExports = [
   "SupportMatrixSchema",
   "TraceReviewMemoSchema",
   "auditCapabilityInventory",
+  "applySuiteAudit",
   "composePack",
   "createDaebPathContext",
   "defaultSuiteMethodology",
@@ -151,6 +152,9 @@ const detachedArenaExports = [
   "writeOracleExtract",
   "writeSupportMatrix",
   "writeSurfaceExtract",
+  "writeSuiteArtifacts",
+  "writeSuiteBundle",
+  "writeSuiteFiles",
   "writeVendorCard",
 ]
   .filter((name) => name in publicApi);

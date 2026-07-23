@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   DAEB_BENCHMARK_ROOT,
   DAEB_LEGACY_BENCHMARK_ROOT,
+  assertCanonicalDaebSuiteWritePath,
   assertCanonicalDaebWritePath,
   createDaebPathContext,
   daebReadSuitePath,
@@ -96,6 +97,12 @@ describe("DAEB benchmark root compatibility", () => {
       .toThrow(/writers use only the canonical benchmark root/);
     expect(() => assertCanonicalDaebWritePath(root, "../outside.yaml"))
       .toThrow(/writers use only the canonical benchmark root/);
+    expect(assertCanonicalDaebSuiteWritePath(root, "ax-arena/benchmark/daeb/v1/suite.yaml"))
+      .toBe(resolve(canonical, "v1", "suite.yaml"));
+    expect(() => assertCanonicalDaebSuiteWritePath(root, "ax-arena/benchmark/daeb/v1/suite.YAML"))
+      .toThrow(/canonical lowercase \.yaml/);
+    expect(() => assertCanonicalDaebSuiteWritePath(root, "ax-arena/benchmark/daeb/v1/suite.yml"))
+      .toThrow(/canonical lowercase \.yaml/);
   });
 
   it("defaults absent roots to canonical and keeps legacy reads separate from canonical writes", () => {

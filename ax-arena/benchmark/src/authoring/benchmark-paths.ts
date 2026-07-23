@@ -188,6 +188,9 @@ export function daebRepositoryRoot(input: DaebPathInput): string {
 
 function writeRoot(input: DaebPathInput): string {
   const repositoryRoot = daebRepositoryRoot(input);
+  // A bare repository root carries no explicit root selection. Validate the
+  // read-side compatibility state first so direct library writers fail on the
+  // same canonical+legacy ambiguity as CLI callers.
   if (typeof input === "string") resolveDaebBenchmarkRoot(repositoryRoot, { access: "read" });
   else assertPathContext(input);
   return resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
@@ -204,11 +207,20 @@ export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string)
   assertRealInRepositoryPath(repositoryRoot, resolve(candidate, ".."), "canonical benchmark writer parent");
   try {
     const target = lstatSync(candidate);
-    if (target.isSymbolicLink() || !target.isFile()) {
-      throw new Error(`canonical benchmark writer target must be a regular non-symlink file: ${candidate}`);
+    if (target.isSymbolicLink() || !target.isFile() || target.nlink !== 1) {
+      throw new Error(`canonical benchmark writer target must be a regular, single-link non-symlink file: ${candidate}`);
     }
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  return candidate;
+}
+
+/** Suite writers use one unambiguous stem and the canonical lowercase extension. */
+export function assertCanonicalDaebSuiteWritePath(input: DaebPathInput, path: string): string {
+  const candidate = assertCanonicalDaebWritePath(input, path);
+  if (!candidate.endsWith(".yaml")) {
+    throw new Error(`suite writers require a canonical lowercase .yaml path: ${candidate}`);
   }
   return candidate;
 }

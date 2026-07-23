@@ -79,8 +79,8 @@ function writeDaebText(root: DaebPathInput, path: string, contents: string, labe
   return writeContainedText(daebRepositoryRoot(root), daebRoot(root), canonical, contents, label);
 }
 
-function explicitArtifactPath(root: string, suitePath: string, suffix: string): string {
-  return `${resolve(root, suitePath).replace(/\.yaml$/i, "")}${suffix}`;
+function explicitArtifactPath(root: DaebPathInput, suitePath: string, suffix: string): string {
+  return `${resolve(daebRepositoryRoot(root), suitePath).replace(/\.yaml$/i, "")}${suffix}`;
 }
 
 function readExplicitYaml<TSchema extends z.ZodTypeAny>(
@@ -93,9 +93,9 @@ function readExplicitYaml<TSchema extends z.ZodTypeAny>(
   return raw === null ? null : parseYaml(raw, path, schema, label);
 }
 
-function writeMethodologyArtifact(root: string, path: string, value: unknown, label: string): string {
+function writeMethodologyArtifact(root: DaebPathInput, path: string, value: unknown, label: string): string {
   const canonical = assertCanonicalDaebWritePath(root, path);
-  return writeContainedText(resolve(root), daebRoot(root), canonical, yamlStringify(value), label);
+  return writeContainedText(daebRepositoryRoot(root), daebRoot(root), canonical, yamlStringify(value), label);
 }
 
 export function vendorCardPath(root: DaebPathInput, slug: string): string {
@@ -218,82 +218,82 @@ export function loadOracleExtract(root: DaebPathInput, slug: string, _suiteName:
   return readDaebYaml(root, daebReadOraclesPath(root, slug), OracleExtractResultSchema, "oracle extract");
 }
 
-export function methodologyPath(root: string, suitePath: string): string {
+export function methodologyPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".methodology.yaml");
 }
 
-export function conceptUniversePath(root: string, suitePath: string): string {
+export function conceptUniversePath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".concept-universe.yaml");
 }
 
-export function coverageMatrixPath(root: string, suitePath: string): string {
+export function coverageMatrixPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".coverage-matrix.yaml");
 }
 
-export function selectionLedgerPath(root: string, suitePath: string): string {
+export function selectionLedgerPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".selection-ledger.yaml");
 }
 
-export function supportMatrixPath(root: string, suitePath: string): string {
+export function supportMatrixPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".support-matrix.yaml");
 }
 
-export function graderLedgerPath(root: string, suitePath: string): string {
+export function graderLedgerPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".grader-ledger.yaml");
 }
 
-export function failureTaxonomyPath(root: string, suitePath: string): string {
+export function failureTaxonomyPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".failure-taxonomy.yaml");
 }
 
-export function traceReviewPath(root: string, suitePath: string): string {
+export function traceReviewPath(root: DaebPathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".trace-review.yaml");
 }
 
-export function writeMethodology(root: string, suitePath: string, value: SuiteMethodology): string {
+export function writeMethodology(root: DaebPathInput, suitePath: string, value: SuiteMethodology): string {
   return writeMethodologyArtifact(root, methodologyPath(root, suitePath), value, "suite methodology");
 }
 
-export function writeConceptUniverse(root: string, suitePath: string, value: ConceptUniverse): string {
+export function writeConceptUniverse(root: DaebPathInput, suitePath: string, value: ConceptUniverse): string {
   return writeMethodologyArtifact(root, conceptUniversePath(root, suitePath), value, "concept universe");
 }
 
-export function writeCoverageMatrix(root: string, suitePath: string, value: CoverageMatrix): string {
+export function writeCoverageMatrix(root: DaebPathInput, suitePath: string, value: CoverageMatrix): string {
   return writeMethodologyArtifact(root, coverageMatrixPath(root, suitePath), value, "coverage matrix");
 }
 
-export function writeSelectionLedger(root: string, suitePath: string, value: SelectionLedger): string {
+export function writeSelectionLedger(root: DaebPathInput, suitePath: string, value: SelectionLedger): string {
   return writeMethodologyArtifact(root, selectionLedgerPath(root, suitePath), value, "selection ledger");
 }
 
-export function writeSupportMatrix(root: string, suitePath: string, value: SupportMatrix): string {
+export function writeSupportMatrix(root: DaebPathInput, suitePath: string, value: SupportMatrix): string {
   return writeMethodologyArtifact(root, supportMatrixPath(root, suitePath), value, "support matrix");
 }
 
-export function writeGraderLedger(root: string, suitePath: string, value: GraderLedger): string {
+export function writeGraderLedger(root: DaebPathInput, suitePath: string, value: GraderLedger): string {
   return writeMethodologyArtifact(root, graderLedgerPath(root, suitePath), value, "grader ledger");
 }
 
-export function writeFailureTaxonomy(root: string, suitePath: string, value: FailureTaxonomy): string {
+export function writeFailureTaxonomy(root: DaebPathInput, suitePath: string, value: FailureTaxonomy): string {
   return writeMethodologyArtifact(root, failureTaxonomyPath(root, suitePath), value, "failure taxonomy");
 }
 
-export function writeTraceReview(root: string, suitePath: string, value: TraceReviewMemo): string {
+export function writeTraceReview(root: DaebPathInput, suitePath: string, value: TraceReviewMemo): string {
   return writeMethodologyArtifact(root, traceReviewPath(root, suitePath), value, "trace review");
 }
 
-export function loadTraceReview(root: string, suitePath: string): TraceReviewMemo | null {
+export function loadTraceReview(root: DaebPathInput, suitePath: string): TraceReviewMemo | null {
   return readExplicitYaml(traceReviewPath(root, suitePath), TraceReviewMemoSchema, "trace review");
 }
 
-export function loadSupportMatrix(root: string, suitePath: string): SupportMatrix | null {
+export function loadSupportMatrix(root: DaebPathInput, suitePath: string): SupportMatrix | null {
   return readExplicitYaml(supportMatrixPath(root, suitePath), SupportMatrixSchema, "support matrix");
 }
 
-export function loadCoverageMatrix(root: string, suitePath: string): CoverageMatrix | null {
+export function loadCoverageMatrix(root: DaebPathInput, suitePath: string): CoverageMatrix | null {
   return readExplicitYaml(coverageMatrixPath(root, suitePath), CoverageMatrixSchema, "coverage matrix");
 }
 
-export function loadSelectionLedger(root: string, suitePath: string): SelectionLedger | null {
+export function loadSelectionLedger(root: DaebPathInput, suitePath: string): SelectionLedger | null {
   return readExplicitYaml(selectionLedgerPath(root, suitePath), SelectionLedgerSchema, "selection ledger");
 }
