@@ -405,8 +405,8 @@ drilldowns, trial outcomes, evidence links, methodology metadata, and failure
 review placeholders. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
-The former `ax-eval export-publication` implementation remains available during
-the private-workspace compatibility period; it is not yet a delegated alias.
+The deprecated `ax-eval publication-bundle` and `ax-eval export-publication`
+names delegate to these arena commands during the compatibility period.
 
 Compare two normalized-record sets without decoding HTML:
 
@@ -492,8 +492,8 @@ The legacy `ax-eval reset` helper retains only the generic HTTP/Asana example
 resetter. Database and benchmark-target cleanup is arena-owned and requires an
 explicit `ResetProvider` after verified-record persistence.
 
-The legacy `ax-eval competitive` command remains active while the arena
-workspace is private; it is not yet a delegated alias.
+The deprecated `ax-eval competitive` name delegates to this arena command
+during the compatibility period.
 
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack

@@ -5,9 +5,8 @@ import {
   buildNormalizedResultCells,
   discoveryScore,
   NORMALIZED_RESULT_SCHEMA,
-  type NormalizedResult,
 } from "../src/generate/record.js";
-import { renderCompetitiveReport, type ProfileRun } from "../src/generate/report.js";
+import type { ProfileRun } from "../src/generate/report.js";
 import type { RoundtripOutcome } from "../src/generate/verify.js";
 import type { DiscoveryReport, DiscoveryMetric } from "../src/generate/discovery.js";
 
@@ -187,106 +186,5 @@ describe("buildNormalizedResult", () => {
     expect(cells[0]!.fileStem).toBe("codex.cli");
     expect(cells[0]!.record.harness).toBe("codex");
     expect(cells[0]!.record.profiles).toEqual(["low", "high"]);
-  });
-});
-
-describe("renderCompetitiveReport", () => {
-  function rec(over: Partial<NormalizedResult>): NormalizedResult {
-    return {
-      schema: NORMALIZED_RESULT_SCHEMA,
-      surface: "api",
-      product: "asana",
-      harness: "claude-code",
-      standard_set_version: "asana-2026-06-05",
-      generated_at: "2026-06-06T00:00:00.000Z",
-      tasks_total: 2,
-      tasks_passed: 2,
-      pass_at_1: 1,
-      pass_at_k: 1,
-      attempts: 1,
-      discovery_score: 1,
-      profiles: ["ceiling"],
-      best_profile: "ceiling",
-      ...over,
-    };
-  }
-
-  it("renders cross-surface (per product) and cross-product (per surface) sections", () => {
-    const records: NormalizedResult[] = [
-      rec({ product: "asana", surface: "api", pass_at_1: 0.9 }),
-      rec({ product: "asana", surface: "mcp", pass_at_1: 0.5, discovery_score: 0.6 }),
-      rec({ product: "notion", surface: "api", pass_at_1: 0.7 }),
-    ];
-    const html = renderCompetitiveReport(records, { harness: "claude-code" });
-    expect(html).toContain("Cross-surface (same product)");
-    expect(html).toContain("Cross-product (same surface)");
-    // Both products surface in the cross-surface section.
-    expect(html).toContain(">asana<");
-    expect(html).toContain(">notion<");
-    // Surfaces compared for asana.
-    expect(html).toContain(">api</td>") ;
-    expect(html).toContain(">mcp");
-    // Percentages rendered.
-    expect(html).toContain("90%");
-    expect(html).toContain("50%");
-    // No raw template leaks.
-    expect(html).not.toContain("undefined%");
-    expect(html).not.toContain("[object Object]");
-  });
-
-  it("marks the best surface and orders the leaderboard by pass@1", () => {
-    const records: NormalizedResult[] = [
-      rec({ product: "asana", surface: "api", pass_at_1: 0.4 }),
-      rec({ product: "asana", surface: "cli", pass_at_1: 0.8 }),
-    ];
-    const html = renderCompetitiveReport(records);
-    // The higher pass@1 surface (cli) is tagged "best".
-    const cliIdx = html.indexOf(">cli");
-    const bestIdx = html.indexOf("best</span>");
-    expect(cliIdx).toBeGreaterThan(-1);
-    expect(bestIdx).toBeGreaterThan(-1);
-    // The schema id is documented in the methodology.
-    expect(html).toContain(NORMALIZED_RESULT_SCHEMA);
-  });
-
-  it("shows an em-dash for unmeasured discovery", () => {
-    const html = renderCompetitiveReport([rec({ discovery_score: null })]);
-    expect(html).toContain("—");
-  });
-
-  it("renders a content-quality column in both planes", () => {
-    const records: NormalizedResult[] = [
-      rec({ product: "asana", surface: "api", content_quality: 0.82 }),
-      rec({ product: "asana", surface: "mcp", content_quality: 0.82 }),
-      rec({ product: "notion", surface: "api", content_quality: 0.41 }),
-    ];
-    const html = renderCompetitiveReport(records);
-    // Header cell present in both tables.
-    expect(html).toContain("<th>content</th>");
-    // The two products' content scores render as heat percentages.
-    expect(html).toContain("82%");
-    expect(html).toContain("41%");
-  });
-
-  it("renders an em-dash for content quality on legacy records (field absent)", () => {
-    // Older normalized.json files predate content_quality — must not crash.
-    const legacy = { ...rec({}) } as Partial<NormalizedResult>;
-    delete legacy.content_quality;
-    const html = renderCompetitiveReport([legacy as NormalizedResult]);
-    expect(html).toContain("<th>content</th>");
-    expect(html).toContain("—");
-  });
-
-  it("renders a cross-harness section when records share a product/surface cell", () => {
-    const records: NormalizedResult[] = [
-      rec({ product: "asana", surface: "api", harness: "claude-code", pass_at_1: 0.8 }),
-      rec({ product: "asana", surface: "api", harness: "codex", pass_at_1: 0.6 }),
-      rec({ product: "asana", surface: "api", harness: "other-local", blocked: "missing-harness", tasks_total: 0, tasks_passed: 0, pass_at_1: 0, pass_at_k: 0 }),
-    ];
-    const html = renderCompetitiveReport(records);
-    expect(html).toContain("Cross-harness (same product + surface)");
-    expect(html).toContain(">claude-code");
-    expect(html).toContain(">codex");
-    expect(html).toContain("no CLI");
   });
 });

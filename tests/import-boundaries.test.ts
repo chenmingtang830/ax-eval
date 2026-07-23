@@ -67,12 +67,26 @@ describe("import boundary verification", () => {
     ]);
   });
 
-  it("rejects detached arena runtime policy files in core", () => {
+  it("rejects detached arena policy implementations in core", () => {
     const root = fixture();
     mkdirSync(resolve(root, "src", "generate"), { recursive: true });
     writeFileSync(resolve(root, "src", "generate", "low-pass.ts"), "export const policy = true;\n");
+    writeFileSync(resolve(root, "src", "generate", "publication.ts"), "export const publication = true;\n");
     expect(findImportBoundaryViolations(root)).toEqual([
-      expect.stringContaining("low-pass.ts is arena-owned runtime policy"),
+      expect.stringContaining("low-pass.ts is an arena-owned policy implementation"),
+      expect.stringContaining("publication.ts is an arena-owned policy implementation"),
+    ]);
+  });
+
+  it("rejects arena-owned competitive rendering declarations in generic reports", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "report.ts"),
+      "export function renderCompetitiveReport(): string { return ''; }\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned renderCompetitiveReport"),
     ]);
   });
 

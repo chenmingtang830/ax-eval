@@ -14,9 +14,13 @@ export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
   "pg",
   "@types/pg",
 ]);
-export const DETACHED_ARENA_RUNTIME_FILES = Object.freeze([
+export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
   "src/generate/low-pass.ts",
   "src/generate/production-run.ts",
+  "src/generate/publication.ts",
+]);
+export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
+  { path: "src/generate/report.ts", identifier: "renderCompetitiveReport" },
 ]);
 
 export function declaredPackageDependencies(packageJson) {
@@ -82,6 +86,24 @@ function moduleSpecifiers(path) {
   return specifiers;
 }
 
+function declaredIdentifiers(path) {
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true);
+  const identifiers = new Set();
+  const visit = (node) => {
+    if ((ts.isFunctionDeclaration(node)
+      || ts.isClassDeclaration(node)
+      || ts.isInterfaceDeclaration(node)
+      || ts.isTypeAliasDeclaration(node)
+      || ts.isEnumDeclaration(node)) && node.name) {
+      identifiers.add(node.name.text);
+    }
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) identifiers.add(node.name.text);
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return identifiers;
+}
+
 export function findImportBoundaryViolations(root = process.cwd()) {
   const repoRoot = resolve(root);
   const coreRoot = resolve(repoRoot, "src");
@@ -90,9 +112,9 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   const publicExports = new Set(Object.keys(packageJson.exports ?? {}));
   const violations = [];
 
-  for (const path of DETACHED_ARENA_RUNTIME_FILES) {
+  for (const path of DETACHED_ARENA_POLICY_FILES) {
     if (existsSync(resolve(repoRoot, path))) {
-      violations.push(`${path} is arena-owned runtime policy and must not exist in core`);
+      violations.push(`${path} is an arena-owned policy implementation and must not exist in core`);
     }
   }
 
@@ -109,6 +131,12 @@ export function findImportBoundaryViolations(root = process.cwd()) {
     violations.push(`${relative(repoRoot, symlink)} source boundary scan rejects symlinks`);
   }
   for (const file of coreScan.files) {
+    const corePath = relative(repoRoot, file).split(sep).join("/");
+    for (const rule of DETACHED_ARENA_CORE_DECLARATIONS) {
+      if (corePath === rule.path && declaredIdentifiers(file).has(rule.identifier)) {
+        violations.push(`${corePath} must not declare arena-owned ${rule.identifier}`);
+      }
+    }
     for (const specifier of moduleSpecifiers(file)) {
       const detachedDependency = [...detachedDatabaseDependencies]
         .find((dependency) => specifier.value === dependency || specifier.value.startsWith(`${dependency}/`));

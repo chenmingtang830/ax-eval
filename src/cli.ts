@@ -23,7 +23,7 @@
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
  *       [--html path] without re-running live verification
- *   ax-eval publication-bundle --suite <suite.yaml> --run-dir <dir> --out <dir>  freeze publication manifest
+ *   ax-arena benchmark publication-bundle --run-root <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
@@ -56,7 +56,6 @@ import {
   type GeneratedReportSnapshot,
 } from "./generate/snapshot.js";
 import {
-  renderCompetitiveReport,
   renderGeneratedReport,
   type ProfileRun,
   type StaticReadiness,
@@ -74,12 +73,7 @@ import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
-import {
-  createDaebPathContext,
-  type DaebPathContext,
-} from "./generate/benchmark-paths.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
 import {
@@ -247,29 +241,12 @@ function commandUsage(command: string | undefined): string {
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
-    case "competitive":
-      return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
     case "render-generated":
       return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
     case "trace-diff":
       return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
     case "reset":
       return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
-    case "publication-bundle":
-      return [
-        "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
-        "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>]",
-        "                                 [--benchmark-root <dir>]",
-        "  Freeze a publication bundle manifest from the canonical suite, vendor",
-        "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
-        "  and normalized records. Missing live artifacts are recorded in manifest.json.",
-      ].join("\n");
-    case "export-publication":
-      return [
-        "usage: ax-eval export-publication --from <publication-bundle-dir> --out <dir>",
-        "  Exports an axarena-ready JSON dataset from a frozen publication bundle.",
-        "  Writes leaderboard, cell, task, trial, failure, evidence, and methodology indexes.",
-      ].join("\n");
     case "records-diff":
       return [
         "usage: ax-eval records-diff --base <record-file-or-dir> --head <record-file-or-dir> --out <diff.md>",
@@ -379,8 +356,6 @@ interface Parsed {
    *  difficulties match the suite exactly — the mechanism that makes
    *  cross-vendor scores comparable. */
   suite: string;
-  /** Explicit DAEB artifact root used to resolve legacy/canonical read ambiguity. */
-  benchmarkRoot: string;
   /** `resolve-vendor` inputs: human-friendly vendor name(s) and the benchmark
    *  category. --vendor for a single vendor; --vendors for comma-separated batch. */
   vendor: string;
@@ -393,8 +368,6 @@ interface Parsed {
   /** extract-capabilities: per-vendor OpenAPI spec URLs to seed from, as
    *  "slug=url,slug=url" — overrides the vendor card's openapi_url. */
   specs: string;
-  effortProfiles: string;
-  requiredEffortProfiles: string;
   skipReset: boolean;
   reclaim: boolean;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
@@ -465,15 +438,12 @@ function parseArgs(argv: string[]): Parsed {
     minPassRate: undefined,
     trace: "",
     suite: "",
-    benchmarkRoot: "",
     vendor: "",
     vendors: "",
     category: "",
     domain: "",
     slug: "",
     specs: "",
-    effortProfiles: "",
-    requiredEffortProfiles: "",
     skipReset: false,
     reclaim: false,
     executionMode: "cell",
@@ -557,15 +527,12 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--base") p.baseRecords = value(++i, "--base");
     else if (a === "--head") p.headRecords = value(++i, "--head");
     else if (a === "--suite") p.suite = value(++i, "--suite");
-    else if (a === "--benchmark-root") p.benchmarkRoot = value(++i, "--benchmark-root");
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
     else if (a === "--vendors") p.vendors = value(++i, "--vendors");
     else if (a === "--domain") p.domain = value(++i, "--domain");
     else if (a === "--slug") p.slug = value(++i, "--slug");
     else if (a === "--specs") p.specs = value(++i, "--specs");
-    else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
-    else if (a === "--required-effort-profiles") p.requiredEffortProfiles = value(++i, "--required-effort-profiles");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
@@ -613,12 +580,6 @@ function parseArgs(argv: string[]): Parsed {
     else p._.push(a!);
   }
   return p;
-}
-
-function daebPaths(args: Parsed, root: string = process.cwd()): DaebPathContext {
-  return createDaebPathContext(root, {
-    explicitRoot: args.benchmarkRoot || undefined,
-  });
 }
 
 async function cmdRun(args: Parsed): Promise<number> {
@@ -1418,63 +1379,6 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
     docsUrls: docsUrls ?? [],
     siteUrl: args.site || "",
   };
-}
-
-function cmdPublicationBundle(args: Parsed): number {
-  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const suite = loadSuite(args.suite);
-  const vendorSlugs = args.vendors
-    ? args.vendors.split(",").map((s) => s.trim()).filter(Boolean)
-    : discoverPublicationVendors(root, suite, benchmarkPaths);
-  if (!vendorSlugs.length) {
-    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under ax-arena/benchmark/daeb/v1/packs/<vendor>/.");
-  }
-  const manifest = buildPublicationBundle({
-    root,
-    suite,
-    suitePath: args.suite,
-    vendors: vendorSlugs,
-    runDir: args.runDir,
-    outDir: args.out,
-    effortProfiles: args.effortProfiles
-      ? args.effortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
-      : undefined,
-    requiredEffortProfiles: args.requiredEffortProfiles
-      ? args.requiredEffortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
-      : undefined,
-    benchmarkPaths,
-  });
-
-  const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);
-  const validationCount = manifest.vendors.reduce((sum, vendor) => sum + vendor.validation_errors.length, 0);
-  console.log(`Saved publication bundle → ${args.out}`);
-  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
-  console.log(`${manifest.vendors.length} vendor(s), ${missingCount} missing artifact reference(s), ${validationCount} validation issue(s).`);
-  if (validationCount) {
-    for (const vendor of manifest.vendors) {
-      for (const error of vendor.validation_errors) console.error(`  ${vendor.slug}: ${error}`);
-    }
-    return 1;
-  }
-  return 0;
-}
-
-function cmdExportPublication(args: Parsed): number {
-  if (!args.from) throw new Error("--from <publication-bundle-dir> is required");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
-  const root = process.cwd();
-  const manifest = buildAxArenaExport({
-    root,
-    bundleDir: args.from,
-    outDir: args.out,
-  });
-  console.log(`Saved axarena export → ${args.out}`);
-  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
-  console.log(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
-  return 0;
 }
 
 function cmdRecordsDiff(args: Parsed): number {
@@ -2701,38 +2605,6 @@ function mergeDiscoveryResults(observed: DiscoveryResult, selfReported: Discover
   };
 }
 
-/**
- * Render the local competitive report from normalized records. Reads every
- * `--results <*.normalized.json>` (the cube cells emitted by verify-generated)
- * and renders the surface × product plane: cross-surface (per product) and
- * cross-product (per surface) comparisons. The third axis (which agent/harness
- * ran the tasks) is not computed locally.
- */
-async function cmdCompetitive(args: Parsed): Promise<number> {
-  if (args.results.length === 0) {
-    throw new Error(
-      "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]",
-    );
-  }
-  const records: NormalizedResult[] = [];
-  for (const rPath of args.results) {
-    const parsed = JSON.parse(readFileSync(rPath, "utf8")) as NormalizedResult;
-    if (parsed?.schema !== "ax.normalized-result/v1") {
-      throw new Error(`${rPath} is not an ax.normalized-result/v1 record`);
-    }
-    records.push(parsed);
-  }
-  const harnesses = [...new Set(records.map((r) => r.harness))];
-  const html = renderCompetitiveReport(records, {
-    harness: harnesses.length === 1 ? harnesses[0] : undefined,
-  });
-  const outPath = args.html || `${args.runDir}/competitive.html`;
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, html);
-  console.log(`Saved competitive report → ${outPath} (${records.length} cell(s))`);
-  return 0;
-}
-
 function absoluteIfPresent(baseDir: string, path: string | undefined): string | undefined {
   return path ? resolve(baseDir, path) : undefined;
 }
@@ -3397,16 +3269,10 @@ async function main(): Promise<number> {
       return cmdVerifyGenerated(args);
     case "render-generated":
       return cmdRenderGenerated(args);
-    case "competitive":
-      return cmdCompetitive(args);
     case "trace-diff":
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
-    case "publication-bundle":
-      return cmdPublicationBundle(args);
-    case "export-publication":
-      return cmdExportPublication(args);
     case "records-diff":
       return cmdRecordsDiff(args);
     default:

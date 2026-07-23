@@ -11,7 +11,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { runArenaCli, type CliIo } from "../src/cli.js";
 import {
@@ -36,9 +35,6 @@ vi.mock("../src/publication/attestation.js", async (importOriginal) => {
   };
 });
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const CORE_CLI = resolve(REPOSITORY_ROOT, "src", "cli.ts");
-const TSX_LOADER = fileURLToPath(import.meta.resolve("tsx"));
 const GENERATED_AT = new Date("2026-07-21T00:00:00.000Z");
 
 const writeArenaCompetitiveReport = (opts: Parameters<typeof writeArenaCompetitiveReportFromVerifiedCohort>[0]) =>
@@ -530,7 +526,6 @@ function createSealedBundle(
   writeJson(resolve(bundle, "manifest.json"), manifest);
   return { batch, records, bundleDir };
 }
-
 function capture(): { io: CliIo; stdout: string[]; stderr: string[] } {
   const stdout: string[] = [];
   const stderr: string[] = [];
@@ -608,21 +603,6 @@ describe("arena competitive reporting", () => {
       expect(cliCodex).toContain("alpha");
       expect(cliCodex).toContain("beta");
       expect(cliCodex).toContain("structural N/A");
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  it("keeps the legacy core command functional for the compatibility period", () => {
-    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-competitive-legacy-"));
-    try {
-      const batch = createBatch(root);
-      const { paths } = createRecords(root, batch);
-      execFileSync(process.execPath, [
-        "--import", TSX_LOADER, CORE_CLI,
-        "competitive", ...paths.flatMap((path) => ["--results", path]), "--html", "legacy.html",
-      ], { cwd: root, stdio: "pipe" });
-      expect(readFileSync(resolve(root, "legacy.html"), "utf8")).toContain("competitive report");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
