@@ -3,10 +3,30 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, syml
 import { tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const npm = process.env.npm_execpath
   ? { command: process.execPath, args: [process.env.npm_execpath] }
   : { command: "npm", args: [] };
+
+function collectDeclarationExports(path) {
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = new Set();
+  for (const statement of source.statements) {
+    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) names.add(element.name.text);
+      continue;
+    }
+    if (!statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    if ("name" in statement && statement.name && ts.isIdentifier(statement.name)) names.add(statement.name.text);
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+      }
+    }
+  }
+  return names;
+}
 const result = spawnSync(npm.command, [...npm.args, "--cache", "../../.npm-cache", "pack", "--dry-run", "--json"], {
   cwd: process.cwd(),
   encoding: "utf8",
@@ -126,12 +146,12 @@ try {
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, buildArenaPublicationBundle, buildArenaPublicationExport, buildTrustedWorkflowDispatch, composePack, createArenaRuntimeExtensionRegistry, createDaebPathContext, executeArenaCell, executeArenaWorkerCell, extractOracles, extractOraclesAll, loadArenaPublicationCohort, loadCapabilityExtract, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeCapabilityExtract, writeComposedPack, writeRuntimeReportingBundle } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, ConceptClusterSchema, ConceptCoverageSchema, ConceptUniverseSchema, CoverageDecisionSchema, CoverageMatrixSchema, FailureTaxonomySchema, GraderLedgerEntrySchema, GraderLedgerSchema, SelectionLedgerEntrySchema, SelectionLedgerSchema, SupportMatrixEntrySchema, SupportMatrixSchema, TraceReviewMemoSchema, auditCapabilityInventory, buildArenaPublicationBundle, buildArenaPublicationExport, buildTrustedWorkflowDispatch, composePack, createArenaRuntimeExtensionRegistry, createDaebPathContext, executeArenaCell, executeArenaWorkerCell, extractOracles, extractOraclesAll, loadArenaPublicationCohort, loadCapabilityExtract, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeCapabilityExtract, writeComposedPack, writeRuntimeReportingBundle } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
       "typeof executeArenaCell !== 'function' || typeof executeArenaWorkerCell !== 'function' || typeof buildTrustedWorkflowDispatch !== 'function' || typeof composePack !== 'function' || typeof createDaebPathContext !== 'function' || typeof extractOracles !== 'function' || typeof extractOraclesAll !== 'function' || typeof loadCapabilityExtract !== 'function' || typeof writeCapabilityExtract !== 'function' || typeof writeComposedPack !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
       "typeof renderArenaCompetitiveReport !== 'function' || typeof writeArenaCompetitiveReport !== 'function' || " +
-      "!ArenaBatchManifestSchema || !ArenaBatchPlanSchema || !ArenaCellCleanupSchema || !ArenaCellResultSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema) process.exit(1);",
+      "!ArenaBatchManifestSchema || !ArenaBatchPlanSchema || !ArenaCellCleanupSchema || !ArenaCellResultSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema || !ConceptClusterSchema || !ConceptCoverageSchema || !ConceptUniverseSchema || !CoverageDecisionSchema || !CoverageMatrixSchema || !FailureTaxonomySchema || !GraderLedgerEntrySchema || !GraderLedgerSchema || !SelectionLedgerEntrySchema || !SelectionLedgerSchema || !SupportMatrixEntrySchema || !SupportMatrixSchema || !TraceReviewMemoSchema || typeof auditCapabilityInventory !== 'function') process.exit(1);",
   ], {
     cwd: smokeRoot,
     encoding: "utf8",
@@ -141,6 +161,25 @@ try {
   }
 } finally {
   rmSync(smokeRoot, { recursive: true, force: true });
+}
+const declarationApi = collectDeclarationExports(resolve(process.cwd(), "dist", "index.d.ts"));
+const requiredTypeExports = [
+  "ConceptCluster",
+  "ConceptUniverse",
+  "CoverageDecision",
+  "CoverageMatrix",
+  "FailureTaxonomy",
+  "GraderLedger",
+  "GraderLedgerEntry",
+  "SelectionLedger",
+  "SelectionLedgerEntry",
+  "SupportMatrix",
+  "SupportMatrixEntry",
+  "TraceReviewMemo",
+];
+const missingTypeExports = requiredTypeExports.filter((name) => !declarationApi.has(name));
+if (missingTypeExports.length) {
+  throw new Error(`missing arena declaration exports: ${missingTypeExports.join(", ")}`);
 }
 
 console.log(`Verified ${files.size} arena package files (${report.filename}).`);

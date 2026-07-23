@@ -2,8 +2,8 @@ import { existsSync } from "node:fs";
 import {
   loadPack,
   type OracleExtractResult,
-  type SupportMatrix,
 } from "ax-eval";
+import type { SupportMatrix } from "./artifact-contracts.js";
 import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
 
 export interface PackAuditFinding {

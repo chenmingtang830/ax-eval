@@ -23,15 +23,7 @@ import {
   invokeGenerator,
   mapSettledLimit,
   type CapabilityExtractResult,
-  type ConceptUniverse,
-  type CoverageMatrix,
-  type CoverageDecision,
-  type SelectionLedger,
-  type SupportMatrix,
   type SuiteMethodology,
-  type GraderLedger,
-  type FailureTaxonomy,
-  type TraceReviewMemo,
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
 import {
@@ -39,6 +31,16 @@ import {
   daebRepositoryRoot,
   daebRoot,
 } from "./benchmark-paths.js";
+import type {
+  ConceptUniverse,
+  CoverageDecision,
+  CoverageMatrix,
+  FailureTaxonomy,
+  GraderLedger,
+  SelectionLedger,
+  SupportMatrix,
+  TraceReviewMemo,
+} from "./artifact-contracts.js";
 import { defaultSuiteMethodology } from "./methodology-policy.js";
 import {
   writeConceptUniverse,

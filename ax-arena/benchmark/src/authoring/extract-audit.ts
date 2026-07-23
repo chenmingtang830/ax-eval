@@ -10,12 +10,12 @@
 import { readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import {
-  auditCapabilityInventory,
   auditSurfaceExtract,
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   type SurfaceExtractResult,
 } from "ax-eval";
+import { auditCapabilityInventory } from "./inventory-audit.js";
 import { daebReadExtractsDir, type DaebPathInput } from "./benchmark-paths.js";
 import {
   loadCapabilityInventory,

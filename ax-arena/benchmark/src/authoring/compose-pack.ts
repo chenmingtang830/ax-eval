@@ -17,11 +17,11 @@ import {
   newRunId,
   type OracleExtractResult,
   type Suite,
-  type SupportMatrix,
   type SurfaceExtractResult,
   type TargetPack,
 } from "ax-eval";
 import { writeContainedText, type ContainedWriteHooks } from "./artifact-filesystem.js";
+import type { SupportMatrix } from "./artifact-contracts.js";
 import {
   assertCanonicalDaebWritePath,
   daebCompiledPackPath,

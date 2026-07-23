@@ -191,8 +191,11 @@ minor release, readers fall back to `benchmarks/daeb/` only when canonical files
 are absent and emit a deprecation warning. If both roots exist, callers must
 select one with `--benchmark-root`; writers always use the canonical root.
 Path selection and the YAML persistence wrappers moved from core are implemented
-only in arena; the public core boundary provides schemas and pure
-parsers/transforms. Arena also constructs suite methodology defaults: the core
+only in arena. Concept-universe, coverage/selection/support matrix,
+grader-ledger, failure-taxonomy, and trace-review contracts are arena-owned,
+along with database-specific capability-inventory audit policy; the public core
+boundary retains generic capability-inventory and suite-methodology schemas and
+pure parsers/transforms. Arena also constructs suite methodology defaults: the core
 validates the artifact shape but does not choose category scoring surfaces,
 coverage thresholds, task counts, or publication checkpoints. Canonical-suite
 oracle extraction is also arena-owned; core retains its validation schemas and
