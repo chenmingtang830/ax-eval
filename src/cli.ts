@@ -32,7 +32,7 @@
 import { fileURLToPath } from "node:url";
 import { basename, dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
 import { render } from "./reporting.js";
@@ -71,59 +71,15 @@ import {
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
-import { checkApproval, reviewSummary, stageApprovedEquivalentPack, writeApproval } from "./generate/review.js";
+import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { loadVendorCard } from "./generate/vendor-resolve.js";
-import { loadOracleExtract } from "./generate/task-extract.js";
-import { loadSurfaceExtract } from "./generate/surface-extract.js";
-import { composePack } from "./generate/compose-pack.js";
 import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
 import {
-  DAEB_LOW_PASS_SCHEMA,
-  cleanupLowPassResults,
-  combinedResultPath,
-  daebFreshPackPath,
-  daebPackPath,
-  daebVendorOrder,
-  defaultLowPassRunRoot,
-  lowPassSafetyIssues,
-  loadLowPassResults,
-  persistLowPassSurfaceOutcome,
-  supportedLowPassSurfaces,
-  upsertLowPassSurfaceRecord,
-  writeFailureClassificationStub,
-  type LowPassManifest,
-  type LowPassSurfaceRecord,
-} from "./generate/low-pass.js";
-import {
-  DAEB_PRODUCTION_CLAUDE_MODEL,
-  DAEB_PRODUCTION_CODEX_MODEL,
-  DAEB_PRODUCTION_EFFORT,
-  DAEB_PRODUCTION_HARNESSES,
-  DAEB_PRODUCTION_TRIAL_COUNT,
-  archiveDaebDebugArtifacts,
-  assertRunCleanupConfirmed,
-  cleanupRecordFromReset,
-  daebProductionVendorOrder,
-  defaultProductionRunRoot,
-  loadAggregateCandidateRecords,
-  productionTrialDir,
-  readRunCleanupRecord,
-  writeRunCleanupRecord,
-  writeArchiveManifest,
-  writeProductionAggregate,
-  type RunCleanupRecord,
-  type ProductionTrialRecord,
-} from "./generate/production-run.js";
-import { loadSupportMatrix } from "./generate/methodology.js";
-import {
   createDaebPathContext,
-  daebReadSuitePath,
   type DaebPathContext,
 } from "./generate/benchmark-paths.js";
-import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
 import {
@@ -320,27 +276,6 @@ function commandUsage(command: string | undefined): string {
         "  Compares normalized result records and writes deterministic Markdown.",
         "  Overall macro-averages surfaces per agent; operational metrics never affect rank.",
       ].join("\n");
-    case "daeb-low-pass":
-      return [
-        "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
-        "                             [--surface api|cli|all] [--run-dir <dir>]",
-        "                             [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
-        "                             [--benchmark-root <dir>]",
-        "  Runs DAEB task-level low coverage with Codex + Claude in parallel,",
-        "  one vendor/surface at a time, then verifies, writes a failure-review stub,",
-        "  and optionally resets after artifacts are persisted.",
-      ].join("\n");
-    case "daeb-production-rerun":
-      return [
-        "usage: ax-eval daeb-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
-        "                                     [--surface api|cli|all] [--run-dir <dir>]",
-        "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
-        "                                     [--skip-archive] [--reclaim]",
-        "                                     [--benchmark-root <dir>]",
-        "  Runs the DAEB/database v1 production rerun lane with api/cli only,",
-        "  one vendor → one surface → one harness → three clean high-effort trials,",
-        "  then writes aggregate mean/range/pass³ artifacts under aggregate/.",
-      ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
     case "audit":
@@ -458,14 +393,10 @@ interface Parsed {
   /** extract-capabilities: per-vendor OpenAPI spec URLs to seed from, as
    *  "slug=url,slug=url" — overrides the vendor card's openapi_url. */
   specs: string;
-  codexModel: string;
-  claudeModel: string;
   effortProfiles: string;
   requiredEffortProfiles: string;
   skipReset: boolean;
-  skipArchive: boolean;
   reclaim: boolean;
-  trialCount: number;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
@@ -541,14 +472,10 @@ function parseArgs(argv: string[]): Parsed {
     domain: "",
     slug: "",
     specs: "",
-    codexModel: DAEB_PRODUCTION_CODEX_MODEL,
-    claudeModel: DAEB_PRODUCTION_CLAUDE_MODEL,
     effortProfiles: "",
     requiredEffortProfiles: "",
     skipReset: false,
-    skipArchive: false,
     reclaim: false,
-    trialCount: DAEB_PRODUCTION_TRIAL_COUNT,
     executionMode: "cell",
     _: [],
   };
@@ -637,8 +564,6 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--domain") p.domain = value(++i, "--domain");
     else if (a === "--slug") p.slug = value(++i, "--slug");
     else if (a === "--specs") p.specs = value(++i, "--specs");
-    else if (a === "--codex-model") p.codexModel = value(++i, "--codex-model");
-    else if (a === "--claude-model") p.claudeModel = value(++i, "--claude-model");
     else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
     else if (a === "--required-effort-profiles") p.requiredEffortProfiles = value(++i, "--required-effort-profiles");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
@@ -662,7 +587,6 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--by") p.by = value(++i, "--by");
     else if (a === "--skip-review") p.skipReview = true;
     else if (a === "--skip-reset") p.skipReset = true;
-    else if (a === "--skip-archive") p.skipArchive = true;
     else if (a === "--reclaim") p.reclaim = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
@@ -675,7 +599,6 @@ function parseArgs(argv: string[]): Parsed {
       if (!Number.isInteger(n) || n < 1) throw new Error(`--trial must be a positive integer (got ${n})`);
       p.trial = n;
     }
-    else if (a === "--trial-count") p.trialCount = Number(value(++i, "--trial-count"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
     else if (a === "--trace") p.trace = value(++i, "--trace");
     else if (a === "--surface") {
@@ -1565,689 +1488,6 @@ function cmdRecordsDiff(args: Parsed): number {
   return 0;
 }
 
-function loadNormalizedRecordForTrial(runDir: string, harness: string, surface: SurfaceId): { path: string; record: NormalizedResult } {
-  const candidates = loadAggregateCandidateRecords(runDir);
-  for (const candidate of candidates) {
-    const parsed = readJsonObject(candidate) as NormalizedResult | undefined;
-    if (parsed?.schema !== "ax.normalized-result/v1") continue;
-    if (parsed.harness === harness && parsed.surface === surface) {
-      return { path: candidate, record: parsed };
-    }
-  }
-  throw new Error(`No normalized record found for ${harness}/${surface} in ${runDir}`);
-}
-
-function buildProductionFailureRecord(
-  pack: TargetPack,
-  surface: SurfaceId,
-  harness: string,
-  model: string,
-  profile: string,
-): NormalizedResult {
-  return {
-    schema: "ax.normalized-result/v1",
-    surface,
-    product: pack.name.replace(/-generated$/, ""),
-    harness,
-    standard_set_version: pack.standard_set_version,
-    generated_at: new Date().toISOString(),
-    tasks_total: tasksForSurface(pack, surface).length,
-    tasks_passed: 0,
-    pass_at_1: 0,
-    pass_at_k: 0,
-    attempts: 1,
-    discovery_score: null,
-    content_quality: null,
-    profiles: [profile],
-    best_profile: profile,
-    model,
-    harness_version_raw: null,
-    harness_version_semver: null,
-    run_batch_id: null,
-    latency_ms: null,
-    total_duration_ms: null,
-    tool_call_count: null,
-    token_usage: null,
-    token_cost: null,
-    cost_usd: null,
-    tokens_in: null,
-    tokens_out: null,
-    validity_status: "invoke_failed",
-    first_action_latency_ms: null,
-    transcript_event_count: null,
-    action_occurred: false,
-    summary_kind: "single",
-  };
-}
-
-function writeProductionFailureClassificationStub(opts: {
-  outPath: string;
-  vendor: string;
-  surface: SurfaceId;
-  harness: string;
-  model: string;
-  trial: number;
-  error: string;
-  resultPath?: string;
-  normalizedPath?: string;
-}): void {
-  mkdirSync(dirname(opts.outPath), { recursive: true });
-  writeFileSync(opts.outPath, [
-    "# DAEB production rerun failure review",
-    "",
-    `vendor: ${opts.vendor}`,
-    `surface: ${opts.surface}`,
-    `harness: ${opts.harness}`,
-    `model: ${opts.model}`,
-    `trial: ${opts.trial}`,
-    `generated_at: ${new Date().toISOString()}`,
-    "",
-    "- classification: TODO",
-    "- validity_status: invoke_failed",
-    `- error: ${opts.error}`,
-    `- results: ${opts.resultPath ?? "not produced"}`,
-    `- normalized_record: ${opts.normalizedPath ?? "not produced"}`,
-    "- notes:",
-    "",
-  ].join("\n"));
-}
-
-class RunCleanupUnconfirmedError extends Error {}
-
-async function cleanupProductionTrial(opts: {
-  pack: TargetPack;
-  trialDir: string;
-  resultPath: string;
-  skipReset: boolean;
-}): Promise<RunCleanupRecord> {
-  if (opts.skipReset) {
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "skipped",
-      message: "skip-reset requested",
-      errors: [],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-  if (!existsSync(opts.resultPath)) {
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "unconfirmed",
-      message: "no combined result exists, so the mutated namespace cannot be identified safely",
-      errors: ["missing result namespace"],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-  try {
-    const result = loadResults(opts.resultPath);
-    if (!result.ns) {
-      const record: RunCleanupRecord = {
-        schema: "ax.daeb-run-cleanup/v1",
-        generated_at: new Date().toISOString(),
-        status: "unconfirmed",
-        message: `no namespace recorded in ${opts.resultPath}`,
-        errors: ["missing result namespace"],
-      };
-      writeRunCleanupRecord(opts.trialDir, record);
-      return record;
-    }
-    const scope = resolveScope(opts.pack);
-    const client = new BearerClient(buildVerificationClientOptions(opts.pack, result));
-    const resetResult = await resetPack(opts.pack, client, scope, { ns: result.ns });
-    const record = cleanupRecordFromReset(result.ns, resetResult);
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "unconfirmed",
-      message: `cleanup failed: ${message}`,
-      errors: [message],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-}
-
-async function runProductionHarnessTrial(opts: {
-  packPath: string;
-  pack: TargetPack;
-  runRoot: string;
-  vendor: string;
-  surface: SurfaceId;
-  harness: (typeof DAEB_PRODUCTION_HARNESSES)[number];
-  model: string;
-  trial: number;
-  trialCount: number;
-  invokeTimeout: number;
-  firstActionTimeout: number;
-  skipReset: boolean;
-}): Promise<{ harness: (typeof DAEB_PRODUCTION_HARNESSES)[number]; trialRecord: ProductionTrialRecord; normalizedRecord: NormalizedResult }> {
-  const trialDir = productionTrialDir(opts.runRoot, opts.vendor, opts.surface, opts.harness, opts.trial);
-  mkdirSync(trialDir, { recursive: true });
-  console.log(`    ${opts.harness} trial ${opts.trial}/${opts.trialCount} → ${trialDir}`);
-  const resultPath = combinedResultPath(trialDir, opts.harness, DAEB_PRODUCTION_EFFORT, opts.surface);
-  const htmlPath = resolve(trialDir, "generated-eval.html");
-  const snapshotPath = resolve(trialDir, "generated-eval.snapshot.json");
-  const classificationPath = resolve(trialDir, "failure-review.md");
-
-  let existingNormalized: { path: string; record: NormalizedResult } | undefined;
-  try {
-    existingNormalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-  } catch {
-    // No normalized artifact yet — continue with exec or verify-resume below.
-  }
-  if (existingNormalized) {
-    if (opts.skipReset && !readRunCleanupRecord(trialDir)) {
-      writeRunCleanupRecord(trialDir, {
-        schema: "ax.daeb-run-cleanup/v1",
-        generated_at: new Date().toISOString(),
-        status: "skipped",
-        message: "skip-reset requested while resuming existing normalized artifacts",
-        errors: [],
-      });
-    }
-    assertRunCleanupConfirmed(trialDir, opts.skipReset);
-    const normalized = existingNormalized;
-    console.log(`      resuming existing normalized artifact → ${normalized.path}`);
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
-        result_paths: existsSync(resultPath) ? [resultPath] : [],
-      },
-      normalizedRecord: normalized.record,
-    };
-  }
-
-  try {
-    if (!existsSync(resultPath)) {
-      await runCliSubcommand([
-        "exec-plan",
-        "--pack", opts.packPath,
-        "--run-dir", trialDir,
-        "--invoke",
-        "--execution-mode", "task",
-        "--harness", opts.harness,
-        "--profile", DAEB_PRODUCTION_EFFORT,
-        "--surface", opts.surface,
-        "--model", opts.model,
-        "--effort", DAEB_PRODUCTION_EFFORT,
-        "--invoke-retries", "0",
-        "--invoke-timeout", String(opts.invokeTimeout || 1800),
-        "--first-action-timeout", String(opts.firstActionTimeout || 240),
-        "--concurrency", "1",
-        "--trial", String(opts.trial),
-        "--run-batch-id", basename(opts.runRoot),
-        "--skip-reset",
-      ]);
-    } else {
-      console.log(`      resuming existing combined result → ${resultPath}`);
-    }
-
-    if (!existsSync(resultPath)) {
-      throw new Error(`No aggregated result file was produced for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}`);
-    }
-
-    try {
-      await runCliSubcommand([
-        "verify-generated",
-        "--pack", opts.packPath,
-        "--results", resultPath,
-        "--run-dir", trialDir,
-        "--html", htmlPath,
-        "--snapshot", snapshotPath,
-        "--min-pass-rate", "0.8",
-      ]);
-    } catch (error) {
-      if (!existsSync(snapshotPath)) throw error;
-      console.warn(`verify-generated failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}, but snapshot exists; continuing.`);
-    }
-
-    if (existsSync(snapshotPath)) {
-      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
-    }
-
-    const normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-    const cleanup = await cleanupProductionTrial({
-      pack: opts.pack,
-      trialDir,
-      resultPath,
-      skipReset: opts.skipReset,
-    });
-    if (cleanup.status === "unconfirmed") {
-      throw new RunCleanupUnconfirmedError(cleanup.message);
-    }
-
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
-        result_paths: [resultPath],
-      },
-      normalizedRecord: normalized.record,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    let normalized: { path: string; record: NormalizedResult };
-    try {
-      normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-    } catch {
-      const record = buildProductionFailureRecord(opts.pack, opts.surface, opts.harness, opts.model, DAEB_PRODUCTION_EFFORT);
-      const normalizedPath = resolve(trialDir, `${opts.harness}.${opts.surface}.failed.normalized.json`);
-      writeFileSync(normalizedPath, JSON.stringify(record, null, 2) + "\n");
-      normalized = { path: normalizedPath, record };
-    }
-    if (existsSync(snapshotPath)) {
-      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
-    } else {
-      writeProductionFailureClassificationStub({
-        outPath: classificationPath,
-        vendor: opts.vendor,
-        surface: opts.surface,
-        harness: opts.harness,
-        model: opts.model,
-        trial: opts.trial,
-        error: message,
-        resultPath: existsSync(resultPath) ? resultPath : undefined,
-        normalizedPath: normalized.path,
-      });
-    }
-    if (error instanceof RunCleanupUnconfirmedError) {
-      throw error;
-    }
-    const cleanup = await cleanupProductionTrial({
-      pack: opts.pack,
-      trialDir,
-      resultPath,
-      skipReset: opts.skipReset,
-    });
-    if (cleanup.status === "unconfirmed") {
-      throw new RunCleanupUnconfirmedError(
-        `Production trial failed and cleanup could not be confirmed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}: ${message}; ${cleanup.message}`,
-      );
-    }
-    console.warn(`production trial failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}; cleanup confirmed, recording classified failure and continuing: ${message}`);
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: classificationPath,
-        result_paths: existsSync(resultPath) ? [resultPath] : [],
-      },
-      normalizedRecord: normalized.record,
-    };
-  }
-}
-
-async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const suitePath = args.suite || daebReadSuitePath(benchmarkPaths);
-  const suite = loadSuite(suitePath);
-  const requestedSurface = concreteSurface(args);
-  const benchmarkScope: SurfaceId[] =
-    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
-    ?? ["api", "cli"];
-  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
-  }
-  if (args.trialCount !== DAEB_PRODUCTION_TRIAL_COUNT) {
-    throw new Error(`DAEB production ranking requires exactly ${DAEB_PRODUCTION_TRIAL_COUNT} clean trials per task cell`);
-  }
-  if (args.codexModel !== DAEB_PRODUCTION_CODEX_MODEL || args.claudeModel !== DAEB_PRODUCTION_CLAUDE_MODEL) {
-    throw new Error(
-      `DAEB production models are frozen to ${DAEB_PRODUCTION_CODEX_MODEL} and ${DAEB_PRODUCTION_CLAUDE_MODEL}`,
-    );
-  }
-  if (args.skipReset) {
-    throw new Error("DAEB production trials require confirmed cleanup between trials; --skip-reset is not allowed");
-  }
-  const vendors = args.vendor
-    ? [args.vendor]
-    : args.vendors
-      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
-      : daebProductionVendorOrder();
-  const runRoot = defaultProductionRunRoot(root, args.runDir);
-  mkdirSync(runRoot, { recursive: true });
-  if (!args.skipArchive) {
-    const archiveRoot = resolve(runRoot, "_archive", "pre-production");
-    const entries = archiveDaebDebugArtifacts(runRoot, archiveRoot);
-    const manifestPath = writeArchiveManifest(archiveRoot, entries);
-    console.log(`Archived debug artifacts manifest → ${manifestPath}`);
-  }
-  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
-
-  for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(benchmarkPaths, vendor);
-    if (!existsSync(committedPackPath)) throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
-    const approvedPack = loadPack(committedPackPath);
-    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
-    let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(benchmarkPaths, vendor);
-    const extract = vendorCard ? loadOracleExtract(benchmarkPaths, vendorCard.slug, suite.name) : null;
-    if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(benchmarkPaths, vendorCard.slug) ?? undefined;
-      const freshPack = composePack(suite, vendorCard, extract, { surfaces, supportMatrix });
-      mkdirSync(dirname(freshPackPath), { recursive: true });
-      writeFileSync(
-        freshPackPath,
-        `# GENERATED — fresh production compiled pack. Do not hand-edit.\n` +
-          `# source_suite: ${suitePath}\n` +
-          `# source_vendor: ${vendorCard.slug}\n` +
-          yamlStringify(freshPack),
-      );
-      stageApprovedEquivalentPack({
-        approvedPack,
-        approvedPackPath: committedPackPath,
-        candidatePack: freshPack,
-        candidatePackPath: freshPackPath,
-      });
-      packPath = freshPackPath;
-    }
-    const pack = loadPack(packPath);
-    // Hygiene gate before any trials start for this vendor.
-    await runHealthCheck(pack, args.reclaim);
-    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
-    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
-    for (const surface of surfaces) {
-      console.log(`\nSurface ${vendor}/${surface}`);
-      const perHarness = new Map<(typeof DAEB_PRODUCTION_HARNESSES)[number], {
-        model: string;
-        trialRecords: ProductionTrialRecord[];
-        normalizedRecords: NormalizedResult[];
-      }>();
-      for (const harness of DAEB_PRODUCTION_HARNESSES) {
-        const model = harness === "codex" ? args.codexModel : args.claudeModel;
-        perHarness.set(harness, { model, trialRecords: [], normalizedRecords: [] });
-        console.log(`  Harness ${harness} → model=${model} effort=${DAEB_PRODUCTION_EFFORT}`);
-      }
-      for (let trial = 1; trial <= args.trialCount; trial++) {
-        console.log(`  Trial ${trial}/${args.trialCount} → concurrent harness lane`);
-        const settled = await Promise.allSettled(
-          DAEB_PRODUCTION_HARNESSES.map((harness) => runProductionHarnessTrial({
-            packPath,
-            pack,
-            runRoot,
-            vendor,
-            surface,
-            harness,
-            model: perHarness.get(harness)!.model,
-            trial,
-            trialCount: args.trialCount,
-            invokeTimeout: args.invokeTimeout,
-            firstActionTimeout: args.firstActionTimeout,
-            skipReset: args.skipReset,
-          })),
-        );
-        const rejected = settled.filter((result): result is PromiseRejectedResult => result.status === "rejected");
-        if (rejected.length) {
-          throw new Error(
-            `Production trial ${vendor}/${surface}/trial-${trial} halted after all harness lanes settled: ` +
-            rejected.map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason)).join(" | "),
-          );
-        }
-        const results = settled.map((result) => (result as PromiseFulfilledResult<Awaited<ReturnType<typeof runProductionHarnessTrial>>>).value);
-        for (const result of results) {
-          perHarness.get(result.harness)!.trialRecords.push(result.trialRecord);
-          perHarness.get(result.harness)!.normalizedRecords.push(result.normalizedRecord);
-        }
-      }
-      for (const harness of DAEB_PRODUCTION_HARNESSES) {
-        const state = perHarness.get(harness)!;
-        writeProductionAggregate({
-          runRoot,
-          vendor,
-          surface,
-          harness,
-          model: state.model,
-          trials: state.trialRecords,
-          records: state.normalizedRecords,
-        });
-      }
-    }
-  }
-  console.log(`\nCompleted DAEB production rerun workflow → ${runRoot}`);
-  console.log(`Publication bundle command: ax-eval publication-bundle --suite ${suitePath} --run-dir ${runRoot} --out ${resolve(runRoot, "publication-bundle")} --effort-profiles ${DAEB_PRODUCTION_EFFORT} --required-effort-profiles ${DAEB_PRODUCTION_EFFORT}`);
-  return 0;
-}
-
-async function cmdDaebLowPass(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const benchmarkPaths = daebPaths(args, root);
-  const suitePath = args.suite || daebReadSuitePath(benchmarkPaths);
-  const suite = loadSuite(suitePath);
-  const requestedSurface = concreteSurface(args);
-  const benchmarkScope: SurfaceId[] =
-    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
-    ?? ["api", "cli"];
-  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB/database v1 low-pass scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
-  }
-  const vendors = args.vendor
-    ? [args.vendor]
-    : args.vendors
-      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
-      : daebVendorOrder();
-  const runRoot = defaultLowPassRunRoot(root, args.runDir);
-  mkdirSync(runRoot, { recursive: true });
-  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
-
-  for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(benchmarkPaths, vendor);
-    if (!existsSync(committedPackPath)) {
-      throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
-    }
-    const approvedPack = loadPack(committedPackPath);
-    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
-    let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(benchmarkPaths, vendor);
-    const extract = vendorCard ? loadOracleExtract(benchmarkPaths, vendorCard.slug, suite.name) : null;
-    if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(benchmarkPaths, vendorCard.slug) ?? undefined;
-      const freshPack = composePack(suite, vendorCard, extract, {
-        surfaces,
-        supportMatrix,
-      });
-      mkdirSync(dirname(freshPackPath), { recursive: true });
-      writeFileSync(
-        freshPackPath,
-          `# GENERATED — fresh medium-effort compiled pack. Do not hand-edit.\n` +
-          `# source_suite: ${suitePath}\n` +
-          `# source_vendor: ${vendorCard.slug}\n` +
-          yamlStringify(freshPack),
-      );
-      stageApprovedEquivalentPack({
-        approvedPack,
-        approvedPackPath: committedPackPath,
-        candidatePack: freshPack,
-        candidatePackPath: freshPackPath,
-      });
-      packPath = freshPackPath;
-    }
-    const pack = loadPack(packPath);
-    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
-    const manifestPath = resolve(runRoot, vendor, "low-pass.manifest.json");
-    const existingManifest = existsSync(manifestPath)
-      ? JSON.parse(readFileSync(manifestPath, "utf8")) as LowPassManifest
-      : null;
-    const manifest: LowPassManifest = existingManifest?.schema === DAEB_LOW_PASS_SCHEMA
-      ? {
-          ...existingManifest,
-          suite: suitePath,
-          vendor,
-          generated_at: new Date().toISOString(),
-          harnesses: ["codex", "claude-code"],
-          profile: "medium",
-          execution_mode: "task",
-          surfaces: [...existingManifest.surfaces],
-        }
-      : {
-          schema: DAEB_LOW_PASS_SCHEMA,
-          suite: suitePath,
-          vendor,
-          generated_at: new Date().toISOString(),
-          harnesses: ["codex", "claude-code"],
-          profile: "medium",
-          execution_mode: "task",
-          surfaces: [],
-        };
-    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
-    for (const surface of surfaces) {
-      const surfaceDir = resolve(runRoot, vendor, surface);
-      mkdirSync(surfaceDir, { recursive: true });
-      console.log(`\nRunning ${vendor}/${surface}: Codex medium + Claude medium in parallel`);
-      const invocationResults = await Promise.allSettled([
-        runCliSubcommand([
-          "exec-plan",
-          "--pack", packPath,
-          "--run-dir", surfaceDir,
-          "--invoke",
-          "--execution-mode", "task",
-          "--harness", "codex",
-          "--profile", "medium",
-          "--effort", "medium",
-          "--surface", surface,
-          "--model", args.codexModel,
-          "--invoke-retries", "0",
-          "--first-action-timeout", String(args.firstActionTimeout || 180),
-          "--concurrency", "1",
-        ]),
-        runCliSubcommand([
-          "exec-plan",
-          "--pack", packPath,
-          "--run-dir", surfaceDir,
-          "--invoke",
-          "--execution-mode", "task",
-          "--harness", "claude-code",
-          "--profile", "medium",
-          "--effort", "medium",
-          "--surface", surface,
-          "--model", args.claudeModel,
-          "--invoke-retries", "0",
-          "--first-action-timeout", String(args.firstActionTimeout || 180),
-          "--concurrency", "1",
-        ]),
-      ]);
-
-      const expectedResultPaths = [
-        combinedResultPath(surfaceDir, "codex", "medium", surface),
-        combinedResultPath(surfaceDir, "claude-code", "medium", surface),
-      ];
-      const resultPaths = expectedResultPaths.filter((path) => existsSync(path));
-      const missingResultPaths = expectedResultPaths.filter((path) => !existsSync(path));
-      const invocationErrors = invocationResults
-        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-        .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason));
-
-      const htmlPath = resolve(surfaceDir, "generated-eval.html");
-      const snapshotPath = resolve(surfaceDir, "generated-eval.snapshot.json");
-      let verifyStatus: "passed" | "failed" = "passed";
-      let verifyError: string | undefined;
-      try {
-        if (resultPaths.length === 0) throw new Error(`No aggregated result files were produced for ${vendor}/${surface}`);
-        await runCliSubcommand([
-          "verify-generated",
-          "--pack", packPath,
-          ...resultPaths.flatMap((path) => ["--results", path]),
-          "--run-dir", surfaceDir,
-          "--html", htmlPath,
-          "--snapshot", snapshotPath,
-          "--min-pass-rate", "0.8",
-        ]);
-      } catch (error) {
-        verifyStatus = "failed";
-        verifyError = error instanceof Error ? error.message : String(error);
-        console.warn(`verify-generated failed for ${vendor}/${surface}; continuing to cleanup before halting or classifying.`);
-      }
-      const classificationPath = resolve(surfaceDir, "failure-review.md");
-      let snapshotValid = false;
-      if (existsSync(snapshotPath)) {
-        try {
-          const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-          writeFailureClassificationStub(snapshot, classificationPath, { vendor, surface });
-          snapshotValid = true;
-        } catch (error) {
-          verifyStatus = "failed";
-          verifyError = `snapshot unreadable: ${error instanceof Error ? error.message : String(error)}`;
-        }
-      }
-
-      const loadedResults = loadLowPassResults(resultPaths, loadResults);
-      const namespaces = loadedResults
-        .map((loaded) => loaded.result?.ns)
-        .filter((value): value is string => Boolean(value));
-      const resetRecord = await cleanupLowPassResults({
-        loadedResults,
-        missingResultPaths,
-        skipReset: args.skipReset,
-        reset: async (result) => {
-          const scope = resolveScope(pack);
-          const client = new BearerClient(buildVerificationClientOptions(pack, result));
-          return resetPack(pack, client, scope, { ns: result.ns });
-        },
-      });
-
-      const surfaceRecord: LowPassSurfaceRecord = {
-        surface,
-        run_dir: surfaceDir,
-        result_paths: resultPaths,
-        html_report: htmlPath,
-        snapshot_path: snapshotPath,
-        classification_path: classificationPath,
-        namespaces,
-        reset: resetRecord,
-        verify_status: verifyStatus,
-        verify_error: verifyError,
-      };
-      const finalized = persistLowPassSurfaceOutcome({
-        manifestPath,
-        manifest,
-        record: surfaceRecord,
-        safety: {
-          invocationErrors,
-          missingResultPaths,
-          cleanupSupported: resetRecord.supported,
-          cleanupMessage: resetRecord.message,
-          verifyError,
-          snapshotValid,
-        },
-      });
-      manifest.surfaces = finalized.manifest.surfaces;
-      const unsafeReasons = finalized.unsafeReasons;
-      if (unsafeReasons.length) {
-        throw new Error(`Low-pass lane ${vendor}/${surface} halted after verification and cleanup attempts: ${unsafeReasons.join(" | ")}`);
-      }
-    }
-  }
-  console.log(`\nCompleted DAEB low-pass workflow → ${runRoot}`);
-  return 0;
-}
-
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
   const suite: Suite | undefined = args.suite ? loadSuite(args.suite) : undefined;
@@ -2427,39 +1667,6 @@ function cmdReview(args: Parsed): number {
  *  surface — the override only applies when the caller named a single surface. */
 function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
-}
-
-function currentCliExecArgs(subcommandArgs: string[]): string[] {
-  const entry = process.argv[1] ?? fileURLToPath(import.meta.url);
-  return entry.endsWith(".ts")
-    ? ["--import", "tsx", entry, ...subcommandArgs]
-    : [entry, ...subcommandArgs];
-}
-
-function runCliSubcommand(subcommandArgs: string[], envOverrides: Record<string, string | undefined> = {}): Promise<void> {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, currentCliExecArgs(subcommandArgs), {
-      cwd: process.cwd(),
-      stdio: "inherit",
-      env: { ...process.env, ...envOverrides },
-    });
-    let settled = false;
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (error) rejectPromise(error);
-      else resolvePromise();
-    };
-    child.on("error", (error) => finish(error));
-    // Use the child process' actual exit as the completion signal. Some harness
-    // wrappers spawn descendants that briefly keep inherited stdio open after the
-    // main subcommand exits, which can delay or suppress `close` and wedge the
-    // production rerun orchestrator even though the subprocess is done.
-    child.on("exit", (code) => {
-      if ((code ?? 1) === 0) finish();
-      else finish(new Error(`subcommand failed (${subcommandArgs.join(" ")}) with exit ${code ?? "unknown"}`));
-    });
-  });
 }
 
 function packWithTask(pack: TargetPack, task: Task): TargetPack {
@@ -4202,10 +3409,6 @@ async function main(): Promise<number> {
       return cmdExportPublication(args);
     case "records-diff":
       return cmdRecordsDiff(args);
-    case "daeb-low-pass":
-      return await cmdDaebLowPass(args);
-    case "daeb-production-rerun":
-      return await cmdDaebProductionRerun(args);
     default:
       console.error(USAGE);
       return 2;

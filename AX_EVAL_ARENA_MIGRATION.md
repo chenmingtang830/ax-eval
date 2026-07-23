@@ -76,6 +76,11 @@ Implementation progress:
   verification and DAEB database cleanup execute only through arena-owned,
   explicitly injected providers; core retains v1 declaration readers but no
   database connection implementation.
+- The legacy DAEB low-pass and production command names delegate to arena, and
+  the old core trial loop, runtime model selection, cleanup policy, and
+  production aggregate helpers have been removed. Temporary core publication
+  compatibility still validates the frozen model/effort/trial metadata until
+  its own cutover.
 - Trusted dispatch validation, OCI/sysroot and tool preparation, Bubblewrap
   smoke tests, sealed-artifact export, detached attestation construction, and
   their tests are owned under `ax-arena/benchmark/`. The required

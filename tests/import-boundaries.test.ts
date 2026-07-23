@@ -67,6 +67,15 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects detached arena runtime policy files in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(resolve(root, "src", "generate", "low-pass.ts"), "export const policy = true;\n");
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("low-pass.ts is arena-owned runtime policy"),
+    ]);
+  });
+
   it("rejects arena imports that escape the workspace or bypass public exports", () => {
     const root = fixture();
     const source = resolve(root, "ax-arena", "benchmark", "src", "arena.ts");
