@@ -41,8 +41,6 @@ vi.mock("../src/publication/attestation.js", async (importOriginal) => {
 });
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
-const CORE_CLI = resolve(REPOSITORY_ROOT, "src", "cli.ts");
-const TSX_LOADER = fileURLToPath(import.meta.resolve("tsx"));
 const GENERATED_AT = new Date("2026-07-21T00:00:00.000Z");
 
 function writeJson(path: string, value: unknown): void {
@@ -542,15 +540,6 @@ function digest(path: string): { sha256: string; bytes: number } {
   return { sha256: createHash("sha256").update(value).digest("hex"), bytes: value.byteLength };
 }
 
-function withoutGeneratedAt(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(withoutGeneratedAt);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).map(([key, child]) => [
-    key,
-    key === "generated_at" ? "<generated>" : withoutGeneratedAt(child),
-  ]));
-}
-
 describe("arena publication export", () => {
   beforeEach(() => verifyBundledAttestation.mockClear());
   it("writes all seven indexes with ranking parity and sealed task provenance", async () => {
@@ -581,19 +570,10 @@ describe("arena publication export", () => {
       expect(cells.cells).toHaveLength(8);
       expect(new Set(cells.cells.map((cell: { id: string }) => cell.id)).size).toBe(8);
 
-      execFileSync(process.execPath, [
-        "--import", TSX_LOADER, CORE_CLI,
-        "export-publication", "--from", "bundle", "--out", "core-out",
-      ], { cwd: root, stdio: "pipe" });
-      for (const name of ["leaderboard.json", "cells.json", "methodology-index.json"]) {
-        expect(withoutGeneratedAt(parse(resolve(root, "arena-out", name))))
-          .toEqual(withoutGeneratedAt(parse(resolve(root, "core-out", name))));
-      }
       expect(parse(resolve(root, "arena-out/trials.json")).task_results[0].evidence.record)
         .toContain("provenance/cells/");
       expect(parse(resolve(root, "arena-out/manifest.json")).source_integrity)
         .toEqual(parse(resolve(root, "bundle/manifest.json")).integrity);
-
       const stdout: string[] = [];
       const stderr: string[] = [];
       const io: CliIo = { stdout: (message) => stdout.push(message), stderr: (message) => stderr.push(message) };

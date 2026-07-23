@@ -296,7 +296,8 @@ ingest -> generate -> review --approve
   -> init / check-env
   -> exec-plan [--invoke]
   -> verify-generated
-  -> render-generated / competitive
+  -> render-generated
+  -> ax-arena benchmark competitive   (cross-target comparison)
   -> reset   (only after verify)
 ```
 
@@ -347,8 +348,8 @@ the next trial.
 This production and low-pass policy is implemented only by the arena
 controller. The deprecated core command names are process launchers; core
 contains no DAEB trial loop, runtime model selection, cleanup policy, or
-production aggregate writer. The temporary core publication compatibility path
-still validates frozen model/effort/trial metadata until its separate cutover.
+production aggregate writer. Arena publication revalidates the frozen
+model/effort/trial metadata against the immutable batch.
 
 Hosted live execution is a manual `workflow_dispatch`. A credential-free plan
 job validates the full source commit and committed whole-benchmark configuration,
@@ -406,12 +407,12 @@ Important command groups:
 - **Authoring (DAEB)** — arena-owned extract / synthesize / audit / compose via
   `ax-arena benchmark` (legacy `ax-eval` aliases are one-minor launchers)
 - **Execution** — generic `exec-plan`, `probe`, `check-env`, `init`; arena-owned
-  `plan` / `execute` (direct `execute` stays fail-closed until trusted workflow activation)
-- **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
-  `trace-diff`, `records-diff`
-- **Publication (DAEB)** — arena-owned `aggregate` / `publish` command surface;
-  legacy `publication-bundle` and `export-publication` remain during migration,
-  while production aliases delegate to arena's direct-runtime fail-closed guard
+  `plan` / `execute` (direct `execute` stays fail-closed; the protected workflow calls the sandboxed cell lifecycle)
+- **Verification and reporting** — core `verify`, `verify-generated`,
+  `trace-diff`, and `records-diff`; arena-owned `competitive`
+- **Publication (DAEB)** — arena-owned `aggregate`, `publication-bundle`,
+  `export-publication`, and `publish`; deprecated core names delegate through
+  the compatibility launcher, while production execution stays fail-closed
 - **Maintenance** — `reset` (after verify, never before)
 
 The CLI does not embed target logic. Instead, it:
@@ -603,14 +604,15 @@ Those records power:
 
 ### Competitive report
 
-The competitive renderer also lives in
-[src/generate/report.ts](./src/generate/report.ts).
-
-It consumes normalized records rather than raw run artifacts, which cleanly
-separates:
+The arena competitive command consumes normalized records rather than raw run
+artifacts, which cleanly separates:
 
 - execution and verification
 - interpretation and comparison
+
+The competitive renderer and its cross-target semantics live under
+`ax-arena/benchmark/src/publication/`; core retains normalized-record creation
+and generic single-run HTML reporting only.
 
 ## Design principles
 
