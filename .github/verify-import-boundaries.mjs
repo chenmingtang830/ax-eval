@@ -25,6 +25,7 @@ export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
 ]);
 export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/report.ts", identifier: "renderCompetitiveReport" },
+  { path: "src/harness/mcp-provision.ts", identifier: "ensureTursoCli" },
   { path: "src/generate/capability-extract.ts", identifier: "capabilityExtractPath" },
   { path: "src/generate/capability-extract.ts", identifier: "loadCapabilityExtract" },
   { path: "src/generate/capability-extract.ts", identifier: "writeCapabilityExtract" },
