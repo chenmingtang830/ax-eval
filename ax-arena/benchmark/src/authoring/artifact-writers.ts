@@ -3,7 +3,6 @@ import {
   auditCapabilityInventory,
   auditSurfaceExtract,
   daebCapabilityInventoryPath,
-  daebCompiledPackPath,
   daebOraclesPath,
   daebRepositoryRoot,
   daebRoot,
@@ -15,7 +14,6 @@ import {
   type OracleExtractResult,
   type ResolveResult,
   type SurfaceExtractResult,
-  type TargetPack,
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
 
@@ -71,22 +69,4 @@ export function writeCapabilityExtract(root: DaebPathInput, result: CapabilityEx
 
 export function writeOracleExtract(root: DaebPathInput, result: OracleExtractResult): string {
   return writeArtifact(root, daebOraclesPath(root, result.slug), yamlStringify(result), "oracle extract");
-}
-
-export function writeComposedPack(
-  root: DaebPathInput,
-  slug: string,
-  _suiteName: string,
-  pack: TargetPack,
-): string {
-  return writeArtifact(
-    root,
-    daebCompiledPackPath(root, slug),
-    `# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.\n`
-      + `# generated_by: ${pack.generated_by}\n`
-      + `# standard_set_version: ${pack.standard_set_version}\n`
-      + `# run_id: ${pack.run_id}\n`
-      + yamlStringify(pack),
-    "composed pack",
-  );
 }

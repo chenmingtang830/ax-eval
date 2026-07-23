@@ -334,10 +334,6 @@ export {
   writeVendorCard,
 } from "./generate/vendor-resolve.js";
 export {
-  composePack,
-  writeComposedPack,
-} from "./generate/compose-pack.js";
-export {
   auditCapabilityInventory,
   defaultSuiteMethodology,
   coverageMatrixPath,

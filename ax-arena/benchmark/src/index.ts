@@ -133,6 +133,12 @@ export type {
 } from "./controller/schemas.js";
 
 export * from "./authoring/coverage-gap-check.js";
+export {
+  composePack,
+  composedPackPath,
+  writeComposedPack,
+  type ComposePackOptions,
+} from "./authoring/compose-pack.js";
 export * from "./authoring/database-task-fit.js";
 export * from "./authoring/database-policy.js";
 export * from "./authoring/extract-advisory.js";

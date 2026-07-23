@@ -30,10 +30,10 @@ hosted execution gets those values only from the committed trusted-runtime lock;
 the executable and its full ancestor chain must be non-writable by the
 controller user.
 
-Runtime-shared pack composition, database prompt overrides, task extraction,
-and artifact readers remain temporary public `ax-eval` compatibility seams;
-the runtime and publication stack slices remove those residuals without
-duplicating policy between packages.
+Pack composition and database prompt overrides are arena-owned under
+`src/authoring/`; the core package no longer exports their implementation.
+Task extraction and artifact readers remain temporary public `ax-eval`
+compatibility seams for later authoring slices.
 
 `executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
 verifier, and reset credentials; runs against an isolated pack copy; validates
