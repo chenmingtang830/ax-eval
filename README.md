@@ -152,7 +152,8 @@ authoring persistence are arena-owned; core exposes only generic authoring
 schemas, single-product capability/surface extraction, and explicit-input
 transforms. Canonical-suite oracle extraction—including grounded prompt,
 concurrency, support-matrix, and database seed policy—is arena-owned alongside
-suite methodology defaults. Legacy core commands remain
+suite methodology defaults. Canonical DAEB artifact assertions run in the arena
+test workspace; core suite-contract tests use synthetic explicit inputs. Legacy core commands remain
 later compatibility slices. Root `npm test`, `npm run typecheck`, `npm run
 build`, and `npm run pack:check` validate both packages.
 

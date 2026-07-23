@@ -46,6 +46,9 @@ support-matrix application, database vendor configuration, and deterministic
 read-back seeds. `ax-eval` exports the reusable oracle-extract validation
 schemas and generic harness helpers, without the arena policy. Suite methodology
 defaults likewise live here rather than in core.
+Tests that read or assert canonical `daeb/` artifacts also live in this
+workspace; public `ax-eval` suite helpers are tested in core with synthetic
+inputs rather than arena files.
 
 `executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
 verifier, and reset credentials; runs against an isolated pack copy; validates
