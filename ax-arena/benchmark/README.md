@@ -44,7 +44,13 @@ as does database-specific capability-inventory audit policy. Core retains only
 the generic capability-inventory and suite-methodology schemas. The persistence
 wrappers use no-follow, single-link, and inode
 validation under an exclusive trusted-checkout-UID assumption. Remaining
-arena-native direct file I/O is a later hardening seam. Canonical-suite oracle
+arena-native direct file I/O is a later hardening seam. The exported suite,
+synthesis, methodology-artifact, support-summary, and audit-autofix writers
+validate every destination under the canonical DAEB root before their first
+mutation. Suite destinations require the exact lowercase `.yaml` extension;
+bare repository-root calls fail when canonical and legacy roots coexist, while
+an explicitly created `DaebPathContext` preserves the caller's root selection.
+Canonical-suite oracle
 extraction lives here too: grounded prompts, retry/concurrency behavior,
 support-matrix application, database vendor configuration, and deterministic
 read-back seeds. `ax-eval` exports the reusable oracle-extract validation

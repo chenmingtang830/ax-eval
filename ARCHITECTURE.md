@@ -205,7 +205,12 @@ reject static symlink/hard-link aliases and
 pin parent/file identities while reading or updating. Authoring assumes
 exclusive use by the trusted checkout UID; malicious concurrent same-UID parent
 renames are outside this boundary. Remaining arena-native direct file I/O is a
-follow-up hardening seam and is not covered by this wrapper guarantee.
+follow-up hardening seam and is not covered by this wrapper guarantee. Exported
+suite synthesis and audit-autofix writers preflight every sibling destination
+under the canonical DAEB root before their first mutation. They require a
+lowercase `.yaml` suite path and accept `DaebPathContext` so an explicit root
+selection remains stable; bare roots fail when canonical and legacy trees are
+both present.
 
 Library callers compose `createRuntimeExtensionRegistry({ ... })` and pass it
 through `runCell` options. The immutable registry snapshots versioned oracle,
