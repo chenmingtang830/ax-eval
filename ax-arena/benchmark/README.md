@@ -32,6 +32,8 @@ the immutable per-cell plan descriptor. The trusted workflow installs the
 explicit executable only when its digest matches; the executable and its full
 ancestor chain must be non-writable by the controller user. These pins are
 policy, not `.env` inputs.
+The Postgres health provider also fails Nile cells before connecting when the
+declared `NILE_DB` sandbox does not match the database in `NILE_DATABASE_URL`.
 
 Pack composition and database prompt overrides are arena-owned under
 `src/authoring/`; the core package no longer exports their implementation.
