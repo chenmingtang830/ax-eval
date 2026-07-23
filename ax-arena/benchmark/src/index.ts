@@ -133,6 +133,8 @@ export type {
 } from "./controller/schemas.js";
 
 export * from "./authoring/coverage-gap-check.js";
+export * from "./authoring/artifact-persistence.js";
+export * from "./authoring/benchmark-paths.js";
 export {
   composePack,
   composedPackPath,

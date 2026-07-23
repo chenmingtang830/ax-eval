@@ -70,15 +70,30 @@ describe("import boundary verification", () => {
   it("rejects detached arena policy implementations in core", () => {
     const root = fixture();
     mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(resolve(root, "src", "generate", "benchmark-paths.ts"), "export const root = true;\n");
     writeFileSync(resolve(root, "src", "generate", "compose-pack.ts"), "export const compose = true;\n");
     writeFileSync(resolve(root, "src", "generate", "database-pack-overrides.ts"), "export const override = true;\n");
     writeFileSync(resolve(root, "src", "generate", "low-pass.ts"), "export const policy = true;\n");
     writeFileSync(resolve(root, "src", "generate", "publication.ts"), "export const publication = true;\n");
     expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("benchmark-paths.ts is an arena-owned policy implementation"),
       expect.stringContaining("compose-pack.ts is an arena-owned policy implementation"),
       expect.stringContaining("database-pack-overrides.ts is an arena-owned policy implementation"),
       expect.stringContaining("low-pass.ts is an arena-owned policy implementation"),
       expect.stringContaining("publication.ts is an arena-owned policy implementation"),
+    ]);
+  });
+
+  it("rejects arena-owned persistence declarations in core authoring modules", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "surface-extract.ts"),
+      "export function loadSurfaceExtract(): null { return null; }\nexport function writeSurfaceExtract(): void {}\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned loadSurfaceExtract"),
+      expect.stringContaining("must not declare arena-owned writeSurfaceExtract"),
     ]);
   });
 

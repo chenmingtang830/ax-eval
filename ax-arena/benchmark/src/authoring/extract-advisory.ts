@@ -7,19 +7,20 @@ import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import {
-  assertCanonicalDaebWritePath,
-  daebRepositoryRoot,
-  daebRoot,
-  daebVendorExtractDir,
   extractJsonObjectWithRepair,
   invokeGenerator,
-  loadCapabilityExtract,
-  loadSurfaceExtract,
-  type DaebPathInput,
   type Effort,
   type HarnessId,
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
+import {
+  assertCanonicalDaebWritePath,
+  daebRepositoryRoot,
+  daebRoot,
+  daebVendorExtractDir,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
+import { loadCapabilityExtract, loadSurfaceExtract } from "./artifact-persistence.js";
 
 const AdvisoryFindingSchema = z.object({
   severity: z.enum(["info", "warn"]),

@@ -31,9 +31,6 @@
  * run concurrently instead of sequentially in one conversation; a vendor's
  * wall-clock time drops to roughly the slowest SINGLE task, not the sum.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
@@ -41,7 +38,6 @@ import { mapSettledLimit } from "./concurrency.js";
 import type { SupportMatrix } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 import type { Suite, SuiteTask } from "./suite.js";
-import { daebOraclesPath, daebReadOraclesPath, type DaebPathInput } from "./benchmark-paths.js";
 
 // Models reliably reach for "postgresql" (the more common spelling) despite
 // the prompt/schema calling for "postgres" — normalize instead of retrying
@@ -1242,29 +1238,4 @@ export async function extractOraclesAll(
       ? { vendor, ok: true as const, result: s.value }
       : { vendor, ok: false as const, error: s.reason instanceof Error ? s.reason.message : String(s.reason) };
   });
-}
-
-/** Path where an oracle-extract result is persisted (DAEB v1: oracles.yaml). */
-export function oracleExtractPath(root: DaebPathInput, slug: string, _suiteName: string): string {
-  return daebOraclesPath(root, slug);
-}
-
-/** Write an oracle-extract to disk as YAML. */
-export function writeOracleExtract(root: DaebPathInput, result: OracleExtractResult): string {
-  const path = oracleExtractPath(root, result.slug, result.suite_name);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(result));
-  return path;
-}
-
-/** Load a previously-written oracle-extract. */
-export function loadOracleExtract(root: DaebPathInput, slug: string, suiteName: string): OracleExtractResult | null {
-  const path = daebReadOraclesPath(root, slug);
-  if (!existsSync(path)) return null;
-  const raw = readFileSync(path, "utf8");
-  const result = OracleExtractResultSchema.safeParse(yamlParse(raw));
-  if (!result.success) {
-    throw new Error(`oracle-extract at ${path} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
-  }
-  return result.data;
 }

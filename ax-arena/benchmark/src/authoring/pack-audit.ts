@@ -1,11 +1,10 @@
 import { existsSync } from "node:fs";
 import {
-  daebReadCompiledPackPath,
   loadPack,
-  type DaebPathInput,
   type OracleExtractResult,
   type SupportMatrix,
 } from "ax-eval";
+import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
 
 export interface PackAuditFinding {
   severity: "error" | "warn";

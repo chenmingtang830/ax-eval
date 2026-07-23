@@ -12,7 +12,7 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { writeExtractAdvisory, type ExtractAdvisory } from "../src/authoring/extract-advisory.js";
-import { writeVendorCard } from "../src/authoring/artifact-writers.js";
+import { writeVendorCard } from "../src/authoring/artifact-persistence.js";
 
 const roots: string[] = [];
 

@@ -11,13 +11,14 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { TargetPackSchema, createDaebPathContext, type DaebPathInput } from "ax-eval";
+import { TargetPackSchema } from "ax-eval";
 import { describe, expect, it } from "vitest";
 import {
   composedPackPath,
   writeComposedPack,
   writeComposedPackFileForTest,
 } from "../src/authoring/compose-pack.js";
+import { createDaebPathContext, type DaebPathContext } from "../src/authoring/benchmark-paths.js";
 
 const pack = TargetPackSchema.parse({
   name: "acme",
@@ -55,7 +56,9 @@ describe("arena pack composition paths", () => {
         repositoryRoot,
         readRoot: resolve(repositoryRoot, "ax-arena/benchmark/daeb"),
         writeRoot: outside,
-      } as unknown as DaebPathInput, "acme", "DAEB-1")).toThrow(/write root must be canonical/);
+        explicitReadRoot: false,
+        readRootKind: "canonical",
+      } as unknown as DaebPathContext, "acme", "DAEB-1")).toThrow(/created by createDaebPathContext/);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });

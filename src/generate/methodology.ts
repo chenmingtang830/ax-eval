@@ -1,14 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { z } from "zod";
-import {
-  daebCapabilityInventoryPath,
-  daebLegacyCapabilitiesPath,
-  daebReadCapabilityInventoryPath,
-  daebReadLegacyCapabilitiesPath,
-  type DaebPathInput,
-} from "./benchmark-paths.js";
 
 export const CANONICAL_SURFACE_SCOPE = ["api", "sdk", "cli"] as const;
 export const CANONICAL_ARTIFACT_SCHEMA_VERSION = "ax.suite-methodology/v1" as const;
@@ -336,35 +326,6 @@ export function defaultSuiteMethodology(category: string): SuiteMethodology {
   });
 }
 
-function readYaml<TSchema extends z.ZodTypeAny>(path: string, schema: TSchema): z.infer<TSchema> | null {
-  if (!existsSync(path)) return null;
-  const parsed = yamlParse(readFileSync(path, "utf8"));
-  const result = schema.safeParse(parsed);
-  if (!result.success) {
-    throw new Error(`Malformed methodology artifact at ${path}: ${result.error.issues.map((i) => i.message).join("; ")}`);
-  }
-  return result.data;
-}
-
-function writeYaml(path: string, value: unknown): string {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, yamlStringify(value));
-  return path;
-}
-
-export function capabilityInventoryPath(root: DaebPathInput, slug: string): string {
-  return daebCapabilityInventoryPath(root, slug);
-}
-
-export function legacyCapabilityExtractPath(root: DaebPathInput, slug: string): string {
-  return daebLegacyCapabilitiesPath(root, slug);
-}
-
-export function loadCapabilityInventory(root: DaebPathInput, slug: string): CapabilityInventory | null {
-  return readYaml(daebReadCapabilityInventoryPath(root, slug), CapabilityInventorySchema)
-    ?? readYaml(daebReadLegacyCapabilitiesPath(root, slug), CapabilityInventorySchema);
-}
-
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values));
 }
@@ -467,103 +428,4 @@ export function auditCapabilityInventory(inventory: CapabilityInventory): Capabi
     audit_notes: uniq(auditNotes),
     capabilities,
   });
-}
-
-const CAPABILITY_INVENTORY_HEADER = [
-  "# Cited capability inventory (suite authoring Layer 0a).",
-  "# Each entry's surfaces_documented records which surfaces the official docs say can",
-  "# perform that capability - per-capability documentation attribution for coverage",
-  "# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).",
-  "",
-].join("\n");
-
-export function writeCapabilityInventory(root: DaebPathInput, inventory: CapabilityInventory): string {
-  const path = capabilityInventoryPath(root, inventory.slug);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${CAPABILITY_INVENTORY_HEADER}${yamlStringify(auditCapabilityInventory(inventory))}`);
-  return path;
-}
-
-function suiteStemPath(root: string, suitePath: string): string {
-  return resolve(root, suitePath).replace(/\.yaml$/i, "");
-}
-
-export function methodologyPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.methodology.yaml`;
-}
-
-export function conceptUniversePath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.concept-universe.yaml`;
-}
-
-export function coverageMatrixPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.coverage-matrix.yaml`;
-}
-
-export function selectionLedgerPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.selection-ledger.yaml`;
-}
-
-export function supportMatrixPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.support-matrix.yaml`;
-}
-
-export function graderLedgerPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.grader-ledger.yaml`;
-}
-
-export function failureTaxonomyPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.failure-taxonomy.yaml`;
-}
-
-export function traceReviewPath(root: string, suitePath: string): string {
-  return `${suiteStemPath(root, suitePath)}.trace-review.yaml`;
-}
-
-export function writeMethodology(root: string, suitePath: string, methodology: SuiteMethodology): string {
-  return writeYaml(methodologyPath(root, suitePath), methodology);
-}
-
-export function writeConceptUniverse(root: string, suitePath: string, artifact: ConceptUniverse): string {
-  return writeYaml(conceptUniversePath(root, suitePath), artifact);
-}
-
-export function writeCoverageMatrix(root: string, suitePath: string, artifact: CoverageMatrix): string {
-  return writeYaml(coverageMatrixPath(root, suitePath), artifact);
-}
-
-export function writeSelectionLedger(root: string, suitePath: string, artifact: SelectionLedger): string {
-  return writeYaml(selectionLedgerPath(root, suitePath), artifact);
-}
-
-export function writeSupportMatrix(root: string, suitePath: string, artifact: SupportMatrix): string {
-  return writeYaml(supportMatrixPath(root, suitePath), artifact);
-}
-
-export function writeGraderLedger(root: string, suitePath: string, artifact: GraderLedger): string {
-  return writeYaml(graderLedgerPath(root, suitePath), artifact);
-}
-
-export function writeFailureTaxonomy(root: string, suitePath: string, artifact: FailureTaxonomy): string {
-  return writeYaml(failureTaxonomyPath(root, suitePath), artifact);
-}
-
-export function writeTraceReview(root: string, suitePath: string, artifact: TraceReviewMemo): string {
-  return writeYaml(traceReviewPath(root, suitePath), artifact);
-}
-
-export function loadTraceReview(root: string, suitePath: string): TraceReviewMemo | null {
-  return readYaml(traceReviewPath(root, suitePath), TraceReviewMemoSchema);
-}
-
-export function loadSupportMatrix(root: string, suitePath: string): SupportMatrix | null {
-  return readYaml(supportMatrixPath(root, suitePath), SupportMatrixSchema);
-}
-
-export function loadCoverageMatrix(root: string, suitePath: string): CoverageMatrix | null {
-  return readYaml(coverageMatrixPath(root, suitePath), CoverageMatrixSchema);
-}
-
-export function loadSelectionLedger(root: string, suitePath: string): SelectionLedger | null {
-  return readYaml(selectionLedgerPath(root, suitePath), SelectionLedgerSchema);
 }
