@@ -47,10 +47,9 @@ export const OracleSpecSchema = z.object({
    * HTTP operation itself to fail with the expected error field/code. */
   assertOutcome: z.enum(["value", "error"]).optional(),
   expectedHttpStatuses: z.array(z.number().int()).optional(),
-  /** SQL wire-protocol round-trip: for vendors with no REST query endpoint
-   *  (e.g. CockroachDB, PlanetScale), the verifier opens a real DB
-   *  connection (via TargetPack.sql_conn), runs `sqlQuery`, and resolves
-   *  the dotted `assertField` against the first result row. */
+  /** Declarative SQL wire-protocol round-trip. Core preserves this v1 pack
+   *  field but executes it only through an explicit OracleProvider; ax-arena
+   *  owns the database connection and result interpretation. */
   sqlDialect: z.enum(["postgres", "mysql"]).optional(),
   sqlQuery: z.string().optional(),
   /** Optional verifier-issued SQL mutation/read before the main round-trip
@@ -61,8 +60,8 @@ export const OracleSpecSchema = z.object({
   probeExpectedAny: z.array(z.unknown()).optional(),
   /** Require probe execution to return an error object rather than rows. */
   probeExpectError: z.boolean().optional(),
-  /** MongoDB Atlas round-trip read: verifier opens TargetPack.mongo_conn and
-   *  runs a small declarative read operation against a collection. */
+  /** Declarative MongoDB Atlas round-trip read. Core preserves this v1 pack
+   *  field but requires an explicit OracleProvider to execute it. */
   mongoQuery: z.object({
     database: z.string(),
     collection: z.string(),
@@ -374,10 +373,8 @@ export const TargetPackSchema = z.object({
   /** Sandbox-isolation parameters the developer provisions (level varies by
    *  product). Empty = a single account/key is the whole sandbox (e.g. Stripe). */
   sandbox_scope: z.array(ScopeParamSchema).default([]),
-  /** Connection info for `OracleSpec.sqlQuery` checks — vendors whose data
-   *  plane is only reachable over the raw Postgres/MySQL wire protocol (no
-   *  REST query endpoint), e.g. CockroachDB, PlanetScale. Absent when the
-   *  pack has no SQL-form oracles. */
+  /** Provider configuration for `OracleSpec.sqlQuery` checks. Core validates
+   *  this v1 declaration but never opens the database connection itself. */
   sql_conn: z
     .object({
       dialect: z.enum(["postgres", "mysql"]),
@@ -389,7 +386,7 @@ export const TargetPackSchema = z.object({
     .object({
       /** Env var holding a full MongoDB connection string. */
       connection_string_env: z.string(),
-      /** Default database used by MongoDB oracle checks. */
+      /** Default database passed to an explicit MongoDB OracleProvider. */
       database: z.string().optional(),
     })
     .optional(),

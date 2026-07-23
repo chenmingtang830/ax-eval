@@ -239,14 +239,13 @@ describe("oracle providers", () => {
     expect(out.find((o) => o.taskId === "db-sql-task")!.oracleResults[0]!.detail).toBe("new");
   });
 
-  it("with no providers registered, behavior is unchanged", async () => {
+  it("fails provider-owned declarations without changing built-in HTTP verification", async () => {
     const exec: ExecutorResults = {
       profile: "floor",
       results: { "db-sql-task": { gid: "7" }, "http-task": { gid: "1" } },
     };
     const out = await verifyGeneratedPack(pack, exec, fakeClient({ "1": { name: "hello" } }));
-    // The sql oracle has no readPathTemplate, so the built-in path reports it
-    // as an incomplete roundtrip spec rather than silently passing.
+    // Core never opens a database connection when no SQL provider is selected.
     const sql = out.find((o) => o.taskId === "db-sql-task")!;
     expect(sql.success).toBe(false);
     expect(out.find((o) => o.taskId === "http-task")!.success).toBe(true);
@@ -282,7 +281,7 @@ describe("oracle providers", () => {
     });
 
     expect(out[0]!.success).toBe(false);
-    expect(out[0]!.oracleResults[0]!.detail).toContain("pack declares no sql_conn");
+    expect(out[0]!.oracleResults[0]!.detail).toBe("oracle sqlQuery requires an explicit OracleProvider");
   });
 
   it("rejects duplicate ids and ambiguous matches", () => {

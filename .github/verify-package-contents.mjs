@@ -59,7 +59,7 @@ if (missing.length || forbidden.length) {
   ].filter(Boolean).join("; "));
 }
 if (leakedDatabaseDependencies.length) {
-  throw new Error(`core package declares unused arena database dependencies: ${leakedDatabaseDependencies.join(", ")}`);
+  throw new Error(`core package declares arena-owned database dependencies: ${leakedDatabaseDependencies.join(", ")}`);
 }
 
 // A package self-reference exercises package.json exports, not only the file.

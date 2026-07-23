@@ -84,15 +84,11 @@
     "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
     "@notionhq/client": "^5.22.0",
     "asana": "^3.1.12",
-    "mongodb": "^7.4.0",
-    "mysql2": "^3.22.5",
-    "pg": "^8.22.0",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "@types/pg": "^8.20.0",
     "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",
