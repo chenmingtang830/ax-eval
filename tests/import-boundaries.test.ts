@@ -109,6 +109,16 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects hard-coded Nile credential-scope policy anywhere in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "target"), { recursive: true });
+    writeFileSync(resolve(root, "src", "target", "scope.ts"), "const database = process.env.NILE_DATABASE_URL;\nvoid database;\n");
+    const violations = findImportBoundaryViolations(root);
+    expect(violations).toEqual([
+      expect.stringContaining("Nile credential-scope policy"),
+    ]);
+  });
+
   it("rejects arena-owned competitive rendering declarations in generic reports", () => {
     const root = fixture();
     mkdirSync(resolve(root, "src", "generate"), { recursive: true });

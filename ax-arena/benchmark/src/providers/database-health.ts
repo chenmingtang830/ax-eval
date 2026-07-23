@@ -6,6 +6,7 @@ import type {
 } from "ax-eval";
 
 const PROVIDER_VERSION = "1.0.0";
+const POSTGRES_PROVIDER_VERSION = "1.1.0";
 
 function credential(
   context: Pick<HealthCheckContext, "credentials">,
@@ -31,9 +32,30 @@ function inventoryEvidence(kind: string, count: number): HealthCheckEvidence[] {
   ];
 }
 
+function nileSandboxBindingEvidence(
+  context: HealthCheckContext,
+  connectionString: string,
+): HealthCheckEvidence[] | undefined {
+  if (context.pack.name !== "nile") return undefined;
+  const expectedDatabase = credential(context, "NILE_DB");
+  let actualDatabase = "";
+  try {
+    actualDatabase = new URL(connectionString).pathname.replace(/^\//, "");
+  } catch {
+    return [{ status: "fail", message: "Nile database connection URL is invalid" }];
+  }
+  if (!expectedDatabase || actualDatabase !== expectedDatabase) {
+    return [{
+      status: "fail",
+      message: "Nile sandbox binding requires NILE_DB to match the NILE_DATABASE_URL database",
+    }];
+  }
+  return undefined;
+}
+
 export const postgresHealthCheckProvider: HealthCheckProvider = {
   id: "ax-arena-postgres-health",
-  version: PROVIDER_VERSION,
+  version: POSTGRES_PROVIDER_VERSION,
   matches: ({ pack }) => pack.sql_conn?.dialect === "postgres",
   async check(context) {
     const config = context.pack.sql_conn;
@@ -42,6 +64,8 @@ export const postgresHealthCheckProvider: HealthCheckProvider = {
     if (!connectionString) {
       return [{ status: "fail", message: `Postgres credential ${config.connection_string_env} is missing` }];
     }
+    const bindingFailure = nileSandboxBindingEvidence(context, connectionString);
+    if (bindingFailure) return bindingFailure;
     const { Client } = await import("pg");
     const client = new Client({ connectionString });
     try {

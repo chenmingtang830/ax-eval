@@ -734,24 +734,6 @@ async function cmdCheckEnv(args: Parsed): Promise<number> {
     }
   }
   const apiOk = hasRequiredEnv(pack);
-  if (pack.name === "nile" && apiOk) {
-    const expectedDatabase = process.env.NILE_DB?.trim();
-    const connectionString = process.env.NILE_DATABASE_URL?.trim();
-    try {
-      const actualDatabase = connectionString ? new URL(connectionString).pathname.replace(/^\//, "") : "";
-      if (!expectedDatabase || actualDatabase !== expectedDatabase) {
-        console.error(
-          `\nNile sandbox binding mismatch: NILE_DB must match the database name in NILE_DATABASE_URL ` +
-          `(expected ${expectedDatabase || "<unset>"}, got ${actualDatabase || "<unreadable>"}).`,
-        );
-        return 1;
-      }
-      console.log(`\nNile sandbox binding: ✓ NILE_DB matches NILE_DATABASE_URL database.`);
-    } catch {
-      console.error(`\nNile sandbox binding mismatch: NILE_DATABASE_URL is not a valid PostgreSQL URL.`);
-      return 1;
-    }
-  }
   if (!apiOk) {
     console.error("\nSet the missing required vars in .env (see .env.example or 'ax-eval init').");
     return 1;
