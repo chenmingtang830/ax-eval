@@ -75,7 +75,9 @@ Benchmark-track authoring reaches that pack via arena-owned suite synthesis,
 canonical-suite oracle extraction, and `compose-pack` policy (see DAEB README).
 Those implementations consume only public `ax-eval` schemas, harness helpers,
 and pack contracts. Re-synthesis or pack edits invalidate content-hash
-approvals on both tracks.
+approvals on both tracks. Tests that inspect canonical DAEB files live in the
+arena workspace; core suite tests exercise the reusable contract with synthetic
+explicit inputs.
 
 ## Shared vs DAEB-only
 
