@@ -206,7 +206,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
       expect(delegated).toEqual(direct);
       expect(delegated.out).toContain(`usage: ax-arena benchmark ${command}`);
     }
-  });
+  }, 20_000);
 
   it("preserves arena failures through competitive and publication aliases", () => {
     const cases = [

@@ -15,6 +15,8 @@ export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
   "@types/pg",
 ]);
 export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
+  "src/generate/compose-pack.ts",
+  "src/generate/database-pack-overrides.ts",
   "src/generate/low-pass.ts",
   "src/generate/production-run.ts",
   "src/generate/publication.ts",

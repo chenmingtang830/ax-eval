@@ -72,8 +72,9 @@ spec/docs -> ingest -> generate (LLM-assisted or --deterministic) -> review
 ```
 
 Benchmark-track authoring reaches that pack via suite synthesis and
-`compose-pack` (see DAEB README). Re-synthesis or pack edits invalidate
-content-hash approvals on both tracks.
+arena-owned `compose-pack` policy (see DAEB README). It consumes only the
+public `ax-eval` authoring contracts and pack schemas. Re-synthesis or pack
+edits invalidate content-hash approvals on both tracks.
 
 ## Shared vs DAEB-only
 
