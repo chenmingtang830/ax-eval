@@ -37,12 +37,20 @@ export function classifyHealthCheckSignals(result: Pick<ResetResult, "candidates
 
 export async function healthCheckPack(
   pack: TargetPack,
-  client: ResetClient,
-  scope: Record<string, string>,
+  client: ResetClient | (() => ResetClient),
+  scope: Record<string, string> | (() => Record<string, string>),
   opts: { reclaim?: boolean } = {},
 ): Promise<HealthCheckResult> {
   const result = await resetPack(pack, client, scope, { dryRun: !opts.reclaim });
   const signals = classifyHealthCheckSignals(result);
+  if (!result.supported) {
+    return {
+      ...result,
+      kind: "health-check",
+      signals,
+      message: `health-check unavailable: ${result.message}`,
+    };
+  }
   const baseMessage = opts.reclaim
     ? `reclaimed ${result.deleted.length}/${result.candidates} probe resource(s) in sandbox scope`
     : `health-check: ${result.candidates} probe resource(s) present in sandbox scope`;

@@ -9,6 +9,10 @@ export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
   "@neondatabase/serverless",
   "@supabase/supabase-js",
   "supabase",
+  "mongodb",
+  "mysql2",
+  "pg",
+  "@types/pg",
 ]);
 
 export function declaredPackageDependencies(packageJson) {
@@ -83,6 +87,7 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   const violations = [];
 
   const coreDependencies = declaredPackageDependencies(packageJson);
+  const detachedDatabaseDependencies = new Set(DETACHED_ARENA_DATABASE_DEPENDENCIES);
   for (const dependency of DETACHED_ARENA_DATABASE_DEPENDENCIES) {
     if (dependency in coreDependencies) {
       violations.push(`package.json core must not declare detached arena dependency ${dependency}`);
@@ -95,6 +100,11 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   }
   for (const file of coreScan.files) {
     for (const specifier of moduleSpecifiers(file)) {
+      const detachedDependency = [...detachedDatabaseDependencies]
+        .find((dependency) => specifier.value === dependency || specifier.value.startsWith(`${dependency}/`));
+      if (detachedDependency) {
+        violations.push(`${relative(repoRoot, file)}:${specifier.line} core must not import arena database dependency ${specifier.value}`);
+      }
       const relativeTarget = specifier.value.startsWith(".") ? resolve(dirname(file), specifier.value) : undefined;
       const physicalRelativeTarget = relativeTarget ? physicalTarget(relativeTarget) : undefined;
       if (specifier.value === "@ax-arena/benchmark"

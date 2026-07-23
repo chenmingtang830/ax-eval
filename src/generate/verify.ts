@@ -20,8 +20,6 @@ import {
   type VersionedOracleProvider,
 } from "./oracle-provider.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
-import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
-import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
 import { resolveEnvTemplate, type EnvSource } from "../target/config.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { gradeSurfaceHonesty } from "./surface-honesty.js";
@@ -67,8 +65,8 @@ export interface VerifyGeneratedPackOptions {
   trace?: readonly TraceStep[];
   /** Explicit providers for this call. When supplied, global providers are ignored. */
   oracleProviders?: OracleProviderRegistry;
-  /** Explicit environment source for URL templates and built-in compatibility
-   * providers. Legacy callers default to process.env. */
+  /** Explicit environment source for URL templates and provider credentials.
+   * Legacy callers default to process.env. */
   env?: EnvSource;
   /** Explicit verifier-only credentials exposed to extension providers. This
    * never defaults to process.env. */
@@ -114,12 +112,6 @@ function resolveExpected(expected: unknown, ns: string | undefined): unknown {
 
 function resolveExpectedValues(oracle: OracleSpec, ns: string | undefined): unknown[] {
   return [oracle.expected, ...(oracle.expectedAny ?? [])].map((v) => resolveExpected(v, ns));
-}
-
-function resolveProbeExpectedValues(oracle: OracleSpec, ns: string | undefined): unknown[] {
-  return [oracle.probeExpected, ...(oracle.probeExpectedAny ?? [])]
-    .filter((value) => value !== undefined)
-    .map((value) => resolveExpected(value, ns));
 }
 
 function normalizeUrl(value: unknown): string | null {
@@ -193,16 +185,6 @@ function httpErrorOutcome(oracle: OracleSpec, error: HttpApiError, ns: string | 
   };
 }
 
-function errorMessageFromResult(value: unknown): string | undefined {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const record = value as { code?: unknown; message?: unknown; errno?: unknown; sqlState?: unknown };
-  if (typeof record.message !== "string" || !record.message.trim()) return undefined;
-  const prefix = [record.code, record.errno, record.sqlState]
-    .filter((part): part is string | number => typeof part === "string" || typeof part === "number")
-    .join("/");
-  return prefix ? `${prefix}: ${record.message}` : record.message;
-}
-
 function applyGidTemplate(value: unknown, gid: string): unknown {
   if (typeof value === "string") return value.split("{gid}").join(gid);
   if (Array.isArray(value)) return value.map((v) => applyGidTemplate(v, gid));
@@ -258,8 +240,6 @@ async function verifyRoundtrip(
   reported: ({ gid?: string } & Record<string, unknown>) | undefined,
   client: BearerClient,
   ns: string | undefined,
-  sqlConn: SqlConn | null,
-  mongoConn: MongoConn | null,
   trace: TraceStep[],
   selectProvider: (oracle: OracleSpec) => VersionedOracleProvider | null | undefined,
   env: EnvSource,
@@ -307,111 +287,13 @@ async function verifyRoundtrip(
     }
     if (oracle.type !== "roundtrip") continue;
 
-    if (oracle.mongoQuery) {
-      if (!mongoConn) {
-        out.push({ type: "roundtrip", passed: false, detail: "oracle has mongoQuery but pack declares no mongo_conn" });
-        continue;
-      }
-      if (!oracle.assertField) {
-        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
-        continue;
-      }
-      const query = applyOracleTemplate(oracle.mongoQuery, ns, reported?.gid, reported, env) as MongoQuery;
-      const expectedValues = resolveExpectedValues(oracle, ns);
-      try {
-        const result = await runMongoCheck(mongoConn, query);
-        const actual = resolveDotted(result, oracle.assertField);
-        const passed = valuesMatch(actual, expectedValues, oracle.matchMode);
-        out.push({
-          type: "roundtrip",
-          passed,
-          detail: [
-            `${oracle.assertField}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}`,
-            actual === undefined ? errorMessageFromResult(result) : undefined,
-          ].filter(Boolean).join("; "),
-        });
-      } catch (err) {
-        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
-      }
-      continue;
-    }
-
-    // SQL wire-protocol targets (CockroachDB/PlanetScale): no {gid}
-    // substitution — these checks address state by {ns}, not a
-    // per-resource id, since a "row count" query has no single resource.
-    if (oracle.sqlQuery) {
-      // sqlConnField: the resource under test lives behind a DIFFERENT
-      // credential than the pack's default (e.g. a new branch created
-      // during a restore, or a scoped role created for RBAC testing) —
-      // the executor already had this connection string in hand to do
-      // the work, so this just asks it to also report it.
-      let effectiveSqlConn = sqlConn;
-      let rolePrefix = "";
-      const safeNs = (ns ?? "").replace(/[^a-zA-Z0-9_]/g, "_");
-      const role = oracle.sqlRoleTemplate
-        ? oracle.sqlRoleTemplate.replace(/\{ns\}/g, safeNs)
-        : oracle.sqlRoleField ? reported?.[oracle.sqlRoleField] : undefined;
-      if (oracle.sqlRoleTemplate || oracle.sqlRoleField) {
-        if (typeof role !== "string" || !/^[a-z_][a-z0-9_]{0,62}$/i.test(role)) {
-          const source = oracle.sqlRoleTemplate ? `"${oracle.sqlRoleTemplate}"` : `"${oracle.sqlRoleField}"`;
-          out.push({ type: "roundtrip", passed: false, detail: `no valid SQL role resolved from ${source}` });
-          continue;
-        }
-        rolePrefix = `SET ROLE "${role}"; `;
-      } else if (oracle.sqlConnField) {
-        const reportedConn = reported?.[oracle.sqlConnField];
-        if (typeof reportedConn !== "string" || !reportedConn) {
-          out.push({ type: "roundtrip", passed: false, detail: `no "${oracle.sqlConnField}" reported by executor` });
-          continue;
-        }
-        effectiveSqlConn = { dialect: oracle.sqlDialect ?? sqlConn?.dialect ?? "postgres", connectionString: reportedConn };
-      }
-      if (!effectiveSqlConn) {
-        out.push({ type: "roundtrip", passed: false, detail: "oracle has sqlQuery but pack declares no sql_conn" });
-        continue;
-      }
-      if (!oracle.assertField) {
-        out.push({ type: "roundtrip", passed: false, detail: "oracle missing assertField" });
-        continue;
-      }
-      const query = rolePrefix + applyReportedFields(applyNsTemplate(oracle.sqlQuery));
-      const expectedValues = resolveExpectedValues(oracle, ns);
-      try {
-        if (oracle.probeSqlQuery) {
-          const probeQuery = applyReportedFields(applyNsTemplate(oracle.probeSqlQuery));
-          const probeResult = await runSqlCheck(effectiveSqlConn, probeQuery);
-          const probeField = oracle.probeAssertField ?? "code";
-          const probeActual = resolveDotted(probeResult, probeField);
-          const probeExpected = resolveProbeExpectedValues(oracle, ns);
-          const isErrorObject = !Array.isArray(probeResult) && Boolean(errorMessageFromResult(probeResult));
-          const probePassed = oracle.probeExpectError
-            ? isErrorObject && (!probeExpected.length || valuesMatch(probeActual, probeExpected, oracle.matchMode))
-            : valuesMatch(probeActual, probeExpected, oracle.matchMode);
-          out.push({
-            type: "verifier-probe",
-            passed: probePassed,
-            detail: `${probeField}=${JSON.stringify(probeActual)} expected=${expectedDetail(probeExpected)}${oracle.probeExpectError ? ` error=${isErrorObject}` : ""}`,
-          });
-          if (!probePassed) continue;
-        }
-        const row = await runSqlCheck(effectiveSqlConn, query);
-        const isErrorObject = !Array.isArray(row) && Boolean(errorMessageFromResult(row));
-        const field = oracle.assertOutcome === "error" ? (oracle.assertField ?? "code") : oracle.assertField;
-        const actual = resolveDotted(row, field);
-        const passed = oracle.assertOutcome === "error"
-          ? isErrorObject && valuesMatch(actual, expectedValues, oracle.matchMode)
-          : valuesMatch(actual, expectedValues, oracle.matchMode);
-        out.push({
-          type: "roundtrip",
-          passed,
-          detail: [
-            `${field}=${JSON.stringify(actual)} expected=${expectedDetail(expectedValues)}${oracle.assertOutcome === "error" ? ` error=${isErrorObject}` : ""}`,
-            actual === undefined ? errorMessageFromResult(row) : undefined,
-          ].filter(Boolean).join("; "),
-        });
-      } catch (err) {
-        out.push({ type: "roundtrip", passed: false, detail: err instanceof Error ? err.message : String(err) });
-      }
+    if (oracle.sqlQuery || oracle.mongoQuery) {
+      const declaration = oracle.sqlQuery ? "sqlQuery" : "mongoQuery";
+      out.push({
+        type: "roundtrip",
+        passed: false,
+        detail: `oracle ${declaration} requires an explicit OracleProvider`,
+      });
       continue;
     }
 
@@ -545,13 +427,6 @@ export async function verifyGeneratedPack(
     providerSelections.set(oracle, provider);
     return provider;
   };
-  const usesBuiltIn = (oracle: OracleSpec): boolean => selectProvider(oracle) === undefined;
-  const sqlConn = tasks.some((task) => task.oracles.some((oracle) => oracle.sqlQuery && usesBuiltIn(oracle)))
-    ? resolveSqlConn(pack, env)
-    : null;
-  const mongoConn = tasks.some((task) => task.oracles.some((oracle) => oracle.mongoQuery && usesBuiltIn(oracle)))
-    ? resolveMongoConn(pack, env)
-    : null;
   const trace = options.trace ? [...options.trace] : Array.isArray(observedRun) ? observedRun : [];
   const objectiveRun = options.observedRun ?? (observedRun && !Array.isArray(observedRun) ? observedRun : undefined);
   const honestySurface: SurfaceId =
@@ -572,8 +447,6 @@ export async function verifyGeneratedPack(
         reported,
         client,
         executor.ns,
-        sqlConn,
-        mongoConn,
         trace,
         selectProvider,
         env,

@@ -247,8 +247,8 @@ normalized record, and cleanup evidence by SHA-256. Completion is a separate
 credential-free assembly step that rejects missing, duplicate, extra, or
 drifted envelopes and delegates final comparability checks to the same batch
 completion validator used by serial execution. The existing cohort workflow is
-kept as a compatibility launcher until a later stacked PR moves GitHub YAML to
-this fan-out boundary.
+replaced by a thin GitHub matrix launcher over these arena-owned planner,
+one-cell worker, and credential-free assembler entrypoints.
 
 Arena database reset providers never use broad cascade cleanup. Postgres drops
 only exact namespace-matched tables, server-revalidated functions, and roles;
@@ -262,6 +262,12 @@ atomically persist the verified record before calling the selected reset
 provider's `plan` and `execute` methods and persisting cleanup evidence. Global
 `registerOracleProvider` remains a compatibility bridge for direct legacy
 verification; new orchestration must not depend on ambient provider state.
+Legacy SQL/Mongo pack fields remain schema-readable, but core has no database
+driver or built-in database oracle/reset path. Ax-arena supplies those behaviors
+through explicit per-cell providers. The retained `resetPack` helper is limited
+to the public HTTP/Asana compatibility example. Generic `exec-plan` warns when
+that compatibility helper cannot inventory a target and fails closed if
+`--reclaim` explicitly requests unavailable cleanup.
 
 ### Review and approval gate
 
@@ -398,7 +404,8 @@ Important command groups:
 - **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
   `trace-diff`, `records-diff`
 - **Publication (DAEB)** — arena-owned `aggregate` / `publish` command surface;
-  legacy `publication-bundle`, `export-publication`, and production aliases remain during migration
+  legacy `publication-bundle` and `export-publication` remain during migration,
+  while production aliases delegate to arena's direct-runtime fail-closed guard
 - **Maintenance** — `reset` (after verify, never before)
 
 The CLI does not embed target logic. Instead, it:

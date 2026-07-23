@@ -122,9 +122,12 @@ pinned in those external directories.
 
 The pack reference carries a full SHA-256 of the exact pack file in addition to
 the existing approval sidecar check, so executable surface/auth changes cannot
-hide behind the narrower legacy approval digest. CLI cells currently use built-in
-extensions only; controllers that inject a runtime registry should call the
-library API until the explicit extension-loader CLI seam lands.
+hide behind the narrower legacy approval digest. CLI cells currently expose no
+extension loader. Core still reads legacy `sql_conn`, `mongo_conn`, `sqlQuery`,
+and `mongoQuery` fields so reviewed v1 packs remain valid, but it never opens a
+database connection for them without an explicit `OracleProvider`. Ax-arena owns
+the SQL/Mongo providers and drivers; controllers that inject a runtime registry
+should call the library API until the explicit extension-loader CLI seam lands.
 Approvals created before this field was introduced remain valid for legacy
 commands, but `cell run` requires the operator to review and approve the exact
 pack again; ax-eval never upgrades that human decision automatically.
@@ -135,10 +138,11 @@ The repository now contains a private `@ax-arena/benchmark` workspace at
 `ax-arena/benchmark/`. It owns canonical DAEB artifacts plus roster, synthesis,
 audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
 may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
-private `ax-eval/src/**` imports. Runtime providers, aggregation, and publication
-move in the following stack slices; legacy authoring spellings are temporary
-process launchers. Root `npm test`, `npm run typecheck`, `npm run build`, and
-`npm run pack:check` validate both packages.
+private `ax-eval/src/**` imports. Arena owns its database runtime providers,
+batch aggregation, competitive reporting, publication bundle/export, and trusted
+controller entrypoints; legacy core command and shared-policy compatibility
+paths remain later slices. Root `npm test`, `npm run typecheck`, `npm run build`,
+and `npm run pack:check` validate both packages.
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
@@ -280,11 +284,12 @@ its four credential partitions; a separate credential-free completion assembler
 provides the other half of the matrix fan-out boundary. The protected workflow
 uses that boundary directly: its YAML derives the matrix and tool pins from the
 committed plan and contains no benchmark roster or individual secret mapping.
-This source cutover does not itself activate a live run. The legacy
-`ax-eval daeb-low-pass` and
-`ax-eval daeb-production-rerun` implementations remain active until the private
-arena package passes its publication gate; only then does the one-minor
-shell-free delegation window begin.
+This source cutover does not itself activate a live run. In a source checkout,
+the legacy `ax-eval daeb-low-pass` and `ax-eval daeb-production-rerun` aliases
+are shell-free launchers for the arena commands, whose direct runtime path fails
+closed in favor of the protected workflow. The npm release gate prevents those
+delegated aliases from shipping before the arena package is public; the
+one-minor compatibility clock begins only after that publication gate passes.
 
 The npm `prepublishOnly` release gate enforces that ordering: `ax-eval` cannot
 be published with delegated aliases until the arena package is public and pins
@@ -481,6 +486,10 @@ npm run ax-eval -- smells --openapi <url>
 npm run ax-arena -- benchmark competitive --from <sealed-publication-bundle> --html <ignored-output.html>
 npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
+
+The legacy `ax-eval reset` helper retains only the generic HTTP/Asana example
+resetter. Database and benchmark-target cleanup is arena-owned and requires an
+explicit `ResetProvider` after verified-record persistence.
 
 The legacy `ax-eval competitive` command remains active while the arena
 workspace is private; it is not yet a delegated alias.
