@@ -31,124 +31,27 @@
  * run concurrently instead of sequentially in one conversation; a vendor's
  * wall-clock time drops to roughly the slowest SINGLE task, not the sum.
  */
-import { z } from "zod";
-import type { Effort, HarnessId } from "./harness.js";
-import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
-import { mapSettledLimit } from "./concurrency.js";
-import type { SupportMatrix } from "./methodology.js";
-import type { ResolveResult } from "./vendor-resolve.js";
-import type { Suite, SuiteTask } from "./suite.js";
-
-// Models reliably reach for "postgresql" (the more common spelling) despite
-// the prompt/schema calling for "postgres" — normalize instead of retrying
-// on a mistake that isn't going to stop happening.
-const SqlDialectSchema = z.preprocess(
-  (v) => (v === "postgresql" ? "postgres" : v),
-  z.enum(["postgres", "mysql"]),
-);
-
-const OracleCheckSchema = z
-  .object({
-    // REST form.
-    read_method: z.enum(["GET", "POST"]).nullish().transform((v) => v ?? undefined),
-    read_path_template: z.string().nullish().transform((v) => v ?? undefined),
-    read_body_template: z.unknown().optional(),
-    // SQL wire-protocol form, for vendors with no REST query endpoint.
-    sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
-    sql_query: z.string().nullish().transform((v) => v ?? undefined),
-    probe_sql_query: z.string().nullish().transform((v) => v ?? undefined),
-    probe_assert_field: z.string().nullish().transform((v) => v ?? undefined),
-    probe_expected: z.union([z.string(), z.number(), z.boolean()]).nullish().transform((v) => v ?? undefined),
-    probe_expect_error: z.boolean().nullish().transform((v) => v ?? undefined),
-    mongo_query: z.object({
-      database: z.string(),
-      collection: z.string(),
-      operation: z.enum(["count", "findOne", "aggregate", "listCollections"]),
-      filter: z.unknown().optional(),
-      projection: z.unknown().optional(),
-      sort: z.unknown().optional(),
-      pipeline: z.array(z.unknown()).optional(),
-    }).optional(),
-    // A single dotted key path into the JSON response / result row, e.g.
-    // "count", "0.email", "documents.0.total". NOT a sentence.
-    assert_field: z.string().min(1),
-    assert_outcome: z.enum(["value", "error"]).nullish().transform((v) => v ?? undefined),
-    expected_http_statuses: z.array(z.number().int()).nullish().transform((v) => v ?? undefined),
-    // The literal value assert_field must equal. May contain "{ns}".
-    expected: z.union([z.string(), z.number(), z.boolean()]),
-    // For identity-scoped (e.g. RLS) checks: the name of a token the agent
-    // self-reports (alongside gid) that the verifier uses as THIS check's
-    // Bearer credential instead of the pack's default — needed because the
-    // pack's admin-level credential typically bypasses row-level security.
-    auth_field: z.string().nullish().transform((v) => v ?? undefined),
-    // SQL variant of auth_field: the name of a full alternate connection
-    // string the agent self-reports (alongside gid) — needed when the
-    // resource to verify lives behind a DIFFERENT credential than the
-    // pack's default sql_conn (e.g. a new branch created during a restore,
-    // or a scoped role created for RBAC testing).
-    sql_conn_field: z.string().nullish().transform((v) => v ?? undefined),
-    // Identity-scoped SQL role reported by the executor. The verifier uses
-    // SET ROLE on its own admin connection before executing this check.
-    sql_role_field: z.string().nullish().transform((v) => v ?? undefined),
-    sql_role_template: z.string().nullish().transform((v) => v ?? undefined),
-    description: z.string().default(""),
-  })
-  .refine((c) => [c.read_path_template, c.sql_query, c.mongo_query].filter(Boolean).length === 1, {
-    message: "check must set exactly one of read_path_template, sql_query, or mongo_query",
-  });
-export type OracleCheck = z.infer<typeof OracleCheckSchema>;
-
-const SurfaceIdSchema = z.enum(["api", "sdk", "cli", "mcp"]);
-type ExtractSurfaceId = z.infer<typeof SurfaceIdSchema>;
-
-const OracleExtractItemSchema = z.object({
-  task_id: z.string(),
-  // True only when NO surface can do this at all for the vendor (rare —
-  // e.g. no backup mechanism exists anywhere). Prefer na_surfaces for the
-  // much more common case where SOME but not all surfaces support it.
-  na: z.boolean(),
-  na_reason: z.string().nullish().transform((v) => v ?? undefined),
-  // Surfaces where THIS task specifically can't be done, even though other
-  // surfaces can (e.g. Supabase's JS SDK has no DDL, so "sdk" is na here
-  // even though db-T01 works fine via REST/CLI/MCP). Excluded from that
-  // surface's execution and scoring — same "no capability, say so" logic
-  // as na/na_reason, just scoped to one surface instead of the whole task.
-  na_surfaces: z.array(SurfaceIdSchema).default([]),
-  na_surfaces_reason: z.string().nullish().transform((v) => v ?? undefined),
-  support_reference: z.string().nullish().transform((v) => v ?? undefined),
-  checks: z.array(OracleCheckSchema).default([]),
-});
-export type OracleExtractItem = z.infer<typeof OracleExtractItemSchema>;
-
-const VendorConfigSchema = z.object({
-  base_url: z.string(),
-  auth_type: z.enum(["bearer", "api-key", "oauth", "none"]),
-  auth_header: z.string().nullish().transform((v) => v ?? undefined),
-  auth_env: z.string(),
-  // Set when the same credential must ALSO be sent under a second header
-  // name — e.g. Supabase's PostgREST rejects `Authorization: Bearer <key>`
-  // alone with "No API key found in request" unless `apikey: <key>` is
-  // also present.
-  extra_auth_header: z.string().nullish().transform((v) => v ?? undefined),
-  // Set when the vendor's data plane requires a raw DB connection (no REST
-  // query endpoint) — e.g. CockroachDB, PlanetScale.
-  sql_dialect: SqlDialectSchema.nullish().transform((v) => v ?? undefined),
-  sql_connection_env: z.string().nullish().transform((v) => v ?? undefined),
-  mongo_connection_env: z.string().nullish().transform((v) => v ?? undefined),
-  mongo_database: z.string().nullish().transform((v) => v ?? undefined),
-});
-type VendorConfig = z.infer<typeof VendorConfigSchema>;
-
-export const OracleExtractResultSchema = z.object({
-  vendor: z.string(),
-  category: z.string(),
-  slug: z.string(),
-  suite_name: z.string(),
-  extracted_at: z.string(),
-  vendor_config: VendorConfigSchema,
-  tasks: z.array(OracleExtractItemSchema),
-});
-export type OracleExtractResult = z.infer<typeof OracleExtractResultSchema>;
+import {
+  OracleCheckSchema,
+  OracleExtractItemSchema,
+  OracleExtractResultSchema,
+  OracleExtractSurfaceIdSchema,
+  OracleVendorConfigSchema,
+  extractJsonObjectWithRepair,
+  invokeGenerator,
+  mapSettledLimit,
+  type Effort,
+  type HarnessId,
+  type OracleCheck,
+  type OracleExtractItem,
+  type OracleExtractResult,
+  type OracleExtractSurfaceId,
+  type OracleVendorConfig,
+  type ResolveResult,
+  type Suite,
+  type SuiteTask,
+  type SupportMatrix,
+} from "ax-eval";
 
 const CHECK_FORMAT_RULES = [
   `Each check is one machine-checkable assertion.`,
@@ -244,10 +147,10 @@ const MAX_ATTEMPTS = 2;
 const PER_VENDOR_TASK_CONCURRENCY = 3;
 const VENDOR_EXTRACTION_CONCURRENCY = 2;
 
-function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
+function seedVendorConfig(vendor: ResolveResult): OracleVendorConfig | null {
   switch (vendor.slug) {
     case "supabase":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://${SUPABASE_PROJECT_REF}.supabase.co",
         auth_type: "bearer",
         auth_env: "SUPABASE_API_KEY",
@@ -256,7 +159,7 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_connection_env: "SUPABASE_DB_URL",
       });
     case "neon":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://console.neon.tech/api/v2",
         auth_type: "bearer",
         auth_header: "Authorization",
@@ -265,7 +168,7 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_connection_env: "NEON_DATABASE_URL",
       });
     case "cockroachdb":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://cockroachlabs.cloud/api/v1",
         auth_type: "bearer",
         auth_env: "COCKROACH_API_KEY",
@@ -273,7 +176,7 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_connection_env: "COCKROACH_CONNECTION_STRING",
       });
     case "insforge":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "${INSFORGE_PROJECT_URL}",
         auth_type: "bearer",
         auth_env: "INSFORGE_API_KEY",
@@ -281,7 +184,7 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_connection_env: "INSFORGE_CONNECTION_STRING",
       });
     case "nile":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://global.thenile.dev",
         auth_type: "bearer",
         auth_header: "Authorization",
@@ -290,13 +193,13 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         sql_connection_env: "NILE_DATABASE_URL",
       });
     case "turso":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
         auth_type: "bearer",
         auth_env: "TURSO_DATABASE_AUTH_TOKEN",
       });
     case "mongodb-atlas":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "https://cloud.mongodb.com",
         auth_type: "none",
         auth_env: "ATLAS_CONNECTION_STRING",
@@ -304,7 +207,7 @@ function seedVendorConfig(vendor: ResolveResult): VendorConfig | null {
         mongo_database: "axarena_eval",
       });
     case "convex":
-      return VendorConfigSchema.parse({
+      return OracleVendorConfigSchema.parse({
         base_url: "${CONVEX_URL}",
         auth_type: "bearer",
         auth_header: "Authorization",
@@ -1063,8 +966,8 @@ function applyFixedSupport(item: OracleExtractItem, fixedSupport?: {
   reference?: string;
 }): OracleExtractItem {
   if (!fixedSupport) return item;
-  const naSurfaces = [...new Set(fixedSupport.unsupportedSurfaces)].filter((surface): surface is ExtractSurfaceId =>
-    SurfaceIdSchema.safeParse(surface).success,
+  const naSurfaces = [...new Set(fixedSupport.unsupportedSurfaces)].filter((surface): surface is OracleExtractSurfaceId =>
+    OracleExtractSurfaceIdSchema.safeParse(surface).success,
   );
   const supportedSurfaces = fixedSupport.supportedSurfaces;
   if (item.na) {
@@ -1146,7 +1049,7 @@ async function extractTaskCheck(
 async function extractVendorConfig(
   vendor: ResolveResult,
   opts: ExtractOraclesOptions,
-): Promise<VendorConfig> {
+): Promise<OracleVendorConfig> {
   const seeded = seedVendorConfig(vendor);
   if (seeded) return seeded;
   const label = `${vendor.vendor}/vendor_config`;
@@ -1165,7 +1068,7 @@ async function extractVendorConfig(
       effort: opts.effort,
       label,
     });
-    const parsed = VendorConfigSchema.safeParse(JSON.parse(json));
+    const parsed = OracleVendorConfigSchema.safeParse(JSON.parse(json));
     if (!parsed.success) {
       const issues = parsed.error.issues.map((i) => `${i.path.join(".") || "<root>"}: ${i.message}`).join("; ");
       throw new Error(`oracle-extract vendor_config for "${label}" returned non-conforming JSON: ${issues}\nRaw: ${json.slice(0, 2000)}`);

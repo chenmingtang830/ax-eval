@@ -2,7 +2,7 @@
  * Generic harness invocation: a small wrapper around claude-code / codex
  * subprocess calls, plus helpers for parsing their replies.
  *
- * Factored out of cli.ts so non-CLI callers (vendor-resolve, task-extract,
+ * Factored out of cli.ts so non-CLI callers (vendor-resolve and arena oracle extraction,
  * future composers) can invoke an LLM harness with their own prompts without
  * pulling in the entire CLI surface.
  *
@@ -323,7 +323,7 @@ export interface RepairJsonOptions {
 const GENERATOR_TIMEOUT_MS = 5 * 60 * 1000;
 
 /** Invoke an LLM for ax-eval's OWN generation tooling (vendor-resolve,
- *  capability-extract, synthesize-suite, task-extract, compose-pack) — this
+ *  capability-extract plus arena synthesize-suite/oracle-extract/compose-pack) — this
  *  is NOT the benchmarked harness call (that stays in invokeHarness/exec-plan,
  *  since claude-code/codex's real CLI behavior is literally the thing under
  *  test). Generation tooling has no reason to shell out to a CLI binary at
