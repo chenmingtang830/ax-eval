@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { extractOracles } from "../src/generate/task-extract.js";
-import { defaultSuiteMethodology } from "../src/generate/methodology.js";
 import type { Suite } from "../src/generate/suite.js";
 import type { ResolveResult } from "../src/generate/vendor-resolve.js";
 
@@ -20,7 +19,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [{
         id: "db-T09-write-records",
         title: "T09: Record lifecycle",
@@ -55,7 +53,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [{
         id: "db-T10-inspect-schema",
         title: "T10: Inspect container metadata",
@@ -104,7 +101,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
           id: "db-T02-backup-and-restore",
@@ -152,7 +148,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [{
         id: "db-T09-full-text-search",
         title: "T09: Full-text search",
@@ -192,7 +187,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
           id: "db-T09-full-text-search",
@@ -240,7 +234,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [{
         id: "db-T03-data-integrity-and-transactions",
         title: "T03: Integrity",
@@ -275,7 +268,6 @@ describe("task extraction seeds", () => {
       name: "DAEB-1",
       version: 1,
       category: "database",
-      methodology: defaultSuiteMethodology("database"),
       tasks: [
         {
           id: "db-T04-evolve-schema",
