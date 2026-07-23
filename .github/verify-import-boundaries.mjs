@@ -14,6 +14,10 @@ export const DETACHED_ARENA_DATABASE_DEPENDENCIES = Object.freeze([
   "pg",
   "@types/pg",
 ]);
+export const DETACHED_ARENA_RUNTIME_FILES = Object.freeze([
+  "src/generate/low-pass.ts",
+  "src/generate/production-run.ts",
+]);
 
 export function declaredPackageDependencies(packageJson) {
   return {
@@ -85,6 +89,12 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   const packageJson = JSON.parse(readFileSync(resolve(repoRoot, "package.json"), "utf8"));
   const publicExports = new Set(Object.keys(packageJson.exports ?? {}));
   const violations = [];
+
+  for (const path of DETACHED_ARENA_RUNTIME_FILES) {
+    if (existsSync(resolve(repoRoot, path))) {
+      violations.push(`${path} is arena-owned runtime policy and must not exist in core`);
+    }
+  }
 
   const coreDependencies = declaredPackageDependencies(packageJson);
   const detachedDatabaseDependencies = new Set(DETACHED_ARENA_DATABASE_DEPENDENCIES);

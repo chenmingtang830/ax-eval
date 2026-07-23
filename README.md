@@ -318,14 +318,15 @@ Claude Code with `claude-sonnet-5`, both at high effort, and three clean trials
 per supported vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
 SDK evidence is research-only for v1.
 
-When production is unblocked, run the production lane with:
+The direct command is retained only for help and compatibility validation:
 
 ```bash
 npm run ax-arena -- benchmark daeb-production-rerun \
-  --suite ax-arena/benchmark/daeb/v1/suite.yaml
+  --help
 ```
 
-Maintainers execute production cells through the **Trusted sandbox arena
+Direct execution intentionally fails closed without the workflow-attested OS
+sandbox. Maintainers execute production cells through the **Trusted sandbox arena
 benchmark** workflow. Dispatch supplies only the full reviewed source SHA, one
 committed whole-benchmark configuration, and a reviewed runner-pool choice. A
 credential-free job creates one opaque batch and matrix. Planning rejects
