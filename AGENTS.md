@@ -20,7 +20,7 @@ npm test            # vitest — all keyless/offline, no network or secrets
 npm run typecheck   # tsc --noEmit, must be clean
 npm run build       # tsup → dist/ (required before package smoke tests)
 npm run ax-eval -- <command>   # run the CLI in dev (tsx)
-npm run ax-arena -- benchmark --help  # private arena workspace scaffold
+npm run ax-arena -- benchmark --help  # private arena workspace CLI
 ```
 
 - **Node ≥ 22.** TypeScript, ESM.
@@ -102,8 +102,10 @@ Use this before opening a PR:
   (authoring freeze vs deferred production), maintainers use
   `docs/latest_plan.md`; facts live under `ax-arena/benchmark/daeb/v1/`.
 - `ax-arena/benchmark/` — private workspace boundary for arena-owned code and
-  canonical DAEB files. `src/authoring/` owns roster, synthesis, audit, and
-  authoring command policy; runtime/controller behavior moves in later slices.
+  canonical DAEB files. `src/authoring/`, `src/providers/`, `src/runtime/`,
+  `src/controller/`, and `src/publication/` own benchmark policy and behavior,
+  including aggregation; root workflow YAML is only a thin launcher for
+  arena-owned trusted scripts.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
   `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),

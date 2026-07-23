@@ -1,11 +1,13 @@
 # ax-eval / ax-arena Separation Migration Design
 
-**Status:** Migration in progress
+**Status:** In-repository separation implemented; release compatibility window not yet started
 
 **Scope:** Separate the reusable `ax-eval` execution engine from DAEB/arena policy,
 orchestration, aggregation, and publication
 
-**Audit date:** 2026-07-21
+**Baseline audit date:** 2026-07-21
+
+**Last implementation reconciliation:** 2026-07-22
 
 **Audited refs:**
 
@@ -22,13 +24,13 @@ The intended architecture is correct:
 > benchmark policy to many such units, aggregates their records, and publishes
 > comparative results.
 
-PR #172 begins this separation by adding an `OracleProvider` seam. That is a
-useful enabling change, but it does not by itself separate the two systems. The
-cumulative DAEB implementation still places benchmark policy, database-specific
-runtime behavior, orchestration, production workflow behavior, and publication
-inside the `ax-eval` package.
+At the audited refs, PR #172 began this separation by adding an `OracleProvider`
+seam. That was a useful enabling change, but did not by itself separate the two
+systems. The baseline cumulative DAEB implementation still placed benchmark
+policy, database-specific runtime behavior, orchestration, production workflow
+behavior, and publication inside the `ax-eval` package.
 
-The migration must establish five boundaries together:
+The migration establishes five boundaries together:
 
 1. **Execution boundary:** one `ax-eval` call runs one fully specified cell and
    emits one normalized record.
@@ -54,21 +56,18 @@ ax-eval
   policy
 ```
 
-This should be implemented incrementally. A repository split before the API,
-schema, and extension boundaries are stable would move the coupling rather than
-remove it.
+The in-repository phases were implemented incrementally. Publishing the private
+arena package or splitting repositories remains a later release gate; doing so
+before the API, schema, and extension boundaries stabilized would only have
+moved the coupling.
 
 Implementation progress:
 
 - PR #172 established the first oracle-provider seam and merged this design.
-- PR #174 publishes a typed package root for core contracts and
-  verification/record primitives.
-- PR #175 adds immutable per-verification oracle registries; global provider
-  registration remains only as a temporary compatibility path.
-- PR #176 implements the explicit one-cell `runCell` and CLI contracts.
-- PR #177 adds the private arena workspace and import/package boundary gates.
-- PR #178 extends immutable per-cell registries across oracle, reset,
-  provisioning, health-check, and target-adapter seams. The arena imports their
+- The typed package root and one-cell `runCell`/CLI contracts are implemented in
+  the cumulative in-repository stack.
+- Immutable per-cell runtime registries now cover oracle, reset, provisioning,
+  health-check, and target-adapter seams. The arena workspace imports their
   constructor only through the public `ax-eval` package specifier.
 - Reset remains outside `runCell` so verified-record persistence can precede
   cleanup.
@@ -88,6 +87,13 @@ Implementation progress:
   their tests are owned under `ax-arena/benchmark/`. The required
   `.github/workflows/` file remains only the launcher and secret-binding
   surface.
+- Canonical DAEB artifacts, authoring persistence, suite composition, oracle
+  extraction, artifact contracts, and database-specific inventory audit policy
+  live under `ax-arena/benchmark/`; core retains only reusable explicit-input
+  contracts and single-product transforms.
+- Exported suite writers enforce canonical lowercase `.yaml` destinations,
+  preserve explicit DAEB path contexts, and the CLI preflights its complete
+  11-output suite bundle before mutation.
 
 ## 2. Goals
 
@@ -167,10 +173,11 @@ The plan belongs to `ax-arena`.
 
 A normalized cell record is the stable output of one `ax-eval` cell. It contains
 input identity, execution provenance, task-level outcomes, scores, trace-derived
-evidence, and errors. The verified record is durably persisted before cleanup;
-arena cleanup evidence is written afterward as a separate sidecar bound to the
-record hash. The normalized record must not contain a leaderboard rank or claim
-that a benchmark batch is complete.
+evidence, and execution errors. It ends after live verification and durable
+persistence; arena cleanup evidence is written afterward as a separate
+`ax.arena-cell-cleanup/v1` sidecar bound to the record hash. The normalized
+record must not contain a leaderboard rank or claim that a benchmark batch is
+complete.
 
 ### 4.4 Aggregate and publication artifacts
 
@@ -179,6 +186,10 @@ bundle validates completeness and comparability and renders benchmark outputs.
 Both belong to `ax-arena`.
 
 ## 5. Current-State Audit
+
+This section records the historical baseline at the audited refs above. The
+implementation-progress list and phase progress annotations describe the
+current cumulative stack.
 
 ### 5.1 What PR #172 implements
 
@@ -678,7 +689,7 @@ global state.
 - normalized cell record schema;
 - task result and oracle result schemas;
 - harness/trace provenance;
-- generic failure and cleanup evidence;
+- generic failure contracts plus reset plan/evidence provider interfaces;
 - provider extension envelope;
 - generic record validation/diff schema.
 
@@ -690,6 +701,7 @@ global state.
 - canonical capability/surface extracts;
 - DAEB suite, methodology, and support matrix;
 - benchmark run matrix and immutable batch manifest;
+- post-record cell cleanup/result sidecars and their integrity bindings;
 - trial aggregate and exact-pass policy;
 - comparison and leaderboard schema;
 - publication bundle and export schema.
@@ -827,7 +839,7 @@ Record the resolved versions in every cell record.
 
 ### 10.1 Transitional layout
 
-First separate ownership inside one repository:
+Ownership is now separated inside one repository:
 
 ```text
 src/                       # existing generic modules
@@ -836,18 +848,24 @@ ax-arena/benchmark/        # private arena npm workspace
 ax-arena/benchmark/daeb/   # canonical arena artifacts
 ```
 
-Dependency rules must already enforce `arena -> core` only. This makes the later
+Dependency rules enforce `arena -> core` only. This makes a later optional
 package/repository split mechanical and reviewable.
 
 ### 10.2 Public exports
 
-Add a supported engine entry point, for example:
+The supported engine entry point is:
 
 ```json
 {
   "exports": {
-    ".": "./dist/index.js",
-    "./schemas/*": "./schemas/cell/*"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/evaluation-cell.v1.json": "./schemas/evaluation-cell.v1.json",
+    "./schemas/normalized-cell-record.v1.json": "./schemas/normalized-cell-record.v1.json",
+    "./schemas/normalized-result.v1.json": "./schemas/normalized-result.v1.json",
+    "./package.json": "./package.json"
   },
   "bin": {
     "ax-eval": "./dist/cli.js"
@@ -855,8 +873,8 @@ Add a supported engine entry point, for example:
 }
 ```
 
-Build both `src/index.ts` and `src/cli.ts`. Arena code must import only public
-exports; direct `src/...` imports are forbidden.
+The build emits public artifacts from both `src/index.ts` and `src/cli.ts`.
+Arena code imports only public exports; direct `src/...` imports are forbidden.
 
 ### 10.3 Final package ownership
 
@@ -875,18 +893,20 @@ exports; direct `src/...` imports are forbidden.
 - database providers and runtime dependencies;
 - controller/workflows;
 - aggregation and publication;
-- dependency on a pinned `ax-eval` version.
+- local workspace dependency on `ax-eval` while private, replaced by a pinned
+  released version at the publication gate.
 
 ### 10.4 Automated dependency guards
 
-Add CI checks that fail when:
+CI checks fail when:
 
 - core imports an arena path;
 - core imports benchmark-only database drivers;
 - arena imports non-public `ax-eval/src/...` paths;
 - the `ax-eval` tarball contains `ax-arena/`, legacy `benchmarks/daeb`, or arena schemas;
 - the `ax-eval` dependency tree gains a package classified as arena-only;
-- benchmark commands are reintroduced into the core CLI.
+- known arena-owned module filenames or declarations are reintroduced into
+  core; CLI/help tests separately pin the allowlisted compatibility launchers.
 
 Lexical checks for DAEB or vendor names are useful warnings, not authoritative
 rules. Import and package boundaries are the enforceable source of truth.
@@ -897,6 +917,9 @@ Each phase should be a reviewable PR or small stack. Do not combine semantic
 changes with file movement unless tests prove parity independently.
 
 ### Phase 0: Freeze and characterize current behavior
+
+**Progress:** Implemented through offline surface/harness fixtures, frozen DAEB
+hash/approval tests, ownership guards, and package inspections.
 
 **Changes**
 
@@ -922,6 +945,9 @@ changes with file movement unless tests prove parity independently.
 - Test-only and documentation changes can be reverted without artifact changes.
 
 ### Phase 1: Establish the public engine API
+
+**Progress:** Implemented. The public package exports the strict cell/record
+schemas, `runCell`, runtime extension contracts, and the one-cell CLI boundary.
 
 **Changes**
 
@@ -949,10 +975,10 @@ changes with file movement unless tests prove parity independently.
 
 **Progress:** Registry contracts, per-cell health/provisioning dispatch,
 versioned provenance, adapter composition, and reset plan/execute interfaces are
-implemented in the active stack. SQL/Mongo verification and DAEB database reset
-implementations now live only behind arena-owned providers; core retains no
-database driver and its database runtime aliases delegate to arena's fail-closed
-trusted-workflow boundary.
+implemented in the cumulative stack. SQL/Mongo verification and DAEB database
+reset implementations now live only behind arena-owned providers; core retains
+no database driver and its database runtime aliases delegate to arena's
+fail-closed trusted-workflow boundary.
 
 **Changes**
 
@@ -981,11 +1007,17 @@ trusted-workflow boundary.
 
 ### Phase 3: Separate schemas and records
 
+**Progress:** Implemented. Core owns the normalized one-cell record; arena owns
+cleanup/result envelopes, batch completion, runtime reporting, comparability,
+and publication schemas. Compatibility readers remain for the announced
+window.
+
 **Changes**
 
 - Add generic evaluation-set identity fields.
 - Define provider extension envelopes.
-- Move SQL/Mongo declaration validation to provider packages.
+- Keep generic v1 oracle declaration validation in core while moving SQL/Mongo
+  runtime interpretation and provider configuration to arena.
 - Split normalized cell schemas from benchmark aggregate/publication schemas.
 - Add v1 readers/translators for current fields and artifact paths.
 - Define and test the arena comparability guard.
@@ -1000,14 +1032,16 @@ trusted-workflow boundary.
 
 **Rollback**
 
-- Dual-read and, for one release, dual-write schemas allow rollback without data
-  loss.
+- Compatibility readers accept legacy schemas and paths for the announced
+  window; writers emit only canonical artifacts. Rollback reverts the phase as
+  a unit and does not rely on a dual-write path.
 
 ### Phase 4: Quarantine arena implementation in-repository
 
-The private `ax-arena/benchmark/` npm workspace and import guard land first as
-an inert boundary. Canonical DAEB files and commands remain in place until the
-following artifact and behavior relocation slices pass parity checks.
+**Progress:** Implemented. The private `ax-arena/benchmark/` npm workspace owns
+canonical DAEB files, authoring policy, providers, controller, aggregation, and
+publication. Import and package guards enforce the one-way dependency and
+tarball ownership boundaries.
 
 **Changes**
 
@@ -1033,6 +1067,12 @@ following artifact and behavior relocation slices pass parity checks.
 
 ### Phase 5: Split CLI and production workflows
 
+**Progress:** Implemented in-repository. `ax-arena benchmark` owns controller,
+aggregation, publication, and authoring commands; protected workflow YAML is a
+thin matrix launcher over arena-owned planning, worker, assembly, and isolation
+scripts. Deprecated `ax-eval` names remain process launchers; their one-minor
+compatibility clock begins only when the arena package is available to users.
+
 **Changes**
 
 - Add an `ax-arena` controller CLI for plan, execute, aggregate, and publish.
@@ -1053,10 +1093,17 @@ following artifact and behavior relocation slices pass parity checks.
 
 **Rollback**
 
-- The legacy orchestrator remains available behind an explicit compatibility
-  flag for one migration window, but cannot publish new canonical results.
+- Revert this phase as a unit. There is no legacy-orchestrator fallback flag.
+  Compatibility launchers remain functional for non-credentialed reporting and
+  export commands; `execute`, direct `publish`, `daeb-low-pass`, and
+  `daeb-production-rerun` fail closed outside the trusted workflow.
 
 ### Phase 6: Split packages and optionally repositories
+
+**Progress:** The private arena npm workspace and package boundary are complete,
+and both dry-run tarballs enforce their ownership. Publishing the arena package
+with a pinned released `ax-eval` semver starts the compatibility clock. Any
+repository split remains an optional later gate after parity sign-off.
 
 **Changes**
 
@@ -1080,12 +1127,15 @@ following artifact and behavior relocation slices pass parity checks.
 
 ### Phase 7: Remove compatibility paths
 
+**Progress:** Pending the arena package release and its announced one-minor
+compatibility window. No compatibility path is removed early.
+
 **Changes**
 
 - Remove global provider registration from normal runtime use.
 - Remove deprecated arena commands from the `ax-eval` CLI.
-- Stop dual-writing old record fields after the announced compatibility window.
-- Remove compatibility re-exports and old artifact translators when all stored
+- Remove legacy record/path readers after the announced compatibility window.
+- Remove compatibility re-exports and remaining artifact translators when all stored
   canonical data has been migrated or archived.
 
 **Exit criteria**
@@ -1097,7 +1147,7 @@ following artifact and behavior relocation slices pass parity checks.
 
 ## 12. Detailed Ownership Inventory
 
-The exact file list may evolve while the cumulative stack lands. Use these
+The exact file list may evolve after the cumulative stack. Use these
 classifications as decision rules, not as permission for unreviewed bulk moves.
 
 ### 12.1 Keep in ax-eval
@@ -1115,7 +1165,7 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 - Pure single-target discovery/extraction utilities that have no benchmark
   methodology or persistence dependency.
 
-### 12.2 Move to ax-arena
+### 12.2 Owned by ax-arena
 
 - `ax-arena/benchmark/daeb/**` methodology and canonical artifacts (formerly
   `benchmarks/daeb/**` during the one-release read compatibility window).
@@ -1127,14 +1177,16 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 - Cross-trial aggregation and exact-pass policy.
 - Cross-target comparison, leaderboard, publication bundle, and export.
 - Trusted benchmark execution and publication workflows.
-- DAEB normalized-record schema additions that are not part of the generic cell
-  contract.
+- Arena cell-result, cleanup, batch, reporting, and publication schemas that are
+  not part of the generic normalized-cell contract.
 
 Current stack status: DAEB roster, coverage/task-fit, synthesis, extract/suite
-audit, and their CLI handlers live under `ax-arena/benchmark/src/authoring/`.
-The nine former `ax-eval` authoring commands are one-minor process launchers;
-runtime-shared pack composition and artifact readers move with the runtime and
-publication slices to avoid duplicate policy implementations.
+audit, pack composition, artifact contracts/readers/writers, and their CLI
+handlers live under `ax-arena/benchmark/src/authoring/`. Providers, cell/batch
+lifecycle, runtime reporting, aggregation, competitive reporting, publication,
+and trusted workflow implementation also live in the arena workspace. Former
+`ax-eval` arena commands are one-minor process launchers, not duplicate policy
+implementations.
 
 ### 12.3 Split by responsibility
 
@@ -1278,11 +1330,14 @@ linking the superseded attempt.
 
 ### 15.4 Artifact path compatibility
 
-- Maintain a manifest mapping old DAEB artifact paths to new arena-owned paths.
-- Publication should read through the manifest during transition.
-- Do not move canonical artifacts and alter their content in the same PR.
-- Preserve immutable published bundles; migrate references, not historical
-  bytes.
+- Canonical artifacts live under `ax-arena/benchmark/daeb/`; writers never use
+  the former root.
+- During the one-minor-release read window, readers use `benchmarks/daeb/` only when
+  the canonical root is absent and emit a deprecation warning.
+- If both roots exist, callers must choose explicitly with `--benchmark-root`
+  or a `DaebPathContext`; no manifest, duplicate tree, or symlink alias is used.
+- The relocation preserves canonical artifact and approval bytes. Immutable
+  published bundles retain their historical references.
 
 ## 16. Risks and Mitigations
 
@@ -1335,6 +1390,10 @@ not.
 ## 17. Pull Request Sequencing Guidance
 
 Prefer a dependency-ordered stack with each PR independently testable:
+
+Items 1–11 are implemented in the in-repository stack. Item 12 is an optional
+release/repository decision; item 13 begins only after the announced one-minor
+compatibility window.
 
 1. Characterization fixtures and ownership inventory.
 2. Public schemas and package export, with no behavior change.
@@ -1391,18 +1450,20 @@ The separation is complete only when all statements below are true:
   preserved.
 - Both harness transcript formats and all four surfaces remain covered.
 - Existing v1 records remain readable for the declared compatibility period.
-- Golden fixtures demonstrate semantic parity before canonical publication moves.
+- Golden fixtures demonstrate semantic parity across canonical publication
+  moves.
 - Core, arena, package, schema, and security test suites pass.
 
-## 19. Immediate Recommendation for PR #172
+## 19. Historical Recommendation for PR #172 (Completed)
 
-PR #172 should be described and reviewed as the first extension-boundary PR, not
-as the complete arena separation.
+PR #172 was correctly treated as the first extension-boundary PR, not as the
+complete arena separation. The seven follow-on recommendations below are
+implemented in the cumulative stack and retained here for audit provenance.
 
 Before treating the oracle seam as final:
 
 1. keep the current fallback behavior and tests;
-2. add explicit registry injection into verification and the future `runCell`;
+2. add explicit registry injection into verification and `runCell`;
 3. define deterministic duplicate and ambiguity handling;
 4. record provider identity/version in result provenance;
 5. document the global registry as transitional;
@@ -1410,26 +1471,26 @@ Before treating the oracle seam as final:
 7. avoid moving benchmark files until characterization fixtures and the public
    cell contract exist.
 
-This ordering turns the current PR into a stable dependency-inversion step and
+This ordering turned PR #172 into a stable dependency-inversion step and
 prevents the migration from replacing direct imports with hidden global coupling.
 
 ## 20. Audit Conclusion
 
-The proposed architectural direction is sound, but the separation is broader
-than oracle dispatch. The true boundary is the complete cell lifecycle and its
-artifact contract.
+The architectural direction proved sound: the true boundary is the complete
+cell lifecycle and its artifact contract, not oracle dispatch alone.
 
-`ax-eval` should answer:
+`ax-eval` now answers:
 
 > Given one reviewed pack, one surface, one harness/model/effort selection, one
 > trial identity, scoped credentials, and explicit runtime extensions, what
 > happened and what normalized evidence was produced?
 
-`ax-arena` should answer:
+`ax-arena` now answers:
 
 > Which cells constitute this benchmark, how are they securely scheduled, when
 > is the batch complete and comparable, and how are results aggregated and
 > published?
 
-Once those questions are answered by different packages with a one-way public
-dependency, the systems are actually separated.
+Those questions are answered by different packages with a one-way public
+dependency. Compatibility launchers and legacy path readers remain bounded
+release mechanics rather than shared policy implementations.
