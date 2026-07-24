@@ -8,7 +8,6 @@
  * synthesize-suite.
  */
 import { readdirSync } from "node:fs";
-import { resolve } from "node:path";
 import {
   auditSurfaceExtract,
   type CapabilityInventory,
@@ -16,6 +15,10 @@ import {
   type SurfaceExtractResult,
 } from "ax-eval";
 import { auditCapabilityInventory } from "./inventory-audit.js";
+import {
+  classifyEvidenceStrength,
+  hasDocumentedHttpMethodPath,
+} from "./evidence-strength.js";
 import { daebReadExtractsDir, type DaebPathInput } from "./benchmark-paths.js";
 import {
   loadCapabilityInventory,
@@ -49,46 +52,14 @@ export interface ExtractAuditReport {
   summary: { errors: number; warns: number; infos: number; autoFixable: number };
 }
 
-const METHOD_PATH_RE = /\b(GET|POST|PUT|PATCH|DELETE)\s+\//;
 const GUI_ONLY_RE = /\b(pgadmin|dbeaver|mongodb compass|compass schema|tableplus|datagrip|ui editor|dashboard table editor)\b/i;
 const COMMAND_LINE_RE = /\b(psql|mongosh|cockroach sql|turso\b|--api-key|command[- ]line)\b/i;
-
-function looksConnectionDerivedEvidence(
-  evidence: CapabilityInventoryEntry["evidence"][number],
-): boolean {
-  const text = `${evidence.doc_url} ${evidence.quote} ${evidence.note ?? ""}`.toLowerCase();
-  return (
-    /(connection[-_\s]?string|connection uri|wire protocol|sql surface|postgresql-compatible|mongodb driver)/i.test(text)
-    && /(cluster|connection|deployment|project)/i.test(evidence.quote)
-  );
-}
 
 /** Prefer METHOD /path quotes as direct when the model mislabeled them as derived. */
 export function reclassifyEvidenceStrength(
   evidence: CapabilityInventoryEntry["evidence"][number],
 ): NonNullable<CapabilityInventoryEntry["evidence"][number]["strength"]> {
-  const hasMethod = METHOD_PATH_RE.test(evidence.quote);
-  if (evidence.strength === "derived_from_connection_surface" && hasMethod && !looksConnectionDerivedEvidence(evidence)) {
-    return "direct";
-  }
-  if (evidence.strength) return evidence.strength;
-  const url = evidence.doc_url.toLowerCase();
-  if (url.endsWith("/llms.txt") || url.includes("/llms.txt")) return "summary_index";
-  if (/api-reference\/?$|\/reference\/api\/?$/.test(url) && /mirrors all|overview|hub page/i.test(evidence.quote)) {
-    return "summary_index";
-  }
-  if (/\/(products?|pricing|features?)\/?$/.test(new URL(evidence.doc_url, "https://example.invalid").pathname)) {
-    return "marketing_claim";
-  }
-  if (looksConnectionDerivedEvidence(evidence)) return "derived_from_connection_surface";
-  if (hasMethod) return "direct";
-  if (/\b(CREATE|ALTER|DROP|SELECT|INSERT|UPDATE|DELETE|UPSERT|BEGIN|COMMIT|ROLLBACK)\b/i.test(evidence.quote)) {
-    return "direct";
-  }
-  if (/\b(insertOne|insertMany|findOne|find|updateOne|updateMany|deleteOne|deleteMany|bulkWrite|aggregate|watch|createCollection)\b/.test(evidence.quote)) {
-    return "direct";
-  }
-  return "inferred";
+  return classifyEvidenceStrength(evidence);
 }
 
 function listExtractSlugs(root: DaebPathInput): string[] {
@@ -113,7 +84,7 @@ function auditInventoryFindings(
   let caps: CapabilityInventoryEntry[] = inventory.capabilities.map((cap) => {
     const evidence = cap.evidence.map((item) => {
       const next = reclassifyEvidenceStrength(item);
-      if (item.strength && item.strength !== next && next === "direct" && METHOD_PATH_RE.test(item.quote)) {
+      if (item.strength && item.strength !== next && next === "direct" && hasDocumentedHttpMethodPath(item.quote)) {
         findings.push({
           vendor,
           artifact: "capability-inventory",

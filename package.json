@@ -80,7 +80,6 @@
   },
   "dependencies": {
     "@linear/sdk": "^86.0.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
     "@notionhq/client": "^5.22.0",
     "asana": "^3.1.12",

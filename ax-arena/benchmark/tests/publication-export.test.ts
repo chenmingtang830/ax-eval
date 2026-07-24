@@ -13,7 +13,6 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runArenaCli, type CliIo } from "../src/cli.js";
 import { aggregateArenaCellRecords } from "../src/controller/reporting.js";
@@ -40,7 +39,6 @@ vi.mock("../src/publication/attestation.js", async (importOriginal) => {
   return { ...actual, verifyBundledHostedAttestation: verifyBundledAttestation };
 });
 
-const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const GENERATED_AT = new Date("2026-07-21T00:00:00.000Z");
 
 function writeJson(path: string, value: unknown): void {

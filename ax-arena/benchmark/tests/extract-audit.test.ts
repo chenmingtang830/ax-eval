@@ -27,6 +27,29 @@ describe("extract-audit", () => {
     })).toBe("derived_from_connection_surface");
   });
 
+  it("uses one policy for summary, marketing, SQL, SDK, and inferred evidence", () => {
+    expect(reclassifyEvidenceStrength({
+      doc_url: "https://docs.example.com/api-reference",
+      quote: "Overview hub page that mirrors all API operations",
+    })).toBe("summary_index");
+    expect(reclassifyEvidenceStrength({
+      doc_url: "https://example.com/products/database/features",
+      quote: "Create amazing developer experiences.",
+    })).toBe("marketing_claim");
+    expect(reclassifyEvidenceStrength({
+      doc_url: "https://docs.example.com/sql",
+      quote: "CREATE TABLE widgets (id bigint primary key);",
+    })).toBe("direct");
+    expect(reclassifyEvidenceStrength({
+      doc_url: "https://docs.example.com/sdk",
+      quote: "Use collection.insertOne({ name: 'widget' }).",
+    })).toBe("direct");
+    expect(reclassifyEvidenceStrength({
+      doc_url: "not a url",
+      quote: "A capability may be available.",
+    })).toBe("inferred");
+  });
+
   it("drops all-weak caps, fills empty surfaces, strips sdk when surfaces.sdk is null", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-extract-audit-"));
     try {
