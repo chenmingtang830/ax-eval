@@ -952,13 +952,6 @@ function renderProminentCaveat(warnings?: string[]): string {
     </div>`;
 }
 
-/** Pick a pass/warn/fail card modifier for the readiness↔behavioral gap. */
-function gapClass(gap: number): string {
-  if (gap <= 0) return "ax-card--pass";
-  if (gap < 20) return "ax-card--warn";
-  return "ax-card--fail";
-}
-
 /** The surface most runs drove the product through (api/cli/sdk/mcp). Used to
  *  decide whether the STATIC docs-site crawl actually reflects how the agent
  *  discovered the product. For api/docs it does (the agent reads the website);
