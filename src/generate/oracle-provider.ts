@@ -62,7 +62,10 @@ export async function runProviderOracle(
     return {
       type: oracle.type,
       passed: false,
-      detail: `oracle provider "${provider.id}": ${err instanceof Error ? err.message : String(err)}`,
+      // Provider exceptions may embed credentials or connection strings. The
+      // provider boundary is not a trusted diagnostic channel, so fail closed
+      // without copying exception text into records or reports.
+      detail: `oracle provider "${provider.id}" failed`,
     };
   }
 }

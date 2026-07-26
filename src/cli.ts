@@ -4133,9 +4133,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         /* discovery block below will warn if needed */
       }
     }
-    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun, { trace });
     if (!existsSync(tracePath)) {
       warnings.push(
         `No trace file at ${rel(tracePath)} — trace checks for ${executor.profile} fall back to whatever the agent self-reported (or none).`,
