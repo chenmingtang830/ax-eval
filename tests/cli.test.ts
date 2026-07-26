@@ -14,6 +14,24 @@ const ARENA_CLI = resolve(ROOT, "ax-arena", "benchmark", "src", "cli.ts");
 const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
 
+function writeSyntheticSuite(root: string): string {
+  const path = resolve(root, "suite.yaml");
+  writeFileSync(path, [
+    "name: EXAMPLE-1",
+    "version: 1",
+    "category: database",
+    "tasks:",
+    "  - id: db-T01-example",
+    "    title: Example task",
+    "    difficulty: L1",
+    "    skill: example",
+    "    intent: Complete the example task.",
+    "    oracle_hint: Read the result back.",
+    "",
+  ].join("\n"));
+  return path;
+}
+
 /** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
 function runCli(args: string[], env: Record<string, string> = {}, cwd: string = ROOT): { code: number; out: string } {
   try {
@@ -356,23 +374,30 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   });
 
   it("generate without --from but with --suite + no --product errors", () => {
-    const { code, out } = runCli([
-      "generate",
-      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
-    ]);
-    expect(code).not.toBe(0);
-    expect(out).toMatch(/--product is required/);
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-synthetic-suite-"));
+    try {
+      const { code, out } = runCli(["generate", "--suite", writeSyntheticSuite(dir)], {}, dir);
+      expect(code).not.toBe(0);
+      expect(out).toMatch(/--product is required/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("extract-tasks infers category from the suite when --category is omitted", () => {
-    const { code, out } = runCli([
-      "extract-tasks",
-      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
-      "--vendor", "definitely-not-a-real-vendor",
-    ]);
-    expect(code).not.toBe(0);
-    expect(out).not.toContain("--category is required");
-    expect(out).toContain('No vendor card found for slug "definitely-not-a-real-vendor"');
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-synthetic-suite-"));
+    try {
+      const { code, out } = runCli([
+        "extract-tasks",
+        "--suite", writeSyntheticSuite(dir),
+        "--vendor", "definitely-not-a-real-vendor",
+      ], {}, dir);
+      expect(code).not.toBe(0);
+      expect(out).not.toContain("--category is required");
+      expect(out).toContain('No vendor card found for slug "definitely-not-a-real-vendor"');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("an unknown command prints usage with exit 2 (not a flag error)", () => {
