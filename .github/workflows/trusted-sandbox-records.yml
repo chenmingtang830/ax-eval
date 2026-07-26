@@ -81,32 +81,12 @@ jobs:
           EXPECTED_SURFACE: ${{ inputs.surface }}
         run: node ax-arena/benchmark/scripts/validate-trusted-dispatch.mjs
 
-      - name: Install the reviewed repository dependency closure
+      - name: Prepare the exact locked runtime and tools before credentials
         env:
-          TRUSTED_NODE_BIN: /opt/ax-arena-runtime/rootfs/usr/local/bin
           TRUSTED_NODE_VERSION: 22.23.1
           AX_ARENA_SELF_HOSTED_APPROVED: ${{ inputs.runner_pool == 'approved-self-hosted' && 'true' || 'false' }}
-        run: |
-          sh ax-arena/benchmark/scripts/prepare-trusted-sysroot.sh
-          PATH="$TRUSTED_NODE_BIN:/usr/bin:/bin" "$TRUSTED_NODE_BIN/npm" ci --ignore-scripts
-
-      - name: Build the reviewed controller before credentials are exposed
-        env:
-          TRUSTED_NODE_BIN: /opt/ax-arena-runtime/rootfs/usr/local/bin
-        run: PATH="$TRUSTED_NODE_BIN:/usr/bin:/bin" "$TRUSTED_NODE_BIN/npm" run build
-
-      - name: Prepare and attest exact tools without credentials
-        env:
           RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
-          AX_ARENA_OCI_SYSROOT: /opt/ax-arena-runtime/rootfs
-          GIT_CONFIG_COUNT: "1"
-          GIT_CONFIG_KEY_0: safe.directory
-          GIT_CONFIG_VALUE_0: ${{ github.workspace }}
-        run: >-
-          sudo --preserve-env=AX_ARENA_OCI_SYSROOT,RUNTIME_MANIFEST_PATH,GIT_CONFIG_COUNT,GIT_CONFIG_KEY_0,GIT_CONFIG_VALUE_0
-          env PATH="/opt/ax-arena-runtime/rootfs/usr/local/bin:/usr/bin:/bin"
-          /opt/ax-arena-runtime/rootfs/usr/local/bin/node
-          ax-arena/benchmark/scripts/prepare-trusted-runtime.mjs
+        run: sh ax-arena/benchmark/scripts/prepare-trusted-tools.sh
 
       - name: Prepare an unprivileged controller workspace
         env:
