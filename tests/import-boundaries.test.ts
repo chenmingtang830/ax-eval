@@ -97,6 +97,18 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects the arena-owned methodology default constructor in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "methodology.ts"),
+      "export function defaultSuiteMethodology(): object { return {}; }\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned defaultSuiteMethodology"),
+    ]);
+  });
+
   it("rejects arena-owned competitive rendering declarations in generic reports", () => {
     const root = fixture();
     mkdirSync(resolve(root, "src", "generate"), { recursive: true });

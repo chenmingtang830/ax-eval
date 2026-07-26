@@ -14,11 +14,11 @@ import {
   type SynthesizedTask,
 } from "../src/authoring/synthesize-suite.js";
 import {
-  defaultSuiteMethodology,
   type CapabilityExtractResult,
   type ConceptUniverse,
   type CoverageMatrix,
 } from "ax-eval";
+import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 
 describe("synthesize-suite helpers", () => {
   it("infers suite version from the output stem", () => {

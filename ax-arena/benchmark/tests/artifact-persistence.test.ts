@@ -5,8 +5,8 @@ import { resolve } from "node:path";
 import {
   CapabilityInventorySchema,
   SupportMatrixSchema,
-  defaultSuiteMethodology,
 } from "ax-eval";
+import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 import {
   coverageMatrixPath,
   loadSupportMatrix,

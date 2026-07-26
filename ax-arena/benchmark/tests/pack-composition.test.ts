@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 import {
   OracleExtractResultSchema,
   SurfaceExtractResultSchema,
-  defaultSuiteMethodology,
   type Suite,
   type SupportMatrix,
 } from "ax-eval";
+import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 import {
   composePack,
   type ComposePackOptions,

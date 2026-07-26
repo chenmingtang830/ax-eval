@@ -28,6 +28,7 @@ export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/capability-extract.ts", identifier: "loadCapabilityExtract" },
   { path: "src/generate/capability-extract.ts", identifier: "writeCapabilityExtract" },
   { path: "src/generate/methodology.ts", identifier: "loadCapabilityInventory" },
+  { path: "src/generate/methodology.ts", identifier: "defaultSuiteMethodology" },
   { path: "src/generate/methodology.ts", identifier: "writeCapabilityInventory" },
   { path: "src/generate/methodology.ts", identifier: "writeMethodology" },
   { path: "src/generate/methodology.ts", identifier: "writeSupportMatrix" },

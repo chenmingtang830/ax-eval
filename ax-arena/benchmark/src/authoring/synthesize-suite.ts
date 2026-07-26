@@ -19,7 +19,6 @@ import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
   CANONICAL_SURFACE_SCOPE,
-  defaultSuiteMethodology,
   extractJsonObjectWithRepair,
   invokeGenerator,
   mapSettledLimit,
@@ -40,6 +39,7 @@ import {
   daebRepositoryRoot,
   daebRoot,
 } from "./benchmark-paths.js";
+import { defaultSuiteMethodology } from "./methodology-policy.js";
 import {
   writeConceptUniverse,
   writeCoverageMatrix,

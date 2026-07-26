@@ -145,6 +145,7 @@ export * from "./authoring/database-task-fit.js";
 export * from "./authoring/database-policy.js";
 export * from "./authoring/extract-advisory.js";
 export * from "./authoring/extract-audit.js";
+export * from "./authoring/methodology-policy.js";
 export * from "./authoring/pack-audit.js";
 export * from "./authoring/suite-audit.js";
 export * from "./authoring/synthesize-suite.js";

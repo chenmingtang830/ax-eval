@@ -98,6 +98,7 @@ if (missingExports.length) {
 const detachedArenaExports = [
   "composePack",
   "createDaebPathContext",
+  "defaultSuiteMethodology",
   "loadCapabilityExtract",
   "loadOracleExtract",
   "loadSupportMatrix",

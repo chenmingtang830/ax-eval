@@ -3,21 +3,10 @@ import {
   CapabilityInventorySchema,
   TraceReviewMemoSchema,
   auditCapabilityInventory,
-  defaultSuiteMethodology,
 } from "../src/generate/methodology.js";
 import { auditSurfaceExtract } from "../src/generate/surface-extract.js";
 
 describe("suite methodology artifacts", () => {
-  it("defaults database suite scope to api/cli (DAEB v1); other categories keep api/sdk/cli", () => {
-    const database = defaultSuiteMethodology("database");
-    expect(database.surface_scope).toEqual(["api", "cli"]);
-    expect(database.static_ax.dimensions).toContain("discoverability");
-    expect(database.behavioral.source_of_truth).toMatch(/world state/i);
-
-    const generic = defaultSuiteMethodology("crm");
-    expect(generic.surface_scope).toEqual(["api", "sdk", "cli"]);
-  });
-
   it("audits weak capability evidence before inventory publication", () => {
     const audited = auditCapabilityInventory(CapabilityInventorySchema.parse({
       vendor: "MongoDB Atlas",
