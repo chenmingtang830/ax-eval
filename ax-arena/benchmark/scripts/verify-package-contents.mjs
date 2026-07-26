@@ -17,7 +17,14 @@ if (result.error || result.status !== 0) {
 
 const report = JSON.parse(result.stdout)[0];
 const files = new Set((report?.files ?? []).map((file) => file.path));
-const required = ["README.md", "dist/cli.js", "dist/index.js", "dist/index.d.ts", "package.json"];
+const required = [
+  "README.md",
+  "dist/cli.js",
+  "dist/index.js",
+  "dist/index.d.ts",
+  "package.json",
+  "schemas/arena-cell-cleanup.v1.json",
+];
 function requireTree(directory, prefix) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const child = resolve(directory, entry.name);
@@ -82,9 +89,11 @@ try {
   const publicImport = spawnSync(process.execPath, [
     "--input-type=module",
     "--eval",
-    "import { createArenaRuntimeExtensionRegistry } from '@ax-arena/benchmark'; " +
+    "import * as benchmark from '@ax-arena/benchmark'; " +
+      "const { ArenaCellCleanupSchema, createArenaRuntimeExtensionRegistry, executeArenaCell } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
-      "if (registry.inspect().length !== 0) process.exit(1);",
+      "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
+      "typeof executeArenaCell !== 'function' || !ArenaCellCleanupSchema) process.exit(1);",
   ], {
     cwd: smokeRoot,
     encoding: "utf8",

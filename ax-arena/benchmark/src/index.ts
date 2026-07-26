@@ -52,6 +52,23 @@ export function createDatabaseRuntimeExtensionRegistry(
 }
 
 export * from "./providers/index.js";
+export {
+  ARENA_CELL_CLEANUP_SCHEMA,
+  ArenaCellCleanupSchema,
+  arenaCellId,
+  cellCredentialNames,
+  cellResetCredentialNames,
+  cellVerificationCredentialNames,
+  executeArenaCell,
+  isRelativePathEscape,
+  resolveSourceCommitSha,
+} from "./controller/cell.js";
+export type {
+  ArenaCellCleanupRecord,
+  ArenaCellDependencies,
+  ArenaCellExecution,
+  ArenaCellSpec,
+} from "./controller/cell.js";
 
 export * from "./authoring/coverage-gap-check.js";
 export * from "./authoring/database-task-fit.js";
