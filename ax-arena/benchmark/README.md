@@ -32,8 +32,11 @@ controller user.
 
 Pack composition and database prompt overrides are arena-owned under
 `src/authoring/`; the core package no longer exports their implementation.
-Task extraction and artifact readers remain temporary public `ax-eval`
-compatibility seams for later authoring slices.
+Canonical/legacy benchmark paths and the artifact persistence wrappers moved
+from core are also arena-owned. They use no-follow, single-link, and inode
+validation under an exclusive trusted-checkout-UID assumption. Remaining
+arena-native direct file I/O is a later hardening seam. Generic task extraction
+and schema validation remain public `ax-eval` contracts.
 
 `executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
 verifier, and reset credentials; runs against an isolated pack copy; validates

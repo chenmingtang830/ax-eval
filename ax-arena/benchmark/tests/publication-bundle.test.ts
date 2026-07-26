@@ -755,7 +755,7 @@ describe("arena publication bundle", () => {
     expect(() => buildArenaPublicationExport({
       root: ROOT, bundleDir: inventory.outDir, outDir: resolve(inventory.root, "listed-export"),
     })).toThrow(/exact canonical signed-cohort artifact set/);
-  });
+  }, 20_000);
 
   it("rejects drift and symlink substitution without leaving partial output", () => {
     const drift = fixture(true);

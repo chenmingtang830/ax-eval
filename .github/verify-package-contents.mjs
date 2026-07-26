@@ -87,7 +87,6 @@ const requiredExports = [
   "SurfaceExtractResultSchema",
   "OracleExtractResultSchema",
   "ResolveResultSchema",
-  "createDaebPathContext",
   "extractCapabilities",
   "loadSuite",
   "resolveVendors",
@@ -96,7 +95,21 @@ const missingExports = requiredExports.filter((name) => !(name in publicApi));
 if (missingExports.length) {
   throw new Error(`missing public API exports: ${missingExports.join(", ")}`);
 }
-const detachedArenaExports = ["composePack", "writeComposedPack"]
+const detachedArenaExports = [
+  "composePack",
+  "createDaebPathContext",
+  "loadCapabilityExtract",
+  "loadOracleExtract",
+  "loadSupportMatrix",
+  "loadSurfaceExtract",
+  "loadVendorCard",
+  "writeCapabilityExtract",
+  "writeComposedPack",
+  "writeOracleExtract",
+  "writeSupportMatrix",
+  "writeSurfaceExtract",
+  "writeVendorCard",
+]
   .filter((name) => name in publicApi);
 if (detachedArenaExports.length) {
   throw new Error(`core package exposes arena-owned API exports: ${detachedArenaExports.join(", ")}`);

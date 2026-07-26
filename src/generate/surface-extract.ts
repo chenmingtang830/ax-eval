@@ -12,14 +12,10 @@
  * One grounded LLM call per vendor, same requireWebFetch discipline as the
  * rest of the pipeline.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
 import type { ResolveResult } from "./vendor-resolve.js";
-import { daebReadSurfacesPath, daebSurfacesPath, type DaebPathInput } from "./benchmark-paths.js";
 
 const SURFACE_EXTRACT_SCHEMA_VERSION = "ax.surface-extract/v1" as const;
 
@@ -195,17 +191,6 @@ export async function extractSurfaces(
   });
 }
 
-export function surfaceExtractPath(root: DaebPathInput, slug: string): string {
-  return daebSurfacesPath(root, slug);
-}
-
-const SURFACE_EXTRACT_HEADER = [
-  "# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).",
-  "# REST API is always the implicit default surface and is intentionally omitted here;",
-  "# API auth and base URL come from the vendor oracle extract, not this file.",
-  "",
-].join("\n");
-
 function surfaceAuthNotes(label: string, auth: z.infer<typeof SurfaceAuthExtractSchema> | undefined): string[] {
   if (!auth) return [];
   const notes: string[] = [];
@@ -236,22 +221,4 @@ export function auditSurfaceExtract(result: z.input<typeof SurfaceExtractResultS
     audit_status: parsed.audit_status ?? "candidate",
     audit_notes: Array.from(new Set(auditNotes)),
   });
-}
-
-export function writeSurfaceExtract(root: DaebPathInput, result: SurfaceExtractResult): string {
-  const path = surfaceExtractPath(root, result.slug);
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, `${SURFACE_EXTRACT_HEADER}${yamlStringify(auditSurfaceExtract(result))}`);
-  return path;
-}
-
-export function loadSurfaceExtract(root: DaebPathInput, slug: string): SurfaceExtractResult | null {
-  const path = daebReadSurfacesPath(root, slug);
-  if (!existsSync(path)) return null;
-  const raw = readFileSync(path, "utf8");
-  const result = SurfaceExtractResultSchema.safeParse(yamlParse(raw));
-  if (!result.success) {
-    throw new Error(`surface-extract at ${path} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
-  }
-  return result.data;
 }

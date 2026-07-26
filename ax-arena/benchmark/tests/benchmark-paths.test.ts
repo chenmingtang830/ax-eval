@@ -13,7 +13,7 @@ import {
   daebVersionDir,
   resolveDaebBenchmarkRoot,
   type DaebPathContext,
-} from "../src/generate/benchmark-paths.js";
+} from "../src/authoring/benchmark-paths.js";
 
 const roots: string[] = [];
 
@@ -71,6 +71,14 @@ describe("DAEB benchmark root compatibility", () => {
     const explicit = createDaebPathContext(root, { explicitRoot: DAEB_BENCHMARK_ROOT });
     expect(assertCanonicalDaebWritePath(explicit, resolve(canonical, "v1", "suite.yaml")))
       .toBe(resolve(canonical, "v1", "suite.yaml"));
+  });
+
+  it("preserves an explicitly selected read root outside the repository", () => {
+    const root = freshRoot();
+    const outside = freshRoot();
+    const context = createDaebPathContext(root, { explicitRoot: outside });
+    expect(daebReadSuitePath(context)).toBe(resolve(outside, "v1", "suite.yaml"));
+    expect(daebSuitePath(context)).toBe(resolve(root, DAEB_BENCHMARK_ROOT, "v1", "suite.yaml"));
   });
 
   it("routes every write to canonical and rejects an explicit legacy write root", () => {
@@ -144,7 +152,6 @@ describe("DAEB benchmark root compatibility", () => {
       resolve(canonical, "v1", "packs", "vendor", "pack.yaml"),
     )).toThrow(/cannot traverse a symlink/);
   });
-
   it("rejects structurally forged path contexts", () => {
     const root = freshRoot();
     const forged = {

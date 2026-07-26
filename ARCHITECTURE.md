@@ -186,6 +186,13 @@ subpaths. Canonical DAEB files live under `ax-arena/benchmark/daeb/`. For one
 minor release, readers fall back to `benchmarks/daeb/` only when canonical files
 are absent and emit a deprecation warning. If both roots exist, callers must
 select one with `--benchmark-root`; writers always use the canonical root.
+Path selection and the YAML persistence wrappers moved from core are implemented
+only in arena; the public core boundary provides schemas and pure
+parsers/transforms. Those wrappers reject static symlink/hard-link aliases and
+pin parent/file identities while reading or updating. Authoring assumes
+exclusive use by the trusted checkout UID; malicious concurrent same-UID parent
+renames are outside this boundary. Remaining arena-native direct file I/O is a
+follow-up hardening seam and is not covered by this wrapper guarantee.
 
 Library callers compose `createRuntimeExtensionRegistry({ ... })` and pass it
 through `runCell` options. The immutable registry snapshots versioned oracle,

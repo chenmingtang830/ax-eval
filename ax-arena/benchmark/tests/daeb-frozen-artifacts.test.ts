@@ -3,18 +3,20 @@ import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
-import { loadPack } from "../src/config.js";
-import { checkApproval } from "../src/generate/review.js";
-import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
-import { loadOracleExtract } from "../src/generate/task-extract.js";
-import { loadSurfaceExtract } from "../src/generate/surface-extract.js";
 import {
+  checkApproval,
   ConceptUniverseSchema,
+  loadPack,
+} from "ax-eval";
+import {
+  loadCapabilityExtract,
   loadCoverageMatrix,
+  loadOracleExtract,
   loadSelectionLedger,
-} from "../src/generate/methodology.js";
+  loadSurfaceExtract,
+} from "../src/authoring/artifact-persistence.js";
 
-const ROOT = resolve(import.meta.dirname, "..");
+const ROOT = resolve(import.meta.dirname, "../../..");
 const SUITE_PATH = "ax-arena/benchmark/daeb/v1/suite.yaml";
 const VERSION_DIR = resolve(ROOT, "ax-arena/benchmark/daeb/v1");
 const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {

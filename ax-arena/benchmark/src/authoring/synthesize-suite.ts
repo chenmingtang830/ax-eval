@@ -18,22 +18,11 @@ import { z } from "zod";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
-  assertCanonicalDaebWritePath,
   CANONICAL_SURFACE_SCOPE,
-  daebRepositoryRoot,
-  daebRoot,
   defaultSuiteMethodology,
   extractJsonObjectWithRepair,
   invokeGenerator,
   mapSettledLimit,
-  writeConceptUniverse,
-  writeCoverageMatrix,
-  writeFailureTaxonomy,
-  writeGraderLedger,
-  writeMethodology,
-  writeSelectionLedger,
-  writeSupportMatrix,
-  writeTraceReview,
   type CapabilityExtractResult,
   type ConceptUniverse,
   type CoverageMatrix,
@@ -46,6 +35,21 @@ import {
   type TraceReviewMemo,
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
+import {
+  assertCanonicalDaebWritePath,
+  daebRepositoryRoot,
+  daebRoot,
+} from "./benchmark-paths.js";
+import {
+  writeConceptUniverse,
+  writeCoverageMatrix,
+  writeFailureTaxonomy,
+  writeGraderLedger,
+  writeMethodology,
+  writeSelectionLedger,
+  writeSupportMatrix,
+  writeTraceReview,
+} from "./artifact-persistence.js";
 
 const CoverageSchema = z.object({ vendor: z.string(), capability_name: z.string() });
 

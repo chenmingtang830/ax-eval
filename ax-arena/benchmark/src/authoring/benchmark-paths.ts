@@ -95,7 +95,6 @@ function warnLegacyRoot(
     console.warn(message);
   }
 }
-
 export function resolveDaebBenchmarkRoot(
   repositoryRoot: string,
   options: DaebBenchmarkRootOptions,

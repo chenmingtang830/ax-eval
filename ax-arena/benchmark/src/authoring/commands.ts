@@ -1,36 +1,38 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import {
-  assertCanonicalDaebWritePath,
-  createDaebPathContext,
-  daebReadVendorsDir,
   extractCapabilities,
   extractOraclesAll,
   extractSurfaces,
   fetchRegistrySurface,
   fetchSpecSummary,
-  loadCapabilityExtract,
   loadDotenv,
-  loadOracleExtract,
   loadSuite,
-  loadSupportMatrix,
-  loadSurfaceExtract,
-  loadVendorCard,
   probeHarness,
   registryOpenApiUrl,
   registryToSurfaceExtract,
   registryToVendorCard,
   resolveVendors,
-  type DaebPathContext,
   type OracleSpec,
   type ResolveResult,
 } from "ax-eval";
 import {
+  assertCanonicalDaebWritePath,
+  createDaebPathContext,
+  daebReadVendorsDir,
+  type DaebPathContext,
+} from "./benchmark-paths.js";
+import {
+  loadCapabilityExtract,
+  loadOracleExtract,
+  loadSupportMatrix,
+  loadSurfaceExtract,
+  loadVendorCard,
   writeCapabilityExtract,
   writeOracleExtract,
   writeSurfaceExtract,
   writeVendorCard,
-} from "./artifact-writers.js";
+} from "./artifact-persistence.js";
 import { composePack, writeComposedPack } from "./compose-pack.js";
 import { adviseVendorExtract, writeExtractAdvisory } from "./extract-advisory.js";
 import {

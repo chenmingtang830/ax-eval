@@ -9,9 +9,6 @@
  * final suite's tasks trace back to real, cited vendor documentation
  * rather than the benchmark author's assumptions.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
@@ -21,14 +18,7 @@ import {
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   ExtractionProvenanceSchema,
-  capabilityInventoryPath,
-  writeCapabilityInventory,
 } from "./methodology.js";
-import {
-  daebReadCapabilityInventoryPath,
-  daebReadLegacyCapabilitiesPath,
-  type DaebPathInput,
-} from "./benchmark-paths.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
 const CanonicalSurfaceSchema = z.enum(["api", "sdk", "cli"]);
@@ -72,13 +62,14 @@ const LegacyCapabilityItemSchema = z.object({
   doc_quote: z.string().optional(),
 });
 
-const LegacyCapabilityExtractSchema = z.object({
+export const LegacyCapabilityExtractSchema = z.object({
   vendor: z.string().min(1),
   slug: z.string().min(1),
   category: z.string().min(1),
   extracted_at: z.string().min(1),
   capabilities: z.array(LegacyCapabilityItemSchema),
 });
+export type LegacyCapabilityExtract = z.infer<typeof LegacyCapabilityExtractSchema>;
 
 function inferLegacyResourceKind(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["resource_kind"] {
   const primary = `${capability.name} ${capability.title}`.toLowerCase();
@@ -104,7 +95,7 @@ function inferLegacyOperationKind(capability: z.infer<typeof LegacyCapabilityIte
   return "operate";
 }
 
-function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilityExtractSchema>): CapabilityExtractResult {
+export function normalizeLegacyCapabilityExtract(legacy: LegacyCapabilityExtract): CapabilityExtractResult {
   return CapabilityExtractResultSchema.parse({
     vendor: legacy.vendor,
     slug: legacy.slug,
@@ -299,41 +290,4 @@ export async function extractCapabilitiesAll(
       ? { vendor, ok: true as const, result: s.value }
       : { vendor, ok: false as const, error: s.reason instanceof Error ? s.reason.message : String(s.reason) };
   });
-}
-
-export function capabilityExtractPath(root: DaebPathInput, slug: string): string {
-  return capabilityInventoryPath(root, slug);
-}
-
-export function writeCapabilityExtract(root: DaebPathInput, result: CapabilityExtractResult): string {
-  const newPath = writeCapabilityInventory(root, result);
-  return newPath;
-}
-
-export function loadCapabilityExtract(root: DaebPathInput, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = daebReadCapabilityInventoryPath(root, slug);
-  const legacyPath = daebReadLegacyCapabilitiesPath(root, slug);
-
-  if (existsSync(inventoryPath)) {
-    const inventoryRaw = readFileSync(inventoryPath, "utf8");
-    const inventory = CapabilityExtractResultSchema.safeParse(yamlParse(inventoryRaw));
-    if (inventory.success) {
-      const isLegacyNormalized = inventory.data.capabilities.some(
-        (capability) => capability.extraction_provenance.extractor === "legacy-capabilities-normalizer-v1",
-      );
-      if (!isLegacyNormalized || !existsSync(legacyPath)) return inventory.data;
-    }
-  }
-
-  if (!existsSync(legacyPath)) return null;
-  const raw = readFileSync(legacyPath, "utf8");
-  const legacy = LegacyCapabilityExtractSchema.safeParse(yamlParse(raw));
-  if (legacy.success) {
-    const normalized = normalizeLegacyCapabilityExtract(legacy.data);
-    writeCapabilityInventory(root, normalized);
-    return normalized;
-  }
-  const result = CapabilityExtractResultSchema.safeParse(yamlParse(raw));
-  if (result.success) return result.data;
-  throw new Error(`capability-extract at ${legacyPath} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
 }

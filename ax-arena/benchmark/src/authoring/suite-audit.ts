@@ -17,22 +17,26 @@ import {
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
 import {
+  loadSuite,
+  type CoverageMatrix,
+  type SupportMatrix,
+} from "ax-eval";
+import {
   assertCanonicalDaebWritePath,
   daebRepositoryRoot,
   daebReadVendorsDir,
   daebRoot,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
+import {
   loadCapabilityExtract,
   loadCoverageMatrix,
   loadOracleExtract,
   loadSelectionLedger,
-  loadSuite,
   loadSupportMatrix,
   loadTraceReview,
   loadVendorCard,
-  type CoverageMatrix,
-  type DaebPathInput,
-  type SupportMatrix,
-} from "ax-eval";
+} from "./artifact-persistence.js";
 import { readdirSync } from "node:fs";
 import { writeContainedText } from "./artifact-filesystem.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";

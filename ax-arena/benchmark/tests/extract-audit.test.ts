@@ -9,7 +9,7 @@ import {
   applyExtractAudit,
   auditAllExtracts,
 } from "../src/authoring/extract-audit.js";
-import { loadCapabilityExtract, writeSurfaceExtract } from "ax-eval";
+import { loadCapabilityExtract, writeSurfaceExtract } from "../src/authoring/artifact-persistence.js";
 
 describe("extract-audit", () => {
   it("reclassifies METHOD /path quotes as direct even when mislabeled", () => {

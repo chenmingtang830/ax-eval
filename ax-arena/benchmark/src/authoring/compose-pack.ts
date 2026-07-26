@@ -9,37 +9,26 @@
  * mechanism"), so no per-vendor rewriting is needed or wanted: the agent is
  * supposed to discover the concrete mechanism itself.
  */
-import {
-  closeSync,
-  constants,
-  existsSync,
-  fchmodSync,
-  fstatSync,
-  fsyncSync,
-  lstatSync,
-  mkdirSync,
-  openSync,
-  renameSync,
-  type Stats,
-  unlinkSync,
-  writeFileSync,
-} from "node:fs";
-import { randomBytes } from "node:crypto";
-import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import {
   CANONICAL_SURFACE_SCOPE,
   NS_PLACEHOLDER,
   TargetPackSchema,
-  assertCanonicalDaebWritePath,
   newRunId,
-  type DaebPathInput,
   type OracleExtractResult,
   type Suite,
   type SupportMatrix,
   type SurfaceExtractResult,
   type TargetPack,
 } from "ax-eval";
+import { writeContainedText, type ContainedWriteHooks } from "./artifact-filesystem.js";
+import {
+  assertCanonicalDaebWritePath,
+  daebCompiledPackPath,
+  daebRepositoryRoot,
+  daebRoot,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
 import {
   applyDatabasePackPromptOverride,
   databaseDiscoverySpec,
@@ -55,186 +44,6 @@ export interface ComposePackOptions {
    *  this only affects how the agent is told to act on non-API surfaces. */
   surfaces?: SurfaceExtractResult;
   supportMatrix?: SupportMatrix;
-}
-
-function safeSegment(value: string, label: string): string {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value) || value === "." || value === "..") {
-    throw new Error(`${label} must be a single safe path segment: ${value}`);
-  }
-  return value;
-}
-
-function contained(root: string, candidate: string): boolean {
-  const path = relative(root, candidate);
-  return path === "" || (path !== ".." && !path.startsWith(`..${sep}`) && !isAbsolute(path));
-}
-
-function canonicalWriteRoot(input: DaebPathInput): { repositoryRoot: string; writeRoot: string } {
-  const repositoryRoot = resolve(typeof input === "string" ? input : input.repositoryRoot);
-  const writeRoot = resolve(repositoryRoot, "ax-arena", "benchmark", "daeb");
-  if (typeof input !== "string" && resolve(input.writeRoot) !== writeRoot) {
-    throw new Error(`DAEB path context write root must be canonical: ${writeRoot}`);
-  }
-  return { repositoryRoot, writeRoot };
-}
-
-function assertRealDirectory(path: string, label: string): Stats {
-  const stat = lstatSync(path);
-  if (stat.isSymbolicLink() || !stat.isDirectory()) {
-    throw new Error(`${label} must be a real directory and cannot traverse a symlink: ${path}`);
-  }
-  return stat;
-}
-
-function entryIfPresent(path: string): Stats | undefined {
-  try {
-    return lstatSync(path);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
-    throw error;
-  }
-}
-
-function sameInode(left: Stats, right: Stats): boolean {
-  return left.dev === right.dev && left.ino === right.ino;
-}
-
-function ensureRealParent(repositoryRoot: string, parent: string): Stats {
-  if (!contained(repositoryRoot, parent)) {
-    throw new Error(`composed pack parent must stay inside repository root: ${parent}`);
-  }
-  assertRealDirectory(repositoryRoot, "repository root");
-  const path = relative(repositoryRoot, parent);
-  let current = repositoryRoot;
-  for (const segment of path.split(sep).filter(Boolean)) {
-    current = resolve(current, segment);
-    if (!existsSync(current)) mkdirSync(current);
-    assertRealDirectory(current, "composed pack parent");
-  }
-  return assertRealDirectory(parent, "composed pack parent");
-}
-
-interface ComposedPackWriteHooks {
-  beforeTempOpen?: (context: { parent: string; path: string }) => void;
-  write?: (descriptor: number, contents: string) => void;
-  beforeCommit?: (context: { parent: string; path: string; tempPath: string }) => void;
-}
-
-function assertStableParent(parent: string, expected: Stats, descriptor: number): void {
-  const byPath = lstatSync(parent);
-  const opened = fstatSync(descriptor);
-  if (byPath.isSymbolicLink() || !byPath.isDirectory()
-    || !sameInode(byPath, expected) || !sameInode(opened, expected)) {
-    throw new Error(`composed pack parent changed during atomic write: ${parent}`);
-  }
-}
-
-function assertStableTarget(path: string, expected: Stats | undefined): void {
-  const current = entryIfPresent(path);
-  if (!expected) {
-    if (current) throw new Error(`composed pack output appeared during atomic write: ${path}`);
-    return;
-  }
-  if (!current || current.isSymbolicLink() || !current.isFile() || current.nlink !== 1
-    || !sameInode(current, expected)) {
-    throw new Error(`composed pack output changed during atomic write: ${path}`);
-  }
-}
-
-function assertStableTemporary(path: string, descriptor: number): Stats {
-  const opened = fstatSync(descriptor);
-  const current = lstatSync(path);
-  if (!opened.isFile() || opened.nlink !== 1 || current.isSymbolicLink()
-    || !current.isFile() || current.nlink !== 1 || !sameInode(opened, current)) {
-    throw new Error(`composed pack temporary output changed during atomic write: ${path}`);
-  }
-  return opened;
-}
-
-function unlinkSameInode(path: string, expected: Stats | undefined): void {
-  if (!expected) return;
-  const current = entryIfPresent(path);
-  if (current && !current.isSymbolicLink() && sameInode(current, expected)) unlinkSync(path);
-}
-
-function writeComposedPackFile(
-  path: string,
-  repositoryRoot: string,
-  contents: string,
-  hooks: ComposedPackWriteHooks = {},
-): void {
-  const parent = dirname(path);
-  const parentBefore = ensureRealParent(repositoryRoot, parent);
-  const existing = entryIfPresent(path);
-  if (existing && (existing.isSymbolicLink() || !existing.isFile() || existing.nlink !== 1)) {
-    throw new Error(`composed pack output must be a regular, single-link non-symlink file: ${path}`);
-  }
-
-  const parentDescriptor = openSync(
-    parent,
-    constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW,
-  );
-  let descriptor: number | undefined;
-  let temporary: Stats | undefined;
-  let tempPath: string | undefined;
-  let committed = false;
-  try {
-    assertStableParent(parent, parentBefore, parentDescriptor);
-    hooks.beforeTempOpen?.({ parent, path });
-    for (let attempt = 0; attempt < 16; attempt += 1) {
-      tempPath = resolve(parent, `.${basename(path)}.tmp-${process.pid}-${randomBytes(12).toString("hex")}`);
-      try {
-        descriptor = openSync(
-          tempPath,
-          constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW,
-          0o600,
-        );
-        break;
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code !== "EEXIST") throw error;
-      }
-    }
-    if (descriptor === undefined || tempPath === undefined) {
-      throw new Error(`could not reserve a unique composed pack temporary file: ${path}`);
-    }
-    temporary = fstatSync(descriptor);
-    assertStableParent(parent, parentBefore, parentDescriptor);
-    assertStableTemporary(tempPath, descriptor);
-    assertStableTarget(path, existing);
-
-    hooks.write ? hooks.write(descriptor, contents) : writeFileSync(descriptor, contents, "utf8");
-    fchmodSync(descriptor, existing ? existing.mode & 0o777 : 0o666 & ~process.umask());
-    fsyncSync(descriptor);
-
-    hooks.beforeCommit?.({ parent, path, tempPath });
-    assertStableParent(parent, parentBefore, parentDescriptor);
-    temporary = assertStableTemporary(tempPath, descriptor);
-    assertStableTarget(path, existing);
-    renameSync(tempPath, path);
-    committed = true;
-
-    assertStableParent(parent, parentBefore, parentDescriptor);
-    const installed = lstatSync(path);
-    if (installed.isSymbolicLink() || !installed.isFile() || installed.nlink !== 1
-      || !sameInode(installed, temporary)) {
-      throw new Error(`composed pack output changed during atomic installation: ${path}`);
-    }
-    fsyncSync(parentDescriptor);
-  } finally {
-    if (descriptor !== undefined) closeSync(descriptor);
-    if (!committed && tempPath) unlinkSameInode(tempPath, temporary);
-    closeSync(parentDescriptor);
-  }
-}
-
-/** Test-only fault injection for the atomic pack writer; not exported by the package root. */
-export function writeComposedPackFileForTest(
-  path: string,
-  repositoryRoot: string,
-  contents: string,
-  hooks: ComposedPackWriteHooks,
-): void {
-  writeComposedPackFile(path, repositoryRoot, contents, hooks);
 }
 
 function vendorSandboxScope(vendor: DatabasePackVendor): TargetPack["sandbox_scope"] {
@@ -457,23 +266,39 @@ export function composePack(
 
 /** Path where a composed pack is written (DAEB v1 layout uses pack.yaml). */
 export function composedPackPath(root: DaebPathInput, slug: string, _suiteName: string): string {
-  const { writeRoot } = canonicalWriteRoot(root);
-  const path = resolve(writeRoot, "v1", "packs", safeSegment(slug, "vendor slug"), "pack.yaml");
-  return assertCanonicalDaebWritePath(root, path);
+  return assertCanonicalDaebWritePath(root, daebCompiledPackPath(root, slug));
 }
 
 /** Write a composed pack to disk as YAML. */
 export function writeComposedPack(root: DaebPathInput, slug: string, suiteName: string, pack: TargetPack): string {
   const path = composedPackPath(root, slug, suiteName);
-  const { repositoryRoot } = canonicalWriteRoot(root);
-  writeComposedPackFile(
+  writeContainedText(
+    daebRepositoryRoot(root),
+    daebRoot(root),
     path,
-    repositoryRoot,
     `# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.\n` +
       `# generated_by: ${pack.generated_by}\n` +
       `# standard_set_version: ${pack.standard_set_version}\n` +
       `# run_id: ${pack.run_id}\n` +
       yamlStringify(pack),
+    "composed pack output",
   );
   return path;
+}
+
+/** Test-only fault injection for the shared atomic writer; not exported by the package root. */
+export function writeComposedPackFileForTest(
+  path: string,
+  repositoryRoot: string,
+  contents: string,
+  hooks: ContainedWriteHooks,
+): void {
+  writeContainedText(
+    repositoryRoot,
+    daebRoot(repositoryRoot),
+    path,
+    contents,
+    "composed pack output",
+    hooks,
+  );
 }

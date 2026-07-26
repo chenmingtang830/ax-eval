@@ -5,10 +5,10 @@ import { resolve } from "node:path";
 import { matchDeterministicDatabaseConcept } from "../src/authoring/coverage-gap-check.js";
 import {
   CapabilityInventorySchema,
-  writeCapabilityInventory,
   type CapabilityExtractResult,
   type CoverageMatrix,
 } from "ax-eval";
+import { writeCapabilityInventory } from "../src/authoring/artifact-persistence.js";
 import {
   findMappingFalsePositives,
   findStaleTaskFitFindings,
