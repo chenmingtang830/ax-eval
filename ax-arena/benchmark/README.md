@@ -112,12 +112,12 @@ only when this canonical root is absent and emit a deprecation warning. If both
 roots exist, pass `--benchmark-root <dir>` explicitly. Writers use only
 `ax-arena/benchmark/daeb/`; no duplicate files or symlinks are supported.
 
-The files already frozen under `daeb/` moved byte-for-byte so approvals and
-provenance remain verifiable. As a result, `daeb/README.md`, `v1/run-matrix.yaml`,
-`v1/suite.audit-notes.md`, and `v1/suite.synthesis.md` retain historical
-`benchmarks/daeb/` text for this relocation commit. Interpret those references
-as `ax-arena/benchmark/daeb/`; current commands and links in the repository root
-documentation use the canonical path above.
+Frozen benchmark artifacts under `daeb/` moved byte-for-byte so pack approvals
+and provenance remain verifiable. Documentation-only path and link corrections
+in `daeb/README.md` do not change pack or approval bytes. The frozen
+`v1/run-matrix.yaml`, `v1/suite.audit-notes.md`, and `v1/suite.synthesis.md`
+still retain historical `benchmarks/daeb/` text from the relocation commit;
+interpret those references as `ax-arena/benchmark/daeb/`.
 
 ```bash
 npm run ax-arena -- benchmark --help

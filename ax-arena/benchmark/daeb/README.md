@@ -3,9 +3,9 @@
 Publication contract for the AXArena Database AX Benchmark (DAEB).
 
 This tree is the **benchmark layer**. The ax-eval **tool layer** (generic CLI
-example packs) lives under [`targets/examples/`](../../targets/examples/).
+example packs) lives under [`targets/examples/`](../../../targets/examples/).
 Shared engine architecture (both tracks) lives in
-[`ARCHITECTURE.md`](../../ARCHITECTURE.md).
+[`ARCHITECTURE.md`](../../../ARCHITECTURE.md).
 
 **Current status:** mutable v1 authoring freeze is done for the 6-vendor core
 cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs approved;
@@ -19,7 +19,7 @@ team review.
 ## Layout
 
 ```text
-benchmarks/daeb/
+ax-arena/benchmark/daeb/
   vendors/<slug>.discovered.yaml     # shared vendor cards (docs/site/openapi)
   v1/                                # active mutable version until publication freeze
     vendor-selection-ledger.yaml     # core/research/excluded cohort contract
@@ -58,7 +58,7 @@ import-registry / resolve-vendor
   → extract-capabilities
   → audit-extracts --apply
   → audit-extracts --advisory       # optional WebFetch-grounded human aid
-  → synthesize-suite --out benchmarks/daeb/v1/suite.yaml
+  → synthesize-suite --out ax-arena/benchmark/daeb/v1/suite.yaml
   → audit-suite                     # task-fit, pack, cohort, trace gates
   → extract-tasks / compose-pack
   → review --approve
@@ -118,12 +118,11 @@ Production lane constraints:
 - Trials: three isolated trials + `aggregate/` mean/range per cell
 - SDK / MCP: research evidence only for v1 scoring denominator
 
-When production is unblocked:
-
-```bash
-npm run ax-eval -- daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml
-```
+When production is unblocked, dispatch the **Trusted sandbox arena benchmark**
+workflow with the full reviewed source SHA and a committed configuration path
+under `ax-arena/benchmark/daeb/`. Do not invoke the production command directly:
+both `ax-arena benchmark daeb-production-rerun` and its deprecated `ax-eval`
+alias intentionally fail closed without the workflow-attested OS sandbox.
 
 ## Publication bundle and export
 
@@ -131,7 +130,7 @@ After production cells are verified:
 
 ```bash
 npm run ax-eval -- publication-bundle \
-  --suite benchmarks/daeb/v1/suite.yaml \
+  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
   --vendors neon,cockroachdb,turso,supabase,insforge,nile \
   --run-dir results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle \

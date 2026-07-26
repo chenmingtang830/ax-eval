@@ -344,6 +344,12 @@ after verification. Missing namespaces, unsupported resetters, reset errors,
 or stale runs without confirmed cleanup halt the lane rather than contaminating
 the next trial.
 
+This production and low-pass policy is implemented only by the arena
+controller. The deprecated core command names are process launchers; core
+contains no DAEB trial loop, runtime model selection, cleanup policy, or
+production aggregate writer. The temporary core publication compatibility path
+still validates frozen model/effort/trial metadata until its separate cutover.
+
 Hosted live execution is a manual `workflow_dispatch`. A credential-free plan
 job validates the full source commit and committed whole-benchmark configuration,
 creates one opaque batch, and emits the exact cell matrix. Each cell runs in a fresh job

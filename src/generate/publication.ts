@@ -22,12 +22,11 @@ import {
   daebReadVendorCardPath,
   type DaebPathInput,
 } from "./benchmark-paths.js";
-import {
-  DAEB_PRODUCTION_CLAUDE_MODEL,
-  DAEB_PRODUCTION_CODEX_MODEL,
-  DAEB_PRODUCTION_EFFORT,
-  DAEB_PRODUCTION_TRIAL_COUNT,
-} from "./production-run.js";
+
+const DAEB_PRODUCTION_TRIAL_COUNT = 3 as const;
+const DAEB_PRODUCTION_EFFORT = "high" as const;
+const DAEB_PRODUCTION_CODEX_MODEL = "gpt-5.6-terra" as const;
+const DAEB_PRODUCTION_CLAUDE_MODEL = "claude-sonnet-5" as const;
 
 const PUBLICATION_HARNESSES = ["codex", "claude-code"] as const;
 const PUBLICATION_EFFORT_PROFILES = ["high"] as const;
