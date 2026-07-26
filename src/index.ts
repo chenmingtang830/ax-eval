@@ -70,9 +70,13 @@ export type {
 export type { DiscoveryResult } from "./generate/discovery.js";
 export type { ProfileRun } from "./generate/report.js";
 
-export { registerOracleProvider } from "./generate/oracle-provider.js";
+export {
+  createOracleProviderRegistry,
+  registerOracleProvider,
+} from "./generate/oracle-provider.js";
 export type {
   OracleProvider,
+  OracleProviderRegistry,
   OracleVerifyContext,
 } from "./generate/oracle-provider.js";
 export { verifyGeneratedPack } from "./generate/verify.js";

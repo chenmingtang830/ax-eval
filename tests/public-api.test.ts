@@ -7,6 +7,7 @@ import {
   TargetPackSchema,
   aggregateNormalizedResults,
   checkApproval,
+  createOracleProviderRegistry,
   registerOracleProvider,
   verifyGeneratedPack,
 } from "../src/index.js";
@@ -20,6 +21,7 @@ describe("public API", () => {
     expect(NORMALIZED_RESULT_SCHEMA).toBe("ax.normalized-result/v1");
     expect(checkApproval).toBeTypeOf("function");
     expect(verifyGeneratedPack).toBeTypeOf("function");
+    expect(createOracleProviderRegistry).toBeTypeOf("function");
     expect(registerOracleProvider).toBeTypeOf("function");
     expect(aggregateNormalizedResults).toBeTypeOf("function");
   });

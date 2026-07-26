@@ -13,7 +13,11 @@ import type { ObservedRun } from "../harness/transcript.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { DiscoveryResult } from "./discovery.js";
-import { providerForOracle, runProviderOracle } from "./oracle-provider.js";
+import {
+  providerForOracle,
+  runProviderOracle,
+  type OracleProviderRegistry,
+} from "./oracle-provider.js";
 import type { OracleResult, OracleSpec, TargetPack, Task } from "../schemas.js";
 import { resolveSqlConn, runSqlCheck, type SqlConn } from "./sql-verify.js";
 import { resolveMongoConn, runMongoCheck, type MongoConn, type MongoQuery } from "./mongo-verify.js";
@@ -60,6 +64,8 @@ export interface VerifyGeneratedPackOptions {
   observedRun?: ObservedRun;
   /** Validated execution trace supplied independently of the transcript. */
   trace?: readonly TraceStep[];
+  /** Explicit providers for this call. When supplied, global providers are ignored. */
+  oracleProviders?: OracleProviderRegistry;
 }
 
 export function loadResults(path: string): ExecutorResults {
@@ -231,6 +237,7 @@ async function verifyRoundtrip(
   sqlConn: SqlConn | null,
   mongoConn: MongoConn | null,
   trace: TraceStep[],
+  oracleProviders: OracleProviderRegistry | undefined,
 ): Promise<OracleResult[]> {
   const fieldSelectParam = pack.field_select_param;
   const apiStyle: ApiStyle = pack.api_style;
@@ -258,7 +265,9 @@ async function verifyRoundtrip(
     // their oracles outright; the built-in HTTP round-trip is the default.
     let provider: ReturnType<typeof providerForOracle>;
     try {
-      provider = providerForOracle(oracle);
+      provider = oracleProviders === undefined
+        ? providerForOracle(oracle)
+        : oracleProviders.providerFor(oracle);
     } catch {
       out.push({ type: oracle.type, passed: false, detail: "oracle provider selection failed" });
       continue;
@@ -517,6 +526,7 @@ export async function verifyGeneratedPack(
         sqlConn,
         mongoConn,
         trace,
+        options.oracleProviders,
       );
     } catch (err) {
       oracleResults = [];
