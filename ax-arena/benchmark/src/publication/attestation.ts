@@ -339,6 +339,7 @@ export function verifyHostedRunAttestationWithVerifier(
     || batch.value.batch_id !== completion.value.batch_id
     || batch.value.source_commit_sha !== completion.value.source_commit_sha
     || batch.value.configuration_hash !== completion.value.configuration_hash
+    || completion.value.runtime_manifest_sha256 !== sha256(runtime.file.bytes)
     || batch.value.batch_id !== subject.batch.id
     || batch.value.configuration_hash !== subject.batch.configuration_hash
     || completion.value.cells.length !== subject.batch.completed_cells) {

@@ -39,14 +39,23 @@ if sudo test -e "$runtime_root"; then
   sudo rm -rf "$runtime_root"
 fi
 
-container_id=$(docker create --platform linux/amd64 "$TRUSTED_CONTAINER_IMAGE")
+container_id=
+archive=
 cleanup() {
-  docker rm --force "$container_id" >/dev/null 2>&1 || true
+  if [ -n "$container_id" ]; then
+    docker rm --force "$container_id" >/dev/null 2>&1 || true
+  fi
+  if [ -n "$archive" ]; then
+    rm -f "$archive"
+  fi
 }
 trap cleanup EXIT INT TERM
+archive=$(mktemp "${RUNNER_TEMP:-/tmp}/ax-arena-rootfs.XXXXXX.tar")
+container_id=$(docker create --platform linux/amd64 "$TRUSTED_CONTAINER_IMAGE")
 
 sudo install -o root -g root -m 0755 -d "$runtime_root" "$sysroot"
-docker export "$container_id" | sudo tar --extract --numeric-owner --file - --directory "$sysroot"
+docker export --output "$archive" "$container_id"
+sudo tar --extract --numeric-owner --file "$archive" --directory "$sysroot"
 sudo chown -R root:root "$runtime_root"
 sudo chmod -R go-w "$runtime_root"
 

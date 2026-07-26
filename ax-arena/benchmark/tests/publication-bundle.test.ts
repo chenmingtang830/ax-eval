@@ -294,11 +294,23 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
       })),
     };
   });
+  const runtimeManifest = {
+    schema: "ax.arena-trusted-runtime-manifest/v1",
+    platform: "linux/amd64",
+    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+    runtime_lock_sha256: sandbox.runtime_lock_sha256,
+    sysroot: "/opt/ax-arena-runtime/rootfs",
+    container: runtimeLock.container,
+    node_executable_sha256: "a".repeat(64),
+    tools_tree_sha256: "b".repeat(64),
+    entries: [],
+  };
   const completion = ArenaBatchCompletionSchema.parse({
     schema: "ax.arena-batch-completion/v1",
     batch_id: batch.batch_id,
     source_commit_sha: batch.source_commit_sha,
     configuration_hash: batch.configuration_hash,
+    runtime_manifest_sha256: hash(Buffer.from(`${JSON.stringify(runtimeManifest, null, 2)}\n`)),
     completed_at: GENERATED_AT,
     cells: completionCells,
   });
@@ -428,17 +440,6 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
     writeCanonical(resolve(runRoot, "runtime-reporting.json"), canonicalReport);
   }
   const configurationBytes = writeCanonical(resolve(runRoot, "configuration.json"), configuration);
-  const runtimeManifest = {
-    schema: "ax.arena-trusted-runtime-manifest/v1",
-    platform: "linux/amd64",
-    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
-    runtime_lock_sha256: sandbox.runtime_lock_sha256,
-    sysroot: "/opt/ax-arena-runtime/rootfs",
-    container: runtimeLock.container,
-    node_executable_sha256: "a".repeat(64),
-    tools_tree_sha256: "b".repeat(64),
-    entries: [],
-  };
   const runtimeManifestBytes = writeCanonical(resolve(runRoot, "runtime-manifest.json"), runtimeManifest);
   const sourceArtifacts = execFileSync("git", ["ls-files", "ax-arena/benchmark/daeb"], {
     cwd: ROOT,

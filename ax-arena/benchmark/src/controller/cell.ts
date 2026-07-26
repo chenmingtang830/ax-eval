@@ -146,6 +146,13 @@ export function arenaCellId(identity: ArenaCellIdentity, packContentHash: string
   return `${prefix}-${digest}`;
 }
 
+export function arenaCellWorkspaceArtifactDirectory(runRoot: string, cellKey: string): string {
+  if (!/^[a-z0-9][a-z0-9._-]{0,127}\/(?:api|cli|sdk|mcp)\/(?:codex|claude-code)\/trial-[1-9]\d*$/.test(cellKey)) {
+    throw new Error(`invalid arena cell key: ${cellKey}`);
+  }
+  return resolve(runRoot, "cells", ...cellKey.split("/"), "workspace", "artifacts");
+}
+
 function relativeInside(root: string, path: string, label: string): string {
   const rel = relative(resolve(root), resolve(path));
   if (rel === "" || isRelativePathEscape(rel)) {

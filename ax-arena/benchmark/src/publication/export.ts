@@ -725,6 +725,18 @@ function loadCompletedCellRecords(
     const harness = batch.configuration.harnesses.find((candidate) => candidate.harness === configured?.harness);
     const key = `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`;
     const artifactPaths = Object.fromEntries(cell.artifacts.map((artifact) => [artifact.name, artifact.path]));
+    const recordRoot = posix.dirname(cell.record_path);
+    const expectedRecordRootSuffix = `cells/${cell.key}`;
+    const artifactDirectories = Object.values(artifactPaths).map((path) => posix.dirname(String(path)));
+    const artifactPathMatches = (name: "invoke_metadata" | "results" | "trace" | "transcript"): boolean => {
+      const fileName = record.artifacts[name];
+      const sealedPath = String(artifactPaths[name] ?? "");
+      const directory = posix.dirname(sealedPath);
+      return !isAbsolute(fileName) && posix.basename(fileName) === fileName
+        && fileName !== "." && fileName !== ".."
+        && posix.basename(sealedPath) === fileName
+        && (directory === recordRoot || directory.startsWith(`${recordRoot}/`));
+    };
     const endsWithPath = (value: string, suffix: string): boolean => {
       const normalizedValue = value.replaceAll("\\", "/");
       const normalizedSuffix = suffix.replaceAll("\\", "/");
@@ -767,10 +779,14 @@ function loadCompletedCellRecords(
       || cell.harness !== configured.harness || cell.requested_model !== configured.model
       || cell.actual_model !== configured.model || cell.harness_version_raw !== harness.version_raw
       || cell.harness_version_semver !== harness.version_semver
-      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.results), artifactPaths.results!)
-      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.trace), artifactPaths.trace!)
-      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.transcript), artifactPaths.transcript!)
-      || !endsWithPath(resolve(record.artifacts.base_dir, record.artifacts.invoke_metadata), artifactPaths.invoke_metadata!)) {
+      || !(recordRoot === cell.key
+        || recordRoot === expectedRecordRootSuffix
+        || recordRoot.endsWith(`/${expectedRecordRootSuffix}`))
+      || new Set(artifactDirectories).size !== 1
+      || !artifactPathMatches("results")
+      || !artifactPathMatches("trace")
+      || !artifactPathMatches("transcript")
+      || !artifactPathMatches("invoke_metadata")) {
       throw new Error(`completed record identity does not match sealed batch cell ${cell.key}`);
     }
     records.set(cell.record_path, record);

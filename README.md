@@ -278,8 +278,9 @@ rather than only to mutable run-local files. A
 one-cell trusted worker verifies the installed harness version before selecting
 its four credential partitions; a separate credential-free completion assembler
 provides the other half of the matrix fan-out boundary. The protected workflow
-remains on its configured cohort compatibility entrypoint until the later
-thin-workflow stack slice; this change does not activate a live run. The legacy
+uses that boundary directly: its YAML derives the matrix and tool pins from the
+committed plan and contains no benchmark roster or individual secret mapping.
+This source cutover does not itself activate a live run. The legacy
 `ax-eval daeb-low-pass` and
 `ax-eval daeb-production-rerun` implementations remain active until the private
 arena package passes its publication gate; only then does the one-minor
@@ -319,12 +320,27 @@ npm run ax-arena -- benchmark daeb-production-rerun \
   --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
 
-Maintainers can run the same command through the **Trusted sandbox production
-records** workflow. The repository's `trusted-sandbox` environment must have
-required reviewers and the vendor credentials configured; approval happens
-before the reviewed ref receives any secret. An optional prior workflow run ID
-produces a normalized-records diff, and an optional PR number updates one bot
-comment with that diff.
+Maintainers execute production cells through the **Trusted sandbox arena
+benchmark** workflow. Dispatch supplies only the full reviewed source SHA, one
+committed whole-benchmark configuration, and a reviewed runner-pool choice. A
+credential-free job creates one opaque batch and matrix. Planning rejects
+SDK/MCP cells, non-hosted execution modes, and matrices above the hosted 256-job
+limit before any protected job starts. Every matrix cell uses the protected environment named
+`trusted-sandbox-<vendor>-<surface>-<harness>-trial-<n>`. Configure required
+reviewers and one `AX_ARENA_CELL_CREDENTIALS_JSON` environment secret containing
+exactly that descriptor's credential-name keys and no others. The worker rejects
+missing, extra, or individually bound batch credentials before invocation.
+
+Before its secret-bearing step, every fresh cell runner re-pulls the exact OCI
+digest, extracts it through Docker and sudo into a root-owned non-writable
+sysroot, installs exact locked tools, and verifies the runtime manifest. The
+cell then uses that Node, those tools, and Bubblewrap for exactly one writable
+workspace; there is no native fallback. Workers transfer only hash-bound record,
+cleanup, cell-result, runtime-manifest, and declared evidence files. A final
+credential-free job requires one byte-identical runtime manifest and one exact
+result per cell before writing `batch-completion.json`. An isolated final job
+reverifies and OIDC-signs the detached subject; the harness workspace and
+credentials are never uploaded.
 
 Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
 pass rate, observed range, exact pass³ count, harness version, run batch,

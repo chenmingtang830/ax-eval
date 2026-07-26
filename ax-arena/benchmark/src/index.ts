@@ -72,6 +72,7 @@ export type {
 } from "./controller/cell.js";
 export * from "./controller/batch.js";
 export * from "./controller/worker.js";
+export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export {

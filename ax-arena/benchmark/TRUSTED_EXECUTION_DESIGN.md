@@ -139,20 +139,21 @@ The controller applies these rules:
 flowchart TD
   D["Reviewed workflow dispatch"] --> S["Checkout exact source SHA"]
   S --> A["Prove SHA is ancestral to protected main"]
-  A --> L["Validate configuration and runtime locks"]
-  L --> P["Docker pull exact OCI digest"]
-  P --> X["sudo export root-owned read-only sysroot"]
-  X --> T["Install exact locked tools before credentials"]
-  T --> B["Build and smoke-test Bubblewrap"]
-  B --> E["Approved trusted-sandbox environment"]
-  E --> C["Run isolated cells with per-cell credentials"]
+  A --> L["Credential-free immutable plan and matrix"]
+  L --> E["One approved environment per planned cell"]
+  E --> P["Each fresh runner re-pulls exact OCI digest"]
+  P --> X["sudo exports root-owned read-only sysroot"]
+  X --> T["Install exact locks and seal runtime manifest"]
+  T --> B["Build and smoke-test exact Node/tools/Bubblewrap"]
+  B --> C["Inject one exact-name cell credential bundle"]
   C --> V["Verify live state"]
   V --> R["Persist record and artifact seals"]
   R --> K["Explicit cleanup and cleanup evidence"]
-  K --> M["Seal complete batch and detached subject"]
+  K --> F["Credential-free exact-set fan-in"]
+  F --> M["Require byte-identical manifests and seal batch"]
   M --> Q["No-follow export of sealed allowlist"]
   Q --> U["Upload sealed cohort"]
-  U --> O["Credential-free OIDC attestation job"]
+  U --> O["Isolated OIDC attestation job"]
 ```
 
 Credentials are introduced only in the execution step. Runtime preparation,
@@ -160,7 +161,9 @@ dependency installation, build, version probes, and sandbox smoke tests happen
 first. The credentialed job has `contents: read` only.
 
 The attestation job has `id-token`, `attestations`, and `artifact-metadata`
-write permissions but no benchmark environment and no product credentials.
+write permissions. It uses the signer-approval `trusted-sandbox` environment,
+but never references a per-cell environment or product credential; those live
+only in the dynamically selected cell environments.
 
 ## Local flows
 
@@ -234,9 +237,11 @@ not weaken the source, digest, lock, sandbox, or attestation checks.
 - a canonical, sorted hash list of every file under `ax-arena/benchmark/daeb`.
 
 The signing job recalculates every referenced hash before requesting the GitHub
-artifact attestation. Both credentialed and signing jobs require the protected
-environment variable `AX_ARENA_APPROVED_SIGNER_SHA` to equal
-`github.workflow_sha`. Downstream verification requires that same independently
+artifact attestation. Every per-cell environment and the signing environment
+must independently provide the protected variable
+`AX_ARENA_APPROVED_SIGNER_SHA`; each job checks that its value is a full SHA and
+equals `github.workflow_sha` before any cell credential is read or any signing
+identity is requested. Downstream verification requires that same independently
 approved SHA and never takes the trust anchor from the signed subject itself.
 Publication also reconstructs canonical reports and metadata and inventories
 every physical file. A locally copied JSON file or self-hashed manifest is not
@@ -252,7 +257,7 @@ sufficient.
 | Download redirects to attacker content | HTTPS redirect policy plus mandatory archive and executable hashes |
 | Harness reads verifier/reset secrets from parent `/proc` | New PID namespace and explicit child environment |
 | Harness mutates source or later cells | Only the per-cell workspace is writable; source and runtime roots are outside it |
-| Harness writes a secret file or symlink for artifact upload | Upload sees only a separate no-follow export of subject-bound sealed files; the writable workspace tree is never uploaded |
+| Harness writes a secret file or symlink for artifact upload | The controller no-follow copies exactly seven hash-bound files into fixed transfer names; fan-in rejects any extra/missing transfer entry, and the writable workspace tree is never uploaded |
 | Harness swaps its executable | Root-owned, non-writable command path and executable SHA verification |
 | Invalid or empty trace is treated as evidence | Strict, non-empty, bounded trace validation |
 | Cleanup erases evidence before scoring | Verification and record persistence precede explicit cleanup |
@@ -312,12 +317,17 @@ Focused #188 coverage must prove:
 
 - `native + hosted-trusted` is rejected;
 - both pinned modes require the OCI sandbox and never fall back to native;
+- both pinned modes bind the verified runtime-manifest hash in every cell result
+  and batch completion;
 - only `pinned-oci + hosted-trusted` is publishable;
 - the dispatch validator accepts protected ancestors and rejects divergent or
-  trust-anchor-drifted commits;
+  trust-anchor-drifted commits, including removed historical npm, TypeScript,
+  and tsup build configuration;
 - workflow and runtime-lock image digests match;
 - runtime/harness locks use exact versions and integrity values;
 - Docker extraction and every tool probe occur before any secret expression;
+- every cell environment independently approves the exact workflow SHA before
+  its single credential bundle is read;
 - the workflow contains no `seccomp=unconfined`, privileged container, mutable
   image tag, unpinned action, global npm install, or apt install;
 - every harness detection and invocation uses the same sandbox;
@@ -330,7 +340,7 @@ Focused #188 coverage must prove:
 - detached-subject verification detects changes to the runtime manifest,
   configuration, batch manifest, or batch completion;
 - export excludes arbitrary workspace files and symlinks and copies only the
-  sealed completion allowlist;
+  exact fixed-name transfer tree and sealed completion allowlist;
 - the default runner is GitHub-hosted and the self-hosted option requires the
   approved label and explicit approval marker.
 

@@ -154,6 +154,7 @@ if (batch?.schema !== "ax.arena-batch/v1" || completion?.schema !== "ax.arena-ba
   || batch.source_commit_sha !== completion.source_commit_sha || batch.source_commit_sha !== subject.source_commit_sha
   || batch.configuration_hash !== completion.configuration_hash
   || batch.configuration_hash !== batchSubject.configuration_hash
+  || completion.runtime_manifest_sha256 !== runtimeReference.sha256
   || !Array.isArray(completion.cells) || completion.cells.length !== batchSubject.completed_cells) {
   throw new Error("trusted export batch identity is inconsistent");
 }

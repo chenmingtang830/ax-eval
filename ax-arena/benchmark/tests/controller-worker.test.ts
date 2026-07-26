@@ -73,10 +73,23 @@ function configuration(
   fileHash: string,
   harnesses: readonly ("codex" | "claude-code")[],
   resetRequired = true,
+  pinnedLocal = false,
 ): ArenaBatchConfiguration {
   const hostNames = harnesses.map((harness) => harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY");
   return {
     command: "daeb-low-pass",
+    execution: pinnedLocal
+      ? { runtime_backend: "pinned-oci", trust_level: "local" }
+      : { runtime_backend: "native", trust_level: "local" },
+    ...(pinnedLocal ? { sandbox: {
+      kind: "bubblewrap" as const,
+      policy_version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "5".repeat(64),
+      sysroot: "/opt/ax-arena-runtime/rootfs",
+      executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+      executable_sha256: "6".repeat(64),
+      runtime_roots: ["/usr", "/opt/ax-arena-tools"],
+    } } : {}),
     suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor,
@@ -120,7 +133,8 @@ function execution(root: string, batch: ArenaBatchManifest, harness: "codex" | "
   const configured = batch.configuration.cells.find((cell) => cell.harness === harness)!;
   const configuredPack = batch.configuration.packs[0]!;
   const directory = resolve(root, "cells", ...configured.key.split("/"));
-  mkdirSync(resolve(directory, "artifacts"), { recursive: true });
+  const workspace = resolve(directory, "workspace");
+  mkdirSync(resolve(workspace, "artifacts"), { recursive: true });
   const recordPath = resolve(directory, "record.normalized.json");
   const cleanupPath = resolve(directory, "cleanup.json");
   const pack = TargetPackSchema.parse({
@@ -149,7 +163,7 @@ function execution(root: string, batch: ArenaBatchManifest, harness: "codex" | "
     source_commit_sha: batch.source_commit_sha,
     required_credentials: configured.host_credential_names,
     run_context: {
-      cwd: directory,
+      cwd: workspace,
       artifact_dir: "artifacts",
       invoke_timeout_ms: batch.configuration.invoke_timeout_seconds * 1_000,
       first_action_timeout_ms: batch.configuration.first_action_timeout_seconds * 1_000,
@@ -207,7 +221,7 @@ function execution(root: string, batch: ArenaBatchManifest, harness: "codex" | "
     error: null,
     task_results: [],
     artifacts: {
-      base_dir: resolve(directory, "artifacts"),
+      base_dir: resolve(workspace, "artifacts"),
       results: "results.json",
       trace: "trace.json",
       transcript: "transcript.jsonl",
@@ -220,7 +234,7 @@ function execution(root: string, batch: ArenaBatchManifest, harness: "codex" | "
     ["trace.json", "[]\n"],
     ["transcript.jsonl", '{"event":"completed"}\n'],
     ["invoke.json", '{"exit_code":0}\n'],
-  ] as const) writeFileSync(resolve(directory, "artifacts", name), value);
+  ] as const) writeFileSync(resolve(workspace, "artifacts", name), value);
   const cleanup = ArenaCellCleanupSchema.parse({
     schema: "ax.arena-cell-cleanup/v1",
     cell_id: cell.cell_id,
@@ -265,6 +279,7 @@ function fixture(
   root = mkdtempSync(resolve(tmpdir(), "ax-arena-worker-")),
   runRoot = resolve(root, "run"),
   resetRequired = true,
+  pinnedLocal = false,
 ): Fixture {
   const packPath = resolve(root, "packs", vendor, "pack.yaml");
   mkdirSync(dirname(packPath), { recursive: true });
@@ -274,14 +289,22 @@ function fixture(
     runRoot,
     "a".repeat(40),
     new Date("2026-07-21T00:00:00.000Z"),
-    configuration(vendor, fileHash, harnesses, resetRequired),
+    configuration(vendor, fileHash, harnesses, resetRequired, pinnedLocal),
   );
   const plan = writeBatchPlan(runRoot, batch);
   const executions = harnesses.map((harness) => execution(runRoot, batch, harness));
   const resultPaths = executions.map((item, index) => {
     const descriptor = plan.cells[index]!;
     const path = arenaCellResultPath(runRoot, descriptor);
-    writeArenaCellResult(runRoot, batch, descriptor, item, new Date("2026-07-21T00:00:03.000Z"), path);
+    writeArenaCellResult(
+      runRoot,
+      batch,
+      descriptor,
+      item,
+      new Date("2026-07-21T00:00:03.000Z"),
+      path,
+      pinnedLocal ? "9".repeat(64) : null,
+    );
     return path;
   });
   return { root, runRoot, packPath, batch, plan, executions, resultPaths };
@@ -337,6 +360,8 @@ describe("arena fan-out cell results", () => {
     expect(result.cell_descriptor_sha256).toBe(createHash("sha256")
       .update(`${JSON.stringify(value.plan.cells[0], null, 2)}\n`)
       .digest("hex"));
+    expect(result.runtime_manifest_sha256).toBeNull();
+    expect(fanout.runtime_manifest_sha256).toBeNull();
     expect(result.credential_names.sandbox_scope).toEqual(["SANDBOX_ID"]);
     expect(result.artifacts.map((artifact) => artifact.name)).toEqual([
       "invoke_metadata",
@@ -371,6 +396,61 @@ describe("arena fan-out cell results", () => {
     };
     expect(validate(longCoreCellString)).toBe(true);
     expect(ArenaCellResultSchema.safeParse(longCoreCellString).success).toBe(true);
+  });
+
+  it("requires and propagates runtime evidence for pinned-oci local execution", () => {
+    const value = fixture("neon", ["codex", "claude-code"], undefined, undefined, true, true);
+    const runtimeManifestSha256 = "9".repeat(64);
+    expect(loadArenaCellResult(value.runRoot, value.resultPaths[0]!).runtime_manifest_sha256)
+      .toBe(runtimeManifestSha256);
+    expect(() => buildBatchCompletionFromResults({
+      runRoot: value.runRoot,
+      batch: value.batch,
+      plan: value.plan,
+      resultPaths: value.resultPaths,
+      canonicalPackPaths: { neon: value.packPath },
+      now: new Date("2026-07-21T00:00:04.000Z"),
+    })).toThrow(/pinned-oci.*runtime manifest/);
+    rmSync(value.resultPaths[0]!);
+    expect(() => writeArenaCellResult(
+      value.runRoot,
+      value.batch,
+      value.plan.cells[0]!,
+      value.executions[0]!,
+      new Date("2026-07-21T00:00:04.000Z"),
+      value.resultPaths[0]!,
+    )).toThrow(/pinned-oci.*runtime manifest/);
+  });
+
+  it("assembles downloaded cells without trusting source-runner absolute paths", () => {
+    const value = fixture();
+    for (const resultPath of value.resultPaths) {
+      const result = JSON.parse(readFileSync(resultPath, "utf8"));
+      const recordPath = resolve(value.runRoot, result.record.path);
+      const cleanupPath = resolve(value.runRoot, result.cleanup.path);
+      const record = JSON.parse(readFileSync(recordPath, "utf8"));
+      const cleanup = JSON.parse(readFileSync(cleanupPath, "utf8"));
+      const foreignWorkspace = resolve("/foreign-runner/work", ...result.cell_key.split("/"), "workspace");
+      record.artifacts.base_dir = resolve(foreignWorkspace, "artifacts");
+      result.cell.run_context.cwd = foreignWorkspace;
+      cleanup.record_path = resolve("/foreign-runner/work", result.record.path);
+      const recordBytes = Buffer.from(`${JSON.stringify(record, null, 2)}\n`);
+      cleanup.record_sha256 = createHash("sha256").update(recordBytes).digest("hex");
+      const cleanupBytes = Buffer.from(`${JSON.stringify(cleanup, null, 2)}\n`);
+      writeFileSync(recordPath, recordBytes);
+      writeFileSync(cleanupPath, cleanupBytes);
+      result.record.sha256 = cleanup.record_sha256;
+      result.cleanup.sha256 = createHash("sha256").update(cleanupBytes).digest("hex");
+      writeFileSync(resultPath, `${JSON.stringify(result, null, 2)}\n`);
+    }
+    expect(buildBatchCompletionFromResults({
+      runRoot: value.runRoot,
+      batch: value.batch,
+      plan: value.plan,
+      resultPaths: value.resultPaths,
+      canonicalPackPaths: { neon: value.packPath },
+      now: new Date("2026-07-21T00:00:04.000Z"),
+    }).cells).toHaveLength(2);
   });
 
   it("matches serial completion when cleanup is explicitly skipped but its provider remains pinned", () => {
@@ -452,6 +532,11 @@ describe("arena fan-out cell results", () => {
       ...options,
       resultPaths: [driftedPath, value.resultPaths[1]!],
     })).toThrow(/drifted from its immutable descriptor/);
+    expect(() => buildBatchCompletionFromResults({
+      ...options,
+      resultPaths: value.resultPaths,
+      runtimeManifestSha256: "a".repeat(64),
+    })).toThrow(/native.*runtime manifest/);
   });
 
   it("loads canonical envelopes and sidecars without following symlinks", () => {

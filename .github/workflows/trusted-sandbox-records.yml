@@ -1,26 +1,16 @@
-name: Trusted sandbox arena cohort
+name: Trusted sandbox arena benchmark
 
 on:
   workflow_dispatch:
     inputs:
       source_sha:
-        description: Full commit SHA already merged into protected default-branch history
+        description: Full commit SHA already merged into protected main history
         required: true
         type: string
       configuration_path:
-        description: Committed production cohort configuration under ax-arena/benchmark/daeb
+        description: Committed whole-benchmark configuration under ax-arena/benchmark/daeb
         required: true
         type: string
-      vendor:
-        description: Configured DAEB vendor
-        required: true
-        type: choice
-        options: [neon, cockroachdb, turso, supabase, insforge, nile]
-      surface:
-        description: Configured DAEB surface
-        required: true
-        type: choice
-        options: [api, cli]
       runner_pool:
         description: GitHub-hosted by default; self-hosted requires the approved ax-arena-trusted runner group
         required: true
@@ -32,19 +22,34 @@ permissions:
   contents: read
 
 concurrency:
-  group: trusted-arena-${{ inputs.source_sha }}-${{ inputs.vendor }}-${{ inputs.surface }}
+  group: trusted-arena-${{ inputs.source_sha }}-${{ inputs.configuration_path }}
   cancel-in-progress: false
 
 env:
   TRUSTED_CONTAINER_IMAGE: docker.io/library/node:22.23.1-bookworm@sha256:175215a1f306ed5df592434b99cc2019f70624373fe49cb659240a618a846aed
+  TRUSTED_NODE_VERSION: 22.23.1
+  NPM_CONFIG_USERCONFIG: /dev/null
+  NPM_CONFIG_IGNORE_SCRIPTS: "true"
+  NPM_CONFIG_SCRIPT_SHELL: /bin/sh
+  NPM_CONFIG_NODE_OPTIONS: ""
+  NPM_CONFIG_ONLOAD_SCRIPT: ""
+  NODE_OPTIONS: ""
+  NODE_PATH: ""
+  LD_PRELOAD: ""
+  LD_LIBRARY_PATH: ""
 
 jobs:
-  cohort:
+  plan:
     runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
-    timeout-minutes: 360
-    environment: trusted-sandbox
+    timeout-minutes: 30
     permissions:
       contents: read
+    outputs:
+      batch_id: ${{ steps.plan.outputs.batch_id }}
+      run_root: ${{ steps.plan.outputs.run_root }}
+      configuration_source: ${{ steps.plan.outputs.configuration_source }}
+      configuration_sha256: ${{ steps.plan.outputs.configuration_sha256 }}
+      matrix: ${{ steps.plan.outputs.matrix }}
     steps:
       - name: Check out the protected source commit with branch history
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -58,117 +63,290 @@ jobs:
         with:
           node-version: "22.23.1"
 
-      - name: Require protected ancestry and current trust anchors
+      - name: Require exact protected ancestry and current trust anchors
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           PROTECTED_DEFAULT_BRANCH: main
-          APPROVED_SIGNER_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
+          REPOSITORY: ${{ github.repository }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
-          test "$APPROVED_SIGNER_SHA" = "$WORKFLOW_SHA"
-          test "${#APPROVED_SIGNER_SHA}" -eq 40
+          test "${#SOURCE_SHA}" -eq 40
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          test "$WORKFLOW_REF" = "$REPOSITORY/.github/workflows/trusted-sandbox-records.yml@refs/heads/main"
+          test "$WORKFLOW_SHA" = "$(git rev-parse refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH)"
           git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH"
           git diff --quiet "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH" -- \
             .github/workflows/trusted-sandbox-records.yml \
-            package.json package-lock.json src schemas \
-            ax-arena/benchmark/package.json \
+            .npmrc npm-shrinkwrap.json package.json package-lock.json tsconfig.json \
+            tsup.config.ts tsup.config.js tsup.config.mjs tsup.config.cjs tsup.config.mts tsup.config.cts tsup.config.json \
+            src schemas \
+            ax-arena/benchmark/.npmrc ax-arena/benchmark/npm-shrinkwrap.json ax-arena/benchmark/package-lock.json \
+            ax-arena/benchmark/package.json ax-arena/benchmark/tsconfig.json \
+            ax-arena/benchmark/tsconfig.build.json \
+            ax-arena/benchmark/tsup.config.ts ax-arena/benchmark/tsup.config.js \
+            ax-arena/benchmark/tsup.config.mjs ax-arena/benchmark/tsup.config.cjs \
+            ax-arena/benchmark/tsup.config.mts ax-arena/benchmark/tsup.config.cts \
+            ax-arena/benchmark/tsup.config.json \
             ax-arena/benchmark/src ax-arena/benchmark/schemas \
             ax-arena/benchmark/scripts ax-arena/benchmark/trusted-runtime
 
       - name: Validate committed dispatch and immutable runtime lock
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
-          PROTECTED_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PROTECTED_DEFAULT_BRANCH: main
           CONFIGURATION_PATH: ${{ inputs.configuration_path }}
-          EXPECTED_VENDOR: ${{ inputs.vendor }}
-          EXPECTED_SURFACE: ${{ inputs.surface }}
         run: node ax-arena/benchmark/scripts/validate-trusted-dispatch.mjs
 
-      - name: Prepare the exact locked runtime and tools before credentials
+      - name: Install and build the locked credential-free planner
         env:
-          TRUSTED_NODE_VERSION: 22.23.1
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_IGNORE_SCRIPTS: "true"
+          NPM_CONFIG_SCRIPT_SHELL: /bin/sh
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          LD_PRELOAD: ""
+          LD_LIBRARY_PATH: ""
+        run: |
+          empty_npmrc=$(mktemp "$RUNNER_TEMP/ax-arena-global-npmrc.XXXXXX")
+          trap 'rm -f "$empty_npmrc"' EXIT INT TERM
+          env -i HOME="$HOME" PATH="$PATH" NPM_CONFIG_USERCONFIG=/dev/null \
+            NPM_CONFIG_GLOBALCONFIG="$empty_npmrc" NPM_CONFIG_IGNORE_SCRIPTS=true \
+            NPM_CONFIG_SCRIPT_SHELL=/bin/sh npm ci --ignore-scripts
+          env -i HOME="$HOME" PATH="$PATH" NPM_CONFIG_USERCONFIG=/dev/null \
+            NPM_CONFIG_GLOBALCONFIG="$empty_npmrc" NPM_CONFIG_IGNORE_SCRIPTS=true \
+            NPM_CONFIG_SCRIPT_SHELL=/bin/sh npm run build
+
+      - name: Freeze the immutable global plan and matrix
+        id: plan
+        env:
+          AX_ARENA_TRUSTED_PLAN: "true"
+          GITHUB_ACTIONS: "true"
+          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+        run: >-
+          node ax-arena/benchmark/dist/trusted-plan.js
+          --configuration "$CONFIGURATION_PATH"
+          --run-root "$RUN_ROOT"
+          --source-sha "$SOURCE_SHA"
+
+      - name: Transfer only the immutable credential-free plan
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: trusted-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          retention-days: 14
+          include-hidden-files: false
+          path: |
+            ${{ steps.plan.outputs.run_root }}/batch.json
+            ${{ steps.plan.outputs.run_root }}/batch-plan.json
+            ${{ steps.plan.outputs.run_root }}/transfer-root.marker
+
+  cell:
+    needs: plan
+    name: cell (${{ matrix.cell_key }})
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
+    timeout-minutes: 90
+    environment:
+      name: ${{ matrix.environment_name }}
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the immutable source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up the exact preflight Node release
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.1"
+
+      - name: Download the immutable global plan
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: trusted-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ needs.plan.outputs.run_root }}
+
+      - name: Reverify and prepare the exact OCI runtime before credentials
+        env:
           AX_ARENA_SELF_HOSTED_APPROVED: ${{ inputs.runner_pool == 'approved-self-hosted' && 'true' || 'false' }}
-          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}.json
         run: sh ax-arena/benchmark/scripts/prepare-trusted-tools.sh
 
-      - name: Prepare an unprivileged controller workspace
+      - name: Install root-owned per-cell runtime evidence before credentials
         env:
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          RUN_ROOT: ${{ needs.plan.outputs.run_root }}
+          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}.json
+          RUNTIME_MANIFEST_NAME: ${{ matrix.runtime_manifest_name }}
         run: |
-          mkdir -p "$RUN_ROOT"
+          install -d -m 0700 "$RUN_ROOT/runtime-manifests"
+          sudo install -o root -g root -m 0444 "$RUNTIME_MANIFEST_PATH" "$RUN_ROOT/runtime-manifest.json"
+          sudo install -o root -g root -m 0444 "$RUNTIME_MANIFEST_PATH" "$RUN_ROOT/runtime-manifests/$RUNTIME_MANIFEST_NAME"
 
-      - name: Smoke-test the real child PID and filesystem sandbox
+      - name: Smoke-test the real child PID and filesystem sandbox before credentials
+        env:
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          LD_PRELOAD: ""
+          LD_LIBRARY_PATH: ""
         run: >-
           /opt/ax-arena-tools/node/bin/node
           ax-arena/benchmark/scripts/smoke-trusted-runtime.mjs
 
-      - name: Execute the immutable arena cohort
+      - name: Require independently approved workflow SHA before credentials
         env:
-          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          APPROVED_WORKFLOW_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          test "${#APPROVED_WORKFLOW_SHA}" -eq 40
+          printf '%s' "$APPROVED_WORKFLOW_SHA" | grep -Eq '^[a-f0-9]{40}$'
+          test "$APPROVED_WORKFLOW_SHA" = "$WORKFLOW_SHA"
+
+      - name: Execute exactly one immutable arena cell
+        env:
           GITHUB_ACTIONS: "true"
           AX_ARENA_TRUSTED_WORKFLOW: "true"
           AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
-          AX_ARENA_EXPECTED_VENDOR: ${{ inputs.vendor }}
-          AX_ARENA_EXPECTED_SURFACE: ${{ inputs.surface }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          NEON_API_KEY: ${{ inputs.vendor == 'neon' && secrets.NEON_API_KEY || '' }}
-          NEON_PROJECT_ID: ${{ inputs.vendor == 'neon' && secrets.NEON_PROJECT_ID || '' }}
-          NEON_BRANCH_ID: ${{ inputs.vendor == 'neon' && secrets.NEON_BRANCH_ID || '' }}
-          NEON_DATABASE_URL: ${{ inputs.vendor == 'neon' && secrets.NEON_DATABASE_URL || '' }}
-          COCKROACH_API_KEY: ${{ inputs.vendor == 'cockroachdb' && secrets.COCKROACH_API_KEY || '' }}
-          COCKROACH_CONNECTION_STRING: ${{ inputs.vendor == 'cockroachdb' && secrets.COCKROACH_CONNECTION_STRING || '' }}
-          TURSO_DATABASE_AUTH_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_DATABASE_AUTH_TOKEN || '' }}
-          TURSO_ORG_API_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_ORG_API_TOKEN || '' }}
-          TURSO_API_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_API_TOKEN || '' }}
-          TURSO_SANDBOX_DATABASE: ${{ inputs.vendor == 'turso' && secrets.TURSO_SANDBOX_DATABASE || '' }}
-          TURSO_ORG: ${{ inputs.vendor == 'turso' && secrets.TURSO_ORG || '' }}
-          SUPABASE_API_KEY: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_API_KEY || '' }}
-          SUPABASE_DB_URL: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_DB_URL || '' }}
-          SUPABASE_PROJECT_REF: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_PROJECT_REF || '' }}
-          INSFORGE_PROJECT_URL: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_PROJECT_URL || '' }}
-          INSFORGE_API_KEY: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_API_KEY || '' }}
-          INSFORGE_CONNECTION_STRING: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_CONNECTION_STRING || '' }}
-          NILE_API_KEY: ${{ inputs.vendor == 'nile' && secrets.NILE_API_KEY || '' }}
-          NILE_WORKSPACE: ${{ inputs.vendor == 'nile' && secrets.NILE_WORKSPACE || '' }}
-          NILE_DB: ${{ inputs.vendor == 'nile' && secrets.NILE_DB || '' }}
-          NILE_DATABASE_URL: ${{ inputs.vendor == 'nile' && secrets.NILE_DATABASE_URL || '' }}
+          AX_ARENA_CELL_CREDENTIALS_JSON: ${{ secrets.AX_ARENA_CELL_CREDENTIALS_JSON }}
+          RUN_ROOT: ${{ needs.plan.outputs.run_root }}
+          CELL_KEY: ${{ matrix.cell_key }}
+          CONFIGURATION_SOURCE: ${{ needs.plan.outputs.configuration_source }}
+          CONFIGURATION_SHA256: ${{ needs.plan.outputs.configuration_sha256 }}
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          LD_PRELOAD: ""
+          LD_LIBRARY_PATH: ""
         run: >-
-          /opt/ax-arena-tools/node/bin/node --import tsx
-          ax-arena/benchmark/scripts/trusted-cell.ts
-          --configuration "$CONFIGURATION_PATH" --run-root "$RUN_ROOT"
+          /opt/ax-arena-tools/node/bin/node
+          ax-arena/benchmark/dist/trusted-worker.js
+          --batch-manifest "$RUN_ROOT/batch.json"
+          --batch-plan "$RUN_ROOT/batch-plan.json"
+          --runtime-manifest "$RUN_ROOT/runtime-manifest.json"
+          --cell-key "$CELL_KEY"
+          --configuration-source "$CONFIGURATION_SOURCE"
+          --configuration-sha256 "$CONFIGURATION_SHA256"
+          --run-root "$RUN_ROOT"
 
-      - name: Build the detached attestation subject without credentials
+      - name: Transfer only allowlisted sealed cell artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: ${{ matrix.artifact_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: warn
+          include-hidden-files: false
+          retention-days: 14
+          path: |
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/transfer-manifest.json
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/cell-result.json
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/record.normalized.json
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/cleanup.json
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/artifact-invoke_metadata.bin
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/artifact-results.bin
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/artifact-trace.bin
+            ${{ needs.plan.outputs.run_root }}/transfers/${{ matrix.cell_key }}/artifact-transcript.bin
+            ${{ needs.plan.outputs.run_root }}/runtime-manifests/${{ matrix.runtime_manifest_name }}
+
+  assemble:
+    needs: [plan, cell]
+    if: ${{ always() && needs.plan.result == 'success' }}
+    runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    outputs:
+      cohort_artifact: ${{ steps.upload.outputs.artifact-id }}
+    steps:
+      - name: Check out the immutable source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up the exact assembler Node release
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.1"
+
+      - name: Install and build the locked credential-free assembler
         env:
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
-          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
-          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+          NPM_CONFIG_USERCONFIG: /dev/null
+          NPM_CONFIG_IGNORE_SCRIPTS: "true"
+          NPM_CONFIG_SCRIPT_SHELL: /bin/sh
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          LD_PRELOAD: ""
+          LD_LIBRARY_PATH: ""
+        run: |
+          empty_npmrc=$(mktemp "$RUNNER_TEMP/ax-arena-global-npmrc.XXXXXX")
+          trap 'rm -f "$empty_npmrc"' EXIT INT TERM
+          env -i HOME="$HOME" PATH="$PATH" NPM_CONFIG_USERCONFIG=/dev/null \
+            NPM_CONFIG_GLOBALCONFIG="$empty_npmrc" NPM_CONFIG_IGNORE_SCRIPTS=true \
+            NPM_CONFIG_SCRIPT_SHELL=/bin/sh npm ci --ignore-scripts
+          env -i HOME="$HOME" PATH="$PATH" NPM_CONFIG_USERCONFIG=/dev/null \
+            NPM_CONFIG_GLOBALCONFIG="$empty_npmrc" NPM_CONFIG_IGNORE_SCRIPTS=true \
+            NPM_CONFIG_SCRIPT_SHELL=/bin/sh npm run build
+
+      - name: Download all sealed cell artifacts into the canonical run root
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          pattern: trusted-cell-*-${{ github.run_id }}-${{ github.run_attempt }}
+          merge-multiple: true
+          path: ${{ needs.plan.outputs.run_root }}
+
+      - name: Restore the controller-owned plan after artifact merging
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: trusted-plan-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ needs.plan.outputs.run_root }}
+
+      - name: Assemble the exact comparable batch without credentials
+        env:
+          RUN_ROOT: ${{ needs.plan.outputs.run_root }}
+          CONFIGURATION_SOURCE: ${{ needs.plan.outputs.configuration_source }}
+          CONFIGURATION_SHA256: ${{ needs.plan.outputs.configuration_sha256 }}
+        run: >-
+          node ax-arena/benchmark/dist/assemble-trusted-completion.js
+          --batch-manifest "$RUN_ROOT/batch.json"
+          --batch-plan "$RUN_ROOT/batch-plan.json"
+          --cell-results-root "$RUN_ROOT/cells"
+          --runtime-manifests-root "$RUN_ROOT/runtime-manifests"
+          --configuration-source "$CONFIGURATION_SOURCE"
+          --configuration-sha256 "$CONFIGURATION_SHA256"
+          --run-root "$RUN_ROOT"
+
+      - name: Materialize the detached attestation subject without credentials
+        env:
+          RUN_ROOT: ${{ needs.plan.outputs.run_root }}
           AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
           PROTECTED_DEFAULT_BRANCH: main
           GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
           GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
-        run: |
-          sudo install -o root -g root -m 0444 "$CONFIGURATION_PATH" "$RUN_ROOT/configuration.json"
-          sudo install -o root -g root -m 0444 "$RUNTIME_MANIFEST_PATH" "$RUN_ROOT/runtime-manifest.json"
-          node ax-arena/benchmark/scripts/trusted-attestation.mjs \
-            --run-root "$RUN_ROOT" \
-            --source-root "$GITHUB_WORKSPACE" \
-            --configuration configuration.json \
-            --runtime-manifest runtime-manifest.json \
-            --out "$RUN_ROOT/trusted-run-subject.json"
+        run: >-
+          node ax-arena/benchmark/scripts/trusted-attestation.mjs
+          --run-root "$RUN_ROOT"
+          --source-root "$GITHUB_WORKSPACE"
+          --configuration configuration.json
+          --runtime-manifest runtime-manifest.json
+          --out "$RUN_ROOT/trusted-run-subject.json"
 
-      - name: Export only sealed allowlisted artifacts without following links
+      - name: Export only the sealed allowlisted cohort
         env:
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          RUN_ROOT: ${{ needs.plan.outputs.run_root }}
           EXPORT_ROOT: ${{ runner.temp }}/trusted-arena-export-${{ github.run_id }}-${{ github.run_attempt }}
         run: >-
-          /opt/ax-arena-tools/node/bin/node
-          ax-arena/benchmark/scripts/export-trusted-run.mjs
-          --run-root "$RUN_ROOT" --out "$EXPORT_ROOT"
+          node ax-arena/benchmark/scripts/export-trusted-run.mjs
+          --run-root "$RUN_ROOT"
+          --out "$EXPORT_ROOT"
 
-      - name: Upload sealed cohort for isolated signing
+      - name: Upload the sealed cohort for isolated signing
         id: upload
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
@@ -179,8 +357,8 @@ jobs:
           retention-days: 14
 
   attest:
-    needs: cohort
-    runs-on: ubuntu-22.04
+    needs: assemble
+    runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
     timeout-minutes: 30
     environment: trusted-sandbox
     permissions:
@@ -213,6 +391,8 @@ jobs:
           PROTECTED_DEFAULT_BRANCH: main
           APPROVED_SIGNER_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
           WORKFLOW_SHA: ${{ github.workflow_sha }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
           test "$APPROVED_SIGNER_SHA" = "$WORKFLOW_SHA"
           test "${#APPROVED_SIGNER_SHA}" -eq 40

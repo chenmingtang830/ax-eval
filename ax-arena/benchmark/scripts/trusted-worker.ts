@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { mkdirSync } from "node:fs";
-import { resolve } from "node:path";
+import { closeSync, constants, fsyncSync, mkdirSync, openSync, writeFileSync } from "node:fs";
+import { relative, resolve } from "node:path";
 import type { BubblewrapSandboxConfig } from "../src/index.js";
 import {
   assertCanonicalRunArtifact,
@@ -14,6 +14,8 @@ import {
   isInside,
   oneFlag,
   parseFlags,
+  parseExactCredentialBundle,
+  readPinned,
   repositoryRoot,
   requiredEnvironment,
 } from "./trusted-script-common.js";
@@ -145,13 +147,16 @@ const batchCredentialNames = new Set(batch.configuration.packs.flatMap((configur
   ...configuredPack.sandbox_scope_names,
 ]));
 for (const name of batchCredentialNames) {
-  if (!selectedNames.has(name) && process.env[name]?.trim()) {
-    throw new Error(`trusted arena worker received out-of-scope batch credential ${name}`);
+  if (process.env[name]?.trim()) {
+    throw new Error(`trusted arena worker received individually bound batch credential ${name}`);
   }
 }
-const credentials = Object.fromEntries([...selectedNames].map((name) => [name, requiredEnvironment(name)]));
+const credentialBundle = process.env.AX_ARENA_CELL_CREDENTIALS_JSON;
+delete process.env.AX_ARENA_CELL_CREDENTIALS_JSON;
+const credentials = parseExactCredentialBundle(credentialBundle, [...selectedNames]);
 const execution = await executeArenaWorkerCell(batch, descriptor, runRoot, packPath, {
   credentials,
+  runtimeManifestSha256: runtimeManifest.sha256,
   execution: descriptor.execution,
   sandbox,
   now: () => new Date(),
@@ -164,8 +169,67 @@ const execution = await executeArenaWorkerCell(batch, descriptor, runRoot, packP
     } : undefined);
   },
 });
+const transferRoot = resolve(runRoot, "transfers", ...descriptor.key.split("/"));
+mkdirSync(transferRoot, { recursive: true, mode: 0o700 });
+assertNoSymlinkChain(root, transferRoot, "trusted cell transfer root");
+const transferSources = [
+  {
+    name: "cell_result",
+    transfer_path: "cell-result.json",
+    original_path: relative(runRoot, execution.resultPath).replaceAll("\\", "/"),
+  },
+  { name: "record", transfer_path: "record.normalized.json", original_path: execution.result.record.path },
+  { name: "cleanup", transfer_path: "cleanup.json", original_path: execution.result.cleanup.path },
+  ...execution.result.artifacts.map((artifact) => ({
+    name: artifact.name,
+    transfer_path: `artifact-${artifact.name}.bin`,
+    original_path: artifact.path,
+  })),
+] as const;
+const transferFiles = transferSources.map((file) => {
+  const originalPath = resolve(runRoot, file.original_path);
+  if (!isInside(runRoot, originalPath)) throw new Error(`trusted cell transfer ${file.name} escaped the run root`);
+  const bytes = readPinned(originalPath, `trusted cell transfer ${file.name}`);
+  const destination = resolve(transferRoot, file.transfer_path);
+  const descriptor = openSync(
+    destination,
+    constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+    0o400,
+  );
+  try {
+    writeFileSync(descriptor, bytes);
+    fsyncSync(descriptor);
+  } finally {
+    closeSync(descriptor);
+  }
+  return {
+    name: file.name,
+    transfer_path: file.transfer_path,
+    original_path: file.original_path,
+    sha256: createHash("sha256").update(bytes).digest("hex"),
+  };
+});
+const transferManifest = Buffer.from(`${JSON.stringify({
+  schema: "ax.arena-cell-transfer/v1",
+  batch_id: batch.batch_id,
+  cell_key: descriptor.key,
+  runtime_manifest_sha256: runtimeManifest.sha256,
+  files: transferFiles,
+}, null, 2)}\n`);
+const transferManifestDescriptor = openSync(
+  resolve(transferRoot, "transfer-manifest.json"),
+  constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW,
+  0o400,
+);
+try {
+  writeFileSync(transferManifestDescriptor, transferManifest);
+  fsyncSync(transferManifestDescriptor);
+} finally {
+  closeSync(transferManifestDescriptor);
+}
 process.stdout.write(`${JSON.stringify({
   batch_id: batch.batch_id,
   cell_key: descriptor.key,
   cell_result_path: execution.resultPath,
+  transfer_path: transferRoot,
 })}\n`);

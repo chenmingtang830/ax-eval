@@ -218,7 +218,14 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
       cleanupPath,
     };
   });
-  writeBatchCompletion(runRoot, batch, executions, new Date("2026-07-21T00:00:03.000Z"));
+  writeBatchCompletion(
+    runRoot,
+    batch,
+    executions,
+    new Date("2026-07-21T00:00:03.000Z"),
+    undefined,
+    options.sandboxed ? "9".repeat(64) : null,
+  );
   const codex = executions[0]!;
   const artifacts = codex.record.artifacts.base_dir;
   const recordPath = codex.recordPath;

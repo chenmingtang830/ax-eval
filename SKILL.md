@@ -330,12 +330,29 @@ workflow supplies and attests the OS sandbox. The existing
 `ax-eval daeb-production-rerun` command remains active until the private arena
 package is publishable; its one-minor delegation clock has not started.
 
-For hosted execution, dispatch **Trusted sandbox production records** only
-after the repository's `trusted-sandbox` environment has required reviewers
-and the scoped vendor secrets. The workflow executes a reviewed ref after
-environment approval, uploads normalized records plus cleanup evidence, and
-can compare against a prior trusted workflow run without exposing credentials
-to the keyless PR workflow.
+For hosted execution, dispatch **Trusted sandbox arena benchmark** only. Select
+a full source SHA and a committed whole-benchmark configuration under
+`ax-arena/benchmark/daeb/`, then choose the GitHub-hosted pool unless the approved
+self-hosted runner group is required. Harness versions, the OCI digest,
+Bubblewrap, models, surfaces, trials, and the vendor roster come from committed
+locks and configuration, not dispatch inputs.
+The credential-free planner rejects SDK/MCP cells and more than 256 hosted cells
+before emitting a matrix.
+
+Before dispatch, create each protected environment named
+`trusted-sandbox-<vendor>-<surface>-<harness>-trial-<n>` with required reviewers.
+Its sole workflow secret is `AX_ARENA_CELL_CREDENTIALS_JSON`, a JSON object whose
+keys exactly equal that planned cell's host, verification, reset, and sandbox
+scope credential names. Do not bind those credentials individually. The
+credential-free plan receives no secret. Before each protected step, the fresh
+matrix runner re-verifies and extracts the digest-pinned OCI image to a
+root-owned sysroot, builds from exact dependency locks, and verifies its runtime
+manifest. It then executes exactly one cell with the locked Node/tools and
+Bubblewrap, never native fallback. A separate credential-free job assembles the
+exact result and byte-identical runtime-manifest set; an isolated job OIDC-signs
+the detached subject. Only controller-owned batch, normalized-record, cleanup,
+cell-result, runtime-manifest, and declared evidence files are uploaded. Keyless
+PR workflows never receive these secrets.
 
 This lane is intentionally scoped to `api` and `cli`: Codex runs
 `gpt-5.6-terra`, Claude Code runs `claude-sonnet-5`, both at `high` effort,

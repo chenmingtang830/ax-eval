@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
@@ -37,6 +38,7 @@ function fixture() {
     batch_id: "batch-1",
     source_commit_sha: source,
     configuration_hash: "e".repeat(64),
+    runtime_manifest_sha256: createHash("sha256").update(canonical(runtimeManifest)).digest("hex"),
     completed_at: "2026-07-22T00:00:00.000Z",
     cells: [{ key: "neon/api/codex/trial-1" }],
   };

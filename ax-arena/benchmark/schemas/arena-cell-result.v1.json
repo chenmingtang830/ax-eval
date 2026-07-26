@@ -12,6 +12,7 @@
     "source_commit_sha",
     "batch_plan_sha256",
     "cell_descriptor_sha256",
+    "runtime_manifest_sha256",
     "cell_key",
     "cell",
     "credential_names",
@@ -34,6 +35,9 @@
     "source_commit_sha": { "$ref": "#/$defs/sourceSha" },
     "batch_plan_sha256": { "$ref": "#/$defs/sha256" },
     "cell_descriptor_sha256": { "$ref": "#/$defs/sha256" },
+    "runtime_manifest_sha256": {
+      "oneOf": [{ "$ref": "#/$defs/sha256" }, { "type": "null" }]
+    },
     "cell_key": { "$ref": "#/$defs/cellKey" },
     "cell": { "$ref": "#/$defs/evaluationCell" },
     "credential_names": {

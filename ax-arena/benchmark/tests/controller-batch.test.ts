@@ -17,6 +17,7 @@ import {
   writeBatchCompletion,
 } from "../src/controller/batch.js";
 import type { ArenaCellExecution } from "../src/controller/cell.js";
+import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "../src/controller/sandbox.js";
 import {
   ArenaCellCleanupSchema,
   type ArenaBatchConfiguration,
@@ -437,6 +438,50 @@ describe("arena batch comparability", () => {
       .toBe(true);
   });
 
+  it("requires runtime-manifest evidence exactly for pinned completion modes", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-pinned-completion-"));
+    const config: ArenaBatchConfiguration = {
+      ...configuration(),
+      execution: { runtime_backend: "pinned-oci", trust_level: "local" },
+      sandbox: {
+        kind: "bubblewrap",
+        policy_version: "ax.arena-bubblewrap/v2",
+        runtime_lock_sha256: "5".repeat(64),
+        sysroot: "/opt/ax-arena-runtime/rootfs",
+        executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+        executable_sha256: "6".repeat(64),
+        runtime_roots: ["/usr", "/opt/ax-arena-tools"],
+      },
+    };
+    const batch = resolveBatchIdentity(root, "a".repeat(40), new Date(), config);
+    const executions = [
+      execution(root, batch, "codex", "model-codex"),
+      execution(root, batch, "claude-code", "model-claude"),
+    ];
+    for (const item of executions) {
+      item.record = NormalizedCellRecordSchema.parse({ ...item.record, sandbox_provenance: {
+        id: BUBBLEWRAP_SANDBOX_ID,
+        version: config.sandbox!.policy_version,
+        implementation_sha256: config.sandbox!.executable_sha256,
+        policy_sha256: bubblewrapPolicyHash(config.sandbox!),
+      } });
+      rewriteExecutionSidecars(item);
+    }
+    expect(() => buildBatchCompletion(root, batch, executions, new Date()))
+      .toThrow(/pinned-oci.*runtime manifest/);
+    expect(buildBatchCompletion(root, batch, executions, new Date(), "9".repeat(64)).runtime_manifest_sha256)
+      .toBe("9".repeat(64));
+
+    const nativeRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-native-completion-"));
+    const nativeBatch = resolveBatchIdentity(nativeRoot, "a".repeat(40), new Date(), configuration());
+    const nativeExecutions = [
+      execution(nativeRoot, nativeBatch, "codex", "model-codex"),
+      execution(nativeRoot, nativeBatch, "claude-code", "model-claude"),
+    ];
+    expect(() => buildBatchCompletion(nativeRoot, nativeBatch, nativeExecutions, new Date(), "9".repeat(64)))
+      .toThrow(/native.*pinned runtime manifest/);
+  });
+
   it("durably loads the canonical plan and rejects descriptor, order, or duplicate drift", () => {
     for (const mode of ["descriptor", "order", "duplicate"] as const) {
       const root = mkdtempSync(resolve(tmpdir(), `ax-arena-plan-${mode}-`));
@@ -608,6 +653,9 @@ describe("arena batch comparability", () => {
     expect(buildBatchCompletion(runRoot, batch, executions, new Date()).cells).toHaveLength(2);
     writeFileSync(fixture.binary, "tampered-binary");
     expect(() => buildBatchCompletion(runRoot, batch, executions, new Date())).toThrow(/SHA-256 pin/);
+    expect(buildBatchCompletion(runRoot, batch, executions, new Date(), null, false).cells).toHaveLength(2);
+    expect(writeBatchCompletion(runRoot, batch, executions, new Date(), undefined, null, false).cells)
+      .toHaveLength(2);
   });
 
   it("pins providers and confines every sealed artifact to the run root", () => {
