@@ -72,6 +72,9 @@ Implementation progress:
   constructor only through the public `ax-eval` package specifier.
 - Reset remains outside `runCell` so verified-record persistence can precede
   cleanup.
+- The root package no longer declares the unused Neon API/serverless or
+  Supabase SDK/CLI packages. Active SQL/Mongo drivers remain temporarily until
+  the legacy DAEB runtime entrypoints delegate to arena.
 
 ## 2. Goals
 

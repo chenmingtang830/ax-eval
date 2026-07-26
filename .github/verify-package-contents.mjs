@@ -1,6 +1,10 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import {
+  DETACHED_ARENA_DATABASE_DEPENDENCIES,
+  declaredPackageDependencies,
+} from "./verify-import-boundaries.mjs";
 
 const npm = process.env.npm_execpath
   ? { command: process.execPath, args: [process.env.npm_execpath] }
@@ -44,11 +48,18 @@ const forbidden = [...files].filter((path) =>
   || path.includes("/_archive/")
   || path.startsWith("node_modules/"),
 );
+const manifest = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+const rootDependencies = declaredPackageDependencies(manifest);
+const leakedDatabaseDependencies = DETACHED_ARENA_DATABASE_DEPENDENCIES
+  .filter((name) => name in rootDependencies);
 if (missing.length || forbidden.length) {
   throw new Error([
     missing.length ? `missing required package files: ${missing.join(", ")}` : "",
     forbidden.length ? `forbidden package files: ${forbidden.join(", ")}` : "",
   ].filter(Boolean).join("; "));
+}
+if (leakedDatabaseDependencies.length) {
+  throw new Error(`core package declares unused arena database dependencies: ${leakedDatabaseDependencies.join(", ")}`);
 }
 
 // A package self-reference exercises package.json exports, not only the file.
