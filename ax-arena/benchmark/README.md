@@ -10,6 +10,21 @@ public `ax-eval` package specifier and owns canonical DAEB artifacts under
 `src/authoring/`; the old `ax-eval` spellings delegate here with a one-minor
 deprecation warning.
 
+Arena-owned SQL and Mongo read-back oracles, Postgres/MongoDB/Turso/Convex
+reset providers, database health checks, and no-download Turso CLI attestation
+live under `src/providers/`. `createDatabaseRuntimeExtensionRegistry` creates a
+fresh immutable registry for each worker from explicit controller-selected
+ambient state. Activation by the low-pass and production controllers, followed
+by removal of the transitional core database fallbacks, is the next stack
+slice.
+
+Provider cleanup is namespace-bounded and non-cascading. Postgres revalidates
+function identities server-side and includes exact DAEB-created roles; cleanup
+remains unconfirmed when unrelated dependencies prevent a drop. Turso CLI
+provisioning requires `AX_ARENA_TURSO_INSTALL_ROOT`,
+`AX_ARENA_TURSO_CLI_VERSION`, and `AX_ARENA_TURSO_CLI_SHA256`; the executable
+and its full ancestor chain must be non-writable by the controller user.
+
 Runtime-shared pack composition, database prompt overrides, task extraction,
 and artifact readers remain temporary public `ax-eval` compatibility seams;
 the runtime and publication stack slices remove those residuals without

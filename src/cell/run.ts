@@ -14,7 +14,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, delimiter, dirname, isAbsolute, relative, resolve } from "node:path";
 import { loadPack } from "../config.js";
 import { scoreDiscovery } from "../generate/discovery.js";
 import { buildBlockedResult, buildNormalizedResult } from "../generate/record.js";
@@ -238,6 +238,8 @@ function mergeExtensionProvisioning(
   provider: ProvisioningProvider | undefined,
   baseEnv: Readonly<Record<string, string>>,
   reservedCredentials: Readonly<Record<string, string>>,
+  cwd: string,
+  artifactDir: string,
 ): HarnessProvisioning {
   if (!extension || !provider) return core;
   const additions = { ...(extension.env ?? {}) };
@@ -252,7 +254,32 @@ function mergeExtensionProvisioning(
   if (collisions.length) {
     throw new Error(`provisioning provider "${provider.id}" attempted to replace environment key(s): ${collisions.join(", ")}`);
   }
-  const env = { ...core.env, ...additions };
+  const pathEntries: string[] = [];
+  for (const entry of extension.pathEntries ?? []) {
+    if (typeof entry !== "string" || !entry.trim() || !isAbsolute(entry)) {
+      throw new Error(`provisioning provider "${provider.id}" returned an invalid PATH entry`);
+    }
+    const canonical = realpathSync(entry);
+    const stat = lstatSync(canonical);
+    if (!stat.isDirectory() || stat.isSymbolicLink()) {
+      throw new Error(`provisioning provider "${provider.id}" PATH entry must be a real directory`);
+    }
+    for (const [root, label] of [[cwd, "cell workspace"], [artifactDir, "artifact directory"]] as const) {
+      const rel = relative(realpathSync(root), canonical);
+      if (rel === "" || (rel !== ".." && !rel.startsWith(`..${process.platform === "win32" ? "\\" : "/"}`) && !isAbsolute(rel))) {
+        throw new Error(`provisioning provider "${provider.id}" PATH entry must resolve outside the writable ${label}`);
+      }
+    }
+    if (!pathEntries.includes(canonical)) pathEntries.push(canonical);
+  }
+  const inheritedPath = core.env.PATH ?? baseEnv.PATH ?? "";
+  const env = {
+    ...core.env,
+    ...additions,
+    ...(pathEntries.length
+      ? { PATH: [...pathEntries, inheritedPath].filter(Boolean).join(delimiter) }
+      : {}),
+  };
   if (extension.metadata) {
     try {
       JSON.stringify(extension.metadata);
@@ -944,6 +971,8 @@ export async function runCellWithRuntime(
       provisioningProvider,
       baseEnv,
       { ...credentials, ...verificationCredentials },
+      cwd,
+      artifactDir,
     );
   } catch (error) {
     scrubArtifacts(paths, credentialSecrets, [], artifactIdentity, invokeHomeIdentity);

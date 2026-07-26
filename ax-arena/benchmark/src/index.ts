@@ -3,6 +3,14 @@ import {
   type RuntimeExtensionInput,
   type RuntimeExtensionRegistry,
 } from "ax-eval";
+import {
+  DATABASE_HEALTH_CHECK_PROVIDERS,
+  DATABASE_RESET_PROVIDERS,
+  createMongoOracleProvider,
+  createSqlOracleProvider,
+  createTursoCliProvisioningProvider,
+  type TursoCliProvisioningOptions,
+} from "./providers/index.js";
 
 export const AX_ARENA_BENCHMARK_PACKAGE = "@ax-arena/benchmark" as const;
 
@@ -13,6 +21,37 @@ export function createArenaRuntimeExtensionRegistry(
 ): RuntimeExtensionRegistry {
   return createRuntimeExtensionRegistry(input);
 }
+
+/** Construct one isolated DAEB database registry. Controller-selected ambient
+ * state is explicit so providers never read process.env and cells cannot share
+ * mutable registrations. */
+export function createDatabaseRuntimeExtensionRegistry(
+  tursoCli: TursoCliProvisioningOptions,
+  input: RuntimeExtensionInput = {},
+): RuntimeExtensionRegistry {
+  return createRuntimeExtensionRegistry({
+    oracleProviders: [
+      createSqlOracleProvider(),
+      createMongoOracleProvider(),
+      ...(input.oracleProviders ?? []),
+    ],
+    resetProviders: [
+      ...DATABASE_RESET_PROVIDERS,
+      ...(input.resetProviders ?? []),
+    ],
+    provisioningProviders: [
+      createTursoCliProvisioningProvider(tursoCli),
+      ...(input.provisioningProviders ?? []),
+    ],
+    healthCheckProviders: [
+      ...DATABASE_HEALTH_CHECK_PROVIDERS,
+      ...(input.healthCheckProviders ?? []),
+    ],
+    targetAdapters: input.targetAdapters,
+  });
+}
+
+export * from "./providers/index.js";
 
 export * from "./authoring/coverage-gap-check.js";
 export * from "./authoring/database-task-fit.js";

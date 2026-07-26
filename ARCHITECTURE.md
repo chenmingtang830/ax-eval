@@ -187,13 +187,21 @@ provisioning, health-check, reset, and target-adapter providers for that cell;
 adapter-contributed providers pass through the same duplicate and ambiguity
 checks. Health checks execute before provisioning and invocation. Provisioning
 providers may add environment keys, but cannot replace scoped credentials or
-the core harness environment (including PATH). Tool binaries must be pinned and
-preinstalled outside the writable cell workspace.
+the core harness environment (including direct `env.PATH` replacement). A
+provider may instead return additive `pathEntries`; core canonicalizes and
+prepends only real directories that resolve outside both the writable cell
+workspace and artifact tree. Tool binaries must be pinned and preinstalled in
+those external directories.
 
 Controllers pass host-agent credentials through `credentials` and independent
 read-back credentials through `verificationCredentials`. Only the latter reach
 health checks, verification clients, and oracle providers; they never enter the
 harness environment or provisioning context.
+
+Arena database reset providers never use broad cascade cleanup. Postgres drops
+only exact namespace-matched tables, server-revalidated functions, and roles;
+dependencies leave cleanup unconfirmed. Turso CLI attestation binds an exact
+version and SHA-256 and rejects writable executable or ancestor paths.
 
 The normalized record's optional `provider_provenance` lists only selected or
 invoked oracle, provisioning, health-check, and adapter identities. Reset is

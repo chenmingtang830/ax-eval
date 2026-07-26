@@ -296,7 +296,7 @@ async function verifyRoundtrip(
       continue;
     }
     if (provider) {
-      out.push(await runProviderOracle(provider, oracle, {
+      out.push(...await runProviderOracle(provider, oracle, {
         pack,
         task,
         reported,
