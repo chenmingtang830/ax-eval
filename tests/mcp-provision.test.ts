@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -53,22 +53,18 @@ function pack(): TargetPack {
   });
 }
 
-function tursoCliPack(): TargetPack {
+function cliPack(): TargetPack {
   return TargetPackSchema.parse({
-    name: "turso",
-    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
-    base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
+    name: "demo-cli",
+    auth: { type: "none", env: "" },
+    base_url: "https://api.demo.test",
     surfaces: {
       cli: {
-        bin: "turso",
-        install: "Install the official Turso CLI from the Turso CLI documentation.",
-        help: "turso --help",
-        docs_url: "https://docs.turso.tech/cli",
-        auth: {
-          kind: "token",
-          token_env: "TURSO_DATABASE_AUTH_TOKEN",
-          token_env_aliases: [],
-        },
+        bin: "demo-cli",
+        install: "Install the demo CLI.",
+        help: "demo-cli --help",
+        docs_url: "https://docs.demo.test/cli",
+        auth: { kind: "inherit" },
       },
     },
     tasks: [
@@ -76,13 +72,29 @@ function tursoCliPack(): TargetPack {
         id: "t1",
         prompt: "Run one CLI task.",
         allowed_surfaces: ["cli"],
-        oracles: [{ type: "roundtrip", readPathTemplate: "/v2/pipeline", assertField: "results.0", expected: "x" }],
+        oracles: [{ type: "roundtrip", readPathTemplate: "/items/{gid}", assertField: "id", expected: "x" }],
       },
     ],
   });
 }
 
 describe("provisionHarnessForSurface", () => {
+  it("rejects an invoke-home root swapped to a symlink before provisioning", async () => {
+    const dir = freshDir();
+    const outside = freshDir();
+    symlinkSync(outside, resolve(dir, ".invoke-home"));
+    await expect(provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "codex",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "cell-cli", "codex"),
+      cwd: dir,
+      env: { PATH: "" },
+      allowDownloads: false,
+      allowAmbientHarnessAuth: false,
+    })).rejects.toThrow(/\.invoke-home must be a real directory/);
+  });
+
   it("writes an isolated no-MCP Codex home for non-MCP surfaces", async () => {
     const dir = freshDir();
     const paths = defaultInvokePaths(dir, "codex-low-api", "codex");
@@ -260,34 +272,21 @@ describe("provisionHarnessForSurface", () => {
     expect(config).not.toContain("inherited-secret");
   });
 
-  it("injects a shared preinstalled Turso CLI into non-MCP CLI surfaces", async () => {
+  it("leaves product-specific CLI provisioning to runtime extensions", async () => {
     const dir = freshDir();
-    const paths = defaultInvokePaths(dir, "claude-low-cli", "claude-code");
-    const sharedHome = resolve(dir, ".invoke-home", "turso-cli-shared");
-    const sharedBin = resolve(sharedHome, ".turso");
-    mkdirSync(sharedBin, { recursive: true });
-    writeFileSync(resolve(sharedBin, "turso"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-
-    const claudeProvisioning = await provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "claude-code",
-      surface: "cli",
-      paths,
-      cwd: "/repo",
-    });
-    expect(claudeProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
-    expect(claudeProvisioning.meta?.shared_cli_home).toBe(sharedHome);
-
-    const codexPaths = defaultInvokePaths(dir, "codex-low-cli", "codex");
-    const codexProvisioning = await provisionHarnessForSurface({
-      pack: tursoCliPack(),
+    const provisioning = await provisionHarnessForSurface({
+      pack: cliPack(),
       harness: "codex",
       surface: "cli",
-      paths: codexPaths,
+      paths: defaultInvokePaths(dir, "codex-low-cli", "codex"),
       cwd: "/repo",
+      env: { PATH: "/controller-selected/bin" },
+      allowDownloads: false,
+      allowAmbientHarnessAuth: false,
     });
-    expect(codexProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
-    expect(codexProvisioning.env.HOME).toContain(".invoke-home");
-    expect(codexProvisioning.meta?.shared_cli_binary).toBe(resolve(sharedBin, "turso"));
+    expect(provisioning.env.PATH).toBeUndefined();
+    expect(provisioning.env.HOME).toContain(".invoke-home");
+    expect(provisioning.meta).not.toHaveProperty("shared_cli_home");
+    expect(provisioning.meta).not.toHaveProperty("shared_cli_binary");
   });
 });

@@ -231,6 +231,9 @@ export interface ParseOptions {
   sdkPackage?: string;
   /** MCP server id/URL (from the mcp surface) to scope which tool calls count. */
   mcpServer?: string;
+  /** Treat literal curl URLs as API calls when a templated base URL cannot be
+   * resolved to a host. Intended for sealed API-surface benchmark transcripts. */
+  classifyUnknownCurlAsApi?: boolean;
 }
 
 export function parseTranscriptContent(text: string, opts: ParseOptions = {}): ObservedRun {
@@ -270,7 +273,7 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
       } catch {
         /* keep raw */
       }
-      if (apiHost && host === apiHost) {
+      if ((apiHost && host === apiHost) || (!apiHost && opts.classifyUnknownCurlAsApi)) {
         if (prefix && path.startsWith(prefix)) path = path.slice(prefix.length) || "/";
         run.apiCalls.push({ method, path: path.replace(/\/+$/, "") || "/", host });
       } else {
@@ -303,6 +306,19 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
       else run.searches.push(q);
     } else if (itype === "command_execution" && typeof item.command === "string") {
       scanCommand(item.command);
+    } else if (itype === "mcp_tool_call") {
+      const server = typeof item.server === "string" ? item.server : "";
+      const tool = typeof item.tool === "string" ? item.tool : "";
+      const configured = opts.mcpServer;
+      const inScope = !configured || !server || server.includes(configured) || configured.includes(server);
+      if (!inScope || !tool) return;
+      if (/^(?:tools\/list|list_tools)$/i.test(tool)) {
+        run.mcpToolsListed = true;
+      } else {
+        // Retain only the native provider/tool identity. Arguments and results
+        // may contain credentials or product data and never enter reporting.
+        run.mcpToolCalls.push([server, tool].filter(Boolean).join("."));
+      }
     }
   };
 
@@ -418,12 +434,27 @@ export function observedToDiscovery(run: ObservedRun, ns?: string, surface: Surf
 }
 
 /** Objective per-call trace (no status — the transcript omits tool results). */
-export function observedToTrace(run: ObservedRun): TraceStep[] {
-  return run.apiCalls.map((c, i) => ({
-    step: i + 1,
+export function observedToTrace(run: ObservedRun, surface: SurfaceId = "api"): TraceStep[] {
+  const calls = surface === "cli"
+    ? run.cliCommands.map((command) => ({
+        action: "CLI command (from transcript)",
+        method: "CLI",
+        // The configured binary is the only credential-independent portion of
+        // an arbitrary command line; raw arguments stay out of persisted reports.
+        path: command.trim().split(/\s+/, 1)[0] ?? "cli",
+      }))
+    : surface === "sdk"
+      ? run.sdkUsage.map((usage) => ({ action: "SDK usage (from transcript)", method: "SDK", path: usage }))
+      : surface === "mcp"
+        ? run.mcpToolCalls.map((tool) => ({ action: "MCP call (from transcript)", method: "MCP", path: tool }))
+        : run.apiCalls.map((call) => ({
+            action: "API call (from transcript)",
+            method: call.method,
+            path: call.path,
+          }));
+  return calls.map((call, index) => ({
+    step: index + 1,
     taskId: "observed",
-    action: "api call (from transcript)",
-    method: c.method,
-    path: c.path,
+    ...call,
   }));
 }

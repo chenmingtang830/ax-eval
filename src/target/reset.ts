@@ -1,17 +1,12 @@
 /**
- * Generic sandbox teardown for pass@k hygiene.
+ * Compatibility sandbox teardown for generic HTTP targets.
  *
- * Repeated live runs leave probe resources behind (every generated resource is
- * named `AX probe <type> <ns>`), which contaminates later runs. `reset` lists
- * those candidate resources in the pack's declared sandbox scope and deletes
- * them. The framework is target-agnostic (resolve scope → list → match `{ns}`
- * naming convention → delete); reliable listing/deletion is target-specific, so
- * a per-target resetter is registered. Asana is the concrete reference; targets
- * without a resetter fail GRACEFULLY (a clear message, never a throw).
+ * The reusable reset contract and safety rules remain in core. Database and
+ * benchmark-target implementations are supplied through explicit ResetProvider
+ * registries by ax-arena; this legacy helper retains only the public Asana
+ * example behavior until the CLI compatibility window closes.
  */
-import { BearerClient } from "../http/client.js";
 import { PROBE_PREFIX } from "../generate/pack.js";
-import { resolveEnvTemplate } from "./config.js";
 import type { TargetPack } from "../schemas.js";
 import { redactSensitiveText } from "../safety/redaction.js";
 
@@ -23,7 +18,7 @@ export interface ResetClient {
 
 export interface ResetOptions {
   /** Restrict deletion to names containing this namespace token; when unset,
-   *  every probe-named resource in scope is a candidate. */
+   * every probe-named resource in scope is a candidate. */
   ns?: string;
   /** List + match but don't delete (preview). */
   dryRun?: boolean;
@@ -35,7 +30,7 @@ export interface ResetOptions {
 }
 
 export interface ResetResult {
-  /** False when no resetter is registered for the target. */
+  /** False when no compatibility resetter is registered for the target. */
   supported: boolean;
   message: string;
   /** Ids deleted (or that would be, under dryRun). */
@@ -45,22 +40,13 @@ export interface ResetResult {
   errors: string[];
 }
 
-/** A probe resource is one whose name carries the AX prefix; when an ns is
- *  given it must also belong to that namespace. */
 function isProbeName(name: unknown, ns?: string): boolean {
   if (typeof name !== "string" || !name.startsWith(PROBE_PREFIX)) return false;
   return ns ? name.includes(ns) : true;
 }
 
-function isAxArenaMongoName(name: unknown, ns?: string): boolean {
-  if (typeof name !== "string" || !name.startsWith("axarena_")) return false;
-  return ns ? name.includes(ns) : true;
-}
-
-/** Pick the scope value for a logical container, preferring a key that mentions
- *  the hint (e.g. "project"), else the first declared scope value. */
 function containerId(scope: Record<string, string>, hint: string): string | undefined {
-  const key = Object.keys(scope).find((k) => k.toLowerCase().includes(hint));
+  const key = Object.keys(scope).find((candidate) => candidate.toLowerCase().includes(hint));
   return key ? scope[key] : Object.values(scope)[0];
 }
 
@@ -74,14 +60,10 @@ type Resetter = (
   pack: TargetPack,
   client: ResetClient,
   scope: Record<string, string>,
-  opts: ResetOptions,
+  options: ResetOptions,
 ) => Promise<ResetWork>;
 
-/**
- * Asana reference: tasks are the sandbox-contained resource, listable under the
- * throwaway project the scope names. List them, keep AX-probe names, DELETE each.
- */
-const asanaReset: Resetter = async (_pack, client, scope, opts) => {
+const asanaReset: Resetter = async (_pack, client, scope, options) => {
   const project = containerId(scope, "project");
   if (!project) {
     return { deleted: [], candidates: 0, errors: ["no sandbox project id in scope — cannot list tasks to reset"] };
@@ -98,437 +80,68 @@ const asanaReset: Resetter = async (_pack, client, scope, opts) => {
       errors: [redactSensitiveText(`list /projects/${project}/tasks: ${error instanceof Error ? error.message : String(error)}`)],
     };
   }
-  const candidates = (Array.isArray(tasks) ? tasks : []).filter((t) => t.gid && isProbeName(t.name, opts.ns));
-  const maxCandidates = opts.maxCandidates ?? 100;
-  if (candidates.length > maxCandidates) {
+  const matches = (Array.isArray(tasks) ? tasks : [])
+    .filter((task) => task.gid && isProbeName(task.name, options.ns));
+  const maxCandidates = options.maxCandidates ?? 100;
+  if (matches.length > maxCandidates) {
     return {
       deleted: [],
-      candidates: candidates.length,
-      errors: [`refusing reset: ${candidates.length} candidates exceeds the safety limit of ${maxCandidates}`],
+      candidates: matches.length,
+      errors: [`refusing reset: ${matches.length} candidates exceeds the safety limit of ${maxCandidates}`],
     };
   }
   const deleted: string[] = [];
   const errors: string[] = [];
-  for (const t of candidates) {
-    if (opts.dryRun) {
-      deleted.push(t.gid!);
+  for (const task of matches) {
+    if (options.dryRun) {
+      deleted.push(task.gid!);
       continue;
     }
     try {
-      await client.del(`/tasks/${t.gid}`);
-      deleted.push(t.gid!);
-    } catch (err) {
-      errors.push(redactSensitiveText(`delete /tasks/${t.gid}: ${err instanceof Error ? err.message : String(err)}`));
+      await client.del(`/tasks/${task.gid}`);
+      deleted.push(task.gid!);
+    } catch (error) {
+      errors.push(redactSensitiveText(
+        `delete /tasks/${task.gid}: ${error instanceof Error ? error.message : String(error)}`,
+      ));
     }
   }
-  return { deleted, candidates: candidates.length, errors };
+  return { deleted, candidates: matches.length, errors };
 };
 
-/**
- * MongoDB Atlas database reset: DAEB database tasks create collections and Atlas
- * Search/vector indexes under a dedicated verifier database (`axarena_eval`).
- * Agents must not delete unrelated resources during execution; this explicit
- * operator reset only targets eval-created `axarena_*` collections/indexes.
- */
-const mongodbAtlasReset: Resetter = async (pack, _client, _scope, opts) => {
-  if (!pack.mongo_conn) {
-    return { deleted: [], candidates: 0, errors: ["pack declares no mongo_conn — cannot list MongoDB eval resources"] };
-  }
-  const connectionString = process.env[pack.mongo_conn.connection_string_env]?.trim();
-  if (!connectionString) {
-    return {
-      deleted: [],
-      candidates: 0,
-      errors: [`mongo_conn env ${pack.mongo_conn.connection_string_env} is unset — cannot reset MongoDB eval resources`],
-    };
-  }
-  const database = pack.mongo_conn.database;
-  if (!database) {
-    return { deleted: [], candidates: 0, errors: ["mongo_conn has no dedicated database — refusing broad MongoDB reset"] };
-  }
-
-  const { MongoClient } = await import("mongodb");
-  const client = new MongoClient(connectionString);
-  const deleted: string[] = [];
-  const errors: string[] = [];
-  let candidates = 0;
-  await client.connect();
-  try {
-    const db = client.db(database);
-    const collections = (await db.listCollections().toArray())
-      .map((c: { name?: unknown }) => c.name)
-      .filter((name): name is string => isAxArenaMongoName(name, opts.ns));
-    for (const collectionName of collections) {
-      const collection = db.collection(collectionName);
-      try {
-        const indexes = await collection.listSearchIndexes().toArray();
-        for (const index of indexes as Array<{ name?: unknown }>) {
-          if (!isAxArenaMongoName(index.name, opts.ns)) continue;
-          candidates += 1;
-          const id = `${database}.${collectionName}/searchIndex/${index.name}`;
-          if (opts.dryRun) {
-            deleted.push(id);
-            continue;
-          }
-          try {
-            await collection.dropSearchIndex(String(index.name));
-            deleted.push(id);
-          } catch (err) {
-            errors.push(`drop search index ${id}: ${err instanceof Error ? err.message : String(err)}`);
-          }
-        }
-      } catch (err) {
-        errors.push(`list search indexes ${database}.${collectionName}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-
-      candidates += 1;
-      const id = `${database}.${collectionName}`;
-      if (opts.dryRun) {
-        deleted.push(id);
-        continue;
-      }
-      try {
-        await collection.drop();
-        deleted.push(id);
-      } catch (err) {
-        errors.push(`drop collection ${id}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-  } finally {
-    await client.close();
-  }
-  return { deleted, candidates, errors };
-};
-
-/**
- * Generic Postgres-family reset for SQL-backed benchmark sandboxes. This only
- * targets eval-created `axarena_*` tables and routines inside the default
- * `public` schema, and uses CASCADE so dependent policies/indexes/triggers are
- * removed with the owning table/function. It intentionally does not attempt to
- * enumerate or delete control-plane artifacts such as backups, projects, or
- * roles outside the database connection declared by the pack.
- */
-const postgresSqlReset: Resetter = async (pack, _client, _scope, opts) => {
-  if (!pack.sql_conn || pack.sql_conn.dialect !== "postgres") {
-    return { deleted: [], candidates: 0, errors: ["pack does not declare a postgres sql_conn — cannot reset SQL eval resources"] };
-  }
-  const connectionString = process.env[pack.sql_conn.connection_string_env]?.trim();
-  if (!connectionString) {
-    return {
-      deleted: [],
-      candidates: 0,
-      errors: [`sql_conn env ${pack.sql_conn.connection_string_env} is unset — cannot reset SQL eval resources`],
-    };
-  }
-
-  const { Client } = await import("pg");
-  const client = new Client({ connectionString });
-  const deleted: string[] = [];
-  const errors: string[] = [];
-  let candidates = 0;
-  await client.connect();
-  try {
-    const tableRows = await client.query<{ table_name: string }>(
-      "SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name LIKE 'axarena\\_%' ESCAPE '\\'",
-    );
-    const tables = tableRows.rows
-      .map((row) => row.table_name)
-      .filter((name) => isAxArenaMongoName(name, opts.ns));
-    for (const table of tables) {
-      candidates += 1;
-      const id = `public.${table}`;
-      if (opts.dryRun) {
-        deleted.push(id);
-        continue;
-      }
-      try {
-        await client.query(`DROP TABLE IF EXISTS "public"."${table}" CASCADE`);
-        deleted.push(id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (/drop cascade is not supported/i.test(message)) {
-          try {
-            await client.query(`DROP TABLE IF EXISTS "public"."${table}"`);
-            deleted.push(id);
-            continue;
-          } catch (fallbackErr) {
-            errors.push(`drop table ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
-            continue;
-          }
-        }
-        errors.push(`drop table ${id}: ${message}`);
-      }
-    }
-
-    const functionRows = await client.query<{ proname: string; identity_arguments: string }>(
-      "SELECT p.proname, pg_get_function_identity_arguments(p.oid) AS identity_arguments FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname LIKE 'axarena\\_%' ESCAPE '\\'",
-    );
-    const routines = functionRows.rows.filter((row) => isAxArenaMongoName(row.proname, opts.ns));
-    for (const routine of routines) {
-      candidates += 1;
-      const signature = `${routine.proname}(${routine.identity_arguments})`;
-      const id = `public.${signature}`;
-      if (opts.dryRun) {
-        deleted.push(id);
-        continue;
-      }
-      try {
-        await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments}) CASCADE`);
-        deleted.push(id);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        if (/drop function cascade is not supported|drop function.*cascade.*not supported/i.test(message)) {
-          try {
-            await client.query(`DROP FUNCTION IF EXISTS "public"."${routine.proname}"(${routine.identity_arguments})`);
-            deleted.push(id);
-            continue;
-          } catch (fallbackErr) {
-            errors.push(`drop function ${id} without CASCADE: ${fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)}`);
-            continue;
-          }
-        }
-        errors.push(`drop function ${id}: ${message}`);
-      }
-    }
-  } finally {
-    await client.end();
-  }
-  return { deleted, candidates, errors };
-};
-
-function tursoPipelineBody(sql: string): object {
-  return {
-    requests: [{ type: "execute", stmt: { sql } }],
-  };
-}
-
-function tursoRows(body: unknown): unknown[][] {
-  const root = body as {
-    results?: Array<{ response?: { result?: { rows?: Array<Array<{ value?: unknown }>> } } }>;
-  };
-  return root.results?.[0]?.response?.result?.rows?.map((row) => row.map((cell) => cell.value)) ?? [];
-}
-
-/** Turso has no Postgres wire connection in packs, but its documented pipeline
- * endpoint can list and drop the same namespaced SQLite tables safely. */
-const tursoReset: Resetter = async (pack, _client, _scope, opts) => {
-  const token = process.env[pack.auth?.env ?? ""]?.trim();
-  const baseUrl = resolveEnvTemplate(pack.base_url).replace(/\/$/, "");
-  if (!token) {
-    return {
-      supported: false,
-      message: `auth env ${pack.auth?.env ?? "<unset>"} is missing — cannot reset Turso resources`,
-      deleted: [],
-      candidates: 0,
-      errors: [],
-    };
-  }
-  try {
-    const listResponse = await fetch(`${baseUrl}/v2/pipeline`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify(tursoPipelineBody("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'axarena_%'")),
-    });
-    if (!listResponse.ok) throw new Error(`list returned HTTP ${listResponse.status}`);
-    const names = tursoRows(await listResponse.json())
-      .map((row) => row[0])
-      .filter((name): name is string => typeof name === "string")
-      .filter((name) => isAxArenaMongoName(name, opts.ns));
-    const deleted: string[] = [];
-    const errors: string[] = [];
-    for (const name of names) {
-      if (!/^[A-Za-z0-9_-]+$/.test(name)) {
-        errors.push(`refusing unsafe Turso table name ${JSON.stringify(name)}`);
-        continue;
-      }
-      if (opts.dryRun) {
-        deleted.push(name);
-        continue;
-      }
-      const dropResponse = await fetch(`${baseUrl}/v2/pipeline`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify(tursoPipelineBody(`DROP TABLE IF EXISTS "${name}"`)),
-      });
-      if (dropResponse.ok) deleted.push(name);
-      else errors.push(`drop ${name} returned HTTP ${dropResponse.status}`);
-    }
-    return {
-      supported: true,
-      message: `Turso reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${names.length} namespaced table(s)`,
-      deleted,
-      candidates: names.length,
-      errors,
-    };
-  } catch (error) {
-    return {
-      supported: false,
-      message: `Turso reset failed: ${error instanceof Error ? error.message : String(error)}`,
-      deleted: [],
-      candidates: 0,
-      errors: [error instanceof Error ? error.message : String(error)],
-    };
-  }
-};
-
-/** Parse the deployment name (subdomain) out of a Convex deployment URL. */
-function parseConvexDeploymentName(baseUrl: string): string | null {
-  try {
-    const host = new URL(baseUrl).hostname;
-    const match = /^([a-z0-9-]+)\.convex\.cloud$/i.exec(host);
-    return match?.[1] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-interface ConvexDeployment {
-  id: number;
-  name: string;
-  deploymentType: "dev" | "prod" | "preview" | "custom";
-  projectId: number;
-  isDefault: boolean;
-  /** The `--preview-name` the agent/CLI passed to `convex deploy` — the most
-   *  reliable field to match a benchmark trial's namespace against, since the
-   *  auto-generated `name` (e.g. "shocking-cuttlefish-911") never reflects it. */
-  previewIdentifier?: string | null;
-  reference?: string;
-}
-
-/**
- * Convex reset: delete PREVIEW deployments created by benchmark trials using the
- * Convex Management API (https://api.convex.dev/v1). This requires a Team Access
- * Token (created in the Convex dashboard team settings) in CONVEX_TEAM_ACCESS_TOKEN
- * — the deployment-scoped CONVEX_DEPLOY_KEY cannot delete deployments.
- *
- * Only non-default deployments with deploymentType === "preview" are ever
- * candidates — the base dev/prod deployment the pack points at (isDefault:
- * true) is never touched.
- */
-const convexReset: Resetter = async (pack, _client, _scope, opts) => {
-  const managementToken = process.env.CONVEX_TEAM_ACCESS_TOKEN ?? process.env.CONVEX_MANAGEMENT_TOKEN;
-  if (!managementToken) {
-    return {
-      supported: false,
-      message:
-        "Convex reset requires CONVEX_TEAM_ACCESS_TOKEN (a Team Access Token from the Convex dashboard). " +
-        "CONVEX_DEPLOY_KEY is deployment-scoped and cannot delete deployments.",
-      deleted: [],
-      candidates: 0,
-      errors: [],
-    };
-  }
-
-  const baseUrl = resolveEnvTemplate(pack.base_url);
-  const baseDeploymentName = parseConvexDeploymentName(baseUrl);
-  if (!baseDeploymentName) {
-    return {
-      supported: false,
-      message: `Could not parse Convex deployment name from base_url "${baseUrl}".`,
-      deleted: [],
-      candidates: 0,
-      errors: [],
-    };
-  }
-
-  const mgmtClient = new BearerClient({
-    baseUrl: "https://api.convex.dev/v1",
-    token: managementToken,
-    authScheme: "bearer",
-    responseEnvelope: undefined,
-    apiStyle: "rest",
-  });
-
-  try {
-    const baseDeployment = await mgmtClient.get<ConvexDeployment>(`/deployments/${baseDeploymentName}`);
-    const deployments = await mgmtClient.get<ConvexDeployment[]>(
-      `/projects/${baseDeployment.projectId}/list_deployments`,
-    );
-
-    const nsPatterns = opts.ns
-      ? [opts.ns, opts.ns.replace(/-/g, "_"), opts.ns.replace(/_/g, "-")]
-      : [];
-    // Never touch the default dev/prod deployments. When an ns is given, only
-    // match preview deployments whose previewIdentifier/reference/name carry
-    // it (a specific trial's cleanup). With no ns, this is a broad --reclaim
-    // of every leftover preview deployment in this benchmark-dedicated
-    // project — naming has drifted across runs, so we don't rely on a fixed
-    // substring like "axarena" here.
-    const candidates = deployments.filter((d) => {
-      if (d.deploymentType !== "preview" || d.isDefault) return false;
-      if (!opts.ns) return true;
-      const haystack = `${d.previewIdentifier ?? ""} ${d.reference ?? ""} ${d.name}`;
-      return nsPatterns.some((p) => haystack.includes(p));
-    });
-
-    const deleted: string[] = [];
-    const errors: string[] = [];
-    for (const d of candidates) {
-      try {
-        if (opts.dryRun) {
-          deleted.push(d.name);
-          continue;
-        }
-        await mgmtClient.post(`/deployments/${d.name}/delete`, {});
-        deleted.push(d.name);
-      } catch (err) {
-        errors.push(`delete ${d.name}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
-
-    return {
-      supported: true,
-      message: `Convex reset: ${opts.dryRun ? "would delete" : "deleted"} ${deleted.length}/${candidates.length} preview deployment(s)${
-        opts.ns ? ` matching ns "${opts.ns}"` : " (broad reclaim)"
-      }.`,
-      deleted,
-      candidates: candidates.length,
-      errors,
-    };
-  } catch (err) {
-    return {
-      supported: false,
-      message: `Convex management API reset failed: ${err instanceof Error ? err.message : String(err)}`,
-      deleted: [],
-      candidates: 0,
-      errors: [err instanceof Error ? err.message : String(err)],
-    };
-  }
-};
-
-/** Per-target resetters, keyed by pack name. */
-const RESETTERS: Record<string, Resetter> = {
+const RESETTERS: Readonly<Record<string, Resetter>> = Object.freeze({
   asana: asanaReset,
   "asana-generated": asanaReset,
-  "mongodb-atlas": mongodbAtlasReset,
-  convex: convexReset,
-  turso: tursoReset,
-};
+});
+
+export function hasCoreResetStrategy(pack: Pick<TargetPack, "name">): boolean {
+  return RESETTERS[pack.name] !== undefined;
+}
 
 /**
- * Resolve the target's resetter and run it. Returns `supported: false` (not a
- * throw) for targets whose listing/deletion isn't expressible yet, so callers
- * can degrade gracefully.
+ * Run a retained compatibility resetter. Target-specific database cleanup is
+ * intentionally unavailable here and must be selected through an explicit
+ * ResetProvider in the arena-owned cell lifecycle.
  */
 export async function resetPack(
   pack: TargetPack,
-  client: ResetClient,
-  scope: Record<string, string>,
-  opts: ResetOptions = {},
+  client: ResetClient | (() => ResetClient),
+  scope: Record<string, string> | (() => Record<string, string>),
+  options: ResetOptions = {},
 ): Promise<ResetResult> {
-  const resetter = RESETTERS[pack.name] ?? (pack.sql_conn?.dialect === "postgres" ? postgresSqlReset : undefined);
+  const resetter = RESETTERS[pack.name];
   if (!resetter) {
     return {
       supported: false,
       message:
-        `No reset strategy for "${pack.name}" — sandbox listing/deletion isn't expressible yet for this target. ` +
-        `Delete probe resources (named "${PROBE_PREFIX} …") manually.`,
+        `No core reset strategy for "${pack.name}". Target-specific cleanup requires an explicit ResetProvider; ` +
+        `delete probe resources (named "${PROBE_PREFIX} …") manually when no provider is available.`,
       deleted: [],
       candidates: 0,
       errors: [],
     };
   }
-  const ns = opts.ns?.trim() || undefined;
+  const ns = options.ns?.trim() || undefined;
   if (ns && !/^[A-Za-z0-9._-]+$/.test(ns)) {
     return {
       supported: true,
@@ -538,7 +151,7 @@ export async function resetPack(
       errors: ["namespace may contain only letters, numbers, dot, underscore, and hyphen"],
     };
   }
-  if (!opts.dryRun && !ns && !opts.allowAllNamespaces) {
+  if (!options.dryRun && !ns && !options.allowAllNamespaces) {
     return {
       supported: true,
       message: `Reset ${pack.name}: refused destructive reset without an explicit namespace.`,
@@ -547,16 +160,15 @@ export async function resetPack(
       errors: ["pass --ns <token> to delete one run, or use --dry-run to inventory all probe resources"],
     };
   }
-  const resetOptions = { ...opts, ns };
-  const { deleted, candidates, errors } = await resetter(pack, client, scope, resetOptions);
-  const verb = opts.dryRun ? "would delete" : "deleted";
+  const resolvedClient = typeof client === "function" ? client() : client;
+  const resolvedScope = typeof scope === "function" ? scope() : scope;
+  const result = await resetter(pack, resolvedClient, resolvedScope, { ...options, ns });
+  const verb = options.dryRun ? "would delete" : "deleted";
   return {
     supported: true,
-    message: `Reset ${pack.name}: ${verb} ${deleted.length}/${candidates} probe resource(s)${
+    message: `Reset ${pack.name}: ${verb} ${result.deleted.length}/${result.candidates} probe resource(s)${
       ns ? ` in namespace "${ns}"` : ""
     }.`,
-    deleted,
-    candidates,
-    errors,
+    ...result,
   };
 }

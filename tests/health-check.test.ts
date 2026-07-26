@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { classifyHealthCheckSignals } from "../src/target/health-check.js";
+import { classifyHealthCheckSignals, healthCheckPack } from "../src/target/health-check.js";
+import { TargetPackSchema } from "../src/schemas.js";
 
 describe("health-check signals", () => {
   it("flags leftover candidates as namespace pollution risk", () => {
@@ -24,5 +25,35 @@ describe("health-check signals", () => {
       quota_pressure_hint: true,
       leftover_candidates: 0,
     });
+  });
+
+  it("preserves the provider requirement for unsupported database health checks", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "neon",
+      version: "1",
+      standard_set_version: "health-check-provider-v1",
+      run_id: "health-check-provider",
+      generated_by: "deterministic@no-model",
+      auth_method: "none",
+      auth: { type: "none" },
+      base_url: "https://example.invalid",
+      site_url: "",
+      docs_urls: [],
+      tasks: [],
+    });
+    const client = {
+      get: async () => {
+        throw new Error("unsupported health check must not use the HTTP client");
+      },
+      del: async () => {
+        throw new Error("unsupported health check must not use the HTTP client");
+      },
+    };
+
+    const result = await healthCheckPack(pack, client, {}, { reclaim: true });
+    expect(result.supported).toBe(false);
+    expect(result.message).toContain("health-check unavailable");
+    expect(result.message).toContain("requires an explicit ResetProvider");
+    expect(result.message).not.toContain("reclaimed 0/0");
   });
 });
