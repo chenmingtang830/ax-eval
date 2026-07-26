@@ -153,12 +153,14 @@ schemas, single-product capability/surface extraction, and explicit-input
 transforms. Concept-universe, coverage/selection/support matrix, grader-ledger,
 failure-taxonomy, and trace-review contracts live with the arena, as does the
 database-specific capability-inventory audit; core retains the generic
-capability-inventory and suite-methodology shapes. Canonical-suite oracle extraction—including grounded prompt,
-concurrency, support-matrix, and database seed policy—is arena-owned alongside
-suite methodology defaults. Canonical DAEB artifact assertions run in the arena
-test workspace; core suite-contract tests use synthetic explicit inputs. Legacy core commands remain
-later compatibility slices. Root `npm test`, `npm run typecheck`, `npm run
-build`, and `npm run pack:check` validate both packages.
+capability-inventory and suite-methodology shapes. Canonical-suite oracle
+extraction—including grounded prompt, concurrency, support-matrix, and database
+seed policy—is arena-owned alongside suite methodology defaults. Canonical DAEB
+artifact assertions run in the arena test workspace; core suite-contract tests
+use synthetic explicit inputs. The
+former core arena command names are one-minor process-launcher aliases; their
+implementations live only in the arena workspace. Root `npm test`, `npm run
+typecheck`, `npm run build`, and `npm run pack:check` validate both packages.
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness

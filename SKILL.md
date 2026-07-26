@@ -411,7 +411,8 @@ execution and verification, while `ax-arena` owns benchmark aggregation,
 publication exports, and the eventual curated website handoff. The deprecated
 `ax-eval publication-bundle`, `ax-eval export-publication`, and
 `ax-eval competitive` names are shell-free launchers for their arena commands
-during the compatibility period.
+during the compatibility period, which begins only when the arena package is
+available to users.
 
 ## Rules
 
