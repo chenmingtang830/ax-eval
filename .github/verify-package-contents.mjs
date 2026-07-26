@@ -1,6 +1,7 @@
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
+import ts from "typescript";
 import {
   DETACHED_ARENA_DATABASE_DEPENDENCIES,
   declaredPackageDependencies,
@@ -9,6 +10,25 @@ import {
 const npm = process.env.npm_execpath
   ? { command: process.execPath, args: [process.env.npm_execpath] }
   : { command: "npm", args: [] };
+
+function collectDeclarationExports(path) {
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = new Set();
+  for (const statement of source.statements) {
+    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) names.add(element.name.text);
+      continue;
+    }
+    if (!statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    if ("name" in statement && statement.name && ts.isIdentifier(statement.name)) names.add(statement.name.text);
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+      }
+    }
+  }
+  return names;
+}
 const result = spawnSync(npm.command, [...npm.args, "--cache", ".npm-cache", "pack", "--dry-run", "--json"], {
   cwd: process.cwd(),
   encoding: "utf8",
@@ -83,7 +103,10 @@ const requiredExports = [
   "runCellWithRuntime",
   "SURFACE_IDS",
   "INVOKE_HARNESS_IDS",
+  "CAPABILITY_INVENTORY_SCHEMA_VERSION",
+  "CapabilityEvidenceSchema",
   "CapabilityInventorySchema",
+  "SuiteMethodologySchema",
   "SurfaceExtractResultSchema",
   "OracleCheckSchema",
   "OracleExtractItemSchema",
@@ -99,6 +122,20 @@ if (missingExports.length) {
   throw new Error(`missing public API exports: ${missingExports.join(", ")}`);
 }
 const detachedArenaExports = [
+  "ConceptClusterSchema",
+  "ConceptCoverageSchema",
+  "ConceptUniverseSchema",
+  "CoverageDecisionSchema",
+  "CoverageMatrixSchema",
+  "FailureTaxonomySchema",
+  "GraderLedgerEntrySchema",
+  "GraderLedgerSchema",
+  "SelectionLedgerEntrySchema",
+  "SelectionLedgerSchema",
+  "SupportMatrixEntrySchema",
+  "SupportMatrixSchema",
+  "TraceReviewMemoSchema",
+  "auditCapabilityInventory",
   "composePack",
   "createDaebPathContext",
   "defaultSuiteMethodology",
@@ -119,6 +156,29 @@ const detachedArenaExports = [
   .filter((name) => name in publicApi);
 if (detachedArenaExports.length) {
   throw new Error(`core package exposes arena-owned API exports: ${detachedArenaExports.join(", ")}`);
+}
+const declarationApi = collectDeclarationExports(resolve(process.cwd(), "dist", "index.d.ts"));
+const requiredTypeExports = ["CapabilityInventory", "CapabilityInventoryEntry", "SuiteMethodology"];
+const missingTypeExports = requiredTypeExports.filter((name) => !declarationApi.has(name));
+const detachedArenaTypeExports = [
+  "ConceptCluster",
+  "ConceptUniverse",
+  "CoverageDecision",
+  "CoverageMatrix",
+  "FailureTaxonomy",
+  "GraderLedger",
+  "GraderLedgerEntry",
+  "SelectionLedger",
+  "SelectionLedgerEntry",
+  "SupportMatrix",
+  "SupportMatrixEntry",
+  "TraceReviewMemo",
+].filter((name) => declarationApi.has(name));
+if (missingTypeExports.length || detachedArenaTypeExports.length) {
+  throw new Error([
+    missingTypeExports.length ? `missing core declaration exports: ${missingTypeExports.join(", ")}` : "",
+    detachedArenaTypeExports.length ? `core declarations expose arena-owned types: ${detachedArenaTypeExports.join(", ")}` : "",
+  ].filter(Boolean).join("; "));
 }
 
 const declaration = readFileSync(resolve(process.cwd(), "dist", "index.d.ts"), "utf8");

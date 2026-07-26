@@ -6,8 +6,8 @@ import { matchDeterministicDatabaseConcept } from "../src/authoring/coverage-gap
 import {
   CapabilityInventorySchema,
   type CapabilityExtractResult,
-  type CoverageMatrix,
 } from "ax-eval";
+import type { CoverageMatrix } from "../src/authoring/artifact-contracts.js";
 import { writeCapabilityInventory } from "../src/authoring/artifact-persistence.js";
 import {
   findMappingFalsePositives,

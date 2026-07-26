@@ -254,34 +254,20 @@ export type {
 } from "./generate/oracle-extract-schema.js";
 export {
   BehavioralMethodologySchema,
+  CAPABILITY_INVENTORY_SCHEMA_VERSION,
   CANONICAL_SURFACE_SCOPE,
   CapabilityEvidenceSchema,
   CapabilityInventoryEntrySchema,
   CapabilityInventorySchema,
-  ConceptUniverseSchema,
-  CoverageMatrixSchema,
   ExtractionContextSchema,
   ExtractionProvenanceSchema,
-  FailureTaxonomySchema,
-  GraderLedgerSchema,
-  SelectionLedgerSchema,
   StaticAxMethodologySchema,
   SuiteMethodologySchema,
-  SupportMatrixSchema,
-  TraceReviewMemoSchema,
 } from "./generate/methodology.js";
 export type {
   CapabilityInventory,
   CapabilityInventoryEntry,
-  ConceptUniverse,
-  CoverageDecision,
-  CoverageMatrix,
-  FailureTaxonomy,
-  GraderLedger,
-  SelectionLedger,
   SuiteMethodology,
-  SupportMatrix,
-  TraceReviewMemo,
 } from "./generate/methodology.js";
 export {
   fetchRegistrySurface,
@@ -301,7 +287,3 @@ export type { HarnessProbe } from "./harness/probe.js";
 export { renderGeneratedSnapshot } from "./generate/snapshot.js";
 export type { GeneratedReportSnapshot } from "./generate/snapshot.js";
 export { REPORT_STYLE } from "./report-style.js";
-
-export {
-  auditCapabilityInventory,
-} from "./generate/methodology.js";

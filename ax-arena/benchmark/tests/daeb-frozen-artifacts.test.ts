@@ -5,9 +5,9 @@ import { resolve } from "node:path";
 import { parse as parseYaml } from "yaml";
 import {
   checkApproval,
-  ConceptUniverseSchema,
   loadPack,
 } from "ax-eval";
+import { ConceptUniverseSchema } from "../src/authoring/artifact-contracts.js";
 import {
   loadCapabilityExtract,
   loadCoverageMatrix,

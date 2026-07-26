@@ -31,6 +31,32 @@ export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/capability-extract.ts", identifier: "writeCapabilityExtract" },
   { path: "src/generate/methodology.ts", identifier: "loadCapabilityInventory" },
   { path: "src/generate/methodology.ts", identifier: "defaultSuiteMethodology" },
+  { identifier: "ConceptCoverageSchema" },
+  { identifier: "ConceptClusterSchema" },
+  { identifier: "ConceptCluster" },
+  { identifier: "ConceptUniverseSchema" },
+  { identifier: "ConceptUniverse" },
+  { identifier: "CoverageDecisionSchema" },
+  { identifier: "CoverageDecision" },
+  { identifier: "CoverageMatrixSchema" },
+  { identifier: "CoverageMatrix" },
+  { identifier: "SelectionLedgerEntrySchema" },
+  { identifier: "SelectionLedgerEntry" },
+  { identifier: "SelectionLedgerSchema" },
+  { identifier: "SelectionLedger" },
+  { identifier: "SupportMatrixEntrySchema" },
+  { identifier: "SupportMatrixEntry" },
+  { identifier: "SupportMatrixSchema" },
+  { identifier: "SupportMatrix" },
+  { identifier: "GraderLedgerEntrySchema" },
+  { identifier: "GraderLedgerEntry" },
+  { identifier: "GraderLedgerSchema" },
+  { identifier: "GraderLedger" },
+  { identifier: "FailureTaxonomySchema" },
+  { identifier: "FailureTaxonomy" },
+  { identifier: "TraceReviewMemoSchema" },
+  { identifier: "TraceReviewMemo" },
+  { identifier: "auditCapabilityInventory" },
   { path: "src/generate/methodology.ts", identifier: "writeCapabilityInventory" },
   { path: "src/generate/methodology.ts", identifier: "writeMethodology" },
   { path: "src/generate/methodology.ts", identifier: "writeSupportMatrix" },
@@ -164,7 +190,7 @@ export function findImportBoundaryViolations(root = process.cwd()) {
       }
     }
     for (const rule of DETACHED_ARENA_CORE_DECLARATIONS) {
-      if (corePath === rule.path && declaredIdentifiers(file).has(rule.identifier)) {
+      if ((!rule.path || corePath === rule.path) && declaredIdentifiers(file).has(rule.identifier)) {
         violations.push(`${corePath} must not declare arena-owned ${rule.identifier}`);
       }
     }

@@ -133,6 +133,7 @@ export type {
 } from "./controller/schemas.js";
 
 export * from "./authoring/coverage-gap-check.js";
+export * from "./authoring/artifact-contracts.js";
 export * from "./authoring/artifact-persistence.js";
 export * from "./authoring/benchmark-paths.js";
 export {
@@ -146,6 +147,7 @@ export * from "./authoring/database-policy.js";
 export * from "./authoring/extract-advisory.js";
 export * from "./authoring/extract-audit.js";
 export * from "./authoring/methodology-policy.js";
+export * from "./authoring/inventory-audit.js";
 export * from "./authoring/oracle-extract.js";
 export * from "./authoring/pack-audit.js";
 export * from "./authoring/suite-audit.js";

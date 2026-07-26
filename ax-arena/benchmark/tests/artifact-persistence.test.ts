@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import {
   CapabilityInventorySchema,
-  SupportMatrixSchema,
 } from "ax-eval";
+import { SupportMatrixSchema } from "../src/authoring/artifact-contracts.js";
 import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 import {
   coverageMatrixPath,

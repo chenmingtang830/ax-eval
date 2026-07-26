@@ -109,6 +109,34 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects arena-owned artifact contracts and inventory audit in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "arena-artifacts.ts"),
+      [
+        "export const ConceptUniverseSchema = {};",
+        "export const CoverageMatrixSchema = {};",
+        "export const SelectionLedgerSchema = {};",
+        "export const SupportMatrixSchema = {};",
+        "export const GraderLedgerSchema = {};",
+        "export const FailureTaxonomySchema = {};",
+        "export const TraceReviewMemoSchema = {};",
+        "export function auditCapabilityInventory(): void {}",
+      ].join("\n"),
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned ConceptUniverseSchema"),
+      expect.stringContaining("must not declare arena-owned CoverageMatrixSchema"),
+      expect.stringContaining("must not declare arena-owned SelectionLedgerSchema"),
+      expect.stringContaining("must not declare arena-owned SupportMatrixSchema"),
+      expect.stringContaining("must not declare arena-owned GraderLedgerSchema"),
+      expect.stringContaining("must not declare arena-owned FailureTaxonomySchema"),
+      expect.stringContaining("must not declare arena-owned TraceReviewMemoSchema"),
+      expect.stringContaining("must not declare arena-owned auditCapabilityInventory"),
+    ]);
+  });
+
   it("rejects hard-coded Nile credential-scope policy anywhere in core", () => {
     const root = fixture();
     mkdirSync(resolve(root, "src", "target"), { recursive: true });

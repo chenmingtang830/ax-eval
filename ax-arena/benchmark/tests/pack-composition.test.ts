@@ -3,8 +3,8 @@ import {
   OracleExtractResultSchema,
   SurfaceExtractResultSchema,
   type Suite,
-  type SupportMatrix,
 } from "ax-eval";
+import type { SupportMatrix } from "../src/authoring/artifact-contracts.js";
 import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 import {
   composePack,

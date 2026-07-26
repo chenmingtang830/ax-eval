@@ -38,7 +38,11 @@ declared `NILE_DB` sandbox does not match the database in `NILE_DATABASE_URL`.
 Pack composition and database prompt overrides are arena-owned under
 `src/authoring/`; the core package no longer exports their implementation.
 Canonical/legacy benchmark paths and the artifact persistence wrappers moved
-from core are also arena-owned. They use no-follow, single-link, and inode
+from core are also arena-owned. The concept universe, coverage/selection/support
+matrices, grader ledger, failure taxonomy, and trace-review contracts live here,
+as does database-specific capability-inventory audit policy. Core retains only
+the generic capability-inventory and suite-methodology schemas. The persistence
+wrappers use no-follow, single-link, and inode
 validation under an exclusive trusted-checkout-UID assumption. Remaining
 arena-native direct file I/O is a later hardening seam. Canonical-suite oracle
 extraction lives here too: grounded prompts, retry/concurrency behavior,

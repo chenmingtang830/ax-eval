@@ -50,8 +50,8 @@ import {
   type ResolveResult,
   type Suite,
   type SuiteTask,
-  type SupportMatrix,
 } from "ax-eval";
+import type { SupportMatrix } from "./artifact-contracts.js";
 
 const CHECK_FORMAT_RULES = [
   `Each check is one machine-checkable assertion.`,
