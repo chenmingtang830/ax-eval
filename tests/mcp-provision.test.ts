@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -53,22 +53,18 @@ function pack(): TargetPack {
   });
 }
 
-function tursoCliPack(): TargetPack {
+function cliPack(): TargetPack {
   return TargetPackSchema.parse({
-    name: "turso",
-    auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
-    base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
+    name: "demo-cli",
+    auth: { type: "none", env: "" },
+    base_url: "https://api.demo.test",
     surfaces: {
       cli: {
-        bin: "turso",
-        install: "Install the official Turso CLI from the Turso CLI documentation.",
-        help: "turso --help",
-        docs_url: "https://docs.turso.tech/cli",
-        auth: {
-          kind: "token",
-          token_env: "TURSO_DATABASE_AUTH_TOKEN",
-          token_env_aliases: [],
-        },
+        bin: "demo-cli",
+        install: "Install the demo CLI.",
+        help: "demo-cli --help",
+        docs_url: "https://docs.demo.test/cli",
+        auth: { kind: "inherit" },
       },
     },
     tasks: [
@@ -76,7 +72,7 @@ function tursoCliPack(): TargetPack {
         id: "t1",
         prompt: "Run one CLI task.",
         allowed_surfaces: ["cli"],
-        oracles: [{ type: "roundtrip", readPathTemplate: "/v2/pipeline", assertField: "results.0", expected: "x" }],
+        oracles: [{ type: "roundtrip", readPathTemplate: "/items/{gid}", assertField: "id", expected: "x" }],
       },
     ],
   });
@@ -88,7 +84,7 @@ describe("provisionHarnessForSurface", () => {
     const outside = freshDir();
     symlinkSync(outside, resolve(dir, ".invoke-home"));
     await expect(provisionHarnessForSurface({
-      pack: tursoCliPack(),
+      pack: cliPack(),
       harness: "codex",
       surface: "cli",
       paths: defaultInvokePaths(dir, "cell-cli", "codex"),
@@ -276,119 +272,21 @@ describe("provisionHarnessForSurface", () => {
     expect(config).not.toContain("inherited-secret");
   });
 
-  it("injects a shared preinstalled Turso CLI into non-MCP CLI surfaces", async () => {
+  it("leaves product-specific CLI provisioning to runtime extensions", async () => {
     const dir = freshDir();
-    const paths = defaultInvokePaths(dir, "claude-low-cli", "claude-code");
-    const sharedHome = resolve(dir, ".invoke-home", "turso-cli-shared");
-    const sharedBin = resolve(sharedHome, ".turso");
-    mkdirSync(sharedBin, { recursive: true });
-    writeFileSync(resolve(sharedBin, "turso"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-
-    const claudeProvisioning = await provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "claude-code",
-      surface: "cli",
-      paths,
-      cwd: "/repo",
-      allowDownloads: true,
-    });
-    expect(claudeProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
-    expect(claudeProvisioning.meta?.shared_cli_home).toBe(sharedHome);
-
-    const codexPaths = defaultInvokePaths(dir, "codex-low-cli", "codex");
-    const codexProvisioning = await provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "codex",
-      surface: "cli",
-      paths: codexPaths,
-      cwd: "/repo",
-      allowDownloads: true,
-    });
-    expect(codexProvisioning.env.PATH?.split(":")[0]).toBe(sharedBin);
-    expect(codexProvisioning.env.HOME).toContain(".invoke-home");
-    expect(codexProvisioning.meta?.shared_cli_binary).toBe(resolve(sharedBin, "turso"));
-  });
-
-  it("never trusts the writable shared Turso cache in no-download cell mode", async () => {
-    const dir = freshDir();
-    const paths = defaultInvokePaths(dir, "cell-cli", "codex");
-    const sharedBin = resolve(dir, ".invoke-home", "turso-cli-shared", ".turso");
-    mkdirSync(sharedBin, { recursive: true });
-    writeFileSync(resolve(sharedBin, "turso"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-
-    await expect(provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "codex",
-      surface: "cli",
-      paths,
-      cwd: dir,
-      env: { PATH: "" },
-      allowDownloads: false,
-      allowAmbientHarnessAuth: false,
-    })).rejects.toThrow(/install a pinned turso binary/);
-  });
-
-  it("selects a preinstalled Turso binary outside the writable artifact tree", async () => {
-    const dir = freshDir();
-    const binDir = resolve(freshDir(), "bin");
-    mkdirSync(binDir, { recursive: true });
-    const binary = resolve(binDir, "turso");
-    writeFileSync(binary, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    const paths = defaultInvokePaths(dir, "cell-cli", "codex");
-
     const provisioning = await provisionHarnessForSurface({
-      pack: tursoCliPack(),
+      pack: cliPack(),
       harness: "codex",
       surface: "cli",
-      paths,
-      cwd: dir,
-      env: { PATH: binDir },
+      paths: defaultInvokePaths(dir, "codex-low-cli", "codex"),
+      cwd: "/repo",
+      env: { PATH: "/controller-selected/bin" },
       allowDownloads: false,
       allowAmbientHarnessAuth: false,
     });
-    expect(provisioning.meta?.shared_cli_binary).toBe(realpathSync(binary));
-    expect(provisioning.env.PATH?.split(":")[0]).toBe(realpathSync(binDir));
-  });
-
-  it("rejects a PATH Turso symlink that resolves into the artifact tree", async () => {
-    const dir = freshDir();
-    const artifactBin = resolve(dir, "planted");
-    mkdirSync(artifactBin, { recursive: true });
-    const planted = resolve(artifactBin, "turso-real");
-    writeFileSync(planted, "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-    const pathBin = resolve(freshDir(), "bin");
-    mkdirSync(pathBin, { recursive: true });
-    symlinkSync(planted, resolve(pathBin, "turso"));
-
-    await expect(provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "codex",
-      surface: "cli",
-      paths: defaultInvokePaths(dir, "cell-cli", "codex"),
-      cwd: dir,
-      env: { PATH: pathBin },
-      allowDownloads: false,
-      allowAmbientHarnessAuth: false,
-    })).rejects.toThrow(/must not resolve inside the writable artifact directory/);
-  });
-
-  it("rejects a Turso binary planted elsewhere in the writable cell workspace", async () => {
-    const cwd = freshDir();
-    const artifacts = resolve(cwd, "artifacts");
-    mkdirSync(artifacts, { recursive: true });
-    const workspaceBin = resolve(cwd, "node_modules", ".bin");
-    mkdirSync(workspaceBin, { recursive: true });
-    writeFileSync(resolve(workspaceBin, "turso"), "#!/bin/sh\nexit 0\n", { mode: 0o755 });
-
-    await expect(provisionHarnessForSurface({
-      pack: tursoCliPack(),
-      harness: "codex",
-      surface: "cli",
-      paths: defaultInvokePaths(artifacts, "cell-cli", "codex"),
-      cwd,
-      env: { PATH: workspaceBin },
-      allowDownloads: false,
-      allowAmbientHarnessAuth: false,
-    })).rejects.toThrow(/must not resolve inside the writable cell workspace/);
+    expect(provisioning.env.PATH).toBeUndefined();
+    expect(provisioning.env.HOME).toContain(".invoke-home");
+    expect(provisioning.meta).not.toHaveProperty("shared_cli_home");
+    expect(provisioning.meta).not.toHaveProperty("shared_cli_binary");
   });
 });

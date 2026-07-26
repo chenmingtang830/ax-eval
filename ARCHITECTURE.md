@@ -212,7 +212,12 @@ the core harness environment (including direct `env.PATH` replacement). A
 provider may instead return additive `pathEntries`; core canonicalizes and
 prepends only real directories that resolve outside both the writable cell
 workspace and artifact tree. Tool binaries must be pinned and preinstalled in
-those external directories.
+those external directories. Core harness provisioning creates generic isolated
+homes and MCP auth configuration only; it has no product-name branch, tool
+downloader, or Turso PATH fallback. Arena's Turso provider owns binary discovery,
+version/hash attestation, and additive PATH registration. A direct core cell
+without an arena registry retains ordinary caller-PATH CLI behavior and cannot
+be admitted as a trusted arena cell.
 Trusted dispatch validation, OCI/sysroot preparation, Bubblewrap smoke tests,
 sealed-artifact export, and detached-subject construction live under
 `ax-arena/benchmark/scripts/`. GitHub keeps only its required launcher under
@@ -535,6 +540,10 @@ It supports:
 - OAuth-app MCP auth via refresh-token exchange
 - isolated per-run Codex and Claude homes/configs
 - bearer token injection without writing secrets to tracked files
+
+It does not install or select product CLIs. Controllers provide those through
+the runtime provisioning registry; DAEB's pinned Turso implementation lives in
+`ax-arena/benchmark/src/providers/turso-provisioning.ts`.
 
 This is how hosted OAuth-backed MCP surfaces can run headlessly while still
 keeping secret handling local to the invoking process.

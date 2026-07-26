@@ -1,7 +1,6 @@
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
-import { spawnSync } from "node:child_process";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
@@ -259,10 +258,6 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
   return { home, configPath };
 }
 
-function prependPath(dir: string, currentPath = process.env.PATH ?? ""): string {
-  return currentPath ? `${dir}:${currentPath}` : dir;
-}
-
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
   const artifactDir = resolve(dirname(paths.resultsPath));
   const homeRoot = resolve(artifactDir, ".invoke-home");
@@ -282,63 +277,6 @@ function ensureInvokeHomeRoot(paths: InvokePaths): string {
   return homeRoot;
 }
 
-function ensureTursoCli(
-  paths: InvokePaths,
-  workspaceRoot: string,
-  source: Readonly<Record<string, string | undefined>> = process.env,
-  allowDownloads = true,
-): { home: string; binDir: string; binaryPath: string } {
-  const sharedHome = resolve(dirname(paths.resultsPath), ".invoke-home", "turso-cli-shared");
-  const binaryPath = resolve(sharedHome, ".turso", "turso");
-  if (!allowDownloads) {
-    const found = spawnSync("/usr/bin/which", ["turso"], {
-      env: source as NodeJS.ProcessEnv,
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).stdout?.trim();
-    if (found && existsSync(found)) {
-      const resolvedBinary = realpathSync(found);
-      const stat = lstatSync(resolvedBinary);
-      const artifactDir = realpathSync(dirname(paths.resultsPath));
-      const rel = relative(artifactDir, resolvedBinary);
-      const workspaceDir = realpathSync(workspaceRoot);
-      const workspaceRel = relative(workspaceDir, resolvedBinary);
-      if (!stat.isFile() || (stat.mode & 0o111) === 0) {
-        throw new Error(`preinstalled turso binary is not an executable regular file: ${resolvedBinary}`);
-      }
-      if (rel === "" || (rel !== ".." && !rel.startsWith(`..${sep}`) && !isAbsolute(rel))) {
-        throw new Error("preinstalled turso binary must not resolve inside the writable artifact directory");
-      }
-      if (workspaceRel === "" || (workspaceRel !== ".." && !workspaceRel.startsWith(`..${sep}`) && !isAbsolute(workspaceRel))) {
-        throw new Error("preinstalled turso binary must not resolve inside the writable cell workspace");
-      }
-      return { home: source.HOME ?? "", binDir: dirname(resolvedBinary), binaryPath: resolvedBinary };
-    }
-    throw new Error("automatic Turso CLI download is disabled for cell runs; install a pinned turso binary first");
-  }
-  if (existsSync(binaryPath)) {
-    return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
-  }
-  rmSync(sharedHome, { recursive: true, force: true });
-  mkdirSync(sharedHome, { recursive: true });
-  const install = spawnSync("/bin/sh", ["-lc", "curl -sSfL https://get.tur.so/install.sh | bash"], {
-    cwd: dirname(paths.resultsPath),
-    env: {
-      ...source,
-      HOME: sharedHome,
-      PATH: source.PATH ?? "",
-    },
-    stdio: ["ignore", "pipe", "pipe"],
-    encoding: "utf8",
-    maxBuffer: 10 * 1024 * 1024,
-  });
-  if (install.status !== 0 || !existsSync(binaryPath)) {
-    const detail = (install.stderr || install.stdout || `exit ${install.status ?? "unknown"}`).trim();
-    throw new Error(`failed to provision shared Turso CLI: ${detail.slice(0, 500)}`);
-  }
-  return { home: sharedHome, binDir: dirname(binaryPath), binaryPath };
-}
-
 /**
  * Provision an invoked harness with pack-declared MCP auth. This deliberately
  * avoids relying on a developer's already-authenticated global MCP session.
@@ -355,51 +293,23 @@ export async function provisionHarnessForSurface(opts: {
 }): Promise<HarnessProvisioning> {
   ensureInvokeHomeRoot(opts.paths);
   const source = opts.env ?? process.env;
-  const tursoCli =
-    opts.surface === "cli" && opts.pack.name === "turso"
-      ? ensureTursoCli(opts.paths, opts.cwd, source, opts.allowDownloads !== false)
-      : undefined;
   if (opts.surface !== "mcp") {
     if (opts.harness === "claude-code") {
       if (opts.allowAmbientHarnessAuth !== false) {
-        return tursoCli
-          ? {
-              env: { PATH: prependPath(tursoCli.binDir, source.PATH) },
-              meta: {
-                shared_cli_home: tursoCli.home,
-                shared_cli_binary: tursoCli.binaryPath,
-              },
-            }
-          : { env: {} };
+        return { env: {} };
       }
       const claude = writeClaudeNoMcpHome(opts.paths);
       return {
-        env: {
-          HOME: claude.home,
-          ...(tursoCli ? { PATH: prependPath(tursoCli.binDir, source.PATH) } : {}),
-        },
+        env: { HOME: claude.home },
         meta: {
           claude_home: claude.home,
           claude_config: claude.configPath,
           mcp_provisioning: "disabled_for_non_mcp_surface",
-          ...(tursoCli
-            ? { shared_cli_home: tursoCli.home, shared_cli_binary: tursoCli.binaryPath }
-            : {}),
         },
       };
     }
     if (opts.harness !== "codex") {
-      return tursoCli
-        ? {
-            env: {
-              PATH: prependPath(tursoCli.binDir, source.PATH),
-            },
-            meta: {
-              shared_cli_home: tursoCli.home,
-              shared_cli_binary: tursoCli.binaryPath,
-            },
-          }
-        : { env: {} };
+      return { env: {} };
     }
     const codex = writeCodexNoMcpHome({
       paths: opts.paths,
@@ -411,18 +321,11 @@ export async function provisionHarnessForSurface(opts: {
       env: {
         HOME: codex.home,
         CODEX_HOME: codex.codexDir,
-        ...(tursoCli ? { PATH: prependPath(tursoCli.binDir, source.PATH) } : {}),
       },
       meta: {
         codex_home: codex.home,
         codex_config: codex.configPath,
         mcp_provisioning: "disabled_for_non_mcp_surface",
-        ...(tursoCli
-          ? {
-              shared_cli_home: tursoCli.home,
-              shared_cli_binary: tursoCli.binaryPath,
-            }
-          : {}),
       },
     };
   }

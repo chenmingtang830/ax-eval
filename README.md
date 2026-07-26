@@ -140,7 +140,11 @@ audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
 may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
 private `ax-eval/src/**` imports. Arena owns its database runtime providers,
 batch aggregation, competitive reporting, publication bundle/export, and trusted
-controller entrypoints. Canonical/legacy DAEB path selection and all benchmark
+controller entrypoints. Core harness provisioning does not download, locate, or
+inject product-specific CLI tools; arena supplies pinned tools through its
+runtime-extension registry. A direct generic `runCell` call without that registry
+uses the caller-selected PATH and is not a trusted/comparable arena execution.
+Canonical/legacy DAEB path selection and all benchmark
 authoring persistence are arena-owned; core exposes only generic authoring
 schemas, single-product capability/surface extraction, and explicit-input
 transforms. Canonical-suite oracle extraction—including grounded prompt,
