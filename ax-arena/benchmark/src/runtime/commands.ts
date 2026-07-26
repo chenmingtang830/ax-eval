@@ -1,10 +1,12 @@
-import { lstatSync, readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { existsSync, lstatSync, readFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { resolveBatchIdentity } from "../controller/batch.js";
 import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
 import { writeRuntimeReportingBundle } from "../controller/reporting.js";
 import { buildArenaPublicationExport } from "../publication/export.js";
 import { writeArenaCompetitiveReport } from "../publication/competitive.js";
+import { buildArenaPublicationBundle } from "../publication/bundle.js";
 import {
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
@@ -16,6 +18,7 @@ export const RUNTIME_COMMANDS = [
   "execute",
   "aggregate",
   "competitive",
+  "publication-bundle",
   "publish",
   "export-publication",
   "daeb-low-pass",
@@ -43,6 +46,9 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
   }
   if (command === "competitive") {
     return "usage: ax-arena benchmark competitive --from <sealed-publication-bundle> [--html out.html] [--generated-at <UTC ISO>]";
+  }
+  if (command === "publication-bundle") {
+    return "usage: ax-arena benchmark publication-bundle --run-root <completed-run-dir> --out <new-bundle-dir> [--benchmark-root <arena-daeb-root>] [--generated-at <exact UTC ISO>]";
   }
   if (command === "publish") {
     return "usage: ax-arena benchmark publish --run-root <dir>\n  Publication remains fail-closed until trusted workflow activation.";
@@ -105,6 +111,17 @@ function readBoundedJson(path: string, label: string): unknown {
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${label} must be a regular file`);
   if (stat.size > 16 * 1024 * 1024) throw new Error(`${label} exceeds the 16 MiB input limit`);
   return JSON.parse(readFileSync(path, "utf8"));
+}
+
+function shippedBenchmarkRoot(): string {
+  const moduleDirectory = dirname(fileURLToPath(import.meta.url));
+  const candidates = [
+    resolve(moduleDirectory, "../../daeb"),
+    resolve(moduleDirectory, "../daeb"),
+  ];
+  const found = candidates.find((candidate) => existsSync(candidate));
+  if (!found) throw new Error("could not locate the shipped arena DAEB root; pass --benchmark-root explicitly");
+  return found;
 }
 
 function failClosedExecution(command: RuntimeCommand, argv: readonly string[]): never {
@@ -171,6 +188,24 @@ export async function runRuntimeCommand(
     io.stdout(`Saved axarena export → ${outDir}`);
     io.stdout(`Saved manifest → ${resolve(cwd, outDir, "manifest.json")}`);
     io.stdout(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
+    return 0;
+  }
+  if (command === "publication-bundle") {
+    assertOnly(values, ["--run-root", "--out", "--benchmark-root", "--generated-at"]);
+    const runRoot = resolve(cwd, one(values, "--run-root", true)!);
+    const outDir = resolve(cwd, one(values, "--out", true)!);
+    const benchmarkRootValue = one(values, "--benchmark-root");
+    const benchmarkRoot = benchmarkRootValue ? resolve(cwd, benchmarkRootValue) : shippedBenchmarkRoot();
+    const generatedAtValue = one(values, "--generated-at");
+    const generatedAt = generatedAtValue === undefined ? new Date() : new Date(generatedAtValue);
+    if (!Number.isFinite(generatedAt.getTime())
+      || generatedAtValue !== undefined && generatedAt.toISOString() !== generatedAtValue) {
+      throw new Error("--generated-at must be an exact UTC ISO timestamp");
+    }
+    const manifest = buildArenaPublicationBundle({ runRoot, outDir, benchmarkRoot, generatedAt });
+    io.stdout(`Saved arena publication bundle → ${outDir}`);
+    io.stdout(`Saved manifest → ${resolve(outDir, "manifest.json")}`);
+    io.stdout(`${manifest.vendors.length} vendor(s); ${manifest.publication_readiness}.`);
     return 0;
   }
   if (command === "competitive") {

@@ -12,7 +12,7 @@ import {
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { runArenaCli, type CliIo } from "../src/cli.js";
 import {
   ArenaBatchCompletionSchema,
@@ -20,12 +20,32 @@ import {
   arenaBatchConfigurationHash,
   type ArenaBatchManifest,
 } from "../src/controller/schemas.js";
-import { renderArenaCompetitiveReport, writeArenaCompetitiveReport } from "../src/publication/competitive.js";
+import { bubblewrapPolicyHash } from "../src/controller/sandbox.js";
+import { aggregateArenaCellRecords } from "../src/controller/reporting.js";
+import {
+  renderArenaCompetitiveReport,
+  writeArenaCompetitiveReportFromVerifiedCohort,
+} from "../src/publication/competitive.js";
+import { loadArenaPublicationCohortForTest } from "../src/publication/export.js";
+
+vi.mock("../src/publication/attestation.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../src/publication/attestation.js")>();
+  return {
+    ...actual,
+    verifyBundledHostedAttestation: () => ({ sha256: "f".repeat(64), version: "gh version 2.80.0 (test fixture)" }),
+  };
+});
 
 const REPOSITORY_ROOT = fileURLToPath(new URL("../../../", import.meta.url));
 const CORE_CLI = resolve(REPOSITORY_ROOT, "src", "cli.ts");
 const TSX_LOADER = fileURLToPath(import.meta.resolve("tsx"));
 const GENERATED_AT = new Date("2026-07-21T00:00:00.000Z");
+
+const writeArenaCompetitiveReport = (opts: Parameters<typeof writeArenaCompetitiveReportFromVerifiedCohort>[0]) =>
+  writeArenaCompetitiveReportFromVerifiedCohort(
+    opts,
+    loadArenaPublicationCohortForTest({ root: opts.root, bundleDir: opts.bundleDir }),
+  );
 
 function writeJson(path: string, value: unknown): void {
   mkdirSync(resolve(path, ".."), { recursive: true });
@@ -56,6 +76,16 @@ function createBatch(root: string, betaSurfaces: Array<"api" | "cli"> = ["api", 
     })))));
   const configuration = {
     command: "daeb-production-rerun" as const,
+    execution: { runtime_backend: "pinned-oci" as const, trust_level: "hosted-trusted" as const },
+    sandbox: {
+      kind: "bubblewrap" as const,
+      policy_version: "ax.arena-bubblewrap/v2" as const,
+      runtime_lock_sha256: "7".repeat(64),
+      sysroot: "/opt/ax-arena-runtime/rootfs" as const,
+      executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+      executable_sha256: "8".repeat(64),
+      runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
+    },
     suite: { name: "DAEB-1", version: 1, file_hash: "e".repeat(64) },
     packs: Object.entries(vendorSurfaces).map(([vendor, surfaces]) => ({
       vendor,
@@ -168,9 +198,12 @@ function createSealedBundle(
   const bundleDir = "bundle";
   const bundle = resolve(root, bundleDir);
   const artifactPaths: string[] = [];
-  const artifactJson = (path: string, value: unknown): void => {
-    writeJson(resolve(bundle, path), value);
+  const artifactJson = (path: string, value: unknown): Buffer => {
+    const bytes = Buffer.from(`${JSON.stringify(value, null, 2)}\n`);
+    mkdirSync(resolve(bundle, path, ".."), { recursive: true });
+    writeFileSync(resolve(bundle, path), bytes);
     artifactPaths.push(path);
+    return bytes;
   };
   const artifactText = (path: string, value: string): void => {
     mkdirSync(resolve(bundle, path, ".."), { recursive: true });
@@ -313,9 +346,13 @@ function createSealedBundle(
   artifactJson("provenance/batch-completion.json", completion);
 
   const recordsByVendor: Record<string, string[]> = { alpha: [], beta: [] };
-  for (const aggregate of records) {
-    const cohort = `${aggregate.product}/${aggregate.surface}/${aggregate.harness}`;
-    aggregate.source_records = sources.get(cohort)!;
+  for (let index = 0; index < records.length; index += 1) {
+    const template = records[index]!;
+    const cohort = `${template.product}/${template.surface}/${template.harness}`;
+    const sourcePaths = sources.get(cohort)!;
+    const cellRecords = sourcePaths.map((source) => JSON.parse(readFileSync(resolve(bundle, source), "utf8")));
+    const aggregate = aggregateArenaCellRecords(cellRecords, sourcePaths, "2026-07-20T01:00:00.000Z");
+    records[index] = aggregate;
     const path = `records/${aggregate.product}-${aggregate.surface}-${aggregate.harness}.json`;
     artifactJson(path, aggregate);
     recordsByVendor[aggregate.product]!.push(path);
@@ -343,6 +380,87 @@ function createSealedBundle(
   artifactText("competitive.html", "<html>previous</html>\n");
   const batchBytes = readFileSync(resolve(bundle, "provenance/batch.json"));
   const completionBytes = readFileSync(resolve(bundle, "provenance/batch-completion.json"));
+  const configurationBytes = artifactJson("provenance/configuration.json", batch.configuration);
+  const runtimeManifestBytes = artifactJson("provenance/runtime-manifest.json", {
+    schema: "ax.arena-trusted-runtime-manifest/v1",
+    platform: "linux/amd64",
+    runtime_lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+    runtime_lock_sha256: "7".repeat(64),
+    sysroot: "/opt/ax-arena-runtime/rootfs",
+    container: { image: "example.invalid/runtime", digest: `sha256:${"6".repeat(64)}`, node_version: "22.23.1" },
+    node_executable_sha256: "5".repeat(64),
+    tools_tree_sha256: "4".repeat(64),
+    entries: [],
+  });
+  const aggregatePath = recordsByVendor.alpha![0]!;
+  const reportBytes = artifactJson("provenance/runtime-reporting.json", {
+    schema: "ax.arena-runtime-report/v1",
+    batch_id: batch.batch_id,
+    configuration_hash: batch.configuration_hash,
+    source_commit_sha: batch.source_commit_sha,
+    batch_manifest_sha256: createHash("sha256").update(batchBytes).digest("hex"),
+    batch_completion_sha256: createHash("sha256").update(completionBytes).digest("hex"),
+    execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
+    sandbox_provenance: {
+      id: "ax-arena-bubblewrap",
+      version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "7".repeat(64),
+      implementation_sha256: "8".repeat(64),
+      policy_sha256: bubblewrapPolicyHash(batch.configuration.sandbox!),
+    },
+    generated_at: "2026-07-20T01:00:00.000Z",
+    surface_reports: [{
+      vendor: "alpha",
+      surface: "api",
+      snapshot_path: "snapshots/alpha.json",
+      snapshot_sha256: createHash("sha256").update(readFileSync(resolve(bundle, "snapshots/alpha.json"))).digest("hex"),
+      html_path: "competitive.html",
+      html_sha256: createHash("sha256").update(readFileSync(resolve(bundle, "competitive.html"))).digest("hex"),
+      failure_review_path: "methodology.md",
+      failure_review_sha256: createHash("sha256").update(readFileSync(resolve(bundle, "methodology.md"))).digest("hex"),
+    }],
+    aggregates: [{
+      vendor: "alpha",
+      surface: "api",
+      harness: "codex",
+      trial_count: 3,
+      aggregate_record_path: aggregatePath,
+      aggregate_record_sha256: createHash("sha256").update(readFileSync(resolve(bundle, aggregatePath))).digest("hex"),
+      trial_manifest_path: "provenance/batch-completion.json",
+      trial_manifest_sha256: createHash("sha256").update(completionBytes).digest("hex"),
+    }],
+  });
+  const subjectBytes = artifactJson("provenance/trusted-run-subject.json", {
+    schema: "ax.arena-trusted-run-subject/v1",
+    repository: "chenmingtang830/ax-eval",
+    source_commit_sha: batch.source_commit_sha,
+    protected_default_branch: "main",
+    workflow: {
+      ref: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main",
+      sha: "d".repeat(40),
+      run_id: "12345",
+      run_attempt: "1",
+      environment: "trusted-sandbox",
+    },
+    runtime: {
+      lock_path: "ax-arena/benchmark/trusted-runtime/runtime-lock.json",
+      lock_sha256: "7".repeat(64),
+      container_digest: `sha256:${"6".repeat(64)}`,
+      tools_tree_sha256: "4".repeat(64),
+      manifest: { path: "runtime-manifest.json", sha256: createHash("sha256").update(runtimeManifestBytes).digest("hex") },
+    },
+    configuration: { path: "configuration.json", sha256: createHash("sha256").update(configurationBytes).digest("hex") },
+    batch: {
+      id: batch.batch_id,
+      configuration_hash: batch.configuration_hash,
+      completed_cells: completion.cells.length,
+      manifest: { path: "batch.json", sha256: createHash("sha256").update(batchBytes).digest("hex") },
+      completion: { path: "batch-completion.json", sha256: createHash("sha256").update(completionBytes).digest("hex") },
+    },
+    source_artifacts: [{ path: "ax-arena/benchmark/daeb/v1/suite.yaml", sha256: "e".repeat(64) }],
+  });
+  const detachedBundles = Buffer.from('{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n');
+  artifactText("provenance/github-attestation-bundles.jsonl", detachedBundles.toString("utf8"));
   const vendorSurfaces = Object.fromEntries(batch.configuration.packs.map((pack) => [pack.vendor, pack.surfaces]));
   const manifest = {
     schema: "ax.publication-bundle/v2",
@@ -350,6 +468,7 @@ function createSealedBundle(
     category: "database",
     suite: "suite/daeb-1.yaml",
     suite_version: 1,
+    generated_at: "2026-07-20T01:00:00.000Z",
     publication_readiness: "publication_ready",
     expected_matrix: {
       surfaces: [...new Set(batch.configuration.packs.flatMap((pack) => pack.surfaces))],
@@ -365,10 +484,15 @@ function createSealedBundle(
     },
     vendors: ["alpha", "beta"].map((vendor) => ({
       slug: vendor,
+      pack: `vendors/${vendor}/compiled-pack.yaml`,
       expected_surfaces: vendorSurfaces[vendor],
+      missing: [],
+      validation_errors: [],
       artifacts: { normalized_records: recordsByVendor[vendor], snapshots: [`snapshots/${vendor}.json`] },
     })),
     competitive_report: "competitive.html",
+    missing: [],
+    notes: [],
     integrity: {
       schema: "ax.publication-integrity/v1",
       source_commit_sha: batch.source_commit_sha,
@@ -378,6 +502,21 @@ function createSealedBundle(
       batch_manifest_sha256: createHash("sha256").update(batchBytes).digest("hex"),
       batch_completion_path: "provenance/batch-completion.json",
       batch_completion_sha256: createHash("sha256").update(completionBytes).digest("hex"),
+      runtime_report_path: "provenance/runtime-reporting.json",
+      runtime_report_sha256: createHash("sha256").update(reportBytes).digest("hex"),
+      attestation: {
+        schema: "ax.github-oidc-attestation-verification/v1",
+        subject_path: "provenance/trusted-run-subject.json",
+        subject_sha256: createHash("sha256").update(subjectBytes).digest("hex"),
+        detached_bundles_path: "provenance/github-attestation-bundles.jsonl",
+        detached_bundles_sha256: createHash("sha256").update(detachedBundles).digest("hex"),
+        repository: "chenmingtang830/ax-eval",
+        signer_workflow: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml",
+        workflow_ref: "chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main",
+        workflow_sha: "d".repeat(40),
+        run_id: "12345",
+        run_attempt: "1",
+      },
       files: [...new Set(artifactPaths)].sort().map((path) => {
         const bytes = readFileSync(resolve(bundle, path));
         return { path, sha256: createHash("sha256").update(bytes).digest("hex"), bytes: bytes.length };
@@ -497,10 +636,10 @@ describe("arena competitive reporting", () => {
         "--html", "results/report.html",
         "--generated-at", GENERATED_AT.toISOString(),
       ], output.io, root);
-      expect(output.stderr).toEqual([]);
-      expect(code).toBe(0);
-      expect(output.stdout[0]).toContain("Saved competitive report");
-      expect(readFileSync(resolve(root, "results/report.html"), "utf8")).toContain(GENERATED_AT.toISOString());
+      expect(code).toBe(1);
+      expect(output.stderr[0]).toMatch(/signed protected-main source artifact|canonical suite/);
+      expect(output.stdout).toEqual([]);
+      expect(existsSync(resolve(root, "results/report.html"))).toBe(false);
 
       const missing = capture();
       await expect(runArenaCli(["benchmark", "competitive"], missing.io, root)).resolves.toBe(1);

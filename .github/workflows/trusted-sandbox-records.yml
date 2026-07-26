@@ -62,7 +62,11 @@ jobs:
         env:
           SOURCE_SHA: ${{ inputs.source_sha }}
           PROTECTED_DEFAULT_BRANCH: main
+          APPROVED_SIGNER_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
+          test "$APPROVED_SIGNER_SHA" = "$WORKFLOW_SHA"
+          test "${#APPROVED_SIGNER_SHA}" -eq 40
           test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
           git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH"
           git diff --quiet "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH" -- \
@@ -150,6 +154,7 @@ jobs:
           sudo install -o root -g root -m 0444 "$RUNTIME_MANIFEST_PATH" "$RUN_ROOT/runtime-manifest.json"
           node ax-arena/benchmark/scripts/trusted-attestation.mjs \
             --run-root "$RUN_ROOT" \
+            --source-root "$GITHUB_WORKSPACE" \
             --configuration configuration.json \
             --runtime-manifest runtime-manifest.json \
             --out "$RUN_ROOT/trusted-run-subject.json"
@@ -177,6 +182,7 @@ jobs:
     needs: cohort
     runs-on: ubuntu-22.04
     timeout-minutes: 30
+    environment: trusted-sandbox
     permissions:
       contents: read
       id-token: write
@@ -205,9 +211,14 @@ jobs:
         env:
           AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
           PROTECTED_DEFAULT_BRANCH: main
-        run: >-
-          node ax-arena/benchmark/scripts/trusted-attestation.mjs
-          --verify trusted-run/trusted-run-subject.json
+          APPROVED_SIGNER_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          test "$APPROVED_SIGNER_SHA" = "$WORKFLOW_SHA"
+          test "${#APPROVED_SIGNER_SHA}" -eq 40
+          node ax-arena/benchmark/scripts/trusted-attestation.mjs \
+            --verify trusted-run/trusted-run-subject.json \
+            --source-root "$GITHUB_WORKSPACE"
 
       - name: Create the OIDC-backed detached artifact attestation
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4

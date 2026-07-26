@@ -93,16 +93,22 @@ When production is unblocked and all vendor runs have been verified, freeze the
 publication bundle (core cohort only):
 
 ```bash
-npm run ax-eval -- publication-bundle \
-  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
-  --vendors neon,cockroachdb,turso,supabase,insforge,nile \
-  --run-dir results/runs/daeb-1-v1-production \
-  --out results/runs/daeb-1-v1-production/publication-bundle
+npm run ax-arena -- benchmark publication-bundle \
+  --run-root results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle \
+  --benchmark-root ax-arena/benchmark/daeb
 ```
 
 The bundle manifest is the handoff to the AXArena static website and the launch
-report. Treat missing snapshot/normalized artifacts as blockers for a final
-publication.
+report. The command accepts only an attested `pinned-oci + hosted-trusted`
+production rerun and verifies the detached GitHub OIDC attestation; local,
+low-pass, missing-artifact, and missing-attestation inputs are blockers. It
+requires externally approved `AX_ARENA_APPROVED_SIGNER_SHA` rather than the
+signer's self-described SHA. It also reruns canonical aggregation/reporting
+from attested cells, while export and competitive readers re-verify the
+preserved detached bundle, signed source assets, and exact bundle inventory.
+For official aggregation, use the signed `batch-completion.json` `completed_at`
+value as the reporting `--generated-at`; publication rejects a free timestamp.
 
 ### 1. Generate the frozen task set (or use a committed example)
 

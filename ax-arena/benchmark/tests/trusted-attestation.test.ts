@@ -5,6 +5,7 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const script = resolve(process.cwd(), "scripts", "trusted-attestation.mjs");
+const sourceRoot = resolve(process.cwd(), "../..");
 const canonical = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 
 function fixture() {
@@ -65,6 +66,7 @@ describe("trusted detached attestation subject", () => {
     const create = spawnSync(process.execPath, [
       script,
       "--run-root", test.runRoot,
+      "--source-root", sourceRoot,
       "--configuration", "configuration.json",
       "--runtime-manifest", "runtime-manifest.json",
       "--out", test.output,
@@ -84,10 +86,10 @@ describe("trusted detached attestation subject", () => {
       },
       batch: { id: "batch-1", completed_cells: 1 },
     });
-    const verify = spawnSync(process.execPath, [script, "--verify", test.output], { env: test.env, encoding: "utf8" });
+    const verify = spawnSync(process.execPath, [script, "--verify", test.output, "--source-root", sourceRoot], { env: test.env, encoding: "utf8" });
     expect(verify.status, verify.stderr).toBe(0);
     expect(verify.stdout).toMatch(/^[a-f0-9]{64}  /);
-    const wrongWorkflow = spawnSync(process.execPath, [script, "--verify", test.output], {
+    const wrongWorkflow = spawnSync(process.execPath, [script, "--verify", test.output, "--source-root", sourceRoot], {
       env: { ...test.env, GITHUB_WORKFLOW_SHA: "0".repeat(40) },
       encoding: "utf8",
     });
@@ -101,13 +103,14 @@ describe("trusted detached attestation subject", () => {
       const create = spawnSync(process.execPath, [
         script,
         "--run-root", test.runRoot,
+        "--source-root", sourceRoot,
         "--configuration", "configuration.json",
         "--runtime-manifest", "runtime-manifest.json",
         "--out", test.output,
       ], { env: test.env, encoding: "utf8" });
       expect(create.status, create.stderr).toBe(0);
       writeFileSync(resolve(test.runRoot, name), "{}\n");
-      const verify = spawnSync(process.execPath, [script, "--verify", test.output], { env: test.env, encoding: "utf8" });
+      const verify = spawnSync(process.execPath, [script, "--verify", test.output, "--source-root", sourceRoot], { env: test.env, encoding: "utf8" });
       expect(verify.status).not.toBe(0);
       expect(verify.stderr).toContain("does not match its detached attestation hash");
     }

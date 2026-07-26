@@ -332,7 +332,15 @@ task×surface-cell ratio, with numerator and denominator published.
 
 Publication boundary: `publication-bundle` then `export-publication`. The arena
 workspace owns benchmark truth and artifacts; an `axarena` app imports exported indexes
-rather than recomputing scores from raw run directories.
+rather than recomputing scores from raw run directories. `publication-bundle`
+accepts only `pinned-oci + hosted-trusted` production evidence and verifies the
+detached GitHub OIDC attestation from the protected-main workflow before it
+creates a `publication_ready` bundle; no local or low-pass draft path exists.
+The verifier requires externally supplied `AX_ARENA_APPROVED_SIGNER_SHA`; a
+subject cannot authorize its own workflow revision. Canonical aggregation and
+reporting run before the atomic rename and again on every downstream load,
+which also checks signed source assets, canonical metadata, and the exact
+physical inventory rather than trusting self-hashed manifest fields.
 
 Full tree, authoring commands, gates, and hygiene:
 [`ax-arena/benchmark/daeb/README.md`](./ax-arena/benchmark/daeb/README.md).

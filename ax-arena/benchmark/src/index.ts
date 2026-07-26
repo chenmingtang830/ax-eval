@@ -73,8 +73,31 @@ export type {
 export * from "./controller/batch.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
-export * from "./publication/export.js";
-export * from "./publication/competitive.js";
+export {
+  PUBLICATION_INTEGRITY_SCHEMA,
+  ArenaPublicationBundleSchema,
+  ArenaPublicationIntegritySchema,
+  ArenaPublicationExportManifestSchema,
+  ArenaNormalizedResultSchema,
+  publicationArtifactPaths,
+  loadArenaPublicationCohort,
+  buildArenaPublicationExport,
+} from "./publication/export.js";
+export type {
+  ArenaPublicationBundle,
+  ArenaPublicationIntegrity,
+  ArenaPublicationExportManifest,
+  ArenaPublicationExportFile,
+  BuildArenaPublicationExportOptions,
+  LoadArenaPublicationCohortOptions,
+  VerifiedArenaPublicationCohort,
+} from "./publication/export.js";
+export {
+  renderArenaCompetitiveReport,
+  writeArenaCompetitiveReport,
+} from "./publication/competitive.js";
+export type { WriteArenaCompetitiveReportOptions } from "./publication/competitive.js";
+export * from "./publication/bundle.js";
 export {
   ARENA_BATCH_COMPLETION_SCHEMA,
   ARENA_BATCH_SCHEMA,

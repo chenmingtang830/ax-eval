@@ -329,27 +329,36 @@ production runs cannot skip reset. After
 running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
-npm run ax-eval -- publication-bundle \
-  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
-  --run-dir results/runs/daeb-1-v1-production \
+npm run ax-arena -- benchmark publication-bundle \
+  --run-root results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle \
-  --effort-profiles high \
-  --required-effort-profiles high
+  --benchmark-root ax-arena/benchmark/daeb
 ```
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
 cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
-records, and competitive report. Missing live artifacts are listed explicitly;
-a publication-ready DAEB-1 v1 bundle has no missing references and all required
-quality gates passing.
+records, and competitive report. Bundle creation requires a complete
+`pinned-oci + hosted-trusted` production rerun and cryptographically verifies
+its detached GitHub OIDC attestation against the protected-main workflow.
+Set `AX_ARENA_APPROVED_SIGNER_SHA` to the independently approved 40-character
+workflow commit before bundle creation or downstream loading. The protected
+`trusted-sandbox` environment supplies the same value as
+`vars.AX_ARENA_APPROVED_SIGNER_SHA`; the subject cannot approve its own signer.
+Low-pass, local, native, missing-attestation, and invalid-attestation inputs are
+rejected; a publication-ready DAEB-1 v1 bundle has no missing references and
+all required quality gates passing. The writer recomputes aggregates, process
+snapshots, HTML, and failure review from attested cell bytes before its atomic
+rename; the reporting timestamp must equal the signed completion timestamp.
+The signed subject also binds the canonical DAEB source-artifact set.
+Export and competitive-report readers then re-verify the detached attestation,
+exact physical inventory, canonical manifest metadata, and regenerated reports.
 
 Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
 envelope. It binds aggregate scores to the canonical production batch and
 completion, derives trial scores and task drilldowns from sealed task outcomes,
 binds every snapshot run to one exact completed-cell evidence set, and
-recomputes the scored three-trial fields before writing. The legacy core bundle
-command remains draft-only until the hardened arena bundle writer lands; an
-unsealed historical v2 bundle cannot be promoted through this command.
+recomputes the scored three-trial fields before writing. An unsealed historical
+v2 bundle cannot be promoted through this command.
 
 `ax-eval` remains the tooling layer. The AXArena website should consume an
 exported dataset instead of learning runner internals or recomputing scores:

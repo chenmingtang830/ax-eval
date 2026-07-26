@@ -82,7 +82,8 @@ describe("trusted runtime lock and workflow", () => {
     expect(workflow.slice(cohortStart, attestStart)).not.toContain("id-token: write");
     expect(workflow.slice(cohortStart, attestStart)).not.toContain("attestations: write");
     expect(workflow.slice(attestStart)).toContain("id-token: write");
-    expect(workflow.slice(attestStart)).not.toContain("environment: trusted-sandbox");
+    expect(workflow.slice(attestStart)).toContain("environment: trusted-sandbox");
+    expect(workflow.slice(attestStart)).toContain("vars.AX_ARENA_APPROVED_SIGNER_SHA");
     expect(workflow.slice(attestStart)).not.toContain("secrets.");
     const uses = [...workflow.matchAll(/^\s*uses:\s*([^\s#]+).*$/gm)].map((match) => match[1]);
     expect(uses.length).toBeGreaterThan(0);

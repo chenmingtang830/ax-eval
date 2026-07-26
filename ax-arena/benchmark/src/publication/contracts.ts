@@ -14,12 +14,26 @@ const ArtifactSchema = z.object({
   report_html: ArtifactPathSchema.optional(),
   report_htmls: z.array(ArtifactPathSchema).optional(),
   normalized_records: z.array(ArtifactPathSchema),
-}).passthrough();
+}).strict();
 
 const PublicationLayerSchema = z.object({
   description: z.string(),
   methodology_artifacts: z.array(ArtifactPathSchema),
-}).passthrough();
+}).strict();
+
+const HostedAttestationSchema = z.object({
+  schema: z.literal("ax.github-oidc-attestation-verification/v1"),
+  subject_path: ArtifactPathSchema,
+  subject_sha256: Sha256Schema,
+  detached_bundles_path: ArtifactPathSchema,
+  detached_bundles_sha256: Sha256Schema,
+  repository: z.literal("chenmingtang830/ax-eval"),
+  signer_workflow: z.literal("chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml"),
+  workflow_ref: z.literal("chenmingtang830/ax-eval/.github/workflows/trusted-sandbox-records.yml@refs/heads/main"),
+  workflow_sha: z.string().regex(/^[a-f0-9]{40}$/),
+  run_id: z.string().regex(/^\d+$/),
+  run_attempt: z.string().regex(/^[1-9]\d*$/),
+}).strict();
 
 export const PUBLICATION_INTEGRITY_SCHEMA = "ax.publication-integrity/v1" as const;
 
@@ -32,10 +46,14 @@ export const ArenaPublicationIntegritySchema = z.object({
   batch_manifest_sha256: Sha256Schema,
   batch_completion_path: ArtifactPathSchema,
   batch_completion_sha256: Sha256Schema,
+  runtime_report_path: ArtifactPathSchema,
+  runtime_report_sha256: Sha256Schema,
+  attestation: HostedAttestationSchema,
   files: z.array(z.object({
     path: ArtifactPathSchema,
     sha256: Sha256Schema,
     bytes: z.number().int().nonnegative().safe(),
+    source_path: ArtifactPathSchema.optional(),
   }).strict()).min(1),
 }).strict().superRefine((integrity, context) => {
   const paths = integrity.files.map((file) => file.path);
@@ -57,6 +75,7 @@ export const ArenaPublicationBundleSchema = z.object({
   category: z.string().min(1),
   suite: ArtifactPathSchema,
   suite_version: z.number().int().nonnegative(),
+  generated_at: z.string().datetime({ offset: true }),
   publication_readiness: z.literal("publication_ready"),
   expected_matrix: z.object({
     surfaces: z.array(z.string()),
@@ -64,25 +83,30 @@ export const ArenaPublicationBundleSchema = z.object({
     effort_profiles: z.array(z.string()),
     required_effort_profiles: z.array(z.string()),
     expected_cells: z.number().int().nonnegative(),
-  }).passthrough(),
+  }).strict(),
   quality_gates: z.array(z.object({
     id: z.string(),
     label: z.string(),
     status: z.enum(["pass", "warn", "fail"]),
     detail: z.string(),
-  }).passthrough()),
+  }).strict()),
   layers: z.object({
     static_ax: PublicationLayerSchema,
     behavioral: PublicationLayerSchema,
-  }).passthrough(),
+  }).strict(),
   vendors: z.array(z.object({
     slug: z.string().min(1),
+    pack: ArtifactPathSchema,
     expected_surfaces: z.array(z.enum(["api", "cli", "sdk", "mcp"])).min(1).max(4),
+    missing: z.array(ArtifactPathSchema),
+    validation_errors: z.array(z.string()),
     artifacts: ArtifactSchema,
-  }).passthrough()),
-  competitive_report: ArtifactPathSchema.optional(),
+  }).strict()),
+  competitive_report: ArtifactPathSchema,
+  missing: z.array(ArtifactPathSchema),
+  notes: z.array(z.string()),
   integrity: ArenaPublicationIntegritySchema,
-}).passthrough();
+}).strict();
 export type ArenaPublicationBundle = z.infer<typeof ArenaPublicationBundleSchema>;
 
 /** Direct manifest references whose bytes affect the publication export.
@@ -93,6 +117,9 @@ export function publicationArtifactPaths(bundle: ArenaPublicationBundle): string
   const paths = [
     bundle.integrity.batch_manifest_path,
     bundle.integrity.batch_completion_path,
+    bundle.integrity.runtime_report_path,
+    bundle.integrity.attestation.subject_path,
+    bundle.integrity.attestation.detached_bundles_path,
     bundle.suite,
     ...bundle.layers.static_ax.methodology_artifacts,
     ...bundle.layers.behavioral.methodology_artifacts,

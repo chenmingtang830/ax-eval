@@ -116,3 +116,31 @@ harness pin. Structural N/A rows remain explicit. The ignored output directory
 must already exist; the no-follow writer never creates parent directories. The
 legacy `ax-eval` command remains active during the private-workspace
 compatibility period. Pass `--from <sealed-publication-bundle>`.
+
+`ax-arena benchmark publication-bundle` freezes a completed, aggregated arena
+run into a hardened `ax.publication-bundle/v2` directory. The immutable batch
+selects the vendors, surfaces, harnesses, models, profiles, and trials; callers
+cannot override the cohort. The command revalidates the batch, completion,
+report, aggregate, suite, pack, and approval hashes, copies only the canonical
+DAEB allowlist, generates the competitive report, and atomically publishes a
+manifest whose integrity section binds every exported artifact. Production
+bundles are created only from `pinned-oci + hosted-trusted` reruns whose
+detached GitHub OIDC attestation verifies against the protected-main workflow;
+native, local-pinned, low-pass, missing-attestation, and invalid-attestation
+runs fail closed instead of producing drafts. Verification requires external
+`AX_ARENA_APPROVED_SIGNER_SHA`; the protected environment variable
+`AX_ARENA_APPROVED_SIGNER_SHA` must equal `github.workflow_sha` before either
+credentials or signing are available. The bundle preserves the signed
+subject, runtime/configuration provenance, exact runtime report, completed-cell
+records, cleanup evidence, and all four artifact seals. Before the atomic rename,
+the writer reruns the canonical aggregator and reporting renderer from those
+attested cells and requires byte-identical aggregates, snapshots, HTML, and
+failure review. Its reporting timestamp must equal the signed completion time.
+Downstream cohort loading repeats that derivation, verifies
+the signed DAEB source set and exact physical inventory, and rejects rewritten
+manifest prose or extra files; a self-described integrity envelope is never
+sufficient.
+Freeze runs after all harness children exit and assumes exclusive use by the
+trusted controller UID; do not run an untrusted same-UID process concurrently
+against the output parent. The output parent must not be writable by an
+untrusted group or other UID.

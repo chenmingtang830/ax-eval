@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 
 const attestationScript = resolve(process.cwd(), "scripts", "trusted-attestation.mjs");
 const exportScript = resolve(process.cwd(), "scripts", "export-trusted-run.mjs");
+const sourceRoot = resolve(process.cwd(), "../..");
 const canonical = (value: unknown) => `${JSON.stringify(value, null, 2)}\n`;
 const sha256 = (value: string | Buffer) => createHash("sha256").update(value).digest("hex");
 
@@ -94,6 +95,7 @@ function fixture() {
   const create = spawnSync(process.execPath, [
     attestationScript,
     "--run-root", runRoot,
+    "--source-root", sourceRoot,
     "--configuration", "configuration.json",
     "--runtime-manifest", "runtime-manifest.json",
     "--out", subjectPath,

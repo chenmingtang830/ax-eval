@@ -164,6 +164,21 @@ describe("ax-arena benchmark CLI scaffold", () => {
     await expect(runArenaCli(["benchmark", "competitive", "--help"], competitiveHelp.io)).resolves.toBe(0);
     expect(competitiveHelp.stdout[0]).toContain("--from <sealed-publication-bundle>");
 
+    const bundleHelp = capture();
+    await expect(runArenaCli(["benchmark", "publication-bundle", "--help"], bundleHelp.io)).resolves.toBe(0);
+    expect(bundleHelp.stdout[0]).toContain("--run-root <completed-run-dir>");
+    expect(bundleHelp.stdout[0]).toContain("--benchmark-root <arena-daeb-root>");
+
+    const bundleMissing = capture();
+    await expect(runArenaCli(["benchmark", "publication-bundle", "--out", "bundle"], bundleMissing.io)).resolves.toBe(1);
+    expect(bundleMissing.stderr[0]).toContain("missing required flag --run-root");
+
+    const bundleTimestamp = capture();
+    await expect(runArenaCli([
+      "benchmark", "publication-bundle", "--run-root", "run", "--out", "bundle", "--generated-at", "today",
+    ], bundleTimestamp.io)).resolves.toBe(1);
+    expect(bundleTimestamp.stderr[0]).toContain("exact UTC ISO timestamp");
+
     const execute = capture();
     await expect(runArenaCli(["benchmark", "execute", "--run-root", "run"], execute.io)).resolves.toBe(1);
     expect(execute.stderr[0]).toContain("trusted workflow OS sandbox");

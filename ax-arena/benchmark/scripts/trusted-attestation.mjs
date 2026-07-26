@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fsyncSync, lstatSync, openSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fsyncSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
@@ -63,11 +63,42 @@ function relativeFile(root, path, label) {
   return rel.replaceAll("\\", "/");
 }
 
-function validateSubject(subject, root) {
+function sourceArtifactsForRoot(sourceRoot) {
+  const benchmarkRoot = resolve(sourceRoot, "ax-arena/benchmark/daeb");
+  if (realpathSync(benchmarkRoot) !== benchmarkRoot) {
+    throw new Error("trusted source artifact root cannot traverse a symlink");
+  }
+  const artifacts = [];
+  const visit = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
+      const path = resolve(directory, entry.name);
+      const stat = lstatSync(path);
+      if (entry.isSymbolicLink() || stat.isSymbolicLink() || realpathSync(path) !== path) {
+        throw new Error("trusted source artifacts cannot contain symlinks");
+      }
+      if (entry.isDirectory() && stat.isDirectory()) {
+        visit(path);
+      } else if (entry.isFile() && stat.isFile() && stat.nlink === 1) {
+        const relativePath = relative(sourceRoot, path).replaceAll("\\", "/");
+        if (!relativePath.startsWith("ax-arena/benchmark/daeb/") || stat.size > 64 * 1024 * 1024) {
+          throw new Error("trusted source artifact is outside the allowlisted tree or exceeds the size limit");
+        }
+        artifacts.push({ path: relativePath, sha256: sha256(readRegular(path, `trusted source artifact ${relativePath}`)) });
+      } else {
+        throw new Error("trusted source artifacts must contain only directories and single-linked regular files");
+      }
+      if (artifacts.length > 16_384) throw new Error("trusted source artifact tree exceeds the file-count limit");
+    }
+  };
+  visit(benchmarkRoot);
+  return artifacts.sort((left, right) => left.path.localeCompare(right.path));
+}
+
+function validateSubject(subject, root, sourceRoot) {
   subject = object(subject, "trusted attestation subject");
   exactKeys(subject, [
     "schema", "repository", "source_commit_sha", "protected_default_branch",
-    "workflow", "runtime", "configuration", "batch",
+    "workflow", "runtime", "configuration", "batch", "source_artifacts",
   ], "trusted attestation subject");
   const workflow = object(subject.workflow, "trusted workflow identity");
   const runtime = object(subject.runtime, "trusted runtime identity");
@@ -95,6 +126,22 @@ function validateSubject(subject, root) {
     || !/^[a-f0-9]{64}$/.test(batchSubject.configuration_hash ?? "")
     || !Number.isSafeInteger(batchSubject.completed_cells) || batchSubject.completed_cells < 1) {
     throw new Error("trusted attestation subject has an invalid contract");
+  }
+  if (!Array.isArray(subject.source_artifacts) || subject.source_artifacts.length < 1
+    || subject.source_artifacts.some((entry) => {
+      if (!entry || typeof entry !== "object" || Array.isArray(entry)) return true;
+      try { exactKeys(entry, ["path", "sha256"], "trusted source artifact"); } catch { return true; }
+      return typeof entry.path !== "string"
+        || !entry.path.startsWith("ax-arena/benchmark/daeb/")
+        || entry.path.includes("\\") || entry.path.includes("\0")
+        || entry.path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
+        || !/^[a-f0-9]{64}$/.test(entry.sha256 ?? "");
+    })) {
+    throw new Error("trusted source artifact references are invalid");
+  }
+  const expectedSourceArtifacts = sourceArtifactsForRoot(sourceRoot);
+  if (JSON.stringify(subject.source_artifacts) !== JSON.stringify(expectedSourceArtifacts)) {
+    throw new Error("trusted source artifacts do not match the exact signing checkout");
   }
   const checked = [];
   for (const [entry, label] of [
@@ -135,9 +182,10 @@ function validateSubject(subject, root) {
 if (process.argv.includes("--verify")) {
   const requestedSubjectPath = resolve(argument("--verify"));
   const root = realpathSync(dirname(requestedSubjectPath));
+  const sourceRoot = realpathSync(resolve(argument("--source-root")));
   const subjectPath = resolve(root, basename(requestedSubjectPath));
   const subject = readCanonical(subjectPath, "trusted attestation subject").value;
-  validateSubject(subject, root);
+  validateSubject(subject, root, sourceRoot);
   for (const [environmentName, actual, label] of [
     ["GITHUB_REPOSITORY", subject.repository, "repository"],
     ["AX_ARENA_SOURCE_SHA", subject.source_commit_sha, "source SHA"],
@@ -156,6 +204,7 @@ if (process.argv.includes("--verify")) {
 }
 
 const runRoot = realpathSync(resolve(argument("--run-root")));
+const sourceRoot = realpathSync(resolve(argument("--source-root")));
 const requestedOutputPath = resolve(argument("--out"));
 const outputPath = resolve(realpathSync(dirname(requestedOutputPath)), basename(requestedOutputPath));
 relativeFile(runRoot, outputPath, "trusted attestation subject");
@@ -204,8 +253,9 @@ const subject = {
     manifest: { path: relativeFile(runRoot, batchPath, "batch manifest"), sha256: sha256(batch.bytes) },
     completion: { path: relativeFile(runRoot, completionPath, "batch completion"), sha256: sha256(completion.bytes) },
   },
+  source_artifacts: sourceArtifactsForRoot(sourceRoot),
 };
-validateSubject(subject, runRoot);
+validateSubject(subject, runRoot, sourceRoot);
 const descriptor = openSync(outputPath, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o444);
 try {
   writeFileSync(descriptor, canonicalBytes(subject));

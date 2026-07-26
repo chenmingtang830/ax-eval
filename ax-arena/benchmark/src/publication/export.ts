@@ -10,32 +10,44 @@ import {
   mkdtempSync,
   openSync,
   readSync,
+  readdirSync,
   realpathSync,
   renameSync,
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { dirname, isAbsolute, posix, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, posix, relative, resolve } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import {
   NORMALIZED_RESULT_SCHEMA,
   NormalizedCellRecordSchema,
+  SuiteSchema,
+  TargetPackSchema,
+  validatePackAgainstSuite,
   type NormalizedCellRecord,
   type NormalizedResult,
 } from "ax-eval";
+import { parse as parseYaml } from "yaml";
 import { z } from "zod";
 import {
   ArenaBatchCompletionSchema,
   ArenaBatchManifestSchema,
   ArenaCellCleanupSchema,
+  ArenaRuntimeReportSchema,
   type ArenaBatchCompletion,
   type ArenaBatchManifest,
 } from "../controller/schemas.js";
+import { bubblewrapPolicyHash } from "../controller/sandbox.js";
+import { aggregateArenaCellRecords } from "../controller/reporting.js";
+import { TrustedRunSubjectSchema, verifyBundledHostedAttestation, type TrustedRunSubject } from "./attestation.js";
 import {
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
   publicationArtifactPaths,
   type ArenaPublicationBundle,
 } from "./contracts.js";
+import { assertCanonicalRuntimeDerivation } from "./derivation.js";
+import { renderArenaCompetitiveReport } from "./competitive.js";
 
 export {
   PUBLICATION_INTEGRITY_SCHEMA,
@@ -47,6 +59,16 @@ export type { ArenaPublicationBundle, ArenaPublicationIntegrity } from "./contra
 
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
 const PUBLICATION_EFFORT = "high" as const;
+const METHODOLOGY_FILES = [
+  "suite.methodology.yaml",
+  "suite.concept-universe.yaml",
+  "suite.coverage-matrix.yaml",
+  "suite.selection-ledger.yaml",
+  "suite.support-matrix.yaml",
+  "suite.grader-ledger.yaml",
+  "suite.failure-taxonomy.yaml",
+  "suite.trace-review.yaml",
+] as const;
 const PROTECTED_REPOSITORY_PATHS = [
   ".git",
   ".github",
@@ -343,14 +365,36 @@ function verifyPublicationIntegrity(
 ): Map<string, Buffer> {
   const retained = new Map<string, Buffer>();
   const listed = new Set(bundle.integrity.files.map((entry) => entry.path));
+  const physical: string[] = [];
+  const inventory = (directory: string, prefix = ""): void => {
+    for (const name of readdirSync(directory).sort()) {
+      const path = resolve(directory, name);
+      const relativePath = prefix ? `${prefix}/${name}` : name;
+      const stat = lstatSync(path);
+      if (stat.isSymbolicLink()) throw new Error(`publication bundle cannot contain symlink ${relativePath}`);
+      if (stat.isDirectory()) inventory(path, relativePath);
+      else if (stat.isFile()) physical.push(relativePath);
+      else throw new Error(`publication bundle contains unsupported filesystem entry ${relativePath}`);
+      if (physical.length > 16_385) throw new Error("publication bundle exceeds the physical file-count limit");
+    }
+  };
+  inventory(bundleRoot);
+  const expectedPhysical = ["manifest.json", ...listed].sort();
+  if (!isDeepStrictEqual(physical.sort(), expectedPhysical)) {
+    throw new Error("publication bundle physical files do not exactly match its integrity inventory");
+  }
   const missing = publicationArtifactPaths(bundle).filter((path) => !listed.has(path));
   if (missing.length) {
     throw new Error(`publication integrity does not cover referenced artifact(s): ${missing.join(", ")}`);
   }
+  let retainedBytes = 0;
   for (const entry of bundle.integrity.files) {
     const keep = retainPaths.has(entry.path);
     if (keep && entry.bytes > MAX_JSON_BYTES) {
       throw new Error(`publication integrity artifact ${entry.path} exceeds the 16 MiB JSON input limit`);
+    }
+    if (keep && (retainedBytes += entry.bytes) > 128 * 1024 * 1024) {
+      throw new Error("publication integrity retained inputs exceed the 128 MiB aggregate limit");
     }
     const bytes = verifyIntegrityFile(bundleRoot, entry, keep);
     if (bytes) retained.set(entry.path, bytes);
@@ -358,15 +402,17 @@ function verifyPublicationIntegrity(
   return retained;
 }
 
-function integrityEntries(bundle: ArenaPublicationBundle): Map<string, { path: string; sha256: string; bytes: number }> {
+type IntegrityEntry = { path: string; sha256: string; bytes: number; source_path?: string };
+
+function integrityEntries(bundle: ArenaPublicationBundle): Map<string, IntegrityEntry> {
   return new Map(bundle.integrity.files.map((entry) => [entry.path, entry]));
 }
 
 function requireIntegrityEntry(
-  entries: ReadonlyMap<string, { path: string; sha256: string; bytes: number }>,
+  entries: ReadonlyMap<string, IntegrityEntry>,
   path: string,
   label: string,
-): { path: string; sha256: string; bytes: number } {
+): IntegrityEntry {
   const entry = entries.get(path);
   if (!entry) throw new Error(`publication integrity does not cover ${label}: ${path}`);
   return entry;
@@ -375,13 +421,23 @@ function requireIntegrityEntry(
 function verifyBatchBinding(
   bundle: ArenaPublicationBundle,
   verifiedJson: ReadonlyMap<string, Buffer>,
-): { batch: ArenaBatchManifest; completion: ArenaBatchCompletion } {
+): { batch: ArenaBatchManifest; completion: ArenaBatchCompletion; report: z.infer<typeof ArenaRuntimeReportSchema>; subject: TrustedRunSubject } {
   const entries = integrityEntries(bundle);
   const batchEntry = requireIntegrityEntry(entries, bundle.integrity.batch_manifest_path, "the batch manifest");
   const completionEntry = requireIntegrityEntry(entries, bundle.integrity.batch_completion_path, "the batch completion");
+  const reportEntry = requireIntegrityEntry(entries, bundle.integrity.runtime_report_path, "the runtime report");
+  const subjectEntry = requireIntegrityEntry(entries, bundle.integrity.attestation.subject_path, "the attestation subject");
+  const detachedBundlesEntry = requireIntegrityEntry(
+    entries,
+    bundle.integrity.attestation.detached_bundles_path,
+    "the detached attestation bundles",
+  );
   if (batchEntry.sha256 !== bundle.integrity.batch_manifest_sha256
-    || completionEntry.sha256 !== bundle.integrity.batch_completion_sha256) {
-    throw new Error("publication integrity batch hashes do not match their covered artifacts");
+    || completionEntry.sha256 !== bundle.integrity.batch_completion_sha256
+    || reportEntry.sha256 !== bundle.integrity.runtime_report_sha256
+    || subjectEntry.sha256 !== bundle.integrity.attestation.subject_sha256
+    || detachedBundlesEntry.sha256 !== bundle.integrity.attestation.detached_bundles_sha256) {
+    throw new Error("publication integrity provenance hashes do not match their covered artifacts");
   }
   const batchBytes = verifiedJson.get(bundle.integrity.batch_manifest_path);
   const completionBytes = verifiedJson.get(bundle.integrity.batch_completion_path);
@@ -392,13 +448,65 @@ function verifyBatchBinding(
     (value) => ArenaBatchCompletionSchema.parse(value),
     "publication batch completion",
   );
+  const reportBytes = verifiedJson.get(bundle.integrity.runtime_report_path);
+  const subjectBytes = verifiedJson.get(bundle.integrity.attestation.subject_path);
+  const detachedBundles = verifiedJson.get(bundle.integrity.attestation.detached_bundles_path);
+  if (!reportBytes || !subjectBytes || !detachedBundles) {
+    throw new Error("publication integrity did not retain trusted publication provenance");
+  }
+  const report = parseCanonicalJson(reportBytes, (value) => ArenaRuntimeReportSchema.parse(value), "publication runtime report");
+  const subject = parseCanonicalJson(subjectBytes, (value) => TrustedRunSubjectSchema.parse(value), "publication attestation subject");
+  verifyBundledHostedAttestation(subjectBytes, detachedBundles, subject);
+  for (const [path, expectedHash, label] of [
+    ...report.surface_reports.flatMap((entry) => [
+      [entry.snapshot_path, entry.snapshot_sha256, `runtime snapshot ${entry.vendor}/${entry.surface}`],
+      [entry.html_path, entry.html_sha256, `runtime report ${entry.vendor}/${entry.surface}`],
+      [entry.failure_review_path, entry.failure_review_sha256, `runtime failure review ${entry.vendor}/${entry.surface}`],
+    ]),
+    ...report.aggregates.flatMap((entry) => [
+      [entry.aggregate_record_path, entry.aggregate_record_sha256, `runtime aggregate ${entry.vendor}/${entry.surface}/${entry.harness}`],
+      [entry.trial_manifest_path, entry.trial_manifest_sha256, `runtime trial manifest ${entry.vendor}/${entry.surface}/${entry.harness}`],
+    ]),
+  ] as Array<[string, string, string]>) {
+    const entry = requireIntegrityEntry(entries, path, label);
+    if (entry.sha256 !== expectedHash) throw new Error(`${label} hash does not match the runtime report`);
+  }
+  const provenanceDirectory = posix.dirname(bundle.integrity.attestation.subject_path);
+  for (const [reference, label] of [
+    [subject.runtime.manifest, "attested runtime manifest"],
+    [subject.configuration, "attested batch configuration"],
+  ] as const) {
+    const path = posix.join(provenanceDirectory, reference.path);
+    const entry = requireIntegrityEntry(entries, path, label);
+    if (entry.sha256 !== reference.sha256) throw new Error(`${label} hash does not match the signed subject`);
+  }
   if (batch.configuration.command !== "daeb-production-rerun"
     || batch.batch_id !== bundle.integrity.batch_id
     || batch.source_commit_sha !== bundle.integrity.source_commit_sha
     || batch.configuration_hash !== bundle.integrity.configuration_hash
     || completion.batch_id !== batch.batch_id
     || completion.source_commit_sha !== batch.source_commit_sha
-    || completion.configuration_hash !== batch.configuration_hash) {
+    || completion.configuration_hash !== batch.configuration_hash
+    || report.batch_id !== batch.batch_id || report.source_commit_sha !== batch.source_commit_sha
+    || report.configuration_hash !== batch.configuration_hash
+    || report.batch_manifest_sha256 !== batchEntry.sha256
+    || report.batch_completion_sha256 !== completionEntry.sha256
+    || report.execution.runtime_backend !== "pinned-oci" || report.execution.trust_level !== "hosted-trusted"
+    || !report.sandbox_provenance
+    || !batch.configuration.sandbox
+    || report.sandbox_provenance.runtime_lock_sha256 !== batch.configuration.sandbox.runtime_lock_sha256
+    || report.sandbox_provenance.implementation_sha256 !== batch.configuration.sandbox.executable_sha256
+    || report.sandbox_provenance.policy_sha256 !== bubblewrapPolicyHash(batch.configuration.sandbox)
+    || subject.source_commit_sha !== batch.source_commit_sha
+    || subject.batch.id !== batch.batch_id || subject.batch.configuration_hash !== batch.configuration_hash
+    || subject.batch.manifest.sha256 !== batchEntry.sha256
+    || subject.batch.completion.sha256 !== completionEntry.sha256
+    || subject.batch.completed_cells !== completion.cells.length
+    || subject.repository !== bundle.integrity.attestation.repository
+    || subject.workflow.ref !== bundle.integrity.attestation.workflow_ref
+    || subject.workflow.sha !== bundle.integrity.attestation.workflow_sha
+    || subject.workflow.run_id !== bundle.integrity.attestation.run_id
+    || subject.workflow.run_attempt !== bundle.integrity.attestation.run_attempt) {
     throw new Error("publication integrity does not match its production batch provenance");
   }
   const expectedKeys = [...batch.expected_cells].sort();
@@ -424,7 +532,170 @@ function verifyBatchBinding(
       }
     }
   }
-  return { batch, completion };
+  return { batch, completion, report, subject };
+}
+
+function parseYamlBytes<T>(bytes: Buffer, label: string, parse: (value: unknown) => T): T {
+  try {
+    return parse(parseYaml(bytes.toString("utf8")));
+  } catch (error) {
+    throw new Error(`${label} is invalid: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+function verifySignedSourceArtifacts(input: {
+  bundleRoot: string;
+  bundle: ArenaPublicationBundle;
+  batch: ArenaBatchManifest;
+  subject: TrustedRunSubject;
+  retained: ReadonlyMap<string, Buffer>;
+}): {
+  suite: z.infer<typeof SuiteSchema>;
+  packs: Map<string, z.infer<typeof TargetPackSchema>>;
+  packPaths: Record<string, string>;
+  expectedMethodology: string[];
+} {
+  const { bundleRoot, bundle, batch, subject, retained } = input;
+  const entries = integrityEntries(bundle);
+  const signedSources = new Map(subject.source_artifacts.map((artifact) => [artifact.path, artifact.sha256]));
+  const expectedDestinations = new Map<string, string>();
+  const suitePrefix = `ax-arena/benchmark/daeb/v${batch.configuration.suite.version}`;
+  const requireSource = (destination: string, sourcePath: string, label: string): Buffer => {
+    const signedHash = signedSources.get(sourcePath);
+    if (!signedHash) throw new Error(`${label} is absent from the signed protected-main source artifact set`);
+    const entry = requireIntegrityEntry(entries, destination, label);
+    if (entry.source_path !== sourcePath || entry.sha256 !== signedHash) {
+      throw new Error(`${label} does not match its signed protected-main source artifact`);
+    }
+    const bytes = retained.get(destination);
+    if (!bytes) throw new Error(`${label} bytes were not retained after integrity verification`);
+    expectedDestinations.set(destination, sourcePath);
+    return bytes;
+  };
+
+  const suiteBytes = requireSource("suite/suite.yaml", `${suitePrefix}/suite.yaml`, "canonical suite");
+  if (createHash("sha256").update(suiteBytes).digest("hex") !== batch.configuration.suite.file_hash) {
+    throw new Error("canonical suite does not match the signed batch suite hash");
+  }
+  const suite = parseYamlBytes(suiteBytes, "canonical suite", (value) => SuiteSchema.parse(value));
+  if (suite.name !== batch.configuration.suite.name || suite.version !== batch.configuration.suite.version) {
+    throw new Error("canonical suite identity does not match the signed batch");
+  }
+  const expectedMethodology = METHODOLOGY_FILES.map((name) => {
+    requireSource(`suite/${name}`, `${suitePrefix}/${name}`, `canonical methodology ${name}`);
+    return `suite/${name}`;
+  });
+
+  const packPaths: Record<string, string> = Object.create(null) as Record<string, string>;
+  const packs = new Map<string, z.infer<typeof TargetPackSchema>>();
+  for (const configured of batch.configuration.packs) {
+    const slug = configured.vendor;
+    const packDestination = `vendors/${slug}/compiled-pack.yaml`;
+    const packBytes = requireSource(packDestination, `${suitePrefix}/packs/${slug}/pack.yaml`, `canonical pack ${slug}`);
+    if (createHash("sha256").update(packBytes).digest("hex") !== configured.file_hash) {
+      throw new Error(`canonical pack does not match the signed batch hash: ${slug}`);
+    }
+    const pack = parseYamlBytes(packBytes, `canonical pack ${slug}`, (value) => TargetPackSchema.parse(value));
+    if (pack.name !== slug || pack.standard_set_version !== configured.standard_set_version) {
+      throw new Error(`canonical pack identity does not match the signed batch: ${slug}`);
+    }
+    const validationErrors = validatePackAgainstSuite(
+      pack.tasks.map((task) => ({ id: task.id, title: task.title, difficulty: task.difficulty })),
+      suite,
+    );
+    if (validationErrors.length || pack.tasks.some((task) => !task.na && task.oracles.length === 0)) {
+      throw new Error(`canonical pack no longer validates against the signed suite: ${slug}`);
+    }
+    packs.set(slug, pack);
+    packPaths[slug] = safeBundleFile(bundleRoot, packDestination, `canonical pack ${slug}`);
+    requireSource(`vendors/${slug}/pack.approval.json`, `${suitePrefix}/packs/${slug}/pack.approval.json`, `canonical approval ${slug}`);
+    requireSource(`vendors/${slug}/vendor.discovered.yaml`, `ax-arena/benchmark/daeb/vendors/${slug}.discovered.yaml`, `canonical vendor card ${slug}`);
+    requireSource(`vendors/${slug}/oracle-extract.yaml`, `${suitePrefix}/extracts/${slug}/oracles.yaml`, `canonical oracle extract ${slug}`);
+    requireSource(`vendors/${slug}/suite-support-matrix.yaml`, `${suitePrefix}/suite.support-matrix.yaml`, `canonical support matrix ${slug}`);
+  }
+  const actualSourceDestinations = bundle.integrity.files
+    .filter((entry) => entry.source_path !== undefined)
+    .map((entry) => entry.path).sort();
+  const expectedPaths = [...expectedDestinations.keys()].sort();
+  if (!isDeepStrictEqual(actualSourceDestinations, expectedPaths)) {
+    throw new Error("publication bundle source-artifact mapping is incomplete or contains unsupported entries");
+  }
+  return { suite, packs, packPaths, expectedMethodology };
+}
+
+function assertCanonicalIntegritySet(
+  bundle: ArenaPublicationBundle,
+  completion: ArenaBatchCompletion,
+  report: z.infer<typeof ArenaRuntimeReportSchema>,
+  subject: TrustedRunSubject,
+): void {
+  const paths = [
+    bundle.integrity.attestation.subject_path,
+    bundle.integrity.attestation.detached_bundles_path,
+    `provenance/${subject.runtime.manifest.path}`,
+    `provenance/${subject.configuration.path}`,
+    bundle.integrity.batch_manifest_path,
+    bundle.integrity.batch_completion_path,
+    bundle.integrity.runtime_report_path,
+    "competitive.html",
+    ...bundle.integrity.files.filter((entry) => entry.source_path !== undefined).map((entry) => entry.path),
+  ];
+  for (const cell of completion.cells) {
+    paths.push(cell.record_path, cell.cleanup_path, ...cell.artifacts.map((artifact) => artifact.path));
+  }
+  for (const entry of report.surface_reports) {
+    paths.push(
+      entry.snapshot_path,
+      entry.html_path,
+      entry.failure_review_path,
+      `vendors/${entry.vendor}/reports/${entry.surface}/generated-eval.snapshot.json`,
+      `vendors/${entry.vendor}/reports/${entry.surface}/generated-eval.html`,
+    );
+  }
+  for (const entry of report.aggregates) {
+    paths.push(
+      entry.aggregate_record_path,
+      entry.trial_manifest_path,
+      `vendors/${entry.vendor}/normalized/${entry.surface}/${entry.harness}/${basename(entry.aggregate_record_path)}`,
+    );
+  }
+  const expected = [...new Set(paths)].sort();
+  const actual = bundle.integrity.files.map((entry) => entry.path).sort();
+  if (!isDeepStrictEqual(actual, expected)) {
+    throw new Error("publication integrity inventory is not the exact canonical signed-cohort artifact set");
+  }
+}
+
+function assertCanonicalBundleDuplicates(
+  bundleRoot: string,
+  bundle: ArenaPublicationBundle,
+  report: z.infer<typeof ArenaRuntimeReportSchema>,
+): void {
+  const entries = integrityEntries(bundle);
+  const compare = (sourcePath: string, duplicatePath: string, label: string): void => {
+    const source = verifyIntegrityFile(bundleRoot, requireIntegrityEntry(entries, sourcePath, `${label} canonical source`), true)!;
+    const duplicate = verifyIntegrityFile(bundleRoot, requireIntegrityEntry(entries, duplicatePath, `${label} publication duplicate`), true)!;
+    if (!source.equals(duplicate)) throw new Error(`${label} publication duplicate does not match its canonical runtime artifact`);
+  };
+  for (const entry of report.surface_reports) {
+    compare(
+      entry.snapshot_path,
+      `vendors/${entry.vendor}/reports/${entry.surface}/generated-eval.snapshot.json`,
+      `snapshot ${entry.vendor}/${entry.surface}`,
+    );
+    compare(
+      entry.html_path,
+      `vendors/${entry.vendor}/reports/${entry.surface}/generated-eval.html`,
+      `HTML report ${entry.vendor}/${entry.surface}`,
+    );
+  }
+  for (const entry of report.aggregates) {
+    compare(
+      entry.aggregate_record_path,
+      `vendors/${entry.vendor}/normalized/${entry.surface}/${entry.harness}/${basename(entry.aggregate_record_path)}`,
+      `aggregate ${entry.vendor}/${entry.surface}/${entry.harness}`,
+    );
+  }
 }
 
 function loadCompletedCellRecords(
@@ -512,10 +783,6 @@ function sameNumber(left: number | null | undefined, right: number | null | unde
   return Math.abs(left - right) <= 1e-12;
 }
 
-function average(values: readonly number[]): number | null {
-  return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null;
-}
-
 function assertAggregateSourceBinding(
   batch: ArenaBatchManifest,
   completion: ArenaBatchCompletion,
@@ -533,43 +800,8 @@ function assertAggregateSourceBinding(
       throw new Error(`publication aggregate ${vendor}/${record.surface}/${record.harness} does not cite its exact completed trials`);
     }
     const sources = expectedPaths.map((path) => completedRecords.get(path)!);
-    const trialValues = sources.map((source) => source.pass_at_1);
-    const mean = average(trialValues)!;
-    const passAtK = average(sources.map((source) => source.pass_at_k))!;
-    const attempts = Math.max(...sources.map((source) => source.attempts));
-    const discovery = average(sources.flatMap((source) => source.discovery_score === null ? [] : [source.discovery_score]));
-    const content = average(sources.flatMap((source) => source.content_quality === null ? [] : [source.content_quality]));
-    const taskIds = new Set(sources.flatMap((source) => source.task_results
-      .filter((task) => !task.na).map((task) => task.taskId)));
-    const consistentTasks = [...taskIds].filter((taskId) => sources.every((source) =>
-      source.task_results.some((task) => task.taskId === taskId && !task.na && task.success))).length;
-    const consistency = taskIds.size ? consistentTasks / taskIds.size : null;
-    const allPass = sources.every((source) => source.pass_at_1 >= 1) ? 1 : 0;
-    const stability = sources.every((source) => source.pass_at_1 >= 1)
-      ? "all_pass"
-      : sources.every((source) => source.pass_at_1 <= 0) ? "all_fail" : "inconsistent";
-    if (record.trial_count !== sources.length
-      || record.product !== vendor || record.surface !== sources[0]!.surface
-      || record.harness !== sources[0]!.harness
-      || record.standard_set_version !== sources[0]!.standard_set_version
-      || record.run_batch_id !== batch.batch_id || record.validity_status !== "valid"
-      || record.model !== sources[0]!.model
-      || record.harness_version_raw !== sources[0]!.harness_version_raw
-      || record.harness_version_semver !== sources[0]!.harness_version_semver
-      || record.best_profile !== sources[0]!.best_profile
-      || record.profiles.length !== 1 || record.profiles[0] !== sources[0]!.profiles[0]
-      || record.trial_values?.length !== trialValues.length
-      || record.trial_values.some((value, index) => !sameNumber(value, trialValues[index]))
-      || !sameNumber(record.mean_pass_rate, mean) || !sameNumber(record.pass_at_1, mean)
-      || !sameNumber(record.pass_at_k, passAtK) || record.attempts !== attempts
-      || record.tasks_total !== sources[0]!.tasks_total
-      || record.tasks_passed !== Math.round(mean * sources[0]!.tasks_total)
-      || record.range_pass_rate?.min !== Math.min(...trialValues)
-      || record.range_pass_rate?.max !== Math.max(...trialValues)
-      || !sameNumber(record.discovery_score, discovery) || !sameNumber(record.content_quality, content)
-      || !sameNumber(record.task_consistency_at_3, consistency)
-      || record.pass_3_tasks !== consistentTasks || record.pass_3_tasks_total !== taskIds.size
-      || record.pass_all_3 !== allPass || record.trial_stability_at_3 !== stability) {
+    const expected = aggregateArenaCellRecords(sources, expectedPaths, record.generated_at);
+    if (!isDeepStrictEqual(record, expected)) {
       throw new Error(`publication aggregate metrics do not match completed trials for ${vendor}/${record.surface}/${record.harness}`);
     }
   }
@@ -789,7 +1021,202 @@ function assertComparableLeaderboardRecords(
   }
 }
 
-function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions) {
+function traceCoverageIssue(snapshot: unknown): string | null {
+  if (!snapshot || typeof snapshot !== "object" || !Array.isArray((snapshot as { runs?: unknown }).runs)) return "snapshot has no runs";
+  const issues: string[] = [];
+  for (const run of (snapshot as { runs: unknown[] }).runs) {
+    if (!run || typeof run !== "object") return "snapshot contains an invalid run";
+    const value = run as {
+      profile?: string;
+      harness?: string;
+      surface?: string;
+      outcomes?: Array<{ taskId?: string }>;
+      trace?: Array<{ taskId?: string; method?: string; path?: string }>;
+    };
+    const expected = new Set((value.outcomes ?? []).map((outcome) => outcome.taskId).filter((id): id is string => Boolean(id)));
+    const calls = (value.trace ?? []).filter((step) => step.method || step.path);
+    if (!expected.size || !calls.length) continue;
+    const scoped = new Set(calls.map((step) => step.taskId).filter((id): id is string => Boolean(id && expected.has(id))));
+    const opaque = calls.filter((step) => !step.taskId || step.taskId === "all" || step.taskId === "observed").length;
+    const minimum = Math.min(expected.size, Math.max(2, Math.ceil(expected.size / 2)));
+    if (scoped.size < minimum || opaque / calls.length > 0.5) {
+      issues.push(`${value.harness ?? "unknown"}/${value.surface ?? "api"}/${value.profile ?? "profile"}: ${scoped.size}/${expected.size} task-scoped trace coverage across ${calls.length} call(s)`);
+    }
+  }
+  return issues.length ? issues.join(" | ") : null;
+}
+
+function hasEfficiency(record: NormalizedResult): boolean {
+  return record.latency_ms !== undefined
+    && record.total_duration_ms !== undefined
+    && record.token_usage !== undefined
+    && record.cost_usd !== undefined
+    && record.tool_call_count !== undefined
+    && record.harness_version_raw !== undefined
+    && record.harness_version_semver !== undefined
+    && record.run_batch_id !== undefined
+    && (record.harness !== "claude-code" || typeof record.cost_usd === "number");
+}
+
+function assertCanonicalPublicationManifest(input: {
+  bundleRoot: string;
+  bundle: ArenaPublicationBundle;
+  batch: ArenaBatchManifest;
+  report: z.infer<typeof ArenaRuntimeReportSchema>;
+  suite: z.infer<typeof SuiteSchema>;
+  expectedMethodology: string[];
+  snapshots: ReadonlyMap<string, unknown>;
+  normalizedRecords: ReadonlyMap<string, NormalizedResult>;
+}): void {
+  const { bundleRoot, bundle, batch, report, suite, expectedMethodology, snapshots, normalizedRecords } = input;
+  const expectedSurfaces = (["api", "cli", "sdk", "mcp"] as const).filter((surface) =>
+    batch.configuration.cells.some((cell) => cell.surface === surface));
+  const expectedHarnesses = (["codex", "claude-code"] as const).filter((harness) =>
+    batch.configuration.cells.some((cell) => cell.harness === harness));
+  const expectedProfiles = [...new Set(batch.configuration.cells.map((cell) => cell.profile))].sort();
+  const expectedCells = new Set(batch.configuration.cells.map((cell) => `${cell.vendor}/${cell.surface}/${cell.harness}`)).size;
+  const aggregateRecords = report.aggregates.map((entry) => {
+    const path = `vendors/${entry.vendor}/normalized/${entry.surface}/${entry.harness}/${basename(entry.aggregate_record_path)}`;
+    const record = normalizedRecords.get(path);
+    if (!record) throw new Error(`canonical publication record is missing: ${path}`);
+    return record;
+  });
+  if (aggregateRecords.some((record) => !hasEfficiency(record))) {
+    throw new Error("official publication records must retain all canonical efficiency metrics");
+  }
+  const expectedModels = { codex: "gpt-5.6-terra", "claude-code": "claude-sonnet-5" } as const;
+  if (aggregateRecords.some((record) =>
+    expectedModels[record.harness as keyof typeof expectedModels] !== record.model
+    || record.summary_kind !== "aggregate" || record.trial_count !== 3 || !record.profiles.includes("high"))) {
+    throw new Error("official publication records do not use the frozen production execution policy");
+  }
+  const traceIssues = report.surface_reports.flatMap((entry) => {
+    const path = `vendors/${entry.vendor}/reports/${entry.surface}/generated-eval.snapshot.json`;
+    const issue = traceCoverageIssue(snapshots.get(path));
+    return issue ? [`${entry.vendor}/${entry.surface}: ${issue}`] : [];
+  });
+  const gates = [
+    {
+      id: "required-artifacts", label: "Required publication artifacts are present", status: "pass",
+      detail: "Suite artifacts, vendor adapters, approvals, reports, snapshots, and normalized records are present.",
+    },
+    {
+      id: "pack-validation", label: "Compiled packs validate against the frozen suite", status: "pass",
+      detail: "All compiled vendor packs match the frozen suite and executable tasks have graders.",
+    },
+    {
+      id: "matrix-completeness", label: "Expected usability matrix cells are present", status: "pass",
+      detail: `${expectedCells} expected vendor×surface×harness cells are present with required profile coverage (${expectedProfiles.join("/")}).`,
+    },
+    {
+      id: "optional-profile-coverage", label: "Optional research profiles are tracked separately", status: "pass",
+      detail: "Optional research-profile evidence is present for every expected cell.",
+    },
+    {
+      id: "efficiency-metrics", label: "Efficiency metrics are present in normalized records", status: "pass",
+      detail: "Normalized records include latency, token/cost, and tool-call metrics.",
+    },
+    {
+      id: "canonical-execution-config", label: "Production records use the frozen execution configuration", status: "pass",
+      detail: "gpt-5.6-terra and claude-sonnet-5, high effort, 3 trials, one run batch, and one version per harness.",
+    },
+    {
+      id: "trace-attribution", label: "Trace coverage supports process attribution", status: traceIssues.length ? "warn" : "pass",
+      detail: traceIssues.length
+        ? `${traceIssues.length} run(s) have sparse or coarse task-scoped traces: ${traceIssues.slice(0, 5).join(" | ")}${traceIssues.length > 5 ? " | ..." : ""}`
+        : "Recorded traces are sufficiently task-scoped for process diagnostics.",
+    },
+    {
+      id: "competitive-report", label: "Cross-vendor competitive report is present", status: "pass",
+      detail: "competitive.html is included.",
+    },
+  ];
+  const staticMethodology = expectedMethodology.filter((path) => /methodology|concept-universe|coverage-matrix|selection-ledger|failure-taxonomy|trace-review/i.test(path));
+  const behavioralMethodology = expectedMethodology.filter((path) => /support-matrix|grader-ledger|selection-ledger|coverage-matrix|methodology/i.test(path));
+  const vendors = batch.configuration.packs.map((configured) => {
+    const slug = configured.vendor;
+    const snapshotsForVendor = report.surface_reports.filter((entry) => entry.vendor === slug)
+      .map((entry) => `vendors/${slug}/reports/${entry.surface}/generated-eval.snapshot.json`).sort();
+    const reportsForVendor = report.surface_reports.filter((entry) => entry.vendor === slug)
+      .map((entry) => `vendors/${slug}/reports/${entry.surface}/generated-eval.html`).sort();
+    const normalized = report.aggregates.filter((entry) => entry.vendor === slug)
+      .map((entry) => `vendors/${slug}/normalized/${entry.surface}/${entry.harness}/${basename(entry.aggregate_record_path)}`).sort();
+    return {
+      slug,
+      pack: `vendors/${slug}/compiled-pack.yaml`,
+      expected_surfaces: (["api", "cli", "sdk", "mcp"] as const).filter((surface) => configured.surfaces.includes(surface)),
+      missing: [],
+      validation_errors: [],
+      artifacts: {
+        vendor_card: `vendors/${slug}/vendor.discovered.yaml`,
+        oracle_extract: `vendors/${slug}/oracle-extract.yaml`,
+        compiled_pack: `vendors/${slug}/compiled-pack.yaml`,
+        approval: `vendors/${slug}/pack.approval.json`,
+        support_matrix: `vendors/${slug}/suite-support-matrix.yaml`,
+        snapshot: snapshotsForVendor[0],
+        snapshots: snapshotsForVendor,
+        report_html: reportsForVendor[0],
+        report_htmls: reportsForVendor,
+        normalized_records: normalized,
+      },
+    };
+  });
+  const expectedMetadata = {
+    schema: "ax.publication-bundle/v2",
+    benchmark: suite.name,
+    category: suite.category,
+    suite: "suite/suite.yaml",
+    suite_version: suite.version,
+    generated_at: report.generated_at,
+    publication_readiness: "publication_ready",
+    expected_matrix: {
+      surfaces: expectedSurfaces,
+      harnesses: expectedHarnesses,
+      effort_profiles: expectedProfiles,
+      required_effort_profiles: expectedProfiles,
+      expected_cells: expectedCells,
+    },
+    quality_gates: gates,
+    layers: {
+      static_ax: {
+        description: "Discoverability & Readiness is the publication/audit layer for discoverability, content quality, and capability exposure.",
+        methodology_artifacts: staticMethodology,
+      },
+      behavioral: {
+        description: `Usability Canonical Suite is the benchmark of record and is scored only from verified outcomes on ${expectedSurfaces.join("/")}.`,
+        methodology_artifacts: behavioralMethodology,
+      },
+    },
+    vendors,
+    competitive_report: "competitive.html",
+    missing: [],
+    notes: [
+      "Compiled TargetPacks are executable vendor adapters produced from the canonical suite plus vendor-specific verification extraction.",
+      "Discoverability & Readiness artifacts and usability-suite artifacts are published side by side but remain separate scoring layers.",
+      "Publication-grade bundles require both Discoverability & Readiness artifacts and usability-suite artifacts; missing methodology files are recorded explicitly.",
+      `Publication readiness requires all artifacts, required profile matrix coverage (${expectedProfiles.join("/")}), efficiency metrics, and competitive report gates to pass.`,
+      "Optional profile artifacts remain valuable execution-learning and publication evidence, but missing optional coverage does not block a publication-ready bundle when required profile coverage is complete.",
+      "The detached GitHub OIDC attestation binds this bundle to its protected-main workflow, pinned runtime, exact batch, and completion.",
+      "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle.",
+    ],
+  };
+  const { integrity: _integrity, ...actualMetadata } = bundle;
+  if (!isDeepStrictEqual(actualMetadata, expectedMetadata)) {
+    throw new Error("publication manifest metadata is not the canonical derivation of signed source and batch evidence");
+  }
+  const competitiveEntry = requireIntegrityEntry(integrityEntries(bundle), "competitive.html", "competitive report");
+  if (competitiveEntry.bytes > 64 * 1024 * 1024) throw new Error("competitive report exceeds the 64 MiB verification limit");
+  const competitiveBytes = verifyIntegrityFile(bundleRoot, competitiveEntry, true)!;
+  const expectedCompetitive = Buffer.from(renderArenaCompetitiveReport(aggregateRecords, {
+    batch,
+    generatedAt: report.generated_at,
+  }));
+  if (!competitiveBytes.equals(expectedCompetitive)) {
+    throw new Error("competitive report does not match canonical signed-cohort rendering");
+  }
+}
+
+function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, requireCanonicalOfficial = true) {
   const root = resolve(opts.root);
   canonicalDirectory(root, "publication export root");
   const bundleRoot = resolveContained(root, opts.bundleDir, "publication bundle");
@@ -803,9 +1230,30 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions) 
   ]).concat([
     bundle.integrity.batch_manifest_path,
     bundle.integrity.batch_completion_path,
+    bundle.integrity.runtime_report_path,
+    bundle.integrity.attestation.subject_path,
+    bundle.integrity.attestation.detached_bundles_path,
+    ...bundle.integrity.files.filter((entry) => entry.source_path !== undefined).map((entry) => entry.path),
   ]));
   const verifiedJson = verifyPublicationIntegrity(bundleRoot, bundle, retainedJsonPaths);
-  const { batch, completion } = verifyBatchBinding(bundle, verifiedJson);
+  const { batch, completion, report, subject } = verifyBatchBinding(bundle, verifiedJson);
+  const signedSources = requireCanonicalOfficial
+    ? verifySignedSourceArtifacts({ bundleRoot, bundle, batch, subject, retained: verifiedJson })
+    : undefined;
+  if (requireCanonicalOfficial) {
+    assertCanonicalIntegritySet(bundle, completion, report, subject);
+    const batchBytes = verifiedJson.get(bundle.integrity.batch_manifest_path);
+    if (!batchBytes) throw new Error("publication integrity did not retain the signed batch manifest");
+    assertCanonicalRuntimeDerivation({
+      runRoot: bundleRoot,
+      batch,
+      batchBytes,
+      completion,
+      report,
+      packPaths: signedSources!.packPaths,
+    });
+    assertCanonicalBundleDuplicates(bundleRoot, bundle, report);
+  }
   const completedRecords = loadCompletedCellRecords(bundleRoot, bundle, batch, completion);
   for (const artifact of publicationArtifactPaths(bundle)) {
     safeBundleFile(bundleRoot, artifact, `publication artifact ${artifact}`);
@@ -839,12 +1287,6 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions) 
       leaderboardRecords.push({ vendor: vendor.slug, path: recordPath, record });
       evidence.push({ kind: "normalized_record", vendor: vendor.slug, surface: record.surface, harness: record.harness, path: recordPath });
     }
-    for (const snapshotPath of vendor.artifacts.snapshots ?? []) {
-      evidence.push({ kind: "snapshot", vendor: vendor.slug, path: snapshotPath });
-    }
-    for (const reportPath of vendor.artifacts.report_htmls ?? []) {
-      evidence.push({ kind: "report_html", vendor: vendor.slug, path: reportPath });
-    }
   }
 
   const selectedRecords = new Map<string, { vendor: string; path: string; record: NormalizedResult }>();
@@ -856,6 +1298,18 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions) 
   }
   assertComparableLeaderboardRecords(bundle, batch, selectedRecords);
   assertAggregateSourceBinding(batch, completion, completedRecords, selectedRecords);
+  if (requireCanonicalOfficial) {
+    assertCanonicalPublicationManifest({
+      bundleRoot,
+      bundle,
+      batch,
+      report,
+      suite: signedSources!.suite,
+      expectedMethodology: signedSources!.expectedMethodology,
+      snapshots,
+      normalizedRecords,
+    });
+  }
   return {
     root,
     bundleRoot,
@@ -884,8 +1338,26 @@ export function loadArenaPublicationCohort(
   };
 }
 
-export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOptions): ArenaPublicationExportManifest {
-  const source = loadVerifiedPublicationSource(opts);
+/** Internal compatibility-fixture seam. It is not exported from the package
+ * entrypoint and refuses to run outside Vitest. Official code must use the
+ * canonical functions above/below. */
+export function loadArenaPublicationCohortForTest(
+  opts: LoadArenaPublicationCohortOptions,
+): VerifiedArenaPublicationCohort {
+  if (process.env.VITEST !== "true") throw new Error("test-only publication loader is disabled");
+  const source = loadVerifiedPublicationSource(opts, false);
+  return {
+    bundle: source.bundle,
+    batch: source.batch,
+    records: [...source.selectedRecords.values()].map(({ vendor, path, record }) => ({ vendor, path, record })),
+  };
+}
+
+function buildArenaPublicationExportInternal(
+  opts: BuildArenaPublicationExportOptions,
+  requireCanonicalOfficial: boolean,
+): ArenaPublicationExportManifest {
+  const source = loadVerifiedPublicationSource(opts, requireCanonicalOfficial);
   const {
     root,
     bundleRoot,
@@ -1137,4 +1609,16 @@ export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOpt
     closeSync(parentDescriptor);
   }
   return exportManifest;
+}
+
+export function buildArenaPublicationExport(opts: BuildArenaPublicationExportOptions): ArenaPublicationExportManifest {
+  return buildArenaPublicationExportInternal(opts, true);
+}
+
+/** See loadArenaPublicationCohortForTest. */
+export function buildArenaPublicationExportForTest(
+  opts: BuildArenaPublicationExportOptions,
+): ArenaPublicationExportManifest {
+  if (process.env.VITEST !== "true") throw new Error("test-only publication exporter is disabled");
+  return buildArenaPublicationExportInternal(opts, false);
 }

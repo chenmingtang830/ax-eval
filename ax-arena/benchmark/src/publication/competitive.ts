@@ -22,6 +22,7 @@ import {
 import { assertArenaOutputRoot } from "../controller/cell.js";
 import { ArenaBatchManifestSchema, type ArenaBatchManifest } from "../controller/schemas.js";
 import { loadArenaPublicationCohort } from "./export.js";
+import type { VerifiedArenaPublicationCohort } from "./export.js";
 
 const PUBLICATION_EFFORT = "high" as const;
 const SURFACE_ORDER: SurfaceId[] = ["api", "cli", "sdk", "mcp"];
@@ -386,7 +387,7 @@ function writeAtomicReport(root: string, outPath: string, html: string): string 
   return output;
 }
 
-export function writeArenaCompetitiveReport(opts: WriteArenaCompetitiveReportOptions): string {
+function validateCompetitiveOutput(opts: WriteArenaCompetitiveReportOptions): void {
   const requestedRoot = resolve(opts.root);
   const rootStat = lstatSync(requestedRoot);
   if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("competitive root must be a regular directory");
@@ -397,7 +398,14 @@ export function writeArenaCompetitiveReport(opts: WriteArenaCompetitiveReportOpt
     throw new Error("competitive output must not overlap the sealed publication bundle");
   }
   assertArenaOutputRoot(root, output);
-  const cohort = loadArenaPublicationCohort({ root, bundleDir: opts.bundleDir });
+}
+
+export function writeArenaCompetitiveReportFromVerifiedCohort(
+  opts: WriteArenaCompetitiveReportOptions,
+  cohort: VerifiedArenaPublicationCohort,
+): string {
+  validateCompetitiveOutput(opts);
+  const root = realpathSync(resolve(opts.root));
   const generatedAt = opts.generatedAt ?? new Date();
   if (!Number.isFinite(generatedAt.getTime())) throw new Error("competitive generatedAt must be a valid date");
   const records = cohort.records.map((entry) => entry.record);
@@ -406,4 +414,10 @@ export function writeArenaCompetitiveReport(opts: WriteArenaCompetitiveReportOpt
     generatedAt: generatedAt.toISOString(),
   });
   return writeAtomicReport(root, opts.outPath ?? "results/competitive.html", html);
+}
+
+export function writeArenaCompetitiveReport(opts: WriteArenaCompetitiveReportOptions): string {
+  validateCompetitiveOutput(opts);
+  const cohort = loadArenaPublicationCohort({ root: opts.root, bundleDir: opts.bundleDir });
+  return writeArenaCompetitiveReportFromVerifiedCohort(opts, cohort);
 }

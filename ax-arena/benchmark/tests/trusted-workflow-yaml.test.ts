@@ -52,7 +52,9 @@ describe("trusted arena workflow launcher", () => {
     const attest = source.slice(source.indexOf("  attest:"));
     expect(cohort).not.toContain("id-token: write");
     expect(cohort).not.toContain("attestations: write");
-    expect(attest).not.toContain("environment: trusted-sandbox");
+    expect(attest).toContain("environment: trusted-sandbox");
+    expect(attest).toContain("vars.AX_ARENA_APPROVED_SIGNER_SHA");
+    expect(attest).toContain("--source-root");
     expect(attest).not.toContain("secrets.");
     for (const action of source.matchAll(/uses:\s+[^@\s]+@([^\s]+)/g)) {
       expect(action[1]).toMatch(/^[a-f0-9]{40}$/);

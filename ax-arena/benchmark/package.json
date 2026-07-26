@@ -16,6 +16,7 @@
     "./schemas/arena-batch.v1.json": "./schemas/arena-batch.v1.json",
     "./schemas/arena-batch-completion.v1.json": "./schemas/arena-batch-completion.v1.json",
     "./schemas/arena-runtime-report.v1.json": "./schemas/arena-runtime-report.v1.json",
+    "./schemas/publication-bundle.v2.json": "./schemas/publication-bundle.v2.json",
     "./package.json": "./package.json"
   },
   "bin": {
