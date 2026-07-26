@@ -226,6 +226,25 @@ not execute cells and cannot bypass the trusted-workflow isolation gate. Its
 manifest hash-binds the batch, completion, every emitted artifact, execution
 backend/trust level, and pinned sandbox provenance; these fields are mandatory.
 
+Arena planning creates an opaque batch UUID independent of run-directory names,
+timestamps, or CI metadata, then freezes an ordered `ax.arena-batch-plan/v1`
+document. Each descriptor binds one pack, harness pin, model/effort/trial,
+timeout/reset policy, sandbox/tool pins, and four credential-name partitions;
+credential values are never serialized. The manifest also binds a committed
+configuration path and blob hash, which each distributed stage revalidates from
+the source commit and against caller-supplied controller inputs rather than
+trusting only colocated run artifacts. The matrix
+worker accepts one explicit cell key, probes the actual root-owned harness
+binary against its raw and semver pins using a secret-free environment, then
+materializes only that cell's credentials. It emits one
+`ax.arena-cell-result/v1` envelope binding the exact plan, descriptor,
+normalized record, and cleanup evidence by SHA-256. Completion is a separate
+credential-free assembly step that rejects missing, duplicate, extra, or
+drifted envelopes and delegates final comparability checks to the same batch
+completion validator used by serial execution. The existing cohort workflow is
+kept as a compatibility launcher until a later stacked PR moves GitHub YAML to
+this fan-out boundary.
+
 Arena database reset providers never use broad cascade cleanup. Postgres drops
 only exact namespace-matched tables, server-revalidated functions, and roles;
 dependencies leave cleanup unconfirmed. Turso CLI attestation binds an exact

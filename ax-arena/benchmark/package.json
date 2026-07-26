@@ -14,7 +14,9 @@
     },
     "./schemas/arena-cell-cleanup.v1.json": "./schemas/arena-cell-cleanup.v1.json",
     "./schemas/arena-batch.v1.json": "./schemas/arena-batch.v1.json",
+    "./schemas/arena-batch-plan.v1.json": "./schemas/arena-batch-plan.v1.json",
     "./schemas/arena-batch-completion.v1.json": "./schemas/arena-batch-completion.v1.json",
+    "./schemas/arena-cell-result.v1.json": "./schemas/arena-cell-result.v1.json",
     "./schemas/arena-runtime-report.v1.json": "./schemas/arena-runtime-report.v1.json",
     "./schemas/publication-bundle.v2.json": "./schemas/publication-bundle.v2.json",
     "./package.json": "./package.json"
@@ -33,11 +35,13 @@
   ],
   "scripts": {
     "ax-arena": "node --import tsx src/cli.ts",
-    "build": "tsup src/cli.ts src/index.ts --platform node --target node22 --format esm --dts --clean --external ax-eval --tsconfig tsconfig.build.json",
+    "build": "tsup src/cli.ts src/index.ts src/trusted-worker.ts src/assemble-trusted-completion.ts --platform node --target node22 --format esm --dts --clean --external ax-eval --tsconfig tsconfig.build.json",
     "pack:check": "node scripts/verify-package-contents.mjs",
     "test": "vitest run --config vitest.config.ts",
     "typecheck": "tsc --noEmit",
-    "trusted:cell": "node --import tsx scripts/trusted-cell.ts"
+    "trusted:cell": "node --import tsx scripts/trusted-cell.ts",
+    "trusted:worker": "node dist/trusted-worker.js",
+    "trusted:assemble": "node dist/assemble-trusted-completion.js"
   },
   "engines": {
     "node": ">=22"

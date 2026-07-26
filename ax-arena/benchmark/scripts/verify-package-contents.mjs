@@ -24,11 +24,15 @@ const required = [
   "dist/cli.js",
   "dist/index.js",
   "dist/index.d.ts",
+  "dist/trusted-worker.js",
+  "dist/assemble-trusted-completion.js",
   "package.json",
   "schemas/arena-batch-completion.v1.json",
+  "schemas/arena-batch-plan.v1.json",
   "schemas/arena-batch.v1.json",
   "schemas/arena-runtime-report.v1.json",
   "schemas/arena-cell-cleanup.v1.json",
+  "schemas/arena-cell-result.v1.json",
   "schemas/publication-bundle.v2.json",
 ];
 function requireTree(directory, prefix) {
@@ -92,16 +96,33 @@ try {
     throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
   }
 
+  const trustedWorker = spawnSync(process.execPath, [resolve(installedArena, "dist", "trusted-worker.js")], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "" },
+  });
+  if (trustedWorker.status === 0 || !trustedWorker.stderr.includes("restricted to the reviewed GitHub Actions environment")) {
+    throw new Error("built trusted worker did not fail closed outside GitHub Actions");
+  }
+  const trustedAssembler = spawnSync(process.execPath, [resolve(installedArena, "dist", "assemble-trusted-completion.js")], {
+    cwd: workspaceRoot,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "" },
+  });
+  if (trustedAssembler.status === 0 || !trustedAssembler.stderr.includes("requires exactly one --run-root")) {
+    throw new Error("built trusted assembler did not fail closed without its explicit inputs");
+  }
+
   const publicImport = spawnSync(process.execPath, [
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaCellCleanupSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, buildArenaPublicationBundle, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, loadArenaPublicationCohort, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeRuntimeReportingBundle } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, buildArenaPublicationBundle, buildArenaPublicationExport, createArenaRuntimeExtensionRegistry, executeArenaCell, executeArenaWorkerCell, loadArenaPublicationCohort, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeRuntimeReportingBundle } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
-      "typeof executeArenaCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
+      "typeof executeArenaCell !== 'function' || typeof executeArenaWorkerCell !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
       "typeof renderArenaCompetitiveReport !== 'function' || typeof writeArenaCompetitiveReport !== 'function' || " +
-      "!ArenaBatchManifestSchema || !ArenaCellCleanupSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema) process.exit(1);",
+      "!ArenaBatchManifestSchema || !ArenaBatchPlanSchema || !ArenaCellCleanupSchema || !ArenaCellResultSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema) process.exit(1);",
   ], {
     cwd: smokeRoot,
     encoding: "utf8",

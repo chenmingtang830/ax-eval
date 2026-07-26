@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, resolve } from "node:path";
+import { basename, isAbsolute, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   EvaluationCellSchema,
@@ -9,8 +9,11 @@ import {
   TargetPackSchema,
 } from "ax-eval";
 import {
+  buildBatchPlan,
   buildBatchCompletion,
+  loadBatchPlan,
   resolveBatchIdentity,
+  writeBatchPlan,
   writeBatchCompletion,
 } from "../src/controller/batch.js";
 import type { ArenaCellExecution } from "../src/controller/cell.js";
@@ -308,7 +311,9 @@ describe("arena batch comparability", () => {
     const resumed = resolveBatchIdentity(root, "a".repeat(40), new Date("2026-07-22T01:02:03.000Z"), config);
 
     expect(resumed).toEqual(first);
-    expect(first.batch_id).toContain("20260721010203");
+    expect(first.batch_id).toMatch(/^batch-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(first.batch_id).not.toContain("20260721010203");
+    expect(first.batch_id).not.toContain(basename(root));
     expect(first.batch_id).not.toBe(resolveBatchIdentity(
       mkdtempSync(resolve(tmpdir(), "ax-arena-batch-")),
       "a".repeat(40),
@@ -368,6 +373,92 @@ describe("arena batch comparability", () => {
         { ...config.cells[0]!, key: "neon/api/codex/trial-2", trial: 2, model: "different-model" },
       ],
     })).toThrow(/one profile, effort, and model|low-pass|Cartesian/);
+  });
+
+  it("builds exact ordered cell descriptors without credential values", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-batch-plan-"));
+    const config: ArenaBatchConfiguration = {
+      ...configuration(),
+      execution: { runtime_backend: "pinned-oci", trust_level: "local" },
+      sandbox: {
+        kind: "bubblewrap",
+        policy_version: "ax.arena-bubblewrap/v2",
+        runtime_lock_sha256: "5".repeat(64),
+        sysroot: "/opt/ax-arena-runtime/rootfs",
+        executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+        executable_sha256: "6".repeat(64),
+        runtime_roots: ["/usr", "/opt/ax-arena-tools"],
+      },
+    };
+    const batch = resolveBatchIdentity(root, "a".repeat(40), new Date("2026-07-21T01:02:03.000Z"), config);
+    const plan = buildBatchPlan(batch);
+    const batchBytes = readFileSync(resolve(root, "batch.json"));
+
+    expect(plan.batch_manifest_sha256).toBe(createHash("sha256").update(batchBytes).digest("hex"));
+    expect(plan.expected_cells).toEqual(config.cells.map((cell) => cell.key));
+    expect(plan.cells.map((cell) => cell.key)).toEqual(plan.expected_cells);
+    expect(plan.cells[0]).toEqual({
+      key: "neon/api/codex/trial-1",
+      batch_id: batch.batch_id,
+      source_commit_sha: batch.source_commit_sha,
+      configuration_hash: batch.configuration_hash,
+      vendor: "neon",
+      surface: "api",
+      harness: "codex",
+      profile: "medium",
+      effort: "medium",
+      model: "model-codex",
+      trial: 1,
+      pack_file_hash: "2".repeat(64),
+      standard_set_version: "database-v1",
+      harness_version_raw: "codex 1.2.3",
+      harness_version_semver: "1.2.3",
+      execution: config.execution,
+      host_credential_names: ["OPENAI_API_KEY"],
+      verification_credential_names: ["DATABASE_URL"],
+      reset_credential_names: ["DATABASE_URL"],
+      sandbox_scope_names: [],
+      provider_pins: [],
+      reset_provider: { id: "reset", version: "1.0.0" },
+      reset_required: true,
+      invoke_timeout_seconds: 900,
+      first_action_timeout_seconds: 180,
+      invoke_retries: 0,
+      sandbox: config.sandbox,
+    });
+    expect(JSON.stringify(plan)).not.toContain("postgres://credential-value");
+    expect(plan.cells.every((cell) => !("turso_cli" in cell))).toBe(true);
+
+    const tursoRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-turso-plan-"));
+    const turso = tursoConfiguration(tursoRoot);
+    const tursoRunRoot = resolve(tursoRoot, "run");
+    const tursoBatch = resolveBatchIdentity(tursoRunRoot, "a".repeat(40), new Date(), turso.configuration);
+    expect(buildBatchPlan(tursoBatch).cells.every((cell) => cell.turso_cli?.sha256 === turso.configuration.turso_cli?.sha256))
+      .toBe(true);
+  });
+
+  it("durably loads the canonical plan and rejects descriptor, order, or duplicate drift", () => {
+    for (const mode of ["descriptor", "order", "duplicate"] as const) {
+      const root = mkdtempSync(resolve(tmpdir(), `ax-arena-plan-${mode}-`));
+      const batch = resolveBatchIdentity(root, "a".repeat(40), new Date(), configuration());
+      const written = writeBatchPlan(root, batch);
+      expect(loadBatchPlan(root, batch)).toEqual(written);
+      expect(writeBatchPlan(root, batch)).toEqual(written);
+
+      const path = resolve(root, "batch-plan.json");
+      const forged = JSON.parse(readFileSync(path, "utf8"));
+      if (mode === "descriptor") {
+        forged.cells[0].model = "drifted-model";
+      } else if (mode === "order") {
+        forged.cells.reverse();
+        forged.expected_cells.reverse();
+      } else {
+        forged.cells.push(forged.cells[0]);
+        forged.expected_cells.push(forged.expected_cells[0]);
+      }
+      writeFileSync(path, `${JSON.stringify(forged, null, 2)}\n`);
+      expect(() => loadBatchPlan(root, batch)).toThrow(/batch plan|drifted/);
+    }
   });
 
   it("rejects forged, inconsistent, or symlinked manifests", () => {

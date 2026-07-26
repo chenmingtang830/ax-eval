@@ -45,18 +45,35 @@ publishable, and pinned execution never falls back to native tools. A
 source-only injected-runtime seam is used exclusively by offline contract tests
 and is not exported by the built package.
 
-Immutable batch manifests bind the source SHA, reviewed suite and pack hashes,
-credential-name partitions, model/effort/trial matrix, timeouts, reset policy,
-per-cell runtime/reset provider identities, and pinned tools before execution.
-The declared vendors, surfaces, harnesses, and trials must form a complete
-command-specific matrix. Completion records are accepted only for the exact
-cell set with matching requested/actual models, one version per harness, and
-confirmed cleanup whenever reset is required; record, cleanup, and all four
-runtime artifact files are sealed by contained relative paths and SHA-256.
-Both contracts are shipped as
-strict structural JSON schemas; cross-field and persisted-artifact guarantees
-require the exported runtime validators and are not implied by JSON Schema
-validation alone.
+Immutable batch manifests use an opaque `batch-<UUID>` identity and bind the
+source SHA, reviewed suite and pack hashes, credential-name partitions,
+model/effort/trial matrix, timeouts, reset policy, per-cell runtime/reset
+provider identities, and pinned tools before execution. The declared vendors,
+surfaces, harnesses, and trials must form a complete command-specific matrix.
+`ax-arena benchmark plan` also freezes `batch-plan.json`: an ordered
+whole-benchmark plan whose one-cell descriptors carry only credential names,
+never values. The manifest records the committed configuration path and blob
+hash; workers and the assembler re-read that file from the immutable source
+commit and require its path/hash again as an external controller attestation,
+so replacing both run-local artifacts cannot redefine the cohort. A
+worker selects exactly one descriptor, attests the actual root-owned harness
+binary and version with a secret-free probe, and only then materializes that
+cell's four credential partitions. It writes one hash-bound
+`ax.arena-cell-result/v1` envelope; a separate credential-free assembler accepts
+exactly one envelope per planned key before it writes completion. Serial and
+matrix execution therefore share the same completion validation.
+
+Completion records are accepted only for the exact cell set with matching
+requested/actual models, one version per harness, and confirmed cleanup whenever
+reset is required; record, cleanup, and all four runtime artifact files are
+sealed by contained relative paths and SHA-256. The manifest, plan, cell-result,
+and completion contracts are
+shipped as strict structural JSON schemas; cross-field and persisted-artifact
+guarantees require the exported runtime validators and are not implied by JSON
+Schema validation alone. The existing protected workflow still invokes the
+cohort compatibility entrypoint in this slice. `trusted:worker` and
+`trusted:assemble` are the reviewed controller boundaries for the subsequent
+thin-YAML fan-out cutover; they are not a new live-workflow activation.
 
 Runtime reporting consumes only a persisted, hash-bound batch completion. It
 revalidates canonical record and cleanup bytes plus every sealed runtime

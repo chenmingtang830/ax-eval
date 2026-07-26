@@ -269,9 +269,18 @@ The `resolve-vendor`, `import-registry`, extract, audit, `compose-pack`, and
 release and preserve the arena command exit status.
 
 Arena runtime commands use the same boundary: `plan` freezes an explicit batch
-configuration, `aggregate` consumes a completed batch, and `execute`/`publish`
-remain fail-closed from direct local invocation until trusted-workflow
-activation. The legacy `ax-eval daeb-low-pass` and
+configuration into an opaque batch manifest plus an ordered, per-cell
+`batch-plan.json`; `aggregate` consumes a completed batch, and
+`execute`/`publish` remain fail-closed from direct local invocation. Plan files
+contain exact credential names but no values, and bind those choices to the
+committed configuration blob plus an external controller path/hash attestation,
+rather than only to mutable run-local files. A
+one-cell trusted worker verifies the installed harness version before selecting
+its four credential partitions; a separate credential-free completion assembler
+provides the other half of the matrix fan-out boundary. The protected workflow
+remains on its configured cohort compatibility entrypoint until the later
+thin-workflow stack slice; this change does not activate a live run. The legacy
+`ax-eval daeb-low-pass` and
 `ax-eval daeb-production-rerun` implementations remain active until the private
 arena package passes its publication gate; only then does the one-minor
 shell-free delegation window begin.

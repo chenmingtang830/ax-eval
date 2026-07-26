@@ -82,7 +82,7 @@ const ReportPath = z.string()
   .regex(/^(?!\/)(?!.*(?:^|\/)\.{1,2}(?:\/|$))[A-Za-z0-9._/-]+$/)
   .max(4_096);
 const Semver = z.string().regex(/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/).max(256);
-const EnvironmentName = z.string().regex(/^[A-Za-z_][A-Za-z0-9_]*$/).max(256);
+const EnvironmentName = z.string().regex(/^[A-Z_][A-Z0-9_]*$/).max(256);
 const Names = z.array(EnvironmentName).max(256).superRefine((names, context) => {
   if (new Set(names).size !== names.length) {
     context.addIssue({ code: "custom", message: "credential and scope names must be unique" });
@@ -111,6 +111,7 @@ const TrustedSandboxSchema = z.object({
 }).strict();
 
 export const ARENA_BATCH_SCHEMA = "ax.arena-batch/v1" as const;
+export const ARENA_BATCH_PLAN_SCHEMA = "ax.arena-batch-plan/v1" as const;
 export const ARENA_BATCH_COMPLETION_SCHEMA = "ax.arena-batch-completion/v1" as const;
 export const ArenaRuntimeBackendSchema = z.enum(["native", "pinned-oci"]);
 export const ArenaTrustLevelSchema = z.enum(["local", "hosted-trusted"]);
@@ -127,6 +128,21 @@ export const ArenaExecutionModeSchema = z.object({
   }
 });
 export type ArenaExecutionMode = z.infer<typeof ArenaExecutionModeSchema>;
+
+const TursoCliPinSchema = z.object({
+  install_root: NonBlank,
+  version: NonBlank,
+  sha256: Sha256,
+  provisioner: ProviderIdentitySchema,
+}).strict();
+
+const SandboxPinSchema = TrustedSandboxSchema;
+
+export const ArenaBatchConfigurationSourceSchema = z.object({
+  path: ReportPath,
+  file_hash: Sha256,
+}).strict();
+export type ArenaBatchConfigurationSource = z.infer<typeof ArenaBatchConfigurationSourceSchema>;
 
 const ArenaBatchCellSchema = z.object({
   key: CellKey,
@@ -173,13 +189,8 @@ export const ArenaBatchConfigurationSchema = z.object({
   invoke_timeout_seconds: z.number().int().nonnegative(),
   first_action_timeout_seconds: z.number().int().nonnegative(),
   invoke_retries: z.number().int().nonnegative(),
-  turso_cli: z.object({
-    install_root: NonBlank,
-    version: NonBlank,
-    sha256: Sha256,
-    provisioner: ProviderIdentitySchema,
-  }).strict().optional(),
-  sandbox: TrustedSandboxSchema.optional(),
+  turso_cli: TursoCliPinSchema.optional(),
+  sandbox: SandboxPinSchema.optional(),
 }).strict().superRefine((configuration, context) => {
   const execution = configuration.execution ?? { runtime_backend: "native", trust_level: "local" };
   if (execution.runtime_backend === "pinned-oci" && !configuration.sandbox) {
@@ -196,6 +207,15 @@ export const ArenaBatchConfigurationSchema = z.object({
     const expectedKey = `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${cell.trial}`;
     if (cell.key !== expectedKey) {
       context.addIssue({ code: "custom", path: ["cells", index, "key"], message: `cell key must equal ${expectedKey}` });
+    }
+    const hostNames = new Set(cell.host_credential_names);
+    const verificationNames = new Set(cell.verification_credential_names);
+    if (cell.sandbox_scope_names.some((name) => !hostNames.has(name) || !verificationNames.has(name))) {
+      context.addIssue({
+        code: "custom",
+        path: ["cells", index, "sandbox_scope_names"],
+        message: "sandbox scope names must also be present in the host and verification credential partitions",
+      });
     }
   }
   const cohorts = new Map<string, typeof configuration.cells>();
@@ -384,6 +404,7 @@ export const ArenaBatchManifestSchema = z.object({
   source_commit_sha: SourceSha,
   created_at: Timestamp,
   configuration_hash: Sha256,
+  configuration_source: ArenaBatchConfigurationSourceSchema.optional(),
   configuration: ArenaBatchConfigurationSchema,
   expected_cells: z.array(CellKey).min(1).max(16_384),
 }).strict().superRefine((manifest, context) => {
@@ -412,6 +433,100 @@ const ArtifactSealSchema = z.object({
   path: NonBlank,
   sha256: Sha256,
 }).strict();
+
+export const ArenaBatchCellDescriptorSchema = z.object({
+  key: CellKey,
+  batch_id: NonBlank,
+  source_commit_sha: SourceSha,
+  configuration_hash: Sha256,
+  vendor: ArenaVendorSchema,
+  surface: Surface,
+  harness: Harness,
+  profile: z.enum(["medium", "high"]),
+  effort: z.enum(["medium", "high"]),
+  model: NonBlank,
+  trial: z.number().int().positive(),
+  pack_file_hash: Sha256,
+  standard_set_version: NonBlank,
+  harness_version_raw: NonBlank,
+  harness_version_semver: Semver,
+  execution: ArenaExecutionModeSchema,
+  host_credential_names: Names,
+  verification_credential_names: Names,
+  reset_credential_names: Names,
+  sandbox_scope_names: Names,
+  provider_pins: ProviderPinsSchema,
+  reset_provider: ProviderIdentitySchema.nullable(),
+  reset_required: z.boolean(),
+  invoke_timeout_seconds: z.number().int().nonnegative(),
+  first_action_timeout_seconds: z.number().int().nonnegative(),
+  invoke_retries: z.number().int().nonnegative(),
+  turso_cli: TursoCliPinSchema.optional(),
+  sandbox: SandboxPinSchema.optional(),
+}).strict().superRefine((cell, context) => {
+  const expectedKey = `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${cell.trial}`;
+  if (cell.key !== expectedKey) {
+    context.addIssue({ code: "custom", path: ["key"], message: `cell key must equal ${expectedKey}` });
+  }
+  const needsTursoCli = cell.vendor === "turso" && cell.surface === "cli";
+  if (needsTursoCli !== Boolean(cell.turso_cli)) {
+    context.addIssue({
+      code: "custom",
+      path: ["turso_cli"],
+      message: "a Turso CLI pin belongs exactly on Turso CLI cell descriptors",
+    });
+  }
+  if (cell.execution.runtime_backend === "pinned-oci" && !cell.sandbox) {
+    context.addIssue({ code: "custom", path: ["sandbox"], message: "pinned-oci descriptors require the immutable sandbox pin" });
+  }
+  if (cell.execution.runtime_backend === "native" && cell.sandbox) {
+    context.addIssue({ code: "custom", path: ["sandbox"], message: "native descriptors cannot claim a pinned OCI sandbox" });
+  }
+  if (cell.reset_required && !cell.reset_provider) {
+    context.addIssue({ code: "custom", path: ["reset_provider"], message: "reset-required descriptors must pin the reset provider identity" });
+  }
+});
+export type ArenaBatchCellDescriptor = z.infer<typeof ArenaBatchCellDescriptorSchema>;
+
+export const ArenaBatchPlanSchema = z.object({
+  schema: z.literal(ARENA_BATCH_PLAN_SCHEMA),
+  batch_id: NonBlank,
+  source_commit_sha: SourceSha,
+  configuration_hash: Sha256,
+  configuration_source: ArenaBatchConfigurationSourceSchema.optional(),
+  batch_manifest_sha256: Sha256,
+  expected_cells: z.array(CellKey).min(1).max(16_384),
+  cells: z.array(ArenaBatchCellDescriptorSchema).min(1).max(16_384),
+}).strict().superRefine((plan, context) => {
+  const keys = plan.cells.map((cell) => cell.key);
+  if (new Set(keys).size !== keys.length) {
+    context.addIssue({ code: "custom", path: ["cells"], message: "batch plan cell keys must be unique" });
+  }
+  if (plan.expected_cells.length !== keys.length
+    || plan.expected_cells.some((key, index) => key !== keys[index])) {
+    context.addIssue({
+      code: "custom",
+      path: ["expected_cells"],
+      message: "batch plan cells must exactly match the ordered expected cell set",
+    });
+  }
+  for (const [index, cell] of plan.cells.entries()) {
+    for (const [field, expected] of [
+      ["batch_id", plan.batch_id],
+      ["source_commit_sha", plan.source_commit_sha],
+      ["configuration_hash", plan.configuration_hash],
+    ] as const) {
+      if (cell[field] !== expected) {
+        context.addIssue({
+          code: "custom",
+          path: ["cells", index, field],
+          message: `${field} must match the batch plan`,
+        });
+      }
+    }
+  }
+});
+export type ArenaBatchPlan = z.infer<typeof ArenaBatchPlanSchema>;
 
 export const ArenaBatchCompletionCellSchema = z.object({
   key: CellKey,

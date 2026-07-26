@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import Ajv2020 from "ajv/dist/2020.js";
@@ -5,8 +6,10 @@ import addFormats from "ajv-formats";
 import { describe, expect, it } from "vitest";
 import {
   ArenaBatchCompletionSchema,
+  ArenaBatchCellDescriptorSchema,
   ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaBatchPlanSchema,
   ArenaExecutionModeSchema,
   ArenaCellCleanupSchema,
   ArenaRuntimeReportSchema,
@@ -174,6 +177,7 @@ describe("arena batch schemas", () => {
     const ajv = new Ajv2020({ strict: true });
     addFormats(ajv);
     const validateManifest = ajv.compile(shippedSchema("arena-batch.v1.json"));
+    const validatePlan = ajv.compile(shippedSchema("arena-batch-plan.v1.json"));
     const validateCompletion = ajv.compile(shippedSchema("arena-batch-completion.v1.json"));
     const configuration: ArenaBatchConfiguration = {
       command: "daeb-low-pass",
@@ -237,6 +241,10 @@ describe("arena batch schemas", () => {
       source_commit_sha: "a".repeat(40),
       created_at: "2026-07-21T00:00:00.000Z",
       configuration_hash: arenaBatchConfigurationHash(configuration),
+      configuration_source: {
+        path: "ax-arena/benchmark/daeb/v1/batch-configuration.json",
+        file_hash: "7".repeat(64),
+      },
       configuration,
       expected_cells: ["neon/api/codex/trial-1", "neon/api/claude-code/trial-1"],
     };
@@ -267,6 +275,56 @@ describe("arena batch schemas", () => {
         status: "completed",
         cleanup_status: "confirmed",
       }],
+    };
+    const descriptor = {
+      key: "neon/api/codex/trial-1",
+      batch_id: manifest.batch_id,
+      source_commit_sha: manifest.source_commit_sha,
+      configuration_hash: manifest.configuration_hash,
+      vendor: "neon",
+      surface: "api",
+      harness: "codex",
+      profile: "medium",
+      effort: "medium",
+      model: "model-codex",
+      trial: 1,
+      pack_file_hash: "3".repeat(64),
+      standard_set_version: "database-v1",
+      harness_version_raw: "codex 1.2.3",
+      harness_version_semver: "1.2.3",
+      execution: { runtime_backend: "native", trust_level: "local" },
+      host_credential_names: ["OPENAI_API_KEY"],
+      verification_credential_names: ["DATABASE_URL"],
+      reset_credential_names: ["DATABASE_URL"],
+      sandbox_scope_names: [],
+      provider_pins: [],
+      reset_provider: null,
+      reset_required: false,
+      invoke_timeout_seconds: 900,
+      first_action_timeout_seconds: 180,
+      invoke_retries: 0,
+      sandbox: configuration.sandbox,
+    };
+    const descriptors = configuration.cells.map((cell, index) => index === 0 ? descriptor : ({
+      ...descriptor,
+      key: cell.key,
+      harness: cell.harness,
+      model: cell.model,
+      harness_version_raw: configuration.harnesses[index]!.version_raw,
+      harness_version_semver: configuration.harnesses[index]!.version_semver,
+      host_credential_names: cell.host_credential_names,
+    }));
+    const plan = {
+      schema: "ax.arena-batch-plan/v1",
+      batch_id: manifest.batch_id,
+      source_commit_sha: manifest.source_commit_sha,
+      configuration_hash: manifest.configuration_hash,
+      configuration_source: manifest.configuration_source,
+      batch_manifest_sha256: createHash("sha256")
+        .update(`${JSON.stringify(manifest, null, 2)}\n`)
+        .digest("hex"),
+      expected_cells: manifest.expected_cells,
+      cells: descriptors,
     };
     expect(ArenaBatchManifestSchema.safeParse(manifest).success).toBe(true);
     expect(validateManifest(manifest)).toBe(true);
@@ -305,6 +363,9 @@ describe("arena batch schemas", () => {
         sandbox: shippedSandbox,
       },
     })).toBe(true);
+    expect(ArenaBatchCellDescriptorSchema.safeParse(descriptor).success).toBe(true);
+    expect(ArenaBatchPlanSchema.safeParse(plan).success).toBe(true);
+    expect(validatePlan(plan)).toBe(true);
     expect(ArenaBatchCompletionSchema.safeParse(completion).success).toBe(true);
     expect(validateCompletion(completion)).toBe(true);
     expect(validateManifest({ ...manifest, unknown: true })).toBe(false);
@@ -317,6 +378,76 @@ describe("arena batch schemas", () => {
     };
     expect(validateManifest(structurallyValidButSemanticallyForged)).toBe(true);
     expect(ArenaBatchManifestSchema.safeParse(structurallyValidButSemanticallyForged).success).toBe(false);
+    expect(ArenaBatchManifestSchema.safeParse({
+      ...manifest,
+      configuration: {
+        ...configuration,
+        sandbox: { ...configuration.sandbox!, runtime_roots: ["relative"] },
+      },
+    }).success).toBe(false);
+    expect(ArenaBatchPlanSchema.safeParse({
+      ...plan,
+      cells: [{ ...descriptor, batch_id: "drifted-batch" }],
+    }).success).toBe(false);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...configuration,
+      packs: [{ ...configuration.packs[0]!, sandbox_scope_names: ["SANDBOX_ID"] }],
+      cells: [{ ...configuration.cells[0]!, sandbox_scope_names: ["SANDBOX_ID"] }],
+    }).success).toBe(false);
+    const duplicatePlan = {
+      ...plan,
+      expected_cells: [...plan.expected_cells, ...plan.expected_cells],
+      cells: [descriptor, descriptor],
+    };
+    expect(ArenaBatchPlanSchema.safeParse(duplicatePlan).success).toBe(false);
+    expect(validatePlan(duplicatePlan)).toBe(false);
+    expect(ArenaBatchCellDescriptorSchema.safeParse({
+      ...descriptor,
+      credential_values: { OPENAI_API_KEY: "secret" },
+    }).success).toBe(false);
+    expect(validatePlan({
+      ...plan,
+      cells: [{ ...descriptor, credential_values: { OPENAI_API_KEY: "secret" } }],
+    })).toBe(false);
+
+    const productionCells = (["codex", "claude-code"] as const).flatMap((harness) => [1, 2, 3].map((trial) => ({
+      key: `neon/api/${harness}/trial-${trial}`,
+      vendor: "neon",
+      surface: "api" as const,
+      harness,
+      profile: "high" as const,
+      effort: "high" as const,
+      model: harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
+      trial,
+      host_credential_names: [harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"],
+      verification_credential_names: ["DATABASE_URL"],
+      reset_credential_names: ["DATABASE_URL"],
+      sandbox_scope_names: [],
+      provider_pins: [],
+      reset_provider: { id: "reset", version: "1.0.0" },
+    })));
+    const production: ArenaBatchConfiguration = {
+      ...configuration,
+      command: "daeb-production-rerun",
+      packs: [{
+        ...configuration.packs[0]!,
+        host_credential_names: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],
+      }],
+      cells: productionCells,
+      harnesses: [
+        { harness: "codex", version_raw: "codex 1.2.3", version_semver: "1.2.3" },
+        { harness: "claude-code", version_raw: "claude 2.3.4", version_semver: "2.3.4" },
+      ],
+      reset_required: true,
+      invoke_timeout_seconds: 900,
+      first_action_timeout_seconds: 240,
+      invoke_retries: 0,
+    };
+    expect(ArenaBatchConfigurationSchema.safeParse(production).success).toBe(true);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...production,
+      cells: production.cells.map((cell, index) => index === 0 ? { ...cell, model: "unfrozen" } : cell),
+    }).success).toBe(false);
   });
 });
 
