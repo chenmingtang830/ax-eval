@@ -81,7 +81,6 @@ export function findMappingMisses(
   slugs: string[],
 ): SuiteFinding[] {
   const findings: SuiteFinding[] = [];
-  const byConcept = new Map(coverage.concepts.map((c) => [c.concept_name, c]));
   // Focus on near-miss / selected concepts — not every singleton.
   const interesting = coverage.concepts.filter((c) => {
     const supported = c.decisions.filter((d) => d.status === "supported").length;

@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync
 import { dirname, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
-import { extractJsonObject, normalizeHarnessText } from "./generate/authoring.js";
+import { extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
 import { Fetcher, type FetcherOptions } from "./static/fetcher.js";
 import type { TargetPack, Task } from "./schemas.js";
 import { describeRequiredEnv, surfaceAuthStatus, type EnvRequirement, type SurfaceAuthStatus } from "./target/config.js";

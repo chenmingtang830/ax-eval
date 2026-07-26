@@ -17,7 +17,6 @@ import {
 } from "ax-eval";
 import { extractOraclesAll } from "./oracle-extract.js";
 import {
-  assertCanonicalDaebWritePath,
   assertCanonicalDaebSuiteWritePath,
   createDaebPathContext,
   daebReadVendorsDir,

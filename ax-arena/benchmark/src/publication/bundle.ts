@@ -12,10 +12,7 @@ import {
 } from "ax-eval";
 import { parse as parseYaml } from "yaml";
 import { z } from "zod";
-import {
-  ArenaRuntimeReportSchema,
-  type ArenaBatchManifest,
-} from "../controller/schemas.js";
+import { ArenaRuntimeReportSchema } from "../controller/schemas.js";
 import { bubblewrapPolicyHash } from "../controller/sandbox.js";
 import { verifyHostedRunAttestation } from "./attestation.js";
 import { renderArenaCompetitiveReport } from "./competitive.js";

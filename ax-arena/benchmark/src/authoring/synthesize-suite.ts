@@ -17,7 +17,6 @@ import { z } from "zod";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import {
-  CANONICAL_SURFACE_SCOPE,
   extractJsonObjectWithRepair,
   invokeGenerator,
   mapSettledLimit,

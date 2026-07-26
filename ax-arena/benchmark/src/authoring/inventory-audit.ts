@@ -1,47 +1,13 @@
 import {
   CAPABILITY_INVENTORY_SCHEMA_VERSION,
-  CapabilityEvidenceSchema,
   CapabilityInventorySchema,
   type CapabilityInventory,
   type CapabilityInventoryEntry,
 } from "ax-eval";
-import type { z } from "zod";
+import { classifyEvidenceStrength, evidenceText } from "./evidence-strength.js";
 
 function uniq(values: string[]): string[] {
   return Array.from(new Set(values));
-}
-
-function evidenceText(evidence: z.infer<typeof CapabilityEvidenceSchema>): string {
-  return `${evidence.doc_url} ${evidence.quote} ${evidence.note ?? ""}`.toLowerCase();
-}
-
-function looksConnectionDerived(evidence: z.infer<typeof CapabilityEvidenceSchema>): boolean {
-  const text = evidenceText(evidence);
-  return (
-    /(connection[-_\s]?string|connection uri|wire protocol|sql surface|postgresql-compatible|mongodb driver|any mongodb driver)/i.test(text)
-    && /(cluster|connection|deployment|project)/i.test(evidence.quote)
-  );
-}
-
-function inferEvidenceStrength(evidence: z.infer<typeof CapabilityEvidenceSchema>): NonNullable<z.infer<typeof CapabilityEvidenceSchema>["strength"]> {
-  const hasMethodPath = /\b(GET|POST|PUT|PATCH|DELETE)\s+\//.test(evidence.quote);
-  // Models sometimes stamp Management-API METHOD /path quotes as
-  // derived_from_connection_surface. Upgrade those unless the cite really is
-  // about exposing a wire/driver connection.
-  if (evidence.strength === "derived_from_connection_surface" && hasMethodPath && !looksConnectionDerived(evidence)) {
-    return "direct";
-  }
-  if (evidence.strength) return evidence.strength;
-  const url = evidence.doc_url.toLowerCase();
-  if (url.endsWith("/llms.txt") || url.includes("/llms.txt")) return "summary_index";
-  if (/\/(products?|pricing|features?)\/?$/.test(new URL(evidence.doc_url, "https://example.invalid").pathname)) return "marketing_claim";
-  if (looksConnectionDerived(evidence)) return "derived_from_connection_surface";
-  if (hasMethodPath) return "direct";
-  if (/\b(CREATE|ALTER|DROP|SELECT|INSERT|UPDATE|DELETE|UPSERT|BEGIN|COMMIT|ROLLBACK)\b/i.test(evidence.quote)) return "direct";
-  if (/\b(insertOne|insertMany|findOne|find|updateOne|updateMany|deleteOne|deleteMany|bulkWrite|aggregate|watch|createCollection)\b/.test(evidence.quote)) {
-    return "direct";
-  }
-  return "inferred";
 }
 
 function isConnectionDerivedDataPlane(capability: CapabilityInventoryEntry): boolean {
@@ -60,7 +26,7 @@ export function auditCapabilityInventory(inventory: CapabilityInventory): Capabi
   const capabilities = inventory.capabilities.map((capability) => {
     const evidence = capability.evidence.map((item) => ({
       ...item,
-      strength: inferEvidenceStrength(item),
+      strength: classifyEvidenceStrength(item),
     }));
     if (evidence.some((item) => item.strength !== "direct")) weakEvidenceCount++;
     if (evidence.some((item) => item.strength === "summary_index")) summaryIndexCount++;
