@@ -4,24 +4,63 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadPack } from "../src/config.js";
-import { writeApproval } from "../src/generate/review.js";
+import { stringify as yamlStringify } from "yaml";
+import { TargetPackSchema } from "../src/schemas.js";
+import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
+const ARENA_CLI = resolve(ROOT, "ax-arena", "benchmark", "src", "cli.ts");
+const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
 
+function writeSyntheticSuite(root: string): string {
+  const path = resolve(root, "suite.yaml");
+  writeFileSync(path, [
+    "name: EXAMPLE-1",
+    "version: 1",
+    "category: database",
+    "tasks:",
+    "  - id: db-T01-example",
+    "    title: Example task",
+    "    difficulty: L1",
+    "    skill: example",
+    "    intent: Complete the example task.",
+    "    oracle_hint: Read the result back.",
+    "",
+  ].join("\n"));
+  return path;
+}
+
 /** Run the CLI via Node + tsx loader; return { code, out } (stdout+stderr merged). */
-function runCli(args: string[], env: Record<string, string> = {}): { code: number; out: string } {
+function runCli(args: string[], env: Record<string, string> = {}, cwd: string = ROOT): { code: number; out: string } {
   try {
-    const out = execFileSync("node", ["--import", "tsx", CLI, ...args], {
-      cwd: ROOT,
+    const out = execFileSync("node", ["--import", TSX_LOADER, CLI, ...args], {
+      cwd,
       encoding: "utf8",
       env: {
         ...process.env,
         ASANA_PAT: "test-token",
         ASANA_SANDBOX_PROJECT_GID: "123",
         ...env,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { code: 0, out };
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    return { code: err.status ?? 1, out: (err.stdout ?? "") + (err.stderr ?? "") };
+  }
+}
+
+function runArenaCli(args: string[], cwd: string = ROOT): { code: number; out: string } {
+  try {
+    const out = execFileSync("node", ["--import", TSX_LOADER, ARENA_CLI, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        TSX_TSCONFIG_PATH: resolve(ROOT, "ax-arena", "benchmark", "tsconfig.json"),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -43,9 +82,322 @@ describe("cli arg handling", () => {
   it("subcommand help prints command usage with exit 0", () => {
     const { code, out } = runCli(["generate", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval generate --from <ingest.json>");
+    expect(out).toContain("usage: ax-eval generate");
+    expect(out).toContain("--from <ingest.json>");
     expect(out).toContain("--deterministic");
+    expect(out).toContain("--suite");
+    expect(out).toContain("docs-only mode");
     expect(out).not.toContain("unknown flag");
+  });
+
+  it("delegates legacy authoring help to the arena CLI", () => {
+    const direct = runArenaCli(["benchmark", "audit-extracts", "--help"]);
+    const delegated = runCli(["audit-extracts", "--help"]);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toBe(direct.out);
+    expect(delegated.out).toContain("usage: ax-arena benchmark audit-extracts");
+  });
+
+  it("warns on a legacy authoring alias and preserves the arena exit status", () => {
+    const direct = runArenaCli(["benchmark", "resolve-vendor"]);
+    const delegated = runCli(["resolve-vendor"]);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toContain(
+      "warning: ax-eval resolve-vendor is deprecated; use ax-arena benchmark resolve-vendor instead.",
+    );
+    expect(delegated.out).toContain(direct.out.trim());
+  });
+
+  it("cell help documents the stable subprocess contract", () => {
+    const { code, out } = runCli(["cell", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  });
+
+  it("cell run uses the public schema and writes one isolated record", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cell-cli-"));
+    const binDir = mkdtempSync(resolve(tmpdir(), "ax-cell-bin-"));
+    try {
+      const pack = TargetPackSchema.parse({
+        name: "cell-cli",
+        version: "1",
+        standard_set_version: "cell-cli-v1",
+        run_id: "cell-cli",
+        generated_by: "deterministic@no-model",
+        auth_method: "none",
+        auth: { type: "none" },
+        base_url: "https://example.invalid",
+        site_url: "",
+        docs_urls: [],
+        tasks: [],
+      });
+      const packPath = resolve(dir, "pack.yaml");
+      writeFileSync(packPath, yamlStringify(pack));
+      writeApproval(packPath, pack, "cli-test");
+      const inputPath = resolve(dir, "cell.json");
+      const outputPath = resolve(dir, "record.json");
+      writeFileSync(inputPath, JSON.stringify({
+        schema: "ax.evaluation-cell/v1",
+        cell_id: "cell-cli-1",
+        batch_id: "batch-cli",
+        evaluation_set_id: "cell-cli-set",
+        evaluation_set_version: pack.standard_set_version,
+        target_id: "cell-cli",
+        pack: { path: "pack.yaml", content_hash: packFileContentHash(packPath) },
+        surface: "api",
+        harness: { id: "claude-code", profile: "medium", model: "claude-test", effort: "medium" },
+        trial: 1,
+        source_commit_sha: "b".repeat(40),
+        required_credentials: [],
+        run_context: {
+          cwd: dir,
+          artifact_dir: "artifacts",
+          invoke_timeout_ms: 10_000,
+          first_action_timeout_ms: 0,
+          invoke_retries: 0,
+        },
+      }));
+      const fakeClaude = resolve(binDir, "claude");
+      writeFileSync(fakeClaude, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) { console.log("claude fake 1.2.3"); process.exit(0); }
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+if (!resultPath || !tracePath) process.exit(2);
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "medium", ns: "cell-cli-ns", surface: "api", model: "claude-test",
+  leaked: process.env.UNRELATED_VENDOR_SECRET ?? null,
+  results: {}
+}));
+fs.writeFileSync(tracePath, JSON.stringify([{ step: 1, taskId: "task-1", action: "POST" }]));
+console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-test" }));
+`);
+      chmodSync(fakeClaude, 0o755);
+
+      const result = runCli(
+        ["cell", "run", "--input", inputPath, "--output", outputPath],
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          AX_EVAL_CLAUDE_BIN: "/ambient/wrapper/must-not-run",
+          UNRELATED_VENDOR_SECRET: "must-not-leak",
+        },
+      );
+      expect(result.code).toBe(0);
+      const record = JSON.parse(readFileSync(outputPath, "utf8"));
+      expect(record).toMatchObject({
+        schema: "ax.normalized-cell-record/v1",
+        cell_id: "cell-cli-1",
+        batch_id: "batch-cli",
+        model: "claude-test",
+        effort: "medium",
+        trial: 1,
+        status: "completed",
+      });
+      const raw = JSON.parse(readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8"));
+      expect(raw.leaked).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(binDir, { recursive: true, force: true });
+    }
+  });
+
+  it("automate-report help documents the guarded workflow", () => {
+    const { code, out } = runCli(["automate-report", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+    expect(out).toContain("--smoke-only");
+    expect(out).toContain("does not auto-approve");
+  });
+
+  it("automate-report requires a company", () => {
+    const { code, out } = runCli(["automate-report"]);
+    expect(code).toBe(1);
+    expect(out).toContain("usage: ax-eval automate-report --company <name>");
+  });
+
+  it("delegates competitive and publication help to the arena CLI", () => {
+    for (const command of ["competitive", "publication-bundle", "export-publication"] as const) {
+      const direct = runArenaCli(["benchmark", command, "--help"]);
+      const delegated = runCli([command, "--help"]);
+      expect(delegated).toEqual(direct);
+      expect(delegated.out).toContain(`usage: ax-arena benchmark ${command}`);
+    }
+  }, 20_000);
+
+  it("preserves arena failures through competitive and publication aliases", () => {
+    const cases = [
+      { command: "competitive", args: [] as string[], error: "missing required flag --from" },
+      { command: "publication-bundle", args: ["--out", "bundle"], error: "missing required flag --run-root" },
+      { command: "export-publication", args: [] as string[], error: "missing required flag --from" },
+    ] as const;
+    for (const test of cases) {
+      const direct = runArenaCli(["benchmark", test.command, ...test.args]);
+      const delegated = runCli([test.command, ...test.args]);
+      expect(delegated.code).toBe(direct.code);
+      expect(delegated.out).toContain(
+        `warning: ax-eval ${test.command} is deprecated; use ax-arena benchmark ${test.command} instead.`,
+      );
+      expect(delegated.out).toContain(test.error);
+    }
+  });
+
+  it("rejects the legacy raw-result competitive path instead of bypassing sealed publication", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-competitive-alias-"));
+    try {
+      const recordPath = resolve(dir, "record.json");
+      writeFileSync(recordPath, JSON.stringify({
+        schema: "ax.normalized-result/v1",
+        surface: "api",
+        product: "demo",
+        harness: "codex",
+        standard_set_version: "demo-v1",
+        generated_at: "2026-07-21T00:00:00.000Z",
+        tasks_total: 1,
+        tasks_passed: 1,
+        pass_at_1: 1,
+        pass_at_k: 1,
+        attempts: 1,
+        discovery_score: null,
+        content_quality: null,
+        profiles: ["high"],
+        best_profile: "high",
+      }));
+      const runDir = resolve(dir, "legacy-run");
+      const result = runCli([
+        "competitive", "--results", recordPath, "--run-dir", runDir,
+        "--generated-at", "2026-07-21T00:00:00.000Z",
+      ], {}, dir);
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("unknown flag --results");
+      expect(existsSync(resolve(runDir, "competitive.html"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("records-diff writes deterministic Markdown", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-records-diff-"));
+    try {
+      const base = resolve(dir, "base.json");
+      const head = resolve(dir, "head.json");
+      const outPath = resolve(dir, "diff.md");
+      const record = (pass: number) => ({
+        schema: "ax.normalized-result/v1", surface: "api", product: "neon", harness: "codex",
+        standard_set_version: "daeb-v1", generated_at: "2026-07-18T00:00:00.000Z",
+        tasks_total: 7, tasks_passed: Math.round(pass * 7), pass_at_1: pass, pass_at_k: pass,
+        attempts: 1, discovery_score: null, content_quality: null, profiles: ["high"],
+        best_profile: "high", model: "gpt-5.6-terra", summary_kind: "aggregate",
+        task_consistency_at_3: pass, pass_3_tasks: Math.round(pass * 7), pass_3_tasks_total: 7,
+      });
+      writeFileSync(base, JSON.stringify(record(0.5)));
+      writeFileSync(head, JSON.stringify(record(0.75)));
+      const result = runCli(["records-diff", "--base", base, "--head", head, "--out", outPath]);
+      expect(result.code).toBe(0);
+      expect(readFileSync(outPath, "utf8")).toContain("+25.0 pp");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("delegates daeb-low-pass help to the arena CLI", () => {
+    const { code, out } = runCli(["daeb-low-pass", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-arena benchmark daeb-low-pass");
+    expect(out).toContain("--surface api|cli|all");
+    expect(out).toContain("--codex-model <slug>");
+    expect(out).toContain("--claude-model <slug>");
+    expect(out).toContain("--skip-reset");
+    expect(out).toContain("--benchmark-root <dir>");
+  });
+
+  it("delegates daeb-production-rerun help to the arena CLI", () => {
+    const { code, out } = runCli(["daeb-production-rerun", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-arena benchmark daeb-production-rerun");
+    expect(out).toContain("--trial-count 3");
+    expect(out).toContain("--invoke-timeout seconds");
+    expect(out).toContain("--skip-archive");
+    expect(out).toContain("--benchmark-root <dir>");
+  });
+
+  it("requires a value for --benchmark-root", () => {
+    const { code, out } = runCli(["audit-extracts", "--benchmark-root"]);
+    expect(code).toBe(1);
+    expect(out).toContain("flag --benchmark-root requires a value");
+  });
+
+  it("fails ambiguous benchmark roots unless --benchmark-root selects one", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-benchmark-root-"));
+    try {
+      mkdirSync(resolve(dir, "ax-arena", "benchmark", "daeb"), { recursive: true });
+      mkdirSync(resolve(dir, "benchmarks", "daeb"), { recursive: true });
+
+      const ambiguous = runCli(["audit-extracts"], {}, dir);
+      expect(ambiguous.code).toBe(1);
+      expect(ambiguous.out).toMatch(/ambiguous benchmark roots.*--benchmark-root/);
+
+      const explicit = runCli([
+        "audit-extracts",
+        "--benchmark-root", "ax-arena/benchmark/daeb",
+      ], {}, dir);
+      expect(explicit.code).toBe(0);
+      expect(explicit.out).toContain("0 vendor(s)");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects a legacy synthesize-suite writer destination", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-benchmark-writer-"));
+    try {
+      mkdirSync(resolve(dir, "benchmarks", "daeb"), { recursive: true });
+      const result = runCli([
+        "synthesize-suite",
+        "--category", "database",
+        "--benchmark-root", "benchmarks/daeb",
+        "--out", "benchmarks/daeb/v1/suite.yaml",
+        "--deterministic",
+      ], {}, dir);
+      expect(result.code).toBe(1);
+      expect(result.out).toMatch(/writers use only the canonical benchmark root/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("generate without --from or --suite errors with a helpful usage hint", () => {
+    const { code, out } = runCli(["generate"]);
+    expect(code).not.toBe(0);
+    expect(out).toMatch(/--from is required/);
+  });
+
+  it("generate without --from but with --suite + no --product errors", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-synthetic-suite-"));
+    try {
+      const { code, out } = runCli(["generate", "--suite", writeSyntheticSuite(dir)], {}, dir);
+      expect(code).not.toBe(0);
+      expect(out).toMatch(/--product is required/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("extract-tasks infers category from the suite when --category is omitted", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-synthetic-suite-"));
+    try {
+      const { code, out } = runCli([
+        "extract-tasks",
+        "--suite", writeSyntheticSuite(dir),
+        "--vendor", "definitely-not-a-real-vendor",
+      ], {}, dir);
+      expect(code).not.toBe(0);
+      expect(out).not.toContain("--category is required");
+      expect(out).toContain('No vendor card found for slug "definitely-not-a-real-vendor"');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("an unknown command prints usage with exit 2 (not a flag error)", () => {
@@ -68,315 +420,78 @@ describe("cli arg handling", () => {
     expect(out).toContain("Agent-readiness score");
   });
 
-  it("automate-report help documents the one-shot workflow", () => {
-    const { code, out } = runCli(["automate-report", "--help"]);
-    expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval automate-report --company <name>");
-    expect(out).toContain("--smoke-only");
-    expect(out).toContain("--approve-by");
-  });
-
-  it("automate-report requires --company", () => {
-    const { code, out } = runCli(["automate-report"]);
+  it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {
+    const { code, out } = runCli([
+      "daeb-low-pass",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "--vendor", "neon",
+      "--surface", "sdk",
+    ]);
     expect(code).toBe(1);
-    expect(out).toContain("usage: ax-eval automate-report --company <name>");
-  });
-});
-
-describe("automate-report", () => {
-  const dirs: string[] = [];
-  function freshDir(prefix = "ax-auto-"): string {
-    const d = mkdtempSync(resolve(tmpdir(), prefix));
-    dirs.push(d);
-    return d;
-  }
-  afterEach(() => {
-    for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  function writeOpenapiFixture(dir: string): string {
-    const path = resolve(dir, "openapi.json");
-    writeFileSync(path, JSON.stringify({
-      openapi: "3.0.0",
-      info: { title: "Widget API", version: "1" },
-      servers: [{ url: "https://api.widget.test" }],
-      components: {
-        securitySchemes: {
-          widgetApiKey: {
-            type: "apiKey",
-            in: "header",
-            name: "x-api-key",
-          },
-        },
-      },
-      security: [{ widgetApiKey: [] }],
-      paths: {},
-    }));
-    return path;
-  }
+  it("daeb-production-rerun rejects sdk because DAEB/database v1 scope is api+cli", () => {
+    const { code, out } = runCli([
+      "daeb-production-rerun",
+      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "--vendor", "neon",
+      "--surface", "sdk",
+    ]);
+    expect(code).toBe(1);
+    expect(out).toContain('surface "sdk" is out of scope');
+  });
 
-  function writeDiscoveryFixture(dir: string, openapiPath: string): string {
-    const path = resolve(dir, "discovery.json");
-    writeFileSync(path, JSON.stringify({
-      site_url: "https://docs.widget.test",
-      docs_urls: ["https://docs.widget.test"],
-      openapi_url: openapiPath,
-      auth_notes: ["Create a sandbox API key."],
-      surface_notes: ["API surface only."],
-    }));
-    return path;
-  }
+  it("daeb-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
+    const model = runCli(["daeb-production-rerun", "--codex-model", "gpt-5.4"]);
+    expect(model.code).toBe(1);
+    expect(model.out).toContain("production models are frozen");
+    const trials = runCli(["daeb-production-rerun", "--trial-count", "2"]);
+    expect(trials.code).toBe(1);
+    expect(trials.out).toContain("exactly 3 clean trials");
+    const reset = runCli(["daeb-production-rerun", "--skip-reset"]);
+    expect(reset.code).toBe(1);
+    expect(reset.out).toContain("--skip-reset is not allowed");
+  });
 
-  function writeGeneratedPackFixture(dir: string): string {
-    const path = resolve(dir, "pack.json");
-    writeFileSync(path, JSON.stringify({
-      name: "widget-generated",
-      standard_set_version: "automation-test",
-      run_id: "auto-test",
-      base_url: "https://api.widget.test",
-      auth_method: "api-key",
-      auth: { type: "api-key", env: "WIDGET_API_KEY", header: "x-api-key" },
-      sandbox_scope: [],
-      discovery: { product: "Widget", canonical_endpoint: "POST /widgets" },
-      tasks: [],
-    }));
-    return path;
-  }
+  it("delegates legacy DAEB runtime aliases to arena's fail-closed boundary", () => {
+    const direct = runArenaCli(["benchmark", "daeb-low-pass"]);
+    const delegated = runCli(["daeb-low-pass"]);
+    expect(direct.code).toBe(1);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toContain(
+      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark daeb-low-pass instead.",
+    );
+    expect(delegated.out).toContain("requires the trusted workflow OS sandbox");
+  });
 
-  function approveAutomationPacks(dir: string): void {
-    for (const file of ["widget.generated.full.pack.yaml", "widget.generated.smoke.pack.yaml"]) {
-      const packPath = resolve(dir, file);
-      writeApproval(packPath, loadPack(packPath), "tester");
+  it("returns a failure exit code when reset requires an explicit provider", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-reset-provider-"));
+    try {
+      const pack = TargetPackSchema.parse({
+        name: "neon",
+        version: "1",
+        standard_set_version: "reset-provider-v1",
+        run_id: "reset-provider",
+        generated_by: "deterministic@no-model",
+        auth_method: "bearer",
+        auth: { type: "bearer", env: "MISSING_RESET_TOKEN" },
+        base_url: "https://${MISSING_RESET_HOST}",
+        site_url: "",
+        docs_urls: [],
+        tasks: [],
+      });
+      const packPath = resolve(dir, "pack.yaml");
+      writeFileSync(packPath, yamlStringify(pack));
+
+      const result = runCli(["reset", "--pack", packPath, "--ns", "reset-provider"]);
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("requires an explicit ResetProvider");
+      expect(result.out).not.toContain("MISSING_RESET_TOKEN");
+      expect(result.out).not.toContain("MISSING_RESET_HOST");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
-  }
-
-  function writeFakeCodex(dir: string): string {
-    const binDir = resolve(dir, "bin");
-    mkdirSync(binDir, { recursive: true });
-    const fake = resolve(binDir, "codex");
-    writeFileSync(fake, `#!/usr/bin/env node
-const fs = require("fs");
-const args = process.argv.slice(2);
-if (args.includes("--version")) {
-  console.log("codex fake-test");
-  process.exit(0);
-}
-const outIdx = args.indexOf("--output-last-message");
-const resultPath = outIdx >= 0 ? args[outIdx + 1] : "";
-const prompt = args[args.length - 1] || "";
-const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1] || resultPath.replace(/\\.json$/, ".trace.json");
-if (!resultPath) process.exit(1);
-fs.writeFileSync(resultPath, JSON.stringify({
-  profile: "low",
-  ns: "fake-ns",
-  surface: "api",
-  discovery: { base_url_found: "", searches: [], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: "" },
-  results: {}
-}, null, 2));
-fs.writeFileSync(tracePath, "[]");
-console.error("model: fake-codex");
-console.log(JSON.stringify({ model: "fake-codex", ok: true }));
-`);
-    chmodSync(fake, 0o755);
-    return binDir;
-  }
-
-  it("fails company-only discovery cleanly without mentioning Exa env or APIs", () => {
-    const dir = freshDir();
-    const { code, out } = runCli(["automate-report", "--company", "No Such Product", "--offline", "--run-dir", dir]);
-    expect(code).toBe(1);
-    expect(out).toContain("Could not find a trustworthy official OpenAPI or GraphQL spec");
-    expect(out).toContain("--openapi");
-    expect(out).not.toContain("EXA_API_KEY");
-    expect(out).not.toContain("Exa API");
-  });
-
-  it("uses fixture discovery and stops with an auth checklist when config is missing", () => {
-    const dir = freshDir();
-    const openapi = writeOpenapiFixture(dir);
-    const discovery = writeDiscoveryFixture(dir, openapi);
-    const pack = writeGeneratedPackFixture(dir);
-    const first = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      WIDGET_API_KEY: "",
-    });
-    expect(first.code).toBe(1);
-    expect(first.out).toContain("no approval on file");
-    approveAutomationPacks(dir);
-    const { code, out } = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      WIDGET_API_KEY: "",
-    });
-    expect(code).toBe(1);
-    expect(out).toContain("Configuration checklist");
-    expect(out).toContain("WIDGET_API_KEY");
-    expect(out).toContain("missing required auth or sandbox configuration");
-    expect(readFileSync(resolve(dir, "automation-manifest.json"), "utf8")).toContain("configuration-checklist.md");
-  });
-
-  it("falls back to deterministic generation when LLM-assisted generation fails", () => {
-    const dir = freshDir();
-    const openapi = writeOpenapiFixture(dir);
-    const discovery = writeDiscoveryFixture(dir, openapi);
-    const { code, out } = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: resolve(dir, "missing-pack.json"),
-      WIDGET_API_KEY: "",
-    });
-    expect(code).toBe(1);
-    expect(out).toContain("falling back to deterministic generation");
-    expect(existsSync(resolve(dir, "widget.generated.full.pack.yaml"))).toBe(true);
-  });
-
-  it("runs smoke then full when fixture verification passes", () => {
-    const dir = freshDir();
-    const openapi = writeOpenapiFixture(dir);
-    const discovery = writeDiscoveryFixture(dir, openapi);
-    const pack = writeGeneratedPackFixture(dir);
-    const binDir = writeFakeCodex(dir);
-    const first = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--surface", "api",
-      "--harness", "codex",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(first.code).toBe(1);
-    expect(first.out).toContain("Generated packs still require explicit review approval");
-    approveAutomationPacks(dir);
-    const { code, out } = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--surface", "api",
-      "--harness", "codex",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(code).toBe(0);
-    expect(out).toContain("Running smoke gate");
-    expect(out).toContain("Smoke passed. Running full report");
-    expect(readdirSync(resolve(dir, "smoke"))).toContain("generated-eval.html");
-    expect(readdirSync(resolve(dir, "full"))).toContain("generated-eval.html");
-    expect(readFileSync(resolve(dir, "share-summary.md"), "utf8")).toContain("Widget Agent Usability Report");
-  });
-
-  it("honors --effort medium in the full-run profile set", () => {
-    const dir = freshDir();
-    const openapi = writeOpenapiFixture(dir);
-    const discovery = writeDiscoveryFixture(dir, openapi);
-    const pack = writeGeneratedPackFixture(dir);
-    const binDir = writeFakeCodex(dir);
-    const first = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--harness", "codex",
-      "--effort", "medium",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(first.code).toBe(1);
-    approveAutomationPacks(dir);
-    const { code, out } = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--harness", "codex",
-      "--effort", "medium",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "pass",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(code).toBe(0);
-    expect(out).toContain("profiles=low,medium");
-  });
-
-  it("stops after smoke when smoke verification fails", () => {
-    const dir = freshDir();
-    const openapi = writeOpenapiFixture(dir);
-    const discovery = writeDiscoveryFixture(dir, openapi);
-    const pack = writeGeneratedPackFixture(dir);
-    const binDir = writeFakeCodex(dir);
-    const first = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--harness", "codex",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "fail",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(first.code).toBe(1);
-    approveAutomationPacks(dir);
-    const { code, out } = runCli([
-      "automate-report",
-      "--company", "Widget",
-      "--offline",
-      "--approve-by", "tester",
-      "--run-dir", dir,
-      "--harness", "codex",
-    ], {
-      AX_EVAL_AUTOMATION_DISCOVERY_FIXTURE: discovery,
-      AX_EVAL_GENERATOR_FIXTURE: pack,
-      AX_EVAL_AUTOMATION_VERIFY_FIXTURE: "fail",
-      WIDGET_API_KEY: "test-widget-key",
-      PATH: `${binDir}:${process.env.PATH ?? ""}`,
-    });
-    expect(code).toBe(1);
-    expect(out).toContain("Verification fixture failed");
-    expect(out).not.toContain("Smoke passed. Running full report");
-    expect(existsSync(resolve(dir, "full"))).toBe(false);
   });
 });
 
@@ -596,6 +711,36 @@ describe("exec-plan --surface fan-out", () => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
   });
 
+  it("fails closed before execution when database reclaim has no explicit provider", () => {
+    const dir = freshDir();
+    const pack = TargetPackSchema.parse({
+      name: "neon",
+      version: "1",
+      standard_set_version: "exec-plan-provider-v1",
+      run_id: "exec-plan-provider",
+      generated_by: "deterministic@no-model",
+      auth_method: "bearer",
+      auth: { type: "bearer", env: "MISSING_RECLAIM_TOKEN" },
+      base_url: "https://${MISSING_RECLAIM_HOST}",
+      site_url: "",
+      docs_urls: [],
+      tasks: [],
+    });
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+
+    const result = runCli([
+      "exec-plan", "--pack", packPath, "--skip-review", "--reclaim", "--run-dir", resolve(dir, "run"),
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.out).toContain("health-check unavailable");
+    expect(result.out).toContain("requires an explicit ResetProvider");
+    expect(result.out).not.toContain("MISSING_RECLAIM_TOKEN");
+    expect(result.out).not.toContain("MISSING_RECLAIM_HOST");
+    expect(result.out).not.toContain("reclaimed 0/0");
+    expect(readdirSync(dir)).toEqual(["pack.yaml"]);
+  });
+
   it("`--surface all` fans out over auth-runnable surfaces with isolated ns + tagged files", () => {
     const dir = freshDir();
     const { code, out } = runCli(
@@ -674,7 +819,7 @@ if (!resultPath || !tracePath) {
   process.exit(1);
 }
 fs.writeFileSync(resultPath, JSON.stringify({
-  profile: "floor",
+  profile: "medium",
   ns: "fake-ns",
   surface: "api",
   discovery: { base_url_found: "", searches: [], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: "" },
@@ -689,26 +834,121 @@ console.log(JSON.stringify({ ok: true }));
     const { code, out } = runCli(
       [
         "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "claude-code",
-        "--profile", "floor", "--attempts", "1", "--run-dir", dir,
+        "--attempts", "1", "--run-dir", dir,
       ],
       { PATH: `${binDir}:${process.env.PATH ?? ""}` },
     );
 
     expect(code).toBe(0);
-    expect(out).toContain("claude-code/API/floor"); // per-job progress label in the concurrency pool
+    expect(out).toContain("claude-code/API/medium"); // per-job progress label in the concurrency pool
     // One combined verify-generated command (no per-harness split, no --harness flag).
     expect(out).toContain("ax-eval verify-generated");
     expect(out).toContain("--html");
     expect(out).toContain("generated-eval.html");
     expect(out).not.toContain("--harness claude-code"); // verify command groups by record, not flag
     const files = readdirSync(dir).sort();
-    expect(files).toContain("prompt-claude-code-floor.txt");
-    expect(files).toContain("run-claude-code-floor.json");
-    expect(files).toContain("run-claude-code-floor.trace.json");
-    expect(files).toContain("run-claude-code-floor.transcript.jsonl");
-    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-floor.json"), "utf8"));
+    expect(files).toContain("prompt-claude-code-medium.txt");
+    expect(files).toContain("run-claude-code-medium.json");
+    expect(files).toContain("run-claude-code-medium.trace.json");
+    expect(files).toContain("run-claude-code-medium.transcript.jsonl");
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(executor.harness).toBe("claude-code");
-    expect(executor.profile).toBe("floor");
+    expect(executor.profile).toBe("medium");
+  });
+
+  it("`--execution-mode task` runs one prompt per task and aggregates them back into a combined run", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const packDir = freshDir();
+    const taskPack = resolve(packDir, "task-pack.yaml");
+    writeFileSync(
+      taskPack,
+      `
+name: task-pack
+run_id: gen
+base_url: https://api.example.test
+tasks:
+  - id: task-one
+    difficulty: L1
+    prompt: Create task one {ns}
+    allowed_surfaces: [api]
+    oracles:
+      - type: roundtrip
+        readPathTemplate: /things/{gid}
+        assertField: ok
+        expected: true
+  - id: task-two
+    difficulty: L2
+    prompt: Create task two {ns}
+    allowed_surfaces: [api]
+    oracles:
+      - type: roundtrip
+        readPathTemplate: /things/{gid}
+        assertField: ok
+        expected: true
+`.trim(),
+    );
+    const fakeClaude = resolve(binDir, "claude");
+    writeFileSync(
+      fakeClaude,
+      `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  console.log("claude fake-test");
+  process.exit(0);
+}
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+const taskId = /- ([^\\s]+) \\[L\\d\\]:/.exec(prompt)?.[1];
+if (!resultPath || !tracePath || !taskId) {
+  console.error("missing paths or task");
+  process.exit(1);
+}
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "medium",
+  ns: "fake-ns",
+  surface: "api",
+  discovery: { base_url_found: "", searches: [taskId], urls_visited: [], endpoint_used: "", auth_scheme_found: "", notes: taskId },
+  results: { [taskId]: { gid: taskId + "-gid" } }
+}, null, 2));
+fs.writeFileSync(tracePath, JSON.stringify([{ step: 1, taskId, action: "did " + taskId }], null, 2));
+console.log(JSON.stringify({ ok: true }));
+`,
+    );
+    chmodSync(fakeClaude, 0o755);
+
+    const { code, out } = runCli(
+      [
+        "exec-plan", "--pack", taskPack, "--skip-review", "--invoke", "--harness", "claude-code",
+        "--attempts", "1", "--execution-mode", "task", "--run-dir", dir,
+      ],
+      { PATH: `${binDir}:${process.env.PATH ?? ""}` },
+    );
+
+    expect(code).toBe(0);
+    const files = readdirSync(dir).sort();
+    expect(files).toContain("run-claude-code-medium.json");
+    expect(files).toContain("run-claude-code-medium.trace.json");
+    expect(files).toContain("run-claude-code-medium.invoke.json");
+    expect(files.some((file) => file.startsWith("run-claude-code-medium-") && file.endsWith(".json"))).toBe(true);
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
+    expect(Object.keys(executor.results).length).toBeGreaterThan(1);
+    expect(Object.values(executor.results).every((value: unknown) => {
+      return !!value && typeof value === "object" && typeof (value as { gid?: string }).gid === "string";
+    })).toBe(true);
+    const meta = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.invoke.json"), "utf8"));
+    expect(meta.executionMode).toBe("task");
+    expect(Array.isArray(meta.taskMetaPaths)).toBe(true);
+    expect(meta.taskMetaPaths.length).toBeGreaterThan(1);
+  });
+
+  it("rejects `--execution-mode task` without `--invoke`", () => {
+    const dir = freshDir();
+    const { code, out } = runCli(["exec-plan", "--pack", PACK, "--skip-review", "--execution-mode", "task", "--run-dir", dir]);
+    expect(code).toBe(1);
+    expect(out).toContain("--execution-mode task currently requires --invoke");
   });
 
   it("runs multiple configs through the concurrency pool (parallel by default)", () => {
@@ -738,7 +978,7 @@ console.log(JSON.stringify({ ok: true }));
       { PATH: `${binDir}:${process.env.PATH ?? ""}` },
     );
     expect(code).toBe(0);
-    // Two configs (low + high) ran via the pool — both files exist, and the pool
+    // Explicit legacy profiles still run via the pool — both files exist, and the pool
     // announces its concurrency.
     expect(out).toContain("at concurrency=2");
     const files = readdirSync(dir).sort();

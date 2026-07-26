@@ -1,0 +1,29 @@
+schema: ax.trace-review/v1
+benchmark: DAEB-1
+generated_at: 2026-07-12T09:45:00.000Z
+status: completed
+sample_size: 11
+sample_ids:
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T01-access-control.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/cockroachdb-cli/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-remediation/medium/codex/insforge-cli-t01/run-codex-medium-cli.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/neon-cli-db-T05-vector-search/run-codex-medium-cli-db-T05-vector-search.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/turso-api-db-T05-vector-search/run-codex-medium-db-T05-vector-search.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/turso-cli-db-T06-write-records/run-codex-medium-cli-db-T06-write-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/nile-cli-db-T04-query-records/run-codex-medium-cli-db-T04-query-records.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/supabase-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+  - results/_archive/2026-07-12-pre-pr-cleanup/daeb-v1-trace-refresh/medium/codex/insforge-cli-db-T02-evolve-schema/run-codex-medium-cli-db-T02-evolve-schema.trace.json
+reviewer: Richard Tang
+reviewed_at: 2026-07-12T09:45:00.000Z
+commit_sha: 741e7b0e43fa921fbde093ddd8c851570747692f
+findings:
+  - "Human trajectory review accepted: 3 remediation positives + 6 re-verified CLI positives (100%) + 2 Turso attributable negatives. Outcomes and surfaces credible for calibration."
+  - "Re-verify 2026-07-12 cleared first-refresh false scores (wrong verify paths then reset). Neon/Nile/Supabase/Insforge CLI positives now have trusted live oracles."
+  - "Follow-ups implemented in-repo (post-stamp): surface honesty grader fails api cells that only use SQL wire/pg; result JSON rejects bare inner quotes (results_json_invalid); ACL RESET ROLE after sql-role tasks + verifier RESET ROLE prefix + pack prompt note."
+summary: >-
+  Trace-review completed. Eleven current-pack samples accepted after trajectory
+  review and clean execute→verify→reset on the six refresh CLI positives.
+  Engineering follow-ups for surface honesty, JSON parse, and ACL session reset
+  landed alongside this stamp.

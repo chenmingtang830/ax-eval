@@ -1,0 +1,185 @@
+import { spawnSync } from "node:child_process";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+
+const npm = process.env.npm_execpath
+  ? { command: process.execPath, args: [process.env.npm_execpath] }
+  : { command: "npm", args: [] };
+
+function collectDeclarationExports(path) {
+  const source = ts.createSourceFile(path, readFileSync(path, "utf8"), ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const names = new Set();
+  for (const statement of source.statements) {
+    if (ts.isExportDeclaration(statement) && statement.exportClause && ts.isNamedExports(statement.exportClause)) {
+      for (const element of statement.exportClause.elements) names.add(element.name.text);
+      continue;
+    }
+    if (!statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    if ("name" in statement && statement.name && ts.isIdentifier(statement.name)) names.add(statement.name.text);
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        if (ts.isIdentifier(declaration.name)) names.add(declaration.name.text);
+      }
+    }
+  }
+  return names;
+}
+const result = spawnSync(npm.command, [...npm.args, "--cache", "../../.npm-cache", "pack", "--dry-run", "--json"], {
+  cwd: process.cwd(),
+  encoding: "utf8",
+});
+if (result.error || result.status !== 0) {
+  throw new Error(result.error?.message || result.stderr || `npm pack exited ${result.status}`);
+}
+
+const report = JSON.parse(result.stdout)[0];
+const files = new Set((report?.files ?? []).map((file) => file.path));
+const required = [
+  ".env.example",
+  "README.md",
+  "TRUSTED_EXECUTION_DESIGN.md",
+  "dist/cli.js",
+  "dist/index.js",
+  "dist/index.d.ts",
+  "dist/trusted-worker.js",
+  "dist/trusted-plan.js",
+  "dist/assemble-trusted-completion.js",
+  "package.json",
+  "schemas/arena-batch-completion.v1.json",
+  "schemas/arena-batch-plan.v1.json",
+  "schemas/arena-batch.v1.json",
+  "schemas/arena-runtime-report.v1.json",
+  "schemas/arena-cell-cleanup.v1.json",
+  "schemas/arena-cell-result.v1.json",
+  "schemas/publication-bundle.v2.json",
+];
+function requireTree(directory, prefix) {
+  for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    const child = resolve(directory, entry.name);
+    const path = `${prefix}/${entry.name}`;
+    if (path === "daeb/_archive") continue;
+    if (entry.isSymbolicLink()) throw new Error(`arena package source rejects symlink: ${path}`);
+    if (entry.isDirectory()) requireTree(child, path);
+    else if (entry.isFile()) required.push(path);
+  }
+}
+requireTree(resolve(process.cwd(), "daeb"), "daeb");
+const missing = required.filter((path) => !files.has(path));
+const forbidden = [...files].filter((path) =>
+  path.startsWith("src/")
+  || path.startsWith("tests/")
+  || path.startsWith("scripts/")
+  || path.startsWith("benchmarks/daeb/")
+  || path === "daeb/_archive"
+  || path.startsWith("daeb/_archive/"),
+);
+if (missing.length || forbidden.length) {
+  throw new Error([
+    missing.length ? `missing required arena package files: ${missing.join(", ")}` : "",
+    forbidden.length ? `forbidden arena package files: ${forbidden.join(", ")}` : "",
+  ].filter(Boolean).join("; "));
+}
+
+const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+if (packageJson.bin?.["ax-arena"] !== "./dist/cli.js") {
+  throw new Error("arena package ax-arena bin must target ./dist/cli.js");
+}
+const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const smokeRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-package-smoke-"));
+try {
+  const installedCore = resolve(smokeRoot, "node_modules", "ax-eval");
+  const installedArena = resolve(smokeRoot, "node_modules", "@ax-arena", "benchmark");
+  mkdirSync(installedCore, { recursive: true });
+  mkdirSync(installedArena, { recursive: true });
+  cpSync(resolve(workspaceRoot, "dist"), resolve(installedCore, "dist"), { recursive: true });
+  cpSync(resolve(workspaceRoot, "package.json"), resolve(installedCore, "package.json"));
+  cpSync(resolve(process.cwd(), "dist"), resolve(installedArena, "dist"), { recursive: true });
+  cpSync(resolve(process.cwd(), "package.json"), resolve(installedArena, "package.json"));
+  const corePackage = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
+  for (const dependency of Object.keys(corePackage.dependencies ?? {})) {
+    const installedDependency = resolve(smokeRoot, "node_modules", dependency);
+    mkdirSync(dirname(installedDependency), { recursive: true });
+    symlinkSync(resolve(workspaceRoot, "node_modules", dependency), installedDependency, "dir");
+  }
+
+  const builtBin = spawnSync(process.execPath, [
+    resolve(installedArena, "dist", "cli.js"),
+    "benchmark",
+    "--help",
+  ], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+  });
+  if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage: ax-arena benchmark")) {
+    throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
+  }
+
+  const trustedWorker = spawnSync(process.execPath, [resolve(installedArena, "dist", "trusted-worker.js")], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "" },
+  });
+  if (trustedWorker.status === 0 || !trustedWorker.stderr.includes("restricted to the reviewed GitHub Actions environment")) {
+    throw new Error("built trusted worker did not fail closed outside GitHub Actions");
+  }
+  const trustedPlanner = spawnSync(process.execPath, [resolve(installedArena, "dist", "trusted-plan.js")], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "" },
+  });
+  if (trustedPlanner.status === 0 || !trustedPlanner.stderr.includes("credential-free GitHub Actions plan job")) {
+    throw new Error("built trusted planner did not fail closed outside GitHub Actions");
+  }
+  const trustedAssembler = spawnSync(process.execPath, [resolve(installedArena, "dist", "assemble-trusted-completion.js")], {
+    cwd: workspaceRoot,
+    encoding: "utf8",
+    env: { PATH: process.env.PATH ?? "" },
+  });
+  if (trustedAssembler.status === 0 || !trustedAssembler.stderr.includes("requires exactly one --run-root")) {
+    throw new Error("built trusted assembler did not fail closed without its explicit inputs");
+  }
+
+  const publicImport = spawnSync(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    "import * as benchmark from '@ax-arena/benchmark'; " +
+      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, ConceptClusterSchema, ConceptCoverageSchema, ConceptUniverseSchema, CoverageDecisionSchema, CoverageMatrixSchema, FailureTaxonomySchema, GraderLedgerEntrySchema, GraderLedgerSchema, SelectionLedgerEntrySchema, SelectionLedgerSchema, SupportMatrixEntrySchema, SupportMatrixSchema, TraceReviewMemoSchema, applySuiteAudit, auditCapabilityInventory, buildArenaPublicationBundle, buildArenaPublicationExport, buildTrustedWorkflowDispatch, composePack, createArenaRuntimeExtensionRegistry, createDaebPathContext, executeArenaCell, executeArenaWorkerCell, extractOracles, extractOraclesAll, loadArenaPublicationCohort, loadCapabilityExtract, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeCapabilityExtract, writeComposedPack, writeExtractAdvisory, writeRuntimeReportingBundle, writeSuiteArtifacts, writeSuiteBundle, writeSuiteFiles } = benchmark; " +
+      "const registry = createArenaRuntimeExtensionRegistry(); " +
+      "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
+      "typeof executeArenaCell !== 'function' || typeof executeArenaWorkerCell !== 'function' || typeof buildTrustedWorkflowDispatch !== 'function' || typeof composePack !== 'function' || typeof createDaebPathContext !== 'function' || typeof extractOracles !== 'function' || typeof extractOraclesAll !== 'function' || typeof loadCapabilityExtract !== 'function' || typeof writeCapabilityExtract !== 'function' || typeof writeComposedPack !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
+      "typeof renderArenaCompetitiveReport !== 'function' || typeof writeArenaCompetitiveReport !== 'function' || " +
+      "!ArenaBatchManifestSchema || !ArenaBatchPlanSchema || !ArenaCellCleanupSchema || !ArenaCellResultSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema || !ConceptClusterSchema || !ConceptCoverageSchema || !ConceptUniverseSchema || !CoverageDecisionSchema || !CoverageMatrixSchema || !FailureTaxonomySchema || !GraderLedgerEntrySchema || !GraderLedgerSchema || !SelectionLedgerEntrySchema || !SelectionLedgerSchema || !SupportMatrixEntrySchema || !SupportMatrixSchema || !TraceReviewMemoSchema || typeof applySuiteAudit !== 'function' || typeof auditCapabilityInventory !== 'function' || typeof writeExtractAdvisory !== 'function' || typeof writeSuiteArtifacts !== 'function' || typeof writeSuiteBundle !== 'function' || typeof writeSuiteFiles !== 'function') process.exit(1);",
+  ], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+  });
+  if (publicImport.error || publicImport.status !== 0) {
+    throw new Error(publicImport.error?.message || publicImport.stderr || "built arena package could not import public ax-eval");
+  }
+} finally {
+  rmSync(smokeRoot, { recursive: true, force: true });
+}
+const declarationApi = collectDeclarationExports(resolve(process.cwd(), "dist", "index.d.ts"));
+const requiredTypeExports = [
+  "ConceptCluster",
+  "ConceptUniverse",
+  "CoverageDecision",
+  "CoverageMatrix",
+  "FailureTaxonomy",
+  "GraderLedger",
+  "GraderLedgerEntry",
+  "SelectionLedger",
+  "SelectionLedgerEntry",
+  "SupportMatrix",
+  "SupportMatrixEntry",
+  "TraceReviewMemo",
+];
+const missingTypeExports = requiredTypeExports.filter((name) => !declarationApi.has(name));
+if (missingTypeExports.length) {
+  throw new Error(`missing arena declaration exports: ${missingTypeExports.join(", ")}`);
+}
+
+console.log(`Verified ${files.size} arena package files (${report.filename}).`);

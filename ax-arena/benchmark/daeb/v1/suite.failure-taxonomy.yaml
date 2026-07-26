@@ -1,0 +1,25 @@
+schema: ax.failure-taxonomy/v1
+benchmark: DAEB-1
+generated_at: 2026-07-12T02:41:46.722Z
+categories:
+  - id: generic-harness-tooling-bug
+    label: Generic harness/tooling bug
+    description: A reusable runner, transcript, redaction, invocation, metrics, or
+      execution-control bug independent of the database category.
+  - id: generic-methodology-artifact-bug
+    label: Generic methodology/artifact bug
+    description: A reusable suite artifact, schema, selection, support, or reporting
+      contract bug independent of the database category.
+  - id: database-category-seed-template-verifier-bug
+    label: Database-category seed/template/verifier bug
+    description: A DAEB database-specific deterministic seed, task template,
+      verifier seed, or category adapter bug that should stay isolated from
+      generic engine logic.
+  - id: vendor-specific-adapter-bug
+    label: Vendor-specific adapter bug
+    description: A bug in one vendor's auth, endpoint, verifier, N/A mapping, or
+      surface adapter that should not generalize without cross-vendor evidence.
+  - id: agent-execution-failure
+    label: Agent execution failure
+    description: The product and verifier were supportable, but the agent failed to
+      discover, plan, execute, or report the task correctly in a trial.

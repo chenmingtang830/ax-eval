@@ -1,0 +1,11 @@
+vendor: Nile
+category: database
+slug: nile
+discovered_at: 2026-07-10T00:38:00.000Z
+resolver:
+  method: official-docs
+  prompt_version: vendor-resolve-v3
+site_url: https://www.thenile.dev
+docs_url: https://www.thenile.dev/docs
+http_status: null
+openapi_url: https://global.thenile.dev/openapi.yaml

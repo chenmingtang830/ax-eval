@@ -13,6 +13,7 @@ export interface GeneratedReportSnapshot {
   harness: HarnessProbe;
   warnings: string[];
   minPassRate?: number;
+  generatedAt?: string;
 }
 
 export function saveGeneratedReportSnapshot(path: string, snapshot: GeneratedReportSnapshot): void {
@@ -37,5 +38,6 @@ export function renderGeneratedSnapshot(snapshot: GeneratedReportSnapshot): stri
   return renderGeneratedReport(snapshot.pack, snapshot.runs, snapshot.staticReadiness, snapshot.harness, {
     gate: { minPassRate: snapshot.minPassRate },
     warnings: snapshot.warnings,
+    generatedAt: snapshot.generatedAt,
   });
 }

@@ -1,0 +1,40 @@
+{
+  "schema": "ax.arena-trusted-runtime-lock/v1",
+  "platform": "linux/amd64",
+  "container": {
+    "image": "docker.io/library/node:22.23.1-bookworm",
+    "digest": "sha256:175215a1f306ed5df592434b99cc2019f70624373fe49cb659240a618a846aed",
+    "node_version": "22.23.1"
+  },
+  "harnesses": {
+    "package_lock_path": "ax-arena/benchmark/trusted-runtime/harness/package-lock.json",
+    "package_lock_sha256": "b3b39718c28214818682a352db6be6f8f216ea44e191d60c11ade74a853752ac",
+    "codex": {
+      "package": "@openai/codex",
+      "version": "0.145.0",
+      "version_output": "codex-cli 0.145.0",
+      "executable_path": "/opt/ax-arena-tools/harness/node_modules/@openai/codex/bin/codex.js"
+    },
+    "claude_code": {
+      "package": "@anthropic-ai/claude-code",
+      "version": "2.1.217",
+      "version_output": "2.1.217 (Claude Code)",
+      "executable_path": "/opt/ax-arena-tools/harness/node_modules/@anthropic-ai/claude-code-linux-x64/claude"
+    }
+  },
+  "bubblewrap": {
+    "version": "0.8.0-2+deb12u1",
+    "archive_url": "https://deb.debian.org/debian/pool/main/b/bubblewrap/bubblewrap_0.8.0-2+deb12u1_amd64.deb",
+    "archive_sha256": "3cc9134a3286ad01a323dcd924ba123eb634cefaeec82d774257e06308aeaadb",
+    "executable_path": "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+    "executable_sha256": "85580dd52ed366ece8844e90fa75ac7c4de8802963071344e123221fb9f6f11e"
+  },
+  "turso_cli": {
+    "version": "1.0.30",
+    "version_output": "turso version v1.0.30",
+    "archive_url": "https://github.com/tursodatabase/turso-cli/releases/download/v1.0.30/turso-cli_Linux_x86_64.tar.gz",
+    "archive_sha256": "0ddecc55970fa9c7a237555095ca069fb9b0deec5ab82fe2ec5726f684e65e6d",
+    "executable_path": "/opt/ax-arena-tools/turso/bin/turso",
+    "executable_sha256": "2124b409272aa7e58a8cd2a58d06a0eb1f4bb30653c21e899d623c3789542671"
+  }
+}

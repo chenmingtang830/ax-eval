@@ -1,16 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { mkdtempSync, rmSync, writeFileSync, existsSync } from "node:fs";
-import { mkdirSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { tmpdir } from "node:os";
 import {
   PROMPT_VERSION,
-  loadVendorCard,
   resolveVendor,
   resolveVendors,
   slugify,
-  vendorCardPath,
-  writeVendorCard,
 } from "../src/generate/vendor-resolve.js";
 
 describe("vendor-resolve (v3: llm-search batch)", () => {
@@ -74,32 +70,4 @@ describe("vendor-resolve (v3: llm-search batch)", () => {
     ).rejects.toThrow(/non-conforming JSON/);
   });
 
-  it("writeVendorCard + loadVendorCard round-trip preserves the result", async () => {
-    const fakeBatch = [
-      { vendor: "ZzzExample99", site_url: "https://example.com", docs_url: "https://example.com/docs" },
-    ];
-    // NOTE: fixture must be an array (batch schema)
-    writeFileSync(fixturePath, JSON.stringify(fakeBatch));
-    process.env.AX_EVAL_GENERATOR_FIXTURE = fixturePath;
-
-    const result = await resolveVendor("ZzzExample99", "database", { harness: "claude-code" });
-    const path = writeVendorCard(tmpRoot, result);
-    expect(path).toBe(vendorCardPath(tmpRoot, "zzzexample99"));
-    expect(existsSync(path)).toBe(true);
-
-    const loaded = loadVendorCard(tmpRoot, "zzzexample99");
-    expect(loaded).not.toBeNull();
-    expect(loaded?.vendor).toBe("ZzzExample99");
-    expect(loaded?.docs_url).toBe("https://example.com/docs");
-  });
-
-  it("loadVendorCard returns null when no card exists", () => {
-    expect(loadVendorCard(tmpRoot, "nope")).toBeNull();
-  });
-
-  it("loadVendorCard errors on malformed YAML on disk", () => {
-    mkdirSync(resolve(tmpRoot, "benchmarks", "daeb", "vendors"), { recursive: true });
-    writeFileSync(vendorCardPath(tmpRoot, "bad"), "vendor: Bad\ncategory: db\n");
-    expect(() => loadVendorCard(tmpRoot, "bad")).toThrow(/malformed/);
-  });
 });

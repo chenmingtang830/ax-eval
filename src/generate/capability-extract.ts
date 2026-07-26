@@ -9,9 +9,6 @@
  * final suite's tasks trace back to real, cited vendor documentation
  * rather than the benchmark author's assumptions.
  */
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { stringify as yamlStringify, parse as yamlParse } from "yaml";
 import { z } from "zod";
 import type { Effort, HarnessId } from "./harness.js";
 import { invokeGenerator, extractJsonObjectWithRepair } from "./harness.js";
@@ -21,9 +18,6 @@ import {
   type CapabilityInventory,
   type CapabilityInventoryEntry,
   ExtractionProvenanceSchema,
-  capabilityInventoryPath,
-  legacyCapabilityExtractPath,
-  writeCapabilityInventory,
 } from "./methodology.js";
 import type { ResolveResult } from "./vendor-resolve.js";
 
@@ -58,7 +52,7 @@ const CapabilitySchema = z.object({
 });
 export type Capability = z.infer<typeof CapabilitySchema>;
 export type CapabilityExtractResult = CapabilityInventory;
-const CapabilityExtractResultSchema = CapabilityInventorySchema;
+export const CapabilityExtractResultSchema = CapabilityInventorySchema;
 
 const LegacyCapabilityItemSchema = z.object({
   name: z.string().min(1),
@@ -68,13 +62,14 @@ const LegacyCapabilityItemSchema = z.object({
   doc_quote: z.string().optional(),
 });
 
-const LegacyCapabilityExtractSchema = z.object({
+export const LegacyCapabilityExtractSchema = z.object({
   vendor: z.string().min(1),
   slug: z.string().min(1),
   category: z.string().min(1),
   extracted_at: z.string().min(1),
   capabilities: z.array(LegacyCapabilityItemSchema),
 });
+export type LegacyCapabilityExtract = z.infer<typeof LegacyCapabilityExtractSchema>;
 
 function inferLegacyResourceKind(capability: z.infer<typeof LegacyCapabilityItemSchema>): CapabilityInventoryEntry["resource_kind"] {
   const primary = `${capability.name} ${capability.title}`.toLowerCase();
@@ -100,7 +95,7 @@ function inferLegacyOperationKind(capability: z.infer<typeof LegacyCapabilityIte
   return "operate";
 }
 
-function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilityExtractSchema>): CapabilityExtractResult {
+export function normalizeLegacyCapabilityExtract(legacy: LegacyCapabilityExtract): CapabilityExtractResult {
   return CapabilityExtractResultSchema.parse({
     vendor: legacy.vendor,
     slug: legacy.slug,
@@ -127,23 +122,11 @@ function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilit
   });
 }
 
-function categoryCoverageChecklist(category: string): string[] {
-  if (category !== "database") return [];
-  return [
-    "Baseline data definition: creating tables/collections, defining columns/fields, or schema introspection.",
-    "Baseline data writes: inserts, updates, deletes, bulk writes/imports, or equivalent record mutation flows.",
-    "Baseline data reads: filtered queries, sorting/pagination, counts, read-back/introspection, or equivalent retrieval flows.",
-    "Schema evolution: tracked migrations, schema change workflows, branching, or deploy/apply mechanisms when documented.",
-    "Integrity controls: constraints, schema validation, transactions, or equivalent correctness guarantees.",
-    "Access control: row-level policies, role-based access, identity-scoped tokens, or equivalent permission boundaries.",
-    "Operational recovery: backups, snapshots, restore, point-in-time recovery, export/import, or equivalent recovery paths.",
-    "Server-side execution: functions, triggers, procedures, jobs, webhooks, or equivalent in-database/runtime compute.",
-    "Advanced but benchmark-relevant capabilities when present: full-text search, vector search, change-data-capture, realtime subscriptions.",
-  ];
-}
-
-export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: string): string {
-  const checklist = categoryCoverageChecklist(vendor.category);
+export function buildCapabilityPrompt(
+  vendor: ResolveResult,
+  specSummary?: string,
+  coverageRequirements: readonly string[] = [],
+): string {
   const groundingBlock = specSummary
     ? [
         `You have a SEED of documented API operations from ${vendor.vendor}'s OpenAPI / registry surface.`,
@@ -178,16 +161,10 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: strin
     `This is an inventory stage, not a "top 10" ranking stage: include every benchmark-relevant documented`,
     `capability you can find across the main capability families the docs expose; do NOT stop at the most`,
     `important 10-20 if the docs clearly cover more.`,
-    `Do NOT over-index on differentiated premium/platform features while skipping baseline operational capabilities.`,
-    `If the docs show a general SQL surface, document API, Postgres/SQLite compatibility, table API, or typed SDK,`,
-    `you MUST also inventory the baseline operations that surface enables when the docs support them`,
-    `(for example: create table/collection, insert rows/documents, filtered reads/querying, pagination/count/read-back,`,
-    `schema introspection, export/import, or tracked schema changes). Those baseline ops are part of the benchmark`,
-    `concept universe even if the vendor does not market them as named flagship features.`,
-    checklist.length ? "" : undefined,
-    checklist.length ? "Coverage checklist to close before you stop:" : undefined,
-    ...checklist.map((line, index) => `${index + 1}. ${line}`),
-    checklist.length ? "" : undefined,
+    coverageRequirements.length ? "" : undefined,
+    coverageRequirements.length ? "Coverage checklist to close before you stop:" : undefined,
+    ...coverageRequirements.map((line, index) => `${index + 1}. ${line}`),
+    coverageRequirements.length ? "" : undefined,
     `Prefer product capabilities that can underpin benchmark tasks over pure compliance posture, pricing, or generic hosting claims.`,
     ``,
     `For each capability:`,
@@ -228,6 +205,9 @@ export interface ExtractCapabilitiesOptions {
    *  capabilities the seed misses. */
   specSummary?: string;
   specUrl?: string;
+  /** Caller-owned domain coverage requirements. Core does not choose a
+   * benchmark category checklist. */
+  coverageRequirements?: readonly string[];
 }
 
 /** Seed+grounded inventories (large OpenAPI + docs gap-fill) routinely need
@@ -242,7 +222,7 @@ export async function extractCapabilities(
   const label = `${vendor.vendor}/capabilities`;
   // Always require WebFetch: OpenAPI seed narrows the search space, it does not
   // replace grounded docs review (Management APIs routinely omit data-plane).
-  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary), {
+  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary, opts.coverageRequirements), {
     requireWebFetch: true,
     fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,
@@ -310,41 +290,4 @@ export async function extractCapabilitiesAll(
       ? { vendor, ok: true as const, result: s.value }
       : { vendor, ok: false as const, error: s.reason instanceof Error ? s.reason.message : String(s.reason) };
   });
-}
-
-export function capabilityExtractPath(root: string, slug: string): string {
-  return capabilityInventoryPath(root, slug);
-}
-
-export function writeCapabilityExtract(root: string, result: CapabilityExtractResult): string {
-  const newPath = writeCapabilityInventory(root, result);
-  return newPath;
-}
-
-export function loadCapabilityExtract(root: string, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = capabilityInventoryPath(root, slug);
-  const legacyPath = legacyCapabilityExtractPath(root, slug);
-
-  if (existsSync(inventoryPath)) {
-    const inventoryRaw = readFileSync(inventoryPath, "utf8");
-    const inventory = CapabilityExtractResultSchema.safeParse(yamlParse(inventoryRaw));
-    if (inventory.success) {
-      const isLegacyNormalized = inventory.data.capabilities.some(
-        (capability) => capability.extraction_provenance.extractor === "legacy-capabilities-normalizer-v1",
-      );
-      if (!isLegacyNormalized || !existsSync(legacyPath)) return inventory.data;
-    }
-  }
-
-  if (!existsSync(legacyPath)) return null;
-  const raw = readFileSync(legacyPath, "utf8");
-  const legacy = LegacyCapabilityExtractSchema.safeParse(yamlParse(raw));
-  if (legacy.success) {
-    const normalized = normalizeLegacyCapabilityExtract(legacy.data);
-    writeCapabilityInventory(root, normalized);
-    return normalized;
-  }
-  const result = CapabilityExtractResultSchema.safeParse(yamlParse(raw));
-  if (result.success) return result.data;
-  throw new Error(`capability-extract at ${legacyPath} is malformed: ${result.error.issues.map((i) => i.message).join("; ")}`);
 }

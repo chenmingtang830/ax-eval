@@ -1,15 +1,22 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { stringify as yamlStringify } from "yaml";
+import { loadPack } from "../src/config.js";
 import { TargetPackSchema } from "../src/schemas.js";
 import {
   approvalPath,
   checkApproval,
+  checkCellApproval,
+  checkCommittedLegacyCellApproval,
   oracleTier,
   packQaIssues,
   packContentHash,
+  packFileContentHash,
   reviewSummary,
+  stageApprovedEquivalentPack,
   writeApproval,
 } from "../src/generate/review.js";
 
@@ -72,8 +79,99 @@ describe("review gate", () => {
     expect(status.reason).toMatch(/changed since approval/);
   });
 
+  it("binds cell approval to the exact pack file, including surface configuration", () => {
+    const p = pack({ surfaces: { cli: { bin: "example" } } });
+    writeFileSync(packPath, yamlStringify(p));
+    writeApproval(packPath, p, "tester");
+    const approvedHash = packFileContentHash(packPath);
+    expect(checkCellApproval(p, packPath, approvedHash).ok).toBe(true);
+
+    writeFileSync(packPath, yamlStringify({ ...p, surfaces: { cli: { bin: "malicious-wrapper" } } }));
+    expect(checkCellApproval(loadPack(packPath), packPath, packFileContentHash(packPath)).ok).toBe(false);
+  });
+
+  it("accepts a legacy approval only when exact pack and approval bytes are bound to the source commit", () => {
+    const p = pack();
+    writeFileSync(packPath, yamlStringify(p));
+    writeFileSync(approvalPath(packPath), `${JSON.stringify({
+      standard_set_version: p.standard_set_version,
+      content_hash: packContentHash(p),
+      approved_by: "legacy-reviewer",
+      approved_at: "2026-01-01T00:00:00.000Z",
+      task_count: p.tasks.length,
+    }, null, 2)}\n`);
+    const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, stdio: "ignore" });
+    git("init");
+    git("config", "user.name", "Review Test");
+    git("config", "user.email", "review@example.invalid");
+    git("add", ".");
+    git("-c", "commit.gpgSign=false", "commit", "-m", "legacy reviewed pack");
+    const sourceCommitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: dir, encoding: "utf8" }).trim();
+    const expected = packFileContentHash(packPath);
+
+    expect(checkCellApproval(p, packPath, expected)).toMatchObject({ ok: false });
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha,
+      sourcePackPath: "generated.pack.yaml",
+    })).toEqual({ ok: true });
+
+    const treeSha = execFileSync("git", ["rev-parse", "HEAD^{tree}"], { cwd: dir, encoding: "utf8" }).trim();
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha: treeSha,
+    })).toEqual({ ok: false, reason: "legacy approval source SHA must identify a commit object" });
+
+    writeFileSync(approvalPath(packPath), `${JSON.stringify({
+      standard_set_version: p.standard_set_version,
+      content_hash: packContentHash(p),
+      approved_by: "different-reviewer",
+      approved_at: "2026-01-01T00:00:00.000Z",
+      task_count: p.tasks.length,
+    })}\n`);
+    expect(checkCommittedLegacyCellApproval(p, packPath, expected, {
+      repositoryRoot: dir,
+      sourceCommitSha,
+    })).toMatchObject({ ok: false });
+  }, 20_000);
+
   it("approval sidecar sits next to the pack", () => {
     expect(approvalPath("/x/generated.pack.yaml")).toBe("/x/generated.pack.approval.json");
+  });
+
+  it("stages an equivalent runtime pack with the committed human approval", () => {
+    const approvedPack = pack();
+    const candidatePath = join(dir, "run", "compiled.pack.yaml");
+    mkdirSync(join(dir, "run"), { recursive: true });
+    writeFileSync(candidatePath, yamlStringify(approvedPack));
+    writeApproval(packPath, approvedPack, "tester");
+    const serializedCandidate = loadPack(candidatePath);
+
+    const stagedApproval = stageApprovedEquivalentPack({
+      approvedPack,
+      approvedPackPath: packPath,
+      candidatePack: serializedCandidate,
+      candidatePackPath: candidatePath,
+    });
+
+    expect(stagedApproval).toBe(approvalPath(candidatePath));
+    expect(existsSync(stagedApproval)).toBe(true);
+    expect(checkApproval(loadPack(candidatePath), candidatePath).ok).toBe(true);
+  });
+
+  it("refuses to stage runtime pack content that differs from the approval", () => {
+    const approvedPack = pack();
+    const candidatePath = join(dir, "candidate.pack.yaml");
+    writeFileSync(candidatePath, "name: t\n");
+    writeApproval(packPath, approvedPack, "tester");
+
+    expect(() => stageApprovedEquivalentPack({
+      approvedPack,
+      approvedPackPath: packPath,
+      candidatePack: pack({ tasks: [{ id: "changed", prompt: "changed", oracles: [] }] }),
+      candidatePackPath: candidatePath,
+    })).toThrow(/does not match the approved committed pack/);
+    expect(existsSync(approvalPath(candidatePath))).toBe(false);
   });
 
   it("summary flags a task with no oracle", () => {

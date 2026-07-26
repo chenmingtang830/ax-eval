@@ -1,0 +1,736 @@
+# Cited capability inventory (suite authoring Layer 0a).
+# Each entry's surfaces_documented records which surfaces the official docs say can
+# perform that capability - per-capability documentation attribution for coverage
+# synthesis, not the same as surfaces.yaml (CLI/SDK/MCP install/auth for the agent).
+schema: ax.capability-inventory/v1
+vendor: Neon
+slug: neon
+category: database
+extracted_at: 2026-07-09T05:11:17.198Z
+extraction_context:
+  mode: openapi-seeded-grounded
+  harness: claude-code
+  model: claude-sonnet-5
+  spec_url: https://neon.com/api_spec/release/v2.json
+  notes: OpenAPI/registry seed used as candidate surface; WebFetch gap-filled
+    against live docs.
+audit_status: candidate
+audit_notes:
+  - OpenAPI-seeded + grounded candidate inventory; citations require human
+    review before publication.
+  - 15 capabilities include non-direct evidence and require reviewer
+    confirmation before publication.
+  - 4 connection-derived data-plane capabilities were removed from REST api
+    attribution and downgraded unless directly cited.
+  - 5 capabilities cite summary-index evidence such as llms.txt; replace with
+    page-specific docs before publication.
+  - 2 capabilities include non-direct evidence and require reviewer confirmation
+    before publication.
+  - "Post-extract audit: 1 inventory finding(s)."
+capabilities:
+  - capability_name: project-lifecycle-management
+    title: Project Create/Read/Update/Delete
+    description: Create, list, retrieve, update, delete, and recover Neon projects,
+      the top-level container for branches, databases, roles, and compute
+      endpoints.
+    resource_kind: project
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/api-reference
+        quote: create and manage projects, branches, databases, roles, compute
+          endpoints, and more
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-branching
+    title: Copy-on-Write Database Branching
+    description: Instantly create, list, update, and delete copy-on-write database
+      branches for development, testing, preview environments, and point-in-time
+      recovery.
+    resource_kind: branch
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/guides/branching-intro
+        quote: Neon branching lets you instantly create copy-on-write database branches
+          for development, testing, preview deployments, and point-in-time data
+          recovery.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: branch-point-in-time-restore
+    title: Branch Restore to Timestamp or LSN
+    description: Restore a branch's data to an earlier timestamp or LSN, or to the
+      state of another branch, using the branch restore operation.
+    resource_kind: branch
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/cli-branches
+        quote: neon branches restore <target-id|name> <source>[@(timestamp|lsn)] ...
+          supports ^self, ^parent, or another branch as source
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: branch-reset-to-parent
+    title: Reset Branch to Parent State
+    description: Instantly overwrite a branch's data and schema with its parent
+      branch's latest state in a single operation, distinct from timestamp-based
+      restore.
+    resource_kind: branch
+    operation_kind: restore
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/reset-from-parent
+        quote: Root branches ... cannot be reset because they have no parent branch.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-diff-and-introspection
+    title: Schema Comparison and Introspection
+    description: Retrieve a branch's current database schema and compare schemas
+      side-by-side between any two branches or points in time.
+    resource_kind: schema
+    operation_kind: read
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/schema-diff
+        quote: Schema Diff is Neon's SQL schema comparison tool that shows differences
+          between any two branches side-by-side.
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/schema-diff
+        quote: compare_schema endpoint enabling AI agents to programmatically retrieve
+          schema differences by comparing two branches
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: database-management
+    title: Database Create/Read/Update/Delete
+    description: Create, list, retrieve, update, and delete Postgres databases
+      within a branch.
+    resource_kind: database
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/neon-cli
+        quote: the terminal tool for managing Neon projects, branches, databases, roles,
+          connection strings, functions, buckets, and the Data API without using
+          the web console
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: role-management
+    title: Postgres Role Create/Delete/Password Management
+    description: Create and delete Postgres roles on a branch, and reveal or reset
+      role passwords for connection credentials.
+    resource_kind: role
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/neon-cli
+        quote: the terminal tool for managing Neon projects, branches, databases, roles,
+          connection strings, functions, buckets, and the Data API without using
+          the web console
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: compute-endpoint-lifecycle
+    title: Compute Endpoint Create/Start/Suspend/Restart
+    description: Create, list, update, delete, start, suspend, and restart Postgres
+      compute endpoints attached to a branch, including scale-to-zero
+      suspension.
+    resource_kind: compute
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/autoscaling
+        quote: Neon's Autoscaling feature dynamically adjusts the amount of compute
+          resources allocated to a Neon compute in response to the current load,
+          eliminating the need for manual intervention or restarts.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: autoscaling-compute
+    title: Compute Autoscaling
+    description: Dynamically scale compute CPU/RAM up and down within a configured
+      min/max range based on load, without manual intervention or restarts.
+    resource_kind: compute
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/autoscaling
+        quote: You can enable autoscaling by opening the Edit compute drawer for your
+          compute and setting the autoscaling range ... The maximum permitted
+          autoscaling range is 8 CU.
+        note: Doc emphasizes Console UI; API/CLI parameters for autoscaling limits exist
+          on the endpoint resource but were not directly quoted.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: read-replica
+    title: Read Replica Compute
+    description: Create independent read-only compute instances that read from the
+      same storage as the primary, with no data duplication and near-instant
+      provisioning.
+    resource_kind: compute
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/introduction/read-replicas
+        quote: Neon read replicas are independent computes designed to perform read
+          operations on the same data as your primary read-write compute ... You
+          can create read replicas using the Neon Console, Neon CLI, or Neon
+          API.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: connection-pooling
+    title: PgBouncer Connection Pooling
+    description: Route client connections through PgBouncer to support up to 10,000
+      concurrent connections via a pooled connection string.
+    resource_kind: connection
+    operation_kind: connect
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/connect/connection-pooling
+        quote: Neon uses PgBouncer to provide connection pooling, enabling up to 10,000
+          concurrent connections. The recommended way to use pooled connections
+          is to append -pooler to the endpoint ID in your connection string
+          hostname.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: direct-postgres-connectivity
+    title: Standard Postgres Wire-Protocol Connectivity
+    description: Connect to Neon using any standard Postgres client, driver, or tool
+      (psql, JDBC, pgAdmin, DBeaver, TablePlus) over the normal Postgres wire
+      protocol.
+    resource_kind: connection
+    operation_kind: connect
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/connect/connect-intro
+        quote: psql, JDBC, pgAdmin, DBeaver, TablePlus, VS Code Extension
+        strength: derived_from_connection_surface
+      - doc_url: https://neon.com/docs/connect/choose-connection
+        quote: A pooled connection routes traffic through PgBouncer ... Direct
+          connections limited by max_connections, which ranges from about 100 to
+          4,000.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: time-travel-historical-query
+    title: "Time Travel: Query Historical Database State"
+    description: Run non-destructive, read-only queries against any point in time
+      still covered by the project's history retention window, using a temporary
+      branch and compute created behind the scenes.
+    resource_kind: branch
+    operation_kind: read
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/time-travel-assist
+        quote: Time Travel lets you connect to any selected point in time still covered
+          by your project's history window and then run queries against that
+          connection. ... It uses Neon's instant branching capability to create
+          a temporary branch and compute at the selected point in time ... it
+          only allows non-destructive read-only queries.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: object-storage-bucket
+    title: Branch-Scoped Object Storage Bucket
+    description: Create, list, and delete object storage buckets scoped to a branch,
+      exposed via the Management API and CLI.
+    resource_kind: bucket
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/reference/neon-cli
+        quote: the terminal tool for managing Neon projects, branches, databases, roles,
+          connection strings, functions, buckets, and the Data API
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: baseline-sql-table-and-row-operations
+    title: Standard Postgres DDL/DML (Create Table, Insert, Query, Update, Delete)
+    description: Neon is Postgres-compatible, so standard SQL DDL (CREATE TABLE,
+      ALTER TABLE) and DML (INSERT, SELECT, UPDATE, DELETE) work against any
+      branch/database via any Postgres client.
+    resource_kind: table
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/compatibility
+        quote: Neon is Postgres.
+        strength: direct
+      - doc_url: https://neon.com/docs/extensions/pg-extensions
+        quote: You can install extensions from the Neon SQL Editor or from a client such
+          as psql that permits running SQL queries.
+        strength: derived_from_connection_surface
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: sql-editor-console
+    title: Built-in SQL Editor / Query Console
+    description: A console-based query editor with query history, saved queries,
+      EXPLAIN/EXPLAIN ANALYZE, AI-assisted SQL generation, and a Time Travel
+      toggle to query historical state.
+    resource_kind: query
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/get-started/query-with-neon-sql-editor
+        quote: The Explain feature runs the specified query with the Postgres EXPLAIN
+          command ... The Analyze feature runs the specified query with EXPLAIN
+          ANALYZE.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-export-import-pgdump
+    title: Data Export/Import via pg_dump / pg_restore
+    description: Migrate data into or out of Neon using standard pg_dump/pg_restore,
+      plus an automated import tool for databases under 10 GB and pgcopydb for
+      larger migrations.
+    resource_kind: database
+    operation_kind: backup
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/import/migrate-from-postgres
+        quote: Migrating data from one Postgres database to another using the pg_dump
+          and pg_restore ... Avoid using pg_dump over a pooled connection string
+        strength: direct
+      - doc_url: https://neon.com/docs/import/import-data-assistant
+        quote: Import a database under 10 GB to Neon using our automated import tool.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: schema-migration-orm-tooling
+    title: Schema Migrations via ORM/Framework Tooling
+    description: Neon publishes framework-specific migration guides (Prisma Migrate,
+      Django, Rails, Drizzle, Entity Framework, SQLAlchemy/Alembic) that run
+      their native migration commands against a direct (non-pooled) Neon
+      connection.
+    resource_kind: schema
+    operation_kind: migrate
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/guides/prisma-migrations
+        quote: Schema migrations with Prisma and Neon.
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/prisma-migrations
+        quote: using a pooled connection string for migrations can be prone to errors
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: ci-cd-preview-branching
+    title: CI/CD Preview Branch per Pull Request
+    description: GitHub Actions to automatically create an ephemeral database branch
+      when a pull request opens and delete it when the PR closes or merges, for
+      isolated preview/test environments.
+    resource_kind: branch
+    operation_kind: create
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/branching-github-actions
+        quote: Creates a new database branch in your Neon project. This is ideal for
+          setting up isolated environments for preview deployments or running
+          tests against a feature branch.
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/branching-github-actions
+        quote: Deletes a specified database branch. Use this to automate the cleanup of
+          ephemeral branches after a pull request is merged or closed.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: row-level-security
+    title: Postgres Row-Level Security Policies
+    description: Standard Postgres RLS enabled and configured via SQL (ALTER TABLE
+      ... ENABLE ROW LEVEL SECURITY, CREATE POLICY) to restrict row visibility
+      per authenticated user.
+    resource_kind: policy
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/guides/row-level-security
+        quote: Row-Level Security (RLS) is a Postgres feature that controls access to
+          individual rows in a table based on the current user.
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/row-level-security
+        quote: ALTER TABLE notes ENABLE ROW LEVEL SECURITY; CREATE POLICY
+          "users_can_only_access_own_notes" ON notes FOR ALL USING
+          (auth.user_id() = user_id);
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: jwt-rls-integration
+    title: "Neon Authorize: JWT-Backed RLS Enforcement"
+    description: Wires third-party JWT auth providers into Postgres RLS so the
+      database and Data API enforce per-row access using claims (e.g. user id,
+      audience) from the token.
+    resource_kind: policy
+    operation_kind: read
+    surfaces_documented:
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/neon-authorize
+        quote: The Data API enforces Row-Level Security policies based on the user
+          identity in the JWT
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/neon-authorize
+        quote: The Data API verifies that incoming JWTs contain a matching aud claim.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: managed-auth-service
+    title: "Neon Auth: Managed User Authentication"
+    description: Managed authentication service (built on Better Auth) storing
+      users, sessions, and OAuth/email-password/magic-link/phone-number
+      configuration directly in a queryable neon_auth Postgres schema, with
+      per-branch isolated auth environments.
+    resource_kind: auth_user
+    operation_kind: create
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/neon-auth/overview
+        quote: All authentication data is stored in the neon_auth schema. It's queryable
+          with SQL and compatible with Row Level Security (RLS) policies.
+        strength: direct
+      - doc_url: https://neon.com/docs/neon-auth/overview
+        quote: every Neon branch gets its own isolated auth environment
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: data-api-rest
+    title: "Neon Data API: PostgREST-style REST over Tables"
+    description: Exposes Postgres tables as a REST endpoint (filtered
+      select/eq/gt/like/in, insert, update, delete, order/limit pagination, and
+      RPC calls to stored procedures) secured by JWT auth and RLS, with no
+      driver/connection-pool required.
+    resource_kind: row
+    operation_kind: search
+    surfaces_documented:
+      - api
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/data-api/get-started
+        quote: exposes your Postgres database as a REST endpoint secured by JWT
+          authentication and Row-Level Security.
+        strength: direct
+      - doc_url: https://neon.com/docs/data-api/get-started
+        quote: "curl -X GET
+          'https://your-data-api-endpoint/rest/v1/posts?is_published=eq.true' -H
+          'Authorization: Bearer YOUR_JWT_TOKEN'"
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: serverless-http-websocket-driver
+    title: Neon Serverless Driver (HTTP/WebSocket)
+    description: A low-latency Postgres driver for edge/serverless runtimes that
+      replaces raw TCP with HTTP (one-shot queries) or WebSockets
+      (session/interactive transactions, node-postgres compatible).
+    resource_kind: connection
+    operation_kind: connect
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/serverless/serverless-driver
+        quote: HTTP is faster for single, non-interactive transactions ('one-shot
+          queries'); WebSockets needed if you require session or interactive
+          transaction support or compatibility with node-postgres.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: management-sdk
+    title: Typed Management SDKs (TypeScript/Python)
+    description: Official typed client SDKs that wrap the Neon control-plane REST
+      API for managing projects, branches, databases, endpoints, roles, and
+      operations from application code.
+    resource_kind: project
+    operation_kind: update
+    surfaces_documented:
+      - api
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/reference/typescript-sdk
+        quote: "a typed wrapper around the Neon REST API ... Branches: Manage branches,
+          including creation, deletion, restoration, and schema management."
+        strength: direct
+      - doc_url: https://neon.com/docs/reference/python-sdk
+        quote: a wrapper for the Neon API providing methods to programmatically manage
+          API keys, Neon projects, branches, databases, endpoints, roles, and
+          operations.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: orm-driver-adapters
+    title: ORM Integrations (Prisma, Drizzle)
+    description: Documented idiomatic connection and RLS-policy-generation patterns
+      for Prisma (driver adapter) and Drizzle ORM layered on top of the
+      serverless driver or standard connection string.
+    resource_kind: connection
+    operation_kind: connect
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/guides/prisma
+        quote: Connecting to Neon is simplified with Prisma ORM 5.10.0+ ... single
+          pooled connection string
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/rls-drizzle
+        quote: The crudPolicy function from drizzle-orm/neon ... declaratively generates
+          Row-Level Security (RLS) policies
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: local-dev-proxy
+    title: "Neon Local: Local Development Proxy"
+    description: A local proxy container providing a fixed local Postgres endpoint
+      that transparently routes to a cloud Neon branch, optionally
+      auto-creating/deleting an ephemeral branch tied to the container
+      lifecycle.
+    resource_kind: connection
+    operation_kind: connect
+    surfaces_documented:
+      - cli
+    support_type: managed-surface
+    evidence:
+      - doc_url: https://neon.com/docs/local/neon-local
+        quote: a proxy service that creates a local interface to your Neon cloud
+          database ... automatically create a new ephemeral branch ... when the
+          container starts, and delete it when the container stops.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: logical-replication-cdc
+    title: Logical Replication / Change Data Capture
+    description: Standard Postgres publisher/subscriber logical replication for
+      streaming row-level changes to external systems (CDC use case), with
+      initial snapshot copy plus ongoing real-time change stream.
+    resource_kind: replication_slot
+    operation_kind: stream
+    surfaces_documented:
+      - cli
+      - api
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/guides/logical-replication-guide
+        quote: Logical replication in Neon works like it does on any standard Postgres
+          installation. It uses a publisher-subscriber model to replicate data
+          from the source database to the destination database.
+        strength: direct
+      - doc_url: https://neon.com/docs/guides/logical-replication-guide
+        quote: Replication starts by copying a snapshot of the data ... subsequent
+          changes are sent to the subscriber as they occur in real-time.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search-tsvector
+    title: Full-Text Search via tsvector/GIN
+    description: Native Postgres full-text search using normalized lexeme vectors
+      (tsvector), GIN indexes, and the @@ match operator with ts_rank()
+      relevance scoring.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/data-types/tsvector
+        quote: tsvector is a specialized Postgres data type designed for full-text
+          search operations.
+        strength: direct
+      - doc_url: https://neon.com/docs/data-types/tsvector
+        quote: CREATE INDEX idx_search_vector ON blog_posts USING GIN (search_vector);
+          SELECT title FROM blog_posts WHERE search_vector @@
+          to_tsquery('english', 'database');
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: full-text-search-bm25
+    title: BM25 Full-Text Search (pg_search extension, deprecated)
+    description: Extension adding BM25-scored inverted-index full-text search (fuzzy
+      match, ranking, snippets, boolean queries) directly in Postgres; being
+      sunset for new projects in favor of tsvector/pg_trgm/pgvector.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: native
+    evidence:
+      - doc_url: https://neon.com/docs/extensions/pg_search
+        quote: adds functions and operators to Postgres that use BM25 (Best Matching 25)
+          indexes for efficient, high-relevance text searches.
+        strength: direct
+      - doc_url: https://neon.com/docs/extensions/pg_search
+        quote: As of March 19, 2026, pg_search is no longer available for new Neon
+          projects.
+        note: Deprecated for new projects; existing installs retain access until forced
+          migration.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: vector-search-pgvector
+    title: Vector Similarity Search (pgvector)
+    description: Store vector embeddings (vector, halfvec, bit, sparsevec column
+      types) and run exact/approximate nearest-neighbor similarity search using
+      distance operators and HNSW/IVFFlat indexes.
+    resource_kind: table
+    operation_kind: search
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/extensions/pgvector
+        quote: The pgvector extension enables you to store vector embeddings and perform
+          vector similarity search in Postgres. It's a natural fit for natural
+          language processing applications.
+        strength: direct
+      - doc_url: https://neon.com/docs/extensions/pgvector
+        quote: pgvector is available on every Neon plan with no add-on or paid tier
+          required.
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1
+  - capability_name: postgres-extension-ecosystem
+    title: Postgres Extension Catalog (PostGIS, pg_trgm, etc.)
+    description: Install a large catalog of version-pinned Postgres extensions via
+      CREATE EXTENSION, including PostGIS (postgis, postgis_raster,
+      postgis_topology, pgrouting) for geospatial data and pg_trgm for trigram
+      similarity matching.
+    resource_kind: extension
+    operation_kind: create
+    surfaces_documented:
+      - cli
+    support_type: idiomatic-pattern
+    evidence:
+      - doc_url: https://neon.com/docs/extensions/pg-extensions
+        quote: Unless otherwise noted, supported extensions can be installed using
+          CREATE EXTENSION syntax. You can install extensions from the Neon SQL
+          Editor or from a client such as psql that permits running SQL queries.
+        strength: direct
+      - doc_url: https://neon.com/docs/extensions/pg-extensions
+        quote: postgis, postgis_raster, postgis_topology, postgis_sfcgal,
+          postgis_tiger_geocoder ... pgrouting (PostGIS extension must be
+          installed first); pg_trgm fully supported
+        strength: direct
+    extraction_provenance:
+      source: official-docs
+      extracted_at: 2026-07-09T05:07:22Z
+      extractor: llm-capability-inventory-v1

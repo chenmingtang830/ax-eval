@@ -24,6 +24,21 @@
   "bugs": {
     "url": "https://github.com/chenmingtang830/ax-eval/issues"
   },
+  "workspaces": [
+    "ax-arena/benchmark"
+  ],
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/evaluation-cell.v1.json": "./schemas/evaluation-cell.v1.json",
+    "./schemas/normalized-cell-record.v1.json": "./schemas/normalized-cell-record.v1.json",
+    "./schemas/normalized-result.v1.json": "./schemas/normalized-result.v1.json",
+    "./package.json": "./package.json"
+  },
   "bin": {
     "ax-eval": "./dist/cli.js"
   },
@@ -39,48 +54,40 @@
     "targets/README.md",
     "targets/examples/*/pack.yaml",
     "targets/examples/*/pack.approval.json",
-    "benchmarks/daeb/README.md",
-    "benchmarks/daeb/vendors/*.discovered.yaml",
-    "benchmarks/daeb/v1/suite.yaml",
-    "benchmarks/daeb/v1/suite.support-summary.md",
-    "benchmarks/daeb/v1/run-matrix.yaml",
-    "benchmarks/daeb/v1/vendor-selection-ledger.yaml",
-    "benchmarks/daeb/v1/extracts/*/*.yaml",
-    "benchmarks/daeb/v1/packs/*/pack.yaml",
-    "benchmarks/daeb/v1/packs/*/pack.approval.json",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
-    "build": "tsup src/cli.ts --format esm --clean",
-    "prepublishOnly": "npm run build",
-    "pack:check": "node .github/verify-package-contents.mjs",
-    "test": "vitest run tests",
-    "typecheck": "tsc --noEmit"
+    "ax-arena": "npm run ax-arena --workspace @ax-arena/benchmark --",
+    "build:core": "tsup src/cli.ts src/index.ts --format esm --dts --clean",
+    "build:arena": "npm run build --workspace @ax-arena/benchmark",
+    "build": "npm run build:core && npm run build:arena",
+    "prepublishOnly": "npm run build:arena && node .github/verify-arena-release-gate.mjs && npm run build:core",
+    "pack:check:core": "node .github/verify-package-contents.mjs",
+    "pack:check:arena": "npm run pack:check --workspace @ax-arena/benchmark",
+    "pack:check": "npm run pack:check:core && npm run pack:check:arena",
+    "check:boundaries": "node .github/verify-import-boundaries.mjs",
+    "test:core": "vitest run tests",
+    "test:arena": "npm test --workspace @ax-arena/benchmark",
+    "test": "npm run test:core && npm run test:arena",
+    "typecheck:core": "tsc --noEmit",
+    "typecheck:arena": "npm run typecheck --workspace @ax-arena/benchmark",
+    "typecheck": "npm run typecheck:core && npm run typecheck:arena"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
     "@linear/sdk": "^86.0.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
-    "@neondatabase/api-client": "^2.7.3",
-    "@neondatabase/serverless": "^1.1.0",
     "@notionhq/client": "^5.22.0",
-    "@supabase/supabase-js": "^2.110.0",
     "asana": "^3.1.12",
-    "mongodb": "^7.4.0",
-    "mysql2": "^3.22.5",
-    "pg": "^8.22.0",
     "yaml": "^2.4.0",
     "zod": "^3.23.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
-    "@types/pg": "^8.20.0",
-    "supabase": "^2.109.0",
     "tsup": "^8.5.1",
     "tsx": "^4.7.0",
     "typescript": "^5.4.0",

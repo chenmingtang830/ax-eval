@@ -20,13 +20,15 @@ npm test            # vitest — all keyless/offline, no network or secrets
 npm run typecheck   # tsc --noEmit, must be clean
 npm run build       # tsup → dist/ (required before package smoke tests)
 npm run ax-eval -- <command>   # run the CLI in dev (tsx)
+npm run ax-arena -- benchmark --help  # private arena workspace CLI
 ```
 
 - **Node ≥ 22.** TypeScript, ESM.
 - Prefer `npm run ax-eval -- <command>` while developing; it runs local source.
   Use `node dist/cli.js <command>` after `npm run build` only when you need to
   smoke-test the published CLI entrypoint.
-- **Always run `npm test` and `npm run typecheck` before proposing a change.** CI
+- **Always run `npm test` and `npm run typecheck` before proposing a change.**
+  These root commands cover both `ax-eval` and the private arena workspace. CI
   (`.github/workflows/ci.yml`) runs both on Node 22 and is required to merge.
 
 ## Conventions that matter here
@@ -89,15 +91,26 @@ Use this before opening a PR:
 - `src/generate/` — pack generation, review gate, verification, report, records.
 - `src/harness/` — host-agent profiles, subprocess invoke (claude-code/codex),
   transcript + trace parsing, probe.
+- `src/runtime/` — immutable per-cell extension registries and lifecycle seams.
 - `src/surface/` — API/CLI/SDK/MCP prompt adapters.
 - `src/target/` — pack-declared auth + sandbox scope + reset.
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).
 - `targets/` — target-pack index; example target packs live under
   `targets/examples/` (Notion, Stripe, Linear, Exa, Monday, Asana) with approvals.
+- `ax-arena/benchmark/daeb/` — canonical DAEB-1 suite, extracts, and compiled packs
+  (separate from single-vendor `targets/examples/`). For current DAEB status
+  (authoring freeze vs deferred production), maintainers use
+  `docs/latest_plan.md`; facts live under `ax-arena/benchmark/daeb/v1/`.
+- `ax-arena/benchmark/` — private workspace boundary for arena-owned code and
+  canonical DAEB files. `src/authoring/`, `src/providers/`, `src/runtime/`,
+  `src/controller/`, and `src/publication/` own benchmark policy and behavior,
+  including aggregation; root workflow YAML is only a thin launcher for
+  arena-owned trusted scripts.
 - `tests/` — vitest suite; the de-facto behavior spec.
-- `docs/` — **maintainer-local, git-ignored** (`roadmap.md`, `dev-guide.md`,
-  `spec/`, `strategy/`). Present in a maintainer checkout, not on the public
-  repo. `dev-guide.md` is the deepest file-by-file map if you have it.
+- `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
+  `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),
+  `communications.md` (claims). Everything else under `docs/_archive/`.
+  Present in a maintainer checkout, not on the public repo.
 
 ## Adding a target
 

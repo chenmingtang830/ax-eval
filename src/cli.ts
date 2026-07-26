@@ -17,19 +17,21 @@
  *   ax-eval generate --from <ingest.json> [--product P] [--site url]   IngestedSpec → pack draft
  *                    [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N]
  *                    [--l4-limit N] [--base-url url] [--out yaml] [--deterministic]
- *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort high]
+ *                    [--generator-harness codex|claude-code] [--generator-model m] [--generator-effort medium]
  *                    REST: L1 create · L2 chain · L3 goal · L4 lifecycle; GraphQL: L1 create + read-back oracles
  *   ax-eval verify-generated --pack <yaml> --results <run.json>...   round-trip oracles → HTML report
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
  *       [--html path] without re-running live verification
+ *   ax-arena benchmark publication-bundle --run-root <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
- *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile high] run prompts locally
+ *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
+ *   ax-eval cell run --input cell.json --output record.json           run one fully specified cell
  */
 import { fileURLToPath } from "node:url";
-import { dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { basename, dirname, relative, resolve } from "node:path";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -44,8 +46,8 @@ import { fetchSpecText, ingestFromUrl } from "./ingest/run.js";
 import { ingestGraphqlDetailed } from "./ingest/graphql.js";
 import { generatePack, packToYaml, type GenerateOptions } from "./generate/pack.js";
 import { generateGraphqlPack, looksLikeGraphqlIngest, type GenerateGraphqlPackOptions } from "./generate/graphql-pack.js";
-import { authorPackWithLlm } from "./generate/authoring.js";
-import { loadResults, loadTrace, verifyGeneratedPack } from "./generate/verify.js";
+import { loadResults, loadTrace, parseJsonWithRecovery, verifyGeneratedPack } from "./generate/verify.js";
+import { buildVerificationClientOptions } from "./generate/verification-client.js";
 import {
   GENERATED_REPORT_SNAPSHOT_SCHEMA,
   loadGeneratedReportSnapshot,
@@ -54,7 +56,6 @@ import {
   type GeneratedReportSnapshot,
 } from "./generate/snapshot.js";
 import {
-  renderCompetitiveReport,
   renderGeneratedReport,
   type ProfileRun,
   type StaticReadiness,
@@ -63,14 +64,17 @@ import {
   buildNormalizedResult,
   buildNormalizedResultCells,
   buildBlockedResult,
-  type NormalizedResult,
+  resultCellKey,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { type TargetPack } from "./schemas.js";
+import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
 import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
+import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
+import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
+import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
-import { buildExecutorPrompt, resolveNs } from "./harness/executor.js";
+import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
 import {
   defaultInvokePaths,
   detectInvokeHarness,
@@ -86,8 +90,13 @@ import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
-import { describeRequiredEnv, hasRequiredEnv, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
-import { resetPack } from "./target/reset.js";
+import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
+import { healthCheckPack } from "./target/health-check.js";
+import { hasCoreResetStrategy, resetPack } from "./target/reset.js";
+import { EvaluationCellSchema } from "./cell/schema.js";
+import { runCell } from "./cell/run.js";
+import { executeArenaLaunch, resolveArenaLaunch } from "./arena-launcher.js";
+import ARENA_COMPATIBILITY_MAP from "./arena-compatibility-map.json" with { type: "json" };
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -118,17 +127,78 @@ const COMMANDS = [
   "verify",
   "ingest",
   "generate",
+  "automate-report",
   "review",
+  "cell",
   "exec-plan",
   "verify-generated",
   "render-generated",
   "competitive",
   "trace-diff",
   "reset",
-  "automate-report",
+  "resolve-vendor",
+  "import-registry",
+  "extract-tasks",
+  "compose-pack",
+  "extract-surfaces",
+  "extract-capabilities",
+  "audit-extracts",
+  "audit-suite",
+  "synthesize-suite",
+  "publication-bundle",
+  "export-publication",
+  "records-diff",
+  "daeb-low-pass",
+  "daeb-production-rerun",
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
+
+type LegacyArenaCommand = keyof typeof ARENA_COMPATIBILITY_MAP;
+const LEGACY_ARENA_COMMANDS = Object.keys(ARENA_COMPATIBILITY_MAP) as LegacyArenaCommand[];
+const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
+
+function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
+  return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
+}
+
+function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): Promise<number> {
+  const arenaCommand = ARENA_COMPATIBILITY_MAP[command];
+  console.error(
+    `warning: ax-eval ${command} is deprecated; use ax-arena benchmark ${arenaCommand} instead.`,
+  );
+
+  const arenaSourceCli = resolve(HERE, "..", "ax-arena", "benchmark", "src", "cli.ts");
+  let sourceLoader: string | undefined;
+  let installedPackageJson: string | undefined;
+
+  // A source checkout does not require the private workspace to be built first.
+  // Resolve tsx only on this development path so published ax-eval installs do
+  // not acquire a runtime dependency on it.
+  if (existsSync(arenaSourceCli)) {
+    try {
+      sourceLoader = fileURLToPath(import.meta.resolve("tsx"));
+    } catch {
+      // Installed distributions use the separately installed ax-arena binary.
+    }
+  }
+  if (!sourceLoader) {
+    try {
+      installedPackageJson = fileURLToPath(import.meta.resolve("@ax-arena/benchmark/package.json"));
+    } catch {
+      // resolveArenaLaunch fails closed when neither trusted entrypoint exists.
+    }
+  }
+
+  const launch = resolveArenaLaunch(arenaCommand, argv, {
+    sourceCli: arenaSourceCli,
+    sourceLoader,
+    sourceTsconfig: resolve(HERE, "..", "ax-arena", "benchmark", "tsconfig.json"),
+    installedPackageJson,
+  });
+
+  return executeArenaLaunch(launch);
+}
 
 function isHelpToken(value: string | undefined): boolean {
   return value === "--help" || value === "-h" || value === "help";
@@ -144,27 +214,15 @@ function commandUsage(command: string | undefined): string {
       return "usage: ax-eval ingest (--openapi <url> | --graphql <endpoint|file>) [--out json] [--offline]";
     case "generate":
       return [
-        "usage: ax-eval generate --from <ingest.json> [--product P] [--site url]",
+        "usage: ax-eval generate [--from <ingest.json>] [--product P] [--site url]",
         "                       [--docs url,url] [--limit N] [--l2-limit N] [--l3-limit N] [--l4-limit N]",
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
+        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB, ...)",
+        "  docs-only mode: omit --from, pass --suite + --product + --docs.",
+        "                  the LLM web-searches the product's docs in lieu of ingest.",
       ].join("\n");
-    case "review":
-      return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
-    case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--surface api|cli|sdk|mcp|all] [--invoke]`;
-    case "verify-generated":
-    case "verify":
-      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
-    case "competitive":
-      return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
-    case "render-generated":
-      return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
-    case "trace-diff":
-      return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
-    case "reset":
-      return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
     case "automate-report":
       return [
         "usage: ax-eval automate-report --company <name>",
@@ -172,6 +230,27 @@ function commandUsage(command: string | undefined): string {
         `       [--surface api|cli|sdk|mcp|all] [--harness ${INVOKE_HARNESS_LIST}]`,
         "       [--effort low|medium|high] [--run-dir dir] [--smoke-only] [--approve-by name]",
         "       --approve-by only fills the suggested manual review command; it does not auto-approve generated packs.",
+      ].join("\n");
+    case "review":
+      return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
+    case "cell":
+      return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
+    case "exec-plan":
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
+    case "verify-generated":
+    case "verify":
+      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
+    case "render-generated":
+      return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
+    case "trace-diff":
+      return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
+    case "reset":
+      return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
+    case "records-diff":
+      return [
+        "usage: ax-eval records-diff --base <record-file-or-dir> --head <record-file-or-dir> --out <diff.md>",
+        "  Compares normalized result records and writes deterministic Markdown.",
+        "  Overall macro-averages surfaces per agent; operational metrics never affect rank.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -205,6 +284,11 @@ interface Parsed {
    *  (codex → model_reasoning_effort; claude-code → prompt-level). */
   effort: string;
   deterministic: boolean;
+  smokeOnly: boolean;
+  company: string;
+  approveBy: string;
+  /** synthesize-suite: opt-in grounded LLM gap adjudication. */
+  gapCheckAssist: boolean;
   generatorHarness: string;
   generatorModel: string;
   generatorEffort: string;
@@ -217,6 +301,9 @@ interface Parsed {
    *  the whole matrix; the cell is retried (see `invokeRetries`) then recorded
    *  as a timeout failure. 0 disables the cap. */
   invokeTimeout: number;
+  /** Optional cap in seconds for runs that never take a tool/action
+   *  (`--first-action-timeout`). 0 disables the cap. */
+  firstActionTimeout: number;
   /** Retries for a failed/timed-out invocation (`--invoke-retries`, default 1).
    *  0 disables retries. */
   invokeRetries: number;
@@ -233,13 +320,18 @@ interface Parsed {
   graphql: string;
   snapshot: string;
   from: string;
+  baseRecords: string;
+  headRecords: string;
   baseUrl: string;
   limit: number;
   l2Limit: number | undefined;
   l3Limit: number | undefined;
   l4Limit: number | undefined;
+  /** synthesize-suite: target number of canonical tasks (default 10). */
+  taskCount: number | undefined;
   results: string[];
   runId: string;
+  runBatchId: string;
   runDir: string;
   observe: Record<string, string>;
   maxPages: number;
@@ -249,17 +341,39 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
-  smokeOnly: boolean;
+  /** audit-extracts: write autofixes to the canonical arena DAEB extracts. */
+  apply: boolean;
+  /** audit-extracts: WebFetch-grounded advisory review; never mutates source artifacts. */
+  advisory: boolean;
   ns: string;
   attempts: number;
+  trial: number | undefined;
   minPassRate: number | undefined;
   trace: string;
+  /** Path to a canonical-task-suite YAML (DAEB, VAB, ...). When set,
+   *  `generate` constrains the LLM to produce a pack whose task ids/titles/
+   *  difficulties match the suite exactly — the mechanism that makes
+   *  cross-vendor scores comparable. */
+  suite: string;
+  /** `resolve-vendor` inputs: human-friendly vendor name(s) and the benchmark
+   *  category. --vendor for a single vendor; --vendors for comma-separated batch. */
+  vendor: string;
+  vendors: string;
+  category: string;
+  /** import-registry: a single integrations.sh domain (e.g. "supabase.com"). */
+  domain: string;
+  /** import-registry: explicit ax-eval slug when it differs from the domain. */
+  slug: string;
+  /** extract-capabilities: per-vendor OpenAPI spec URLs to seed from, as
+   *  "slug=url,slug=url" — overrides the vendor card's openapi_url. */
+  specs: string;
+  skipReset: boolean;
+  reclaim: boolean;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
   surface?: string;
-  company: string;
-  approveBy: string;
+  executionMode: "cell" | "task";
   _: string[];
 }
 
@@ -271,11 +385,16 @@ function parseArgs(argv: string[]): Parsed {
     model: "",
     effort: "",
     deterministic: false,
+    smokeOnly: false,
+    company: "",
+    approveBy: "",
+    gapCheckAssist: false,
     generatorHarness: "",
     generatorModel: "",
-    generatorEffort: "high",
+    generatorEffort: "",
     concurrency: 4,
     invokeTimeout: 900,
+    firstActionTimeout: 0,
     invokeRetries: 1,
     out: "results/last-run.json",
     site: "",
@@ -290,13 +409,17 @@ function parseArgs(argv: string[]): Parsed {
     graphql: "",
     snapshot: "",
     from: "",
+    baseRecords: "",
+    headRecords: "",
     baseUrl: "",
     limit: 3,
     l2Limit: undefined,
     l3Limit: undefined,
     l4Limit: undefined,
+    taskCount: undefined,
     results: [],
     runId: "",
+    runBatchId: "",
     runDir: "results",
     observe: {},
     maxPages: 25,
@@ -306,13 +429,23 @@ function parseArgs(argv: string[]): Parsed {
     skipReview: false,
     invoke: false,
     dryRun: false,
-    smokeOnly: false,
+    apply: false,
+    advisory: false,
     ns: "",
     attempts: 1,
+    trial: undefined,
     minPassRate: undefined,
     trace: "",
-    company: "",
-    approveBy: "",
+    suite: "",
+    vendor: "",
+    vendors: "",
+    category: "",
+    domain: "",
+    slug: "",
+    specs: "",
+    skipReset: false,
+    reclaim: false,
+    executionMode: "cell",
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -338,6 +471,10 @@ function parseArgs(argv: string[]): Parsed {
       p.effort = v;
     }
     else if (a === "--deterministic") p.deterministic = true;
+    else if (a === "--smoke-only") p.smokeOnly = true;
+    else if (a === "--company") p.company = value(++i, "--company");
+    else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
+    else if (a === "--gap-check-assist") p.gapCheckAssist = true;
     else if (a === "--generator-harness") {
       const v = value(++i, "--generator-harness");
       if (!["codex", "claude-code", "host-agent"].includes(v)) {
@@ -357,6 +494,11 @@ function parseArgs(argv: string[]): Parsed {
       const n = Number(value(++i, "--invoke-timeout"));
       if (!Number.isInteger(n) || n < 0) throw new Error(`--invoke-timeout must be a non-negative integer (seconds; got ${n})`);
       p.invokeTimeout = n;
+    }
+    else if (a === "--first-action-timeout") {
+      const n = Number(value(++i, "--first-action-timeout"));
+      if (!Number.isInteger(n) || n < 0) throw new Error(`--first-action-timeout must be a non-negative integer (seconds; got ${n})`);
+      p.firstActionTimeout = n;
     }
     else if (a === "--invoke-retries") {
       const n = Number(value(++i, "--invoke-retries"));
@@ -381,13 +523,24 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--graphql") p.graphql = value(++i, "--graphql");
     else if (a === "--snapshot") p.snapshot = value(++i, "--snapshot");
     else if (a === "--from") p.from = value(++i, "--from");
+    else if (a === "--base") p.baseRecords = value(++i, "--base");
+    else if (a === "--head") p.headRecords = value(++i, "--head");
+    else if (a === "--suite") p.suite = value(++i, "--suite");
+    else if (a === "--vendor") p.vendor = value(++i, "--vendor");
+    else if (a === "--category") p.category = value(++i, "--category");
+    else if (a === "--vendors") p.vendors = value(++i, "--vendors");
+    else if (a === "--domain") p.domain = value(++i, "--domain");
+    else if (a === "--slug") p.slug = value(++i, "--slug");
+    else if (a === "--specs") p.specs = value(++i, "--specs");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
     else if (a === "--l3-limit") p.l3Limit = Number(value(++i, "--l3-limit"));
     else if (a === "--l4-limit") p.l4Limit = Number(value(++i, "--l4-limit"));
+    else if (a === "--task-count") p.taskCount = Number(value(++i, "--task-count"));
     else if (a === "--results") p.results.push(value(++i, "--results"));
     else if (a === "--run-id") p.runId = value(++i, "--run-id");
+    else if (a === "--run-batch-id") p.runBatchId = value(++i, "--run-batch-id");
     else if (a === "--run-dir") p.runDir = value(++i, "--run-dir");
     else if (a === "--observe") {
       const v = value(++i, "--observe");
@@ -399,19 +552,29 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--approve") p.approve = true;
     else if (a === "--by") p.by = value(++i, "--by");
     else if (a === "--skip-review") p.skipReview = true;
+    else if (a === "--skip-reset") p.skipReset = true;
+    else if (a === "--reclaim") p.reclaim = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
-    else if (a === "--smoke-only") p.smokeOnly = true;
-    else if (a === "--company") p.company = value(++i, "--company");
-    else if (a === "--approve-by") p.approveBy = value(++i, "--approve-by");
+    else if (a === "--apply") p.apply = true;
+    else if (a === "--advisory") p.advisory = true;
     else if (a === "--ns") p.ns = value(++i, "--ns");
     else if (a === "--attempts") p.attempts = Number(value(++i, "--attempts"));
+    else if (a === "--trial") {
+      const n = Number(value(++i, "--trial"));
+      if (!Number.isInteger(n) || n < 1) throw new Error(`--trial must be a positive integer (got ${n})`);
+      p.trial = n;
+    }
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
     else if (a === "--trace") p.trace = value(++i, "--trace");
     else if (a === "--surface") {
       const v = value(++i, "--surface");
       if (v !== "all" && !isSurfaceId(v)) throw new Error(`--surface must be one of api|cli|sdk|mcp|all (got ${v})`);
       p.surface = v;
+    } else if (a === "--execution-mode") {
+      const v = value(++i, "--execution-mode");
+      if (v !== "cell" && v !== "task") throw new Error(`--execution-mode must be one of cell|task (got ${v})`);
+      p.executionMode = v;
     } else if (a!.startsWith("--")) throw new Error(`unknown flag ${a}`);
     else p._.push(a!);
   }
@@ -716,9 +879,34 @@ function resolvedGeneratePolicy(args: Parsed, allowFullPreset = true): Pick<Gene
   };
 }
 
+function envGeneratorHarness(): "claude-code" | "codex" | undefined {
+  const value = process.env.AX_EVAL_GENERATOR_HARNESS;
+  if (value === "claude-code" || value === "codex") return value;
+  if (value) console.warn(`Ignoring AX_EVAL_GENERATOR_HARNESS=${value}; expected claude-code or codex.`);
+  return undefined;
+}
+
+function generatorEffort(args: Parsed): "low" | "medium" | "high" {
+  const value = args.generatorEffort || process.env.AX_EVAL_GENERATOR_EFFORT || "medium";
+  if (value === "low" || value === "medium" || value === "high") return value;
+  console.warn(`Ignoring AX_EVAL_GENERATOR_EFFORT=${value}; expected low, medium, or high.`);
+  return "medium";
+}
+
+function generatorModel(args: Parsed, harness: "claude-code" | "codex"): string | undefined {
+  return args.generatorModel
+    || process.env.AX_EVAL_GENERATOR_MODEL
+    || (harness === "codex"
+      ? process.env.AX_EVAL_GENERATOR_CODEX_MODEL || "gpt-5.4"
+      : process.env.AX_EVAL_GENERATOR_CLAUDE_MODEL || "sonnet");
+}
+
 function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specSource: unknown): NonNullable<TargetPack["generator"]> {
   const detected = probeHarness().host;
-  const harness = args.generatorHarness || (detected === "codex" || detected === "claude-code" ? detected : "codex");
+  const harness: "claude-code" | "codex" =
+    args.generatorHarness === "claude-code" || args.generatorHarness === "codex"
+      ? args.generatorHarness
+      : envGeneratorHarness() ?? (detected === "codex" || detected === "claude-code" ? detected : "codex");
   const sourceDocs = docsUrls && docsUrls.length
     ? docsUrls
     : typeof specSource === "string" && /^https?:\/\//.test(specSource)
@@ -726,17 +914,182 @@ function generatorProvenance(args: Parsed, docsUrls: string[] | undefined, specS
       : [];
   return {
     harness,
-    model: args.generatorModel || "host-default",
-    effort: (args.generatorEffort || "high") as "low" | "medium" | "high",
+    model: generatorModel(args, harness) || "host-default",
+    effort: generatorEffort(args),
     prompt_version: "ax-eval-generator-v1",
     source_docs: sourceDocs,
   };
 }
 
+function taskSummary(pack: TargetPack): unknown {
+  return pack.tasks.map((t) => ({
+    id: t.id,
+    title: t.title,
+    difficulty: t.difficulty,
+    prompt: t.prompt,
+    allowed_surfaces: t.allowed_surfaces,
+    oracles: t.oracles,
+    trace: t.trace ?? [],
+  }));
+}
+
+function buildGeneratorPrompt(
+  product: string,
+  spec: unknown,
+  seed: TargetPack,
+  suite?: Suite,
+  authoringHints: string[] = [],
+): string {
+  const specSummary = JSON.stringify({
+    source: (spec as { source?: unknown }).source,
+    title: (spec as { title?: unknown }).title,
+    baseUrl: (spec as { baseUrl?: unknown }).baseUrl,
+    auth: (spec as { auth?: unknown }).auth,
+    constantHeaders: (spec as { constantHeaders?: unknown }).constantHeaders,
+    resources: (spec as { resources?: unknown }).resources,
+  }, null, 2);
+  const seedJson = JSON.stringify({
+    ...seed,
+    tasks: taskSummary(seed),
+  }, null, 2);
+  const sections = [
+    `You are the ax-eval pack generator for ${product}.`,
+    "",
+    "Create one product-quality TargetPack JSON object. Return ONLY valid JSON: no markdown, no commentary.",
+    "",
+    "Hard requirements:",
+    "- Preserve the target product, auth env names, base URL, surfaces, docs URLs, and discovery shape unless the seed is clearly wrong.",
+    suite
+      ? "- The canonical task suite below OVERRIDES the seed's task count and difficulty mix. Emit exactly the canonical task set."
+      : "- Produce exactly 12 tasks unless the seed has fewer than 12 viable operation tasks.",
+    suite
+      ? "- Difficulty for each task is dictated by the canonical suite — do not change it."
+      : "- Include L1, L2, L3, and L4 tasks, with at least one L4 task.",
+    "- Prompts must be goal-level: do not hand the agent a curl command or exact endpoint implementation steps.",
+    "- Every task must have at least one programmatic oracle.",
+    "- For stateless search/read APIs, use roundtrip POST read-back oracles where appropriate, with readMethod/readPathTemplate/readBodyTemplate.",
+    "- For URL assertions, prefer matchMode:\"url\" and include expectedAny aliases for canonical-equivalent, versioned, anchor, or redirect URLs that should count as the same correct source.",
+    "- Do not include secrets or secret values. Use only env-var names.",
+    "- Keep generated_by/generator fields if present; the CLI will normalize provenance after validation.",
+    "",
+    "Ingested spec summary:",
+    specSummary,
+    "",
+    "Seed pack JSON to improve or preserve:",
+    seedJson,
+  ];
+  if (authoringHints.length) {
+    sections.push("", "Preset guidance:", ...authoringHints.map((hint) => `- ${hint}`));
+  }
+  if (suite) sections.push(suitePromptFragment(suite));
+  return sections.join("\n");
+}
+
+async function runGeneratorHarness(prompt: string, args: Parsed, provenance: NonNullable<TargetPack["generator"]>): Promise<string> {
+  if (provenance.harness !== "claude-code" && provenance.harness !== "codex") {
+    throw new Error(`generator harness ${provenance.harness} cannot be invoked headlessly; pass --generator-harness codex|claude-code`);
+  }
+  return invokeHarness(prompt, {
+    harness: provenance.harness,
+    model: provenance.model === "host-default" ? undefined : provenance.model,
+    effort: provenance.effort,
+  });
+}
+
+async function authorPackWithLlm(
+  product: string,
+  spec: unknown,
+  seed: TargetPack,
+  args: Parsed,
+  docsUrls: string[] | undefined,
+  suite?: Suite,
+  authoringHints: string[] = [],
+): Promise<TargetPack> {
+  const provenance = generatorProvenance(args, docsUrls, (spec as { source?: unknown }).source);
+  const prompt = buildGeneratorPrompt(
+    product,
+    spec,
+    { ...seed, generated_by: "llm-assisted", generator: provenance },
+    suite,
+    authoringHints,
+  );
+  const raw = await runGeneratorHarness(prompt, args, provenance);
+  const parsed = JSON.parse(extractJsonObject(normalizeHarnessText(raw)));
+  const pack = TargetPackSchema.parse({
+    ...parsed,
+    generated_by: "llm-assisted",
+    generator: provenance,
+  });
+  if (suite) {
+    const errors = validatePackAgainstSuite(
+      pack.tasks.map((t) => ({ id: t.id, title: t.title, difficulty: t.difficulty })),
+      suite,
+    );
+    if (errors.length) {
+      throw new Error(
+        `Generated pack violates canonical suite ${suite.name} v${suite.version}:\n  - ${errors.join("\n  - ")}`,
+      );
+    }
+  }
+  return pack;
+}
+
+/** Build a minimal IngestedSpec stub for the docs-only generate path: when
+ *  no --from is provided but --suite is, we author by giving the LLM the
+ *  product name + docs URLs and letting it web-search/fetch the rest.
+ *  The LLM, not us, discovers the resource model. */
+function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | undefined): unknown {
+  return {
+    source: `docs-only:${slugify(product)}`,
+    title: product,
+    baseUrl: args.baseUrl || "",
+    requestEnvelope: null,
+    responseEnvelope: null,
+    resources: [],
+    auth: { type: "bearer", header: null },
+    constantHeaders: {},
+    docsUrls: docsUrls ?? [],
+    siteUrl: args.site || "",
+  };
+}
+
+function cmdRecordsDiff(args: Parsed): number {
+  if (!args.baseRecords) throw new Error("--base <record-file-or-dir> is required");
+  if (!args.headRecords) throw new Error("--head <record-file-or-dir> is required");
+  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <diff.md> is required");
+  const markdown = renderRecordsDiffMarkdown(resolve(process.cwd(), args.baseRecords), resolve(process.cwd(), args.headRecords));
+  mkdirSync(dirname(resolve(process.cwd(), args.out)), { recursive: true });
+  writeFileSync(resolve(process.cwd(), args.out), markdown);
+  console.log(`Saved normalized records diff → ${args.out}`);
+  return 0;
+}
+
 async function cmdGenerate(args: Parsed): Promise<number> {
   loadDotenv();
-  const from = args.from || "results/ingest.json";
-  const spec = JSON.parse(readFileSync(from, "utf8"));
+  const suite: Suite | undefined = args.suite ? loadSuite(args.suite) : undefined;
+  if (suite) {
+    console.log(`Using canonical suite ${suite.name} v${suite.version} (${suite.category}) — ${suite.tasks.length} tasks.`);
+  }
+  // --from is required UNLESS --suite is set; with --suite the LLM authors
+  // from product name + docs URLs (web-search/fetch instead of ingest).
+  if (!args.from && !suite) {
+    throw new Error("--from is required (or pass --suite + --product + --docs to author from docs without an OpenAPI/GraphQL ingest)");
+  }
+  if (!args.from && !args.product) {
+    throw new Error("--product is required when --from is omitted (docs-only generate)");
+  }
+  const docsUrlsArg = args.docs
+    ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
+    : undefined;
+  const spec = args.from
+    ? JSON.parse(readFileSync(args.from, "utf8"))
+    : buildDocsOnlyStub(args.product, args, docsUrlsArg);
+  if (!args.from) {
+    if (args.deterministic) {
+      throw new Error("--deterministic is incompatible with docs-only generate; provide --from <ingest.json> or omit --deterministic.");
+    }
+    console.log(`Docs-only generate: LLM will discover ${args.product} from ${docsUrlsArg?.length ?? 0} docs URL(s) via web search/fetch.`);
+  }
 
   // Product: explicit flag wins, else derive from the spec title (strip a
   // trailing " API"), else fall back to a neutral label.
@@ -748,11 +1101,6 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     ? args.docs.split(",").map((s) => s.trim()).filter(Boolean)
     : undefined;
   const generatePolicy = resolvedGeneratePolicy(args);
-  const generatorHarnessTimeoutRaw = process.env.AX_EVAL_GENERATOR_TIMEOUT_MS?.trim();
-  const generatorTimeoutMs =
-    generatorHarnessTimeoutRaw && Number.isFinite(Number(generatorHarnessTimeoutRaw)) && Number(generatorHarnessTimeoutRaw) > 0
-      ? Number(generatorHarnessTimeoutRaw)
-      : 120_000;
 
   if (looksLikeGraphqlIngest(spec)) {
     const preset = resolveGraphqlGeneratePreset(product);
@@ -761,7 +1109,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
       ...(presetOptions ?? {}),
       ...generatePolicy,
       runId: args.runId || undefined,
-      packName: `${slugify(product)}-generated`,
+      packName: presetOptions?.packName ?? `${slugify(product)}-generated`,
       product,
       baseUrl: args.baseUrl || presetOptions?.baseUrl || undefined,
       siteUrl: args.site || presetOptions?.siteUrl || "",
@@ -770,22 +1118,9 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     const generated = generateGraphqlPack(spec, {
       ...graphqlOpts,
     });
-    const provenance = generatorProvenance(args, graphqlOpts.docsUrls ?? docsUrls, (spec as { source?: unknown }).source);
     const pack: TargetPack = args.deterministic
       ? generated
-      : authorPackWithLlm({
-          product,
-          spec,
-          seed: generated,
-          provenance,
-          harness: {
-            harness: provenance.harness,
-            model: args.generatorModel || undefined,
-            effort: provenance.effort,
-            timeoutMs: generatorTimeoutMs,
-          },
-          authoringHints: preset?.authoringHints,
-        });
+      : await authorPackWithLlm(product, spec, generated, args, docsUrls, suite, preset?.authoringHints);
     const yaml = packToYaml(pack);
     const out = args.out && args.out !== "results/last-run.json"
       ? args.out
@@ -802,11 +1137,12 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     return 0;
   }
 
+  const preset = resolveOpenApiGeneratePreset(product);
+  const presetOptions = preset?.options;
+
   // Generic options derived entirely from the spec + flags. Auth, sandbox_scope
   // and headers are derived inside generatePack from the ingested securityScheme
   // and resource graph — no per-product hardcoding.
-  const preset = resolveOpenApiGeneratePreset(product);
-  const presetOptions = preset?.options;
   const presetAllowsFull = preset?.allowFullPreset ?? true;
   const presetAwarePolicy = resolvedGeneratePolicy(args, presetAllowsFull);
   const baseOpts: GenerateOptions = {
@@ -838,26 +1174,13 @@ async function cmdGenerate(args: Parsed): Promise<number> {
     : baseOpts;
 
   const provenanceDocs = opts.docsUrls ?? docsUrls;
-  const provenance = generatorProvenance(args, provenanceDocs, spec.source);
   const seed = generatePack(
     spec,
-    args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: provenance },
+    args.deterministic ? opts : { ...opts, generatedBy: "llm-assisted", generator: generatorProvenance(args, provenanceDocs, spec.source) },
   );
   const pack = args.deterministic
     ? seed
-    : authorPackWithLlm({
-        product,
-        spec,
-        seed,
-        provenance,
-        harness: {
-          harness: provenance.harness,
-          model: args.generatorModel || undefined,
-          effort: provenance.effort,
-          timeoutMs: generatorTimeoutMs,
-        },
-        authoringHints: preset?.authoringHints,
-      });
+    : await authorPackWithLlm(product, spec, seed, args, provenanceDocs, suite, preset?.authoringHints);
   const yaml = packToYaml(pack);
   // Default output: committed example packs live under targets/examples/, but
   // locally generated packs still default to targets/<product>/ so a user can
@@ -888,7 +1211,7 @@ async function cmdGenerate(args: Parsed): Promise<number> {
  * Emit a ready-to-run executor prompt per profile (resolving a fresh namespace
  * each). Each prompt is a single two-phase run: Phase 0 cold-start discovery
  * followed by the L1-L4 tasks built on what it discovered — so discovery is
- * NOT a separate agent, it's step 0 of low and high. ns and
+ * NOT a separate agent, it's step 0 of every medium-effort run. ns and
  * the discovery/results/trace contract are baked in by the builder, so execution
  * is reproducible. Artifacts land under --run-dir (default results/).
  */
@@ -922,11 +1245,247 @@ function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
 }
 
+function packWithTask(pack: TargetPack, task: Task): TargetPack {
+  return { ...pack, tasks: [task] };
+}
+
+function packWithoutTasks(pack: TargetPack): TargetPack {
+  return { ...pack, tasks: [] };
+}
+
+function uniqueStrings(values: (string | undefined)[]): string[] {
+  return [...new Set(values.filter((value): value is string => Boolean(value)))];
+}
+
+function taskLevelResultValue(result: ReturnType<typeof loadResults> | undefined, taskId: string): ({ gid?: string } & Record<string, unknown>) | undefined {
+  const taskResult = result?.results[taskId];
+  if (!taskResult) return undefined;
+  const taskBaseUrl = result?.discovery?.base_url_found?.trim();
+  if (!taskBaseUrl) return taskResult;
+  return {
+    ...taskResult,
+    __task_base_url: taskBaseUrl,
+  };
+}
+
+function mergeTaskDiscovery(results: DiscoveryResult[]): DiscoveryResult | undefined {
+  if (!results.length) return undefined;
+  return {
+    ns: results.find((result) => result.ns)?.ns,
+    base_url_found: results.find((result) => result.base_url_found)?.base_url_found,
+    completed_gid: results.find((result) => result.completed_gid !== undefined)?.completed_gid,
+    searches: uniqueStrings(results.flatMap((result) => result.searches ?? [])),
+    urls_visited: uniqueStrings(results.flatMap((result) => result.urls_visited ?? [])),
+    endpoint_used: results.find((result) => result.endpoint_used)?.endpoint_used,
+    auth_scheme_found: results.find((result) => result.auth_scheme_found)?.auth_scheme_found,
+    inspected_local_source: results.some((result) => result.inspected_local_source) ? true : undefined,
+    notes: uniqueStrings(results.map((result) => result.notes)).join(" | ") || undefined,
+  };
+}
+
+function aggregateTaskInvokeValidity(values: Array<string | undefined>): string | undefined {
+  for (const value of values) {
+    if (value && value !== "valid") return value;
+  }
+  return values.find((value): value is string => typeof value === "string");
+}
+
+function aggregateTaskInvokeGroup(args: {
+  groupLabel: string;
+  paths: ReturnType<typeof defaultInvokePaths>;
+  taskIdsInOrder: string[];
+  jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+  bootstrapPaths?: ReturnType<typeof defaultInvokePaths>;
+}): void {
+  const bootstrapResult = args.bootstrapPaths && existsSync(args.bootstrapPaths.resultsPath)
+    ? loadResults(args.bootstrapPaths.resultsPath)
+    : undefined;
+  const taskResults = args.jobPaths
+    .map((paths) => existsSync(paths.resultsPath) ? loadResults(paths.resultsPath) : undefined)
+    .filter((result): result is ReturnType<typeof loadResults> => Boolean(result));
+  const first = taskResults[0] ?? bootstrapResult;
+  const combinedResults: Record<string, unknown> = {
+    profile: first?.profile ?? "unknown",
+    harness: first?.harness,
+    ns: first?.ns,
+    surface: first?.surface,
+    discovery: mergeTaskDiscovery(
+      [bootstrapResult, ...taskResults]
+        .map((result) => result?.discovery)
+        .filter((value): value is DiscoveryResult => Boolean(value)),
+    ),
+    model: first?.model,
+    results: Object.fromEntries(
+      args.taskIdsInOrder.map((taskId) => {
+        const match = taskResults.find((result) => result.results[taskId] !== undefined);
+        return [taskId, taskLevelResultValue(match, taskId) ?? { gid: null }];
+      }),
+    ),
+  };
+  writeFileSync(args.paths.resultsPath, JSON.stringify(combinedResults, null, 2));
+
+  const combinedTrace = args.jobPaths.flatMap((paths) => {
+    if (!existsSync(paths.tracePath)) return [];
+    return loadTrace(paths.tracePath);
+  }).map((step, index) => ({ ...step, step: index + 1 }));
+  writeFileSync(args.paths.tracePath, JSON.stringify(combinedTrace, null, 2));
+
+  writeFileSync(
+    args.paths.promptPath,
+    [
+      `Task-level execution aggregate for ${args.groupLabel}.`,
+      ...(args.bootstrapPaths ? [`- bootstrap: ${args.bootstrapPaths.promptPath}`] : []),
+      `This cell was executed as one prompt per task and aggregated back into the combined run artifact.`,
+      ...args.jobPaths.map((paths) => `- ${paths.promptPath}`),
+    ].join("\n"),
+  );
+  const orderedArtifactPaths = args.bootstrapPaths ? [args.bootstrapPaths, ...args.jobPaths] : args.jobPaths;
+  const joinOrderedArtifacts = (picker: (paths: ReturnType<typeof defaultInvokePaths>) => string): string =>
+    orderedArtifactPaths
+      .map((paths) => picker(paths))
+      .filter((path) => existsSync(path))
+      .map((path) => readFileSync(path, "utf8").trim())
+      .filter(Boolean)
+      .join("\n");
+  writeFileSync(args.paths.transcriptPath, joinOrderedArtifacts((paths) => paths.transcriptPath));
+  writeFileSync(args.paths.stdoutPath, joinOrderedArtifacts((paths) => paths.stdoutPath));
+  writeFileSync(args.paths.stderrPath, joinOrderedArtifacts((paths) => paths.stderrPath));
+
+  const taskMetaEntries = orderedArtifactPaths
+    .map((paths) => ({ path: paths.metaPath, meta: existsSync(paths.metaPath) ? readJsonObject(paths.metaPath) : undefined }))
+    .filter((entry): entry is { path: string; meta: Record<string, unknown> } => Boolean(entry.meta));
+  const taskMetas = taskMetaEntries.map((entry) => entry.meta);
+  const durationMs = taskMetas.reduce((sum, meta) => sum + (typeof meta.durationMs === "number" ? meta.durationMs : 0), 0);
+  const transcriptEvents = taskMetas.reduce((sum, meta) => sum + (typeof meta.transcript_event_count === "number" ? meta.transcript_event_count : 0), 0);
+  const firstActionValues = taskMetas
+    .map((meta) => typeof meta.first_action_latency_ms === "number" ? meta.first_action_latency_ms : undefined)
+    .filter((value): value is number => typeof value === "number");
+  const nativeMetrics = taskMetas
+    .map((meta) => meta.metrics)
+    .filter((value): value is Record<string, unknown> => Boolean(value && typeof value === "object" && !Array.isArray(value)));
+  const metricTokenUsage = nativeMetrics.reduce<Record<string, number> | null>((total, metric) =>
+    mergeTokenUsage(total, metric.token_usage as Record<string, number> | null | undefined), null);
+  const metricCosts = nativeMetrics.flatMap((metric) => typeof metric.cost_usd === "number" ? [metric.cost_usd] : []);
+  const metricTurns = nativeMetrics.flatMap((metric) => typeof metric.num_turns === "number" ? [metric.num_turns] : []);
+  const metricDurations = nativeMetrics.flatMap((metric) => typeof metric.duration_ms === "number" ? [metric.duration_ms] : []);
+  const metricTotalDurations = nativeMetrics.flatMap((metric) => typeof metric.total_duration_ms === "number" ? [metric.total_duration_ms] : []);
+  const versionRaw = [...new Set(nativeMetrics.map((metric) => metric.harness_version_raw).filter((value): value is string => typeof value === "string"))];
+  const versionSemver = [...new Set(nativeMetrics.map((metric) => metric.harness_version_semver).filter((value): value is string => typeof value === "string"))];
+  const runBatchIds = [...new Set(nativeMetrics.map((metric) => metric.run_batch_id).filter((value): value is string => typeof value === "string"))];
+  const combinedMetrics = {
+    harness_version_raw: versionRaw.length === 1 ? versionRaw[0] : null,
+    harness_version_semver: versionSemver.length === 1 ? versionSemver[0] : null,
+    run_batch_id: runBatchIds.length === 1 ? runBatchIds[0] : null,
+    duration_ms: metricDurations.length ? metricDurations.reduce((sum, value) => sum + value, 0) : null,
+    total_duration_ms: metricTotalDurations.reduce((sum, value) => sum + value, 0),
+    cost_usd: metricCosts.length ? metricCosts.reduce((sum, value) => sum + value, 0) : null,
+    token_usage: metricTokenUsage,
+    num_turns: metricTurns.length ? metricTurns.reduce((sum, value) => sum + value, 0) : null,
+  };
+  combinedResults.metrics = combinedMetrics;
+  writeFileSync(args.paths.resultsPath, JSON.stringify(combinedResults, null, 2));
+  const combinedMeta = {
+    ...(taskMetas[0] ?? {}),
+    ok: taskMetas.every((meta) => meta.ok === true),
+    attempts: Math.max(0, ...taskMetas.map((meta) => typeof meta.attempts === "number" ? meta.attempts : 0)),
+    timedOut: taskMetas.some((meta) => meta.timedOut === true),
+    durationMs,
+    validity_status: aggregateTaskInvokeValidity(taskMetas.map((meta) => typeof meta.validity_status === "string" ? meta.validity_status : undefined)),
+    first_action_latency_ms: firstActionValues.length ? Math.min(...firstActionValues) : null,
+    transcript_event_count: transcriptEvents,
+    action_occurred: taskMetas.some((meta) => meta.action_occurred === true),
+    metrics: combinedMetrics,
+    task_attempt_metrics: taskMetaEntries.map((entry) => ({
+      meta_path: entry.path,
+      attempts: Array.isArray(entry.meta.attempt_metrics) ? entry.meta.attempt_metrics : [],
+    })),
+    promptPath: args.paths.promptPath,
+    resultsPath: args.paths.resultsPath,
+    tracePath: args.paths.tracePath,
+    transcriptPath: args.paths.transcriptPath,
+    stdoutPath: args.paths.stdoutPath,
+    stderrPath: args.paths.stderrPath,
+    metaPath: args.paths.metaPath,
+    executionMode: "task",
+    bootstrapMetaPath: args.bootstrapPaths?.metaPath,
+    taskMetaPaths: args.jobPaths.map((paths) => paths.metaPath),
+  };
+  writeFileSync(args.paths.metaPath, JSON.stringify(combinedMeta, null, 2));
+}
+
+/** Build a BearerClient for reset/health-check operations from a pack. */
+function buildResetClient(pack: TargetPack): BearerClient {
+  return new BearerClient({
+    baseUrl: resolveEnvTemplate(pack.base_url),
+    token: resolveToken(pack),
+    responseEnvelope: pack.response_envelope,
+    authScheme: pack.auth?.type ?? "bearer",
+    authHeader: pack.auth?.header,
+    extraAuthHeader: pack.auth?.extra_header,
+    extraHeaders: pack.headers,
+    apiStyle: pack.api_style,
+  });
+}
+
+/** Pre-run hygiene gate: list or reclaim probe resources left in the sandbox.
+ *  Inventory failures remain warnings; an explicitly requested reclaim fails
+ *  closed when core has no compatible provider. */
+async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<boolean> {
+  try {
+    const result = await healthCheckPack(
+      pack,
+      () => buildResetClient(pack),
+      () => resolveScope(pack),
+      { reclaim },
+    );
+    if (!result.supported) {
+      console.warn(`  ${result.message}`);
+      if (reclaim) {
+        console.error(`  refusing --reclaim: ${pack.name} requires an explicit ResetProvider`);
+        return false;
+      }
+      return true;
+    }
+    console.log(`  ${result.message}`);
+    if (result.signals.namespace_pollution_risk) {
+      console.warn(`  health-check signal: leftover probe resources may pollute the next trial namespace`);
+    }
+    if (result.signals.quota_pressure_hint) {
+      console.warn(`  health-check signal: quota/rate-limit pressure detected — pause or reclaim before continuing`);
+    }
+    return true;
+  } catch (e) {
+    console.warn(`  health-check skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return !reclaim;
+  }
+}
+
 async function cmdExecPlan(args: Parsed): Promise<number> {
   // Load .env so the per-surface auth gate sees the credentials the developer
   // has set (otherwise every surface would read as blocked).
   loadDotenv();
-  const pack = loadPack(args.pack);
+  const loadedPack = loadPack(args.pack);
+  const pack = args.task
+    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => task.id === args.task) }
+    : loadedPack;
+  if (args.task && pack.tasks.length === 0) {
+    throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
+  }
+  if (args.reclaim && !hasCoreResetStrategy(pack)) {
+    await runHealthCheck(pack, true);
+    return 1;
+  }
+  const missingRequiredEnv = describeRequiredEnv(pack)
+    .filter((requirement) => requirement.required && !requirement.set)
+    .map((requirement) => requirement.env);
+  if (missingRequiredEnv.length) {
+    throw new Error(
+      `Refusing to exec-plan: required env is missing (${missingRequiredEnv.join(", ")}). ` +
+      `Run: ax-eval check-env --pack ${args.pack}`,
+    );
+  }
+  // Hygiene gate: warn about or reclaim leftover probe resources before we start.
+  if (!await runHealthCheck(pack, args.reclaim)) return 1;
   // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
   if (!args.skipReview) {
     const status = checkApproval(pack, args.pack);
@@ -951,10 +1510,13 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     }
   }
   const profileNames = args.invoke
-    ? (args.profile.length ? args.profile : ["high"])
-    : (args.harness.length ? args.harness : ["low", "high"]);
+    ? (args.profile.length ? args.profile : ["medium"])
+    : (args.harness.length ? args.harness : ["medium"]);
   if (!Number.isInteger(args.attempts) || args.attempts < 1) {
     throw new Error("--attempts must be a positive integer");
+  }
+  if (args.executionMode === "task" && !args.invoke) {
+    throw new Error("--execution-mode task currently requires --invoke so ax-eval can aggregate task artifacts back into a combined run");
   }
   // Resolve the surface selection. `all` fans out over every surface the pack
   // declares; a single id is validated against what the pack exposes. The
@@ -974,16 +1536,29 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
   interface InvokeJob {
+    groupKey: string;
     harness: InvokeHarnessId;
     profileName: string;
     surfaceId: SurfaceId;
     attempt: number;
     ns: string;
     paths: ReturnType<typeof defaultInvokePaths>;
+    combinedPaths: ReturnType<typeof defaultInvokePaths>;
+    taskId?: string;
     runOpts: InvokeRunOptions;
     label: string;
   }
+interface InvokeGroup {
+  label: string;
+  combinedPaths: ReturnType<typeof defaultInvokePaths>;
+  taskIdsInOrder: string[];
+  jobPaths: Array<ReturnType<typeof defaultInvokePaths>>;
+  bootstrapPaths?: ReturnType<typeof defaultInvokePaths>;
+  bootstrapRunOpts?: InvokeRunOptions;
+  taskJobs?: InvokeJob[];
+}
   const invokeJobs: InvokeJob[] = [];
+  const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
@@ -1005,9 +1580,6 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
         );
       }
       const add = auth.missing.length ? ` Add to .env: ${auth.missing.join(", ")}.` : "";
-      const why = auth.blocked === "requires-oauth"
-        ? "OAuth-only surface — register an OAuth app and store a refresh token"
-        : "missing this surface's credential";
       blockedNotes.push(
         `  ${surfaceId}: ${auth.blocked}.${add}` +
           (auth.instructions ? `\n    ${auth.instructions}` : ""),
@@ -1040,9 +1612,16 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
             }
             const base = tagSurface ? `${surfaceId}-${harness}-${name}` : `${harness}-${name}`;
             const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
-            const ns = resolveNs(pack.run_id, attemptLabel);
+            const ns = resolveNs(pack.run_id, attemptLabel, args.trial);
             const stem = args.attempts === 1 ? `${harness}-${name}${sfx}` : `${harness}-${name}${sfx}-a${attempt}`;
             const paths = defaultInvokePaths(dir, stem, harness);
+            // A prior exec-plan run's output files at this same deterministic
+            // path would otherwise fool spawnAsync's early-success check
+            // (it treats resultsPath/tracePath existing as "already done" and
+            // kills the fresh child within seconds) — always start clean.
+            for (const p of [paths.resultsPath, paths.tracePath, paths.stdoutPath, paths.stderrPath, paths.transcriptPath, paths.metaPath]) {
+              if (existsSync(p)) rmSync(p);
+            }
             let provisioning: Awaited<ReturnType<typeof provisionHarnessForSurface>>;
             try {
               provisioning = await provisionHarnessForSurface({
@@ -1069,41 +1648,175 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
               ...(args.model ? { model: args.model } : {}),
               ...(args.effort ? { effort: args.effort as HarnessProfile["effort"] } : {}),
             };
+            const eligibleTasks = tasksForSurface(pack, surfaceId);
+            const groupKey = `${harness}::${surfaceId}::${name}::${attempt}`;
+            const baseLabel = `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`;
+            const sharedRunOpts = {
+              harness,
+              profile: name,
+              surface: surfaceId,
+              ns,
+              cwd: process.cwd(),
+              model: args.model || undefined,
+              effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
+              timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
+              firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
+              retries: args.invokeRetries,
+              env: provisioning.env,
+              provisioning: provisioning.meta,
+              harnessDetection: detection,
+              runBatchId: args.runBatchId || basename(resolve(dir)),
+            } satisfies Omit<InvokeRunOptions, "pack" | "paths">;
+            if (args.executionMode === "task") {
+              const provisionForPaths = async (invokePaths: ReturnType<typeof defaultInvokePaths>) => {
+                try {
+                  return await provisionHarnessForSurface({
+                    pack,
+                    harness,
+                    surface: surfaceId,
+                    paths: invokePaths,
+                    cwd: process.cwd(),
+                  });
+                } catch (e) {
+                  const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+                  const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
+                  writeFileSync(recordPath, JSON.stringify(record, null, 2));
+                  console.log(
+                    `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (mcp provisioning failed): ` +
+                      `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
+                  );
+                  return undefined;
+                }
+              };
+              const bootstrapStem = `${stem}-bootstrap`;
+              const bootstrapPaths = defaultInvokePaths(dir, bootstrapStem, harness);
+              const reuseBootstrap = existsSync(bootstrapPaths.resultsPath);
+              let bootstrapProvisioning: Awaited<ReturnType<typeof provisionForPaths>> | undefined;
+              if (!reuseBootstrap) {
+                for (const p of [bootstrapPaths.resultsPath, bootstrapPaths.tracePath, bootstrapPaths.stdoutPath, bootstrapPaths.stderrPath, bootstrapPaths.transcriptPath, bootstrapPaths.metaPath]) {
+                  if (existsSync(p)) rmSync(p);
+                }
+                bootstrapProvisioning = await provisionForPaths(bootstrapPaths);
+                if (!bootstrapProvisioning) continue;
+                const bootstrapPrompt = buildExecutorPrompt({
+                  pack: packWithoutTasks(pack),
+                  profile: runProfile,
+                  ns,
+                  resultsPath: bootstrapPaths.resultsPath,
+                  tracePath: bootstrapPaths.tracePath,
+                  surface,
+                  tasks: [],
+                });
+                writeFileSync(bootstrapPaths.promptPath, bootstrapPrompt);
+              }
+              invokeGroups.set(groupKey, {
+                label: baseLabel,
+                combinedPaths: paths,
+                taskIdsInOrder: eligibleTasks.map((task) => task.id),
+                jobPaths: [],
+                bootstrapPaths,
+                bootstrapRunOpts: bootstrapProvisioning
+                  ? {
+                    pack: packWithoutTasks(pack),
+                    paths: bootstrapPaths,
+                    ...sharedRunOpts,
+                    env: bootstrapProvisioning.env,
+                    provisioning: bootstrapProvisioning.meta,
+                  }
+                  : undefined,
+                taskJobs: [],
+              });
+              writeFileSync(
+                paths.promptPath,
+                [
+                  `Task-level execution aggregate placeholder for ${baseLabel}.`,
+                  `Bootstrap prompt: ${bootstrapPaths.promptPath}`,
+                  `Each eligible task for this cell is executed as its own prompt and later aggregated into this combined run artifact.`,
+                ].join("\n"),
+              );
+              for (const task of eligibleTasks) {
+                const taskStem = `${stem}-${task.id}`;
+                const taskPaths = defaultInvokePaths(dir, taskStem, harness);
+                for (const p of [taskPaths.resultsPath, taskPaths.tracePath, taskPaths.stdoutPath, taskPaths.stderrPath, taskPaths.transcriptPath, taskPaths.metaPath]) {
+                  if (existsSync(p)) rmSync(p);
+                }
+                const taskProvisioning = await provisionForPaths(taskPaths);
+                if (!taskProvisioning) continue;
+                const prompt = buildExecutorPrompt({
+                  pack,
+                  profile: runProfile,
+                  ns,
+                  resultsPath: taskPaths.resultsPath,
+                  tracePath: taskPaths.tracePath,
+                  surface,
+                  tasks: [task],
+                });
+                writeFileSync(taskPaths.promptPath, prompt);
+                const job: InvokeJob = {
+                  groupKey,
+                  harness,
+                  profileName: name,
+                  surfaceId,
+                  attempt,
+                  ns,
+                  paths: taskPaths,
+                  combinedPaths: paths,
+                  taskId: task.id,
+                  label: `${baseLabel}/${task.id}`,
+                  runOpts: {
+                    pack: packWithTask(pack, task),
+                    paths: taskPaths,
+                    ...sharedRunOpts,
+                    env: taskProvisioning.env,
+                    provisioning: taskProvisioning.meta,
+                  },
+                };
+                invokeGroups.get(groupKey)?.jobPaths.push(taskPaths);
+                invokeGroups.get(groupKey)?.taskJobs?.push(job);
+              }
+            } else {
             const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
             writeFileSync(paths.promptPath, prompt);
-            // Collect the job; it runs in the concurrency pool after planning.
             invokeJobs.push({
+                groupKey,
               harness,
               profileName: name,
               surfaceId,
               attempt,
               ns,
               paths,
-              label: `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`,
+                combinedPaths: paths,
+                label: baseLabel,
               runOpts: {
                 pack,
-                harness,
-                profile: name,
-                surface: surfaceId,
-                ns,
                 paths,
-                cwd: process.cwd(),
-                model: args.model || undefined,
-                effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
-                timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
-                retries: args.invokeRetries,
-                env: provisioning.env,
-                provisioning: provisioning.meta,
+                  ...sharedRunOpts,
               },
             });
+            }
           }
         } else {
           // The label feeds both the namespace and the filenames; the surface tag
           // keeps concurrent surfaces from colliding on the live product's ns.
           const base = tagSurface ? `${surfaceId}-${name}` : name;
           const attemptLabel = args.attempts === 1 ? base : `${base}-a${attempt}`;
-          const ns = resolveNs(pack.run_id, attemptLabel);
+          const ns = resolveNs(pack.run_id, attemptLabel, args.trial);
           const stem = args.attempts === 1 ? `${name}${sfx}` : `${name}${sfx}-a${attempt}`;
+          if (args.executionMode === "task") {
+            const eligibleTasks = tasksForSurface(pack, surfaceId);
+            console.log(
+              `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${eligibleTasks.length} task prompt(s)`,
+            );
+            for (const task of eligibleTasks) {
+              const taskStem = `${stem}-${task.id}`;
+              const resultsPath = `${dir}/run-${taskStem}.json`;
+              const tracePath = `${dir}/run-${taskStem}.trace.json`;
+              const out = `${dir}/prompt-${taskStem}.txt`;
+              const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface, tasks: [task] });
+              writeFileSync(out, prompt);
+              console.log(`  task=${task.id} → ${out} (results→${resultsPath}, trace→${tracePath})`);
+            }
+          } else {
           const resultsPath = `${dir}/run-${stem}.json`;
           const tracePath = `${dir}/run-${stem}.trace.json`;
           const prompt = buildExecutorPrompt({ pack, profile, ns, resultsPath, tracePath, surface });
@@ -1114,6 +1827,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
             `surface=${surfaceId} profile=${name} attempt=${attempt}/${args.attempts} ns=${ns} → ${out} ` +
               `(results→${resultsPath}, trace→${tracePath})`,
           );
+          }
           if (attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${ns}`);
         }
       }
@@ -1123,18 +1837,87 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // default; --concurrency 1 forces serial). Distinct namespaces per job mean
   // concurrent runs don't collide in the sandbox. Bookkeeping is collected in
   // deterministic (planned) order regardless of completion order.
-  if (invokeJobs.length) {
-    const conc = Math.max(1, Math.min(args.concurrency, invokeJobs.length));
+  const plannedInvokeCount = args.executionMode === "task"
+    ? [...invokeGroups.values()].reduce((sum, group) => sum + (group.bootstrapPaths ? 1 : 0) + (group.taskJobs?.length ?? 0), 0)
+    : invokeJobs.length;
+  if (plannedInvokeCount) {
+    const taskGroups = [...invokeGroups.entries()];
+    const conc = Math.max(1, Math.min(args.concurrency, args.executionMode === "task" ? taskGroups.length : invokeJobs.length));
     const started = Date.now();
     console.log(
-      `\nRunning ${invokeJobs.length} harness invocation(s) at concurrency=${conc}` +
+      `\nRunning ${plannedInvokeCount} harness invocation(s) at concurrency=${conc}` +
         `${conc === 1 ? " (serial)" : ""}… this may take several minutes.`,
     );
+    if (args.executionMode === "task") {
+      await runPool(taskGroups, conc, async ([, group]) => {
+        if (group.bootstrapPaths && group.bootstrapRunOpts) {
+          console.log(`  ▶ start  ${group.label}/bootstrap`);
+          const bootstrapInvoke = await runInvokeHarness(group.bootstrapRunOpts);
+          const note = [
+            bootstrapInvoke.timedOut ? "timed out" : null,
+            bootstrapInvoke.validity_status && bootstrapInvoke.validity_status !== "valid" ? bootstrapInvoke.validity_status : null,
+            (bootstrapInvoke.attempts ?? 1) > 1 ? `${bootstrapInvoke.attempts} attempts` : null,
+          ].filter(Boolean).join(", ");
+          console.log(
+            `  ${bootstrapInvoke.ok ? "✓ done " : "✗ FAIL "} ${group.label}/bootstrap → ${bootstrapInvoke.ok ? "DONE" : "FAILED"}` +
+              `${note ? ` (${note})` : ""} (results→${group.bootstrapPaths.resultsPath})`,
+          );
+        }
+        let sharedDiscovery: BuildPromptOptions["sharedDiscovery"] | undefined;
+        if (group.bootstrapPaths && existsSync(group.bootstrapPaths.resultsPath)) {
+          const bootstrap = loadResults(group.bootstrapPaths.resultsPath);
+          sharedDiscovery = {
+            path: group.bootstrapPaths.resultsPath,
+            ...bootstrap.discovery,
+          };
+        }
+        for (const job of group.taskJobs ?? []) {
+          if (sharedDiscovery) {
+            const rerenderedPrompt = buildExecutorPrompt({
+              pack: job.runOpts.pack,
+              profile: {
+                ...getProfile(job.profileName),
+                ...(job.runOpts.model ? { model: job.runOpts.model } : {}),
+                ...(job.runOpts.effort ? { effort: job.runOpts.effort as HarnessProfile["effort"] } : {}),
+              },
+              ns: job.ns,
+              resultsPath: job.paths.resultsPath,
+              tracePath: job.paths.tracePath,
+              surface: getSurface(job.surfaceId),
+              tasks: job.taskId ? [job.runOpts.pack.tasks[0]!] : undefined,
+              sharedDiscovery,
+            });
+            writeFileSync(job.paths.promptPath, rerenderedPrompt);
+          }
+          console.log(`  ▶ start  ${job.label}`);
+          const invoke = await runInvokeHarness(job.runOpts);
+          const note = [
+            invoke.timedOut ? "timed out" : null,
+            invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
+            (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
+          ].filter(Boolean).join(", ");
+          console.log(
+            `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
+              `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
+          );
+        }
+      });
+      for (const group of invokeGroups.values()) {
+        aggregateTaskInvokeGroup({
+          groupLabel: group.label,
+          paths: group.combinedPaths,
+          taskIdsInOrder: group.taskIdsInOrder,
+          jobPaths: group.jobPaths,
+          bootstrapPaths: group.bootstrapPaths,
+        });
+      }
+    } else {
     await runPool(invokeJobs, conc, async (job) => {
       console.log(`  ▶ start  ${job.label}`);
       const invoke = await runInvokeHarness(job.runOpts);
       const note = [
         invoke.timedOut ? "timed out" : null,
+          invoke.validity_status && invoke.validity_status !== "valid" ? invoke.validity_status : null,
         (invoke.attempts ?? 1) > 1 ? `${invoke.attempts} attempts` : null,
       ].filter(Boolean).join(", ");
       console.log(
@@ -1142,14 +1925,23 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
           `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
       );
     });
-    for (const job of invokeJobs) {
-      resultPaths.push(job.paths.resultsPath);
-      const grouped = resultPathsByHarness.get(job.harness) ?? [];
-      grouped.push(job.paths.resultsPath);
-      resultPathsByHarness.set(job.harness, grouped);
-      if (job.attempt < args.attempts) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
     }
-    console.log(`Finished ${invokeJobs.length} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
+    const emittedResultPaths = args.executionMode === "task"
+      ? [...invokeGroups.values()].map((group) => group.combinedPaths.resultsPath)
+      : invokeJobs.map((job) => job.paths.resultsPath);
+    const invokedNs = args.executionMode === "task"
+      ? [...invokeGroups.values()].flatMap((group) => group.taskJobs ?? []).map((job) => ({ ns: job.ns, attempt: job.attempt }))
+      : invokeJobs.map((job) => ({ ns: job.ns, attempt: job.attempt }));
+    for (const job of invokedNs) resetHints.push(`  ax-eval reset --pack ${args.pack} --ns ${job.ns}`);
+    for (const resultPath of emittedResultPaths) {
+      resultPaths.push(resultPath);
+      const meta = siblingInvokeMeta(resultPath);
+      const harness = typeof meta?.harness === "string" ? meta.harness : "unknown";
+      const grouped = resultPathsByHarness.get(harness) ?? [];
+      grouped.push(resultPath);
+      resultPathsByHarness.set(harness, grouped);
+    }
+    console.log(`Finished ${plannedInvokeCount} invocation(s) in ${Math.round((Date.now() - started) / 1000)}s.`);
   }
   if (args.invoke) {
     if (resultPathsByHarness.size) {
@@ -1173,6 +1965,12 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
       );
     }
   } else {
+    if (args.executionMode === "task") {
+      console.log(
+        `\nTask-level prompt generation currently requires ax-eval-managed invocation for aggregation. ` +
+          `Re-run with --invoke --execution-mode task to produce combined run artifacts for verify-generated.`,
+      );
+  } else {
     console.log(
       `\nRun each prompt as a host sub-agent (each does discovery THEN tasks), then:\n` +
         `  ax-eval verify-generated --pack ${args.pack} ` +
@@ -1180,8 +1978,11 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
         ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
     );
   }
-  if (resetHints.length) {
-    console.log(`\nBetween attempts, reset the previous namespace so pass@k is isolated:\n${resetHints.join("\n")}`);
+  }
+  if (!args.skipReset && resetHints.length) {
+    console.log(
+      `\nAfter verify-generated has read live state, reset these sandbox namespaces:\n${[...new Set(resetHints)].join("\n")}`,
+    );
   }
   if (blockedNotes.length) {
     console.log(
@@ -1214,7 +2015,7 @@ async function runPool<T, R>(items: T[], limit: number, worker: (item: T, index:
 function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
   const grouped = new Map<string, ProfileRun>();
   for (const run of runs) {
-    const key = `${run.harness ?? ""}::${run.surface ?? ""}::${run.profile}`;
+    const key = resultCellKey(run.harness ?? "", run.surface ?? "api", run.profile);
     const current = grouped.get(key);
     if (!current) {
       grouped.set(key, {
@@ -1234,6 +2035,7 @@ function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
     current.outcomes.push(...run.outcomes);
     current.trace = [...(current.trace ?? []), ...(run.trace ?? [])];
     current.ns = [current.ns, run.ns].filter(Boolean).join(", ");
+    current.efficiency = mergeEfficiency(current.efficiency, run.efficiency);
     current.discovery ??= run.discovery;
     current.discoverySource ??= run.discoverySource;
     if (run.evidence) {
@@ -1246,8 +2048,213 @@ function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
   return [...grouped.values()];
 }
 
+function sumNullable(a: number | null | undefined, b: number | null | undefined): number | null {
+  const values = [a, b].filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return values.length ? values.reduce((sum, v) => sum + v, 0) : null;
+}
+
+function minNullable(a: number | null | undefined, b: number | null | undefined): number | null {
+  const values = [a, b].filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  return values.length ? Math.min(...values) : null;
+}
+
+function mergeTokenUsage(
+  a: Record<string, number> | null | undefined,
+  b: Record<string, number> | null | undefined,
+): Record<string, number> | null {
+  const out: Record<string, number> = {};
+  for (const source of [a, b]) {
+    if (!source) continue;
+    for (const [key, value] of Object.entries(source)) {
+      if (typeof value === "number" && Number.isFinite(value)) out[key] = (out[key] ?? 0) + value;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+function mergeValidityStatus(a: string | null | undefined, b: string | null | undefined): string | null {
+  if (a && a !== "valid") return a;
+  if (b && b !== "valid") return b;
+  return a ?? b ?? null;
+}
+
+function mergeNullableBooleanOr(a: boolean | null | undefined, b: boolean | null | undefined): boolean | null {
+  if (a === true || b === true) return true;
+  if (a === false || b === false) return false;
+  return null;
+}
+
+function mergeSameString(a: string | null | undefined, b: string | null | undefined): string | null {
+  const values = [a, b].filter((value): value is string => typeof value === "string" && value.length > 0);
+  if (!values.length) return null;
+  return values.every((value) => value === values[0]) ? values[0]! : null;
+}
+
+function mergeEfficiency(a: ProfileRun["efficiency"], b: ProfileRun["efficiency"]): ProfileRun["efficiency"] | undefined {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    latency_ms: sumNullable(a.latency_ms, b.latency_ms),
+    total_duration_ms: sumNullable(a.total_duration_ms, b.total_duration_ms),
+    tool_call_count: sumNullable(a.tool_call_count, b.tool_call_count),
+    token_usage: mergeTokenUsage(a.token_usage, b.token_usage),
+    token_cost: sumNullable(a.token_cost, b.token_cost),
+    cost_usd: sumNullable(a.cost_usd, b.cost_usd),
+    harness_version_raw: mergeSameString(a.harness_version_raw, b.harness_version_raw),
+    harness_version_semver: mergeSameString(a.harness_version_semver, b.harness_version_semver),
+    run_batch_id: mergeSameString(a.run_batch_id, b.run_batch_id),
+    validity_status: mergeValidityStatus(a.validity_status, b.validity_status),
+    first_action_latency_ms: minNullable(a.first_action_latency_ms, b.first_action_latency_ms),
+    transcript_event_count: sumNullable(a.transcript_event_count, b.transcript_event_count),
+    action_occurred: mergeNullableBooleanOr(a.action_occurred, b.action_occurred),
+  };
+}
+
+function readJsonObject(path: string): Record<string, unknown> | undefined {
+  try {
+    const parsed = parseJsonWithRecovery(readFileSync(path, "utf8")) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed as Record<string, unknown> : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function siblingInvokeMeta(resultPath: string): Record<string, unknown> | undefined {
+  return readJsonObject(resultPath.replace(/\.json$/, ".invoke.json"));
+}
+
+function codexBannerModelForRun(resultPath: string): string | undefined {
+  const stderrPath = resultPath.replace(/\.json$/, ".stderr.txt");
+  if (!existsSync(stderrPath)) return undefined;
+  const match = readFileSync(stderrPath, "utf8").match(/^\s*model:\s*(\S+)/m);
+  return match?.[1];
+}
+
+function executorHarnessFromArtifacts(executorHarness: string | undefined, meta: Record<string, unknown> | undefined): string | undefined {
+  return executorHarness ?? (typeof meta?.harness === "string" ? meta.harness : undefined);
+}
+
+function modelFromInvokeArgs(meta: Record<string, unknown> | undefined): string | undefined {
+  const args = meta?.args;
+  if (!Array.isArray(args)) return undefined;
+  const values = args.filter((arg): arg is string => typeof arg === "string");
+  for (let i = 0; i < values.length; i += 1) {
+    if ((values[i] === "-m" || values[i] === "--model") && values[i + 1]) return values[i + 1];
+    const inline = values[i]!.match(/^--model=(.+)$/);
+    if (inline) return inline[1];
+  }
+  return undefined;
+}
+
+function executorModelFromArtifacts(
+  executorModel: string | undefined,
+  meta: Record<string, unknown> | undefined,
+  resultPath: string,
+): string | undefined {
+  return executorModel
+    ?? (typeof meta?.model === "string" ? meta.model : undefined)
+    ?? (typeof meta?.requestedModel === "string" ? meta.requestedModel : undefined)
+    ?? modelFromInvokeArgs(meta)
+    ?? codexBannerModelForRun(resultPath);
+}
+
+function addTokenField(acc: Record<string, number>, key: string, value: unknown): void {
+  if (typeof value === "number" && Number.isFinite(value)) acc[key] = (acc[key] ?? 0) + value;
+}
+
+function collectTokenUsage(value: unknown, acc: Record<string, number>): void {
+  if (!value || typeof value !== "object") return;
+  const record = value as Record<string, unknown>;
+  addTokenField(acc, "input_tokens", record.input_tokens ?? record.inputTokens);
+  addTokenField(acc, "output_tokens", record.output_tokens ?? record.outputTokens);
+  addTokenField(acc, "total_tokens", record.total_tokens ?? record.totalTokens);
+  if (record.usage && record.usage !== value) collectTokenUsage(record.usage, acc);
+  if (record.modelUsage && typeof record.modelUsage === "object") {
+    for (const entry of Object.values(record.modelUsage as Record<string, unknown>)) collectTokenUsage(entry, acc);
+  }
+}
+
+function transcriptMetrics(path: string | undefined): {
+  tool_call_count: number | null;
+  token_usage: Record<string, number> | null;
+  transcript_event_count: number | null;
+  action_occurred: boolean | null;
+} {
+  if (!path || !existsSync(path)) {
+    return { tool_call_count: null, token_usage: null, transcript_event_count: null, action_occurred: null };
+  }
+  const tokenUsage: Record<string, number> = {};
+  let toolCalls = 0;
+  let events = 0;
+  let actionOccurred = false;
+  for (const line of readFileSync(path, "utf8").split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      events += 1;
+      collectTokenUsage(event, tokenUsage);
+      const item = event.item as { type?: unknown } | undefined;
+      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
+        toolCalls += 1;
+        actionOccurred = true;
+      }
+      const message = event.message as { content?: unknown } | undefined;
+      if (Array.isArray(message?.content)) {
+        const claudeToolCalls = message.content.filter((block) =>
+          block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
+        ).length;
+        toolCalls += claudeToolCalls;
+        if (claudeToolCalls > 0) actionOccurred = true;
+      }
+    } catch {
+      /* Non-JSON transcript lines are allowed; they just do not carry metrics. */
+    }
+  }
+  return {
+    tool_call_count: toolCalls,
+    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
+    transcript_event_count: events,
+    action_occurred: actionOccurred,
+  };
+}
+
+function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
+  const meta = siblingInvokeMeta(resultPath);
+  const metrics = transcriptMetrics(transcriptPath);
+  const native = meta?.metrics && typeof meta.metrics === "object" && !Array.isArray(meta.metrics)
+    ? meta.metrics as Record<string, unknown>
+    : undefined;
+  const nativeTokenUsage = native?.token_usage && typeof native.token_usage === "object" && !Array.isArray(native.token_usage)
+    ? native.token_usage as Record<string, number>
+    : null;
+  const nativeCostUsd = typeof native?.cost_usd === "number" ? native.cost_usd : null;
+  return {
+    latency_ms: typeof native?.duration_ms === "number"
+      ? native.duration_ms
+      : typeof meta?.durationMs === "number" ? meta.durationMs : null,
+    total_duration_ms: typeof native?.total_duration_ms === "number"
+      ? native.total_duration_ms
+      : typeof meta?.durationMs === "number" ? meta.durationMs : null,
+    tool_call_count: metrics.tool_call_count,
+    token_usage: nativeTokenUsage ?? metrics.token_usage,
+    token_cost: nativeCostUsd,
+    cost_usd: nativeCostUsd,
+    harness_version_raw: typeof native?.harness_version_raw === "string" ? native.harness_version_raw : null,
+    harness_version_semver: typeof native?.harness_version_semver === "string" ? native.harness_version_semver : null,
+    run_batch_id: typeof native?.run_batch_id === "string" ? native.run_batch_id : null,
+    validity_status: typeof meta?.validity_status === "string" ? meta.validity_status : null,
+    first_action_latency_ms: typeof meta?.first_action_latency_ms === "number" ? meta.first_action_latency_ms : null,
+    transcript_event_count: typeof meta?.transcript_event_count === "number" ? meta.transcript_event_count : metrics.transcript_event_count,
+    action_occurred: typeof meta?.action_occurred === "boolean" ? meta.action_occurred : metrics.action_occurred,
+  };
+}
+
 function passRate(runs: ProfileRun[]): number {
-  const outcomes = runs.flatMap((r) => r.outcomes);
+  // N/A tasks (per DAEB methodology) are excluded from both the numerator
+  // and denominator — a vendor lacking a mechanism entirely shouldn't drag
+  // its score down for something it structurally can't do.
+  const outcomes = runs.flatMap((r) => r.outcomes).filter((o) => !o.na);
   if (!outcomes.length) return 0;
   return outcomes.filter((o) => o.success).length / outcomes.length;
 }
@@ -1267,52 +2274,20 @@ function mergeDiscoveryResults(observed: DiscoveryResult, selfReported: Discover
   };
 }
 
-/**
- * Render the local competitive report from normalized records. Reads every
- * `--results <*.normalized.json>` (the cube cells emitted by verify-generated)
- * and renders the surface × product plane: cross-surface (per product) and
- * cross-product (per surface) comparisons. The third axis (which agent/harness
- * ran the tasks) is not computed locally.
- */
-async function cmdCompetitive(args: Parsed): Promise<number> {
-  if (args.results.length === 0) {
-    throw new Error(
-      "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]",
-    );
-  }
-  const records: NormalizedResult[] = [];
-  for (const rPath of args.results) {
-    const parsed = JSON.parse(readFileSync(rPath, "utf8")) as NormalizedResult;
-    if (parsed?.schema !== "ax.normalized-result/v1") {
-      throw new Error(`${rPath} is not an ax.normalized-result/v1 record`);
-    }
-    records.push(parsed);
-  }
-  const harnesses = [...new Set(records.map((r) => r.harness))];
-  const html = renderCompetitiveReport(records, {
-    harness: harnesses.length === 1 ? harnesses[0] : undefined,
-  });
-  const outPath = args.html || `${args.runDir}/competitive.html`;
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, html);
-  console.log(`Saved competitive report → ${outPath} (${records.length} cell(s))`);
-  return 0;
+function absoluteIfPresent(baseDir: string, path: string | undefined): string | undefined {
+  return path ? resolve(baseDir, path) : undefined;
 }
 
-function absoluteIfPresent(path: string | undefined): string | undefined {
-  return path ? resolve(path) : undefined;
-}
-
-function snapshotRuns(runs: ProfileRun[]): ProfileRun[] {
+function snapshotRuns(runs: ProfileRun[], evidenceBaseDir: string): ProfileRun[] {
   return runs.map((run) => ({
     ...run,
     trace: [...(run.trace ?? [])],
     outcomes: [...run.outcomes],
     evidence: run.evidence
       ? {
-          results: (run.evidence.results ?? []).map((p) => resolve(p)),
-          trace: (run.evidence.trace ?? []).map((p) => resolve(p)),
-          transcript: absoluteIfPresent(run.evidence.transcript),
+          results: (run.evidence.results ?? []).map((p) => resolve(evidenceBaseDir, p)),
+          trace: (run.evidence.trace ?? []).map((p) => resolve(evidenceBaseDir, p)),
+          transcript: absoluteIfPresent(evidenceBaseDir, run.evidence.transcript),
         }
       : undefined,
   }));
@@ -1335,17 +2310,14 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval verify-generated --pack <yaml> --results <run.json>...");
   if (args.results.length === 0) throw new Error("provide at least one --results <run.json>");
-  const pack = loadPack(args.pack);
+  const loadedPack = loadPack(args.pack);
+  const pack = args.task
+    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => task.id === args.task) }
+    : loadedPack;
+  if (args.task && pack.tasks.length === 0) {
+    throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
+  }
   console.log(`Verifying ${args.results.length} result file(s) against ${pack.tasks.length} task(s) in pack "${pack.name}"…`);
-  const client = new BearerClient({
-    baseUrl: pack.base_url,
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
   const byAttempt: ProfileRun[] = [];
   // Runtime warnings captured while assembling the report — surfaced verbatim
   // in the report's Methodology so the reader sees what couldn't be measured.
@@ -1368,6 +2340,10 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   };
   for (const rPath of args.results) {
     const executor = loadResults(rPath);
+    const invokeMeta = siblingInvokeMeta(rPath);
+    const executorHarness = executorHarnessFromArtifacts(executor.harness, invokeMeta);
+    const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);
+    const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
     // self-report, else "api" (the default + back-compat surface). `--surface all`
     // is not an override — each result keeps its own self-reported surface.
@@ -1376,9 +2352,20 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const taskCount = tasksForSurface(pack, surface).length;
     const passCount = Object.values(executor.results).filter((r) => r?.gid).length;
     console.log(`  Checking round-trip oracles for profile "${executor.profile}" (${passCount}/${taskCount} tasks reported a gid on ${surface})…`);
+    const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
+    const profileObservedTranscript = args.observe[executor.profile];
+    const obsPath = existsSync(siblingTranscript) ? siblingTranscript : profileObservedTranscript;
+    let observedRun = undefined;
+    if (obsPath && existsSync(obsPath)) {
+      try {
+        observedRun = parseTranscript(obsPath, parseOpts);
+      } catch {
+        /* discovery block below will warn if needed */
+      }
+    }
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
-    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, trace);
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun, { trace });
     if (!existsSync(tracePath)) {
       warnings.push(
         `No trace file at ${rel(tracePath)} — trace checks for ${executor.profile} fall back to whatever the agent self-reported (or none).`,
@@ -1391,14 +2378,11 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     // Transcript resolution, in order: (1) the per-result sibling transcript
     // (`run-*.transcript.jsonl`, like the trace sibling), else (2) an explicit
     // `--observe <profile>=<path>` fallback. Sibling-first is intentional:
-    // multi-cell reports reuse profile names (low/high) across harness×surface
+    // multi-cell reports reuse profile names (usually medium) across harness×surface
     // runs, so a profile-keyed observe map would otherwise let one transcript
     // overwrite all sibling cells with the same profile.
     let discovery;
     let discoverySource: ProfileRun["discoverySource"];
-    const siblingTranscript = rPath.replace(/\.json$/, ".transcript.jsonl");
-    const profileObservedTranscript = args.observe[executor.profile];
-    const obsPath = existsSync(siblingTranscript) ? siblingTranscript : profileObservedTranscript;
     if (pack.discovery?.product && obsPath) {
       if (!existsSync(obsPath)) {
         warnings.push(
@@ -1411,7 +2395,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         }
       } else {
         try {
-          const run = parseTranscript(obsPath, parseOpts);
+          const run = observedRun ?? parseTranscript(obsPath, parseOpts);
           const selfReported = executor.discovery
             ? { ...executor.discovery, ns: executor.discovery.ns ?? executor.ns }
             : undefined;
@@ -1438,14 +2422,15 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const traceExisted = existsSync(tracePath);
     byAttempt.push({
       profile: executor.profile,
-      harness: executor.harness,
-      model: executor.model,
+      harness: executorHarness,
+      model: executorModel,
       outcomes,
       surface,
       ns: executor.ns,
       trace,
       discovery,
       discoverySource,
+      efficiency: efficiencyForRun(rPath, obsPath),
       evidence: {
         results: [rel(rPath)],
         trace: traceExisted ? [rel(tracePath)] : [],
@@ -1517,7 +2502,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const snapshot: GeneratedReportSnapshot = {
     schema: GENERATED_REPORT_SNAPSHOT_SCHEMA,
     pack,
-    runs: snapshotRuns(byProfile),
+    runs: snapshotRuns(byProfile, dirname(snapshotPath)),
     staticReadiness,
     harness: probeHarness(),
     warnings,
@@ -1577,7 +2562,8 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       console.log(`  ${mark} [${p.profile}] ${o.taskId}${detail ? ` — ${detail}` : ""}`);
     }
   }
-  console.log(`Pass rate: ${Math.round(rate * 100)}% (${byProfile.flatMap((p) => p.outcomes).filter((o) => o.success).length}/${byProfile.flatMap((p) => p.outcomes).length})`);
+  const scored = byProfile.flatMap((p) => p.outcomes).filter((o) => !o.na);
+  console.log(`Pass rate: ${Math.round(rate * 100)}% (${scored.filter((o) => o.success).length}/${scored.length})`);
   if (args.minPassRate !== undefined && rate < args.minPassRate) {
     console.error(`CI gate failed: pass rate ${rate.toFixed(2)} < required ${args.minPassRate.toFixed(2)}`);
     return 1;
@@ -1602,28 +2588,24 @@ function cmdTraceDiff(args: Parsed): number {
  * Sandbox teardown for pass@k hygiene — delete the probe resources a run left
  * behind (named `AX probe … {ns}`) so repeated live runs don't contaminate each
  * other. Target-agnostic: resolves the pack's declared sandbox scope, then a
- * per-target resetter lists + deletes. `--ns` scopes to one run; `--dry-run`
- * previews. Targets without a resetter degrade gracefully (no throw).
+ * compatibility resetter lists + deletes. Destructive resets require `--ns`;
+ * `--dry-run` may omit it to inventory every probe resource. Unsupported
+ * targets return a failure status and must use an explicit arena ResetProvider.
  */
 async function cmdReset(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]");
   const pack = loadPack(args.pack);
-  const client = new BearerClient({
-    baseUrl: pack.base_url,
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
-  const scope = resolveScope(pack);
-  const result = await resetPack(pack, client, scope, { ns: args.ns || undefined, dryRun: args.dryRun });
+  const result = await resetPack(
+    pack,
+    () => buildResetClient(pack),
+    () => resolveScope(pack),
+    { ns: args.ns || undefined, dryRun: args.dryRun },
+  );
   console.log(result.message);
   for (const id of result.deleted) console.log(`  ${args.dryRun ? "would delete" : "deleted"} ${id}`);
   for (const e of result.errors) console.error(`  ! ${e}`);
-  if (!result.supported) return 0;
+  if (!result.supported) return 1;
   return result.errors.length ? 1 : 0;
 }
 
@@ -1642,8 +2624,8 @@ function cloneArgs(args: Parsed, overrides: Partial<Parsed>): Parsed {
 function jsonRunResults(dir: string): string[] {
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .filter((f) => /^run-.*\.json$/.test(f) && !/(\.trace|\.normalized)\.json$/.test(f))
-    .map((f) => resolve(dir, f))
+    .filter((file) => /^run-.*\.json$/.test(file) && !/(\.trace|\.normalized)\.json$/.test(file))
+    .map((file) => resolve(dir, file))
     .sort();
 }
 
@@ -1680,16 +2662,9 @@ function fullProfiles(effort: string): string[] {
   return ["low", "high"];
 }
 
-function approvalByLabel(name: string): string {
-  return name.trim() ? JSON.stringify(name) : "<name>";
-}
-
 function reviewCommand(packPath: string, approvedBy: string): string {
-  return `ax-eval review --pack ${packPath} --approve --by ${approvalByLabel(approvedBy)}`;
-}
-
-function inspectReviewCommand(packPath: string): string {
-  return `ax-eval review --pack ${packPath}`;
+  const reviewer = approvedBy.trim() ? JSON.stringify(approvedBy) : "<name>";
+  return `ax-eval review --pack ${packPath} --approve --by ${reviewer}`;
 }
 
 function resumeAutomationCommand(
@@ -1705,42 +2680,34 @@ function resumeAutomationCommand(
 
 async function cmdAutomateReport(args: Parsed): Promise<number> {
   loadDotenv();
-  if (!args.company.trim()) {
-    throw new Error("usage: ax-eval automate-report --company <name>");
-  }
+  if (!args.company.trim()) throw new Error("usage: ax-eval automate-report --company <name>");
   const company = args.company.trim();
   const slug = slugifyAutomationName(company);
   const runDir = args.runDir && args.runDir !== "results" ? args.runDir : defaultAutomationRunDir(company);
   const harnesses = args.harness.length ? args.harness : ["codex"];
-  for (const h of harnesses) {
-    if (!isInvokeHarnessId(h)) {
-      throw new Error(`--harness for automate-report must be one of ${INVOKE_HARNESS_LIST} (got ${h})`);
+  for (const harness of harnesses) {
+    if (!isInvokeHarnessId(harness)) {
+      throw new Error(`--harness for automate-report must be one of ${INVOKE_HARNESS_LIST} (got ${harness})`);
     }
   }
   mkdirSync(runDir, { recursive: true });
   if (args.approveBy) {
-    console.log(`Note: --approve-by only seeds the suggested manual review command. Generated packs still require explicit review approval.`);
+    console.log("Note: --approve-by only seeds the suggested manual review command. Generated packs still require explicit review approval.");
   }
 
   const manifestPath = resolve(runDir, "automation-manifest.json");
   const sharePath = resolve(runDir, "share-summary.md");
-  const artifacts: Record<string, string> = {
-    manifest: manifestPath,
-    share_summary: sharePath,
-  };
+  const artifacts: Record<string, string> = { manifest: manifestPath, share_summary: sharePath };
   const nextSteps: string[] = [];
-
-  console.log(`Automating report for ${company} → ${runDir}`);
   const discovery = await discoverAutomationTarget({
     company,
     site: args.site || undefined,
-    docs: args.docs ? args.docs.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
+    docs: args.docs ? args.docs.split(",").map((value) => value.trim()).filter(Boolean) : undefined,
     openapi: args.openapi || undefined,
     graphql: args.graphql || undefined,
     harness: harnesses[0]!,
     offline: args.offline,
   }, { timeoutMs: 8000 });
-
   const manifest: AutomationManifest = {
     schema: "ax.automation-manifest/v1",
     company,
@@ -1757,28 +2724,20 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
     nextSteps.push("Provide an official --openapi URL or --graphql endpoint/file, or pass --site/--docs so automation can validate candidates.");
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
-    console.error(
-      `Could not find a trustworthy official OpenAPI or GraphQL spec for ${company}. ` +
-        "No third-party search API was used. Re-run with --openapi <url> or --graphql <endpoint|file>.",
-    );
+    console.error(`Could not find a trustworthy official OpenAPI or GraphQL spec for ${company}. Re-run with an explicit source.`);
     return 1;
   }
 
   const ingestPath = resolve(runDir, discovery.graphql_url ? "ingest-graphql.json" : "ingest.json");
   const packPath = resolve(runDir, `${slug}.generated.full.pack.yaml`);
   const smokePackPath = resolve(runDir, `${slug}.generated.smoke.pack.yaml`);
-  artifacts.ingest = ingestPath;
-  artifacts.pack = packPath;
-  artifacts.smoke_pack = smokePackPath;
-
+  Object.assign(artifacts, { ingest: ingestPath, pack: packPath, smoke_pack: smokePackPath });
   if (discovery.graphql_url) {
-    const g = await ingestGraphqlDetailed(discovery.graphql_url, { offline: args.offline });
-    writeFileSync(ingestPath, JSON.stringify(g, null, 2));
-    console.log(`Ingested GraphQL schema → ${ingestPath}`);
+    const schema = await ingestGraphqlDetailed(discovery.graphql_url, { offline: args.offline });
+    writeFileSync(ingestPath, JSON.stringify(schema, null, 2));
   } else {
     const spec = await ingestFromUrl(discovery.openapi_url!, { offline: args.offline });
     writeFileSync(ingestPath, JSON.stringify(spec, null, 2));
-    console.log(`Ingested OpenAPI spec → ${ingestPath}`);
   }
 
   const generateArgs = cloneArgs(args, {
@@ -1790,42 +2749,29 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
     baseUrl: discovery.graphql_url ?? args.baseUrl,
     runDir,
   });
-  let generateCode: number;
   try {
-    generateCode = await cmdGenerate(generateArgs);
-  } catch (err) {
-    const detail = err instanceof Error ? err.message : String(err);
+    await cmdGenerate(generateArgs);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     manifest.discovery.warnings.push(`LLM-assisted generation failed; falling back to deterministic generation (${detail}).`);
-    console.error(`LLM-assisted generate failed; falling back to deterministic generation: ${detail}`);
-    generateCode = await cmdGenerate(cloneArgs(generateArgs, { deterministic: true }));
+    await cmdGenerate(cloneArgs(generateArgs, { deterministic: true }));
   }
-  if (generateCode !== 0) return generateCode;
 
   const pack = loadPack(packPath);
   const reviewPath = resolve(runDir, "review.txt");
   const checklistPath = resolve(runDir, "configuration-checklist.md");
-  artifacts.review = reviewPath;
-  artifacts.configuration_checklist = checklistPath;
+  Object.assign(artifacts, { review: reviewPath, configuration_checklist: checklistPath });
   writeFileSync(reviewPath, reviewSummary(pack));
   const checklist = buildEnvChecklist(pack, args.surface ?? "api");
   writeFileSync(checklistPath, checklist);
-  console.log(`Review summary → ${reviewPath}`);
-  console.log(`Configuration checklist → ${checklistPath}`);
 
   const smokeSelection = selectSmokeTasks(pack);
-  const smokePack: TargetPack = {
-    ...pack,
-    name: `${pack.name}-smoke`,
-    tasks: smokeSelection.tasks,
-  };
+  const smokePack: TargetPack = { ...pack, name: `${pack.name}-smoke`, tasks: smokeSelection.tasks };
   writeFileSync(smokePackPath, packToYaml(smokePack));
-  console.log(
-    `Smoke pack → ${smokePackPath} (${smokePack.tasks.length}/${pack.tasks.length} tasks selected: ${smokePack.tasks.map((t) => t.id).join(", ")})`,
-  );
 
   const approval = checkApproval(pack, packPath);
   if (!approval.ok) {
-    nextSteps.push(`Review the generated pack: ${inspectReviewCommand(packPath)}`);
+    nextSteps.push(`Review the generated pack: ax-eval review --pack ${packPath}`);
     nextSteps.push(`Approve it after review: ${reviewCommand(packPath, args.approveBy)}`);
     nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
@@ -1836,7 +2782,7 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
 
   const smokeApproval = checkApproval(smokePack, smokePackPath);
   if (!smokeApproval.ok) {
-    nextSteps.push(`Review the derived smoke pack: ${inspectReviewCommand(smokePackPath)}`);
+    nextSteps.push(`Review the derived smoke pack: ax-eval review --pack ${smokePackPath}`);
     nextSteps.push(`Approve it after review: ${reviewCommand(smokePackPath, args.approveBy)}`);
     nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
@@ -1847,17 +2793,15 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
 
   if (hasMissingRequiredConfig(pack, args.surface ?? "api")) {
     nextSteps.push(`Fill the missing values in ${checklistPath}.`);
-    nextSteps.push(`Verify configuration: ax-eval check-env --pack ${packPath} --surface ${args.surface ?? "api"}`);
     nextSteps.push(`Resume: ${resumeAutomationCommand(company, discovery, runDir, args.approveBy)}`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest);
-    console.error(`Stopping before live execution: missing required auth or sandbox configuration.\n${checklist}`);
+    console.error("Stopping before live execution: missing required auth or sandbox configuration.");
     return 1;
   }
 
   const smokeDir = resolve(runDir, "smoke");
   artifacts.smoke_dir = smokeDir;
-  console.log("Running smoke gate: API surface, low effort, one attempt.");
   const smokeExec = await cmdExecPlan(cloneArgs(args, {
     pack: smokePackPath,
     invoke: true,
@@ -1873,33 +2817,27 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   artifacts.smoke_report = smokeHtml;
   const smokeVerify = await verifyAutomationResults(args, smokeDir, smokePackPath, smokeHtml);
   if (smokeVerify !== 0) {
-    nextSteps.push(`Inspect smoke artifacts in ${smokeDir}; full matrix was not run because the smoke gate failed.`);
+    nextSteps.push(`Inspect smoke artifacts in ${smokeDir}; the full matrix was not run.`);
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest, smokeHtml);
     return smokeVerify;
   }
-
   if (args.smokeOnly) {
-    nextSteps.push(`Smoke passed. Re-run without --smoke-only to produce the full requested report.`);
+    nextSteps.push("Smoke passed. Re-run without --smoke-only to produce the full requested report.");
     writeAutomationManifest(manifestPath, manifest);
     writeShareSummary(sharePath, manifest, smokeHtml);
-    console.log(`Smoke-only automation complete → ${smokeHtml}`);
     return 0;
   }
 
   const fullDir = resolve(runDir, "full");
   const fullSurface = args.surface ?? "api";
   const fullEffort = args.effort || "high";
-  const profiles = fullProfiles(fullEffort);
   artifacts.full_dir = fullDir;
-  console.log(
-    `Smoke passed. Running full report: surface=${fullSurface}, profiles=${profiles.join(",")}, harness=${harnesses.join(",")}.`,
-  );
   const fullExec = await cmdExecPlan(cloneArgs(args, {
     pack: packPath,
     invoke: true,
     harness: harnesses as InvokeHarnessId[],
-    profile: profiles,
+    profile: fullProfiles(fullEffort),
     effort: fullEffort,
     surface: fullSurface,
     runDir: fullDir,
@@ -1915,6 +2853,34 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   return fullVerify;
 }
 
+async function cmdCell(argv: string[]): Promise<number> {
+  if (argv[0] !== "run") {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  let inputPath = "";
+  let outputPath = "";
+  for (let i = 1; i < argv.length; i += 1) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    if (flag !== "--input" && flag !== "--output") {
+      throw new Error(`unknown cell run flag ${flag}`);
+    }
+    if (!value || value.startsWith("--")) throw new Error(`flag ${flag} requires a value`);
+    if (flag === "--input") inputPath = value;
+    else outputPath = value;
+    i += 1;
+  }
+  if (!inputPath || !outputPath) {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  const cell = EvaluationCellSchema.parse(JSON.parse(readFileSync(inputPath, "utf8")));
+  const record = await runCell(cell, { credentials: process.env });
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);
+  console.log(`Saved normalized cell record → ${outputPath}`);
+  return record.status === "completed" ? 0 : 1;
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
@@ -1928,10 +2894,14 @@ async function main(): Promise<number> {
     console.error(USAGE);
     return 2;
   }
+  if (isLegacyArenaCommand(command)) {
+    return await delegateLegacyArenaCommand(command, argv.slice(1));
+  }
   if (argv.slice(1).some(isHelpToken)) {
     console.log(commandUsage(command));
     return 0;
   }
+  if (command === "cell") return cmdCell(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   switch (command) {
     case "run":
@@ -1958,6 +2928,8 @@ async function main(): Promise<number> {
       return cmdIngest(args);
     case "generate":
       return cmdGenerate(args);
+    case "automate-report":
+      return cmdAutomateReport(args);
     case "review":
       return cmdReview(args);
     case "exec-plan":
@@ -1966,14 +2938,12 @@ async function main(): Promise<number> {
       return cmdVerifyGenerated(args);
     case "render-generated":
       return cmdRenderGenerated(args);
-    case "competitive":
-      return cmdCompetitive(args);
     case "trace-diff":
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
-    case "automate-report":
-      return cmdAutomateReport(args);
+    case "records-diff":
+      return cmdRecordsDiff(args);
     default:
       console.error(USAGE);
       return 2;

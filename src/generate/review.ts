@@ -12,7 +12,9 @@
  * gate re-closes, so an edit can't sneak past a stale approval.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { OracleSpec, TargetPack, Task } from "../schemas.js";
 
 /** Oracle confidence tier: T1 strong (round-trip), T2 weak
@@ -66,9 +68,19 @@ export function packContentHash(pack: TargetPack): string {
   return createHash("sha256").update(JSON.stringify(reviewableContent(pack))).digest("hex").slice(0, 16);
 }
 
+/** Full byte-level digest for immutable cell provenance. Unlike the approval
+ * hash above, this binds every field and comment in the selected pack file. */
+export function packFileContentHash(packPath: string): string {
+  return createHash("sha256").update(readFileSync(packPath)).digest("hex");
+}
+
 export interface Approval {
   standard_set_version: string;
   content_hash: string;
+  /** Full exact-pack digest required by the one-cell runtime. Older approvals
+   * remain valid for legacy commands but must be human-reviewed again before
+   * cell execution. */
+  pack_file_hash?: string;
   approved_by: string;
   approved_at: string;
   task_count: number;
@@ -93,6 +105,7 @@ export function writeApproval(packPath: string, pack: TargetPack, approvedBy: st
   const approval: Approval = {
     standard_set_version: pack.standard_set_version,
     content_hash: packContentHash(pack),
+    pack_file_hash: packFileContentHash(packPath),
     approved_by: approvedBy,
     approved_at: new Date().toISOString(),
     task_count: pack.tasks.length,
@@ -114,6 +127,135 @@ export function checkApproval(pack: TargetPack, packPath: string): { ok: boolean
     };
   }
   return { ok: true };
+}
+
+export function checkCellApproval(
+  pack: TargetPack,
+  packPath: string,
+  expectedPackFileHash: string,
+): { ok: boolean; reason?: string } {
+  const legacy = checkApproval(pack, packPath);
+  if (!legacy.ok) return legacy;
+  const approval = readApproval(packPath);
+  if (!approval?.pack_file_hash) {
+    return {
+      ok: false,
+      reason: "approval predates full pack-file binding — re-review and approve this exact pack before cell execution",
+    };
+  }
+  const actual = packFileContentHash(packPath);
+  if (actual !== expectedPackFileHash || approval.pack_file_hash !== actual) {
+    return {
+      ok: false,
+      reason: `exact pack file changed since approval (approved ${approval.pack_file_hash}, now ${actual})`,
+    };
+  }
+  return { ok: true };
+}
+
+function committedBlob(root: string, sourceCommitSha: string, path: string): Buffer {
+  const realRoot = realpathSync(root);
+  const absolute = realpathSync(isAbsolute(path) ? path : resolve(realRoot, path));
+  const rel = relative(realRoot, absolute);
+  if (!rel || rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel)) {
+    throw new Error("approval-bound file must be inside the source repository");
+  }
+  return execFileSync("git", ["show", `${sourceCommitSha}:${rel.replaceAll("\\", "/")}`], {
+    cwd: realRoot,
+    encoding: "buffer",
+    stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: 16 * 1024 * 1024,
+  });
+}
+
+/**
+ * Compatibility gate for committed approvals created before full-file hashes
+ * were added. The legacy human review hash must still match, and both the pack
+ * and approval bytes must be exact blobs from the cell's immutable source
+ * commit. This is intentionally opt-in for trusted controllers only.
+ */
+export function checkCommittedLegacyCellApproval(
+  pack: TargetPack,
+  packPath: string,
+  expectedPackFileHash: string,
+  options: {
+    repositoryRoot: string;
+    sourceCommitSha: string;
+    /** Canonical committed path when the runtime uses an isolated byte-for-byte copy. */
+    sourcePackPath?: string;
+  },
+): { ok: boolean; reason?: string } {
+  try {
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(options.sourceCommitSha)) {
+      return { ok: false, reason: "legacy approval compatibility requires a full source commit SHA" };
+    }
+    const legacy = checkApproval(pack, packPath);
+    if (!legacy.ok) return legacy;
+    const approval = readApproval(packPath);
+    if (!approval || approval.pack_file_hash) {
+      return { ok: false, reason: "approval is not an eligible committed legacy approval" };
+    }
+    const actualHash = packFileContentHash(packPath);
+    if (actualHash !== expectedPackFileHash) {
+      return { ok: false, reason: `reviewed pack content hash mismatch (cell ${expectedPackFileHash}, actual ${actualHash})` };
+    }
+    const root = realpathSync(execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: options.repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim());
+    const objectType = execFileSync("git", ["cat-file", "-t", options.sourceCommitSha], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (objectType !== "commit") {
+      return { ok: false, reason: "legacy approval source SHA must identify a commit object" };
+    }
+    const paths = [
+      [packPath, options.sourcePackPath ?? packPath],
+      [approvalPath(packPath), approvalPath(options.sourcePackPath ?? packPath)],
+    ] as const;
+    for (const [path, sourcePath] of paths) {
+      const current = readFileSync(path);
+      const committed = committedBlob(root, options.sourceCommitSha, sourcePath);
+      if (current.length !== committed.length || !current.equals(committed)) {
+        const absoluteSource = isAbsolute(sourcePath) ? sourcePath : resolve(root, sourcePath);
+        return { ok: false, reason: `${relative(root, realpathSync(absoluteSource))} bytes do not match source commit ${options.sourceCommitSha}` };
+      }
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `could not bind legacy approval to source commit: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
+
+/**
+ * Stage a runtime-generated pack only when its reviewable content is equivalent
+ * to a committed, human-approved pack. The copied sidecar lets the ordinary
+ * exec-plan review gate enforce the same content-addressed approval again.
+ */
+export function stageApprovedEquivalentPack(opts: {
+  approvedPack: TargetPack;
+  approvedPackPath: string;
+  candidatePack: TargetPack;
+  candidatePackPath: string;
+}): string {
+  const approvedStatus = checkApproval(opts.approvedPack, opts.approvedPackPath);
+  if (!approvedStatus.ok) {
+    throw new Error(`Committed pack approval is invalid: ${approvedStatus.reason}`);
+  }
+  const candidateStatus = checkApproval(opts.candidatePack, opts.approvedPackPath);
+  if (!candidateStatus.ok) {
+    throw new Error(`Runtime-generated pack does not match the approved committed pack: ${candidateStatus.reason}`);
+  }
+  const sourceApprovalPath = approvalPath(opts.approvedPackPath);
+  const candidateApprovalPath = approvalPath(opts.candidatePackPath);
+  copyFileSync(sourceApprovalPath, candidateApprovalPath);
+  return candidateApprovalPath;
 }
 
 export interface PackQaIssue {

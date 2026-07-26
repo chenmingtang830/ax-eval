@@ -1,0 +1,40 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Cockroachdb
+slug: cockroachdb
+extracted_at: 2026-07-08T10:53:37.835Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: cockroach
+  install: brew install cockroachdb/tap/cockroach
+  docs_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Use cockroach sql with COCKROACH_CONNECTION_STRING for SQL
+      data-plane operations. COCKROACH_API_KEY is reserved for the Cloud REST
+      API.
+sdk: null
+mcp:
+  server: https://cockroachlabs.cloud/mcp
+  transport: http
+  docs_url: https://www.cockroachlabs.com/docs/cockroachcloud/connect-to-the-cockroachdb-cloud-mcp-server
+  auth:
+    kind: token
+    token_env: COCKROACH_API_KEY
+    token_env_aliases: []
+    instructions: 'Pass a service account API key as a Bearer token via the
+      Authorization header, and also supply the target cluster ID via the
+      mcp-cluster-id header. Example Claude Code config: claude mcp add
+      cockroachdb-cloud https://cockroachlabs.cloud/mcp --transport http
+      --header "Authorization: Bearer {api-key}" --header "mcp-cluster-id:
+      {cluster-id}". OAuth 2.1 (PKCE) is also supported for interactive flows.'

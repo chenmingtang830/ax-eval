@@ -1,0 +1,208 @@
+name: DAEB-1
+version: 1
+category: database
+description: Bottom-up-derived canonical task suite for the "database" category,
+  synthesized from 6 vendors' cited documentation (see daeb-1.synthesis.md for
+  the full audit trail).
+methodology:
+  schema: ax.suite-methodology/v1
+  ontology:
+    task: A single benchmark problem with fixed intent and success criteria.
+    trial: One attempt at a task under a clean environment.
+    grader: Logic that scores either an outcome or transcript-derived property.
+    transcript: Behavior evidence from the agent run, including tool use and
+      intermediate steps.
+    outcome: Final world state in the environment after a trial.
+    support_decision: A recorded judgment about whether a vendor/surface can perform a task.
+    selection_decision: A recorded judgment about whether a concept becomes part of
+      the canonical suite.
+    suite: The frozen canonical task bank for a category.
+    publication_bundle: The artifact bundle tying methodology, adapters, evidence,
+      and results together.
+  static_ax:
+    label: Discoverability & Readiness
+    dimensions:
+      - discoverability
+      - content quality
+      - capability exposure
+      - protocol/access readiness
+    notes:
+      - Discoverability & Readiness is a publication/audit layer and never
+        changes usability-suite pass rates.
+  behavioral:
+    label: Usability Canonical Suite
+    source_of_truth: Verified world state read back from the live product
+    notes:
+      - Usability-suite scoring is governed only by verified task outcomes on
+        the suite-declared benchmark surfaces.
+  extraction_requirements:
+    - Use only official vendor documentation as evidence.
+    - Persist every extracted capability with structured evidence objects.
+    - Document supported benchmark surfaces where evidence exists; deferred
+      surfaces may still be retained as research metadata.
+  surface_scope:
+    - api
+    - cli
+  min_vendor_coverage_pct: 0.75
+  target_task_count: 7
+  verifiability_requirement: Selected tasks must have deterministic read-back
+    verification against world state.
+  difficulty_rubric:
+    L1: "Single action: one create/read/update/check call with minimal setup."
+    L2: "Single capability with configuration or composition: ACL, vector search
+      index, etc."
+    L3: "Multi-step workflow within one domain: schema evolution, server-side
+      routine."
+    L4: "Full lifecycle or cross-cutting operational workflow: backup/restore, CDC,
+      integrity constraints."
+  human_review_checkpoints:
+    - "bottom-up pipeline review: capability inventory → concept universe →
+      coverage matrix → selection ledger → task drafts"
+    - final suite freeze
+    - publication bundle release
+tasks:
+  - id: db-T01-access-control
+    title: "T01: Configure an idiomatic access-control mechanism"
+    difficulty: L2
+    skill: access-control
+    intent: Configure a documented access-control mechanism for a container named
+      `axarena_acl_{ns}` using the vendor's idiomatic control (row/document
+      ownership or RLS, role/grant RBAC, scoped token, IP allowlist, or
+      equivalent). Create one authorized interaction against that protected
+      container and leave the control configuration discoverable on a documented
+      control surface.
+    oracle_hint: Read back the access-control configuration protecting
+      `axarena_acl_{ns}` and confirm it is active. Confirm one authorized read
+      or write against the protected container succeeds. When the vendor
+      documents a negative path for the same control (unauthorized principal,
+      denied role, or blocked client), the verifier must also perform that deny
+      probe and observe rejection.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose a configurable access-control mechanism on
+        api/cli surfaces.
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
+    difficulty: L3
+    skill: evolve-schema
+    intent: In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
+    oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
+      `status` field is now present and the pre-existing `title` field remains
+      visible.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not support a documented schema evolution or migration
+        flow on api/cli surfaces.
+  - id: db-T03-inspect-schema
+    title: "T03: Inspect container metadata"
+    difficulty: L1
+    skill: inspect-schema
+    intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+    oracle_hint: Read back schema or metadata for `axarena_schema_probe_{ns}` and
+      confirm both the `name` and `status` fields are visible through the
+      inspection surface (not only via a successful row insert).
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose schema or metadata inspection on api/cli
+        surfaces.
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
+    difficulty: L2
+    skill: query-records
+    intent: Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+    oracle_hint: Verify the container exists with exactly three records total
+      (labels `alpha_{ns}`, `beta_{ns}`, `gamma_{ns}`). A filtered read for
+      `status=active` must return exactly two records with labels `alpha_{ns}`
+      and `gamma_{ns}` and must not include `beta_{ns}`.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor cannot perform filtered record reads on api/cli surfaces.
+  - id: db-T05-vector-search
+    title: "T05: Create a vector-enabled dataset and query it"
+    difficulty: L2
+    skill: vector-search
+    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+    oracle_hint: Read back the vector dataset and verify a similarity query for
+      `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose vector indexing or similarity search on
+        api/cli surfaces.
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
+    difficulty: L2
+    skill: write-records
+    intent: Using a container named `axarena_write_items_{ns}`, create one record
+      with immutable `record_id=record_{ns}` and label `draft_{ns}`, update that
+      same record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
+    oracle_hint: "Read back `axarena_write_items_{ns}` and confirm: (1) the record
+      with `record_id=record_{ns}` has label `final_{ns}`; (2) no record labeled
+      `draft_{ns}` or `delete_me_{ns}` remains; (3) the surviving `record_id` is
+      the identity reported by the agent — creating an unrelated final row does
+      not satisfy the task."
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor cannot perform create, update, and delete record operations
+        on api/cli surfaces.
+  - id: db-T07-full-text-search
+    title: "T07: Create a searchable text dataset and query it"
+    difficulty: L2
+    skill: full-text-search
+    intent: Create a text-searchable dataset named `axarena_search_{ns}` with at
+      least three items whose content includes `orchard_{ns}`, `mountain_{ns}`,
+      and `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+    oracle_hint: Read back the searchable dataset and verify a documented full-text
+      search query returns `orchard_{ns}` as the top match and does not return
+      `mountain_{ns}` or `harbor_{ns}` in the result set for that query.
+    allowed_surfaces:
+      - api
+      - cli
+    na_examples:
+      - This vendor does not expose full-text search on api/cli surfaces.
+scoring:
+  per_task: pass | fail | na
+  overall:
+    formula: score = sum(passes) / sum(non_na_tasks)
+    notes: N/A tasks (and N/A surfaces within a task) are excluded from both
+      numerator and denominator. Support-matrix unsupported cells are N/A, not
+      fail. Cross-vendor comparisons are valid only across tasks/surfaces both
+      vendors actually run. Publication should also report intersection/core
+      score, applicability coverage, and the full task×surface matrix — do not
+      treat applicable pass rate as the sole leaderboard number.
+  layers:
+    static_ax: Discoverability & Readiness is published separately and never alters
+      usability-suite pass rates.
+    behavioral: Usability Canonical Suite is scored only from verified outcomes on
+      api/cli for DAEB/database v1; SDK remains a deferred future surface and
+      any existing SDK runs are research artifacts, not benchmark-of-record
+      cells.

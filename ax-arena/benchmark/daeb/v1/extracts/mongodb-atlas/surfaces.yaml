@@ -1,0 +1,55 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Mongodb Atlas
+slug: mongodb-atlas
+extracted_at: 2026-07-08T10:53:13.417Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: atlas
+  install: brew install mongodb-atlas-cli
+  docs_url: https://www.mongodb.com/docs/atlas/cli/stable/
+  auth:
+    kind: oauth_app
+    token_env_aliases: []
+    client_id_env: MONGODB_ATLAS_CLIENT_ID
+    client_secret_env: MONGODB_ATLAS_CLIENT_SECRET
+    refresh_token_env: MONGODB_ATLAS_REFRESH_TOKEN
+    instructions: "For headless/CI use with service accounts (recommended): set
+      MONGODB_ATLAS_CLIENT_ID and MONGODB_ATLAS_CLIENT_SECRET. Alternative API
+      key auth: set MONGODB_ATLAS_PUBLIC_API_KEY and
+      MONGODB_ATLAS_PRIVATE_API_KEY. Short-lived token auth also supported via
+      MONGODB_ATLAS_ACCESS_TOKEN (12h TTL) + MONGODB_ATLAS_REFRESH_TOKEN."
+sdk:
+  package: mongodb
+  language: node
+  reference_url: https://mongodb.github.io/node-mongodb-native/7.4
+  auth:
+    kind: token
+    token_env: MONGODB_URI
+    token_env_aliases: []
+    instructions: Authenticate via a MongoDB connection string (URI) passed directly
+      to the MongoClient constructor. The URI embeds credentials, e.g.
+      mongodb+srv://user:pass@cluster.mongodb.net/db. Commonly surfaced via a
+      MONGODB_URI env var by convention (not enforced by the driver).
+mcp:
+  server: npx -y mongodb-mcp-server@latest
+  transport: stdio
+  docs_url: https://www.mongodb.com/docs/mcp-server/
+  auth:
+    kind: oauth_app
+    token_env_aliases: []
+    client_id_env: ATLAS_CLIENT_ID
+    client_secret_env: ATLAS_CLIENT_SECRET
+    instructions: Set CONNECTION_STRING to the MongoDB Atlas URI for database
+      access. For Atlas management/admin tools, also set ATLAS_CLIENT_ID and
+      ATLAS_CLIENT_SECRET (Atlas service account credentials in the format
+      mdb_sa_id_<id> / mdb_sa_sk_<secret>).

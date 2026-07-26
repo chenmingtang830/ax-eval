@@ -1,0 +1,36 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Neon
+slug: neon
+extracted_at: 2026-07-08T10:53:33.542Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - "Post-extract audit: 0 surface finding(s)."
+cli:
+  bin: psql
+  install: Install PostgreSQL client tools (psql).
+  docs_url: https://neon.com/docs/connect/connect-intro
+  auth:
+    kind: inherit
+    token_env_aliases: []
+    instructions: Use NEON_DATABASE_URL with psql for PostgreSQL data-plane
+      operations. NEON_API_KEY is reserved for Neon control-plane API or CLI
+      operations.
+sdk: null
+mcp:
+  server: https://mcp.neon.tech/mcp
+  transport: http
+  docs_url: https://neon.com/docs/ai/neon-mcp-server
+  auth:
+    kind: token
+    token_env: NEON_API_KEY
+    token_env_aliases: []
+    instructions: "Pass as Authorization: Bearer $NEON_API_KEY header. Stdio
+      alternative: npx -y @neondatabase/mcp-server-neon start $NEON_API_KEY"

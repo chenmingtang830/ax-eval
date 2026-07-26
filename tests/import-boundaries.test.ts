@@ -1,0 +1,188 @@
+import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
+import { findImportBoundaryViolations } from "../.github/verify-import-boundaries.mjs";
+
+function fixture(): string {
+  const root = mkdtempSync(resolve(tmpdir(), "ax-boundaries-"));
+  mkdirSync(resolve(root, "src"), { recursive: true });
+  mkdirSync(resolve(root, "ax-arena", "benchmark", "src"), { recursive: true });
+  writeFileSync(resolve(root, "package.json"), JSON.stringify({
+    exports: {
+      ".": "./dist/index.js",
+      "./schemas/evaluation-cell.v1.json": "./schemas/evaluation-cell.v1.json",
+    },
+  }));
+  return root;
+}
+
+describe("import boundary verification", () => {
+  it("allows core modules and public ax-eval imports from arena", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "src", "core.ts"), 'import "node:fs";\n');
+    writeFileSync(resolve(root, "ax-arena", "benchmark", "src", "arena.ts"), [
+      'import { runCell } from "ax-eval";',
+      'import schema from "ax-eval/schemas/evaluation-cell.v1.json";',
+      "void runCell; void schema;",
+    ].join("\n"));
+    expect(findImportBoundaryViolations(root)).toEqual([]);
+  });
+
+  it("rejects core imports of arena", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "src", "core.ts"), 'import "@ax-arena/benchmark";\n');
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("core must not import arena"),
+    ]);
+  });
+
+  it("rejects core imports of arena-owned database drivers", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "src", "core.ts"), [
+      'import "mongodb";',
+      'const mysql = import("mysql2/promise");',
+      "void mysql;",
+    ].join("\n"));
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("core must not import arena database dependency mongodb"),
+      expect.stringContaining("core must not import arena database dependency mysql2/promise"),
+    ]);
+  });
+
+  it("rejects detached arena database packages in the core manifest", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "package.json"), JSON.stringify({
+      exports: { ".": "./dist/index.js" },
+      dependencies: { mongodb: "7.4.0" },
+      devDependencies: { "@types/pg": "8.20.0" },
+      optionalDependencies: { "@neondatabase/serverless": "1.1.0" },
+      peerDependencies: { supabase: "2.109.0" },
+    }));
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("@neondatabase/serverless"),
+      expect.stringContaining("supabase"),
+      expect.stringContaining("mongodb"),
+      expect.stringContaining("@types/pg"),
+    ]);
+  });
+
+  it("rejects detached arena policy implementations in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(resolve(root, "src", "generate", "benchmark-paths.ts"), "export const root = true;\n");
+    writeFileSync(resolve(root, "src", "generate", "compose-pack.ts"), "export const compose = true;\n");
+    writeFileSync(resolve(root, "src", "generate", "database-pack-overrides.ts"), "export const override = true;\n");
+    writeFileSync(resolve(root, "src", "generate", "low-pass.ts"), "export const policy = true;\n");
+    writeFileSync(resolve(root, "src", "generate", "publication.ts"), "export const publication = true;\n");
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("benchmark-paths.ts is an arena-owned policy implementation"),
+      expect.stringContaining("compose-pack.ts is an arena-owned policy implementation"),
+      expect.stringContaining("database-pack-overrides.ts is an arena-owned policy implementation"),
+      expect.stringContaining("low-pass.ts is an arena-owned policy implementation"),
+      expect.stringContaining("publication.ts is an arena-owned policy implementation"),
+    ]);
+  });
+
+  it("rejects arena-owned persistence declarations in core authoring modules", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "surface-extract.ts"),
+      "export function loadSurfaceExtract(): null { return null; }\nexport function writeSurfaceExtract(): void {}\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned loadSurfaceExtract"),
+      expect.stringContaining("must not declare arena-owned writeSurfaceExtract"),
+    ]);
+  });
+
+  it("rejects the arena-owned methodology default constructor in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "methodology.ts"),
+      "export function defaultSuiteMethodology(): object { return {}; }\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned defaultSuiteMethodology"),
+    ]);
+  });
+
+  it("rejects arena-owned artifact contracts and inventory audit in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "arena-artifacts.ts"),
+      [
+        "export const ConceptUniverseSchema = {};",
+        "export const CoverageMatrixSchema = {};",
+        "export const SelectionLedgerSchema = {};",
+        "export const SupportMatrixSchema = {};",
+        "export const GraderLedgerSchema = {};",
+        "export const FailureTaxonomySchema = {};",
+        "export const TraceReviewMemoSchema = {};",
+        "export function auditCapabilityInventory(): void {}",
+      ].join("\n"),
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned ConceptUniverseSchema"),
+      expect.stringContaining("must not declare arena-owned CoverageMatrixSchema"),
+      expect.stringContaining("must not declare arena-owned SelectionLedgerSchema"),
+      expect.stringContaining("must not declare arena-owned SupportMatrixSchema"),
+      expect.stringContaining("must not declare arena-owned GraderLedgerSchema"),
+      expect.stringContaining("must not declare arena-owned FailureTaxonomySchema"),
+      expect.stringContaining("must not declare arena-owned TraceReviewMemoSchema"),
+      expect.stringContaining("must not declare arena-owned auditCapabilityInventory"),
+    ]);
+  });
+
+  it("rejects hard-coded Nile credential-scope policy anywhere in core", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "target"), { recursive: true });
+    writeFileSync(resolve(root, "src", "target", "scope.ts"), "const database = process.env.NILE_DATABASE_URL;\nvoid database;\n");
+    const violations = findImportBoundaryViolations(root);
+    expect(violations).toEqual([
+      expect.stringContaining("Nile credential-scope policy"),
+    ]);
+  });
+
+  it("rejects arena-owned competitive rendering declarations in generic reports", () => {
+    const root = fixture();
+    mkdirSync(resolve(root, "src", "generate"), { recursive: true });
+    writeFileSync(
+      resolve(root, "src", "generate", "report.ts"),
+      "export function renderCompetitiveReport(): string { return ''; }\n",
+    );
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("must not declare arena-owned renderCompetitiveReport"),
+    ]);
+  });
+
+  it("rejects arena imports that escape the workspace or bypass public exports", () => {
+    const root = fixture();
+    const source = resolve(root, "ax-arena", "benchmark", "src", "arena.ts");
+    writeFileSync(source, [
+      'export * from "../../../../src/internal.js";',
+      'const privateModule = import("ax-eval/src/config.js", { with: { type: "json" } });',
+      'import privateApi = require("ax-eval/dist/private.js");',
+      'type PrivateApi = import("ax-eval/src/private.js").PrivateApi;',
+      "void privateModule; void privateApi; void (null as unknown as PrivateApi);",
+    ].join("\n"));
+    const violations = findImportBoundaryViolations(root);
+    expect(violations).toHaveLength(4);
+    expect(violations[0]).toContain("escapes its workspace");
+    expect(violations[1]).toContain("public ax-eval export");
+    expect(violations[2]).toContain("public ax-eval export");
+    expect(violations[3]).toContain("public ax-eval export");
+  });
+
+  it("rejects symlinked source paths that could escape physical containment", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "src", "private.ts"), "export const privateValue = true;\n");
+    symlinkSync(resolve(root, "src"), resolve(root, "ax-arena", "benchmark", "src", "linked"), "dir");
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("source boundary scan rejects symlinks"),
+    ]);
+  });
+});

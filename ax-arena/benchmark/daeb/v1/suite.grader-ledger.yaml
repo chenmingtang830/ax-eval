@@ -1,0 +1,102 @@
+schema: ax.grader-ledger/v1
+benchmark: DAEB-1
+generated_at: 2026-07-12T02:41:46.722Z
+tasks:
+  - task_id: db-T01-access-control
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T02-evolve-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T03-inspect-schema
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T04-query-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T05-vector-search
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T06-write-records
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review
+  - task_id: db-T07-full-text-search
+    outcome_graders:
+      - read-back-world-state
+    trajectory_graders:
+      - transcript-review
+      - trace-shape
+    efficiency_metrics:
+      - latency_ms
+      - tool_call_count
+      - token_input_count
+      - token_output_count
+      - token_cost_usd
+    human_calibration:
+      - grader-fairness-review

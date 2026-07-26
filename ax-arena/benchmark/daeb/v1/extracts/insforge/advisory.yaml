@@ -1,0 +1,71 @@
+schema: ax.extract-advisory/v1
+vendor: Insforge
+slug: insforge
+generated_at: 2026-07-10T21:06:33.075Z
+findings:
+  - severity: warn
+    topic: surface_auth
+    message: "The extracted CLI auth block declares token_env 'INSFORGE_API_KEY',
+      but the CLI's actual documented headless/non-interactive authentication
+      mechanism uses different env vars: INSFORGE_ACCESS_TOKEN (override stored
+      token) or INSFORGE_EMAIL/INSFORGE_PASSWORD (non-interactive login). No
+      'INSFORGE_API_KEY' env var is documented for the CLI at all. Default
+      `login` with no flags/env vars opens a browser for OAuth 2.0 Authorization
+      Code + PKCE, which will hang a non-interactive agent. An agent following
+      the extraction's declared token_env would fail to authenticate
+      headlessly."
+    doc_url: https://github.com/InsForge/CLI
+    quote: Opens your browser to the InsForge authorization page using OAuth 2.0
+      Authorization Code + PKCE.
+  - severity: warn
+    topic: task_fit
+    message: "'row-level-security' is marked support_type: native with
+      surfaces_documented including 'api', but no API endpoint for creating or
+      modifying RLS policies is documented — only introspection. The only
+      concretely documented policy endpoints (GET /api/realtime/permissions and
+      GET /api/database/policies) are read-only listings. A DAEB task like
+      'create/update an RLS policy' cannot be self-serviced through the
+      documented API surface; it would require falling back to raw SQL execution
+      or migrations, which are separate capabilities not referenced by this
+      capability's evidence."
+    doc_url: https://docs.insforge.dev/api-reference/permissions/get-realtime-permissions.md
+    quote: Retrieve RLS policies for subscribe (channels) and publish (messages)
+      operations
+  - severity: warn
+    topic: self_service
+    message: "'raw-sql-execution' bundles two endpoints with materially different
+      blast radius under one 'native' capability: the strict variant blocks
+      system tables, while '/rawsql/unrestricted' allows SELECT/INSERT into
+      system tables including auth.users. Both only require admin authentication
+      (no support-mediated approval), so an agent holding the API key can
+      self-service full unrestricted access to system/auth tables via a single
+      call. The single capability entry does not flag this elevated risk tier
+      separately from routine sanitized SQL execution."
+    doc_url: https://docs.insforge.dev/sdks/rest/database
+    quote: POST /api/database/advance/rawsql - Execute SQL with strict sanitization
+      (blocks system tables); POST /api/database/advance/rawsql/unrestricted -
+      Execute SQL with relaxed sanitization (allows system table access)
+  - severity: info
+    topic: self_service
+    message: "'database-branching' is fully self-service via the CLI (`branch
+      create`/`branch merge`) with no approval gate beyond quota limits (3
+      parent projects/org, 2 active branches/parent). Since each branch
+      provisions a dedicated EC2 instance restored from the parent, an agent can
+      autonomously trigger real cloud infrastructure provisioning in a single
+      command with no confirmation step — a self-service risk beyond typical
+      schema/data operations that downstream consumers should weigh when
+      granting this capability."
+    doc_url: https://docs.insforge.dev/agent-native/branching.md
+    quote: Each branch runs on its own EC2 instance, restored from the parent at
+      create time.
+  - severity: info
+    topic: task_fit
+    message: "'schema-diagnostics-advisor' evidence quotes 'writes a remediation for
+      each one,' which could read as the CLI auto-fixing issues. In fact
+      `diagnose advisor` is read-only reporting; applying a fix is a separate
+      subsequent action ('the agent... applies the remediation as a migration'),
+      not a single self-service CLI call. The capability's practical task fit
+      for 'auto-remediate DB issue' is two discrete steps, not one."
+    doc_url: https://docs.insforge.dev/agent-native/diagnostics.md
+    quote: The advisor scans for security, performance, and health issues and writes
+      a remediation for each one.

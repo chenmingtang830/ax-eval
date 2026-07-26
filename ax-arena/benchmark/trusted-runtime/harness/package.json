@@ -1,0 +1,11 @@
+{
+  "name": "@ax-arena/trusted-harness-runtime",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Exact host-agent CLI closure for trusted AXArena runs.",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/claude-code": "2.1.217",
+    "@openai/codex": "0.145.0"
+  }
+}

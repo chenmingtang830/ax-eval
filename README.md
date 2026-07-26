@@ -7,7 +7,7 @@
 AI agents are becoming users of software. But most teams still test docs, APIs,
 SDKs, CLIs, and MCP servers as developer-facing artifacts, not as interfaces
 agents must discover and operate. `ax-eval` runs reviewed sandbox tasks through
-real agent harnesses, then verifies outcomes with read-back oracles.
+real agent harnesses, then verifies outcomes with independent outcome verification.
 
 **Agent-facing surfaces need integration tests, not just publication checks.**
 
@@ -40,27 +40,141 @@ npm run ax-eval -- audit --offline
 npm test
 ```
 
+### Library API
+
+`ax-eval` also exposes a typed ESM entry point for orchestration code that needs
+to validate reviewed packs, select surface-compatible tasks, verify results, or
+consume normalized records without importing private `src/` paths:
+
+```ts
+import {
+  EvaluationCellSchema,
+  TargetPackSchema,
+  checkApproval,
+  createRuntimeExtensionRegistry,
+  runCell,
+  tasksForSurface,
+  verifyGeneratedPack,
+} from "ax-eval";
+```
+
+`runCell` is the policy-free execution boundary: one reviewed pack, target,
+surface, harness, model, effort, trial, batch, and immutable source revision in;
+one strict `ax.normalized-cell-record/v1` record out. The input and output are
+validated by `schemas/evaluation-cell.v1.json` and
+`schemas/normalized-cell-record.v1.json`; legacy `ax.normalized-result/v1`
+records remain unchanged and readable. Credential values
+are passed out-of-band in `RunCellOptions`, and only names listed by the cell are
+forwarded to its isolated harness environment. Controllers may provide a
+separate `verificationCredentials` map for health checks, target adapters, and
+live read-back; those values are never copied into the harness child.
+
+The same contract is available as a subprocess:
+
+```bash
+ax-eval cell run --input cell.json --output record.json
+```
+
+The cell runner never chooses a benchmark roster, model, effort, trial count, or
+batch identity, and it does not aggregate, rank, publish, or clean up. A
+controller such as ax-arena owns those policies and must pass `batch_id`
+unchanged to every cell. Verification reads live state before the record is
+returned; cleanup remains an explicit later lifecycle step.
+
+Controllers compose versioned, per-cell runtime behavior through one immutable
+registry:
+
+```ts
+const registry = createRuntimeExtensionRegistry({
+  oracleProviders,
+  provisioningProviders,
+  healthCheckProviders,
+  resetProviders,
+  targetAdapters,
+});
+const record = await runCell(cell, {
+  credentials: hostCredentials,
+  verificationCredentials: verifierCredentials,
+  extensions: { registry },
+});
+```
+
+Duplicate IDs and ambiguous matches fail before invocation. Health checks run
+before provisioning, provisioning environment changes are additive, and only
+selected or invoked provider IDs and versions appear in optional
+`provider_provenance`. A selected target adapter may replace only the independent
+verification transport; it receives immutable explicit runtime context. The
+runtime-computed, bounded resource namespace is persisted as
+`execution_namespace`. `runCell` never invokes reset: the controller must first
+persist the verified record, then plan and execute bounded cleanup and persist
+its separate evidence. Global oracle registration remains only for direct
+`verifyGeneratedPack` compatibility.
+
+Pass controller-only read-back secrets through `verificationCredentials`; they
+are available to health checks, verification clients, and oracle providers but
+never copied into the harness child. Provisioning never receives verifier-only
+credentials, cannot replace PATH or
+any scoped/core environment key, and all environment values it adds are treated
+as secrets during artifact and error redaction. Providers may request additive
+`pathEntries`; core canonicalizes and prepends only real directories outside
+the writable cell workspace and artifact tree. Required tools must already be
+pinned in those external directories.
+
+The pack reference carries a full SHA-256 of the exact pack file in addition to
+the existing approval sidecar check, so executable surface/auth changes cannot
+hide behind the narrower legacy approval digest. CLI cells currently expose no
+extension loader. Core still reads legacy `sql_conn`, `mongo_conn`, `sqlQuery`,
+and `mongoQuery` fields so reviewed v1 packs remain valid, but it never opens a
+database connection for them without an explicit `OracleProvider`. Ax-arena owns
+the SQL/Mongo providers and drivers; controllers that inject a runtime registry
+should call the library API until the explicit extension-loader CLI seam lands.
+Approvals created before this field was introduced remain valid for legacy
+commands, but `cell run` requires the operator to review and approve the exact
+pack again; ax-eval never upgrades that human decision automatically.
+
+### Private arena workspace
+
+The repository now contains a private `@ax-arena/benchmark` workspace at
+`ax-arena/benchmark/`. It owns canonical DAEB artifacts plus roster, synthesis,
+audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
+may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
+private `ax-eval/src/**` imports. Arena owns its database runtime providers,
+batch aggregation, competitive reporting, publication bundle/export, and trusted
+controller entrypoints. Core harness provisioning does not download, locate, or
+inject product-specific CLI tools; arena supplies pinned tools through its
+runtime-extension registry. A direct generic `runCell` call without that registry
+uses the caller-selected PATH and is not a trusted/comparable arena execution.
+Arena database health checks also validate product-specific credential scope,
+including Nile database/connection binding, before invocation; generic core
+`check-env` reports only pack-declared requirements.
+Canonical/legacy DAEB path selection and all benchmark
+authoring persistence are arena-owned; core exposes only generic authoring
+schemas, single-product capability/surface extraction, and explicit-input
+transforms. Concept-universe, coverage/selection/support matrix, grader-ledger,
+failure-taxonomy, and trace-review contracts live with the arena, as does the
+database-specific capability-inventory audit; core retains the generic
+capability-inventory and suite-methodology shapes. Canonical-suite oracle
+extraction—including grounded prompt, concurrency, support-matrix, and database
+seed policy—is arena-owned alongside suite methodology defaults. Canonical DAEB
+artifact assertions run in the arena test workspace; core suite-contract tests
+use synthetic explicit inputs. The
+former core arena command names are one-minor process-launcher aliases; their
+implementations live only in the arena workspace. Root `npm test`, `npm run
+typecheck`, `npm run build`, and `npm run pack:check` validate both packages.
+
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
-(`codex` or `claude-code`) to turn it into a product-quality pack. Product
-presets can add authoring hints for the fuzzy parts, but code still enforces
-surface coverage, schema validity, and a repair pass if the first draft drops
-required metadata or tasks. Use
+(`codex` or `claude-code`) to turn it into a product-quality pack. Use
 `--deterministic` when you need a keyless CI/offline fixture instead.
 
-For an end-to-end report workflow, `automate-report` bootstraps discovery, pack
-generation, review/auth handoff, smoke execution, verification, and final report
-packaging. It never uses Exa; pass explicit official URLs when you have them, or
-let the configured local harness find candidates with its native web/search
-capability and ax-eval will validate them by fetching official pages directly.
-Generated packs still stop at the review gate until a human explicitly approves
-them with `ax-eval review`.
+`automate-report` can orchestrate discovery, generation, review/configuration
+handoff, a low-effort smoke gate, and the requested full report. It still stops
+at the content-addressed review gate: it never approves a generated pack for
+the operator.
 
 ```bash
 npm run ax-eval -- automate-report --company Acme \
-  --openapi https://example.com/openapi.json \
-  --surface all \
-  --harness codex
+  --openapi https://example.com/openapi.json --surface all --harness codex
 ```
 
 ```bash
@@ -74,7 +188,7 @@ npm run ax-eval -- review --pack results/acme.generated.pack.yaml --approve --by
 npm run ax-eval -- init --pack results/acme.generated.pack.yaml >> .env
 npm run ax-eval -- check-env --pack results/acme.generated.pack.yaml
 
-# 3. Emit prompts, run them, then verify with read-back oracles.
+# 3. Emit prompts, run them, then verify with independent outcome verification.
 npm run ax-eval -- exec-plan --pack results/acme.generated.pack.yaml \
   --run-dir results/runs/acme
 npm run ax-eval -- verify-generated --pack results/acme.generated.pack.yaml \
@@ -129,6 +243,199 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
+## DAEB-1 Publication Flow
+
+DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
+than ordinary local pack authoring:
+
+```text
+evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
+```
+
+**Current status (mutable v1):** authoring freeze is done for the 6-vendor core
+cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
+`review --approve`d and `suite.trace-review.yaml` is `completed`. Production
+3-trial reruns, publication freeze, and website export are **deferred** until
+after team review; do not treat the commands below as the default next step.
+Research-lane tasks (e.g. backup/CDC/integrity) stay out of the scored
+denominator. Core facts live under
+[`ax-arena/benchmark/daeb/v1/`](./ax-arena/benchmark/daeb/v1/).
+
+The canonical benchmark contract is
+[`ax-arena/benchmark/daeb/v1/suite.yaml`](./ax-arena/benchmark/daeb/v1/suite.yaml).
+Its purposive-stratified core/research/excluded cohort is recorded separately in
+[`ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml`](./ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml);
+vendor inclusion is fixed before task outcomes and requires a persistent free
+managed sandbox plus documented headless API/CLI access for the core cohort.
+Each database vendor has a compiled pack under
+`ax-arena/benchmark/daeb/v1/packs/<vendor>/pack.yaml`,
+but those packs are execution artifacts, not independently authored benchmark
+definitions. They are produced from the same suite plus vendor-specific public
+metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
+configuration.
+
+During the one-minor-release relocation window, DAEB readers fall back to the
+former `benchmarks/daeb/` root only when the canonical arena root is absent and
+emit a deprecation warning. If both roots exist, pass `--benchmark-root <dir>`
+to choose explicitly. Writers always use `ax-arena/benchmark/daeb/`.
+
+DAEB authoring is owned by the private arena workspace:
+
+```bash
+npm run ax-arena -- benchmark synthesize-suite --help
+```
+
+The `resolve-vendor`, `import-registry`, extract, audit, `compose-pack`, and
+`synthesize-suite` commands use this `ax-arena benchmark` form. Their former
+`ax-eval` spellings remain shell-free deprecation launchers for one minor
+release and preserve the arena command exit status. Vendor-specific pack
+composition and database prompt policy are implemented only inside the arena
+workspace; `ax-eval` supplies the generic pack schemas and execution boundary.
+
+Arena runtime commands use the same boundary: `plan` freezes an explicit batch
+configuration into an opaque batch manifest plus an ordered, per-cell
+`batch-plan.json`; `aggregate` consumes a completed batch, and
+`execute`/`publish` remain fail-closed from direct local invocation. Plan files
+contain exact credential names but no values, and bind those choices to the
+committed configuration blob plus an external controller path/hash attestation,
+rather than only to mutable run-local files. A
+one-cell trusted worker verifies the installed harness version before selecting
+its four credential partitions; a separate credential-free completion assembler
+provides the other half of the matrix fan-out boundary. The protected workflow
+uses that boundary directly: its YAML derives the matrix and tool pins from the
+committed plan and contains no benchmark roster or individual secret mapping.
+This source cutover does not itself activate a live run. In a source checkout,
+the legacy `ax-eval daeb-low-pass` and `ax-eval daeb-production-rerun` aliases
+are shell-free launchers for the arena commands, whose direct runtime path fails
+closed in favor of the protected workflow. The npm release gate prevents those
+delegated aliases from shipping before the arena package is public; the
+one-minor compatibility clock begins only after that publication gate passes.
+
+The npm `prepublishOnly` release gate enforces that ordering: `ax-eval` cannot
+be published with delegated aliases until the arena package is public and pins
+the release version of `ax-eval`. The dependency remains one-way; users of the
+temporary aliases install the now-available arena package explicitly. Dry-run
+package inspection remains available during the private workspace migration.
+
+Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+overwrites the same suite and invalidates content-hash approvals. Git SHAs and
+artifact content hashes identify exact draft states; draft iterations do not
+increment the suite version. Benchmark-of-record results are produced only after
+freeze.
+
+Selection and applicability are separate. The 75% concept-coverage bar chooses
+the shared task bank; each coverage decision also retains ranked capability
+candidates, the selected capability bundle, and concrete task-fit requirements.
+Only surfaces where the full task-fit bundle is documented enter the support
+matrix denominator. Broad concept membership alone never enables a run cell.
+Suite freeze additionally requires `suite.trace-review.yaml` to record a
+completed fixed-sample review (sample IDs, reviewer, timestamp, commit SHA, and
+findings); regeneration resets that checkpoint to `pending`.
+
+For DAEB-1/database v1, the benchmark-of-record production lane is narrower
+than the generic engine: `api` and `cli` only, Codex with `gpt-5.6-terra` and
+Claude Code with `claude-sonnet-5`, both at high effort, and three clean trials
+per supported vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+SDK evidence is research-only for v1.
+
+The direct command is retained only for help and compatibility validation:
+
+```bash
+npm run ax-arena -- benchmark daeb-production-rerun \
+  --help
+```
+
+Direct execution intentionally fails closed without the workflow-attested OS
+sandbox. Maintainers execute production cells through the **Trusted sandbox arena
+benchmark** workflow. Dispatch supplies only the full reviewed source SHA, one
+committed whole-benchmark configuration, and a reviewed runner-pool choice. A
+credential-free job creates one opaque batch and matrix. Planning rejects
+SDK/MCP cells, non-hosted execution modes, and matrices above the hosted 256-job
+limit before any protected job starts. Every matrix cell uses the protected environment named
+`trusted-sandbox-<vendor>-<surface>-<harness>-trial-<n>`. Configure required
+reviewers and one `AX_ARENA_CELL_CREDENTIALS_JSON` environment secret containing
+exactly that descriptor's credential-name keys and no others. The worker rejects
+missing, extra, or individually bound batch credentials before invocation.
+
+Before its secret-bearing step, every fresh cell runner re-pulls the exact OCI
+digest, extracts it through Docker and sudo into a root-owned non-writable
+sysroot, installs exact locked tools, and verifies the runtime manifest. The
+cell then uses that Node, those tools, and Bubblewrap for exactly one writable
+workspace; there is no native fallback. Workers transfer only hash-bound record,
+cleanup, cell-result, runtime-manifest, and declared evidence files. A final
+credential-free job requires one byte-identical runtime manifest and one exact
+result per cell before writing `batch-completion.json`. An isolated final job
+reverifies and OIDC-signs the detached subject; the harness workspace and
+credentials are never uploaded.
+
+Each cell writes `trial-1/2/3` evidence plus an `aggregate/` record with mean
+pass rate, observed range, exact pass³ count, harness version, run batch,
+successful-attempt latency, retry-inclusive duration/tokens/cost, and links to
+the source trial artifacts. Runtime
+recomposition is allowed only when the generated pack matches the committed
+human-approved content hash; the staged approval is then enforced by the normal
+`exec-plan` review gate. Each trial also records `cleanup.json`. A failed or
+resumed lane stops before the next trial unless namespace cleanup is confirmed;
+production runs cannot skip reset. After
+running and verifying the vendor matrix, freeze a publication bundle:
+
+```bash
+npm run ax-arena -- benchmark publication-bundle \
+  --run-root results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle \
+  --benchmark-root ax-arena/benchmark/daeb
+```
+
+The bundle writes `manifest.json` tying together the canonical suite, vendor
+cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
+records, and competitive report. Bundle creation requires a complete
+`pinned-oci + hosted-trusted` production rerun and cryptographically verifies
+its detached GitHub OIDC attestation against the protected-main workflow.
+Set `AX_ARENA_APPROVED_SIGNER_SHA` to the independently approved 40-character
+workflow commit before bundle creation or downstream loading. The protected
+`trusted-sandbox` environment supplies the same value as
+`vars.AX_ARENA_APPROVED_SIGNER_SHA`; the subject cannot approve its own signer.
+Low-pass, local, native, missing-attestation, and invalid-attestation inputs are
+rejected; a publication-ready DAEB-1 v1 bundle has no missing references and
+all required quality gates passing. The writer recomputes aggregates, process
+snapshots, HTML, and failure review from attested cell bytes before its atomic
+rename; the reporting timestamp must equal the signed completion timestamp.
+The signed subject also binds the canonical DAEB source-artifact set.
+Export and competitive-report readers then re-verify the detached attestation,
+exact physical inventory, canonical manifest metadata, and regenerated reports.
+
+Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
+envelope. It binds aggregate scores to the canonical production batch and
+completion, derives trial scores and task drilldowns from sealed task outcomes,
+binds every snapshot run to one exact completed-cell evidence set, and
+recomputes the scored three-trial fields before writing. An unsealed historical
+v2 bundle cannot be promoted through this command.
+
+`ax-eval` remains the tooling layer. The AXArena website should consume an
+exported dataset instead of learning runner internals or recomputing scores:
+
+```bash
+npm run ax-arena -- benchmark export-publication \
+  --from results/runs/daeb-1-v1-production/publication-bundle-final \
+  --out results/runs/daeb-1-v1-production/axarena-export
+```
+
+This writes website-ready JSON indexes for leaderboard rows, cells, task
+drilldowns, trial outcomes, evidence links, methodology metadata, and failure
+review placeholders. Codex and Claude Code remain
+separate rankings. Overall first averages eligible tasks within each surface,
+then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
+The deprecated `ax-eval publication-bundle` and `ax-eval export-publication`
+names delegate to these arena commands during the compatibility period.
+
+Compare two normalized-record sets without decoding HTML:
+
+```bash
+npm run ax-eval -- records-diff --base <baseline-dir> --head <candidate-dir> --out records-diff.md
+```
+New reusable benchmark tooling should live here; the
+`axarena` repo should own the curated website, narrative, and presentation.
+
 ## Architecture
 
 `ax-eval` is pack-centered and surface-aware.
@@ -137,10 +444,7 @@ without digging through `results/runs/`.
   live in versioned schemas and act as the stable center of the system.
 - **Execution matrix:** the same reviewed pack runs across one or more harnesses
   and surfaces (`api`, `cli`, `sdk`, `mcp`), with surface adapters changing how
-  the agent discovers and acts rather than changing the oracle model. When a
-  surface only covers part of the product, generation narrows that surface to
-  the subset of tasks it can actually support instead of forcing API-shaped
-  tasks onto it.
+  the agent discovers and acts rather than changing the outcome-verification model.
 - **Truth layer:** executors report ids, but success is decided by independent
   read-back verification against live product state.
 - **Interpretation layer:** reports and normalized records turn results, traces,
@@ -153,18 +457,17 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
 ![ax-eval architecture](./assets/architecture.svg)
 
 1. **Ingest:** parse OpenAPI, GraphQL, docs, auth, and sandbox hints.
-2. **Generate:** draft an L1-L4 task pack with rule-derived oracles and
+2. **Generate:** draft an L1-L4 task pack with rule-derived outcome verifiers and
    LLM-assisted task authoring by default.
 3. **Review:** hash-lock the pack after human approval and Pack QA warnings.
-4. **Execute:** run the same pack across selected surfaces and harnesses, with
-   each surface taking the tasks that generation marked as truly supported.
+4. **Execute:** run the same pack across selected surfaces and harnesses.
 5. **Verify:** read live state back, score the matrix, and write reports.
 
 ## Why It Is Different
 
 - **Goal-level prompts, not endpoint hints.** The agent has to discover the
   surface instead of being handed a curl command.
-- **Programmatic oracles, not self-report.** Success means the verifier can read
+- **Programmatic outcome verification, not self-report.** Success means the verifier can read
   the expected state back from the product.
 - **Target-declared auth and sandbox scope.** Packs say exactly which env vars and
   sandbox ids are needed; secrets stay local in `.env`.
@@ -181,27 +484,47 @@ npm run ax-eval -- ingest --openapi <url>       # parse REST/OpenAPI into an ing
 npm run ax-eval -- ingest --graphql <endpoint|file> # rich GraphQL introspection
 npm run ax-eval -- generate --from <ingest.json> [--base-url <graphql-endpoint>] # LLM-assisted by default
 npm run ax-eval -- generate --deterministic --from <ingest.json> # CI/offline fallback
+npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>]
 npm run ax-eval -- review --pack <pack.yaml> [--approve --by you]
 npm run ax-eval -- init --pack <pack.yaml> [--surface all]
 npm run ax-eval -- check-env --pack <pack.yaml> [--surface all]
-npm run ax-eval -- automate-report --company <name> [--openapi <url>|--graphql <endpoint>] # no Exa; stops at review/auth gates before smoke/full
 npm run ax-eval -- exec-plan --pack <pack.yaml> --run-dir <dir>
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
-  --harness claude-code --harness codex --surface all --run-dir <dir> # cross-harness × cross-surface (parallel)
+  --harness claude-code --surface all --profile medium --effort medium \
+  --model sonnet --run-dir <dir> --invoke-retries 0 # Claude Code, records the actual reported Sonnet model
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness codex --surface all --profile medium --effort medium \
+  --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
-npm run ax-eval -- reset --pack <pack.yaml> [--dry-run]
+npm run ax-eval -- reset --pack <pack.yaml> --ns <run-namespace> [--dry-run]
+# Omit --ns only with --dry-run to inventory all probe resources safely.
 
 npm run ax-eval -- audit --site <url>
 npm run ax-eval -- discover --site <url>
 npm run ax-eval -- smells --openapi <url>
-npm run ax-eval -- competitive --results <normalized.json>... --html <out.html>
+npm run ax-arena -- benchmark competitive --from <sealed-publication-bundle> --html <ignored-output.html>
+npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
+
+The legacy `ax-eval reset` helper retains only the generic HTTP/Asana example
+resetter. Database and benchmark-target cleanup is arena-owned and requires an
+explicit `ResetProvider` after verified-record persistence.
+
+The deprecated `ax-eval competitive` name delegates to this arena command
+during the compatibility period.
 
 CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
 authoring is a developer workflow that ends at `review --approve`.
+
+For publication-grade cross-harness lanes, prefer native host-agent binaries over
+PATH wrappers when a wrapper injects unrelated local config. `AX_EVAL_CLAUDE_BIN`
+and `AX_EVAL_CODEX_BIN` let a run pin the executable while the normalized record
+still stamps the model actually reported by the harness. Non-MCP Codex cells are
+run with an isolated Codex home and `mcp_servers={}` so API/CLI/SDK scores are not
+polluted by the operator's unrelated global MCP server logins.
 
 ## Safety
 
@@ -243,7 +566,8 @@ src/generate/       task-pack generation, review, report, normalized records
 src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
-targets/            target-pack index and example pack directories (see targets/README.md)
+targets/            tool-layer example packs (see targets/README.md)
+ax-arena/benchmark/ private arena workspace and DAEB publication contract
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots
@@ -254,7 +578,7 @@ docs/               maintainer-local notes, intentionally not public docs
 
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md). The best first contribution is a new
 target pack generated from a public spec, reviewed with the gate, and backed by a
-focused test or oracle improvement.
+focused test or outcome-verifier improvement.
 
 ## Contact
 

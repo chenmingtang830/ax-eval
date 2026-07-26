@@ -1,0 +1,73 @@
+schema: ax.extract-advisory/v1
+vendor: Neon
+slug: neon
+generated_at: 2026-07-10T20:55:03.690Z
+findings:
+  - severity: warn
+    topic: task_fit
+    message: "'compute-endpoint-lifecycle' claims surfaces_documented includes
+      'cli', but the neon-cli reference page documents no 'endpoints'/'computes'
+      start/suspend/restart subcommands — the only endpoint-related CLI commands
+      are 'neon vpc endpoint {assign,list,remove,status}', which manage
+      private-networking VPC endpoints, an unrelated concept.
+      Start/suspend/restart are confirmed only as Management API operations. An
+      agent restricted to the 'neon' CLI cannot self-service this capability."
+    doc_url: https://neon.com/docs/reference/neon-cli
+    quote: neon vpc endpoint list ... List configured VPC endpoints for this
+      organization.
+  - severity: warn
+    topic: task_fit
+    message: "'local-dev-proxy' (Neon Local) is tagged surfaces_documented:['cli'],
+      but it is a separate Docker container/proxy service started via 'docker
+      run'/docker-compose, not a subcommand of the audited 'neon' CLI binary. An
+      agent granted only the extracted CLI surface cannot invoke this without
+      Docker tooling outside that surface."
+    doc_url: https://neon.com/docs/local/neon-local
+    quote: a proxy service that creates a local interface to your Neon cloud database
+  - severity: warn
+    topic: task_fit
+    message: Several data-plane capabilities (direct-postgres-connectivity,
+      baseline-sql-table-and-row-operations, connection-pooling,
+      data-export-import-pgdump, row-level-security, vector/full-text search,
+      logical-replication-cdc, postgres-extension-ecosystem) list 'cli' and/or
+      'sdk' as surfaces, but their evidence describes generic third-party
+      Postgres clients (psql, JDBC, pgAdmin, DBeaver, TablePlus) or standalone
+      pg_dump/pg_restore binaries — not the audited 'neon' CLI or
+      '@neondatabase/api-client' SDK, both of which are control-plane-only
+      (projects/branches/roles/endpoints) and never execute SQL themselves. This
+      overstates what the extracted CLI/SDK surfaces can self-service; actual
+      execution needs a separate Postgres driver/client.
+    doc_url: https://neon.com/docs/connect/connect-intro
+    quote: psql, JDBC, pgAdmin, DBeaver, TablePlus, VS Code Extension
+  - severity: info
+    topic: surface_auth
+    message: The extracted CLI auth block documents only NEON_API_KEY token auth,
+      but the CLI's real credential resolution falls back to interactive
+      browser-based OAuth when no key is found. For headless/agentic use,
+      NEON_API_KEY (or --api-key) must always be set explicitly, since its
+      absence does not fail cleanly — it can instead hang a non-interactive
+      agent on a browser prompt.
+    doc_url: https://neon.com/docs/reference/neon-cli
+    quote: "the CLI checks credentials in this order: the `--api-key` option, the
+      `NEON_API_KEY` environment variable (`export
+      NEON_API_KEY=<neon_api_key>`), the `credentials.json` file that `neon
+      auth` creates in the config directory (override its location with
+      `--config-dir`), then interactive web authentication."
+  - severity: info
+    topic: task_fit
+    message: "'sql-editor-console' is tagged surfaces_documented:['api'], but the
+      SQL Editor (including its Explain/Analyze feature) is a browser-based Neon
+      Console GUI feature, not something invoked through the Management API.
+      This looks like a GUI capability mislabeled with an API surface tag."
+    doc_url: https://neon.com/docs/get-started/query-with-neon-sql-editor
+    quote: a browser-based query interface built into the Neon Console
+  - severity: info
+    topic: sdk_grounding
+    message: The extraction cites '@neondatabase/api-client' as the SDK package;
+      this is accurate and still functional, but Neon has since released
+      '@neon/sdk' as its official successor. The extraction does not reflect the
+      newer canonical SDK, so downstream consumers should confirm whether
+      capabilities should be re-evaluated against the current recommended
+      package.
+    doc_url: https://neon.com/docs/ai/skills/neon-postgres/references/neon-typescript-sdk.md
+    quote: It is the successor to `@neondatabase/api-client`.

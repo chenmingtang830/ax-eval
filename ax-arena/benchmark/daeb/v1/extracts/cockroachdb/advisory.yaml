@@ -1,0 +1,93 @@
+schema: ax.extract-advisory/v1
+vendor: Cockroachdb
+slug: cockroachdb
+generated_at: 2026-07-10T20:57:39.294Z
+findings:
+  - severity: warn
+    topic: surface_auth
+    message: "ccloud's headless auth path is not a silent machine-credential flow:
+      even with --no-redirect, a human must retrieve an auth code on a second
+      machine and paste it in. No API-key/service-account login mode exists for
+      ccloud itself; only the separate Cloud REST API supports
+      COCKROACH_API_KEY. Any DAEB task assuming ccloud can run unattended is
+      wrong — it must use the Cloud API instead."
+    doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-get-started
+    quote: If you are using `ccloud` on a headless machine, use the `--no-redirect`
+      flag to log in. This allows you to log in to CockroachDB Cloud on a
+      different machine, retrieve an authorization code, and enter the code on
+      the headless machine.
+  - severity: warn
+    topic: surface_auth
+    message: "The extraction tags ~40 SQL-level capabilities (backup, restore,
+      insert, grant, alter-table, etc.) as surfaces_documented:['cli'], but the
+      only declared 'CLI surface' in this record is ccloud (auth:
+      COCKROACH_API_KEY / browser login), a cloud control-plane tool. The actual
+      binary behind those SQL capabilities is `cockroach sql`, which
+      authenticates via a totally different credential set
+      (--url/--user/--certs-dir,
+      COCKROACH_USER/COCKROACH_URL/COCKROACH_CERTS_DIR) and has nothing to do
+      with ccloud or COCKROACH_API_KEY. Treating 'cli' as one uniform,
+      already-authenticated surface will misroute credentials for any DAEB task
+      executed through this tag."
+    doc_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql.html
+    quote: CockroachDB comes with a built-in client for executing SQL statements
+      from an interactive shell or directly from the command line.
+  - severity: warn
+    topic: self_service
+    message: ip-allowlisting is tagged surfaces_documented:['api'], but the cited
+      page documents console-only (GUI) management with no API or CLI path
+      mentioned anywhere on it. This is a GUI capability mislabeled as an API
+      surface; a DAEB task expecting to set network authorization via the Cloud
+      API cannot rely on this citation as proof that path exists.
+    doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/network-authorization
+    quote: "Authorized network access can be managed from the CockroachDB Cloud
+      console Network Authorization page at:
+      `https://cockroachlabs.cloud/cluster/{ your cluster UUID}/networking`"
+  - severity: warn
+    topic: self_service
+    message: Restoring a failed CMEK-enabled cluster is explicitly support-mediated
+      (a Cockroach Labs support ticket is required), not self-service — an
+      exception neither the cmek-encryption nor the backup-restore capability
+      entries capture. A DAEB disaster-recovery task against a CMEK cluster
+      cannot be completed purely through the API/CLI surfaces claimed as
+      'native'.
+    doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cmek
+    quote: Not yet. To restore a failed CMEK-enabled cluster, please create a
+      support ticket for Cockroach Labs providing your cluster ID and
+      organization ID.
+  - severity: warn
+    topic: self_service
+    message: The Cloud API overview describes audit log export as
+      support-mediated/enrollment-gated ('contact your Cockroach Labs account
+      team'), while the extraction's audit-logging capability cites only the
+      auditlogevents endpoint as plainly self-service. These appear to be two
+      different audit-log features (basic ascending-order event retrieval vs.
+      continuous export) conflated under one 'native' capability entry — worth
+      disambiguating before treating audit export as guaranteed self-service for
+      a DAEB task.
+    doc_url: https://www.cockroachlabs.com/docs/cockroachcloud/cloud-api
+    quote: This feature is in limited access and is only available to enrolled
+      organizations. To enroll your organization, contact your Cockroach Labs
+      account team.
+  - severity: warn
+    topic: sdk_grounding
+    message: jwt-issuer-auth's only evidence is a third-party, community-maintained
+      Pulumi registry page describing a Pulumi/Terraform provider resource, not
+      official CockroachDB documentation of the Cloud API capability itself.
+      Citing this as grounding for a native Cloud API auth-configuration
+      capability is weak sourcing for a security-relevant control.
+    doc_url: https://www.pulumi.com/registry/packages/cockroach/api-docs/jwtissuer/
+    quote: This Pulumi package is based on the [`cockroach` Terraform
+      Provider](https://github.com/cockroachdb/terraform-provider-cockroach).
+  - severity: info
+    topic: task_fit
+    message: cluster-disruption-testing's only evidence is a bare SDK
+      method-signature stub ('Get/Update disruption specifications') with no
+      conceptual documentation of what a 'disruption specification' actually
+      configures (chaos injection vs. maintenance/outage tracking vs. something
+      else). The capability's fitness for any concrete DAEB operational task
+      cannot be confirmed from the cited source alone.
+    doc_url: https://raw.githubusercontent.com/cockroachdb/cockroach-cloud-sdk-go/main/docs/ClusterDisruptionApi.md
+    quote: GetClusterDisruptionInfo (GET) - Retrieves current disruption
+      specifications for a specified cluster ... UpdateClusterDisruption (PUT) -
+      Modifies disruption specifications for a cluster

@@ -1,0 +1,11 @@
+vendor: Supabase
+category: database
+slug: supabase
+discovered_at: 2026-07-03T04:18:29.014Z
+resolver:
+  method: registry
+  registry_domain: supabase.com
+site_url: https://supabase.com
+docs_url: https://supabase.com/docs
+http_status: null
+openapi_url: https://api.supabase.com/api/v1-json

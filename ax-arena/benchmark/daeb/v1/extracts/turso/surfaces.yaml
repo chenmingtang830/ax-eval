@@ -1,0 +1,54 @@
+# Optional agent surface adapters for exec-plan (CLI / SDK / MCP only).
+# REST API is always the implicit default surface and is intentionally omitted here;
+# API auth and base URL come from the vendor oracle extract, not this file.
+schema: ax.surface-extract/v1
+vendor: Turso
+slug: turso
+extracted_at: 2026-07-08T10:53:59.492Z
+extraction_context:
+  mode: grounded-doc-crawl
+  harness: claude-code
+  notes: Grounded doc-crawl surface candidate.
+audit_status: candidate
+audit_notes:
+  - Verify headless auth fields against vendor docs before publication.
+  - "Post-extract audit: 1 surface finding(s)."
+cli:
+  bin: turso
+  install: curl -sSfL https://get.tur.so/install.sh | bash
+  docs_url: https://docs.turso.tech/cli/introduction
+  auth:
+    kind: token
+    token_env: TURSO_API_TOKEN
+    token_env_aliases:
+      - TURSO_ORG_API_TOKEN
+    instructions: Mint a platform API token with `turso auth api-tokens mint
+      <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
+      unavailable, use `turso auth login --headless` to complete auth via a
+      printed URL. The token printed by `turso auth token` is the same
+      credential.
+sdk:
+  package: "@libsql/client"
+  language: node
+  reference_url: https://docs.turso.tech/sdk/ts/reference
+  auth:
+    kind: token
+    token_env: TURSO_AUTH_TOKEN
+    token_env_aliases: []
+    instructions: Pass TURSO_DATABASE_URL (the libsql:// connection URL) and
+      TURSO_AUTH_TOKEN (a per-database auth token, minted via `turso db tokens
+      create <db-name>`) to createClient({ url, authToken }). The Platform
+      management SDK (@tursodatabase/api) uses a separate TURSO_PLATFORM_TOKEN.
+mcp:
+  server: https://mcp.turso.ai/mcp
+  transport: http
+  docs_url: https://docs.turso.tech/integrations/mcp
+  auth:
+    kind: oauth_app
+    token_env_aliases: []
+    instructions: Uses OAuth 2.1 — no API token to copy. Point your MCP client at
+      https://mcp.turso.ai/mcp; RFC 9728/8414 discovery handles authorization
+      server discovery automatically. The first connection opens a browser for
+      dashboard approval, which mints a scoped org/group token stored by the
+      client. In Claude Code use `/mcp` after adding the server; in Claude
+      web/desktop add it as a custom connector.
