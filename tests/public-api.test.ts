@@ -6,6 +6,7 @@ import {
   INVOKE_HARNESS_IDS,
   NORMALIZED_CELL_RECORD_SCHEMA,
   NORMALIZED_RESULT_SCHEMA,
+  REPORT_STYLE,
   SURFACE_IDS,
   TargetPackSchema,
   aggregateNormalizedResults,
@@ -30,6 +31,7 @@ describe("public API", () => {
     expect(SURFACE_IDS).toEqual(["api", "cli", "sdk", "mcp"]);
     expect(INVOKE_HARNESS_IDS).toEqual(["claude-code", "codex"]);
     expect(NORMALIZED_RESULT_SCHEMA).toBe("ax.normalized-result/v1");
+    expect(REPORT_STYLE).toContain(".ax-main");
     expect(EVALUATION_CELL_SCHEMA).toBe("ax.evaluation-cell/v1");
     expect(NORMALIZED_CELL_RECORD_SCHEMA).toBe("ax.normalized-cell-record/v1");
     expect(EvaluationCellSchema).toBeDefined();

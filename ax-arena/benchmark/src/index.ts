@@ -74,6 +74,7 @@ export * from "./controller/batch.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export * from "./publication/export.js";
+export * from "./publication/competitive.js";
 export {
   ARENA_BATCH_COMPLETION_SCHEMA,
   ARENA_BATCH_SCHEMA,

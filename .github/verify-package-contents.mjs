@@ -78,6 +78,7 @@ const requiredExports = [
   "EvaluationCellSchema",
   "NORMALIZED_CELL_RECORD_SCHEMA",
   "NormalizedCellRecordSchema",
+  "REPORT_STYLE",
   "runCell",
   "runCellWithRuntime",
   "SURFACE_IDS",
