@@ -1,0 +1,44 @@
+{
+  "name": "@ax-arena/benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private in-repository controller and publication boundary for AXArena benchmarks.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "ax-arena": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "ax-arena": "node --import tsx src/cli.ts",
+    "build": "tsup src/cli.ts src/index.ts --platform node --target node22 --format esm --dts --clean --external ax-eval",
+    "pack:check": "node scripts/verify-package-contents.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ax-eval": "file:../.."
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.9"
+  }
+}

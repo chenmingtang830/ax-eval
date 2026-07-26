@@ -60,6 +60,7 @@ const forbidden = [...files].filter((path) =>
   path === ".env"
   || path.startsWith("docs/")
   || path.startsWith("results/")
+  || path.startsWith("ax-arena/")
   || path.includes("/_archive/")
   || path.startsWith("node_modules/"),
 );

@@ -171,6 +171,14 @@ This keeps the dependency direction suitable for AXArena:
 ax-arena -> public ax-eval API -> private ax-eval implementation
 ```
 
+The in-repository package boundary lives at `ax-arena/benchmark/`. It is a
+private npm workspace during migration, with independent build, typecheck, test,
+and package smoke checks. Root scripts are umbrella checks for both packages.
+An AST-based CI guard rejects `ax-eval` imports of arena code, relative imports
+that escape the arena workspace, and arena imports of unpublished `ax-eval`
+subpaths. Canonical files remain under `benchmarks/daeb/` until the artifact-only
+relocation slice so workspace creation does not conceal a semantic move.
+
 Library callers should pass `createOracleProviderRegistry([...])` through
 `runCell` extensions (or `verifyGeneratedPack` options for legacy flows) when
 they need vertical read-back providers. The

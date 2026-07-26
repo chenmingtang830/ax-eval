@@ -20,13 +20,15 @@ npm test            # vitest — all keyless/offline, no network or secrets
 npm run typecheck   # tsc --noEmit, must be clean
 npm run build       # tsup → dist/ (required before package smoke tests)
 npm run ax-eval -- <command>   # run the CLI in dev (tsx)
+npm run ax-arena -- benchmark --help  # private arena workspace scaffold
 ```
 
 - **Node ≥ 22.** TypeScript, ESM.
 - Prefer `npm run ax-eval -- <command>` while developing; it runs local source.
   Use `node dist/cli.js <command>` after `npm run build` only when you need to
   smoke-test the published CLI entrypoint.
-- **Always run `npm test` and `npm run typecheck` before proposing a change.** CI
+- **Always run `npm test` and `npm run typecheck` before proposing a change.**
+  These root commands cover both `ax-eval` and the private arena workspace. CI
   (`.github/workflows/ci.yml`) runs both on Node 22 and is required to merge.
 
 ## Conventions that matter here
@@ -98,6 +100,9 @@ Use this before opening a PR:
   (separate from single-vendor `targets/examples/`). For current DAEB status
   (authoring freeze vs deferred production), maintainers use
   `docs/latest_plan.md`; facts live under `benchmarks/daeb/v1/`.
+- `ax-arena/benchmark/` — private workspace boundary for arena-owned code. The
+  workspace is a scaffold until the dependency-ordered relocation PRs move the
+  canonical DAEB files and controller behavior.
 - `tests/` — vitest suite; the de-facto behavior spec.
 - `docs/` — **maintainer-local, git-ignored**. Live set is minimal:
   `latest_plan.md` (now), `roadmap.md` (phases), `dev-guide.md` (how),

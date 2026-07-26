@@ -24,6 +24,9 @@
   "bugs": {
     "url": "https://github.com/chenmingtang830/ax-eval/issues"
   },
+  "workspaces": [
+    "ax-arena/benchmark"
+  ],
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -75,11 +78,21 @@
   ],
   "scripts": {
     "ax-eval": "tsx src/cli.ts",
-    "build": "tsup src/cli.ts src/index.ts --format esm --dts --clean",
-    "prepublishOnly": "npm run build",
-    "pack:check": "node .github/verify-package-contents.mjs",
-    "test": "vitest run tests",
-    "typecheck": "tsc --noEmit"
+    "ax-arena": "npm run ax-arena --workspace @ax-arena/benchmark --",
+    "build:core": "tsup src/cli.ts src/index.ts --format esm --dts --clean",
+    "build:arena": "npm run build --workspace @ax-arena/benchmark",
+    "build": "npm run build:core && npm run build:arena",
+    "prepublishOnly": "npm run build:core",
+    "pack:check:core": "node .github/verify-package-contents.mjs",
+    "pack:check:arena": "npm run pack:check --workspace @ax-arena/benchmark",
+    "pack:check": "npm run pack:check:core && npm run pack:check:arena",
+    "check:boundaries": "node .github/verify-import-boundaries.mjs",
+    "test:core": "vitest run tests",
+    "test:arena": "npm test --workspace @ax-arena/benchmark",
+    "test": "npm run test:core && npm run test:arena",
+    "typecheck:core": "tsc --noEmit",
+    "typecheck:arena": "npm run typecheck --workspace @ax-arena/benchmark",
+    "typecheck": "npm run typecheck:core && npm run typecheck:arena"
   },
   "engines": {
     "node": ">=22"

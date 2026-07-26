@@ -31,6 +31,8 @@ benchmarks/daeb/_archive/
 # Maintainer scratch — live repro scripts (Asana/Monday); not part of the public
 # skill. Kept on disk locally; the product surface is the `ax-eval` CLI.
 scripts/
+!ax-arena/benchmark/scripts/
+!ax-arena/benchmark/scripts/**
 run-*.cjs
 .tmp-*
 .tmp-*.mjs
