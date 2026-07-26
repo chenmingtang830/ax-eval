@@ -67,6 +67,11 @@ failure reviews, and
 produces per-harness trial aggregates plus one immutable reporting manifest.
 Reporting does not execute cells or relax the trusted-workflow gate.
 
+Trusted dispatch validation, OCI/sysroot and exact-tool preparation, the real
+Bubblewrap smoke, sealed-artifact export, and detached-subject construction are
+arena-owned under `scripts/`. The repository-root workflow YAML is only the
+GitHub-required launcher and environment/credential binding surface.
+
 For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
 only when this canonical root is absent and emit a deprecation warning. If both
 roots exist, pass `--benchmark-root <dir>` explicitly. Writers use only
