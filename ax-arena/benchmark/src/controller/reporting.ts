@@ -24,6 +24,7 @@ import {
 } from "ax-eval";
 import { assertBatchManifest } from "./batch.js";
 import { arenaCellId } from "./cell.js";
+import { BUBBLEWRAP_SANDBOX_ID, bubblewrapPolicyHash } from "./sandbox.js";
 import {
   ARENA_RUNTIME_REPORT_SCHEMA,
   ArenaBatchCompletionSchema,
@@ -327,6 +328,13 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     const configured = batch.configuration.cells.find((candidate) => candidate.key === cell.key);
     const configuredPack = batch.configuration.packs.find((candidate) => candidate.vendor === record.target_id);
     const pin = batch.configuration.harnesses.find((candidate) => candidate.harness === record.harness);
+    const configuredSandbox = batch.configuration.sandbox;
+    const sandboxMatches = configuredSandbox
+      ? record.sandbox_provenance?.id === BUBBLEWRAP_SANDBOX_ID
+        && record.sandbox_provenance.version === configuredSandbox.policy_version
+        && record.sandbox_provenance.implementation_sha256 === configuredSandbox.executable_sha256
+        && record.sandbox_provenance.policy_sha256 === bubblewrapPolicyHash(configuredSandbox)
+      : record.sandbox_provenance === undefined;
     const expectedCellId = configured && configuredPack ? arenaCellId({
       batchId: batch.batch_id,
       evaluationSetId: batch.configuration.suite.name,
@@ -363,6 +371,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       || record.harness_version_raw !== pin.version_raw
       || record.harness_version_semver !== pin.version_semver
       || record.status !== "completed"
+      || !sandboxMatches
       || cell.harness !== configured.harness
       || cell.requested_model !== configured.model
       || cell.actual_model !== configured.model

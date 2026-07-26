@@ -34,9 +34,12 @@ import {
   type SurfaceId,
   type TargetPack,
 } from "ax-eval";
+import { createBubblewrapSandbox, type BubblewrapSandboxConfig } from "./sandbox.js";
 import {
   ARENA_CELL_CLEANUP_SCHEMA,
   ArenaCellCleanupSchema,
+  ArenaExecutionModeSchema,
+  type ArenaExecutionMode,
   type ArenaCellCleanupRecord,
 } from "./schemas.js";
 
@@ -97,11 +100,13 @@ export interface ArenaCellExecution {
 export interface ArenaCellDependencies {
   credentials: Readonly<Record<string, string | undefined>>;
   now(): Date;
-  runCell(
+  runCell?(
     cell: EvaluationCell,
     options: Parameters<typeof runCell>[1],
   ): Promise<NormalizedCellRecord>;
   createRegistry(cell: EvaluationCell, pack: TargetPack): Promise<RuntimeExtensionRegistry>;
+  execution?: ArenaExecutionMode;
+  sandbox?: BubblewrapSandboxConfig;
 }
 
 type ArenaCellIdentity = Pick<
@@ -817,16 +822,41 @@ export function resolveSourceCommitSha(cwd: string): string {
 /** One cell lifecycle: fresh registry, in-process runCell, durable record, then
  * provider selection/plan/execute and durable cleanup evidence. */
 export async function executeArenaCell(
-  _spec: ArenaCellSpec,
-  _dependencies: ArenaCellDependencies,
+  spec: ArenaCellSpec,
+  dependencies: ArenaCellDependencies,
 ): Promise<ArenaCellExecution> {
-  throw new Error("arena cell execution requires the trusted workflow OS sandbox, which is not available in this slice");
+  if (!dependencies.execution) throw new Error("arena cell execution requires an explicit runtime backend and trust level");
+  const execution = ArenaExecutionModeSchema.parse(dependencies.execution);
+  if (dependencies.runCell) {
+    throw new Error("arena execution owns the ax-eval runCell implementation");
+  }
+  if (execution.runtime_backend === "native") {
+    if (dependencies.sandbox) throw new Error("native execution cannot claim a pinned OCI sandbox");
+    return executeArenaCellInternal(spec, {
+      ...dependencies,
+      runCell,
+    }, true);
+  }
+  if (!dependencies.sandbox) throw new Error("pinned-oci execution requires the reviewed OCI sandbox");
+  const sandbox = createBubblewrapSandbox(dependencies.sandbox);
+  return executeArenaCellInternal(spec, {
+    ...dependencies,
+    runCell: (cell, options) => runCell(cell, { ...options, sandbox }),
+  }, true);
 }
 
 /** Offline contract-test seam. Deliberately excluded from the package entrypoint. */
 export async function executeArenaCellWithInjectedRuntime(
   spec: ArenaCellSpec,
   dependencies: ArenaCellDependencies,
+): Promise<ArenaCellExecution> {
+  return executeArenaCellInternal(spec, dependencies, false);
+}
+
+async function executeArenaCellInternal(
+  spec: ArenaCellSpec,
+  dependencies: ArenaCellDependencies,
+  trustedSandbox: boolean,
 ): Promise<ArenaCellExecution> {
   const cwd = resolve(spec.cwd);
   const packPath = resolve(spec.packPath);
@@ -835,7 +865,7 @@ export async function executeArenaCellWithInjectedRuntime(
   const artifactDir = resolve(spec.artifactDir);
   const workspace = resolve(artifactDir, "workspace");
   const { credentials, secrets: credentialSecrets } = normalizeCredentialSource(dependencies.credentials);
-  if (spec.harness === "claude-code") {
+  if (spec.harness === "claude-code" && !trustedSandbox) {
     throw new Error("claude-code arena cells require the trusted workflow filesystem sandbox, which is not available in this slice");
   }
   relativeInside(cwd, packPath, "canonical pack path");
@@ -914,6 +944,7 @@ export async function executeArenaCellWithInjectedRuntime(
     verificationCredentialNames,
     credentials,
   );
+  if (!dependencies.runCell) throw new Error("arena cell execution requires a runCell implementation");
   const returnedRecord = await dependencies.runCell(cell, {
     credentials: hostCredentials,
     verificationCredentials: verifierCredentials,

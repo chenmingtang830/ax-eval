@@ -122,6 +122,17 @@
         }
       }
     },
+    "sandbox_provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version", "implementation_sha256", "policy_sha256"],
+      "properties": {
+        "id": { "$ref": "#/$defs/nonBlank" },
+        "version": { "$ref": "#/$defs/nonBlank" },
+        "implementation_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+        "policy_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
     "task_results": {
       "type": "array",
       "items": {

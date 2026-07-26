@@ -5,10 +5,14 @@ import addFormats from "ajv-formats";
 import { describe, expect, it } from "vitest";
 import {
   ArenaBatchCompletionSchema,
+  ArenaBatchConfigurationSchema,
   ArenaBatchManifestSchema,
+  ArenaExecutionModeSchema,
   ArenaCellCleanupSchema,
   ArenaRuntimeReportSchema,
   arenaBatchConfigurationHash,
+  arenaExecutionMode,
+  isPublicationEligibleExecutionMode,
   type ArenaBatchConfiguration,
 } from "../src/controller/schemas.js";
 
@@ -90,6 +94,82 @@ describe("arena cell cleanup schema", () => {
 });
 
 describe("arena batch schemas", () => {
+  it("models runtime backends and trust levels without a pinned-to-native fallback", () => {
+    expect(ArenaExecutionModeSchema.safeParse({
+      runtime_backend: "native",
+      trust_level: "hosted-trusted",
+    }).success).toBe(false);
+    expect(isPublicationEligibleExecutionMode({
+      runtime_backend: "pinned-oci",
+      trust_level: "hosted-trusted",
+    })).toBe(true);
+    expect(isPublicationEligibleExecutionMode({
+      runtime_backend: "pinned-oci",
+      trust_level: "local",
+    })).toBe(false);
+
+    const legacy = ArenaBatchConfigurationSchema.parse({
+      command: "daeb-low-pass",
+      suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+      packs: [{
+        vendor: "neon", file_hash: "2".repeat(64), standard_set_version: "database-v1",
+        surfaces: ["api"], host_credential_names: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
+        verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
+      }],
+      cells: [
+        {
+          key: "neon/api/codex/trial-1", vendor: "neon", surface: "api", harness: "codex",
+          profile: "medium", effort: "medium", model: "model-codex", trial: 1,
+          host_credential_names: ["OPENAI_API_KEY"], verification_credential_names: [],
+          reset_credential_names: [], sandbox_scope_names: [], provider_pins: [], reset_provider: null,
+        },
+        {
+          key: "neon/api/claude-code/trial-1", vendor: "neon", surface: "api", harness: "claude-code",
+          profile: "medium", effort: "medium", model: "model-claude", trial: 1,
+          host_credential_names: ["ANTHROPIC_API_KEY"], verification_credential_names: [],
+          reset_credential_names: [], sandbox_scope_names: [], provider_pins: [], reset_provider: null,
+        },
+      ],
+      harnesses: [
+        { harness: "codex", version_raw: "codex 1.0.0", version_semver: "1.0.0" },
+        { harness: "claude-code", version_raw: "claude 1.0.0", version_semver: "1.0.0" },
+      ],
+      reset_required: false,
+      invoke_timeout_seconds: 1,
+      first_action_timeout_seconds: 1,
+      invoke_retries: 0,
+    });
+    expect(arenaExecutionMode(legacy)).toEqual({ runtime_backend: "native", trust_level: "local" });
+    const sandbox = {
+      kind: "bubblewrap",
+      policy_version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "3".repeat(64),
+      sysroot: "/opt/ax-arena-runtime/rootfs",
+      executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+      executable_sha256: "4".repeat(64),
+      runtime_roots: ["/usr", "/opt/ax-arena-tools"],
+    } as const;
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...legacy,
+      execution: { runtime_backend: "pinned-oci", trust_level: "local" },
+    }).success).toBe(false);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...legacy,
+      execution: { runtime_backend: "native", trust_level: "local" },
+      sandbox,
+    }).success).toBe(false);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...legacy,
+      execution: { runtime_backend: "pinned-oci", trust_level: "local" },
+      sandbox,
+    }).success).toBe(true);
+    expect(ArenaBatchConfigurationSchema.safeParse({
+      ...legacy,
+      execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
+      sandbox,
+    }).success).toBe(true);
+  });
+
   it("ships strict runtime-compatible manifest and completion contracts", () => {
     const ajv = new Ajv2020({ strict: true });
     addFormats(ajv);
@@ -190,6 +270,41 @@ describe("arena batch schemas", () => {
     };
     expect(ArenaBatchManifestSchema.safeParse(manifest).success).toBe(true);
     expect(validateManifest(manifest)).toBe(true);
+    const shippedSandbox = {
+      kind: "bubblewrap",
+      policy_version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "a".repeat(64),
+      sysroot: "/opt/ax-arena-runtime/rootfs",
+      executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+      executable_sha256: "b".repeat(64),
+      runtime_roots: ["/usr", "/opt/ax-arena-tools"],
+    };
+    expect(validateManifest({
+      ...manifest,
+      configuration: {
+        ...configuration,
+        execution: { runtime_backend: "native", trust_level: "hosted-trusted" },
+      },
+    })).toBe(false);
+    expect(validateManifest({
+      ...manifest,
+      configuration: {
+        ...configuration,
+        execution: { runtime_backend: "pinned-oci", trust_level: "local" },
+      },
+    })).toBe(false);
+    expect(validateManifest({
+      ...manifest,
+      configuration: { ...configuration, sandbox: shippedSandbox },
+    })).toBe(false);
+    expect(validateManifest({
+      ...manifest,
+      configuration: {
+        ...configuration,
+        execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
+        sandbox: shippedSandbox,
+      },
+    })).toBe(true);
     expect(ArenaBatchCompletionSchema.safeParse(completion).success).toBe(true);
     expect(validateCompletion(completion)).toBe(true);
     expect(validateManifest({ ...manifest, unknown: true })).toBe(false);

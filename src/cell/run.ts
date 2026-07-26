@@ -38,12 +38,14 @@ import type { ProfileRun } from "../generate/report.js";
 import {
   defaultInvokePaths,
   detectInvokeHarness,
+  detectInvokeHarnessSandboxed,
   redactHarnessArtifactText,
   runInvokeHarness,
   type InvokeDetection,
   type InvokeRunOptions,
   type InvokeRunResult,
 } from "../harness/invoke.js";
+import type { ChildProcessSandbox } from "../harness/child-sandbox.js";
 import { buildExecutorPrompt, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
@@ -107,11 +109,18 @@ export interface RunCellOptions {
     sourcePackPath?: string;
   };
   signal?: AbortSignal;
+  /** Trusted controllers use this for the harness process and version probe. */
+  sandbox?: ChildProcessSandbox;
 }
 
 export interface CellRuntimeDependencies {
   now(): Date;
-  detectHarness(id: EvaluationCell["harness"]["id"], env?: Record<string, string>): InvokeDetection;
+  detectHarness(
+    id: EvaluationCell["harness"]["id"],
+    env?: Record<string, string>,
+    sandbox?: ChildProcessSandbox,
+    cwd?: string,
+  ): InvokeDetection;
   provisionHarness(opts: Parameters<typeof provisionHarnessForSurface>[0]): Promise<HarnessProvisioning>;
   invokeHarness(opts: InvokeRunOptions): Promise<InvokeRunResult>;
   verificationClient(pack: TargetPack, executor: ExecutorResults, credentials: CredentialSource): BearerClient;
@@ -129,7 +138,9 @@ export interface CellRuntimeDependencies {
 
 const DEFAULT_RUNTIME: CellRuntimeDependencies = {
   now: () => new Date(),
-  detectHarness: (id, env) => detectInvokeHarness(id, undefined, env, false),
+  detectHarness: (id, env, sandbox, cwd) => sandbox && cwd
+    ? detectInvokeHarnessSandboxed(id, sandbox, cwd, env)
+    : detectInvokeHarness(id, undefined, env, false),
   provisionHarness: provisionHarnessForSurface,
   invokeHarness: runInvokeHarness,
   verificationClient: (pack, executor, credentials) =>
@@ -973,7 +984,12 @@ export async function runCellWithRuntime(
     });
   }
 
-  const detection = runtime.detectHarness(cell.harness.id, detectionEnvironment(artifactDir));
+  const detection = runtime.detectHarness(
+    cell.harness.id,
+    detectionEnvironment(artifactDir),
+    options.sandbox,
+    cwd,
+  );
   if (!detection.ok) {
     return terminalRecord({
       cell,
@@ -1144,6 +1160,7 @@ export async function runCellWithRuntime(
       harnessDetection: detection,
       runBatchId: cell.batch_id,
       requireTrace: true,
+      sandbox: options.sandbox,
     });
   } catch (error) {
     scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
@@ -1308,6 +1325,7 @@ export async function runCellWithRuntime(
           message: safeMessage(invoke.error ?? "harness invocation failed", secrets),
         },
     ...recordProvenance(providerProvenance),
+    ...(invoke.sandbox_provenance ? { sandbox_provenance: invoke.sandbox_provenance } : {}),
     task_results: outcomes,
     artifacts: artifactNames(paths),
   };

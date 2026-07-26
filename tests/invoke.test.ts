@@ -7,6 +7,7 @@ import {
   DEFAULT_ASYNC_SPAWN,
   defaultInvokePaths,
   detectInvokeHarness,
+  detectInvokeHarnessSandboxed,
   redactHarnessArtifactText,
   runInvokeHarness,
   codexOutputSchema,
@@ -89,6 +90,33 @@ describe("detectInvokeHarness", () => {
     expect(detected.ok).toBe(false);
     expect(detected.reason).toBe("missing-harness");
     expect(detected.command).toBe("claude");
+  });
+
+  it("runs detection through the controller sandbox", () => {
+    const wrapped: Array<{ command: string; args: readonly string[]; cwd: string }> = [];
+    const detected = detectInvokeHarnessSandboxed("codex", {
+      wrap(invocation) {
+        wrapped.push(invocation);
+        return {
+          command: "/pinned/bwrap",
+          args: ["--", invocation.command, ...invocation.args],
+          provenance: {
+            id: "fixture",
+            version: "1.0.0",
+            implementation_sha256: "a".repeat(64),
+            policy_sha256: "b".repeat(64),
+          },
+        };
+      },
+    }, "/cell", { PATH: "/pinned" }, (command, args, options) => {
+      expect(command).toBe("/pinned/bwrap");
+      expect(args.slice(-2)).toEqual(["codex", "--version"]);
+      expect(options?.cwd).toBe("/cell");
+      return spawnResult({ stdout: Buffer.from("codex-cli 1.2.3\n") });
+    });
+
+    expect(detected).toMatchObject({ ok: true, command: "codex", version: "codex-cli 1.2.3" });
+    expect(wrapped).toEqual([{ command: "codex", args: ["--version"], cwd: "/cell" }]);
   });
 
   it("captures a version string when the harness is available", () => {
@@ -273,6 +301,29 @@ describe("runInvokeHarness", () => {
     expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))).toEqual([
       expect.objectContaining({ note: "required trace artifact was missing or invalid" }),
     ]);
+  });
+
+  it("rejects structurally invalid trace arrays for one-cell invocations", async () => {
+    for (const trace of [[], [null], [{ note: "missing required fields" }]]) {
+      const dir = freshDir();
+      const run = opts(dir, "codex");
+      const result = await runInvokeHarness(
+        { ...run, requireTrace: true, retries: 0 },
+        async () => {
+          writeFileSync(run.paths.resultsPath, JSON.stringify({
+            profile: "ceiling",
+            ns: run.ns,
+            surface: "api",
+            discovery: {},
+            results: { t1: { gid: "gid-1" } },
+          }));
+          writeFileSync(run.paths.tracePath, JSON.stringify(trace));
+          return spawnResult({ stdout: Buffer.from("{}") });
+        },
+      );
+      expect(result.ok).toBe(false);
+      expect(result.validity_status).toBe("trace_invalid");
+    }
   });
 
   it("keeps legacy result-only invocation success compatible", async () => {

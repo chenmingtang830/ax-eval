@@ -100,9 +100,33 @@ const ProviderPinsSchema = z.array(ProviderPinSchema).max(128).superRefine((pins
     context.addIssue({ code: "custom", message: "provider pins must be canonically sorted" });
   }
 });
+const TrustedSandboxSchema = z.object({
+  kind: z.literal("bubblewrap"),
+  policy_version: z.literal("ax.arena-bubblewrap/v2"),
+  runtime_lock_sha256: Sha256,
+  sysroot: z.literal("/opt/ax-arena-runtime/rootfs"),
+  executable: NonBlank.refine((value) => value.startsWith("/"), "sandbox executable must be absolute"),
+  executable_sha256: Sha256,
+  runtime_roots: z.tuple([z.literal("/usr"), z.literal("/opt/ax-arena-tools")]),
+}).strict();
 
 export const ARENA_BATCH_SCHEMA = "ax.arena-batch/v1" as const;
 export const ARENA_BATCH_COMPLETION_SCHEMA = "ax.arena-batch-completion/v1" as const;
+export const ArenaRuntimeBackendSchema = z.enum(["native", "pinned-oci"]);
+export const ArenaTrustLevelSchema = z.enum(["local", "hosted-trusted"]);
+export const ArenaExecutionModeSchema = z.object({
+  runtime_backend: ArenaRuntimeBackendSchema,
+  trust_level: ArenaTrustLevelSchema,
+}).strict().superRefine((mode, context) => {
+  if (mode.trust_level === "hosted-trusted" && mode.runtime_backend !== "pinned-oci") {
+    context.addIssue({
+      code: "custom",
+      path: ["runtime_backend"],
+      message: "hosted-trusted execution requires the pinned-oci runtime backend",
+    });
+  }
+});
+export type ArenaExecutionMode = z.infer<typeof ArenaExecutionModeSchema>;
 
 const ArenaBatchCellSchema = z.object({
   key: CellKey,
@@ -123,6 +147,7 @@ const ArenaBatchCellSchema = z.object({
 
 export const ArenaBatchConfigurationSchema = z.object({
   command: z.enum(["daeb-low-pass", "daeb-production-rerun"]),
+  execution: ArenaExecutionModeSchema.optional(),
   suite: z.object({
     name: NonBlank,
     version: z.number().int().positive(),
@@ -154,7 +179,15 @@ export const ArenaBatchConfigurationSchema = z.object({
     sha256: Sha256,
     provisioner: ProviderIdentitySchema,
   }).strict().optional(),
+  sandbox: TrustedSandboxSchema.optional(),
 }).strict().superRefine((configuration, context) => {
+  const execution = configuration.execution ?? { runtime_backend: "native", trust_level: "local" };
+  if (execution.runtime_backend === "pinned-oci" && !configuration.sandbox) {
+    context.addIssue({ code: "custom", path: ["sandbox"], message: "pinned-oci execution requires an immutable sandbox configuration" });
+  }
+  if (execution.runtime_backend === "native" && configuration.sandbox) {
+    context.addIssue({ code: "custom", path: ["sandbox"], message: "native execution cannot claim pinned OCI sandbox provenance" });
+  }
   const keys = configuration.cells.map((cell) => cell.key);
   if (new Set(keys).size !== keys.length) {
     context.addIssue({ code: "custom", path: ["cells"], message: "cell keys must be unique" });
@@ -327,6 +360,18 @@ export const ArenaBatchConfigurationSchema = z.object({
   }
 });
 export type ArenaBatchConfiguration = z.infer<typeof ArenaBatchConfigurationSchema>;
+
+export function arenaExecutionMode(configuration: ArenaBatchConfiguration): ArenaExecutionMode {
+  return configuration.execution
+    ? ArenaExecutionModeSchema.parse(configuration.execution)
+    : { runtime_backend: "native", trust_level: "local" };
+}
+
+/** Mode eligibility only. Publication must also verify the detached OIDC attestation chain. */
+export function isPublicationEligibleExecutionMode(mode: ArenaExecutionMode): boolean {
+  const parsed = ArenaExecutionModeSchema.parse(mode);
+  return parsed.runtime_backend === "pinned-oci" && parsed.trust_level === "hosted-trusted";
+}
 
 export function arenaBatchConfigurationHash(configuration: ArenaBatchConfiguration): string {
   const parsed = ArenaBatchConfigurationSchema.parse(configuration);

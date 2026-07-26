@@ -1,159 +1,235 @@
-name: Trusted sandbox production records
+name: Trusted sandbox arena cohort
 
 on:
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: Full commit SHA already merged into protected default-branch history
+        required: true
+        type: string
+      configuration_path:
+        description: Committed production cohort configuration under ax-arena/benchmark/daeb
+        required: true
+        type: string
       vendor:
-        description: DAEB vendor to execute
+        description: Configured DAEB vendor
         required: true
         type: choice
-        options:
-          - neon
-          - cockroachdb
-          - turso
-          - supabase
-          - insforge
-          - nile
+        options: [neon, cockroachdb, turso, supabase, insforge, nile]
       surface:
-        description: Surface to execute
+        description: Configured DAEB surface
         required: true
         type: choice
-        options:
-          - api
-          - cli
-      baseline_run_id:
-        description: Prior trusted workflow run ID (blank bootstraps a zero-delta diff)
-        required: false
-        type: string
-      pr_number:
-        description: Optional same-repository PR number to update
-        required: false
-        type: string
-      source_ref:
-        description: Reviewed ref to execute
+        options: [api, cli]
+      runner_pool:
+        description: GitHub-hosted by default; self-hosted requires the approved ax-arena-trusted runner group
         required: true
-        default: main
-        type: string
+        default: github-hosted
+        type: choice
+        options: [github-hosted, approved-self-hosted]
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
-  group: trusted-sandbox-${{ inputs.vendor }}-${{ inputs.surface }}
+  group: trusted-arena-${{ inputs.source_sha }}-${{ inputs.vendor }}-${{ inputs.surface }}
   cancel-in-progress: false
 
+env:
+  TRUSTED_CONTAINER_IMAGE: docker.io/library/node:22.23.1-bookworm@sha256:175215a1f306ed5df592434b99cc2019f70624373fe49cb659240a618a846aed
+
 jobs:
-  production:
-    runs-on: ubuntu-latest
-    timeout-minutes: 720
-    # Repository settings must configure required reviewers on this environment.
+  cohort:
+    runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
+    timeout-minutes: 360
     environment: trusted-sandbox
     permissions:
       contents: read
-      actions: read
-      pull-requests: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out the protected source commit with branch history
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          ref: ${{ inputs.source_ref }}
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 0
+          persist-credentials: false
 
-      - name: Set up Node 22
-        uses: actions/setup-node@v4
+      - name: Set up the exact preflight Node release
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: "22"
-          cache: npm
+          node-version: "22.23.1"
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run canonical three-trial production cell
+      - name: Require protected ancestry and current trust anchors
         env:
-          VENDOR: ${{ inputs.vendor }}
-          SURFACE: ${{ inputs.surface }}
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PROTECTED_DEFAULT_BRANCH: main
+        run: |
+          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
+          git merge-base --is-ancestor "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH"
+          git diff --quiet "$SOURCE_SHA" "refs/remotes/origin/$PROTECTED_DEFAULT_BRANCH" -- \
+            .github/workflows/trusted-sandbox-records.yml \
+            package.json package-lock.json src schemas \
+            ax-arena/benchmark/package.json \
+            ax-arena/benchmark/src ax-arena/benchmark/schemas \
+            ax-arena/benchmark/scripts ax-arena/benchmark/trusted-runtime
+
+      - name: Validate committed dispatch and immutable runtime lock
+        env:
+          SOURCE_SHA: ${{ inputs.source_sha }}
+          PROTECTED_DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
+          EXPECTED_VENDOR: ${{ inputs.vendor }}
+          EXPECTED_SURFACE: ${{ inputs.surface }}
+        run: node ax-arena/benchmark/scripts/validate-trusted-dispatch.mjs
+
+      - name: Install the reviewed repository dependency closure
+        env:
+          TRUSTED_NODE_BIN: /opt/ax-arena-runtime/rootfs/usr/local/bin
+          TRUSTED_NODE_VERSION: 22.23.1
+          AX_ARENA_SELF_HOSTED_APPROVED: ${{ inputs.runner_pool == 'approved-self-hosted' && 'true' || 'false' }}
+        run: |
+          sh ax-arena/benchmark/scripts/prepare-trusted-sysroot.sh
+          PATH="$TRUSTED_NODE_BIN:/usr/bin:/bin" "$TRUSTED_NODE_BIN/npm" ci --ignore-scripts
+
+      - name: Build the reviewed controller before credentials are exposed
+        env:
+          TRUSTED_NODE_BIN: /opt/ax-arena-runtime/rootfs/usr/local/bin
+        run: PATH="$TRUSTED_NODE_BIN:/usr/bin:/bin" "$TRUSTED_NODE_BIN/npm" run build
+
+      - name: Prepare and attest exact tools without credentials
+        env:
+          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+          AX_ARENA_OCI_SYSROOT: /opt/ax-arena-runtime/rootfs
+          GIT_CONFIG_COUNT: "1"
+          GIT_CONFIG_KEY_0: safe.directory
+          GIT_CONFIG_VALUE_0: ${{ github.workspace }}
+        run: >-
+          sudo --preserve-env=AX_ARENA_OCI_SYSROOT,RUNTIME_MANIFEST_PATH,GIT_CONFIG_COUNT,GIT_CONFIG_KEY_0,GIT_CONFIG_VALUE_0
+          env PATH="/opt/ax-arena-runtime/rootfs/usr/local/bin:/usr/bin:/bin"
+          /opt/ax-arena-runtime/rootfs/usr/local/bin/node
+          ax-arena/benchmark/scripts/prepare-trusted-runtime.mjs
+
+      - name: Prepare an unprivileged controller workspace
+        env:
+          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          mkdir -p "$RUN_ROOT"
+
+      - name: Smoke-test the real child PID and filesystem sandbox
+        run: >-
+          /opt/ax-arena-tools/node/bin/node
+          ax-arena/benchmark/scripts/smoke-trusted-runtime.mjs
+
+      - name: Execute the immutable arena cohort
+        env:
+          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
+          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          GITHUB_ACTIONS: "true"
+          AX_ARENA_TRUSTED_WORKFLOW: "true"
+          AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
+          AX_ARENA_EXPECTED_VENDOR: ${{ inputs.vendor }}
+          AX_ARENA_EXPECTED_SURFACE: ${{ inputs.surface }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-          NEON_BRANCH_ID: ${{ secrets.NEON_BRANCH_ID }}
-          NEON_DATABASE_URL: ${{ secrets.NEON_DATABASE_URL }}
-          COCKROACH_API_KEY: ${{ secrets.COCKROACH_API_KEY }}
-          COCKROACH_CONNECTION_STRING: ${{ secrets.COCKROACH_CONNECTION_STRING }}
-          TURSO_DATABASE_AUTH_TOKEN: ${{ secrets.TURSO_DATABASE_AUTH_TOKEN }}
-          TURSO_ORG_API_TOKEN: ${{ secrets.TURSO_ORG_API_TOKEN }}
-          TURSO_API_TOKEN: ${{ secrets.TURSO_API_TOKEN }}
-          TURSO_SANDBOX_DATABASE: ${{ secrets.TURSO_SANDBOX_DATABASE }}
-          TURSO_ORG: ${{ secrets.TURSO_ORG }}
-          SUPABASE_API_KEY: ${{ secrets.SUPABASE_API_KEY }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          INSFORGE_PROJECT_URL: ${{ secrets.INSFORGE_PROJECT_URL }}
-          INSFORGE_API_KEY: ${{ secrets.INSFORGE_API_KEY }}
-          INSFORGE_CONNECTION_STRING: ${{ secrets.INSFORGE_CONNECTION_STRING }}
-          NILE_API_KEY: ${{ secrets.NILE_API_KEY }}
-          NILE_WORKSPACE: ${{ secrets.NILE_WORKSPACE }}
-          NILE_DB: ${{ secrets.NILE_DB }}
-          NILE_DATABASE_URL: ${{ secrets.NILE_DATABASE_URL }}
-        run: npm run ax-eval -- daeb-production-rerun --suite ax-arena/benchmark/daeb/v1/suite.yaml --vendor "$VENDOR" --surface "$SURFACE" --run-dir "$RUN_ROOT"
+          NEON_API_KEY: ${{ inputs.vendor == 'neon' && secrets.NEON_API_KEY || '' }}
+          NEON_PROJECT_ID: ${{ inputs.vendor == 'neon' && secrets.NEON_PROJECT_ID || '' }}
+          NEON_BRANCH_ID: ${{ inputs.vendor == 'neon' && secrets.NEON_BRANCH_ID || '' }}
+          NEON_DATABASE_URL: ${{ inputs.vendor == 'neon' && secrets.NEON_DATABASE_URL || '' }}
+          COCKROACH_API_KEY: ${{ inputs.vendor == 'cockroachdb' && secrets.COCKROACH_API_KEY || '' }}
+          COCKROACH_CONNECTION_STRING: ${{ inputs.vendor == 'cockroachdb' && secrets.COCKROACH_CONNECTION_STRING || '' }}
+          TURSO_DATABASE_AUTH_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_DATABASE_AUTH_TOKEN || '' }}
+          TURSO_ORG_API_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_ORG_API_TOKEN || '' }}
+          TURSO_API_TOKEN: ${{ inputs.vendor == 'turso' && secrets.TURSO_API_TOKEN || '' }}
+          TURSO_SANDBOX_DATABASE: ${{ inputs.vendor == 'turso' && secrets.TURSO_SANDBOX_DATABASE || '' }}
+          TURSO_ORG: ${{ inputs.vendor == 'turso' && secrets.TURSO_ORG || '' }}
+          SUPABASE_API_KEY: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_API_KEY || '' }}
+          SUPABASE_DB_URL: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_DB_URL || '' }}
+          SUPABASE_PROJECT_REF: ${{ inputs.vendor == 'supabase' && secrets.SUPABASE_PROJECT_REF || '' }}
+          INSFORGE_PROJECT_URL: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_PROJECT_URL || '' }}
+          INSFORGE_API_KEY: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_API_KEY || '' }}
+          INSFORGE_CONNECTION_STRING: ${{ inputs.vendor == 'insforge' && secrets.INSFORGE_CONNECTION_STRING || '' }}
+          NILE_API_KEY: ${{ inputs.vendor == 'nile' && secrets.NILE_API_KEY || '' }}
+          NILE_WORKSPACE: ${{ inputs.vendor == 'nile' && secrets.NILE_WORKSPACE || '' }}
+          NILE_DB: ${{ inputs.vendor == 'nile' && secrets.NILE_DB || '' }}
+          NILE_DATABASE_URL: ${{ inputs.vendor == 'nile' && secrets.NILE_DATABASE_URL || '' }}
+        run: >-
+          /opt/ax-arena-tools/node/bin/node --import tsx
+          ax-arena/benchmark/scripts/trusted-cell.ts
+          --configuration "$CONFIGURATION_PATH" --run-root "$RUN_ROOT"
 
-      - name: Prepare baseline records
-        id: baseline
+      - name: Build the detached attestation subject without credentials
         env:
-          BASELINE_RUN_ID: ${{ inputs.baseline_run_id }}
-          GH_TOKEN: ${{ github.token }}
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}
+          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          CONFIGURATION_PATH: ${{ inputs.configuration_path }}
+          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-runtime-manifest-${{ github.run_id }}-${{ github.run_attempt }}.json
+          AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
+          PROTECTED_DEFAULT_BRANCH: main
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+          GITHUB_WORKFLOW_SHA: ${{ github.workflow_sha }}
         run: |
-          if [ -n "$BASELINE_RUN_ID" ]; then
-            mkdir -p /tmp/baseline-records
-            gh run download "$BASELINE_RUN_ID" --repo "$GITHUB_REPOSITORY" --name normalized-records --dir /tmp/baseline-records
-            echo "path=/tmp/baseline-records" >> "$GITHUB_OUTPUT"
-          else
-            echo "No baseline run supplied; comparing this bootstrap run to itself."
-            echo "path=$RUN_ROOT" >> "$GITHUB_OUTPUT"
-          fi
+          sudo install -o root -g root -m 0444 "$CONFIGURATION_PATH" "$RUN_ROOT/configuration.json"
+          sudo install -o root -g root -m 0444 "$RUNTIME_MANIFEST_PATH" "$RUN_ROOT/runtime-manifest.json"
+          node ax-arena/benchmark/scripts/trusted-attestation.mjs \
+            --run-root "$RUN_ROOT" \
+            --configuration configuration.json \
+            --runtime-manifest runtime-manifest.json \
+            --out "$RUN_ROOT/trusted-run-subject.json"
 
-      - name: Render normalized records diff
+      - name: Export only sealed allowlisted artifacts without following links
         env:
-          BASE_RECORDS: ${{ steps.baseline.outputs.path }}
-          RUN_ROOT: results/runs/trusted-${{ github.run_id }}
-        run: npm run ax-eval -- records-diff --base "$BASE_RECORDS" --head "$RUN_ROOT" --out records-diff.md
+          RUN_ROOT: results/runs/trusted-${{ github.run_id }}-${{ github.run_attempt }}
+          EXPORT_ROOT: ${{ runner.temp }}/trusted-arena-export-${{ github.run_id }}-${{ github.run_attempt }}
+        run: >-
+          /opt/ax-arena-tools/node/bin/node
+          ax-arena/benchmark/scripts/export-trusted-run.mjs
+          --run-root "$RUN_ROOT" --out "$EXPORT_ROOT"
 
-      - name: Add diff to job summary
-        run: cat records-diff.md >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Upload normalized records and cleanup evidence
-        if: always()
-        uses: actions/upload-artifact@v4
+      - name: Upload sealed cohort for isolated signing
+        id: upload
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: normalized-records
-          if-no-files-found: warn
-          path: |
-            records-diff.md
-            results/runs/trusted-${{ github.run_id }}/**/*.normalized.json
-            results/runs/trusted-${{ github.run_id }}/**/cleanup.json
-            results/runs/trusted-${{ github.run_id }}/**/*manifest.json
+          name: trusted-arena-cohort-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/trusted-arena-export-${{ github.run_id }}-${{ github.run_attempt }}
+          if-no-files-found: error
+          include-hidden-files: false
+          retention-days: 14
 
-      - name: Update requested PR comment
-        if: success() && inputs.pr_number != ''
-        uses: actions/github-script@v7
+  attest:
+    needs: cohort
+    runs-on: ubuntu-22.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+      artifact-metadata: write
+    steps:
+      - name: Check out the attested source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up the exact verification Node release
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.1"
+
+      - name: Download the sealed cohort
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: trusted-arena-cohort-${{ github.run_id }}-${{ github.run_attempt }}
+          path: trusted-run
+
+      - name: Reverify the detached subject before signing
         env:
-          PR_NUMBER: ${{ inputs.pr_number }}
+          AX_ARENA_SOURCE_SHA: ${{ inputs.source_sha }}
+          PROTECTED_DEFAULT_BRANCH: main
+        run: >-
+          node ax-arena/benchmark/scripts/trusted-attestation.mjs
+          --verify trusted-run/trusted-run-subject.json
+
+      - name: Create the OIDC-backed detached artifact attestation
+        uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
-          script: |
-            const fs = require("fs");
-            const issue_number = Number(process.env.PR_NUMBER);
-            if (!Number.isSafeInteger(issue_number) || issue_number <= 0) {
-              core.setFailed("pr_number must be a positive integer");
-              return;
-            }
-            const marker = "<!-- ax-eval-trusted-sandbox-records -->";
-            const body = `${marker}\nTrusted sandbox run: ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}\n\n${fs.readFileSync("records-diff.md", "utf8")}`;
-            const { owner, repo } = context.repo;
-            const comments = await github.paginate(github.rest.issues.listComments, { owner, repo, issue_number });
-            const prior = comments.find((comment) => comment.user?.type === "Bot" && comment.body?.includes(marker));
-            if (prior) {
-              await github.rest.issues.updateComment({ owner, repo, comment_id: prior.id, body });
-            } else {
-              await github.rest.issues.createComment({ owner, repo, issue_number, body });
-            }
+          subject-path: trusted-run/trusted-run-subject.json

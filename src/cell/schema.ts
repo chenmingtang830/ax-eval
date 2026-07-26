@@ -73,6 +73,13 @@ export const ProviderProvenanceSchema = z.object({
   version: NonEmptyString,
 }).strict();
 
+export const SandboxProvenanceSchema = z.object({
+  id: NonEmptyString,
+  version: NonEmptyString,
+  implementation_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+  policy_sha256: z.string().regex(/^[a-f0-9]{64}$/),
+}).strict();
+
 const CellDiscoveryReportSchema = z.object({
   ns: NonEmptyString.optional(),
   hops: z.number().int().nonnegative(),
@@ -156,6 +163,7 @@ export const NormalizedCellRecordSchema = z.object({
   /** Optional so pre-extension v1 records remain valid byte-for-byte. Reset is
    * recorded in post-persistence cleanup evidence, never in this record. */
   provider_provenance: z.array(ProviderProvenanceSchema).optional(),
+  sandbox_provenance: SandboxProvenanceSchema.optional(),
   task_results: z.array(CellTaskResultSchema),
   artifacts: z.object({
     base_dir: NonEmptyString,

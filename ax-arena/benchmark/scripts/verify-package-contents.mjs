@@ -19,6 +19,7 @@ const report = JSON.parse(result.stdout)[0];
 const files = new Set((report?.files ?? []).map((file) => file.path));
 const required = [
   "README.md",
+  "TRUSTED_EXECUTION_DESIGN.md",
   "dist/cli.js",
   "dist/index.js",
   "dist/index.d.ts",
