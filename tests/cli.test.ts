@@ -240,10 +240,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     }
   });
 
-  it("daeb-low-pass help prints command usage with exit 0", () => {
+  it("delegates daeb-low-pass help to the arena CLI", () => {
     const { code, out } = runCli(["daeb-low-pass", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval daeb-low-pass");
+    expect(out).toContain("usage: ax-arena benchmark daeb-low-pass");
     expect(out).toContain("--surface api|cli|all");
     expect(out).toContain("--codex-model <slug>");
     expect(out).toContain("--claude-model <slug>");
@@ -251,10 +251,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("--benchmark-root <dir>");
   });
 
-  it("daeb-production-rerun help prints command usage with exit 0", () => {
+  it("delegates daeb-production-rerun help to the arena CLI", () => {
     const { code, out } = runCli(["daeb-production-rerun", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval daeb-production-rerun");
+    expect(out).toContain("usage: ax-arena benchmark daeb-production-rerun");
     expect(out).toContain("--trial-count 3");
     expect(out).toContain("--invoke-timeout seconds");
     expect(out).toContain("--skip-archive");
@@ -424,6 +424,46 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     const reset = runCli(["daeb-production-rerun", "--skip-reset"]);
     expect(reset.code).toBe(1);
     expect(reset.out).toContain("--skip-reset is not allowed");
+  });
+
+  it("delegates legacy DAEB runtime aliases to arena's fail-closed boundary", () => {
+    const direct = runArenaCli(["benchmark", "daeb-low-pass"]);
+    const delegated = runCli(["daeb-low-pass"]);
+    expect(direct.code).toBe(1);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toContain(
+      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark daeb-low-pass instead.",
+    );
+    expect(delegated.out).toContain("requires the trusted workflow OS sandbox");
+  });
+
+  it("returns a failure exit code when reset requires an explicit provider", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-reset-provider-"));
+    try {
+      const pack = TargetPackSchema.parse({
+        name: "neon",
+        version: "1",
+        standard_set_version: "reset-provider-v1",
+        run_id: "reset-provider",
+        generated_by: "deterministic@no-model",
+        auth_method: "bearer",
+        auth: { type: "bearer", env: "MISSING_RESET_TOKEN" },
+        base_url: "https://${MISSING_RESET_HOST}",
+        site_url: "",
+        docs_urls: [],
+        tasks: [],
+      });
+      const packPath = resolve(dir, "pack.yaml");
+      writeFileSync(packPath, yamlStringify(pack));
+
+      const result = runCli(["reset", "--pack", packPath, "--ns", "reset-provider"]);
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("requires an explicit ResetProvider");
+      expect(result.out).not.toContain("MISSING_RESET_TOKEN");
+      expect(result.out).not.toContain("MISSING_RESET_HOST");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
@@ -641,6 +681,36 @@ describe("exec-plan --surface fan-out", () => {
   }
   afterEach(() => {
     for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  it("fails closed before execution when database reclaim has no explicit provider", () => {
+    const dir = freshDir();
+    const pack = TargetPackSchema.parse({
+      name: "neon",
+      version: "1",
+      standard_set_version: "exec-plan-provider-v1",
+      run_id: "exec-plan-provider",
+      generated_by: "deterministic@no-model",
+      auth_method: "bearer",
+      auth: { type: "bearer", env: "MISSING_RECLAIM_TOKEN" },
+      base_url: "https://${MISSING_RECLAIM_HOST}",
+      site_url: "",
+      docs_urls: [],
+      tasks: [],
+    });
+    const packPath = resolve(dir, "pack.yaml");
+    writeFileSync(packPath, yamlStringify(pack));
+
+    const result = runCli([
+      "exec-plan", "--pack", packPath, "--skip-review", "--reclaim", "--run-dir", resolve(dir, "run"),
+    ]);
+    expect(result.code).toBe(1);
+    expect(result.out).toContain("health-check unavailable");
+    expect(result.out).toContain("requires an explicit ResetProvider");
+    expect(result.out).not.toContain("MISSING_RECLAIM_TOKEN");
+    expect(result.out).not.toContain("MISSING_RECLAIM_HOST");
+    expect(result.out).not.toContain("reclaimed 0/0");
+    expect(readdirSync(dir)).toEqual(["pack.yaml"]);
   });
 
   it("`--surface all` fans out over auth-runnable surfaces with isolated ns + tagged files", () => {

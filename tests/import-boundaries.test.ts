@@ -37,16 +37,33 @@ describe("import boundary verification", () => {
     ]);
   });
 
+  it("rejects core imports of arena-owned database drivers", () => {
+    const root = fixture();
+    writeFileSync(resolve(root, "src", "core.ts"), [
+      'import "mongodb";',
+      'const mysql = import("mysql2/promise");',
+      "void mysql;",
+    ].join("\n"));
+    expect(findImportBoundaryViolations(root)).toEqual([
+      expect.stringContaining("core must not import arena database dependency mongodb"),
+      expect.stringContaining("core must not import arena database dependency mysql2/promise"),
+    ]);
+  });
+
   it("rejects detached arena database packages in the core manifest", () => {
     const root = fixture();
     writeFileSync(resolve(root, "package.json"), JSON.stringify({
       exports: { ".": "./dist/index.js" },
+      dependencies: { mongodb: "7.4.0" },
+      devDependencies: { "@types/pg": "8.20.0" },
       optionalDependencies: { "@neondatabase/serverless": "1.1.0" },
       peerDependencies: { supabase: "2.109.0" },
     }));
     expect(findImportBoundaryViolations(root)).toEqual([
       expect.stringContaining("@neondatabase/serverless"),
       expect.stringContaining("supabase"),
+      expect.stringContaining("mongodb"),
+      expect.stringContaining("@types/pg"),
     ]);
   });
 

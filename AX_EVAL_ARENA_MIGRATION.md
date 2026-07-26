@@ -72,9 +72,10 @@ Implementation progress:
   constructor only through the public `ax-eval` package specifier.
 - Reset remains outside `runCell` so verified-record persistence can precede
   cleanup.
-- The root package no longer declares the unused Neon API/serverless or
-  Supabase SDK/CLI packages. Active SQL/Mongo drivers remain temporarily until
-  the legacy DAEB runtime entrypoints delegate to arena.
+- The root package no longer declares database-only SDKs or drivers. SQL/Mongo
+  verification and DAEB database cleanup execute only through arena-owned,
+  explicitly injected providers; core retains v1 declaration readers but no
+  database connection implementation.
 - Trusted dispatch validation, OCI/sysroot and tool preparation, Bubblewrap
   smoke tests, sealed-artifact export, detached attestation construction, and
   their tests are owned under `ax-arena/benchmark/`. The required
@@ -941,8 +942,10 @@ changes with file movement unless tests prove parity independently.
 
 **Progress:** Registry contracts, per-cell health/provisioning dispatch,
 versioned provenance, adapter composition, and reset plan/execute interfaces are
-implemented in the active stack. Moving the existing database/target
-implementations behind those seams remains a later quarantine slice.
+implemented in the active stack. SQL/Mongo verification and DAEB database reset
+implementations now live only behind arena-owned providers; core retains no
+database driver and its database runtime aliases delegate to arena's fail-closed
+trusted-workflow boundary.
 
 **Changes**
 

@@ -242,7 +242,9 @@ Between repeated attempts on the same profile, run
 `ax-eval reset --pack <pack> --ns <completed-run-namespace>`
 only when the user explicitly asks you to prepare the next attempt. Do not clean
 up by default: `verify` reads live product state, so deleting resources before
-the report is rendered corrupts scores.
+the report is rendered corrupts scores. This legacy helper covers the retained
+generic HTTP reset compatibility path; database cleanup must run through the
+arena cell lifecycle with an explicit `ResetProvider`.
 
 ### 5. Verify + report
 
@@ -325,10 +327,13 @@ ax-arena benchmark daeb-production-rerun \
   --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
 
-Direct runtime execution is intentionally fail-closed until the trusted
-workflow supplies and attests the OS sandbox. The existing
-`ax-eval daeb-production-rerun` command remains active until the private arena
-package is publishable; its one-minor delegation clock has not started.
+Direct arena runtime execution remains intentionally fail-closed. The protected
+workflow is the only entrypoint that supplies and attests the OS sandbox. In a
+source checkout, the deprecated `ax-eval daeb-low-pass` and
+`ax-eval daeb-production-rerun` aliases delegate to that fail-closed arena CLI;
+they no longer execute the core runtime implementation. The npm release gate
+keeps those aliases unpublished until the arena package is public, so their
+one-minor compatibility clock has not started.
 
 For hosted execution, dispatch **Trusted sandbox arena benchmark** only. Select
 a full source SHA and a committed whole-benchmark configuration under

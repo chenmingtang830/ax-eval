@@ -137,14 +137,13 @@ import {
 } from "./harness/invoke.js";
 import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
 import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
-import { resetSqlSession, taskUsesSqlRole } from "./generate/sql-session.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { healthCheckPack } from "./target/health-check.js";
-import { resetPack } from "./target/reset.js";
+import { hasCoreResetStrategy, resetPack } from "./target/reset.js";
 import { EvaluationCellSchema } from "./cell/schema.js";
 import { runCell } from "./cell/run.js";
 import { executeArenaLaunch, resolveArenaLaunch } from "./arena-launcher.js";
@@ -2646,24 +2645,35 @@ function buildResetClient(pack: TargetPack): BearerClient {
 }
 
 /** Pre-run hygiene gate: list or reclaim probe resources left in the sandbox.
- *  Never throws — failures are warnings so the main run isn't blocked. */
-async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<void> {
+ *  Inventory failures remain warnings; an explicitly requested reclaim fails
+ *  closed when core has no compatible provider. */
+async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<boolean> {
   try {
-    const client = buildResetClient(pack);
-    const scope = resolveScope(pack);
-    const result = await healthCheckPack(pack, client, scope, { reclaim });
-    console.log(`  ${result.message}`);
-    if (!result.supported && result.candidates > 0) {
-      console.warn(`  health-check not supported for ${pack.name}; manual cleanup may be needed.`);
+    const result = await healthCheckPack(
+      pack,
+      () => buildResetClient(pack),
+      () => resolveScope(pack),
+      { reclaim },
+    );
+    if (!result.supported) {
+      console.warn(`  ${result.message}`);
+      if (reclaim) {
+        console.error(`  refusing --reclaim: ${pack.name} requires an explicit ResetProvider`);
+        return false;
+      }
+      return true;
     }
+    console.log(`  ${result.message}`);
     if (result.signals.namespace_pollution_risk) {
       console.warn(`  health-check signal: leftover probe resources may pollute the next trial namespace`);
     }
     if (result.signals.quota_pressure_hint) {
       console.warn(`  health-check signal: quota/rate-limit pressure detected — pause or reclaim before continuing`);
     }
+    return true;
   } catch (e) {
     console.warn(`  health-check skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return !reclaim;
   }
 }
 
@@ -2678,6 +2688,10 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   if (args.task && pack.tasks.length === 0) {
     throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
   }
+  if (args.reclaim && !hasCoreResetStrategy(pack)) {
+    await runHealthCheck(pack, true);
+    return 1;
+  }
   const missingRequiredEnv = describeRequiredEnv(pack)
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
@@ -2688,7 +2702,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     );
   }
   // Hygiene gate: warn about or reclaim leftover probe resources before we start.
-  await runHealthCheck(pack, args.reclaim);
+  if (!await runHealthCheck(pack, args.reclaim)) return 1;
   // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
   if (!args.skipReview) {
     const status = checkApproval(pack, args.pack);
@@ -3106,16 +3120,6 @@ interface InvokeGroup {
             `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
               `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
           );
-          if (job.taskId && taskUsesSqlRole(job.runOpts.pack, job.taskId)) {
-            try {
-              await resetSqlSession(job.runOpts.pack);
-              console.log(`  ↻ sql session RESET ROLE after ${job.taskId}`);
-            } catch (err) {
-              console.warn(
-                `  WARN: RESET ROLE after ${job.taskId} failed: ${err instanceof Error ? err.message : String(err)}`,
-              );
-            }
-          }
         }
       });
       for (const group of invokeGroups.values()) {
@@ -3836,30 +3840,24 @@ function cmdTraceDiff(args: Parsed): number {
  * Sandbox teardown for pass@k hygiene — delete the probe resources a run left
  * behind (named `AX probe … {ns}`) so repeated live runs don't contaminate each
  * other. Target-agnostic: resolves the pack's declared sandbox scope, then a
- * per-target resetter lists + deletes. Destructive resets require `--ns`;
- * `--dry-run` may omit it to inventory every probe resource. Targets without a
- * resetter degrade gracefully (no throw).
+ * compatibility resetter lists + deletes. Destructive resets require `--ns`;
+ * `--dry-run` may omit it to inventory every probe resource. Unsupported
+ * targets return a failure status and must use an explicit arena ResetProvider.
  */
 async function cmdReset(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]");
   const pack = loadPack(args.pack);
-  const client = new BearerClient({
-    baseUrl: resolveEnvTemplate(pack.base_url),
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraAuthHeader: pack.auth?.extra_header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
-  const scope = resolveScope(pack);
-  const result = await resetPack(pack, client, scope, { ns: args.ns || undefined, dryRun: args.dryRun });
+  const result = await resetPack(
+    pack,
+    () => buildResetClient(pack),
+    () => resolveScope(pack),
+    { ns: args.ns || undefined, dryRun: args.dryRun },
+  );
   console.log(result.message);
   for (const id of result.deleted) console.log(`  ${args.dryRun ? "would delete" : "deleted"} ${id}`);
   for (const e of result.errors) console.error(`  ! ${e}`);
-  if (!result.supported) return 0;
+  if (!result.supported) return 1;
   return result.errors.length ? 1 : 0;
 }
 

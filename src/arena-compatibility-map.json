@@ -7,5 +7,7 @@
   "extract-capabilities": "extract-capabilities",
   "audit-extracts": "audit-extracts",
   "audit-suite": "audit-suite",
-  "synthesize-suite": "synthesize-suite"
+  "synthesize-suite": "synthesize-suite",
+  "daeb-low-pass": "daeb-low-pass",
+  "daeb-production-rerun": "daeb-production-rerun"
 }
