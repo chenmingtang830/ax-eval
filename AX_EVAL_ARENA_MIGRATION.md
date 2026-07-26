@@ -814,11 +814,10 @@ Record the resolved versions in every cell record.
 First separate ownership inside one repository:
 
 ```text
-src/core/ or existing generic modules
-src/arena/                 # temporary quarantine
-schemas/cell/              # core schemas
-schemas/arena/             # benchmark schemas
-benchmarks/daeb/           # arena artifacts
+src/                       # existing generic modules
+schemas/                   # public core schemas
+ax-arena/benchmark/        # private arena npm workspace
+ax-arena/benchmark/daeb/   # canonical arena artifacts
 ```
 
 Dependency rules must already enforce `arena -> core` only. This makes the later
@@ -869,7 +868,7 @@ Add CI checks that fail when:
 - core imports an arena path;
 - core imports benchmark-only database drivers;
 - arena imports non-public `ax-eval/src/...` paths;
-- the `ax-eval` tarball contains `benchmarks/daeb` or arena schemas;
+- the `ax-eval` tarball contains `ax-arena/`, legacy `benchmarks/daeb`, or arena schemas;
 - the `ax-eval` dependency tree gains a package classified as arena-only;
 - benchmark commands are reintroduced into the core CLI.
 
@@ -1100,7 +1099,8 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 
 ### 12.2 Move to ax-arena
 
-- `benchmarks/daeb/**` methodology and canonical artifacts.
+- `ax-arena/benchmark/daeb/**` methodology and canonical artifacts (formerly
+  `benchmarks/daeb/**` during the one-release read compatibility window).
 - DAEB roster, selection ledger, support matrix, suite synthesis, and audit.
 - Database pack overrides tied to the canonical arena suite.
 - DAEB low-pass and production-rerun policy.
@@ -1177,7 +1177,8 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 
 - `npm pack --dry-run` contains the public API, CLI, core schemas, examples, and
   approvals required by the engine.
-- It excludes `benchmarks/daeb`, arena workflows, publication schemas, results,
+- It excludes `ax-arena/`, legacy `benchmarks/daeb`, arena workflows,
+  publication schemas, results,
   secrets, and scratch artifacts.
 - A clean temporary consumer imports `runCell` and validates a fixture record.
 

@@ -26,7 +26,7 @@ import {
   type CoverageMatrix,
   type SupportMatrix,
 } from "./methodology.js";
-import { daebVendorsDir } from "./benchmark-paths.js";
+import { daebReadVendorsDir, type DaebPathInput } from "./benchmark-paths.js";
 import { readdirSync } from "node:fs";
 import { loadVendorCard } from "./vendor-resolve.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
@@ -53,10 +53,10 @@ export interface SuiteAuditReport {
   suggestedVersion?: number;
 }
 
-function listDatabaseSlugs(root: string): string[] {
+function listDatabaseSlugs(root: DaebPathInput): string[] {
   const selected = coreVendorSlugs(root);
   if (selected) return [...selected].sort();
-  const dir = daebVendorsDir(root);
+  const dir = daebReadVendorsDir(root);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".discovered.yaml"))
@@ -70,7 +70,7 @@ function loadYaml(path: string): unknown {
 
 /** Find inventory capabilities that should map to a concept but didn't. */
 export function findMappingMisses(
-  root: string,
+  root: DaebPathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -122,7 +122,7 @@ export function findMappingMisses(
 /** Find stale/false-positive coverage decisions whose cited capability no
  * longer maps to the claimed concept under the current semantic rules. */
 export function findMappingFalsePositives(
-  root: string,
+  root: DaebPathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -246,7 +246,7 @@ export function findTaskFitAuditFindings(
  * catches artifacts generated before a task-fit rule or inventory correction
  * landed, even when their stored matrix is internally self-consistent. */
 export function findStaleTaskFitFindings(
-  root: string,
+  root: DaebPathInput,
   coverage: CoverageMatrix,
   selectedConcepts: Set<string>,
   slugs: string[],
@@ -307,7 +307,11 @@ export function findStaleTaskFitFindings(
   return findings;
 }
 
-export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
+export function auditSuite(
+  root: string,
+  suitePath: string,
+  benchmarkPaths: DaebPathInput = root,
+): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
   const findings: SuiteFinding[] = [];
@@ -390,24 +394,24 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   }
 
   if (coverage) {
-    const slugs = listDatabaseSlugs(root);
+    const slugs = listDatabaseSlugs(benchmarkPaths);
     findings.push(...findTaskFitAuditFindings(
       coverage,
       new Set(suite.tasks.map((task) => task.skill)),
       supportMatrix,
     ));
     findings.push(...findStaleTaskFitFindings(
-      root,
+      benchmarkPaths,
       coverage,
       new Set(suite.tasks.map((task) => task.skill)),
       slugs,
     ));
-    findings.push(...findMappingFalsePositives(root, coverage, slugs));
-    findings.push(...findMappingMisses(root, coverage, slugs));
+    findings.push(...findMappingFalsePositives(benchmarkPaths, coverage, slugs));
+    findings.push(...findMappingMisses(benchmarkPaths, coverage, slugs));
 
     // Preview: with current deterministic rules, how many concepts hit ≥75%?
     const extracts = slugs
-      .map((s) => loadCapabilityExtract(root, s))
+      .map((s) => loadCapabilityExtract(benchmarkPaths, s))
       .filter((e): e is NonNullable<typeof e> => e !== null);
     if (extracts.length >= 2) {
       const clusters = deriveCandidateUniverseDeterministic(extracts);
@@ -437,11 +441,11 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
   }
   if (supportMatrix) {
     const extracts = new Map(
-      listDatabaseSlugs(root)
-        .map((slug) => [slug, loadOracleExtract(root, slug, suite.name)] as const)
+      listDatabaseSlugs(benchmarkPaths)
+        .map((slug) => [slug, loadOracleExtract(benchmarkPaths, slug, suite.name)] as const)
         .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
     );
-    for (const finding of auditCorePacks(root, listDatabaseSlugs(root), extracts, supportMatrix)) {
+    for (const finding of auditCorePacks(benchmarkPaths, listDatabaseSlugs(benchmarkPaths), extracts, supportMatrix)) {
       findings.push({
         severity: finding.severity,
         code: finding.code,
@@ -450,7 +454,7 @@ export function auditSuite(root: string, suitePath: string): SuiteAuditReport {
       });
     }
   }
-  for (const finding of auditVendorSelectionAgainstExtracts(root)) {
+  for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
     findings.push({
       severity: finding.severity,
       code: finding.code,

@@ -71,8 +71,8 @@ and vendor-specific verification extracts:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-Use `benchmarks/daeb/v1/suite.yaml` as the source of truth. The files under
-`benchmarks/daeb/v1/packs/<vendor>/pack.yaml` are compiled execution artifacts, not
+Use `ax-arena/benchmark/daeb/v1/suite.yaml` as the source of truth. The files under
+`ax-arena/benchmark/daeb/v1/packs/<vendor>/pack.yaml` are compiled execution artifacts, not
 separate benchmark definitions. They should keep the same task ids, titles,
 intents, difficulty labels, scoring contract, surfaces, and harness matrix;
 only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
@@ -83,14 +83,14 @@ core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 approved and trace review is completed. Production 3-trial and publication
 freeze are deferred; do not run them as the default next step. Research-lane
 tasks stay out of the scored denominator. Use
-`benchmarks/daeb/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
+`ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
 
 When production is unblocked and all vendor runs have been verified, freeze the
 publication bundle (core cohort only):
 
 ```bash
 npm run ax-eval -- publication-bundle \
-  --suite benchmarks/daeb/v1/suite.yaml \
+  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
   --vendors neon,cockroachdb,turso,supabase,insforge,nile \
   --run-dir results/runs/daeb-1-v1-production \
   --out results/runs/daeb-1-v1-production/publication-bundle
@@ -291,7 +291,7 @@ done for the 6-vendor core cohort.
 
 ```bash
 ax-eval daeb-production-rerun \
-  --suite benchmarks/daeb/v1/suite.yaml
+  --suite ax-arena/benchmark/daeb/v1/suite.yaml
 ```
 
 For hosted execution, dispatch **Trusted sandbox production records** only
@@ -325,7 +325,7 @@ do not synthesize a price table.
 Before human **publication** freeze, regenerate into the same DAEB-1 v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and
 content hashes identify exact drafts, and any content change invalidates prior
-pack approvals. Use `benchmarks/daeb/v1/vendor-selection-ledger.yaml` as the
+pack approvals. Use `ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml` as the
 core cohort source; research/excluded vendors must not silently enter synthesis
 or production runs. When reviewing coverage, distinguish the broad 75%
 concept-selection bar from task applicability: only support-matrix cells whose

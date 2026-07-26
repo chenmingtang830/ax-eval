@@ -95,7 +95,7 @@ jobs:
           NILE_WORKSPACE: ${{ secrets.NILE_WORKSPACE }}
           NILE_DB: ${{ secrets.NILE_DB }}
           NILE_DATABASE_URL: ${{ secrets.NILE_DATABASE_URL }}
-        run: npm run ax-eval -- daeb-production-rerun --suite benchmarks/daeb/v1/suite.yaml --vendor "$VENDOR" --surface "$SURFACE" --run-dir "$RUN_ROOT"
+        run: npm run ax-eval -- daeb-production-rerun --suite ax-arena/benchmark/daeb/v1/suite.yaml --vendor "$VENDOR" --surface "$SURFACE" --run-dir "$RUN_ROOT"
 
       - name: Prepare baseline records
         id: baseline

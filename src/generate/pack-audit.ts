@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs";
 import { loadPack } from "../config.js";
-import { daebCompiledPackPath } from "./benchmark-paths.js";
+import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
 import type { OracleExtractResult } from "./task-extract.js";
 import type { SupportMatrix } from "./methodology.js";
 
@@ -65,7 +65,7 @@ export function auditComposedPack(
 }
 
 export function auditCorePacks(
-  root: string,
+  root: DaebPathInput,
   slugs: string[],
   extracts: Map<string, OracleExtractResult>,
   supportMatrix: SupportMatrix,
@@ -73,7 +73,7 @@ export function auditCorePacks(
   return slugs.flatMap((slug) => {
     const extract = extracts.get(slug);
     return extract
-      ? auditComposedPack(daebCompiledPackPath(root, slug), extract, supportMatrix)
+      ? auditComposedPack(daebReadCompiledPackPath(root, slug), extract, supportMatrix)
       : [];
   });
 }

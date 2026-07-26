@@ -42,13 +42,13 @@ OpenAPI / GraphQL / docs                vendor cards + extracts
 |---|---|---|
 | Audience | Product team evaluating one SaaS | AXArena / DAEB publication |
 | Source of truth | Per-product pack | Canonical `suite.yaml` + ledger |
-| Packs live under | `targets/examples/` (shipped) or local `targets/` | `benchmarks/daeb/v1/packs/<vendor>/` |
+| Packs live under | `targets/examples/` (shipped) or local `targets/` | `ax-arena/benchmark/daeb/v1/packs/<vendor>/` |
 | Authoring | `ingest` → `generate` → `review` | extract → synthesize → compose → `review` |
 | Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex `gpt-5.6-terra` + Claude Code `claude-sonnet-5`, high, 3 trials |
 | Extra gates | Content-hash approval | Ledger, audit-suite, trace-review, publication freeze |
 
 Deep DAEB artifact detail lives in
-[`benchmarks/daeb/README.md`](./benchmarks/daeb/README.md). Maintainer status
+[`ax-arena/benchmark/daeb/README.md`](./ax-arena/benchmark/daeb/README.md). Maintainer status
 (authoring freeze vs deferred production) lives in gitignored
 `docs/latest_plan.md`.
 
@@ -176,8 +176,10 @@ private npm workspace during migration, with independent build, typecheck, test,
 and package smoke checks. Root scripts are umbrella checks for both packages.
 An AST-based CI guard rejects `ax-eval` imports of arena code, relative imports
 that escape the arena workspace, and arena imports of unpublished `ax-eval`
-subpaths. Canonical files remain under `benchmarks/daeb/` until the artifact-only
-relocation slice so workspace creation does not conceal a semantic move.
+subpaths. Canonical DAEB files live under `ax-arena/benchmark/daeb/`. For one
+minor release, readers fall back to `benchmarks/daeb/` only when canonical files
+are absent and emit a deprecation warning. If both roots exist, callers must
+select one with `--benchmark-root`; writers always use the canonical root.
 
 Library callers compose `createRuntimeExtensionRegistry({ ... })` and pass it
 through `runCell` options. The immutable registry snapshots versioned oracle,
@@ -256,7 +258,7 @@ reference artifact.
 ## Benchmark track (summary)
 
 DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
-`benchmarks/daeb/v1/`:
+`ax-arena/benchmark/daeb/v1/`:
 
 - `suite.yaml` — shared task bank (not a pack)
 - `vendor-selection-ledger.yaml` — core / research / excluded cohort
@@ -292,12 +294,12 @@ averaged inside each surface and Overall is the equal-weight macro-average of
 participating surfaces. The pass³ tie-break is the exact eligible
 task×surface-cell ratio, with numerator and denominator published.
 
-Publication boundary: `publication-bundle` then `export-publication`. `ax-eval`
-owns benchmark truth and artifacts; an `axarena` app imports exported indexes
+Publication boundary: `publication-bundle` then `export-publication`. The arena
+workspace owns benchmark truth and artifacts; an `axarena` app imports exported indexes
 rather than recomputing scores from raw run directories.
 
 Full tree, authoring commands, gates, and hygiene:
-[`benchmarks/daeb/README.md`](./benchmarks/daeb/README.md).
+[`ax-arena/benchmark/daeb/README.md`](./ax-arena/benchmark/daeb/README.md).
 
 ## Execution model
 
@@ -552,7 +554,7 @@ Several architectural choices are load-bearing:
 **Tracks**
 
 - Tool packs: [targets/examples/](./targets/examples/), [targets/README.md](./targets/README.md)
-- DAEB: [benchmarks/daeb/](./benchmarks/daeb/), especially `v1/`
+- DAEB: [ax-arena/benchmark/daeb/](./ax-arena/benchmark/daeb/), especially `v1/`
 - Workflow skill: [SKILL.md](./SKILL.md)
 - Contributor conventions: [CONTRIBUTING.md](./CONTRIBUTING.md)
 

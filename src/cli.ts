@@ -135,6 +135,13 @@ import {
   type ProductionTrialRecord,
 } from "./generate/production-run.js";
 import { loadSupportMatrix } from "./generate/methodology.js";
+import {
+  assertCanonicalDaebWritePath,
+  createDaebPathContext,
+  daebReadSuitePath,
+  daebReadVendorsDir,
+  type DaebPathContext,
+} from "./generate/benchmark-paths.js";
 import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
@@ -269,14 +276,16 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval resolve-vendor --vendor <name> --category <category>",
         "                              --vendors <a,b,c> --category <category>",
         "                              [--harness claude-code|codex] [--effort low|medium|high]",
+        "                              [--benchmark-root <dir>]",
         "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
-        "  under benchmarks/daeb/vendors/<slug>.discovered.yaml.",
+        "  under ax-arena/benchmark/daeb/vendors/<slug>.discovered.yaml.",
       ].join("\n");
     case "import-registry":
       return [
         "usage: ax-eval import-registry --category <category>",
         "                               --domain <example.com> [--vendor <Name>] [--slug <slug>]",
         "                               --vendors <slug=domain,slug=domain,...>",
+        "                               [--benchmark-root <dir>]",
         "  Seed the authoring pipeline from the integrations.sh public registry",
         "  (MIT). Fetches GET integrations.sh/api/<domain>/surface and writes a",
         "  vendor card + surface extract (CLI/MCP + auth) without a grounded LLM",
@@ -289,42 +298,47 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval extract-tasks --suite <path> --category <category>",
         "                             [--vendor <slug>] [--vendors <a,b,c>]",
         "                             [--harness claude-code|codex] [--effort low|medium|high]",
+        "                             [--benchmark-root <dir>]",
         "  LLM-extracts ONLY the oracle read-back path + vendor auth config for each",
-        "  suite task (no prompt rewriting). Writes YAML to benchmarks/daeb/v1/extracts/<slug>/.",
+        "  suite task (no prompt rewriting). Writes YAML to ax-arena/benchmark/daeb/v1/extracts/<slug>/.",
       ].join("\n");
     case "compose-pack":
       return [
         "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
+        "                           [--benchmark-root <dir>]",
         "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
         "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
-        "  Also folds in a surface extract (benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml) if",
-        "  present, from extract-surfaces. No LLM call. Writes benchmarks/daeb/v1/packs/<slug>/pack.yaml.",
+        "  Also folds in a surface extract (ax-arena/benchmark/daeb/v1/extracts/<slug>/surfaces.yaml) if",
+        "  present, from extract-surfaces. No LLM call. Writes ax-arena/benchmark/daeb/v1/packs/<slug>/pack.yaml.",
       ].join("\n");
     case "extract-surfaces":
       return [
         "usage: ax-eval extract-surfaces [--vendor <slug>] [--vendors <a,b,c>]",
         "                                [--harness claude-code|codex] [--effort low|medium|high]",
+        "                                [--benchmark-root <dir>]",
         "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
         "  REST API is the implicit default surface and is not written to this file.",
         "  The round-trip oracle never changes per surface — this only affects how the",
-        "  agent is told to act on non-API surfaces. Writes benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml.",
+        "  agent is told to act on non-API surfaces. Writes ax-arena/benchmark/daeb/v1/extracts/<slug>/surfaces.yaml.",
       ].join("\n");
     case "extract-capabilities":
       return [
         "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
         "                                    [--harness claude-code|codex] [--effort low|medium|high]",
         "                                    [--specs <slug=openapi-url,...>]",
+        "                                    [--benchmark-root <dir>]",
         "  Layer 0a of suite authoring: per-vendor benchmark-grade capability",
         "  inventory with structured evidence. Vendors with a known OpenAPI spec",
         "  (the vendor card's openapi_url from import-registry, or a --specs",
         "  override) seed the candidate surface from those operations, then",
         "  WebFetch docs to gap-fill; vendors without a spec are grounded from",
         "  docs alone. Runs at concurrency 3. Writes",
-        "  benchmarks/daeb/v1/extracts/<slug>/capability-inventory.yaml.",
+        "  ax-arena/benchmark/daeb/v1/extracts/<slug>/capability-inventory.yaml.",
       ].join("\n");
     case "audit-extracts":
       return [
         "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply] [--advisory]",
+        "                             [--benchmark-root <dir>]",
         "  Post-extract gate after extract-capabilities / extract-surfaces.",
         "  Deterministic checks: strength mislabels (METHOD /path → direct),",
         "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
@@ -335,6 +349,7 @@ function commandUsage(command: string | undefined): string {
     case "audit-suite":
       return [
         "usage: ax-eval audit-suite --suite <suite.yaml> [--apply]",
+        "                           [--benchmark-root <dir>]",
         "  Post-synthesize gate after synthesize-suite. Deterministic checks:",
         "  underfilled task bank, generic suite name, difficulty gaps, near-miss",
         "  coverage, concept-mapping misses vs inventories. Default report-only;",
@@ -346,6 +361,7 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
         "                                [--task-count N] [--harness claude-code|codex]",
         "                                [--deterministic] [--gap-check-assist]",
+        "                                [--benchmark-root <dir>]",
         "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
         "  universe, closes coverage gaps, selects the canonical suite, and drafts",
         "  suite tasks. Default = deterministic seed + LLM concept-refine assist",
@@ -359,6 +375,7 @@ function commandUsage(command: string | undefined): string {
       return [
         "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
         "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>]",
+        "                                 [--benchmark-root <dir>]",
         "  Freeze a publication bundle manifest from the canonical suite, vendor",
         "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
         "  and normalized records. Missing live artifacts are recorded in manifest.json.",
@@ -380,6 +397,7 @@ function commandUsage(command: string | undefined): string {
         "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
         "                             [--surface api|cli|all] [--run-dir <dir>]",
         "                             [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
+        "                             [--benchmark-root <dir>]",
         "  Runs DAEB task-level low coverage with Codex + Claude in parallel,",
         "  one vendor/surface at a time, then verifies, writes a failure-review stub,",
         "  and optionally resets after artifacts are persisted.",
@@ -390,6 +408,7 @@ function commandUsage(command: string | undefined): string {
         "                                     [--surface api|cli|all] [--run-dir <dir>]",
         "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
         "                                     [--skip-archive] [--reclaim]",
+        "                                     [--benchmark-root <dir>]",
         "  Runs the DAEB/database v1 production rerun lane with api/cli only,",
         "  one vendor → one surface → one harness → three clean high-effort trials,",
         "  then writes aggregate mean/range/pass³ artifacts under aggregate/.",
@@ -483,7 +502,7 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
-  /** audit-extracts: write autofixes back to benchmarks/daeb/v1/extracts/. */
+  /** audit-extracts: write autofixes to the canonical arena DAEB extracts. */
   apply: boolean;
   /** audit-extracts: WebFetch-grounded advisory review; never mutates source artifacts. */
   advisory: boolean;
@@ -497,6 +516,8 @@ interface Parsed {
    *  difficulties match the suite exactly — the mechanism that makes
    *  cross-vendor scores comparable. */
   suite: string;
+  /** Explicit DAEB artifact root used to resolve legacy/canonical read ambiguity. */
+  benchmarkRoot: string;
   /** `resolve-vendor` inputs: human-friendly vendor name(s) and the benchmark
    *  category. --vendor for a single vendor; --vendors for comma-separated batch. */
   vendor: string;
@@ -585,6 +606,7 @@ function parseArgs(argv: string[]): Parsed {
     minPassRate: undefined,
     trace: "",
     suite: "",
+    benchmarkRoot: "",
     vendor: "",
     vendors: "",
     category: "",
@@ -680,6 +702,7 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--base") p.baseRecords = value(++i, "--base");
     else if (a === "--head") p.headRecords = value(++i, "--head");
     else if (a === "--suite") p.suite = value(++i, "--suite");
+    else if (a === "--benchmark-root") p.benchmarkRoot = value(++i, "--benchmark-root");
     else if (a === "--vendor") p.vendor = value(++i, "--vendor");
     else if (a === "--category") p.category = value(++i, "--category");
     else if (a === "--vendors") p.vendors = value(++i, "--vendors");
@@ -739,6 +762,12 @@ function parseArgs(argv: string[]): Parsed {
     else p._.push(a!);
   }
   return p;
+}
+
+function daebPaths(args: Parsed, root: string = process.cwd()): DaebPathContext {
+  return createDaebPathContext(root, {
+    explicitRoot: args.benchmarkRoot || undefined,
+  });
 }
 
 async function cmdRun(args: Parsed): Promise<number> {
@@ -1558,8 +1587,9 @@ async function cmdResolveVendor(args: Parsed): Promise<number> {
     model: generatorModel(args, harness),
     effort: generatorEffort(args),
   });
+  const benchmarkPaths = daebPaths(args);
   for (const result of results) {
-    const path = writeVendorCard(process.cwd(), result);
+    const path = writeVendorCard(benchmarkPaths, result);
     console.log(`\n  ${result.vendor} → ${path}`);
     console.log(`    site_url: ${result.site_url ?? "(none)"}`);
     console.log(`    docs_url: ${result.docs_url ?? "(none)"}`);
@@ -1589,6 +1619,7 @@ async function cmdImportRegistry(args: Parsed): Promise<number> {
   }
 
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
   const missing: string[] = [];
   const ingestHints: string[] = [];
   for (const target of targets) {
@@ -1601,8 +1632,8 @@ async function cmdImportRegistry(args: Parsed): Promise<number> {
     const mapOpts = { category: args.category, vendorName: target.vendorName, slug: target.slug };
     const card = registryToVendorCard(surface, mapOpts);
     const surfaceExtract = registryToSurfaceExtract(surface, mapOpts);
-    const cardPath = writeVendorCard(root, card);
-    const surfacePath = writeSurfaceExtract(root, surfaceExtract);
+    const cardPath = writeVendorCard(benchmarkPaths, card);
+    const surfacePath = writeSurfaceExtract(benchmarkPaths, surfaceExtract);
     const found = [
       surfaceExtract.cli && `cli(${surfaceExtract.cli.bin})`,
       surfaceExtract.mcp && "mcp",
@@ -1641,7 +1672,7 @@ async function cmdImportRegistry(args: Parsed): Promise<number> {
   return 0;
 }
 
-function resolveVendorSelection(args: Parsed, root: string) {
+function resolveVendorSelection(args: Parsed, benchmarkPaths: DaebPathContext) {
   const vendorSlugs = args.vendors
     ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
     : args.vendor
@@ -1649,7 +1680,7 @@ function resolveVendorSelection(args: Parsed, root: string) {
       : null;
   if (vendorSlugs) {
     return vendorSlugs.map((slug) => {
-      const card = loadVendorCard(root, slug);
+      const card = loadVendorCard(benchmarkPaths, slug);
       if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
       return card;
     });
@@ -1667,17 +1698,18 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
   const category = args.category || suite.category;
   if (!category) throw new Error("--category is required (e.g. --category database)");
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
 
-  let vendors = resolveVendorSelection(args, root);
+  let vendors = resolveVendorSelection(args, benchmarkPaths);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
+    const vendorDir = daebReadVendorsDir(benchmarkPaths);
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
       .map((f) => {
         const slug = f.replace(".discovered.yaml", "");
-        const card = loadVendorCard(root, slug);
+        const card = loadVendorCard(benchmarkPaths, slug);
         if (!card) throw new Error(`Could not load vendor card for ${slug}`);
         return card;
       })
@@ -1702,7 +1734,7 @@ async function cmdExtractTasks(args: Parsed): Promise<number> {
       continue;
     }
     const result = outcome.result;
-    const path = writeOracleExtract(root, result);
+    const path = writeOracleExtract(benchmarkPaths, result);
     const naCount = result.tasks.filter((t) => t.na).length;
     console.log(`\n  ${result.vendor} → ${path}`);
     console.log(`    base_url: ${result.vendor_config.base_url}`);
@@ -1742,32 +1774,33 @@ function summarizeExtractCheck(check: {
 async function cmdComposePack(args: Parsed): Promise<number> {
   if (!args.suite) throw new Error("--suite <path> is required");
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
   const { loadSuite } = await import("./generate/suite.js");
   const suite = loadSuite(args.suite);
 
-  let vendors = resolveVendorSelection(args, root);
+  let vendors = resolveVendorSelection(args, benchmarkPaths);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
+    const vendorDir = daebReadVendorsDir(benchmarkPaths);
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
       .filter((v): v is NonNullable<typeof v> => v !== null);
   }
 
   for (const vendor of vendors) {
-    const extract = loadOracleExtract(root, vendor.slug, suite.name);
+    const extract = loadOracleExtract(benchmarkPaths, vendor.slug, suite.name);
     if (!extract) {
       console.error(`Skipping ${vendor.vendor}: no oracle extract found. Run extract-tasks first.`);
       continue;
     }
-    const surfaces = loadSurfaceExtract(root, vendor.slug) ?? undefined;
+    const surfaces = loadSurfaceExtract(benchmarkPaths, vendor.slug) ?? undefined;
     const pack = composePack(suite, vendor, extract, {
       surfaces,
       supportMatrix: loadSupportMatrix(root, args.suite) ?? undefined,
     });
-    const path = writeComposedPack(root, vendor.slug, suite.name, pack);
+    const path = writeComposedPack(benchmarkPaths, vendor.slug, suite.name, pack);
     const compiledSurfaces = ["api", "sdk", "cli", "mcp"].filter((surface) =>
       pack.tasks.some((task) => task.allowed_surfaces.includes(surface)),
     );
@@ -1780,20 +1813,21 @@ async function cmdComposePack(args: Parsed): Promise<number> {
 async function cmdExtractSurfaces(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  let vendors = resolveVendorSelection(args, root);
+  const benchmarkPaths = daebPaths(args, root);
+  let vendors = resolveVendorSelection(args, benchmarkPaths);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
+    const vendorDir = daebReadVendorsDir(benchmarkPaths);
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
       .filter((v): v is NonNullable<typeof v> => v !== null);
   }
   if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
 
   const harness = generatorHarness(args);
-  const seeded = vendors.filter((v) => loadSurfaceExtract(root, v.slug)).length;
+  const seeded = vendors.filter((v) => loadSurfaceExtract(benchmarkPaths, v.slug)).length;
   console.log(
     `Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…` +
       (seeded ? ` (${seeded} seeded from a prior/registry surface extract — verifying + correcting)` : ""),
@@ -1806,7 +1840,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
         effort: generatorEffort(args),
         // Feed any existing (e.g. registry-seeded) extract in as a prior to
         // verify/correct against live docs, per the seed+override design.
-        prior: loadSurfaceExtract(root, v.slug) ?? undefined,
+        prior: loadSurfaceExtract(benchmarkPaths, v.slug) ?? undefined,
       }),
     ),
   );
@@ -1818,7 +1852,7 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
       console.error(`\n  ${vendor.vendor} → FAILED: ${s.reason instanceof Error ? s.reason.message : s.reason}`);
       return;
     }
-    const path = writeSurfaceExtract(root, s.value);
+    const path = writeSurfaceExtract(benchmarkPaths, s.value);
     const found = [s.value.cli && "cli", s.value.sdk && "sdk", s.value.mcp && "mcp"].filter(Boolean).join(", ") || "none";
     console.log(`\n  ${vendor.vendor} → ${path} (${found})`);
   });
@@ -1829,14 +1863,15 @@ async function cmdExtractSurfaces(args: Parsed): Promise<number> {
 async function cmdExtractCapabilities(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  let vendors = resolveVendorSelection(args, root);
+  const benchmarkPaths = daebPaths(args, root);
+  let vendors = resolveVendorSelection(args, benchmarkPaths);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
+    const vendorDir = daebReadVendorsDir(benchmarkPaths);
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
       .filter((v): v is NonNullable<typeof v> => v !== null);
   }
   if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
@@ -1883,7 +1918,7 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
         specSummary,
         specUrl: specSummary ? specUrl : undefined,
       });
-      const path = writeCapabilityExtract(root, result);
+      const path = writeCapabilityExtract(benchmarkPaths, result);
       console.log(`\n  ${vendor.vendor} → ${path} (${result.capabilities.length} capabilities)`);
     } catch (e) {
       failures++;
@@ -1896,16 +1931,17 @@ async function cmdExtractCapabilities(args: Parsed): Promise<number> {
 
 async function cmdAuditExtracts(args: Parsed): Promise<number> {
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
   const slugs = [
     ...(args.vendor ? [args.vendor] : []),
     ...args.vendors.split(",").map((s) => s.trim()).filter(Boolean),
   ];
-  const report = auditAllExtracts(root, slugs.length ? slugs : undefined);
+  const report = auditAllExtracts(benchmarkPaths, slugs.length ? slugs : undefined);
   console.log(formatExtractAuditReport(report));
   if (args.apply) {
     console.log(`\nApplying autofixes…`);
     for (const v of report.vendors) {
-      const paths = applyExtractAudit(root, v);
+      const paths = applyExtractAudit(benchmarkPaths, v);
       const wrote = [paths.inventoryPath, paths.surfacesPath].filter(Boolean);
       if (wrote.length) console.log(`  ${v.slug} → ${wrote.join(", ")}`);
     }
@@ -1920,12 +1956,12 @@ async function cmdAuditExtracts(args: Parsed): Promise<number> {
     let advisoryFailures = 0;
     for (const slug of advisorySlugs) {
       try {
-        const advisory = await adviseVendorExtract(root, slug, {
+        const advisory = await adviseVendorExtract(benchmarkPaths, slug, {
           harness: generatorHarness(args),
           model: generatorModel(args, generatorHarness(args)),
           effort: generatorEffort(args),
         });
-        const path = writeExtractAdvisory(root, advisory);
+        const path = writeExtractAdvisory(benchmarkPaths, advisory);
         console.log(`  ${slug} → ${path} (${advisory.findings.length} advisory finding(s))`);
       } catch (error) {
         advisoryFailures++;
@@ -1940,11 +1976,13 @@ async function cmdAuditExtracts(args: Parsed): Promise<number> {
 function cmdAuditSuite(args: Parsed): number {
   if (!args.suite) throw new Error("--suite <suite.yaml> is required");
   const root = process.cwd();
-  const report = auditSuite(root, args.suite);
+  const benchmarkPaths = daebPaths(args, root);
+  const report = auditSuite(root, args.suite, benchmarkPaths);
   console.log(formatSuiteAuditReport(report));
   if (args.apply) {
+    const suiteWritePath = assertCanonicalDaebWritePath(benchmarkPaths, args.suite);
     console.log(`\nApplying autofixes…`);
-    const written = applySuiteAudit(root, args.suite, report);
+    const written = applySuiteAudit(root, suiteWritePath, report);
     for (const path of written) console.log(`  wrote ${path}`);
     if (report.findings.some((f) => f.code === "underfilled_task_bank" || f.code === "mapping_would_cover" || f.code === "seed_eligible_ok")) {
       console.log(`\nNext: re-run synthesize-suite --deterministic to refresh selection from fixed mappings.`);
@@ -1960,19 +1998,21 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
   if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
+  const outPath = assertCanonicalDaebWritePath(benchmarkPaths, args.out);
 
-  let vendors = resolveVendorSelection(args, root);
+  let vendors = resolveVendorSelection(args, benchmarkPaths);
   if (!vendors) {
     const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
+    const vendorDir = daebReadVendorsDir(benchmarkPaths);
     if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
     const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
     vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
+      .map((f) => loadVendorCard(benchmarkPaths, f.replace(".discovered.yaml", "")))
       .filter((v): v is NonNullable<typeof v> => v !== null)
       .filter((v) => v.category === args.category);
     if (args.category === "database") {
-      const coreSlugs = coreVendorSlugs(root);
+      const coreSlugs = coreVendorSlugs(benchmarkPaths);
       if (coreSlugs) {
         const core = new Set(coreSlugs);
         vendors = vendors.filter((vendor) => core.has(vendor.slug));
@@ -1982,7 +2022,7 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
 
   const extracts = vendors
-    .map((v) => loadCapabilityExtract(root, v.slug))
+    .map((v) => loadCapabilityExtract(benchmarkPaths, v.slug))
     .filter((e): e is NonNullable<typeof e> => {
       if (!e) console.error(`Skipping a vendor: no capability-inventory.yaml found. Run extract-capabilities first.`);
       return e !== null;
@@ -2007,7 +2047,7 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
     targetTaskCount: args.taskCount,
   });
 
-  const suiteStem = args.out.split("/").pop()!.replace(/\.yaml$/, "");
+  const suiteStem = outPath.split("/").pop()!.replace(/\.yaml$/, "");
   // Bare "suite.yaml" is the active DAEB contract path — don't name the suite "SUITE".
   const suiteName = /^suite$/i.test(suiteStem) ? "DAEB-1" : suiteStem.toUpperCase();
   // DAEB-1 remains one mutable draft until human freeze. Draft regenerations
@@ -2015,8 +2055,8 @@ async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
   const suiteVersion = /^suite$/i.test(suiteStem) ? 1 : inferSuiteVersionFromStem(suiteStem);
   const suiteYaml = renderSuiteYaml(suiteName, suiteVersion, args.category, result);
   const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
-  const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
-  const artifactPaths = writeSuiteArtifacts(root, args.out, result);
+  const { suitePath, synthesisPath } = writeSuiteFiles(root, outPath, suiteYaml, synthesisDoc);
+  const artifactPaths = writeSuiteArtifacts(root, outPath, result);
 
   console.log(`\n${result.tasks.length} tasks selected.`);
   for (const t of result.tasks) {
@@ -2034,12 +2074,13 @@ function cmdPublicationBundle(args: Parsed): number {
   if (!args.suite) throw new Error("--suite <suite.yaml> is required");
   if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
   const root = process.cwd();
+  const benchmarkPaths = daebPaths(args, root);
   const suite = loadSuite(args.suite);
   const vendorSlugs = args.vendors
     ? args.vendors.split(",").map((s) => s.trim()).filter(Boolean)
-    : discoverPublicationVendors(root, suite);
+    : discoverPublicationVendors(root, suite, benchmarkPaths);
   if (!vendorSlugs.length) {
-    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under benchmarks/daeb/v1/packs/<vendor>/.");
+    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under ax-arena/benchmark/daeb/v1/packs/<vendor>/.");
   }
   const manifest = buildPublicationBundle({
     root,
@@ -2054,6 +2095,7 @@ function cmdPublicationBundle(args: Parsed): number {
     requiredEffortProfiles: args.requiredEffortProfiles
       ? args.requiredEffortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
       : undefined,
+    benchmarkPaths,
   });
 
   const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);
@@ -2436,7 +2478,8 @@ async function runProductionHarnessTrial(opts: {
 async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
+  const benchmarkPaths = daebPaths(args, root);
+  const suitePath = args.suite || daebReadSuitePath(benchmarkPaths);
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =
@@ -2472,15 +2515,15 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
   const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
 
   for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(root, vendor);
+    const committedPackPath = daebPackPath(benchmarkPaths, vendor);
     if (!existsSync(committedPackPath)) throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
     const approvedPack = loadPack(committedPackPath);
     const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
     let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(root, vendor);
-    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
+    const vendorCard = loadVendorCard(benchmarkPaths, vendor);
+    const extract = vendorCard ? loadOracleExtract(benchmarkPaths, vendorCard.slug, suite.name) : null;
     if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
+      const surfaces = loadSurfaceExtract(benchmarkPaths, vendorCard.slug) ?? undefined;
       const freshPack = composePack(suite, vendorCard, extract, { surfaces, supportMatrix });
       mkdirSync(dirname(freshPackPath), { recursive: true });
       writeFileSync(
@@ -2568,7 +2611,8 @@ async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
 async function cmdDaebLowPass(args: Parsed): Promise<number> {
   loadDotenv();
   const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
+  const benchmarkPaths = daebPaths(args, root);
+  const suitePath = args.suite || daebReadSuitePath(benchmarkPaths);
   const suite = loadSuite(suitePath);
   const requestedSurface = concreteSurface(args);
   const benchmarkScope: SurfaceId[] =
@@ -2587,17 +2631,17 @@ async function cmdDaebLowPass(args: Parsed): Promise<number> {
   const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
 
   for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(root, vendor);
+    const committedPackPath = daebPackPath(benchmarkPaths, vendor);
     if (!existsSync(committedPackPath)) {
       throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
     }
     const approvedPack = loadPack(committedPackPath);
     const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
     let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(root, vendor);
-    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
+    const vendorCard = loadVendorCard(benchmarkPaths, vendor);
+    const extract = vendorCard ? loadOracleExtract(benchmarkPaths, vendorCard.slug, suite.name) : null;
     if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
+      const surfaces = loadSurfaceExtract(benchmarkPaths, vendorCard.slug) ?? undefined;
       const freshPack = composePack(suite, vendorCard, extract, {
         surfaces,
         supportMatrix,

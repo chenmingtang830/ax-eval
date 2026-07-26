@@ -5,6 +5,9 @@ import { z } from "zod";
 import {
   daebCapabilityInventoryPath,
   daebLegacyCapabilitiesPath,
+  daebReadCapabilityInventoryPath,
+  daebReadLegacyCapabilitiesPath,
+  type DaebPathInput,
 } from "./benchmark-paths.js";
 
 export const CANONICAL_SURFACE_SCOPE = ["api", "sdk", "cli"] as const;
@@ -349,17 +352,17 @@ function writeYaml(path: string, value: unknown): string {
   return path;
 }
 
-export function capabilityInventoryPath(root: string, slug: string): string {
+export function capabilityInventoryPath(root: DaebPathInput, slug: string): string {
   return daebCapabilityInventoryPath(root, slug);
 }
 
-export function legacyCapabilityExtractPath(root: string, slug: string): string {
+export function legacyCapabilityExtractPath(root: DaebPathInput, slug: string): string {
   return daebLegacyCapabilitiesPath(root, slug);
 }
 
-export function loadCapabilityInventory(root: string, slug: string): CapabilityInventory | null {
-  return readYaml(capabilityInventoryPath(root, slug), CapabilityInventorySchema)
-    ?? readYaml(legacyCapabilityExtractPath(root, slug), CapabilityInventorySchema);
+export function loadCapabilityInventory(root: DaebPathInput, slug: string): CapabilityInventory | null {
+  return readYaml(daebReadCapabilityInventoryPath(root, slug), CapabilityInventorySchema)
+    ?? readYaml(daebReadLegacyCapabilitiesPath(root, slug), CapabilityInventorySchema);
 }
 
 function uniq(values: string[]): string[] {
@@ -474,7 +477,7 @@ const CAPABILITY_INVENTORY_HEADER = [
   "",
 ].join("\n");
 
-export function writeCapabilityInventory(root: string, inventory: CapabilityInventory): string {
+export function writeCapabilityInventory(root: DaebPathInput, inventory: CapabilityInventory): string {
   const path = capabilityInventoryPath(root, inventory.slug);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, `${CAPABILITY_INVENTORY_HEADER}${yamlStringify(auditCapabilityInventory(inventory))}`);

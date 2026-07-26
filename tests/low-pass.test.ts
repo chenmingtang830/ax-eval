@@ -75,7 +75,7 @@ describe("daeb low-pass helpers", () => {
   });
 
   it("derives a run-scoped fresh pack path for low-pass execution", () => {
-    expect(daebFreshPackPath("/repo/results/runs/daeb-1-v3/low-pass", "convex", "/repo/benchmarks/daeb/v1/suite.yaml"))
+    expect(daebFreshPackPath("/repo/results/runs/daeb-1-v3/low-pass", "convex", "/repo/ax-arena/benchmark/daeb/v1/suite.yaml"))
       .toBe("/repo/results/runs/daeb-1-v3/low-pass/convex/_compiled/suite.yaml");
   });
 
@@ -169,7 +169,7 @@ describe("daeb low-pass helpers", () => {
     const manifestPath = resolve(dir, "low-pass.manifest.json");
     const manifest = {
       schema: "ax.low-coverage-pass/v1" as const,
-      suite: "/repo/benchmarks/daeb/v1/suite.yaml",
+      suite: "/repo/ax-arena/benchmark/daeb/v1/suite.yaml",
       vendor: "neon",
       generated_at: "2026-07-17T00:00:00.000Z",
       harnesses: ["codex", "claude-code"],
@@ -268,7 +268,7 @@ describe("daeb low-pass helpers", () => {
   it("upserts medium-effort surface records without clobbering other surfaces", () => {
     const manifest = {
       schema: "ax.low-coverage-pass/v1" as const,
-      suite: "/repo/benchmarks/daeb/v1/suite.yaml",
+      suite: "/repo/ax-arena/benchmark/daeb/v1/suite.yaml",
       vendor: "neon",
       generated_at: "2026-07-04T00:00:00.000Z",
       harnesses: ["codex", "claude-code"],

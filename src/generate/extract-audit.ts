@@ -22,7 +22,7 @@ import {
   writeSurfaceExtract,
   type SurfaceExtractResult,
 } from "./surface-extract.js";
-import { daebExtractsDir } from "./benchmark-paths.js";
+import { daebReadExtractsDir, type DaebPathInput } from "./benchmark-paths.js";
 
 export type ExtractFindingSeverity = "error" | "warn" | "info";
 
@@ -91,8 +91,8 @@ export function reclassifyEvidenceStrength(
   return "inferred";
 }
 
-function listExtractSlugs(root: string): string[] {
-  const dir = daebExtractsDir(root);
+function listExtractSlugs(root: DaebPathInput): string[] {
+  const dir = daebReadExtractsDir(root);
   try {
     return readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("_") && !d.name.startsWith("."))
@@ -353,7 +353,7 @@ function auditSurfaceFindings(slug: string, surfaces: SurfaceExtractResult): {
   return { findings, surfaces: audited };
 }
 
-export function auditVendorExtracts(root: string, slug: string): VendorExtractAudit {
+export function auditVendorExtracts(root: DaebPathInput, slug: string): VendorExtractAudit {
   const inventory = loadCapabilityInventory(root, slug);
   const surfaces = loadSurfaceExtract(root, slug);
   if (!inventory && !surfaces) {
@@ -410,7 +410,7 @@ export function auditVendorExtracts(root: string, slug: string): VendorExtractAu
   };
 }
 
-export function auditAllExtracts(root: string, slugs?: string[]): ExtractAuditReport {
+export function auditAllExtracts(root: DaebPathInput, slugs?: string[]): ExtractAuditReport {
   const targets = slugs?.length ? slugs : listExtractSlugs(root);
   const vendors = targets.map((slug) => auditVendorExtracts(root, slug));
   const flat = vendors.flatMap((v) => v.findings);
@@ -426,7 +426,7 @@ export function auditAllExtracts(root: string, slugs?: string[]): ExtractAuditRe
 }
 
 /** Apply autofixes from a prior auditVendorExtracts result and rewrite YAML. */
-export function applyExtractAudit(root: string, audit: VendorExtractAudit): { inventoryPath?: string; surfacesPath?: string } {
+export function applyExtractAudit(root: DaebPathInput, audit: VendorExtractAudit): { inventoryPath?: string; surfacesPath?: string } {
   const out: { inventoryPath?: string; surfacesPath?: string } = {};
   if (audit.inventory) {
     // Mark still-candidate unless zero errors remain after apply.

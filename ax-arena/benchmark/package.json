@@ -19,7 +19,9 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "daeb",
+    "!daeb/_archive/**"
   ],
   "scripts": {
     "ax-arena": "node --import tsx src/cli.ts",
