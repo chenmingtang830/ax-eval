@@ -361,6 +361,13 @@ describe("arena batch comparability", () => {
         provider_pins: [{ kind: "oracle" as const, id: "provider\0alias", version: "1.0.0" }],
       })),
     })).toThrow(/control characters/);
+    expect(() => resolveBatchIdentity(mkdtempSync(resolve(tmpdir(), "ax-arena-cohort-")), "a".repeat(40), new Date(), {
+      ...config,
+      cells: [
+        ...config.cells,
+        { ...config.cells[0]!, key: "neon/api/codex/trial-2", trial: 2, model: "different-model" },
+      ],
+    })).toThrow(/one profile, effort, and model|low-pass|Cartesian/);
   });
 
   it("rejects forged, inconsistent, or symlinked manifests", () => {

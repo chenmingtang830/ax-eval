@@ -15,6 +15,7 @@
     "./schemas/arena-cell-cleanup.v1.json": "./schemas/arena-cell-cleanup.v1.json",
     "./schemas/arena-batch.v1.json": "./schemas/arena-batch.v1.json",
     "./schemas/arena-batch-completion.v1.json": "./schemas/arena-batch-completion.v1.json",
+    "./schemas/arena-runtime-report.v1.json": "./schemas/arena-runtime-report.v1.json",
     "./package.json": "./package.json"
   },
   "bin": {

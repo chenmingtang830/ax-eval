@@ -7,6 +7,7 @@ import {
   ArenaBatchCompletionSchema,
   ArenaBatchManifestSchema,
   ArenaCellCleanupSchema,
+  ArenaRuntimeReportSchema,
   arenaBatchConfigurationHash,
   type ArenaBatchConfiguration,
 } from "../src/controller/schemas.js";
@@ -197,9 +198,50 @@ describe("arena batch schemas", () => {
     expect(validateCompletion({ ...completion, cells: [{ status: "failed" }] })).toBe(false);
     const structurallyValidButSemanticallyForged = {
       ...manifest,
-      expected_cells: ["different/cell"],
+      expected_cells: ["neon/api/codex/trial-2"],
     };
     expect(validateManifest(structurallyValidButSemanticallyForged)).toBe(true);
     expect(ArenaBatchManifestSchema.safeParse(structurallyValidButSemanticallyForged).success).toBe(false);
+  });
+});
+
+describe("arena runtime report schema", () => {
+  it("ships the strict persisted reporting manifest contract", () => {
+    const ajv = new Ajv2020({ strict: true });
+    addFormats(ajv);
+    const validate = ajv.compile(shippedSchema("arena-runtime-report.v1.json"));
+    const report = {
+      schema: "ax.arena-runtime-report/v1",
+      batch_id: "batch-1",
+      configuration_hash: "a".repeat(64),
+      generated_at: "2026-07-21T00:00:00.000Z",
+      surface_reports: [{
+        vendor: "neon",
+        surface: "api",
+        snapshot_path: "neon/api/reporting/generated-eval.snapshot.json",
+        html_path: "neon/api/reporting/generated-eval.html",
+        failure_review_path: "neon/api/reporting/failure-review.md",
+      }],
+      aggregates: [{
+        vendor: "neon",
+        surface: "api",
+        harness: "codex",
+        trial_count: 1,
+        aggregate_record_path: "neon/api/codex/aggregate/result.json",
+        trial_manifest_path: "neon/api/codex/aggregate/trials.json",
+      }],
+    };
+    expect(ArenaRuntimeReportSchema.safeParse(report).success).toBe(true);
+    expect(validate(report)).toBe(true);
+    expect(ArenaRuntimeReportSchema.safeParse({ ...report, extra: true }).success).toBe(false);
+    expect(validate({ ...report, extra: true })).toBe(false);
+    for (const path of ["/absolute.json", "../escape.json", "nested/./ambiguous.json", "nested\\windows.json"]) {
+      const invalid = {
+        ...report,
+        surface_reports: [{ ...report.surface_reports[0]!, snapshot_path: path }],
+      };
+      expect(ArenaRuntimeReportSchema.safeParse(invalid).success).toBe(false);
+      expect(validate(invalid)).toBe(false);
+    }
   });
 });

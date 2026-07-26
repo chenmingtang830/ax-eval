@@ -207,6 +207,15 @@ read-back credentials through `verificationCredentials`. Only the latter reach
 health checks, verification clients, and oracle providers; they never enter the
 harness environment or provisioning context.
 
+Arena runtime reporting starts only from an immutable batch completion. It
+rechecks canonical sidecar hashes and all four contained artifact seals, then
+derives cross-surface process evidence from native harness transcripts. Native
+calls without trustworthy task IDs are not fed into task-scoped structural
+diffs. Reporting uses the generic public `ax-eval` trace, snapshot-rendering,
+and aggregation APIs to write
+arena-owned per-surface reports and per-harness trial aggregates. Reporting does
+not execute cells and cannot bypass the trusted-workflow isolation gate.
+
 Arena database reset providers never use broad cascade cleanup. Postgres drops
 only exact namespace-matched tables, server-revalidated functions, and roles;
 dependencies leave cleanup unconfirmed. Turso CLI attestation binds an exact
