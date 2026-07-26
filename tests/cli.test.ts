@@ -4,6 +4,9 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
+import { stringify as yamlStringify } from "yaml";
+import { TargetPackSchema } from "../src/schemas.js";
+import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
@@ -47,6 +50,101 @@ describe("cli arg handling", () => {
     expect(out).toContain("--suite");
     expect(out).toContain("docs-only mode");
     expect(out).not.toContain("unknown flag");
+  });
+
+  it("cell help documents the stable subprocess contract", () => {
+    const { code, out } = runCli(["cell", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  });
+
+  it("cell run uses the public schema and writes one isolated record", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-cell-cli-"));
+    const binDir = mkdtempSync(resolve(tmpdir(), "ax-cell-bin-"));
+    try {
+      const pack = TargetPackSchema.parse({
+        name: "cell-cli",
+        version: "1",
+        standard_set_version: "cell-cli-v1",
+        run_id: "cell-cli",
+        generated_by: "deterministic@no-model",
+        auth_method: "none",
+        auth: { type: "none" },
+        base_url: "https://example.invalid",
+        site_url: "",
+        docs_urls: [],
+        tasks: [],
+      });
+      const packPath = resolve(dir, "pack.yaml");
+      writeFileSync(packPath, yamlStringify(pack));
+      writeApproval(packPath, pack, "cli-test");
+      const inputPath = resolve(dir, "cell.json");
+      const outputPath = resolve(dir, "record.json");
+      writeFileSync(inputPath, JSON.stringify({
+        schema: "ax.evaluation-cell/v1",
+        cell_id: "cell-cli-1",
+        batch_id: "batch-cli",
+        evaluation_set_id: "cell-cli-set",
+        evaluation_set_version: pack.standard_set_version,
+        target_id: "cell-cli",
+        pack: { path: "pack.yaml", content_hash: packFileContentHash(packPath) },
+        surface: "api",
+        harness: { id: "claude-code", profile: "medium", model: "claude-test", effort: "medium" },
+        trial: 1,
+        source_commit_sha: "b".repeat(40),
+        required_credentials: [],
+        run_context: {
+          cwd: dir,
+          artifact_dir: "artifacts",
+          invoke_timeout_ms: 10_000,
+          first_action_timeout_ms: 0,
+          invoke_retries: 0,
+        },
+      }));
+      const fakeClaude = resolve(binDir, "claude");
+      writeFileSync(fakeClaude, `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) { console.log("claude fake 1.2.3"); process.exit(0); }
+const prompt = args[args.indexOf("-p") + 1] || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+if (!resultPath || !tracePath) process.exit(2);
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "medium", ns: "cell-cli-ns", surface: "api", model: "claude-test",
+  leaked: process.env.UNRELATED_VENDOR_SECRET ?? null,
+  results: {}
+}));
+fs.writeFileSync(tracePath, "[]");
+console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-test" }));
+`);
+      chmodSync(fakeClaude, 0o755);
+
+      const result = runCli(
+        ["cell", "run", "--input", inputPath, "--output", outputPath],
+        {
+          PATH: `${binDir}:${process.env.PATH ?? ""}`,
+          AX_EVAL_CLAUDE_BIN: "/ambient/wrapper/must-not-run",
+          UNRELATED_VENDOR_SECRET: "must-not-leak",
+        },
+      );
+      expect(result.code).toBe(0);
+      const record = JSON.parse(readFileSync(outputPath, "utf8"));
+      expect(record).toMatchObject({
+        schema: "ax.normalized-cell-record/v1",
+        cell_id: "cell-cli-1",
+        batch_id: "batch-cli",
+        model: "claude-test",
+        effort: "medium",
+        trial: 1,
+        status: "completed",
+      });
+      const raw = JSON.parse(readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8"));
+      expect(raw.leaked).toBeNull();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      rmSync(binDir, { recursive: true, force: true });
+    }
   });
 
   it("automate-report help documents the guarded workflow", () => {

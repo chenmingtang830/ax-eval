@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -245,6 +245,117 @@ describe("runInvokeHarness", () => {
     expect(executor.profile).toBe("ceiling");
     expect(executor.results.t1.gid).toBeNull();
     expect(readFileSync(run.paths.stderrPath, "utf8")).toContain("boom");
+  });
+
+  it("requires a valid trace for one-cell invocations and preserves a diagnostic artifact", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    let attempts = 0;
+    const result = await runInvokeHarness(
+      { ...run, requireTrace: true, retries: 1 },
+      async () => {
+        attempts += 1;
+        writeFileSync(run.paths.resultsPath, JSON.stringify({
+          profile: "ceiling",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }));
+        if (attempts === 1) writeFileSync(run.paths.tracePath, "not-json");
+        return spawnResult({ stdout: Buffer.from("{}") });
+      },
+    );
+
+    expect(attempts).toBe(2);
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("trace_invalid");
+    expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))).toEqual([
+      expect.objectContaining({ note: "required trace artifact was missing or invalid" }),
+    ]);
+  });
+
+  it("keeps legacy result-only invocation success compatible", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const result = await runInvokeHarness(
+      { ...run, retries: 0 },
+      async () => {
+        writeFileSync(run.paths.resultsPath, JSON.stringify({
+          profile: "ceiling",
+          ns: run.ns,
+          surface: "api",
+          discovery: {},
+          results: { t1: { gid: "gid-1" } },
+        }));
+        return spawnResult({ stdout: Buffer.from("{}") });
+      },
+    );
+    expect(result.ok).toBe(true);
+  });
+
+  it("never follows harness-created artifact or invoke-home symlinks", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const outside = resolve(freshDir(), "outside.txt");
+    const outsideHome = resolve(freshDir(), "home.txt");
+    writeFileSync(outside, "outside-original");
+    writeFileSync(outsideHome, "home-original");
+    const home = resolve(dir, ".invoke-home", "cell-home");
+    mkdirSync(home, { recursive: true });
+
+    const result = await runInvokeHarness(
+      { ...run, retries: 0, env: { HOME: home } },
+      async () => {
+        symlinkSync(outside, run.paths.resultsPath);
+        symlinkSync(outsideHome, resolve(home, "linked-secret"));
+        return spawnResult({ stdout: Buffer.from("{}") });
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(readFileSync(outside, "utf8")).toBe("outside-original");
+    expect(readFileSync(outsideHome, "utf8")).toBe("home-original");
+    expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBeNull();
+  });
+
+  it("fails closed when the harness swaps the artifact directory", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const moved = resolve(freshDir(), "moved-artifacts");
+    const outside = freshDir();
+
+    await expect(runInvokeHarness({ ...run, retries: 0 }, async () => {
+      renameSync(dir, moved);
+      symlinkSync(outside, dir);
+      return spawnResult({ stdout: Buffer.from("{}") });
+    })).rejects.toThrow(/artifact (?:root must be a real directory|directory identity changed)/);
+    expect(readdirSync(outside)).toEqual([]);
+  });
+
+  it("fails closed when the harness swaps the invoke-home root", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const homeRoot = resolve(dir, ".invoke-home");
+    const home = resolve(homeRoot, "cell-home");
+    mkdirSync(home, { recursive: true });
+    const moved = resolve(freshDir(), "moved-home");
+    const outside = freshDir();
+
+    await expect(runInvokeHarness({ ...run, retries: 0, env: { HOME: home } }, async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: "ceiling",
+        ns: run.ns,
+        surface: "api",
+        discovery: {},
+        results: { t1: { gid: "gid-1" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      renameSync(homeRoot, moved);
+      symlinkSync(outside, homeRoot);
+      return spawnResult({ stdout: Buffer.from("{}") });
+    })).rejects.toThrow(/artifact (?:root must be a real directory|directory identity changed)/);
+    expect(existsSync(resolve(outside, "cell-home"))).toBe(false);
   });
 
   it("normalizes placeholder discovery base URLs from declared env templates", async () => {
@@ -535,9 +646,11 @@ describe("runInvokeHarness", () => {
     const spawn: AsyncSpawn = async () => {
       calls += 1;
       if (calls === 1) {
-        // First attempt crashes without writing a results file.
+        // First attempt crashes after a partial trace. The retry must not reuse it.
+        writeFileSync(run.paths.tracePath, JSON.stringify([{ note: "stale first attempt" }]));
         return spawnResult({ status: 1, stdout: Buffer.from(""), stderr: Buffer.from("transient") });
       }
+      expect(existsSync(run.paths.tracePath)).toBe(false);
       writeFileSync(
         run.paths.resultsPath,
         JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),

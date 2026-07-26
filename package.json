@@ -31,6 +31,8 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./schemas/evaluation-cell.v1.json": "./schemas/evaluation-cell.v1.json",
+    "./schemas/normalized-cell-record.v1.json": "./schemas/normalized-cell-record.v1.json",
     "./schemas/normalized-result.v1.json": "./schemas/normalized-result.v1.json",
     "./package.json": "./package.json"
   },

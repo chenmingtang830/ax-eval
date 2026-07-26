@@ -8,9 +8,11 @@ import { TargetPackSchema } from "../src/schemas.js";
 import {
   approvalPath,
   checkApproval,
+  checkCellApproval,
   oracleTier,
   packQaIssues,
   packContentHash,
+  packFileContentHash,
   reviewSummary,
   stageApprovedEquivalentPack,
   writeApproval,
@@ -73,6 +75,17 @@ describe("review gate", () => {
     const status = checkApproval(changed, packPath);
     expect(status.ok).toBe(false);
     expect(status.reason).toMatch(/changed since approval/);
+  });
+
+  it("binds cell approval to the exact pack file, including surface configuration", () => {
+    const p = pack({ surfaces: { cli: { bin: "example" } } });
+    writeFileSync(packPath, yamlStringify(p));
+    writeApproval(packPath, p, "tester");
+    const approvedHash = packFileContentHash(packPath);
+    expect(checkCellApproval(p, packPath, approvedHash).ok).toBe(true);
+
+    writeFileSync(packPath, yamlStringify({ ...p, surfaces: { cli: { bin: "malicious-wrapper" } } }));
+    expect(checkCellApproval(loadPack(packPath), packPath, packFileContentHash(packPath)).ok).toBe(false);
   });
 
   it("approval sidecar sits next to the pack", () => {

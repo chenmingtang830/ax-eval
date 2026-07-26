@@ -1,0 +1,136 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/chenmingtang830/ax-eval/schemas/normalized-cell-record.v1.json",
+  "title": "ax normalized cell record v1",
+  "description": "Strict output record for one fully specified evaluation cell.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema", "surface", "product", "harness", "standard_set_version",
+    "generated_at", "tasks_total", "tasks_passed", "pass_at_1", "pass_at_k",
+    "attempts", "discovery_score", "content_quality", "profiles",
+    "best_profile", "model", "harness_version_raw", "harness_version_semver",
+    "run_batch_id", "latency_ms", "total_duration_ms", "tool_call_count",
+    "token_usage", "token_cost", "cost_usd", "tokens_in", "tokens_out",
+    "validity_status", "first_action_latency_ms", "transcript_event_count",
+    "action_occurred", "summary_kind", "record_id", "cell_id", "batch_id",
+    "evaluation_set_id", "evaluation_set_version", "pack_content_hash",
+    "source_commit_sha", "target_id", "trial", "effort", "requested_model",
+    "started_at", "completed_at", "status", "error", "task_results", "artifacts"
+  ],
+  "properties": {
+    "schema": { "const": "ax.normalized-cell-record/v1" },
+    "surface": { "enum": ["api", "cli", "sdk", "mcp"] },
+    "product": { "$ref": "#/$defs/nonBlank" },
+    "harness": { "$ref": "#/$defs/nonBlank" },
+    "standard_set_version": { "$ref": "#/$defs/nonBlank" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "tasks_total": { "type": "integer", "minimum": 0 },
+    "tasks_passed": { "type": "integer", "minimum": 0 },
+    "pass_at_1": { "$ref": "#/$defs/rate" },
+    "pass_at_k": { "$ref": "#/$defs/rate" },
+    "attempts": { "type": "integer", "minimum": 1 },
+    "discovery_score": { "$ref": "#/$defs/nullableRate" },
+    "content_quality": { "$ref": "#/$defs/nullableRate" },
+    "profiles": { "type": "array", "items": { "type": "string" } },
+    "best_profile": { "type": ["string", "null"] },
+    "model": { "type": ["string", "null"] },
+    "harness_version_raw": { "type": ["string", "null"] },
+    "harness_version_semver": { "type": ["string", "null"] },
+    "run_batch_id": { "type": ["string", "null"] },
+    "latency_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "total_duration_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tool_call_count": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "token_usage": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "object", "additionalProperties": { "type": "number" } }
+      ]
+    },
+    "token_cost": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "cost_usd": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tokens_in": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "tokens_out": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "validity_status": { "type": ["string", "null"] },
+    "first_action_latency_ms": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "transcript_event_count": { "$ref": "#/$defs/nullableNonNegativeNumber" },
+    "action_occurred": { "type": ["boolean", "null"] },
+    "summary_kind": { "const": "single" },
+    "record_id": { "$ref": "#/$defs/nonBlank" },
+    "cell_id": { "$ref": "#/$defs/nonBlank" },
+    "batch_id": { "$ref": "#/$defs/nonBlank" },
+    "evaluation_set_id": { "$ref": "#/$defs/nonBlank" },
+    "evaluation_set_version": { "$ref": "#/$defs/nonBlank" },
+    "pack_content_hash": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "source_commit_sha": { "type": "string", "pattern": "^(?:[a-f0-9]{40}|[a-f0-9]{64})$" },
+    "target_id": { "$ref": "#/$defs/nonBlank" },
+    "trial": { "type": "integer", "minimum": 1 },
+    "effort": { "enum": ["low", "medium", "high"] },
+    "requested_model": { "$ref": "#/$defs/nonBlank" },
+    "started_at": { "type": "string", "format": "date-time" },
+    "completed_at": { "type": "string", "format": "date-time" },
+    "status": { "enum": ["completed", "failed", "blocked"] },
+    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "invoke-failed"] },
+    "error": {
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["stage", "message"],
+          "properties": {
+            "stage": { "enum": ["preflight", "provision", "invoke", "verify"] },
+            "message": { "type": "string" }
+          }
+        }
+      ]
+    },
+    "task_results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["taskId", "difficulty", "profile", "success", "oracleResults", "error", "na"],
+        "properties": {
+          "taskId": { "$ref": "#/$defs/nonBlank" },
+          "difficulty": { "$ref": "#/$defs/nonBlank" },
+          "profile": { "$ref": "#/$defs/nonBlank" },
+          "success": { "type": "boolean" },
+          "oracleResults": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["type", "passed", "detail"],
+              "properties": {
+                "type": { "type": "string" },
+                "passed": { "type": "boolean" },
+                "detail": { "type": "string" }
+              }
+            }
+          },
+          "error": { "type": ["string", "null"] },
+          "na": { "type": "boolean" }
+        }
+      }
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_dir", "results", "trace", "transcript", "invoke_metadata"],
+      "properties": {
+        "base_dir": { "$ref": "#/$defs/nonBlank" },
+        "results": { "$ref": "#/$defs/nonBlank" },
+        "trace": { "$ref": "#/$defs/nonBlank" },
+        "transcript": { "$ref": "#/$defs/nonBlank" },
+        "invoke_metadata": { "$ref": "#/$defs/nonBlank" }
+      }
+    }
+  },
+  "$defs": {
+    "nonBlank": { "type": "string", "pattern": ".*\\S.*" },
+    "rate": { "type": "number", "minimum": 0, "maximum": 1 },
+    "nullableRate": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+    "nullableNonNegativeNumber": { "type": ["number", "null"], "minimum": 0 }
+  }
+}

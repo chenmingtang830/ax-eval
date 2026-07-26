@@ -27,6 +27,7 @@
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
+ *   ax-eval cell run --input cell.json --output record.json           run one fully specified cell
  */
 import { fileURLToPath } from "node:url";
 import { basename, dirname, relative, resolve } from "node:path";
@@ -156,6 +157,8 @@ import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { healthCheckPack } from "./target/health-check.js";
 import { resetPack } from "./target/reset.js";
+import { EvaluationCellSchema } from "./cell/schema.js";
+import { runCell } from "./cell/run.js";
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -188,6 +191,7 @@ const COMMANDS = [
   "generate",
   "automate-report",
   "review",
+  "cell",
   "exec-plan",
   "verify-generated",
   "render-generated",
@@ -245,6 +249,8 @@ function commandUsage(command: string | undefined): string {
       ].join("\n");
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
+    case "cell":
+      return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
     case "exec-plan":
       return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
@@ -4629,6 +4635,34 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   return fullVerify;
 }
 
+async function cmdCell(argv: string[]): Promise<number> {
+  if (argv[0] !== "run") {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  let inputPath = "";
+  let outputPath = "";
+  for (let i = 1; i < argv.length; i += 1) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    if (flag !== "--input" && flag !== "--output") {
+      throw new Error(`unknown cell run flag ${flag}`);
+    }
+    if (!value || value.startsWith("--")) throw new Error(`flag ${flag} requires a value`);
+    if (flag === "--input") inputPath = value;
+    else outputPath = value;
+    i += 1;
+  }
+  if (!inputPath || !outputPath) {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  const cell = EvaluationCellSchema.parse(JSON.parse(readFileSync(inputPath, "utf8")));
+  const record = await runCell(cell, { credentials: process.env });
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);
+  console.log(`Saved normalized cell record → ${outputPath}`);
+  return record.status === "completed" ? 0 : 1;
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
@@ -4646,6 +4680,7 @@ async function main(): Promise<number> {
     console.log(commandUsage(command));
     return 0;
   }
+  if (command === "cell") return cmdCell(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   switch (command) {
     case "run":

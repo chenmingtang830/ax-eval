@@ -6,6 +6,7 @@
  * `pg`/`mysql2` drivers only load when a pack actually declares `sql_conn`.
  */
 import type { TargetPack } from "../schemas.js";
+import type { EnvSource } from "../target/config.js";
 
 export interface SqlConn {
   dialect: "postgres" | "mysql";
@@ -14,9 +15,9 @@ export interface SqlConn {
 
 /** Resolve a pack's `sql_conn` block into a connection string read from env.
  *  Returns null if the pack declares no SQL connection. */
-export function resolveSqlConn(pack: TargetPack): SqlConn | null {
+export function resolveSqlConn(pack: TargetPack, env: EnvSource = process.env): SqlConn | null {
   if (!pack.sql_conn) return null;
-  const connectionString = process.env[pack.sql_conn.connection_string_env];
+  const connectionString = env[pack.sql_conn.connection_string_env];
   if (!connectionString) {
     throw new Error(
       `sql_conn declared (env ${pack.sql_conn.connection_string_env}) but that env var is unset`,

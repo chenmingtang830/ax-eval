@@ -1,4 +1,5 @@
 import type { TargetPack } from "../schemas.js";
+import type { EnvSource } from "../target/config.js";
 
 export interface MongoConn {
   connectionString: string;
@@ -15,9 +16,9 @@ export interface MongoQuery {
   pipeline?: unknown[];
 }
 
-export function resolveMongoConn(pack: TargetPack): MongoConn | null {
+export function resolveMongoConn(pack: TargetPack, env: EnvSource = process.env): MongoConn | null {
   if (!pack.mongo_conn) return null;
-  const connectionString = process.env[pack.mongo_conn.connection_string_env]?.trim();
+  const connectionString = env[pack.mongo_conn.connection_string_env]?.trim();
   if (!connectionString) {
     throw new Error(
       `mongo_conn declared (env ${pack.mongo_conn.connection_string_env}) but that env var is unset`,

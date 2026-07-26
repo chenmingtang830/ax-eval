@@ -35,7 +35,9 @@ export { loadPack } from "./config.js";
 export {
   approvalPath,
   checkApproval,
+  checkCellApproval,
   packContentHash,
+  packFileContentHash,
   readApproval,
 } from "./generate/review.js";
 export type { Approval } from "./generate/review.js";
@@ -95,6 +97,24 @@ export {
   classifyTrialStabilityAt3,
   resultCellKey,
 } from "./generate/record.js";
+
+export {
+  EVALUATION_CELL_SCHEMA,
+  NORMALIZED_CELL_RECORD_SCHEMA,
+  EvaluationCellSchema,
+  NormalizedCellRecordSchema,
+  ReviewedPackReferenceSchema,
+} from "./cell/schema.js";
+export type {
+  EvaluationCell,
+  NormalizedCellRecord,
+  ReviewedPackReference,
+} from "./cell/schema.js";
+export { runCell } from "./cell/run.js";
+export type {
+  CredentialSource,
+  RunCellOptions,
+} from "./cell/run.js";
 export type {
   BlockedReason,
   NormalizedResult,

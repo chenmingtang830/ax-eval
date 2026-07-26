@@ -48,16 +48,44 @@ consume normalized records without importing private `src/` paths:
 
 ```ts
 import {
+  EvaluationCellSchema,
   TargetPackSchema,
   checkApproval,
+  runCell,
   tasksForSurface,
   verifyGeneratedPack,
 } from "ax-eval";
 ```
 
-The initial public API intentionally does not expose raw harness orchestration.
-That execution path remains behind the CLI until the one-cell runtime contract
-can carry complete harness, credential, provenance, and extension inputs.
+`runCell` is the policy-free execution boundary: one reviewed pack, target,
+surface, harness, model, effort, trial, batch, and immutable source revision in;
+one strict `ax.normalized-cell-record/v1` record out. The input and output are
+validated by `schemas/evaluation-cell.v1.json` and
+`schemas/normalized-cell-record.v1.json`; legacy `ax.normalized-result/v1`
+records remain unchanged and readable. Credential values
+are passed out-of-band in `RunCellOptions`, and only names listed by the cell are
+forwarded to its isolated harness environment.
+
+The same contract is available as a subprocess:
+
+```bash
+ax-eval cell run --input cell.json --output record.json
+```
+
+The cell runner never chooses a benchmark roster, model, effort, trial count, or
+batch identity, and it does not aggregate, rank, publish, or clean up. A
+controller such as ax-arena owns those policies and must pass `batch_id`
+unchanged to every cell. Verification reads live state before the record is
+returned; cleanup remains an explicit later lifecycle step.
+
+The pack reference carries a full SHA-256 of the exact pack file in addition to
+the existing approval sidecar check, so executable surface/auth changes cannot
+hide behind the narrower legacy approval digest. CLI cells currently use built-in
+extensions only; controllers that inject provider registries should call the
+library API until the explicit extension-loader CLI seam lands.
+Approvals created before this field was introduced remain valid for legacy
+commands, but `cell run` requires the operator to review and approve the exact
+pack again; ax-eval never upgrades that human decision automatically.
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness

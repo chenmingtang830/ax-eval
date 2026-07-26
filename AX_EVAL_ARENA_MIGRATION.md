@@ -427,6 +427,13 @@ responsibility instead.
 
 ### 6.2 Required public cell API
 
+Implementation status: `ax.evaluation-cell/v1`,
+`ax.normalized-cell-record/v1`, `runCell`, and
+`ax-eval cell run --input --output` are available through the public package
+root. Historical `ax.normalized-result/v1` remains unchanged; the new strict
+cell schema carries the generic identity and task-result fields without
+silently widening the legacy discriminator.
+
 The exact names may follow local conventions, but the public contract should be
 equivalent to:
 
