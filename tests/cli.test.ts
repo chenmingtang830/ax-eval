@@ -10,6 +10,7 @@ import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = resolve(ROOT, "src", "cli.ts");
+const ARENA_CLI = resolve(ROOT, "ax-arena", "benchmark", "src", "cli.ts");
 const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
 
@@ -24,6 +25,24 @@ function runCli(args: string[], env: Record<string, string> = {}, cwd: string = 
         ASANA_PAT: "test-token",
         ASANA_SANDBOX_PROJECT_GID: "123",
         ...env,
+      },
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    return { code: 0, out };
+  } catch (e) {
+    const err = e as { status?: number; stdout?: string; stderr?: string };
+    return { code: err.status ?? 1, out: (err.stdout ?? "") + (err.stderr ?? "") };
+  }
+}
+
+function runArenaCli(args: string[], cwd: string = ROOT): { code: number; out: string } {
+  try {
+    const out = execFileSync("node", ["--import", TSX_LOADER, ARENA_CLI, ...args], {
+      cwd,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        TSX_TSCONFIG_PATH: resolve(ROOT, "ax-arena", "benchmark", "tsconfig.json"),
       },
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -51,6 +70,24 @@ describe("cli arg handling", () => {
     expect(out).toContain("--suite");
     expect(out).toContain("docs-only mode");
     expect(out).not.toContain("unknown flag");
+  });
+
+  it("delegates legacy authoring help to the arena CLI", () => {
+    const direct = runArenaCli(["benchmark", "audit-extracts", "--help"]);
+    const delegated = runCli(["audit-extracts", "--help"]);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toBe(direct.out);
+    expect(delegated.out).toContain("usage: ax-arena benchmark audit-extracts");
+  });
+
+  it("warns on a legacy authoring alias and preserves the arena exit status", () => {
+    const direct = runArenaCli(["benchmark", "resolve-vendor"]);
+    const delegated = runCli(["resolve-vendor"]);
+    expect(delegated.code).toBe(direct.code);
+    expect(delegated.out).toContain(
+      "warning: ax-eval resolve-vendor is deprecated; use ax-arena benchmark resolve-vendor instead.",
+    );
+    expect(delegated.out).toContain(direct.out.trim());
   });
 
   it("cell help documents the stable subprocess contract", () => {

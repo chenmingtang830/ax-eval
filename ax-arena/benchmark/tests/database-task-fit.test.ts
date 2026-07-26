@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { evaluateDatabaseTaskFit } from "../src/generate/database-task-fit.js";
-import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
+import { evaluateDatabaseTaskFit } from "../src/authoring/database-task-fit.js";
+import type { CapabilityExtractResult } from "ax-eval";
 
 type Capability = CapabilityExtractResult["capabilities"][number];
 

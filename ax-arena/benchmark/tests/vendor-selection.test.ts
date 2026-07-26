@@ -5,9 +5,9 @@ import {
   coreVendorSlugs,
   loadVendorSelectionLedger,
   VendorSelectionLedgerSchema,
-} from "../src/generate/vendor-selection.js";
+} from "../src/authoring/vendor-selection.js";
 
-const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 describe("DAEB vendor selection ledger", () => {
   it("loads the purposive core/research/excluded cohort", () => {

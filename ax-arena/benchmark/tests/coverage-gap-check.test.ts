@@ -3,16 +3,19 @@ import {
   crossCheckGaps,
   deriveCandidateUniverse,
   deriveCandidateUniverseDeterministic,
-} from "../src/generate/coverage-gap-check.js";
-import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
-import * as harness from "../src/generate/harness.js";
+} from "../src/authoring/coverage-gap-check.js";
+import type { CapabilityExtractResult } from "ax-eval";
+import * as harness from "ax-eval";
 
 function extract(vendor: string, capabilities: CapabilityExtractResult["capabilities"]): CapabilityExtractResult {
   return {
+    schema: "ax.capability-inventory/v1",
     vendor,
     slug: vendor.toLowerCase(),
     category: "database",
     extracted_at: "2026-01-01T00:00:00.000Z",
+    audit_status: "candidate",
+    audit_notes: [],
     capabilities,
   };
 }

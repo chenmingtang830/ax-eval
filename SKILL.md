@@ -78,6 +78,10 @@ intents, difficulty labels, scoring contract, surfaces, and harness matrix;
 only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
 by vendor.
 
+Run DAEB authoring commands as `npm run ax-arena -- benchmark <command>`.
+The old `ax-eval` authoring aliases are temporary one-minor compatibility
+launchers and emit a deprecation warning.
+
 **Current status:** mutable DAEB-1 v1 authoring freeze is done for the 6-vendor
 core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 approved and trace review is completed. Production 3-trial and publication

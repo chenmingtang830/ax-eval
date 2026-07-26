@@ -2,18 +2,18 @@ import { describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
-import { matchDeterministicDatabaseConcept } from "../src/generate/coverage-gap-check.js";
-import type { CapabilityExtractResult } from "../src/generate/capability-extract.js";
+import { matchDeterministicDatabaseConcept } from "../src/authoring/coverage-gap-check.js";
 import {
   CapabilityInventorySchema,
   writeCapabilityInventory,
+  type CapabilityExtractResult,
   type CoverageMatrix,
-} from "../src/generate/methodology.js";
+} from "ax-eval";
 import {
   findMappingFalsePositives,
   findStaleTaskFitFindings,
   findTaskFitAuditFindings,
-} from "../src/generate/suite-audit.js";
+} from "../src/authoring/suite-audit.js";
 
 function cap(
   name: string,

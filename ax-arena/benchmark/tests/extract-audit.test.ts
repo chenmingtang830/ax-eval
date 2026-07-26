@@ -8,9 +8,8 @@ import {
   auditVendorExtracts,
   applyExtractAudit,
   auditAllExtracts,
-} from "../src/generate/extract-audit.js";
-import { writeSurfaceExtract } from "../src/generate/surface-extract.js";
-import { loadCapabilityExtract } from "../src/generate/capability-extract.js";
+} from "../src/authoring/extract-audit.js";
+import { loadCapabilityExtract, writeSurfaceExtract } from "ax-eval";
 
 describe("extract-audit", () => {
   it("reclassifies METHOD /path quotes as direct even when mislabeled", () => {
@@ -107,6 +106,7 @@ describe("extract-audit", () => {
         ],
       }));
       writeSurfaceExtract(dir, {
+        schema: "ax.surface-extract/v1",
         vendor: "Acme",
         slug: "acme",
         extracted_at: "2026-01-01T00:00:00.000Z",

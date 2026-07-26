@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 import { realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import {
+  AUTHORING_COMMANDS,
+  authoringCommandUsage,
+  isAuthoringCommand,
+  runAuthoringCommand,
+} from "./authoring/commands.js";
 
 export const BENCHMARK_USAGE = [
   "usage: ax-arena benchmark <command> [options]",
   "",
-  "The benchmark workspace is established, but commands move in later migration slices.",
+  "Authoring commands:",
+  ...AUTHORING_COMMANDS.map((command) => `  ${command}`),
 ].join("\n");
 
 export interface CliIo {
@@ -18,7 +25,7 @@ const PROCESS_IO: CliIo = {
   stderr: (message) => console.error(message),
 };
 
-export function runArenaCli(argv: readonly string[], io: CliIo = PROCESS_IO): number {
+export async function runArenaCli(argv: readonly string[], io: CliIo = PROCESS_IO): Promise<number> {
   const [group, command] = argv;
   if (!group || group === "--help" || group === "-h" || group === "help") {
     io.stdout(BENCHMARK_USAGE);
@@ -32,10 +39,22 @@ export function runArenaCli(argv: readonly string[], io: CliIo = PROCESS_IO): nu
     io.stdout(BENCHMARK_USAGE);
     return 0;
   }
-  io.stderr(`benchmark command is not implemented in the workspace scaffold: ${command}`);
-  return 1;
+  if (!isAuthoringCommand(command)) {
+    io.stderr(`unknown benchmark command: ${command}\n${BENCHMARK_USAGE}`);
+    return 1;
+  }
+  if (argv.slice(2).some((value) => value === "--help" || value === "-h" || value === "help")) {
+    io.stdout(authoringCommandUsage(command));
+    return 0;
+  }
+  try {
+    return await runAuthoringCommand(command, argv.slice(2));
+  } catch (error) {
+    io.stderr(error instanceof Error ? error.message : String(error));
+    return 1;
+  }
 }
 
 if (process.argv[1] && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
-  process.exitCode = runArenaCli(process.argv.slice(2));
+  process.exitCode = await runArenaCli(process.argv.slice(2));
 }

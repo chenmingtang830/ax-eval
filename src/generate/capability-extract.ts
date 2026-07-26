@@ -62,7 +62,7 @@ const CapabilitySchema = z.object({
 });
 export type Capability = z.infer<typeof CapabilitySchema>;
 export type CapabilityExtractResult = CapabilityInventory;
-const CapabilityExtractResultSchema = CapabilityInventorySchema;
+export const CapabilityExtractResultSchema = CapabilityInventorySchema;
 
 const LegacyCapabilityItemSchema = z.object({
   name: z.string().min(1),
@@ -131,23 +131,11 @@ function normalizeLegacyCapabilityExtract(legacy: z.infer<typeof LegacyCapabilit
   });
 }
 
-function categoryCoverageChecklist(category: string): string[] {
-  if (category !== "database") return [];
-  return [
-    "Baseline data definition: creating tables/collections, defining columns/fields, or schema introspection.",
-    "Baseline data writes: inserts, updates, deletes, bulk writes/imports, or equivalent record mutation flows.",
-    "Baseline data reads: filtered queries, sorting/pagination, counts, read-back/introspection, or equivalent retrieval flows.",
-    "Schema evolution: tracked migrations, schema change workflows, branching, or deploy/apply mechanisms when documented.",
-    "Integrity controls: constraints, schema validation, transactions, or equivalent correctness guarantees.",
-    "Access control: row-level policies, role-based access, identity-scoped tokens, or equivalent permission boundaries.",
-    "Operational recovery: backups, snapshots, restore, point-in-time recovery, export/import, or equivalent recovery paths.",
-    "Server-side execution: functions, triggers, procedures, jobs, webhooks, or equivalent in-database/runtime compute.",
-    "Advanced but benchmark-relevant capabilities when present: full-text search, vector search, change-data-capture, realtime subscriptions.",
-  ];
-}
-
-export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: string): string {
-  const checklist = categoryCoverageChecklist(vendor.category);
+export function buildCapabilityPrompt(
+  vendor: ResolveResult,
+  specSummary?: string,
+  coverageRequirements: readonly string[] = [],
+): string {
   const groundingBlock = specSummary
     ? [
         `You have a SEED of documented API operations from ${vendor.vendor}'s OpenAPI / registry surface.`,
@@ -182,16 +170,10 @@ export function buildCapabilityPrompt(vendor: ResolveResult, specSummary?: strin
     `This is an inventory stage, not a "top 10" ranking stage: include every benchmark-relevant documented`,
     `capability you can find across the main capability families the docs expose; do NOT stop at the most`,
     `important 10-20 if the docs clearly cover more.`,
-    `Do NOT over-index on differentiated premium/platform features while skipping baseline operational capabilities.`,
-    `If the docs show a general SQL surface, document API, Postgres/SQLite compatibility, table API, or typed SDK,`,
-    `you MUST also inventory the baseline operations that surface enables when the docs support them`,
-    `(for example: create table/collection, insert rows/documents, filtered reads/querying, pagination/count/read-back,`,
-    `schema introspection, export/import, or tracked schema changes). Those baseline ops are part of the benchmark`,
-    `concept universe even if the vendor does not market them as named flagship features.`,
-    checklist.length ? "" : undefined,
-    checklist.length ? "Coverage checklist to close before you stop:" : undefined,
-    ...checklist.map((line, index) => `${index + 1}. ${line}`),
-    checklist.length ? "" : undefined,
+    coverageRequirements.length ? "" : undefined,
+    coverageRequirements.length ? "Coverage checklist to close before you stop:" : undefined,
+    ...coverageRequirements.map((line, index) => `${index + 1}. ${line}`),
+    coverageRequirements.length ? "" : undefined,
     `Prefer product capabilities that can underpin benchmark tasks over pure compliance posture, pricing, or generic hosting claims.`,
     ``,
     `For each capability:`,
@@ -232,6 +214,9 @@ export interface ExtractCapabilitiesOptions {
    *  capabilities the seed misses. */
   specSummary?: string;
   specUrl?: string;
+  /** Caller-owned domain coverage requirements. Core does not choose a
+   * benchmark category checklist. */
+  coverageRequirements?: readonly string[];
 }
 
 /** Seed+grounded inventories (large OpenAPI + docs gap-fill) routinely need
@@ -246,7 +231,7 @@ export async function extractCapabilities(
   const label = `${vendor.vendor}/capabilities`;
   // Always require WebFetch: OpenAPI seed narrows the search space, it does not
   // replace grounded docs review (Management APIs routinely omit data-plane).
-  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary), {
+  const raw = await invokeGenerator(buildCapabilityPrompt(vendor, opts.specSummary, opts.coverageRequirements), {
     requireWebFetch: true,
     fallbackHarness: opts.harness ?? "claude-code",
     model: opts.model,

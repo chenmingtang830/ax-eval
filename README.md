@@ -125,14 +125,13 @@ pack again; ax-eval never upgrades that human decision automatically.
 ### Private arena workspace
 
 The repository now contains a private `@ax-arena/benchmark` workspace at
-`ax-arena/benchmark/`. It establishes the one-way package boundary and the
-future `ax-arena benchmark` CLI without moving benchmark behavior in the same
-change. Arena source may consume only public `ax-eval` exports; CI rejects
-core-to-arena imports and private `ax-eval/src/**` imports.
-
-Canonical DAEB artifacts and existing `ax-eval` commands remain at their current
-paths until their dedicated relocation PRs. Root `npm test`, `npm run typecheck`,
-`npm run build`, and `npm run pack:check` validate both packages.
+`ax-arena/benchmark/`. It owns canonical DAEB artifacts plus roster, synthesis,
+audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
+may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
+private `ax-eval/src/**` imports. Runtime providers, aggregation, and publication
+move in the following stack slices; legacy authoring spellings are temporary
+process launchers. Root `npm test`, `npm run typecheck`, `npm run build`, and
+`npm run pack:check` validate both packages.
 
 Run a live eval against a sandbox. `generate` is LLM-assisted by default: it
 builds a rule-derived seed from the spec, then asks a local generator harness
@@ -250,6 +249,17 @@ During the one-minor-release relocation window, DAEB readers fall back to the
 former `benchmarks/daeb/` root only when the canonical arena root is absent and
 emit a deprecation warning. If both roots exist, pass `--benchmark-root <dir>`
 to choose explicitly. Writers always use `ax-arena/benchmark/daeb/`.
+
+DAEB authoring is owned by the private arena workspace:
+
+```bash
+npm run ax-arena -- benchmark synthesize-suite --help
+```
+
+The `resolve-vendor`, `import-registry`, extract, audit, `compose-pack`, and
+`synthesize-suite` commands use this `ax-arena benchmark` form. Their former
+`ax-eval` spellings remain shell-free deprecation launchers for one minor
+release and preserve the arena command exit status.
 
 Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
 overwrites the same suite and invalidates content-hash approvals. Git SHAs and

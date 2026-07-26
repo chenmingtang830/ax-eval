@@ -49,13 +49,6 @@ const packageJson = JSON.parse(readFileSync(resolve(process.cwd(), "package.json
 if (packageJson.bin?.["ax-arena"] !== "./dist/cli.js") {
   throw new Error("arena package ax-arena bin must target ./dist/cli.js");
 }
-const builtBin = spawnSync(process.execPath, [resolve(process.cwd(), "dist", "cli.js"), "benchmark", "--help"], {
-  encoding: "utf8",
-});
-if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage: ax-arena benchmark")) {
-  throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
-}
-
 const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
 const smokeRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-package-smoke-"));
 try {
@@ -72,6 +65,18 @@ try {
     const installedDependency = resolve(smokeRoot, "node_modules", dependency);
     mkdirSync(dirname(installedDependency), { recursive: true });
     symlinkSync(resolve(workspaceRoot, "node_modules", dependency), installedDependency, "dir");
+  }
+
+  const builtBin = spawnSync(process.execPath, [
+    resolve(installedArena, "dist", "cli.js"),
+    "benchmark",
+    "--help",
+  ], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+  });
+  if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage: ax-arena benchmark")) {
+    throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
   }
 
   const publicImport = spawnSync(process.execPath, [

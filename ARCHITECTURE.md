@@ -43,7 +43,7 @@ OpenAPI / GraphQL / docs                vendor cards + extracts
 | Audience | Product team evaluating one SaaS | AXArena / DAEB publication |
 | Source of truth | Per-product pack | Canonical `suite.yaml` + ledger |
 | Packs live under | `targets/examples/` (shipped) or local `targets/` | `ax-arena/benchmark/daeb/v1/packs/<vendor>/` |
-| Authoring | `ingest` → `generate` → `review` | extract → synthesize → compose → `review` |
+| Authoring | `ingest` → `generate` → `review` | `ax-arena benchmark` extract → synthesize → compose → `review` |
 | Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex `gpt-5.6-terra` + Claude Code `claude-sonnet-5`, high, 3 trials |
 | Extra gates | Content-hash approval | Ledger, audit-suite, trace-review, publication freeze |
 
@@ -309,7 +309,8 @@ Important command groups:
 
 - **Authoring (tool)** — `ingest`, `generate`, `review`; `automate-report`
   orchestrates these steps but still stops at manual review/configuration gates
-- **Authoring (DAEB)** — extract / synthesize / audit / compose (see DAEB README)
+- **Authoring (DAEB)** — arena-owned extract / synthesize / audit / compose via
+  `ax-arena benchmark` (legacy `ax-eval` aliases are one-minor launchers)
 - **Execution** — `exec-plan`, `probe`, `check-env`, `init`
 - **Verification and reporting** — `verify`, `verify-generated`, `competitive`,
   `trace-diff`, `records-diff`

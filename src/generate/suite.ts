@@ -14,7 +14,7 @@ import { parse as yamlParse } from "yaml";
 import { z } from "zod";
 import { SuiteMethodologySchema } from "./methodology.js";
 
-const SuiteTaskSchema = z.object({
+export const SuiteTaskSchema = z.object({
   id: z.string().min(1),
   title: z.string().min(1),
   difficulty: z.enum(["L1", "L2", "L3", "L4"]),
@@ -25,7 +25,7 @@ const SuiteTaskSchema = z.object({
   na_examples: z.array(z.string()).default([]),
 });
 
-const SuiteSchema = z.object({
+export const SuiteSchema = z.object({
   name: z.string().min(1),
   version: z.number().int().positive(),
   category: z.string().min(1),

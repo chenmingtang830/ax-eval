@@ -19,7 +19,7 @@ import {
   type DaebPathInput,
 } from "./benchmark-paths.js";
 
-const ResolveResultSchema = z.object({
+export const ResolveResultSchema = z.object({
   vendor: z.string(),
   category: z.string(),
   slug: z.string(),
