@@ -146,6 +146,20 @@ describe("ax-arena benchmark CLI scaffold", () => {
     await expect(runArenaCli(["benchmark", "aggregate", "--help"], help.io)).resolves.toBe(0);
     expect(help.stdout[0]).toContain("--pack <vendor=pack.yaml>");
 
+    const exportHelp = capture();
+    await expect(runArenaCli(["benchmark", "export-publication", "--help"], exportHelp.io)).resolves.toBe(0);
+    expect(exportHelp.stdout[0]).toContain("--from <publication-bundle-dir>");
+
+    const exportMissing = capture();
+    await expect(runArenaCli(["benchmark", "export-publication"], exportMissing.io)).resolves.toBe(1);
+    expect(exportMissing.stderr[0]).toContain("missing required flag --from");
+
+    const exportTimestamp = capture();
+    await expect(runArenaCli([
+      "benchmark", "export-publication", "--from", "bundle", "--out", "out", "--generated-at", "today",
+    ], exportTimestamp.io)).resolves.toBe(1);
+    expect(exportTimestamp.stderr[0]).toContain("exact UTC ISO timestamp");
+
     const execute = capture();
     await expect(runArenaCli(["benchmark", "execute", "--run-root", "run"], execute.io)).resolves.toBe(1);
     expect(execute.stderr[0]).toContain("trusted workflow OS sandbox");

@@ -97,3 +97,10 @@ For a reviewed live cohort, copy only the required credential entries from
 remain in the root ax-eval template. OCI, Node, harness, Bubblewrap, and Turso
 executable identity is committed in `trusted-runtime/runtime-lock.json` and has
 no environment override.
+
+`ax-arena benchmark export-publication` provides offline parity for converting
+a sealed `ax.publication-bundle/v2` directory into the seven axarena JSON
+indexes. It validates canonical batch/completion provenance, derives task and
+trial outputs from completed records, binds snapshot outcomes to exact cell
+evidence, and recomputes aggregate scores before an atomic output write. This
+does not activate the trusted `publish` command, which remains fail-closed.
