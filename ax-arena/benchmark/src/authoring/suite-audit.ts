@@ -8,7 +8,7 @@
  * suite name/version metadata and can re-run a seed-only synthesize after
  * mapping fixes land in coverage-gap-check.
  */
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { basename, dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import {
@@ -19,14 +19,17 @@ import {
 import {
   loadSuite,
 } from "ax-eval";
+import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
 import {
   assertCanonicalDaebWritePath,
-  daebRepositoryRoot,
+  assertCanonicalDaebSuiteWritePath,
+  createDaebPathContext,
   daebReadVendorsDir,
+  daebRepositoryRoot,
   daebRoot,
   type DaebPathInput,
 } from "./benchmark-paths.js";
-import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
+import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
   loadCapabilityExtract,
   loadCoverageMatrix,
@@ -37,7 +40,6 @@ import {
   loadVendorCard,
 } from "./artifact-persistence.js";
 import { readdirSync } from "node:fs";
-import { writeContainedText } from "./artifact-filesystem.js";
 import { auditVendorSelectionAgainstExtracts, coreVendorSlugs } from "./vendor-selection.js";
 import { evaluateDatabaseTaskFit } from "./database-task-fit.js";
 import { auditCorePacks } from "./pack-audit.js";
@@ -70,10 +72,6 @@ function listDatabaseSlugs(root: DaebPathInput): string[] {
     .filter((f) => f.endsWith(".discovered.yaml"))
     .map((f) => f.replace(/\.discovered\.yaml$/, ""))
     .sort();
-}
-
-function loadYaml(path: string): unknown {
-  return yamlParse(readFileSync(path, "utf8"));
 }
 
 /** Find inventory capabilities that should map to a concept but didn't. */
@@ -504,11 +502,20 @@ export function formatSuiteAuditReport(report: SuiteAuditReport): string {
  */
 export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: SuiteAuditReport): string[] {
   const written: string[] = [];
-  const abs = assertCanonicalDaebWritePath(root, suitePath);
-  const repositoryRoot = daebRepositoryRoot(root);
-  const writeRoot = daebRoot(root);
-  if (!existsSync(abs)) return written;
-  const raw = loadYaml(abs) as Record<string, unknown>;
+  const paths = typeof root === "string" ? createDaebPathContext(root) : root;
+  const abs = assertCanonicalDaebSuiteWritePath(paths, suitePath);
+  const notePath = assertCanonicalDaebWritePath(
+    paths,
+    resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
+  );
+  const repositoryRoot = daebRepositoryRoot(paths);
+  const allowedRoot = daebRoot(paths);
+  const rawSuite = readContainedText(repositoryRoot, allowedRoot, abs, "suite audit target");
+  if (rawSuite === null) return written;
+  // Validate the sibling before mutating the suite, so a static alias cannot
+  // leave a partially applied audit result.
+  readContainedText(repositoryRoot, allowedRoot, notePath, "suite audit notes");
+  const raw = yamlParse(rawSuite) as Record<string, unknown>;
   let changed = false;
   if (report.findings.some((f) => f.code === "generic_suite_name")) {
     raw.name = report.suggestedName ?? "DAEB-1";
@@ -517,14 +524,10 @@ export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: 
   }
   if (changed) {
     const header = `# Canonical task suite (draft until human freeze).\n# Autofixed by audit-suite --apply.\n`;
-    writeContainedText(repositoryRoot, writeRoot, abs, `${header}${yamlStringify(raw)}`, "suite audit autofix");
+    writeContainedText(repositoryRoot, allowedRoot, abs, `${header}${yamlStringify(raw)}`, "suite audit target");
     written.push(abs);
   }
   // Sibling methodology artifacts keep the stem; rename note for humans.
-  const notePath = assertCanonicalDaebWritePath(
-    root,
-    resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
-  );
   const notes = [
     "# Suite audit autofix notes",
     "",
@@ -541,7 +544,7 @@ export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: 
     ...report.findings.map((f) => `- **${f.severity}/${f.code}**: ${f.message}`),
     "",
   ];
-  writeContainedText(repositoryRoot, writeRoot, notePath, notes.join("\n"), "suite audit notes");
+  writeContainedText(repositoryRoot, allowedRoot, notePath, notes.join("\n"), "suite audit notes");
   written.push(notePath);
   return written;
 }

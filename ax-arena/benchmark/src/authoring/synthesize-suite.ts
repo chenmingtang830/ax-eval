@@ -12,7 +12,6 @@
  * — they reason over already-extracted, cited text rather than researching new
  * facts. Every claim still traces back to specific capability inventory entries.
  */
-import { resolve } from "node:path";
 import { stringify as yamlStringify } from "yaml";
 import { z } from "zod";
 import { deriveCandidateUniverse, crossCheckGaps } from "./coverage-gap-check.js";
@@ -25,12 +24,6 @@ import {
   type CapabilityExtractResult,
   type SuiteMethodology,
 } from "ax-eval";
-import { writeContainedText } from "./artifact-filesystem.js";
-import {
-  assertCanonicalDaebWritePath,
-  daebRepositoryRoot,
-  daebRoot,
-} from "./benchmark-paths.js";
 import type {
   ConceptUniverse,
   CoverageDecision,
@@ -42,7 +35,16 @@ import type {
   TraceReviewMemo,
 } from "./artifact-contracts.js";
 import { defaultSuiteMethodology } from "./methodology-policy.js";
+import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
+  conceptUniversePath,
+  coverageMatrixPath,
+  failureTaxonomyPath,
+  graderLedgerPath,
+  methodologyPath,
+  selectionLedgerPath,
+  supportMatrixPath,
+  traceReviewPath,
   writeConceptUniverse,
   writeCoverageMatrix,
   writeFailureTaxonomy,
@@ -52,6 +54,15 @@ import {
   writeSupportMatrix,
   writeTraceReview,
 } from "./artifact-persistence.js";
+import {
+  assertCanonicalDaebWritePath,
+  assertCanonicalDaebSuiteWritePath,
+  createDaebPathContext,
+  daebRepositoryRoot,
+  daebRoot,
+  type DaebPathContext,
+  type DaebPathInput,
+} from "./benchmark-paths.js";
 
 const CoverageSchema = z.object({ vendor: z.string(), capability_name: z.string() });
 
@@ -1179,14 +1190,54 @@ export function renderSynthesisDoc(name: string, category: string, result: Synth
   return lines.join("\n");
 }
 
-export function writeSuiteFiles(root: string, path: string, suiteYaml: string, synthesisDoc: string): { suitePath: string; synthesisPath: string } {
-  const suitePath = assertCanonicalDaebWritePath(root, resolve(root, path));
-  const synthesisPath = assertCanonicalDaebWritePath(root, suitePath.replace(/\.yaml$/, ".synthesis.md"));
+function canonicalSuiteWriteTargets(
+  root: DaebPathInput,
+  targets: ReadonlyArray<{ path: string; label: string }>,
+): string[] {
+  const canonical = targets.map((target) => ({
+    ...target,
+    path: assertCanonicalDaebWritePath(root, target.path),
+  }));
   const repositoryRoot = daebRepositoryRoot(root);
-  const writeRoot = daebRoot(root);
-  writeContainedText(repositoryRoot, writeRoot, suitePath, suiteYaml, "canonical suite");
-  writeContainedText(repositoryRoot, writeRoot, synthesisPath, synthesisDoc, "suite synthesis");
+  const allowedRoot = daebRoot(root);
+  // Validate every existing sibling before the first mutation. This prevents a
+  // later symlink/hard-link rejection from leaving an earlier artifact changed.
+  for (const target of canonical) {
+    readContainedText(repositoryRoot, allowedRoot, target.path, target.label);
+  }
+  return canonical.map((target) => target.path);
+}
+
+function suiteWriterContext(root: DaebPathInput): DaebPathContext {
+  return typeof root === "string" ? createDaebPathContext(root) : root;
+}
+
+function suiteFileWriteTargets(canonicalSuitePath: string): ReadonlyArray<{ path: string; label: string }> {
+  return [
+    { path: canonicalSuitePath, label: "canonical suite" },
+    { path: canonicalSuitePath.replace(/\.yaml$/, ".synthesis.md"), label: "suite synthesis audit trail" },
+  ];
+}
+
+function writePreparedSuiteFiles(
+  paths: DaebPathContext,
+  targets: readonly [string, string],
+  suiteYaml: string,
+  synthesisDoc: string,
+): { suitePath: string; synthesisPath: string } {
+  const [suitePath, synthesisPath] = targets;
+  const repositoryRoot = daebRepositoryRoot(paths);
+  const allowedRoot = daebRoot(paths);
+  writeContainedText(repositoryRoot, allowedRoot, suitePath, suiteYaml, "canonical suite");
+  writeContainedText(repositoryRoot, allowedRoot, synthesisPath, synthesisDoc, "suite synthesis audit trail");
   return { suitePath, synthesisPath };
+}
+
+export function writeSuiteFiles(root: DaebPathInput, path: string, suiteYaml: string, synthesisDoc: string): { suitePath: string; synthesisPath: string } {
+  const paths = suiteWriterContext(root);
+  const candidateSuitePath = assertCanonicalDaebSuiteWritePath(paths, path);
+  const targets = canonicalSuiteWriteTargets(paths, suiteFileWriteTargets(candidateSuitePath)) as [string, string];
+  return writePreparedSuiteFiles(paths, targets, suiteYaml, synthesisDoc);
 }
 
 export function renderSupportSummaryMarkdown(
@@ -1254,16 +1305,46 @@ export function renderSupportSummaryMarkdown(
   return `${lines.join("\n")}\n`;
 }
 
-export function writeSuiteArtifacts(root: string, suitePath: string, result: SynthesizeResult): string[] {
-  const stem = suitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
+function suiteArtifactWriteTargets(
+  paths: DaebPathContext,
+  canonicalSuitePath: string,
+): ReadonlyArray<{ path: string; label: string }> {
+  return [
+    { path: methodologyPath(paths, canonicalSuitePath), label: "suite methodology" },
+    { path: conceptUniversePath(paths, canonicalSuitePath), label: "concept universe" },
+    { path: coverageMatrixPath(paths, canonicalSuitePath), label: "coverage matrix" },
+    { path: selectionLedgerPath(paths, canonicalSuitePath), label: "selection ledger" },
+    { path: supportMatrixPath(paths, canonicalSuitePath), label: "support matrix" },
+    { path: graderLedgerPath(paths, canonicalSuitePath), label: "grader ledger" },
+    { path: failureTaxonomyPath(paths, canonicalSuitePath), label: "failure taxonomy" },
+    { path: traceReviewPath(paths, canonicalSuitePath), label: "trace review" },
+    { path: canonicalSuitePath.replace(/\.yaml$/i, ".support-summary.md"), label: "suite support summary" },
+  ];
+}
+
+function writePreparedSuiteArtifacts(
+  paths: DaebPathContext,
+  canonicalSuitePath: string,
+  result: SynthesizeResult,
+  targets: readonly string[],
+): string[] {
+  const repositoryRoot = daebRepositoryRoot(paths);
+  const stem = canonicalSuitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
   const benchmark = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
-  const supportSummaryPath = assertCanonicalDaebWritePath(
-    root,
-    resolve(root, suitePath).replace(/\.yaml$/i, ".support-summary.md"),
-  );
+  const written = [
+    writeMethodology(paths, canonicalSuitePath, result.methodology),
+    writeConceptUniverse(paths, canonicalSuitePath, result.conceptUniverse),
+    writeCoverageMatrix(paths, canonicalSuitePath, result.coverageMatrix),
+    writeSelectionLedger(paths, canonicalSuitePath, { ...result.selectionLedger, benchmark }),
+    writeSupportMatrix(paths, canonicalSuitePath, { ...result.supportMatrix, benchmark }),
+    writeGraderLedger(paths, canonicalSuitePath, { ...result.graderLedger, benchmark }),
+    writeFailureTaxonomy(paths, canonicalSuitePath, { ...result.failureTaxonomy, benchmark }),
+    writeTraceReview(paths, canonicalSuitePath, { ...result.traceReview, benchmark }),
+  ];
+  const supportSummaryPath = targets[8]!;
   writeContainedText(
-    daebRepositoryRoot(root),
-    daebRoot(root),
+    repositoryRoot,
+    daebRoot(paths),
     supportSummaryPath,
     renderSupportSummaryMarkdown(
       benchmark,
@@ -1273,15 +1354,32 @@ export function writeSuiteArtifacts(root: string, suitePath: string, result: Syn
     ),
     "suite support summary",
   );
-  return [
-    writeMethodology(root, suitePath, result.methodology),
-    writeConceptUniverse(root, suitePath, result.conceptUniverse),
-    writeCoverageMatrix(root, suitePath, result.coverageMatrix),
-    writeSelectionLedger(root, suitePath, { ...result.selectionLedger, benchmark }),
-    writeSupportMatrix(root, suitePath, { ...result.supportMatrix, benchmark }),
-    writeGraderLedger(root, suitePath, { ...result.graderLedger, benchmark }),
-    writeFailureTaxonomy(root, suitePath, { ...result.failureTaxonomy, benchmark }),
-    writeTraceReview(root, suitePath, { ...result.traceReview, benchmark }),
-    supportSummaryPath,
-  ];
+  return [...written, supportSummaryPath];
+}
+
+export function writeSuiteArtifacts(root: DaebPathInput, suitePath: string, result: SynthesizeResult): string[] {
+  const paths = suiteWriterContext(root);
+  const canonicalSuitePath = assertCanonicalDaebSuiteWritePath(paths, suitePath);
+  const targets = canonicalSuiteWriteTargets(paths, suiteArtifactWriteTargets(paths, canonicalSuitePath));
+  return writePreparedSuiteArtifacts(paths, canonicalSuitePath, result, targets);
+}
+
+export function writeSuiteBundle(
+  root: DaebPathInput,
+  suitePath: string,
+  suiteYaml: string,
+  synthesisDoc: string,
+  result: SynthesizeResult,
+): { suitePath: string; synthesisPath: string; artifactPaths: string[] } {
+  const paths = suiteWriterContext(root);
+  const canonicalSuitePath = assertCanonicalDaebSuiteWritePath(paths, suitePath);
+  const targets = canonicalSuiteWriteTargets(paths, [
+    ...suiteFileWriteTargets(canonicalSuitePath),
+    ...suiteArtifactWriteTargets(paths, canonicalSuitePath),
+  ]);
+  const suiteTargets = targets.slice(0, 2) as [string, string];
+  const artifactTargets = targets.slice(2);
+  const writtenSuite = writePreparedSuiteFiles(paths, suiteTargets, suiteYaml, synthesisDoc);
+  const artifactPaths = writePreparedSuiteArtifacts(paths, canonicalSuitePath, result, artifactTargets);
+  return { ...writtenSuite, artifactPaths };
 }

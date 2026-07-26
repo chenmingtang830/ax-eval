@@ -18,6 +18,7 @@ import {
 import { extractOraclesAll } from "./oracle-extract.js";
 import {
   assertCanonicalDaebWritePath,
+  assertCanonicalDaebSuiteWritePath,
   createDaebPathContext,
   daebReadVendorsDir,
   type DaebPathContext,
@@ -50,8 +51,7 @@ import {
   renderSuiteYaml,
   renderSynthesisDoc,
   synthesizeSuite,
-  writeSuiteArtifacts,
-  writeSuiteFiles,
+  writeSuiteBundle,
 } from "./synthesize-suite.js";
 import { coreVendorSlugs } from "./vendor-selection.js";
 import { DATABASE_CAPABILITY_COVERAGE_REQUIREMENTS } from "./database-policy.js";
@@ -534,7 +534,7 @@ function cmdAuditSuite(args: AuthoringArgs): number {
   const report = auditSuite(root, args.suite, paths);
   console.log(formatSuiteAuditReport(report));
   if (args.apply) {
-    const path = assertCanonicalDaebWritePath(paths, args.suite);
+    const path = assertCanonicalDaebSuiteWritePath(paths, args.suite);
     console.log("\nApplying autofixes…");
     const written = applySuiteAudit(paths, path, report);
     for (const output of written) console.log(`  wrote ${output}`);
@@ -552,7 +552,7 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
   if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
   const root = process.cwd();
   const paths = daebPaths(args, root);
-  const outPath = assertCanonicalDaebWritePath(paths, args.out);
+  const outPath = assertCanonicalDaebSuiteWritePath(paths, args.out);
   let vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths, args.category);
   if (!args.vendor && !args.vendors && args.category === "database") {
     const core = coreVendorSlugs(paths);
@@ -591,8 +591,7 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
   const version = /^suite$/i.test(stem) ? 1 : inferSuiteVersionFromStem(stem);
   const yaml = renderSuiteYaml(name, version, args.category, result);
   const synthesis = renderSynthesisDoc(name, args.category, result);
-  const { suitePath, synthesisPath } = writeSuiteFiles(root, outPath, yaml, synthesis);
-  const artifactPaths = writeSuiteArtifacts(root, outPath, result);
+  const { suitePath, synthesisPath, artifactPaths } = writeSuiteBundle(paths, outPath, yaml, synthesis, result);
   console.log(`\n${result.tasks.length} tasks selected.`);
   for (const task of result.tasks) {
     console.log(`  [${task.difficulty}] ${task.id} — ${new Set(task.coverage.map((entry) => entry.vendor)).size} vendor(s)`);
