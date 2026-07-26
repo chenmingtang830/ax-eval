@@ -21,6 +21,7 @@ export const DETACHED_ARENA_POLICY_FILES = Object.freeze([
   "src/generate/low-pass.ts",
   "src/generate/production-run.ts",
   "src/generate/publication.ts",
+  "src/generate/task-extract.ts",
 ]);
 export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/report.ts", identifier: "renderCompetitiveReport" },

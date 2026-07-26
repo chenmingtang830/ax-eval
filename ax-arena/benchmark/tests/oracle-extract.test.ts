@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { extractOracles } from "../src/generate/task-extract.js";
-import type { Suite } from "../src/generate/suite.js";
-import type { ResolveResult } from "../src/generate/vendor-resolve.js";
+import type { ResolveResult, Suite } from "ax-eval";
+import { extractOracles } from "../src/authoring/oracle-extract.js";
 
 describe("task extraction seeds", () => {
   it("uses deterministic Postgres seeds and headless env names for Nile", async () => {

@@ -71,10 +71,11 @@ Tool-track authoring reaches that pack via:
 spec/docs -> ingest -> generate (LLM-assisted or --deterministic) -> review
 ```
 
-Benchmark-track authoring reaches that pack via suite synthesis and
-arena-owned `compose-pack` policy (see DAEB README). It consumes only the
-public `ax-eval` authoring contracts and pack schemas. Re-synthesis or pack
-edits invalidate content-hash approvals on both tracks.
+Benchmark-track authoring reaches that pack via arena-owned suite synthesis,
+canonical-suite oracle extraction, and `compose-pack` policy (see DAEB README).
+Those implementations consume only public `ax-eval` schemas, harness helpers,
+and pack contracts. Re-synthesis or pack edits invalidate content-hash
+approvals on both tracks.
 
 ## Shared vs DAEB-only
 
@@ -85,6 +86,7 @@ edits invalidate content-hash approvals on both tracks.
 | `exec-plan` / harness / transcript | yes | generic matrix | narrowed production matrix |
 | Verify / records / report | yes | pack-declared oracles | pack + extract oracles |
 | Vendor-selection ledger | DAEB-only | — | `vendor-selection-ledger.yaml` |
+| Canonical-suite oracle extraction | DAEB-only | — | `extract-tasks` + arena database seeds |
 | Suite synthesis / audit-suite | DAEB-only | — | `synthesize-suite`, `audit-suite` |
 | Trace-review memo | DAEB-only | — | `suite.trace-review.yaml` |
 | `daeb-production-rerun` | DAEB-only | — | 3-trial production lane |
@@ -190,7 +192,10 @@ Path selection and the YAML persistence wrappers moved from core are implemented
 only in arena; the public core boundary provides schemas and pure
 parsers/transforms. Arena also constructs suite methodology defaults: the core
 validates the artifact shape but does not choose category scoring surfaces,
-coverage thresholds, task counts, or publication checkpoints. Those wrappers
+coverage thresholds, task counts, or publication checkpoints. Canonical-suite
+oracle extraction is also arena-owned; core retains its validation schemas and
+generic harness/concurrency helpers, not vendor seed or support-matrix policy.
+Those wrappers
 reject static symlink/hard-link aliases and
 pin parent/file identities while reading or updating. Authoring assumes
 exclusive use by the trusted checkout UID; malicious concurrent same-UID parent

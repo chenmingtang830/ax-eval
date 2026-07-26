@@ -142,9 +142,10 @@ private `ax-eval/src/**` imports. Arena owns its database runtime providers,
 batch aggregation, competitive reporting, publication bundle/export, and trusted
 controller entrypoints. Canonical/legacy DAEB path selection and all benchmark
 authoring persistence are arena-owned; core exposes only generic authoring
-schemas, extraction, and explicit-input transforms. Suite methodology defaults,
-including DAEB's scoring surfaces and coverage/task-count policy, are also
-arena-owned. Legacy core commands remain
+schemas, single-product capability/surface extraction, and explicit-input
+transforms. Canonical-suite oracle extraction—including grounded prompt,
+concurrency, support-matrix, and database seed policy—is arena-owned alongside
+suite methodology defaults. Legacy core commands remain
 later compatibility slices. Root `npm test`, `npm run typecheck`, `npm run
 build`, and `npm run pack:check` validate both packages.
 

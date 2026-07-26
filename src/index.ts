@@ -238,15 +238,20 @@ export type {
   SurfaceExtractResult,
 } from "./generate/surface-extract.js";
 export {
+  OracleCheckSchema,
+  OracleExtractItemSchema,
   OracleExtractResultSchema,
-} from "./generate/task-extract.js";
+  OracleExtractSurfaceIdSchema,
+  OracleSqlDialectSchema,
+  OracleVendorConfigSchema,
+} from "./generate/oracle-extract-schema.js";
 export type {
-  ExtractOraclesOptions,
-  ExtractOutcome,
   OracleCheck,
   OracleExtractItem,
   OracleExtractResult,
-} from "./generate/task-extract.js";
+  OracleExtractSurfaceId,
+  OracleVendorConfig,
+} from "./generate/oracle-extract-schema.js";
 export {
   BehavioralMethodologySchema,
   CANONICAL_SURFACE_SCOPE,
@@ -297,10 +302,6 @@ export { renderGeneratedSnapshot } from "./generate/snapshot.js";
 export type { GeneratedReportSnapshot } from "./generate/snapshot.js";
 export { REPORT_STYLE } from "./report-style.js";
 
-export {
-  extractOracles,
-  extractOraclesAll,
-} from "./generate/task-extract.js";
 export {
   auditCapabilityInventory,
 } from "./generate/methodology.js";

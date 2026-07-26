@@ -35,10 +35,12 @@ Pack composition and database prompt overrides are arena-owned under
 Canonical/legacy benchmark paths and the artifact persistence wrappers moved
 from core are also arena-owned. They use no-follow, single-link, and inode
 validation under an exclusive trusted-checkout-UID assumption. Remaining
-arena-native direct file I/O is a later hardening seam. Generic task extraction
-and schema validation remain public `ax-eval` contracts. Suite methodology
-defaults live here too; `ax-eval` exports their schemas without choosing DAEB's
-surface denominator, coverage threshold, task count, or publication checkpoints.
+arena-native direct file I/O is a later hardening seam. Canonical-suite oracle
+extraction lives here too: grounded prompts, retry/concurrency behavior,
+support-matrix application, database vendor configuration, and deterministic
+read-back seeds. `ax-eval` exports the reusable oracle-extract validation
+schemas and generic harness helpers, without the arena policy. Suite methodology
+defaults likewise live here rather than in core.
 
 `executeArenaCell` owns one reviewed cell lifecycle: it partitions host,
 verifier, and reset credentials; runs against an isolated pack copy; validates

@@ -2,7 +2,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import {
   extractCapabilities,
-  extractOraclesAll,
   extractSurfaces,
   fetchRegistrySurface,
   fetchSpecSummary,
@@ -16,6 +15,7 @@ import {
   type OracleSpec,
   type ResolveResult,
 } from "ax-eval";
+import { extractOraclesAll } from "./oracle-extract.js";
 import {
   assertCanonicalDaebWritePath,
   createDaebPathContext,
