@@ -65,6 +65,9 @@ transcript. Unattributed native calls remain process evidence but never produce
 task-scoped structural diffs. Reporting writes per-surface HTML, snapshots,
 failure reviews, and
 produces per-harness trial aggregates plus one immutable reporting manifest.
+That manifest requires the source SHA, exact batch/completion hashes, explicit
+runtime backend and trust level, nullable pinned-sandbox provenance, and the
+SHA-256 of every emitted report and aggregate artifact.
 Reporting does not execute cells or relax the trusted-workflow gate.
 
 Trusted dispatch validation, OCI/sysroot and exact-tool preparation, the real

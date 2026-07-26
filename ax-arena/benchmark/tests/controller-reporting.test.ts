@@ -13,9 +13,10 @@ import {
 import { resolveBatchIdentity, writeBatchCompletion } from "../src/controller/batch.js";
 import { arenaCellId } from "../src/controller/cell.js";
 import { writeRuntimeReportingBundle } from "../src/controller/reporting.js";
+import { bubblewrapPolicyHash } from "../src/controller/sandbox.js";
 import { ArenaCellCleanupSchema, type ArenaBatchConfiguration } from "../src/controller/schemas.js";
 
-function fixture(options: { codexTranscript?: string; codexTrace?: unknown } = {}) {
+function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sandboxed?: boolean } = {}) {
   const runRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-reporting-"));
   const packPath = resolve(runRoot, "canonical-pack.yaml");
   const pack = TargetPackSchema.parse({
@@ -26,8 +27,21 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown } = {
     tasks: [],
   });
   writeFileSync(packPath, yamlStringify(pack));
+  const sandbox = {
+    kind: "bubblewrap" as const,
+    policy_version: "ax.arena-bubblewrap/v2" as const,
+    runtime_lock_sha256: "7".repeat(64),
+    sysroot: "/opt/ax-arena-runtime/rootfs" as const,
+    executable: "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+    executable_sha256: "8".repeat(64),
+    runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
+  };
   const configuration: ArenaBatchConfiguration = {
     command: "daeb-low-pass",
+    execution: options.sandboxed
+      ? { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" }
+      : { runtime_backend: "native", trust_level: "local" },
+    ...(options.sandboxed ? { sandbox } : {}),
     suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor: "neon",
@@ -162,6 +176,12 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown } = {
       completed_at: "2026-07-21T00:00:01.000Z",
       status: "completed",
       error: null,
+      ...(options.sandboxed ? { sandbox_provenance: {
+        id: "ax-arena-bubblewrap",
+        version: "ax.arena-bubblewrap/v2",
+        implementation_sha256: sandbox.executable_sha256,
+        policy_sha256: bubblewrapPolicyHash(sandbox),
+      } } : {}),
       task_results: [],
       artifacts: {
         base_dir: artifacts,
@@ -212,6 +232,8 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown } = {
   });
   return {
     runRoot,
+    batch,
+    batchPath: resolve(runRoot, "batch.json"),
     recordPath,
     cleanupPath,
     tracePath: resolve(artifacts, "trace.json"),
@@ -228,6 +250,20 @@ describe("arena runtime reporting", () => {
     expect(report.surface_reports).toHaveLength(1);
     expect(report.aggregates).toHaveLength(2);
     expect(report.surface_reports[0]!.snapshot_path).toBe("neon/api/reporting/generated-eval.snapshot.json");
+    expect(report.source_commit_sha).toBe(test.batch.source_commit_sha);
+    expect(report.execution).toEqual({ runtime_backend: "native", trust_level: "local" });
+    expect(report.sandbox_provenance).toBeNull();
+    expect(report.batch_manifest_sha256).toBe(createHash("sha256").update(readFileSync(test.batchPath)).digest("hex"));
+    expect(report.batch_completion_sha256).toBe(createHash("sha256").update(readFileSync(test.completionPath)).digest("hex"));
+    for (const [path, hash] of [
+      [report.surface_reports[0]!.snapshot_path, report.surface_reports[0]!.snapshot_sha256],
+      [report.surface_reports[0]!.html_path, report.surface_reports[0]!.html_sha256],
+      [report.surface_reports[0]!.failure_review_path, report.surface_reports[0]!.failure_review_sha256],
+      [report.aggregates[0]!.aggregate_record_path, report.aggregates[0]!.aggregate_record_sha256],
+      [report.aggregates[0]!.trial_manifest_path, report.aggregates[0]!.trial_manifest_sha256],
+    ] as const) {
+      expect(hash).toBe(createHash("sha256").update(readFileSync(resolve(test.runRoot, path))).digest("hex"));
+    }
     expect(JSON.parse(readFileSync(resolve(test.runRoot, "runtime-reporting.json"), "utf8"))).toEqual(report);
     const html = readFileSync(resolve(test.runRoot, report.surface_reports[0]!.html_path), "utf8");
     expect(html).toContain("<!doctype html>");
@@ -237,6 +273,28 @@ describe("arena runtime reporting", () => {
     const snapshot = JSON.parse(readFileSync(resolve(test.runRoot, report.surface_reports[0]!.snapshot_path), "utf8"));
     expect(snapshot.runs.every((run: { evidence: { results: string[] } }) =>
       !run.evidence.results[0]!.startsWith("/"))).toBe(true);
+  });
+
+  it("binds hosted pinned execution and sandbox policy provenance", () => {
+    const test = fixture({ sandboxed: true });
+    const report = test.run();
+    expect(report.execution).toEqual({ runtime_backend: "pinned-oci", trust_level: "hosted-trusted" });
+    expect(report.sandbox_provenance).toMatchObject({
+      id: "ax-arena-bubblewrap",
+      version: "ax.arena-bubblewrap/v2",
+      runtime_lock_sha256: "7".repeat(64),
+      implementation_sha256: "8".repeat(64),
+      policy_sha256: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
+  });
+
+  it("hashes the same persisted batch bytes used for reporting", () => {
+    const test = fixture();
+    const persisted = JSON.parse(readFileSync(test.batchPath, "utf8"));
+    persisted.created_at = "2026-07-21T00:00:00.001Z";
+    writeFileSync(test.batchPath, `${JSON.stringify(persisted, null, 2)}\n`);
+    expect(test.run).toThrow(/immutable arena batch manifest changed during reporting/);
+    expect(existsSync(resolve(test.runRoot, "runtime-reporting.json"))).toBe(false);
   });
 
   it.each([

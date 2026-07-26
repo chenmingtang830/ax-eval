@@ -222,7 +222,9 @@ calls without trustworthy task IDs are not fed into task-scoped structural
 diffs. Reporting uses the generic public `ax-eval` trace, snapshot-rendering,
 and aggregation APIs to write
 arena-owned per-surface reports and per-harness trial aggregates. Reporting does
-not execute cells and cannot bypass the trusted-workflow isolation gate.
+not execute cells and cannot bypass the trusted-workflow isolation gate. Its
+manifest hash-binds the batch, completion, every emitted artifact, execution
+backend/trust level, and pinned sandbox provenance; these fields are mandatory.
 
 Arena database reset providers never use broad cascade cleanup. Postgres drops
 only exact namespace-matched tables, server-revalidated functions, and roles;
