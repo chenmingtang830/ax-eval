@@ -9,7 +9,6 @@ import {
   NormalizedCellRecordSchema,
   TargetPackSchema,
   packFileContentHash,
-  type HarnessProbe,
 } from "ax-eval";
 import { resolveBatchIdentity, writeBatchCompletion } from "../src/controller/batch.js";
 import { arenaCellId } from "../src/controller/cell.js";
@@ -204,23 +203,10 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown } = {
   const artifacts = codex.record.artifacts.base_dir;
   const recordPath = codex.recordPath;
   const cleanupPath = codex.cleanupPath;
-  const harness: HarnessProbe = {
-    host: "ci",
-    hostLabel: "AXArena test",
-    model: null,
-    confidence: "high",
-    node: process.version,
-    platform: process.platform,
-    arch: process.arch,
-    detectedAt: "2026-07-21T00:00:03.000Z",
-    signals: ["CI"],
-    suggestion: { profiles: ["medium"], matrix: false, reason: "test" },
-  };
   const run = (minPassRate?: number) => writeRuntimeReportingBundle({
     runRoot,
     batch,
     packPaths: { neon: packPath },
-    harness,
     now: new Date("2026-07-21T00:00:04.000Z"),
     ...(minPassRate === undefined ? {} : { minPassRate }),
   });

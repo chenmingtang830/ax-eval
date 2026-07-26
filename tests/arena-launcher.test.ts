@@ -1,7 +1,8 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { arenaChildExitCode, executeArenaLaunch, resolveArenaLaunch } from "../src/arena-launcher.js";
 
@@ -57,19 +58,68 @@ describe("arena compatibility launcher", () => {
     expect(arenaChildExitCode(7, null)).toBe(7);
   });
 
-  it("preserves the signal status through the executed compatibility launch", () => {
+  it("preserves the signal status through the executed compatibility launch", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-signal-launch-"));
     try {
       const cli = resolve(root, "arena-signal.js");
       writeFileSync(cli, 'process.kill(process.pid, "SIGTERM");\n');
-      const status = executeArenaLaunch({
+      let reraised: NodeJS.Signals | undefined;
+      const status = await executeArenaLaunch({
         executable: process.execPath,
         args: [cli],
         env: process.env,
+      }, {
+        reraiseSignal: (signal) => { reraised = signal; },
       });
       expect(status).toBe(143);
+      expect(reraised).toBe("SIGTERM");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
   });
+
+  it("forwards parent cancellation to the arena child and re-raises it", async () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-arena-forward-signal-"));
+    const marker = resolve(root, "child-saw-signal");
+    const childCli = resolve(root, "arena-child.mjs");
+    const wrapperCli = resolve(root, "compatibility-wrapper.mjs");
+    try {
+      writeFileSync(childCli, [
+        'import { writeFileSync } from "node:fs";',
+        `const marker = ${JSON.stringify(marker)};`,
+        'process.on("SIGTERM", () => {',
+        '  writeFileSync(marker, "SIGTERM\\n");',
+        '  process.removeAllListeners("SIGTERM");',
+        '  process.kill(process.pid, "SIGTERM");',
+        '});',
+        'process.stdout.write("ready\\n");',
+        'setInterval(() => {}, 1000);',
+      ].join("\n"));
+      writeFileSync(wrapperCli, [
+        `import { executeArenaLaunch } from ${JSON.stringify(pathToFileURL(resolve("src/arena-launcher.ts")).href)};`,
+        `await executeArenaLaunch({ executable: process.execPath, args: [${JSON.stringify(childCli)}], env: process.env });`,
+      ].join("\n"));
+      const wrapper = spawn(process.execPath, [
+        "--import", fileURLToPath(import.meta.resolve("tsx")), wrapperCli,
+      ], { stdio: ["ignore", "pipe", "pipe"] });
+      await new Promise<void>((resolveReady, rejectReady) => {
+        const timeout = setTimeout(() => rejectReady(new Error("arena child did not become ready")), 5_000);
+        wrapper.once("error", rejectReady);
+        wrapper.stdout.setEncoding("utf8");
+        wrapper.stdout.on("data", (chunk: string) => {
+          if (!chunk.includes("ready")) return;
+          clearTimeout(timeout);
+          resolveReady();
+        });
+      });
+      wrapper.kill("SIGTERM");
+      const result = await new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolveExit) => {
+        wrapper.once("close", (code, signal) => resolveExit({ code, signal }));
+      });
+      expect(result).toEqual({ code: null, signal: "SIGTERM" });
+      expect(existsSync(marker)).toBe(true);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 10_000);
 });

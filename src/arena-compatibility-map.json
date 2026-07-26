@@ -1,0 +1,11 @@
+{
+  "resolve-vendor": "resolve-vendor",
+  "import-registry": "import-registry",
+  "extract-tasks": "extract-tasks",
+  "compose-pack": "compose-pack",
+  "extract-surfaces": "extract-surfaces",
+  "extract-capabilities": "extract-capabilities",
+  "audit-extracts": "audit-extracts",
+  "audit-suite": "audit-suite",
+  "synthesize-suite": "synthesize-suite"
+}

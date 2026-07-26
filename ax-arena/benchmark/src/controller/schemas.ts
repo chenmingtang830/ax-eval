@@ -74,7 +74,7 @@ const SourceSha = z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/);
 const Surface = z.enum(["api", "cli", "sdk", "mcp"]);
 const Harness = z.enum(["codex", "claude-code"]);
 const ProviderKind = z.enum(["oracle", "provisioning", "health-check", "target-adapter"]);
-const Vendor = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,127}$/);
+export const ArenaVendorSchema = z.string().regex(/^[a-z0-9][a-z0-9._-]{0,127}$/);
 const CellKey = z.string()
   .regex(/^[a-z0-9][a-z0-9._-]{0,127}\/(?:api|cli|sdk|mcp)\/(?:codex|claude-code)\/trial-[1-9]\d*$/)
   .max(256);
@@ -106,7 +106,7 @@ export const ARENA_BATCH_COMPLETION_SCHEMA = "ax.arena-batch-completion/v1" as c
 
 const ArenaBatchCellSchema = z.object({
   key: CellKey,
-  vendor: Vendor,
+  vendor: ArenaVendorSchema,
   surface: Surface,
   harness: Harness,
   profile: z.enum(["medium", "high"]),
@@ -129,7 +129,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     file_hash: Sha256,
   }).strict(),
   packs: z.array(z.object({
-    vendor: Vendor,
+    vendor: ArenaVendorSchema,
     file_hash: Sha256,
     standard_set_version: NonBlank,
     surfaces: z.array(Surface).min(1).max(4),
@@ -409,14 +409,14 @@ export const ArenaRuntimeReportSchema = z.object({
   configuration_hash: Sha256,
   generated_at: Timestamp,
   surface_reports: z.array(z.object({
-    vendor: Vendor,
+    vendor: ArenaVendorSchema,
     surface: Surface,
     snapshot_path: ReportPath,
     html_path: ReportPath,
     failure_review_path: ReportPath,
   }).strict()).min(1).max(1_024),
   aggregates: z.array(z.object({
-    vendor: Vendor,
+    vendor: ArenaVendorSchema,
     surface: Surface,
     harness: Harness,
     trial_count: z.number().int().positive(),

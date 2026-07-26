@@ -16,7 +16,6 @@ import {
   parseTranscriptContent,
   renderGeneratedSnapshot,
   type GeneratedReportSnapshot,
-  type HarnessProbe,
   type NormalizedCellRecord,
   type NormalizedResult,
   type ProfileRun,
@@ -40,7 +39,6 @@ export interface RuntimeReportingOptions {
   runRoot: string;
   batch: ArenaBatchManifest;
   packPaths: Readonly<Record<string, string>>;
-  harness: HarnessProbe;
   now: Date;
   minPassRate?: number;
 }
@@ -384,6 +382,22 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
     return { cell, record, cleanup, artifacts, recordPath: recordFile.relativePath };
   }).sort((left, right) => left.cell.key < right.cell.key ? -1 : left.cell.key > right.cell.key ? 1 : 0);
   const generatedAt = options.now.toISOString();
+  const batchHarness = {
+    host: "unknown" as const,
+    hostLabel: "AXArena immutable batch",
+    model: null,
+    confidence: "none" as const,
+    node: "not-applicable",
+    platform: "not-applicable",
+    arch: "not-applicable",
+    detectedAt: generatedAt,
+    signals: [],
+    suggestion: {
+      profiles: [...new Set(batch.configuration.cells.map((cell) => cell.profile))].sort(),
+      matrix: false,
+      reason: "Profiles are bound by the immutable arena batch manifest.",
+    },
+  };
   const surfaceReports: ArenaRuntimeReport["surface_reports"] = [];
   const aggregates: ArenaRuntimeReport["aggregates"] = [];
   const outputs: Array<
@@ -402,7 +416,7 @@ export function writeRuntimeReportingBundle(options: RuntimeReportingOptions): A
       schema: "ax.generated-report-snapshot/v1",
       pack: packs.get(vendor)!,
       runs: selected.map(({ record, cleanup, artifacts }) => profileRun(packs.get(vendor)!, record, cleanup, artifacts)),
-      harness: options.harness,
+      harness: batchHarness,
       warnings: [],
       minPassRate,
       generatedAt,
