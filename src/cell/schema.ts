@@ -73,6 +73,16 @@ export const ProviderProvenanceSchema = z.object({
   version: NonEmptyString,
 }).strict();
 
+const CellDiscoveryReportSchema = z.object({
+  ns: NonEmptyString.optional(),
+  hops: z.number().int().nonnegative(),
+  metrics: z.array(z.object({
+    id: z.enum(["official", "canonical", "hops", "misled", "auth", "outcome"]),
+    passed: z.boolean(),
+    detail: z.string(),
+  }).strict()),
+}).strict();
+
 /**
  * A one-cell record has its own strict discriminator so existing
  * normalized-result/v1 validators remain unchanged. The legacy
@@ -91,6 +101,10 @@ export const NormalizedCellRecordSchema = z.object({
   pass_at_k: z.number().min(0).max(1),
   attempts: z.number().int().positive(),
   discovery_score: z.number().min(0).max(1).nullable(),
+  /** Persist the scored funnel so reports rebuilt from a cell record retain
+   * discovery evidence instead of only its scalar score. */
+  discovery: CellDiscoveryReportSchema.optional(),
+  discovery_source: z.enum(["observed", "self-report"]).optional(),
   content_quality: z.number().min(0).max(1).nullable(),
   profiles: z.array(z.string()),
   best_profile: z.string().nullable(),
@@ -118,6 +132,9 @@ export const NormalizedCellRecordSchema = z.object({
   evaluation_set_version: NonEmptyString,
   pack_content_hash: z.string().regex(/^[a-f0-9]{64}$/),
   source_commit_sha: z.string().regex(/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/),
+  /** Runtime-computed namespace trusted by verification and post-persistence
+   * cleanup. Optional only for pre-invocation terminal records and v1 back-compat. */
+  execution_namespace: NonEmptyString.optional(),
   target_id: NonEmptyString,
   trial: z.number().int().positive(),
   effort: z.enum(["low", "medium", "high"]),

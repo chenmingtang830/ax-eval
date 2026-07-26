@@ -5,6 +5,10 @@ import {
   type VersionedOracleProvider,
 } from "../generate/oracle-provider.js";
 import type { TargetPack } from "../schemas.js";
+import type { BearerClientOptions } from "../http/client.js";
+import type { ExecutorResults } from "../generate/verify.js";
+import type { TraceStep } from "../harness/executor.js";
+import type { ObservedRun } from "../harness/transcript.js";
 
 export type RuntimeExtensionKind =
   | "oracle"
@@ -102,8 +106,16 @@ export interface HealthCheckProvider extends ProviderIdentity {
 
 export interface TargetAdapter extends ProviderIdentity {
   matches(target: TargetDescriptor): boolean;
-  /** Prompt and verification-transport hooks are added only when runCell can
-   * execute them; this slice limits adapters to composing narrower providers. */
+  /** Override the independent read-back transport for target-specific dynamic
+   * endpoints while leaving generic HTTP verification in core. */
+  verificationClientOptions?(context: TargetDescriptor & {
+    readonly executor: ExecutorResults;
+    readonly credentials: Readonly<Record<string, string>>;
+    /** Objective harness transcript evidence available before read-back. */
+    readonly observed?: ObservedRun;
+    /** Required executor trace kept separate from the harness transcript. */
+    readonly trace: readonly TraceStep[];
+  }): BearerClientOptions;
   readonly oracleProviders?: readonly VersionedOracleProvider[];
   readonly resetProviders?: readonly ResetProvider[];
   readonly provisioningProviders?: readonly ProvisioningProvider[];
@@ -194,6 +206,7 @@ function snapshotProvider<T extends ProviderIdentity>(
   provider: T,
   methods: readonly ProviderMethod[],
   excludedProperties: readonly string[] = [],
+  optionalMethods: readonly string[] = [],
 ): T {
   assertIdentity(kind, provider);
   const snapshot: Record<string, unknown> = {};
@@ -210,6 +223,12 @@ function snapshotProvider<T extends ProviderIdentity>(
     const fn = provider[method as keyof T];
     if (typeof fn !== "function") throw new Error(`${kind} provider "${provider.id}" is missing ${method}()`);
     if (typeof snapshot[method] !== "function") snapshot[method] = fn.bind(snapshot);
+  }
+  for (const method of optionalMethods) {
+    const fn = provider[method as keyof T];
+    if (typeof fn === "function" && typeof snapshot[method] !== "function") {
+      snapshot[method] = fn.bind(snapshot);
+    }
   }
   return Object.freeze(snapshot) as T;
 }
@@ -273,7 +292,7 @@ export function createTargetAdapterRegistry(input: readonly TargetAdapter[] = []
       "resetProviders",
       "provisioningProviders",
       "healthCheckProviders",
-    ]);
+    ], ["verificationClientOptions"]);
     return Object.freeze({
       ...snapshot,
       oracleProviders: adapter.oracleProviders

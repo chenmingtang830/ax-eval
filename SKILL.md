@@ -182,6 +182,12 @@ id, chooses benchmark defaults, aggregates trials, publishes rankings, or runs
 cleanup. Verify/live read-back completes before the record is returned; cleanup
 is a separate explicit controller step.
 
+Library controllers may pass `verificationCredentials` separately from the
+cell-allowlisted host credentials. Verifier values are available to health
+checks, target adapters, and read-back oracles but never enter the harness child.
+Use the returned `execution_namespace` for post-persistence cleanup; do not
+reconstruct a namespace from display fields.
+
 Library controllers may attach one immutable `RuntimeExtensionRegistry` with
 versioned oracle, health-check, provisioning, reset, and target-adapter
 providers. Health checks run before provisioning; provider failures are

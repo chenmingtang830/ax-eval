@@ -12,7 +12,9 @@
  * gate re-closes, so an edit can't sneak past a stale approval.
  */
 import { createHash } from "node:crypto";
-import { copyFileSync, existsSync, readFileSync, writeFileSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { copyFileSync, existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { OracleSpec, TargetPack, Task } from "../schemas.js";
 
 /** Oracle confidence tier: T1 strong (round-trip), T2 weak
@@ -149,6 +151,86 @@ export function checkCellApproval(
     };
   }
   return { ok: true };
+}
+
+function committedBlob(root: string, sourceCommitSha: string, path: string): Buffer {
+  const realRoot = realpathSync(root);
+  const absolute = realpathSync(isAbsolute(path) ? path : resolve(realRoot, path));
+  const rel = relative(realRoot, absolute);
+  if (!rel || rel === ".." || rel.startsWith("../") || rel.startsWith("..\\") || isAbsolute(rel)) {
+    throw new Error("approval-bound file must be inside the source repository");
+  }
+  return execFileSync("git", ["show", `${sourceCommitSha}:${rel.replaceAll("\\", "/")}`], {
+    cwd: realRoot,
+    encoding: "buffer",
+    stdio: ["ignore", "pipe", "ignore"],
+    maxBuffer: 16 * 1024 * 1024,
+  });
+}
+
+/**
+ * Compatibility gate for committed approvals created before full-file hashes
+ * were added. The legacy human review hash must still match, and both the pack
+ * and approval bytes must be exact blobs from the cell's immutable source
+ * commit. This is intentionally opt-in for trusted controllers only.
+ */
+export function checkCommittedLegacyCellApproval(
+  pack: TargetPack,
+  packPath: string,
+  expectedPackFileHash: string,
+  options: {
+    repositoryRoot: string;
+    sourceCommitSha: string;
+    /** Canonical committed path when the runtime uses an isolated byte-for-byte copy. */
+    sourcePackPath?: string;
+  },
+): { ok: boolean; reason?: string } {
+  try {
+    if (!/^(?:[a-f0-9]{40}|[a-f0-9]{64})$/.test(options.sourceCommitSha)) {
+      return { ok: false, reason: "legacy approval compatibility requires a full source commit SHA" };
+    }
+    const legacy = checkApproval(pack, packPath);
+    if (!legacy.ok) return legacy;
+    const approval = readApproval(packPath);
+    if (!approval || approval.pack_file_hash) {
+      return { ok: false, reason: "approval is not an eligible committed legacy approval" };
+    }
+    const actualHash = packFileContentHash(packPath);
+    if (actualHash !== expectedPackFileHash) {
+      return { ok: false, reason: `reviewed pack content hash mismatch (cell ${expectedPackFileHash}, actual ${actualHash})` };
+    }
+    const root = realpathSync(execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd: options.repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim());
+    const objectType = execFileSync("git", ["cat-file", "-t", options.sourceCommitSha], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+    if (objectType !== "commit") {
+      return { ok: false, reason: "legacy approval source SHA must identify a commit object" };
+    }
+    const paths = [
+      [packPath, options.sourcePackPath ?? packPath],
+      [approvalPath(packPath), approvalPath(options.sourcePackPath ?? packPath)],
+    ] as const;
+    for (const [path, sourcePath] of paths) {
+      const current = readFileSync(path);
+      const committed = committedBlob(root, options.sourceCommitSha, sourcePath);
+      if (current.length !== committed.length || !current.equals(committed)) {
+        const absoluteSource = isAbsolute(sourcePath) ? sourcePath : resolve(root, sourcePath);
+        return { ok: false, reason: `${relative(root, realpathSync(absoluteSource))} bytes do not match source commit ${options.sourceCommitSha}` };
+      }
+    }
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      reason: `could not bind legacy approval to source commit: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
 }
 
 /**

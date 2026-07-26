@@ -65,7 +65,9 @@ validated by `schemas/evaluation-cell.v1.json` and
 `schemas/normalized-cell-record.v1.json`; legacy `ax.normalized-result/v1`
 records remain unchanged and readable. Credential values
 are passed out-of-band in `RunCellOptions`, and only names listed by the cell are
-forwarded to its isolated harness environment.
+forwarded to its isolated harness environment. Controllers may provide a
+separate `verificationCredentials` map for health checks, target adapters, and
+live read-back; those values are never copied into the harness child.
 
 The same contract is available as a subprocess:
 
@@ -91,8 +93,8 @@ const registry = createRuntimeExtensionRegistry({
   targetAdapters,
 });
 const record = await runCell(cell, {
-  credentials,
-  verificationCredentials,
+  credentials: hostCredentials,
+  verificationCredentials: verifierCredentials,
   extensions: { registry },
 });
 ```
@@ -100,7 +102,10 @@ const record = await runCell(cell, {
 Duplicate IDs and ambiguous matches fail before invocation. Health checks run
 before provisioning, provisioning environment changes are additive, and only
 selected or invoked provider IDs and versions appear in optional
-`provider_provenance`. `runCell` never invokes reset: the controller must first
+`provider_provenance`. A selected target adapter may replace only the independent
+verification transport; it receives immutable explicit runtime context. The
+runtime-computed, bounded resource namespace is persisted as
+`execution_namespace`. `runCell` never invokes reset: the controller must first
 persist the verified record, then plan and execute bounded cleanup and persist
 its separate evidence. Global oracle registration remains only for direct
 `verifyGeneratedPack` compatibility.

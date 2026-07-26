@@ -161,6 +161,11 @@ invokes one harness, verifies live state, and emits one normalized record. It
 does not choose benchmark defaults, fan out a matrix, aggregate trials, rank,
 publish, or clean up. The CLI process boundary consumes the same schema:
 `ax-eval cell run --input cell.json --output record.json`.
+Host credentials are allowlisted by the cell and are the only secrets forwarded
+to the harness. An optional controller-only verifier credential map is used for
+health checks and independent live read-back without entering the child
+environment. The record persists the runtime-computed resource namespace so a
+later controller can bind cleanup to the exact executed cell.
 Cell output uses `ax.normalized-cell-record/v1`; the strict historical
 `ax.normalized-result/v1` schema is not widened and remains the compatibility
 format for existing report/aggregation commands.
@@ -192,6 +197,10 @@ provider may instead return additive `pathEntries`; core canonicalizes and
 prepends only real directories that resolve outside both the writable cell
 workspace and artifact tree. Tool binaries must be pinned and preinstalled in
 those external directories.
+Target adapters may override only construction of the verification transport;
+the cell runner still owns trace parsing, oracle execution, record validation,
+and ordering. The adapter receives frozen explicit context rather than ambient
+target policy.
 
 Controllers pass host-agent credentials through `credentials` and independent
 read-back credentials through `verificationCredentials`. Only the latter reach
