@@ -203,7 +203,9 @@ canonicalizes and prepends only real directories that resolve outside the
 writable cell workspace and artifact tree.
 Arena Postgres cleanup is non-cascading and includes exact namespace-derived
 roles. Turso CLI cells require a non-writable install path plus exact version
-and SHA-256 pins in the `AX_ARENA_TURSO_*` environment variables.
+and SHA-256 pins selected by the arena controller from the committed
+`ax-arena/benchmark/trusted-runtime/runtime-lock.json`; runtime identity has no
+environment override.
 
 ### 3. Emit the medium-effort prompt
 

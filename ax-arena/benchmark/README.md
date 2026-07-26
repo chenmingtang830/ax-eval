@@ -91,3 +91,9 @@ documentation use the canonical path above.
 npm run ax-arena -- benchmark --help
 npm run ax-arena -- benchmark synthesize-suite --help
 ```
+
+For a reviewed live cohort, copy only the required credential entries from
+`.env.example` into the repository-root `.env`. Generic harness credentials
+remain in the root ax-eval template. OCI, Node, harness, Bubblewrap, and Turso
+executable identity is committed in `trusted-runtime/runtime-lock.json` and has
+no environment override.

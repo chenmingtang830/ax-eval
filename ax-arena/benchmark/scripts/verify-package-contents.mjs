@@ -18,6 +18,7 @@ if (result.error || result.status !== 0) {
 const report = JSON.parse(result.stdout)[0];
 const files = new Set((report?.files ?? []).map((file) => file.path));
 const required = [
+  ".env.example",
   "README.md",
   "TRUSTED_EXECUTION_DESIGN.md",
   "dist/cli.js",
