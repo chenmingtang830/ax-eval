@@ -40,6 +40,19 @@ source-only injected-runtime seam is used exclusively by offline contract tests
 and is not exported by the built package. No live or credentialed evaluation is
 enabled by this migration slice.
 
+Immutable batch manifests bind the source SHA, reviewed suite and pack hashes,
+credential-name partitions, model/effort/trial matrix, timeouts, reset policy,
+per-cell runtime/reset provider identities, and pinned tools before execution.
+The declared vendors, surfaces, harnesses, and trials must form a complete
+command-specific matrix. Completion records are accepted only for the exact
+cell set with matching requested/actual models, one version per harness, and
+confirmed cleanup whenever reset is required; record, cleanup, and all four
+runtime artifact files are sealed by contained relative paths and SHA-256.
+Both contracts are shipped as
+strict structural JSON schemas; cross-field and persisted-artifact guarantees
+require the exported runtime validators and are not implied by JSON Schema
+validation alone.
+
 For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
 only when this canonical root is absent and emit a deprecation warning. If both
 roots exist, pass `--benchmark-root <dir>` explicitly. Writers use only

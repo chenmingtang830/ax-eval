@@ -69,6 +69,22 @@ export type {
   ArenaCellExecution,
   ArenaCellSpec,
 } from "./controller/cell.js";
+export * from "./controller/batch.js";
+export {
+  ARENA_BATCH_COMPLETION_SCHEMA,
+  ARENA_BATCH_SCHEMA,
+  ArenaBatchCompletionCellSchema,
+  ArenaBatchCompletionSchema,
+  ArenaBatchConfigurationSchema,
+  ArenaBatchManifestSchema,
+  arenaBatchConfigurationHash,
+} from "./controller/schemas.js";
+export type {
+  ArenaBatchCompletion,
+  ArenaBatchCompletionCell,
+  ArenaBatchConfiguration,
+  ArenaBatchManifest,
+} from "./controller/schemas.js";
 
 export * from "./authoring/coverage-gap-check.js";
 export * from "./authoring/database-task-fit.js";

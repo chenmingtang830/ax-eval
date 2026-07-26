@@ -85,6 +85,11 @@ export interface ArenaCellSpec {
 export interface ArenaCellExecution {
   cell: EvaluationCell;
   pack: TargetPack;
+  credentialNames: {
+    host: string[];
+    verification: string[];
+    reset: string[];
+  };
   record: NormalizedCellRecord;
   recordPath: string;
   cleanup: ArenaCellCleanupRecord;
@@ -615,14 +620,7 @@ function assertRecordArtifacts(
   }
 }
 
-function assertRecordMatchesCell(
-  record: NormalizedCellRecord,
-  cell: EvaluationCell,
-  secrets: readonly string[],
-): void {
-  if (containsCredentialMaterial(record, secrets)) {
-    throw new Error("runCell returned a normalized record containing credential material");
-  }
+export function assertArenaRecordIdentity(record: NormalizedCellRecord, cell: EvaluationCell): void {
   const mismatches = [
     ["cell_id", record.cell_id, cell.cell_id],
     ["record_id", record.record_id, cell.cell_id],
@@ -663,6 +661,17 @@ function assertRecordMatchesCell(
       || Buffer.byteLength(record.execution_namespace) > 43)) {
     throw new Error("runCell returned an invalid or unbounded execution namespace");
   }
+}
+
+function assertRecordMatchesCell(
+  record: NormalizedCellRecord,
+  cell: EvaluationCell,
+  secrets: readonly string[],
+): void {
+  if (containsCredentialMaterial(record, secrets)) {
+    throw new Error("runCell returned a normalized record containing credential material");
+  }
+  assertArenaRecordIdentity(record, cell);
 }
 
 function containsCredentialMaterial(value: unknown, secrets: readonly string[]): boolean {
@@ -847,6 +856,9 @@ export async function executeArenaCellWithInjectedRuntime(
   assertIsolatedInputCopies(cwd, spec.sourceCommitSha, packPath, runtimePackPath);
   const packContentHash = packFileContentHash(runtimePackPath);
   const cellId = arenaCellId(spec, packContentHash);
+  const hostCredentialNames = cellCredentialNames(pack, spec.surface, spec.harness, credentials);
+  const verificationCredentialNames = cellVerificationCredentialNames(pack, credentials, spec.surface);
+  const resetCredentialNames = cellResetCredentialNames(pack, credentials);
   const cell = deepFreeze(EvaluationCellSchema.parse({
     schema: "ax.evaluation-cell/v1",
     cell_id: cellId,
@@ -867,7 +879,7 @@ export async function executeArenaCellWithInjectedRuntime(
     },
     trial: spec.trial,
     source_commit_sha: spec.sourceCommitSha,
-    required_credentials: cellCredentialNames(pack, spec.surface, spec.harness, credentials),
+    required_credentials: hostCredentialNames,
     run_context: {
       cwd: workspace,
       artifact_dir: relativeInside(workspace, runtimeArtifactDir, "artifact directory"),
@@ -879,7 +891,7 @@ export async function executeArenaCellWithInjectedRuntime(
   const registry = await dependencies.createRegistry(cell, pack);
   const hostCredentials = selectedCredentials(cell.required_credentials, credentials);
   const verifierCredentials = selectedCredentials(
-    cellVerificationCredentialNames(pack, credentials, spec.surface),
+    verificationCredentialNames,
     credentials,
   );
   const returnedRecord = await dependencies.runCell(cell, {
@@ -915,8 +927,7 @@ export async function executeArenaCellWithInjectedRuntime(
   const cleanupNow = cleanupTimestamp(dependencies.now());
 
   const namespace = record.execution_namespace;
-  const cleanupCredentialNames = cellResetCredentialNames(pack, credentials);
-  const resetCredentials = selectedCredentials(cleanupCredentialNames, credentials);
+  const resetCredentials = selectedCredentials(resetCredentialNames, credentials);
   const secretValues = credentialSecrets;
   let cleanup: ArenaCellCleanupRecord;
   if (spec.skipReset) {
@@ -1060,5 +1071,17 @@ export async function executeArenaCellWithInjectedRuntime(
   if (postRunIntegrityError) {
     throw new Error(cleanup.message);
   }
-  return { cell, pack, record, recordPath, cleanup, cleanupPath };
+  return {
+    cell,
+    pack,
+    credentialNames: {
+      host: [...hostCredentialNames],
+      verification: [...verificationCredentialNames],
+      reset: [...resetCredentialNames],
+    },
+    record,
+    recordPath,
+    cleanup,
+    cleanupPath,
+  };
 }
