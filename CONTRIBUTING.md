@@ -20,8 +20,9 @@ npm run typecheck # tsc --noEmit, must be clean
 
 The full test suite is **keyless and offline** — it needs no API keys and makes
 no network calls. You should be able to run `npm test` immediately after
-`npm ci`. Keys are only needed for the *live* generated pipeline; copy
-`.env.example` to `.env` and fill in the target section for that.
+`npm ci`. Keys are only needed for the *live* generated pipeline; copy the
+relevant section from `.env.example` to `.env` for ordinary targets, or from
+`ax-arena/benchmark/.env.example` for a reviewed DAEB cohort.
 
 The quickest local sanity check:
 
@@ -46,10 +47,12 @@ shape.
 - **Tests are vitest.** New behavior needs a test. Tests must stay keyless and
   offline — no live network, no real credentials. Use fixtures (see
   `src/static/fixtures/`) and the keyless mock harnesses.
-- **No committed secrets.** Real keys live only in `.env` (gitignored). Use
-  `.env.example` as the template and never paste tokens, real workspace ids, or
-  personal identifiers into tracked files. `results/` is gitignored — keep run
-  artifacts out of commits.
+- **No committed secrets.** Real keys live only in `.env` (gitignored). Use the
+  root `.env.example` for generic targets and `ax-arena/benchmark/.env.example`
+  for DAEB cohorts; never paste tokens, real workspace ids, or personal
+  identifiers into tracked files. Runtime/tool identity comes only from the
+  committed arena runtime lock. `results/` is gitignored — keep run artifacts
+  out of commits.
 - **Packs are content-addressed and must pass the review gate.** A generated set
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
@@ -62,6 +65,14 @@ shape.
 - **Failed live trials must not leak state forward.** Preserve results and
   verification artifacts first, then record namespace cleanup. If cleanup is
   missing, unsupported, or errors, halt the lane before another trial starts.
+- **One cell has no benchmark policy.** `runCell` and `ax-eval cell run` execute
+  one fully specified reviewed pack/surface/harness/model/effort/trial and use
+  the caller-supplied batch id. Roster expansion, trial counts, aggregation,
+  ranking, publication, and cleanup policy belong to the controller.
+- **Runtime extensions are explicit and versioned.** Build an immutable
+  per-cell registry; do not add ambient provider discovery or target-name
+  dispatch. Health checks precede provisioning, environment changes are
+  additive, and reset remains after verified-record persistence.
 - **Generation is an authoring aid.** Default `generate` is LLM-assisted after a
   rule-derived seed. Product presets may add hints and surface-specific task
   shaping, but schema validation and the review gate remain authoritative;

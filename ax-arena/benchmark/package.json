@@ -1,0 +1,67 @@
+{
+  "name": "@ax-arena/benchmark",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Private in-repository controller and publication boundary for AXArena benchmarks.",
+  "type": "module",
+  "license": "MIT",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./schemas/arena-cell-cleanup.v1.json": "./schemas/arena-cell-cleanup.v1.json",
+    "./schemas/arena-batch.v1.json": "./schemas/arena-batch.v1.json",
+    "./schemas/arena-batch-plan.v1.json": "./schemas/arena-batch-plan.v1.json",
+    "./schemas/arena-batch-completion.v1.json": "./schemas/arena-batch-completion.v1.json",
+    "./schemas/arena-cell-result.v1.json": "./schemas/arena-cell-result.v1.json",
+    "./schemas/arena-runtime-report.v1.json": "./schemas/arena-runtime-report.v1.json",
+    "./schemas/publication-bundle.v2.json": "./schemas/publication-bundle.v2.json",
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "ax-arena": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    ".env.example",
+    "README.md",
+    "TRUSTED_EXECUTION_DESIGN.md",
+    "daeb",
+    "!daeb/_archive/**",
+    "schemas"
+  ],
+  "scripts": {
+    "ax-arena": "node --import tsx src/cli.ts",
+    "build": "tsup src/cli.ts src/index.ts src/trusted-plan.ts src/trusted-worker.ts src/assemble-trusted-completion.ts --platform node --target node22 --format esm --dts --clean --external ax-eval --tsconfig tsconfig.build.json",
+    "pack:check": "node scripts/verify-package-contents.mjs",
+    "test": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit",
+    "trusted:plan": "node dist/trusted-plan.js",
+    "trusted:worker": "node dist/trusted-worker.js",
+    "trusted:assemble": "node dist/assemble-trusted-completion.js"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "ax-eval": "file:../..",
+    "mongodb": "^7.4.0",
+    "mysql2": "^3.22.5",
+    "pg": "^8.22.0",
+    "yaml": "^2.4.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/pg": "^8.20.0",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "tsup": "^8.5.1",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.9"
+  }
+}

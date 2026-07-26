@@ -23,15 +23,16 @@
  *       [--html path] writes the self-contained HTML report (--md is an alias that also writes HTML).
  *   ax-eval render-generated --snapshot <report.snapshot.json>       re-render a saved generated report snapshot
  *       [--html path] without re-running live verification
- *   ax-eval publication-bundle --suite <suite.yaml> --run-dir <dir> --out <dir>  freeze publication manifest
+ *   ax-arena benchmark publication-bundle --run-root <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
  *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
+ *   ax-eval cell run --input cell.json --output record.json           run one fully specified cell
  */
 import { fileURLToPath } from "node:url";
 import { basename, dirname, relative, resolve } from "node:path";
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
-import { spawn, spawnSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
 import { render } from "./reporting.js";
@@ -55,7 +56,6 @@ import {
   type GeneratedReportSnapshot,
 } from "./generate/snapshot.js";
 import {
-  renderCompetitiveReport,
   renderGeneratedReport,
   type ProfileRun,
   type StaticReadiness,
@@ -65,76 +65,14 @@ import {
   buildNormalizedResultCells,
   buildBlockedResult,
   resultCellKey,
-  type NormalizedResult,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
-import { TargetPackSchema, type OracleSpec, type TargetPack, type Task } from "./schemas.js";
+import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "./surface/index.js";
-import { checkApproval, reviewSummary, stageApprovedEquivalentPack, writeApproval } from "./generate/review.js";
+import { checkApproval, reviewSummary, writeApproval } from "./generate/review.js";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite, type Suite } from "./generate/suite.js";
 import { invokeHarness, extractJsonObject, normalizeHarnessText } from "./generate/harness.js";
-import { resolveVendor, resolveVendors, writeVendorCard, loadVendorCard } from "./generate/vendor-resolve.js";
-import { coreVendorSlugs } from "./generate/vendor-selection.js";
-import {
-  fetchRegistrySurface,
-  registryToVendorCard,
-  registryToSurfaceExtract,
-  registryOpenApiUrl,
-} from "./ingest/registry.js";
-import { extractOracles, extractOraclesAll, writeOracleExtract, loadOracleExtract } from "./generate/task-extract.js";
-import { extractSurfaces, writeSurfaceExtract, loadSurfaceExtract } from "./generate/surface-extract.js";
-import { extractCapabilities, writeCapabilityExtract, loadCapabilityExtract } from "./generate/capability-extract.js";
-import {
-  auditAllExtracts,
-  applyExtractAudit,
-  formatExtractAuditReport,
-} from "./generate/extract-audit.js";
-import { adviseVendorExtract, writeExtractAdvisory } from "./generate/extract-advisory.js";
-import { fetchSpecSummary } from "./ingest/spec-summary.js";
-import { synthesizeSuite, renderSuiteYaml, renderSynthesisDoc, writeSuiteArtifacts, writeSuiteFiles, inferSuiteVersionFromStem } from "./generate/synthesize-suite.js";
-import { auditSuite, applySuiteAudit, formatSuiteAuditReport } from "./generate/suite-audit.js";
-import { composePack, writeComposedPack } from "./generate/compose-pack.js";
-import { buildAxArenaExport, buildPublicationBundle, discoverPublicationVendors } from "./generate/publication.js";
 import { renderRecordsDiffMarkdown } from "./generate/records-diff.js";
-import {
-  DAEB_LOW_PASS_SCHEMA,
-  cleanupLowPassResults,
-  combinedResultPath,
-  daebFreshPackPath,
-  daebPackPath,
-  daebVendorOrder,
-  defaultLowPassRunRoot,
-  lowPassSafetyIssues,
-  loadLowPassResults,
-  persistLowPassSurfaceOutcome,
-  supportedLowPassSurfaces,
-  upsertLowPassSurfaceRecord,
-  writeFailureClassificationStub,
-  type LowPassManifest,
-  type LowPassSurfaceRecord,
-} from "./generate/low-pass.js";
-import {
-  DAEB_PRODUCTION_CLAUDE_MODEL,
-  DAEB_PRODUCTION_CODEX_MODEL,
-  DAEB_PRODUCTION_EFFORT,
-  DAEB_PRODUCTION_HARNESSES,
-  DAEB_PRODUCTION_TRIAL_COUNT,
-  archiveDaebDebugArtifacts,
-  assertRunCleanupConfirmed,
-  cleanupRecordFromReset,
-  daebProductionVendorOrder,
-  defaultProductionRunRoot,
-  loadAggregateCandidateRecords,
-  productionTrialDir,
-  readRunCleanupRecord,
-  writeRunCleanupRecord,
-  writeArchiveManifest,
-  writeProductionAggregate,
-  type RunCleanupRecord,
-  type ProductionTrialRecord,
-} from "./generate/production-run.js";
-import { loadSupportMatrix } from "./generate/methodology.js";
-import { stringify as yamlStringify } from "yaml";
 import { scoreDiscovery, type DiscoveryResult } from "./generate/discovery.js";
 import { buildExecutorPrompt, resolveNs, type BuildPromptOptions } from "./harness/executor.js";
 import {
@@ -148,14 +86,17 @@ import {
 } from "./harness/invoke.js";
 import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
 import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
-import { resetSqlSession, taskUsesSqlRole } from "./generate/sql-session.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { healthCheckPack } from "./target/health-check.js";
-import { resetPack } from "./target/reset.js";
+import { hasCoreResetStrategy, resetPack } from "./target/reset.js";
+import { EvaluationCellSchema } from "./cell/schema.js";
+import { runCell } from "./cell/run.js";
+import { executeArenaLaunch, resolveArenaLaunch } from "./arena-launcher.js";
+import ARENA_COMPATIBILITY_MAP from "./arena-compatibility-map.json" with { type: "json" };
 import {
   buildEnvChecklist,
   automationGeneratedAt,
@@ -188,6 +129,7 @@ const COMMANDS = [
   "generate",
   "automate-report",
   "review",
+  "cell",
   "exec-plan",
   "verify-generated",
   "render-generated",
@@ -211,6 +153,52 @@ const COMMANDS = [
 ] as const;
 const COMMAND_SET = new Set<string>(COMMANDS);
 const USAGE = `usage: ax-eval <${COMMANDS.join("|")}> [options]`;
+
+type LegacyArenaCommand = keyof typeof ARENA_COMPATIBILITY_MAP;
+const LEGACY_ARENA_COMMANDS = Object.keys(ARENA_COMPATIBILITY_MAP) as LegacyArenaCommand[];
+const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
+
+function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
+  return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
+}
+
+function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): Promise<number> {
+  const arenaCommand = ARENA_COMPATIBILITY_MAP[command];
+  console.error(
+    `warning: ax-eval ${command} is deprecated; use ax-arena benchmark ${arenaCommand} instead.`,
+  );
+
+  const arenaSourceCli = resolve(HERE, "..", "ax-arena", "benchmark", "src", "cli.ts");
+  let sourceLoader: string | undefined;
+  let installedPackageJson: string | undefined;
+
+  // A source checkout does not require the private workspace to be built first.
+  // Resolve tsx only on this development path so published ax-eval installs do
+  // not acquire a runtime dependency on it.
+  if (existsSync(arenaSourceCli)) {
+    try {
+      sourceLoader = fileURLToPath(import.meta.resolve("tsx"));
+    } catch {
+      // Installed distributions use the separately installed ax-arena binary.
+    }
+  }
+  if (!sourceLoader) {
+    try {
+      installedPackageJson = fileURLToPath(import.meta.resolve("@ax-arena/benchmark/package.json"));
+    } catch {
+      // resolveArenaLaunch fails closed when neither trusted entrypoint exists.
+    }
+  }
+
+  const launch = resolveArenaLaunch(arenaCommand, argv, {
+    sourceCli: arenaSourceCli,
+    sourceLoader,
+    sourceTsconfig: resolve(HERE, "..", "ax-arena", "benchmark", "tsconfig.json"),
+    installedPackageJson,
+  });
+
+  return executeArenaLaunch(launch);
+}
 
 function isHelpToken(value: string | undefined): boolean {
   return value === "--help" || value === "-h" || value === "help";
@@ -245,148 +233,24 @@ function commandUsage(command: string | undefined): string {
       ].join("\n");
     case "review":
       return "usage: ax-eval review --pack <yaml> [--approve --by <name>]";
+    case "cell":
+      return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
     case "exec-plan":
       return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
-    case "competitive":
-      return "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]";
     case "render-generated":
       return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
     case "trace-diff":
       return "usage: ax-eval trace-diff --pack <yaml> --trace <run.trace.json>";
     case "reset":
       return "usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]";
-    case "resolve-vendor":
-      return [
-        "usage: ax-eval resolve-vendor --vendor <name> --category <category>",
-        "                              --vendors <a,b,c> --category <category>",
-        "                              [--harness claude-code|codex] [--effort low|medium|high]",
-        "  LLM-searches for vendor docs URLs (single or batch) and writes cards",
-        "  under benchmarks/daeb/vendors/<slug>.discovered.yaml.",
-      ].join("\n");
-    case "import-registry":
-      return [
-        "usage: ax-eval import-registry --category <category>",
-        "                               --domain <example.com> [--vendor <Name>] [--slug <slug>]",
-        "                               --vendors <slug=domain,slug=domain,...>",
-        "  Seed the authoring pipeline from the integrations.sh public registry",
-        "  (MIT). Fetches GET integrations.sh/api/<domain>/surface and writes a",
-        "  vendor card + surface extract (CLI/MCP + auth) without a grounded LLM",
-        "  discovery call. Prints the OpenAPI spec URL to feed `ingest` when the",
-        "  registry knows one. Domains missing from the registry are reported so",
-        "  they can fall back to resolve-vendor/extract-surfaces.",
-      ].join("\n");
-    case "extract-tasks":
-      return [
-        "usage: ax-eval extract-tasks --suite <path> --category <category>",
-        "                             [--vendor <slug>] [--vendors <a,b,c>]",
-        "                             [--harness claude-code|codex] [--effort low|medium|high]",
-        "  LLM-extracts ONLY the oracle read-back path + vendor auth config for each",
-        "  suite task (no prompt rewriting). Writes YAML to benchmarks/daeb/v1/extracts/<slug>/.",
-      ].join("\n");
-    case "compose-pack":
-      return [
-        "usage: ax-eval compose-pack --suite <path> [--vendor <slug>] [--vendors <a,b,c>]",
-        "  Pure code: assembles a frozen TargetPack from the suite (prompts/ids),",
-        "  the oracle extract (read-back paths), and the vendor card (base_url/docs).",
-        "  Also folds in a surface extract (benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml) if",
-        "  present, from extract-surfaces. No LLM call. Writes benchmarks/daeb/v1/packs/<slug>/pack.yaml.",
-      ].join("\n");
-    case "extract-surfaces":
-      return [
-        "usage: ax-eval extract-surfaces [--vendor <slug>] [--vendors <a,b,c>]",
-        "                                [--harness claude-code|codex] [--effort low|medium|high]",
-        "  LLM-discovers a vendor's CLI/SDK/MCP surfaces (bin/package/server + auth).",
-        "  REST API is the implicit default surface and is not written to this file.",
-        "  The round-trip oracle never changes per surface — this only affects how the",
-        "  agent is told to act on non-API surfaces. Writes benchmarks/daeb/v1/extracts/<slug>/surfaces.yaml.",
-      ].join("\n");
-    case "extract-capabilities":
-      return [
-        "usage: ax-eval extract-capabilities [--vendor <slug>] [--vendors <a,b,c>]",
-        "                                    [--harness claude-code|codex] [--effort low|medium|high]",
-        "                                    [--specs <slug=openapi-url,...>]",
-        "  Layer 0a of suite authoring: per-vendor benchmark-grade capability",
-        "  inventory with structured evidence. Vendors with a known OpenAPI spec",
-        "  (the vendor card's openapi_url from import-registry, or a --specs",
-        "  override) seed the candidate surface from those operations, then",
-        "  WebFetch docs to gap-fill; vendors without a spec are grounded from",
-        "  docs alone. Runs at concurrency 3. Writes",
-        "  benchmarks/daeb/v1/extracts/<slug>/capability-inventory.yaml.",
-      ].join("\n");
-    case "audit-extracts":
-      return [
-        "usage: ax-eval audit-extracts [--vendor <slug>] [--vendors <a,b,c>] [--apply] [--advisory]",
-        "  Post-extract gate after extract-capabilities / extract-surfaces.",
-        "  Deterministic checks: strength mislabels (METHOD /path → direct),",
-        "  all-weak caps, empty surfaces_documented, inventory↔surfaces SDK",
-        "  mismatch, incomplete headless auth. Default is report-only;",
-        "  --apply writes deterministic autofixes. --advisory runs an opt-in WebFetch-grounded",
-        "  LLM review and writes advisory.yaml; it never changes artifacts or blocks the default gate.",
-      ].join("\n");
-    case "audit-suite":
-      return [
-        "usage: ax-eval audit-suite --suite <suite.yaml> [--apply]",
-        "  Post-synthesize gate after synthesize-suite. Deterministic checks:",
-        "  underfilled task bank, generic suite name, difficulty gaps, near-miss",
-        "  coverage, concept-mapping misses vs inventories. Default report-only;",
-        "  --apply rewrites suite name/version + writes *.audit-notes.md, then",
-        "  re-run synthesize-suite --deterministic to refresh selection.",
-      ].join("\n");
-    case "synthesize-suite":
-      return [
-        "usage: ax-eval synthesize-suite --category <category> [--vendors <a,b,c>] --out <suite.yaml>",
-        "                                [--task-count N] [--harness claude-code|codex]",
-        "                                [--deterministic] [--gap-check-assist]",
-        "  Layer 0b: reads ALL vendors' capability inventories, derives the concept",
-        "  universe, closes coverage gaps, selects the canonical suite, and drafts",
-        "  suite tasks. Default = deterministic seed + LLM concept-refine assist",
-        "  (seed fallback on timeout/failure), inventory-only coverage, then human",
-        "  review — same pattern as extract-surfaces (registry seed + LLM assist).",
-        "  --deterministic = seed-only (skip LLM assist; for CI/offline).",
-        "  --gap-check-assist = optional grounded LLM gap adjudication (slow).",
-        "  Writes <suite.yaml> + sibling methodology/support artifacts + synthesis.md.",
-      ].join("\n");
-    case "publication-bundle":
-      return [
-        "usage: ax-eval publication-bundle --suite <suite.yaml> [--vendors <a,b,c>] --run-dir <dir> --out <dir>",
-        "                                 [--effort-profiles <a,b,c>] [--required-effort-profiles <a,b,c>]",
-        "  Freeze a publication bundle manifest from the canonical suite, vendor",
-        "  cards, oracle extracts, compiled packs, approvals, snapshots, reports,",
-        "  and normalized records. Missing live artifacts are recorded in manifest.json.",
-      ].join("\n");
-    case "export-publication":
-      return [
-        "usage: ax-eval export-publication --from <publication-bundle-dir> --out <dir>",
-        "  Exports an axarena-ready JSON dataset from a frozen publication bundle.",
-        "  Writes leaderboard, cell, task, trial, failure, evidence, and methodology indexes.",
-      ].join("\n");
     case "records-diff":
       return [
         "usage: ax-eval records-diff --base <record-file-or-dir> --head <record-file-or-dir> --out <diff.md>",
         "  Compares normalized result records and writes deterministic Markdown.",
         "  Overall macro-averages surfaces per agent; operational metrics never affect rank.",
-      ].join("\n");
-    case "daeb-low-pass":
-      return [
-        "usage: ax-eval daeb-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
-        "                             [--surface api|cli|all] [--run-dir <dir>]",
-        "                             [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
-        "  Runs DAEB task-level low coverage with Codex + Claude in parallel,",
-        "  one vendor/surface at a time, then verifies, writes a failure-review stub,",
-        "  and optionally resets after artifacts are persisted.",
-      ].join("\n");
-    case "daeb-production-rerun":
-      return [
-        "usage: ax-eval daeb-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
-        "                                     [--surface api|cli|all] [--run-dir <dir>]",
-        "                                     [--trial-count 3] [--invoke-timeout seconds] [--first-action-timeout seconds]",
-        "                                     [--skip-archive] [--reclaim]",
-        "  Runs the DAEB/database v1 production rerun lane with api/cli only,",
-        "  one vendor → one surface → one harness → three clean high-effort trials,",
-        "  then writes aggregate mean/range/pass³ artifacts under aggregate/.",
       ].join("\n");
     case "run":
       return "usage: ax-eval run [--pack <yaml>] [--harness name]... [--out results.json] [--offline]";
@@ -477,7 +341,7 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
-  /** audit-extracts: write autofixes back to benchmarks/daeb/v1/extracts/. */
+  /** audit-extracts: write autofixes to the canonical arena DAEB extracts. */
   apply: boolean;
   /** audit-extracts: WebFetch-grounded advisory review; never mutates source artifacts. */
   advisory: boolean;
@@ -503,14 +367,8 @@ interface Parsed {
   /** extract-capabilities: per-vendor OpenAPI spec URLs to seed from, as
    *  "slug=url,slug=url" — overrides the vendor card's openapi_url. */
   specs: string;
-  codexModel: string;
-  claudeModel: string;
-  effortProfiles: string;
-  requiredEffortProfiles: string;
   skipReset: boolean;
-  skipArchive: boolean;
   reclaim: boolean;
-  trialCount: number;
   /** Raw `--surface` value: a concrete id (api/cli/sdk/mcp) or `all`. exec-plan
    *  fans out across the resolved selection; verify uses the concrete id (if any)
    *  to override the per-result self-report when tagging. */
@@ -585,14 +443,8 @@ function parseArgs(argv: string[]): Parsed {
     domain: "",
     slug: "",
     specs: "",
-    codexModel: DAEB_PRODUCTION_CODEX_MODEL,
-    claudeModel: DAEB_PRODUCTION_CLAUDE_MODEL,
-    effortProfiles: "",
-    requiredEffortProfiles: "",
     skipReset: false,
-    skipArchive: false,
     reclaim: false,
-    trialCount: DAEB_PRODUCTION_TRIAL_COUNT,
     executionMode: "cell",
     _: [],
   };
@@ -680,10 +532,6 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--domain") p.domain = value(++i, "--domain");
     else if (a === "--slug") p.slug = value(++i, "--slug");
     else if (a === "--specs") p.specs = value(++i, "--specs");
-    else if (a === "--codex-model") p.codexModel = value(++i, "--codex-model");
-    else if (a === "--claude-model") p.claudeModel = value(++i, "--claude-model");
-    else if (a === "--effort-profiles") p.effortProfiles = value(++i, "--effort-profiles");
-    else if (a === "--required-effort-profiles") p.requiredEffortProfiles = value(++i, "--required-effort-profiles");
     else if (a === "--base-url") p.baseUrl = value(++i, "--base-url");
     else if (a === "--limit") p.limit = Number(value(++i, "--limit"));
     else if (a === "--l2-limit") p.l2Limit = Number(value(++i, "--l2-limit"));
@@ -705,7 +553,6 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--by") p.by = value(++i, "--by");
     else if (a === "--skip-review") p.skipReview = true;
     else if (a === "--skip-reset") p.skipReset = true;
-    else if (a === "--skip-archive") p.skipArchive = true;
     else if (a === "--reclaim") p.reclaim = true;
     else if (a === "--invoke") p.invoke = true;
     else if (a === "--dry-run") p.dryRun = true;
@@ -718,7 +565,6 @@ function parseArgs(argv: string[]): Parsed {
       if (!Number.isInteger(n) || n < 1) throw new Error(`--trial must be a positive integer (got ${n})`);
       p.trial = n;
     }
-    else if (a === "--trial-count") p.trialCount = Number(value(++i, "--trial-count"));
     else if (a === "--min-pass-rate") p.minPassRate = Number(value(++i, "--min-pass-rate"));
     else if (a === "--trace") p.trace = value(++i, "--trace");
     else if (a === "--surface") {
@@ -887,24 +733,6 @@ async function cmdCheckEnv(args: Parsed): Promise<number> {
     }
   }
   const apiOk = hasRequiredEnv(pack);
-  if (pack.name === "nile" && apiOk) {
-    const expectedDatabase = process.env.NILE_DB?.trim();
-    const connectionString = process.env.NILE_DATABASE_URL?.trim();
-    try {
-      const actualDatabase = connectionString ? new URL(connectionString).pathname.replace(/^\//, "") : "";
-      if (!expectedDatabase || actualDatabase !== expectedDatabase) {
-        console.error(
-          `\nNile sandbox binding mismatch: NILE_DB must match the database name in NILE_DATABASE_URL ` +
-          `(expected ${expectedDatabase || "<unset>"}, got ${actualDatabase || "<unreadable>"}).`,
-        );
-        return 1;
-      }
-      console.log(`\nNile sandbox binding: ✓ NILE_DB matches NILE_DATABASE_URL database.`);
-    } catch {
-      console.error(`\nNile sandbox binding mismatch: NILE_DATABASE_URL is not a valid PostgreSQL URL.`);
-      return 1;
-    }
-  }
   if (!apiOk) {
     console.error("\nSet the missing required vars in .env (see .env.example or 'ax-eval init').");
     return 1;
@@ -1051,320 +879,11 @@ function resolvedGeneratePolicy(args: Parsed, allowFullPreset = true): Pick<Gene
   };
 }
 
-/**
- * Curated, Asana-specific generation extras. Asana's OpenAPI declares no
- * `securitySchemes` and several resources read back under `title` not `name`,
- * so these can't be derived from the spec — they're hand-curated for the Asana
- * target. Layered on ONLY when the product resolves to Asana; every other
- * product generates generically from the ingested spec.
- */
-const ASANA_PRESET: Partial<GenerateOptions> = {
-  packName: "asana-generated",
-  siteUrl: "https://developers.asana.com",
-  openapiUrl: "https://raw.githubusercontent.com/Asana/openapi/master/defs/asana_oas.yaml",
-  docsUrls: ["https://developers.asana.com/docs"],
-  authMethod: "pat",
-  authScheme: "Bearer personal access token",
-  authType: "bearer",
-  authEnv: "ASANA_PAT",
-  authVerifyEnv: "ASANA_VERIFY_PAT",
-  prefer: [
-    "tasks", "projects", "tags", "goals", "portfolios",
-    "sections", "project_briefs", "project_statuses", "stories",
-  ],
-  identityOverrides: {
-    project_briefs: "title",
-    project_statuses: "title",
-  },
-  surfaces: {
-    sdk: {
-      package: "asana",
-      language: "node",
-      reference_url: "https://developers.asana.com/docs/overview",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "https://mcp.asana.com/v2/mcp",
-      transport: "http",
-      args: [],
-      docs_url: "https://developers.asana.com/docs/using-asanas-mcp-server",
-      auth: {
-        kind: "oauth_app",
-        token_env_aliases: [],
-        client_id_env: "ASANA_MCP_CLIENT_ID",
-        client_secret_env: "ASANA_MCP_CLIENT_SECRET",
-        refresh_token_env: "ASANA_MCP_REFRESH_TOKEN",
-        token_url: "https://app.asana.com/-/oauth_token",
-        instructions:
-          "Register an Asana OAuth app, complete the OAuth flow once, and store the refresh token. ax-eval exchanges it for a short-lived MCP bearer token at invoke time.",
-      },
-    },
-  },
-  l4: [
-    {
-      idSuffix: "task-complete",
-      title: "L4: create then complete a task (state mutation)",
-      resource: "tasks",
-      prompt:
-        `Create a task named "{val}", then mark it complete. Report the task id; ` +
-        `it must read back as completed.`,
-      assertField: "completed",
-      expected: true,
-    },
-    {
-      idSuffix: "task-reschedule",
-      title: "L4: create then reschedule a task (due-date mutation)",
-      resource: "tasks",
-      prompt:
-        `Create a task named "{val}", then set its due date to 2026-06-30. ` +
-        `Report the task id.`,
-      assertField: "due_on",
-      expected: "2026-06-30",
-    },
-    {
-      idSuffix: "project-archive",
-      title: "L4: create then archive a project (state mutation)",
-      resource: "projects",
-      prompt:
-        `Create a project named "{val}" in the sandbox workspace, then archive it. ` +
-        `Report the project id; it must read back as archived.`,
-      assertField: "archived",
-      expected: true,
-    },
-  ],
-};
-
-const exaUrlOracleTrace = (description: string): NonNullable<GenerateOptions["operationTasks"]>[number]["trace"] => [
-  { type: "required_call", method: "POST", path: "/search", description },
-];
-
-const EXA_PRESET: Partial<GenerateOptions> = {
-  packName: "exa",
-  siteUrl: "https://exa.ai",
-  openapiUrl: "https://docs.exa.ai/exa-spec.json",
-  docsUrls: [
-    "https://docs.exa.ai/reference/search-api-guide",
-    "https://docs.exa.ai/reference/search-api-guide-for-coding-agents",
-    "https://docs.exa.ai/reference/openapi-spec",
-  ],
-  authMethod: "api-key",
-  authScheme: "API key in the x-api-key header",
-  authType: "api-key",
-  authEnv: "EXA_API_KEY",
-  authHeader: "x-api-key",
-  headers: {},
-  sandboxScope: [],
-  limit: 0,
-  l2Limit: 0,
-  l4Limit: 0,
-  discoveryCanonicalEndpoint: "POST /search",
-  discoveryGoal:
-    "You are about to operate Exa programmatically. First work out, from scratch, how Exa's public Search API works — its base URL, how to authenticate with an API key in the `x-api-key` header, the `/search` request shape, and how content options such as `contents.highlights` are nested — then you will perform several tasks. You are NOT given any endpoint, base URL, or documentation link; find them yourself.",
-  deprecatedMarkers: ["useAutoprompt", "includeUrls", "excludeUrls", "livecrawl"],
-  surfaces: {
-    sdk: {
-      package: "exa-js",
-      language: "node",
-      reference_url: "https://docs.exa.ai/reference/typescript-sdk-specification",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "npx",
-      args: ["-y", "exa-mcp-server"],
-      transport: "stdio",
-      docs_url: "https://docs.exa.ai/reference/exa-mcp",
-      auth: {
-        kind: "token",
-        token_env: "EXA_API_KEY",
-        token_env_aliases: [],
-        instructions: "Configure the Exa MCP server with EXA_API_KEY. Verification still reads back through the Exa REST API.",
-      },
-    },
-  },
-  operationTasks: [
-    {
-      id: "exa-l1-python-taskgroup",
-      title: "L1: find official Python docs",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find the official Python documentation page for the `asyncio.TaskGroup` API. Request highlights via `contents.highlights`, and report the result URL `https://docs.python.org/3/library/asyncio-task.html` as the id if it is returned.",
-      expectedUrl: "https://docs.python.org/3/library/asyncio-task.html",
-      expectedAny: ["https://docs.python.org/3/library/asyncio-task.html#asyncio.TaskGroup"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l1-mdn-fetch",
-      title: "L1: find MDN Fetch API docs",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find MDN's Fetch API reference. Request highlights via `contents.highlights`, and report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API` as the id if it is returned.",
-      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l1-rfc-9110",
-      title: "L1: find an RFC",
-      difficulty: "L1",
-      prompt:
-        "Use Exa Search to find the HTML page for IETF RFC 9110, HTTP Semantics. Request highlights via `contents.highlights`, and report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
-      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
-      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-domain-filter-mdn",
-      title: "L2: constrain search to one domain",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find MDN's AbortController reference. Use `includeDomains` to restrict results to developer.mozilla.org and request `contents.highlights`. Report the result URL `https://developer.mozilla.org/en-US/docs/Web/API/AbortController` as the id if it is returned.",
-      expectedUrl: "https://developer.mozilla.org/en-US/docs/Web/API/AbortController",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-domain-filter-python",
-      title: "L2: constrain search to Python docs",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find Python's official `pathlib` documentation. Use `includeDomains` to restrict results to docs.python.org and request `contents.highlights`. Report the result URL `https://docs.python.org/3/library/pathlib.html` as the id if it is returned.",
-      expectedUrl: "https://docs.python.org/3/library/pathlib.html",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l2-exclude-domain",
-      title: "L2: exclude a misleading domain",
-      difficulty: "L2",
-      prompt:
-        "Use Exa Search to find the W3C WCAG 2.2 recommendation. Exclude misleading mirrors or explainers if they crowd out the official W3C result, request `contents.highlights`, and report the result URL `https://www.w3.org/TR/WCAG22/` as the id if it is returned.",
-      expectedUrl: "https://www.w3.org/TR/WCAG22/",
-      expectedAny: ["https://www.w3.org/TR/2023/REC-WCAG22-20231005/", "https://www.w3.org/TR/WCAG22/Overview.html"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use Exa's Search endpoint"),
-    },
-    {
-      id: "exa-l3-contents-readback-rfc",
-      title: "L3: search then retrieve clean content",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to locate the IETF RFC 9110 HTTP Semantics page on rfc-editor.org, then use Exa Contents to retrieve clean content for the URL. Report the result URL `https://www.rfc-editor.org/rfc/rfc9110.html` as the id if it is returned.",
-      expectedUrl: "https://www.rfc-editor.org/rfc/rfc9110.html",
-      expectedAny: ["https://www.rfc-editor.org/info/rfc9110/", "https://datatracker.ietf.org/doc/html/rfc9110"],
-      matchMode: "url",
-      trace: [
-        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
-        { type: "required_call", method: "POST", path: "/contents", description: "retrieve content for the located URL" },
-      ],
-    },
-    {
-      id: "exa-l3-summary-content",
-      title: "L3: request per-result summaries",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to find the React documentation page for `useEffect`. Request `contents.summary` with a query focused on cleanup functions, and report the result URL `https://react.dev/reference/react/useEffect` as the id if it is returned.",
-      expectedUrl: "https://react.dev/reference/react/useEffect",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must request summary content"),
-    },
-    {
-      id: "exa-l3-text-content-cap",
-      title: "L3: retrieve capped text content",
-      difficulty: "L3",
-      prompt:
-        "Use Exa Search to find the Node.js documentation page for `fsPromises`. Then use Exa Contents to retrieve text for the page with a character cap so the response stays small. Report the result URL `https://nodejs.org/api/fs.html` as the id if it is returned.",
-      expectedUrl: "https://nodejs.org/api/fs.html",
-      expectedAny: ["https://nodejs.org/docs/latest-v26.x/api/fs.html", "https://nodejs.org/dist/latest/docs/api/fs.html", "https://nodejs.org/api/fs.html#promises-api"],
-      matchMode: "url",
-      trace: [
-        { type: "required_call", method: "POST", path: "/search", description: "first locate the page with Exa Search" },
-        { type: "required_call", method: "POST", path: "/contents", description: "retrieve capped text content" },
-      ],
-    },
-    {
-      id: "exa-l4-structured-output-official-source",
-      title: "L4: synthesize structured output from official sources",
-      difficulty: "L4",
-      prompt:
-        "Use Exa Search with `outputSchema` to synthesize the official current Kubernetes documentation page for probes. Prefer official sources with a `systemPrompt`, request highlights, and report the source URL `https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/` as the id if it is returned in results or grounding.",
-      expectedUrl: "https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/",
-      expectedAny: ["https://kubernetes.io/docs/concepts/workloads/pods/probes/"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use structured output"),
-    },
-    {
-      id: "exa-l4-deep-comparison",
-      title: "L4: deep search comparison",
-      difficulty: "L4",
-      prompt:
-        "Use a deep Exa Search variant to compare official PostgreSQL documentation pages about transaction isolation levels. Prefer postgresql.org sources, request highlights, and report the result URL `https://www.postgresql.org/docs/current/transaction-iso.html` as the id if it is returned.",
-      expectedUrl: "https://www.postgresql.org/docs/current/transaction-iso.html",
-      expectedAny: ["https://www.postgresql.org/docs/18/transaction-iso.html"],
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use a deep search variant"),
-    },
-    {
-      id: "exa-l4-multi-angle-query",
-      title: "L4: multi-angle search",
-      difficulty: "L4",
-      prompt:
-        "Use Exa Search with a deep-capable search type and `additionalQueries` to find the official Cloudflare documentation page for cache rules. Use one query angle for \"cache rules\" and another for \"set cache eligibility\", and report the result URL `https://developers.cloudflare.com/cache/how-to/cache-rules/` as the id if it is returned.",
-      expectedUrl: "https://developers.cloudflare.com/cache/how-to/cache-rules/",
-      matchMode: "url",
-      trace: exaUrlOracleTrace("search must use additional query angles"),
-    },
-  ],
-};
-
-const LINEAR_GRAPHQL_PRESET: Partial<GenerateGraphqlPackOptions> = {
-  packName: "linear-generated",
-  baseUrl: "https://api.linear.app/graphql",
-  siteUrl: "https://linear.app/developers",
-  docsUrls: ["https://linear.app/developers/graphql"],
-  authMethod: "api-key",
-  authType: "api-key",
-  authEnv: "LINEAR_API_KEY",
-  authHeader: "Authorization",
-  surfaces: {
-    sdk: {
-      package: "@linear/sdk",
-      language: "node",
-      reference_url: "https://linear.app/developers/sdk",
-      auth: { kind: "inherit", token_env_aliases: [] },
-    },
-    mcp: {
-      server: "https://mcp.linear.app/mcp",
-      transport: "http",
-      args: [],
-      docs_url: "https://linear.app/docs/mcp",
-      auth: {
-        kind: "token",
-        token_env: "LINEAR_API_KEY",
-        token_env_aliases: [],
-        instructions:
-          "Linear's MCP server supports direct API keys in the Authorization header. The same LINEAR_API_KEY used for the GraphQL API works for MCP.",
-      },
-    },
-  },
-};
-
 function envGeneratorHarness(): "claude-code" | "codex" | undefined {
   const value = process.env.AX_EVAL_GENERATOR_HARNESS;
   if (value === "claude-code" || value === "codex") return value;
   if (value) console.warn(`Ignoring AX_EVAL_GENERATOR_HARNESS=${value}; expected claude-code or codex.`);
   return undefined;
-}
-
-function defaultGeneratorHarness(): "claude-code" | "codex" {
-  return envGeneratorHarness() ?? (probeHarness().host === "codex" ? "codex" : "claude-code");
-}
-
-function generatorHarness(args: Parsed): "claude-code" | "codex" {
-  if (args.generatorHarness === "claude-code" || args.generatorHarness === "codex") return args.generatorHarness;
-  if (args.generatorHarness) console.warn(`Ignoring --generator-harness ${args.generatorHarness}; generation uses claude-code or codex.`);
-  return defaultGeneratorHarness();
 }
 
 function generatorEffort(args: Parsed): "low" | "medium" | "high" {
@@ -1534,551 +1053,6 @@ function buildDocsOnlyStub(product: string, args: Parsed, docsUrls: string[] | u
   };
 }
 
-async function cmdResolveVendor(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  const harness = generatorHarness(args);
-  const vendorList = args.vendors
-    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
-    : args.vendor
-      ? [args.vendor]
-      : [];
-  if (!vendorList.length) {
-    throw new Error("--vendor <name> or --vendors <a,b,c> is required");
-  }
-  console.log(`Resolving ${vendorList.length} vendor(s) via ${harness}…`);
-  const results = await resolveVendors(vendorList, args.category, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-  });
-  for (const result of results) {
-    const path = writeVendorCard(process.cwd(), result);
-    console.log(`\n  ${result.vendor} → ${path}`);
-    console.log(`    site_url: ${result.site_url ?? "(none)"}`);
-    console.log(`    docs_url: ${result.docs_url ?? "(none)"}`);
-  }
-  return 0;
-}
-
-async function cmdImportRegistry(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  // Selection: --domain (single, optional --vendor/--slug override) OR
-  // --vendors as slug=domain pairs (bare domains allowed; slug then derived).
-  type Target = { domain: string; vendorName?: string; slug?: string };
-  const targets: Target[] = [];
-  if (args.domain) {
-    targets.push({ domain: args.domain, vendorName: args.vendor || undefined, slug: args.slug || undefined });
-  }
-  if (args.vendors) {
-    for (const raw of args.vendors.split(",").map((v) => v.trim()).filter(Boolean)) {
-      const eq = raw.indexOf("=");
-      if (eq === -1) targets.push({ domain: raw });
-      else targets.push({ slug: raw.slice(0, eq).trim(), domain: raw.slice(eq + 1).trim() });
-    }
-  }
-  if (!targets.length) {
-    throw new Error("provide --domain <example.com> or --vendors <slug=domain,...>");
-  }
-
-  const root = process.cwd();
-  const missing: string[] = [];
-  const ingestHints: string[] = [];
-  for (const target of targets) {
-    const surface = await fetchRegistrySurface(target.domain);
-    if (!surface) {
-      missing.push(target.domain);
-      console.log(`\n  ${target.domain} → NOT in registry (fall back to resolve-vendor/extract-surfaces)`);
-      continue;
-    }
-    const mapOpts = { category: args.category, vendorName: target.vendorName, slug: target.slug };
-    const card = registryToVendorCard(surface, mapOpts);
-    const surfaceExtract = registryToSurfaceExtract(surface, mapOpts);
-    const cardPath = writeVendorCard(root, card);
-    const surfacePath = writeSurfaceExtract(root, surfaceExtract);
-    const found = [
-      surfaceExtract.cli && `cli(${surfaceExtract.cli.bin})`,
-      surfaceExtract.mcp && "mcp",
-    ].filter(Boolean).join(", ") || "api-only";
-    console.log(`\n  ${card.vendor} (${target.domain}) → ${card.slug}`);
-    console.log(`    vendor card    → ${cardPath}`);
-    console.log(`    surface extract → ${surfacePath} (${found})`);
-    console.log(`    docs_url: ${card.docs_url ?? "(none)"}`);
-    const openapi = registryOpenApiUrl(surface);
-    if (openapi) {
-      console.log(`    openapi spec: ${openapi}`);
-      ingestHints.push(`  ax-eval ingest ${openapi} --out results/${card.slug}-ingest.json   # then: generate --from …`);
-    } else {
-      console.log(`    openapi spec: (none in registry — extract-capabilities will ground from docs)`);
-    }
-  }
-
-  console.log(
-    `\nRegistry surface/auth structure is reliable, but CLI bin/install and auth prose are best-effort` +
-      ` (the registry sometimes names the wrong package or pastes an unrelated auth blurb). Run` +
-      ` extract-surfaces to verify + correct them against live docs before executing the CLI surface:` +
-      `\n  ax-eval extract-surfaces --vendors ${targets.map((t) => t.slug ?? t.domain).join(",")}`,
-  );
-  console.log(
-    `\nThen: extract-capabilities for the imported vendor(s), then synthesize-suite → compose-pack.`,
-  );
-  if (ingestHints.length) {
-    console.log(`\nRegistry-known OpenAPI specs you can ingest directly:\n${ingestHints.join("\n")}`);
-  }
-  if (missing.length) {
-    console.log(
-      `\n${missing.length} domain(s) not in the registry: ${missing.join(", ")}.\n` +
-        `  Resolve them the grounded way:  ax-eval resolve-vendor --vendors "<names>" --category ${args.category}`,
-    );
-  }
-  return 0;
-}
-
-function resolveVendorSelection(args: Parsed, root: string) {
-  const vendorSlugs = args.vendors
-    ? args.vendors.split(",").map((v) => v.trim()).filter(Boolean)
-    : args.vendor
-      ? [args.vendor]
-      : null;
-  if (vendorSlugs) {
-    return vendorSlugs.map((slug) => {
-      const card = loadVendorCard(root, slug);
-      if (!card) throw new Error(`No vendor card found for slug "${slug}". Run resolve-vendor first.`);
-      return card;
-    });
-  }
-  return null;
-}
-
-async function cmdExtractTasks(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.suite) throw new Error("--suite <path> is required");
-  const harness = generatorHarness(args);
-
-  const { loadSuite } = await import("./generate/suite.js");
-  const suite = loadSuite(args.suite);
-  const category = args.category || suite.category;
-  if (!category) throw new Error("--category is required (e.g. --category database)");
-  const root = process.cwd();
-
-  let vendors = resolveVendorSelection(args, root);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => {
-        const slug = f.replace(".discovered.yaml", "");
-        const card = loadVendorCard(root, slug);
-        if (!card) throw new Error(`Could not load vendor card for ${slug}`);
-        return card;
-      })
-      .filter((v) => v.category === category);
-  }
-
-  if (!vendors.length) throw new Error(`No vendor cards found for category "${category}".`);
-  console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
-
-  const outcomes = await extractOraclesAll(vendors, suite, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-    supportMatrix: loadSupportMatrix(process.cwd(), args.suite) ?? undefined,
-  });
-
-  let failures = 0;
-  for (const outcome of outcomes) {
-    if (!outcome.ok) {
-      failures++;
-      console.error(`\n  ${outcome.vendor} → FAILED: ${outcome.error}`);
-      continue;
-    }
-    const result = outcome.result;
-    const path = writeOracleExtract(root, result);
-    const naCount = result.tasks.filter((t) => t.na).length;
-    console.log(`\n  ${result.vendor} → ${path}`);
-    console.log(`    base_url: ${result.vendor_config.base_url}`);
-    console.log(`    tasks: ${result.tasks.length} total, ${naCount} N/A`);
-    for (const task of result.tasks) {
-      const status = task.na
-        ? `N/A (${task.na_reason ?? "no reason"})`
-        : task.checks
-            .map((c) => summarizeExtractCheck(c))
-            .join(" | ");
-      console.log(`    ${task.task_id}: ${status}`);
-    }
-  }
-  if (failures) {
-    console.error(`\n${failures}/${outcomes.length} vendor(s) failed. Re-run extract-tasks --vendor <slug> for each.`);
-  }
-  return failures ? 1 : 0;
-}
-
-function summarizeExtractCheck(check: {
-  read_method?: string;
-  read_path_template?: string;
-  sql_dialect?: string;
-  sql_query?: string;
-  mongo_query?: OracleSpec["mongoQuery"];
-  assert_field: string;
-  expected: unknown;
-}): string {
-  const target = check.sql_query
-    ? `SQL(${check.sql_dialect ?? "unknown"})`
-    : check.mongo_query
-      ? `Mongo(${check.mongo_query.operation} ${check.mongo_query.collection})`
-      : `${check.read_method ?? "GET"} ${check.read_path_template ?? "(missing path)"}`;
-  return `${target} → ${check.assert_field}=${JSON.stringify(check.expected)}`;
-}
-
-async function cmdComposePack(args: Parsed): Promise<number> {
-  if (!args.suite) throw new Error("--suite <path> is required");
-  const root = process.cwd();
-  const { loadSuite } = await import("./generate/suite.js");
-  const suite = loadSuite(args.suite);
-
-  let vendors = resolveVendorSelection(args, root);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-
-  for (const vendor of vendors) {
-    const extract = loadOracleExtract(root, vendor.slug, suite.name);
-    if (!extract) {
-      console.error(`Skipping ${vendor.vendor}: no oracle extract found. Run extract-tasks first.`);
-      continue;
-    }
-    const surfaces = loadSurfaceExtract(root, vendor.slug) ?? undefined;
-    const pack = composePack(suite, vendor, extract, {
-      surfaces,
-      supportMatrix: loadSupportMatrix(root, args.suite) ?? undefined,
-    });
-    const path = writeComposedPack(root, vendor.slug, suite.name, pack);
-    const compiledSurfaces = ["api", "sdk", "cli", "mcp"].filter((surface) =>
-      pack.tasks.some((task) => task.allowed_surfaces.includes(surface)),
-    );
-    const surfaceNote = compiledSurfaces.length ? ` [compiled surfaces: ${compiledSurfaces.join(", ")}]` : "";
-    console.log(`${vendor.vendor} → ${path} (${pack.tasks.length} tasks)${surfaceNote}`);
-  }
-  return 0;
-}
-
-async function cmdExtractSurfaces(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  let vendors = resolveVendorSelection(args, root);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-  if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
-
-  const harness = generatorHarness(args);
-  const seeded = vendors.filter((v) => loadSurfaceExtract(root, v.slug)).length;
-  console.log(
-    `Extracting surfaces for ${vendors.length} vendor(s) via ${harness}…` +
-      (seeded ? ` (${seeded} seeded from a prior/registry surface extract — verifying + correcting)` : ""),
-  );
-  const settled = await Promise.allSettled(
-    vendors.map((v) =>
-      extractSurfaces(v, {
-        harness,
-        model: generatorModel(args, harness),
-        effort: generatorEffort(args),
-        // Feed any existing (e.g. registry-seeded) extract in as a prior to
-        // verify/correct against live docs, per the seed+override design.
-        prior: loadSurfaceExtract(root, v.slug) ?? undefined,
-      }),
-    ),
-  );
-  let failures = 0;
-  settled.forEach((s, i) => {
-    const vendor = vendors![i]!;
-    if (s.status === "rejected") {
-      failures++;
-      console.error(`\n  ${vendor.vendor} → FAILED: ${s.reason instanceof Error ? s.reason.message : s.reason}`);
-      return;
-    }
-    const path = writeSurfaceExtract(root, s.value);
-    const found = [s.value.cli && "cli", s.value.sdk && "sdk", s.value.mcp && "mcp"].filter(Boolean).join(", ") || "none";
-    console.log(`\n  ${vendor.vendor} → ${path} (${found})`);
-  });
-  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
-  return failures ? 1 : 0;
-}
-
-async function cmdExtractCapabilities(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  let vendors = resolveVendorSelection(args, root);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null);
-  }
-  if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
-
-  const harness = generatorHarness(args);
-  // Per-vendor OpenAPI spec URLs: --specs override wins, else the vendor card's
-  // openapi_url (seeded by import-registry). Spec ops seed the candidate surface;
-  // every vendor still WebFetches docs to gap-fill (seed alone is usually
-  // control-plane heavy).
-  const specOverrides = new Map<string, string>();
-  for (const raw of args.specs.split(",").map((s) => s.trim()).filter(Boolean)) {
-    const eq = raw.indexOf("=");
-    if (eq !== -1) specOverrides.set(raw.slice(0, eq).trim(), raw.slice(eq + 1).trim());
-  }
-  const specUrlFor = (v: (typeof vendors)[number]): string | undefined =>
-    specOverrides.get(v.slug) ?? v.openapi_url ?? undefined;
-  const seededCount = vendors.filter((v) => specUrlFor(v)).length;
-  console.log(
-    `Extracting capabilities for ${vendors.length} vendor(s) via ${harness}` +
-      ` (${seededCount} openapi-seeded+grounded, ${vendors.length - seededCount} grounded-only)…`,
-  );
-
-  // Bounded concurrency: heavy grounded crawls all-at-once previously starved
-  // each other and timed out.
-  const CONCURRENCY = 3;
-  let failures = 0;
-  await runPool(vendors, CONCURRENCY, async (vendor) => {
-    const specUrl = specUrlFor(vendor);
-    try {
-      let specSummary: string | undefined;
-      if (specUrl) {
-        try {
-          const summary = await fetchSpecSummary(specUrl);
-          specSummary = summary.text;
-          console.log(`  ${vendor.vendor}: seeding from spec ${specUrl} (${summary.operationCount} ops)`);
-        } catch (e) {
-          console.warn(`  ${vendor.vendor}: spec fetch failed (${e instanceof Error ? e.message : String(e)}); falling back to grounded.`);
-        }
-      }
-      const result = await extractCapabilities(vendor, {
-        harness,
-        model: generatorModel(args, harness),
-        effort: generatorEffort(args),
-        specSummary,
-        specUrl: specSummary ? specUrl : undefined,
-      });
-      const path = writeCapabilityExtract(root, result);
-      console.log(`\n  ${vendor.vendor} → ${path} (${result.capabilities.length} capabilities)`);
-    } catch (e) {
-      failures++;
-      console.error(`\n  ${vendor.vendor} → FAILED: ${e instanceof Error ? e.message : String(e)}`);
-    }
-  });
-  if (failures) console.error(`\n${failures}/${vendors.length} vendor(s) failed.`);
-  return failures ? 1 : 0;
-}
-
-async function cmdAuditExtracts(args: Parsed): Promise<number> {
-  const root = process.cwd();
-  const slugs = [
-    ...(args.vendor ? [args.vendor] : []),
-    ...args.vendors.split(",").map((s) => s.trim()).filter(Boolean),
-  ];
-  const report = auditAllExtracts(root, slugs.length ? slugs : undefined);
-  console.log(formatExtractAuditReport(report));
-  if (args.apply) {
-    console.log(`\nApplying autofixes…`);
-    for (const v of report.vendors) {
-      const paths = applyExtractAudit(root, v);
-      const wrote = [paths.inventoryPath, paths.surfacesPath].filter(Boolean);
-      if (wrote.length) console.log(`  ${v.slug} → ${wrote.join(", ")}`);
-    }
-  } else {
-    console.log(`\nReport-only. Re-run with --apply to write autofixes.`);
-  }
-  if (args.advisory) {
-    const advisorySlugs = slugs.length
-      ? slugs
-      : report.vendors.map((vendor) => vendor.slug);
-    console.log(`\nRunning ${advisorySlugs.length} WebFetch-grounded advisory audit(s)…`);
-    let advisoryFailures = 0;
-    for (const slug of advisorySlugs) {
-      try {
-        const advisory = await adviseVendorExtract(root, slug, {
-          harness: generatorHarness(args),
-          model: generatorModel(args, generatorHarness(args)),
-          effort: generatorEffort(args),
-        });
-        const path = writeExtractAdvisory(root, advisory);
-        console.log(`  ${slug} → ${path} (${advisory.findings.length} advisory finding(s))`);
-      } catch (error) {
-        advisoryFailures++;
-        console.warn(`  ${slug} → advisory failed: ${error instanceof Error ? error.message : String(error)}`);
-      }
-    }
-    if (advisoryFailures) console.warn(`${advisoryFailures} advisory audit(s) failed; deterministic audit result is unchanged.`);
-  }
-  return report.summary.errors ? 1 : 0;
-}
-
-function cmdAuditSuite(args: Parsed): number {
-  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
-  const root = process.cwd();
-  const report = auditSuite(root, args.suite);
-  console.log(formatSuiteAuditReport(report));
-  if (args.apply) {
-    console.log(`\nApplying autofixes…`);
-    const written = applySuiteAudit(root, args.suite, report);
-    for (const path of written) console.log(`  wrote ${path}`);
-    if (report.findings.some((f) => f.code === "underfilled_task_bank" || f.code === "mapping_would_cover" || f.code === "seed_eligible_ok")) {
-      console.log(`\nNext: re-run synthesize-suite --deterministic to refresh selection from fixed mappings.`);
-    }
-  } else {
-    console.log(`\nReport-only. Re-run with --apply to write metadata autofixes + audit notes.`);
-  }
-  return report.summary.errors ? 1 : 0;
-}
-
-async function cmdSynthesizeSuite(args: Parsed): Promise<number> {
-  loadDotenv();
-  if (!args.category) throw new Error("--category is required (e.g. --category database)");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
-  const root = process.cwd();
-
-  let vendors = resolveVendorSelection(args, root);
-  if (!vendors) {
-    const { readdirSync } = await import("node:fs");
-    const vendorDir = resolve(root, "benchmarks", "daeb", "vendors");
-    if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
-    const files = readdirSync(vendorDir).filter((f) => f.endsWith(".discovered.yaml"));
-    vendors = files
-      .map((f) => loadVendorCard(root, f.replace(".discovered.yaml", "")))
-      .filter((v): v is NonNullable<typeof v> => v !== null)
-      .filter((v) => v.category === args.category);
-    if (args.category === "database") {
-      const coreSlugs = coreVendorSlugs(root);
-      if (coreSlugs) {
-        const core = new Set(coreSlugs);
-        vendors = vendors.filter((vendor) => core.has(vendor.slug));
-      }
-    }
-  }
-  if (!vendors.length) throw new Error(`No vendor cards found for category "${args.category}".`);
-
-  const extracts = vendors
-    .map((v) => loadCapabilityExtract(root, v.slug))
-    .filter((e): e is NonNullable<typeof e> => {
-      if (!e) console.error(`Skipping a vendor: no capability-inventory.yaml found. Run extract-capabilities first.`);
-      return e !== null;
-    });
-  if (extracts.length < 2) throw new Error("Need at least 2 vendors' capability inventories to synthesize a suite.");
-
-  const harness = generatorHarness(args);
-  console.log(
-    `Synthesizing suite from ${extracts.length} vendor(s)' capability extracts` +
-      (args.deterministic
-        ? " (seed-only / --deterministic)…"
-        : args.gapCheckAssist
-          ? " (seed + LLM refine + gap-check assist)…"
-          : " (deterministic seed + LLM concept-refine assist, seed fallback)…"),
-  );
-  const result = await synthesizeSuite(args.category, extracts, {
-    harness,
-    model: generatorModel(args, harness),
-    effort: generatorEffort(args),
-    deterministic: args.deterministic,
-    gapCheckAssist: args.gapCheckAssist,
-    targetTaskCount: args.taskCount,
-  });
-
-  const suiteStem = args.out.split("/").pop()!.replace(/\.yaml$/, "");
-  // Bare "suite.yaml" is the active DAEB contract path — don't name the suite "SUITE".
-  const suiteName = /^suite$/i.test(suiteStem) ? "DAEB-1" : suiteStem.toUpperCase();
-  // DAEB-1 remains one mutable draft until human freeze. Draft regenerations
-  // overwrite v1; git SHA/content hashes identify exact pre-freeze states.
-  const suiteVersion = /^suite$/i.test(suiteStem) ? 1 : inferSuiteVersionFromStem(suiteStem);
-  const suiteYaml = renderSuiteYaml(suiteName, suiteVersion, args.category, result);
-  const synthesisDoc = renderSynthesisDoc(suiteName, args.category, result);
-  const { suitePath, synthesisPath } = writeSuiteFiles(root, args.out, suiteYaml, synthesisDoc);
-  const artifactPaths = writeSuiteArtifacts(root, args.out, result);
-
-  console.log(`\n${result.tasks.length} tasks selected.`);
-  for (const t of result.tasks) {
-    const vendorCount = new Set(t.coverage.map((entry) => entry.vendor)).size;
-    console.log(`  [${t.difficulty}] ${t.id} — ${vendorCount} vendor(s)`);
-  }
-  console.log(`\nSuite → ${suitePath}`);
-  console.log(`Synthesis audit trail → ${synthesisPath}`);
-  console.log(`Methodology artifacts → ${artifactPaths.join(", ")}`);
-  console.log(`\nReview both before freezing — this is a draft, not yet approved.`);
-  return 0;
-}
-
-function cmdPublicationBundle(args: Parsed): number {
-  if (!args.suite) throw new Error("--suite <suite.yaml> is required");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
-  const root = process.cwd();
-  const suite = loadSuite(args.suite);
-  const vendorSlugs = args.vendors
-    ? args.vendors.split(",").map((s) => s.trim()).filter(Boolean)
-    : discoverPublicationVendors(root, suite);
-  if (!vendorSlugs.length) {
-    throw new Error("No vendors found. Pass --vendors <a,b,c> or compose packs under benchmarks/daeb/v1/packs/<vendor>/.");
-  }
-  const manifest = buildPublicationBundle({
-    root,
-    suite,
-    suitePath: args.suite,
-    vendors: vendorSlugs,
-    runDir: args.runDir,
-    outDir: args.out,
-    effortProfiles: args.effortProfiles
-      ? args.effortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
-      : undefined,
-    requiredEffortProfiles: args.requiredEffortProfiles
-      ? args.requiredEffortProfiles.split(",").map((value) => value.trim()).filter(Boolean)
-      : undefined,
-  });
-
-  const missingCount = manifest.missing.length + manifest.vendors.reduce((sum, vendor) => sum + vendor.missing.length, 0);
-  const validationCount = manifest.vendors.reduce((sum, vendor) => sum + vendor.validation_errors.length, 0);
-  console.log(`Saved publication bundle → ${args.out}`);
-  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
-  console.log(`${manifest.vendors.length} vendor(s), ${missingCount} missing artifact reference(s), ${validationCount} validation issue(s).`);
-  if (validationCount) {
-    for (const vendor of manifest.vendors) {
-      for (const error of vendor.validation_errors) console.error(`  ${vendor.slug}: ${error}`);
-    }
-    return 1;
-  }
-  return 0;
-}
-
-function cmdExportPublication(args: Parsed): number {
-  if (!args.from) throw new Error("--from <publication-bundle-dir> is required");
-  if (!args.out || args.out === "results/last-run.json") throw new Error("--out <dir> is required");
-  const root = process.cwd();
-  const manifest = buildAxArenaExport({
-    root,
-    bundleDir: args.from,
-    outDir: args.out,
-  });
-  console.log(`Saved axarena export → ${args.out}`);
-  console.log(`Saved manifest → ${resolve(root, args.out, "manifest.json")}`);
-  console.log(`${manifest.files.length} export file(s) for ${manifest.benchmark}.`);
-  return 0;
-}
-
 function cmdRecordsDiff(args: Parsed): number {
   if (!args.baseRecords) throw new Error("--base <record-file-or-dir> is required");
   if (!args.headRecords) throw new Error("--head <record-file-or-dir> is required");
@@ -2087,687 +1061,6 @@ function cmdRecordsDiff(args: Parsed): number {
   mkdirSync(dirname(resolve(process.cwd(), args.out)), { recursive: true });
   writeFileSync(resolve(process.cwd(), args.out), markdown);
   console.log(`Saved normalized records diff → ${args.out}`);
-  return 0;
-}
-
-function loadNormalizedRecordForTrial(runDir: string, harness: string, surface: SurfaceId): { path: string; record: NormalizedResult } {
-  const candidates = loadAggregateCandidateRecords(runDir);
-  for (const candidate of candidates) {
-    const parsed = readJsonObject(candidate) as NormalizedResult | undefined;
-    if (parsed?.schema !== "ax.normalized-result/v1") continue;
-    if (parsed.harness === harness && parsed.surface === surface) {
-      return { path: candidate, record: parsed };
-    }
-  }
-  throw new Error(`No normalized record found for ${harness}/${surface} in ${runDir}`);
-}
-
-function buildProductionFailureRecord(
-  pack: TargetPack,
-  surface: SurfaceId,
-  harness: string,
-  model: string,
-  profile: string,
-): NormalizedResult {
-  return {
-    schema: "ax.normalized-result/v1",
-    surface,
-    product: pack.name.replace(/-generated$/, ""),
-    harness,
-    standard_set_version: pack.standard_set_version,
-    generated_at: new Date().toISOString(),
-    tasks_total: tasksForSurface(pack, surface).length,
-    tasks_passed: 0,
-    pass_at_1: 0,
-    pass_at_k: 0,
-    attempts: 1,
-    discovery_score: null,
-    content_quality: null,
-    profiles: [profile],
-    best_profile: profile,
-    model,
-    harness_version_raw: null,
-    harness_version_semver: null,
-    run_batch_id: null,
-    latency_ms: null,
-    total_duration_ms: null,
-    tool_call_count: null,
-    token_usage: null,
-    token_cost: null,
-    cost_usd: null,
-    tokens_in: null,
-    tokens_out: null,
-    validity_status: "invoke_failed",
-    first_action_latency_ms: null,
-    transcript_event_count: null,
-    action_occurred: false,
-    summary_kind: "single",
-  };
-}
-
-function writeProductionFailureClassificationStub(opts: {
-  outPath: string;
-  vendor: string;
-  surface: SurfaceId;
-  harness: string;
-  model: string;
-  trial: number;
-  error: string;
-  resultPath?: string;
-  normalizedPath?: string;
-}): void {
-  mkdirSync(dirname(opts.outPath), { recursive: true });
-  writeFileSync(opts.outPath, [
-    "# DAEB production rerun failure review",
-    "",
-    `vendor: ${opts.vendor}`,
-    `surface: ${opts.surface}`,
-    `harness: ${opts.harness}`,
-    `model: ${opts.model}`,
-    `trial: ${opts.trial}`,
-    `generated_at: ${new Date().toISOString()}`,
-    "",
-    "- classification: TODO",
-    "- validity_status: invoke_failed",
-    `- error: ${opts.error}`,
-    `- results: ${opts.resultPath ?? "not produced"}`,
-    `- normalized_record: ${opts.normalizedPath ?? "not produced"}`,
-    "- notes:",
-    "",
-  ].join("\n"));
-}
-
-class RunCleanupUnconfirmedError extends Error {}
-
-async function cleanupProductionTrial(opts: {
-  pack: TargetPack;
-  trialDir: string;
-  resultPath: string;
-  skipReset: boolean;
-}): Promise<RunCleanupRecord> {
-  if (opts.skipReset) {
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "skipped",
-      message: "skip-reset requested",
-      errors: [],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-  if (!existsSync(opts.resultPath)) {
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "unconfirmed",
-      message: "no combined result exists, so the mutated namespace cannot be identified safely",
-      errors: ["missing result namespace"],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-  try {
-    const result = loadResults(opts.resultPath);
-    if (!result.ns) {
-      const record: RunCleanupRecord = {
-        schema: "ax.daeb-run-cleanup/v1",
-        generated_at: new Date().toISOString(),
-        status: "unconfirmed",
-        message: `no namespace recorded in ${opts.resultPath}`,
-        errors: ["missing result namespace"],
-      };
-      writeRunCleanupRecord(opts.trialDir, record);
-      return record;
-    }
-    const scope = resolveScope(opts.pack);
-    const client = new BearerClient(buildVerificationClientOptions(opts.pack, result));
-    const resetResult = await resetPack(opts.pack, client, scope, { ns: result.ns });
-    const record = cleanupRecordFromReset(result.ns, resetResult);
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const record: RunCleanupRecord = {
-      schema: "ax.daeb-run-cleanup/v1",
-      generated_at: new Date().toISOString(),
-      status: "unconfirmed",
-      message: `cleanup failed: ${message}`,
-      errors: [message],
-    };
-    writeRunCleanupRecord(opts.trialDir, record);
-    return record;
-  }
-}
-
-async function runProductionHarnessTrial(opts: {
-  packPath: string;
-  pack: TargetPack;
-  runRoot: string;
-  vendor: string;
-  surface: SurfaceId;
-  harness: (typeof DAEB_PRODUCTION_HARNESSES)[number];
-  model: string;
-  trial: number;
-  trialCount: number;
-  invokeTimeout: number;
-  firstActionTimeout: number;
-  skipReset: boolean;
-}): Promise<{ harness: (typeof DAEB_PRODUCTION_HARNESSES)[number]; trialRecord: ProductionTrialRecord; normalizedRecord: NormalizedResult }> {
-  const trialDir = productionTrialDir(opts.runRoot, opts.vendor, opts.surface, opts.harness, opts.trial);
-  mkdirSync(trialDir, { recursive: true });
-  console.log(`    ${opts.harness} trial ${opts.trial}/${opts.trialCount} → ${trialDir}`);
-  const resultPath = combinedResultPath(trialDir, opts.harness, DAEB_PRODUCTION_EFFORT, opts.surface);
-  const htmlPath = resolve(trialDir, "generated-eval.html");
-  const snapshotPath = resolve(trialDir, "generated-eval.snapshot.json");
-  const classificationPath = resolve(trialDir, "failure-review.md");
-
-  let existingNormalized: { path: string; record: NormalizedResult } | undefined;
-  try {
-    existingNormalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-  } catch {
-    // No normalized artifact yet — continue with exec or verify-resume below.
-  }
-  if (existingNormalized) {
-    if (opts.skipReset && !readRunCleanupRecord(trialDir)) {
-      writeRunCleanupRecord(trialDir, {
-        schema: "ax.daeb-run-cleanup/v1",
-        generated_at: new Date().toISOString(),
-        status: "skipped",
-        message: "skip-reset requested while resuming existing normalized artifacts",
-        errors: [],
-      });
-    }
-    assertRunCleanupConfirmed(trialDir, opts.skipReset);
-    const normalized = existingNormalized;
-    console.log(`      resuming existing normalized artifact → ${normalized.path}`);
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
-        result_paths: existsSync(resultPath) ? [resultPath] : [],
-      },
-      normalizedRecord: normalized.record,
-    };
-  }
-
-  try {
-    if (!existsSync(resultPath)) {
-      await runCliSubcommand([
-        "exec-plan",
-        "--pack", opts.packPath,
-        "--run-dir", trialDir,
-        "--invoke",
-        "--execution-mode", "task",
-        "--harness", opts.harness,
-        "--profile", DAEB_PRODUCTION_EFFORT,
-        "--surface", opts.surface,
-        "--model", opts.model,
-        "--effort", DAEB_PRODUCTION_EFFORT,
-        "--invoke-retries", "0",
-        "--invoke-timeout", String(opts.invokeTimeout || 1800),
-        "--first-action-timeout", String(opts.firstActionTimeout || 240),
-        "--concurrency", "1",
-        "--trial", String(opts.trial),
-        "--run-batch-id", basename(opts.runRoot),
-        "--skip-reset",
-      ]);
-    } else {
-      console.log(`      resuming existing combined result → ${resultPath}`);
-    }
-
-    if (!existsSync(resultPath)) {
-      throw new Error(`No aggregated result file was produced for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}`);
-    }
-
-    try {
-      await runCliSubcommand([
-        "verify-generated",
-        "--pack", opts.packPath,
-        "--results", resultPath,
-        "--run-dir", trialDir,
-        "--html", htmlPath,
-        "--snapshot", snapshotPath,
-        "--min-pass-rate", "0.8",
-      ]);
-    } catch (error) {
-      if (!existsSync(snapshotPath)) throw error;
-      console.warn(`verify-generated failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}, but snapshot exists; continuing.`);
-    }
-
-    if (existsSync(snapshotPath)) {
-      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
-    }
-
-    const normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-    const cleanup = await cleanupProductionTrial({
-      pack: opts.pack,
-      trialDir,
-      resultPath,
-      skipReset: opts.skipReset,
-    });
-    if (cleanup.status === "unconfirmed") {
-      throw new RunCleanupUnconfirmedError(cleanup.message);
-    }
-
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: existsSync(classificationPath) ? classificationPath : undefined,
-        result_paths: [resultPath],
-      },
-      normalizedRecord: normalized.record,
-    };
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    let normalized: { path: string; record: NormalizedResult };
-    try {
-      normalized = loadNormalizedRecordForTrial(trialDir, opts.harness, opts.surface);
-    } catch {
-      const record = buildProductionFailureRecord(opts.pack, opts.surface, opts.harness, opts.model, DAEB_PRODUCTION_EFFORT);
-      const normalizedPath = resolve(trialDir, `${opts.harness}.${opts.surface}.failed.normalized.json`);
-      writeFileSync(normalizedPath, JSON.stringify(record, null, 2) + "\n");
-      normalized = { path: normalizedPath, record };
-    }
-    if (existsSync(snapshotPath)) {
-      const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-      writeFailureClassificationStub(snapshot, classificationPath, { vendor: opts.vendor, surface: opts.surface });
-    } else {
-      writeProductionFailureClassificationStub({
-        outPath: classificationPath,
-        vendor: opts.vendor,
-        surface: opts.surface,
-        harness: opts.harness,
-        model: opts.model,
-        trial: opts.trial,
-        error: message,
-        resultPath: existsSync(resultPath) ? resultPath : undefined,
-        normalizedPath: normalized.path,
-      });
-    }
-    if (error instanceof RunCleanupUnconfirmedError) {
-      throw error;
-    }
-    const cleanup = await cleanupProductionTrial({
-      pack: opts.pack,
-      trialDir,
-      resultPath,
-      skipReset: opts.skipReset,
-    });
-    if (cleanup.status === "unconfirmed") {
-      throw new RunCleanupUnconfirmedError(
-        `Production trial failed and cleanup could not be confirmed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}: ${message}; ${cleanup.message}`,
-      );
-    }
-    console.warn(`production trial failed for ${opts.vendor}/${opts.surface}/${opts.harness}/trial-${opts.trial}; cleanup confirmed, recording classified failure and continuing: ${message}`);
-    return {
-      harness: opts.harness,
-      trialRecord: {
-        trial: opts.trial,
-        trial_dir: trialDir,
-        normalized_record: normalized.path,
-        snapshot_path: existsSync(snapshotPath) ? snapshotPath : undefined,
-        report_html: existsSync(htmlPath) ? htmlPath : undefined,
-        classification_path: classificationPath,
-        result_paths: existsSync(resultPath) ? [resultPath] : [],
-      },
-      normalizedRecord: normalized.record,
-    };
-  }
-}
-
-async function cmdDaebProductionRerun(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
-  const suite = loadSuite(suitePath);
-  const requestedSurface = concreteSurface(args);
-  const benchmarkScope: SurfaceId[] =
-    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
-    ?? ["api", "cli"];
-  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB/database v1 production scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
-  }
-  if (args.trialCount !== DAEB_PRODUCTION_TRIAL_COUNT) {
-    throw new Error(`DAEB production ranking requires exactly ${DAEB_PRODUCTION_TRIAL_COUNT} clean trials per task cell`);
-  }
-  if (args.codexModel !== DAEB_PRODUCTION_CODEX_MODEL || args.claudeModel !== DAEB_PRODUCTION_CLAUDE_MODEL) {
-    throw new Error(
-      `DAEB production models are frozen to ${DAEB_PRODUCTION_CODEX_MODEL} and ${DAEB_PRODUCTION_CLAUDE_MODEL}`,
-    );
-  }
-  if (args.skipReset) {
-    throw new Error("DAEB production trials require confirmed cleanup between trials; --skip-reset is not allowed");
-  }
-  const vendors = args.vendor
-    ? [args.vendor]
-    : args.vendors
-      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
-      : daebProductionVendorOrder();
-  const runRoot = defaultProductionRunRoot(root, args.runDir);
-  mkdirSync(runRoot, { recursive: true });
-  if (!args.skipArchive) {
-    const archiveRoot = resolve(runRoot, "_archive", "pre-production");
-    const entries = archiveDaebDebugArtifacts(runRoot, archiveRoot);
-    const manifestPath = writeArchiveManifest(archiveRoot, entries);
-    console.log(`Archived debug artifacts manifest → ${manifestPath}`);
-  }
-  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
-
-  for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(root, vendor);
-    if (!existsSync(committedPackPath)) throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
-    const approvedPack = loadPack(committedPackPath);
-    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
-    let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(root, vendor);
-    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
-    if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
-      const freshPack = composePack(suite, vendorCard, extract, { surfaces, supportMatrix });
-      mkdirSync(dirname(freshPackPath), { recursive: true });
-      writeFileSync(
-        freshPackPath,
-        `# GENERATED — fresh production compiled pack. Do not hand-edit.\n` +
-          `# source_suite: ${suitePath}\n` +
-          `# source_vendor: ${vendorCard.slug}\n` +
-          yamlStringify(freshPack),
-      );
-      stageApprovedEquivalentPack({
-        approvedPack,
-        approvedPackPath: committedPackPath,
-        candidatePack: freshPack,
-        candidatePackPath: freshPackPath,
-      });
-      packPath = freshPackPath;
-    }
-    const pack = loadPack(packPath);
-    // Hygiene gate before any trials start for this vendor.
-    await runHealthCheck(pack, args.reclaim);
-    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
-    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
-    for (const surface of surfaces) {
-      console.log(`\nSurface ${vendor}/${surface}`);
-      const perHarness = new Map<(typeof DAEB_PRODUCTION_HARNESSES)[number], {
-        model: string;
-        trialRecords: ProductionTrialRecord[];
-        normalizedRecords: NormalizedResult[];
-      }>();
-      for (const harness of DAEB_PRODUCTION_HARNESSES) {
-        const model = harness === "codex" ? args.codexModel : args.claudeModel;
-        perHarness.set(harness, { model, trialRecords: [], normalizedRecords: [] });
-        console.log(`  Harness ${harness} → model=${model} effort=${DAEB_PRODUCTION_EFFORT}`);
-      }
-      for (let trial = 1; trial <= args.trialCount; trial++) {
-        console.log(`  Trial ${trial}/${args.trialCount} → concurrent harness lane`);
-        const settled = await Promise.allSettled(
-          DAEB_PRODUCTION_HARNESSES.map((harness) => runProductionHarnessTrial({
-            packPath,
-            pack,
-            runRoot,
-            vendor,
-            surface,
-            harness,
-            model: perHarness.get(harness)!.model,
-            trial,
-            trialCount: args.trialCount,
-            invokeTimeout: args.invokeTimeout,
-            firstActionTimeout: args.firstActionTimeout,
-            skipReset: args.skipReset,
-          })),
-        );
-        const rejected = settled.filter((result): result is PromiseRejectedResult => result.status === "rejected");
-        if (rejected.length) {
-          throw new Error(
-            `Production trial ${vendor}/${surface}/trial-${trial} halted after all harness lanes settled: ` +
-            rejected.map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason)).join(" | "),
-          );
-        }
-        const results = settled.map((result) => (result as PromiseFulfilledResult<Awaited<ReturnType<typeof runProductionHarnessTrial>>>).value);
-        for (const result of results) {
-          perHarness.get(result.harness)!.trialRecords.push(result.trialRecord);
-          perHarness.get(result.harness)!.normalizedRecords.push(result.normalizedRecord);
-        }
-      }
-      for (const harness of DAEB_PRODUCTION_HARNESSES) {
-        const state = perHarness.get(harness)!;
-        writeProductionAggregate({
-          runRoot,
-          vendor,
-          surface,
-          harness,
-          model: state.model,
-          trials: state.trialRecords,
-          records: state.normalizedRecords,
-        });
-      }
-    }
-  }
-  console.log(`\nCompleted DAEB production rerun workflow → ${runRoot}`);
-  console.log(`Publication bundle command: ax-eval publication-bundle --suite ${suitePath} --run-dir ${runRoot} --out ${resolve(runRoot, "publication-bundle")} --effort-profiles ${DAEB_PRODUCTION_EFFORT} --required-effort-profiles ${DAEB_PRODUCTION_EFFORT}`);
-  return 0;
-}
-
-async function cmdDaebLowPass(args: Parsed): Promise<number> {
-  loadDotenv();
-  const root = process.cwd();
-  const suitePath = args.suite || resolve(root, "benchmarks", "daeb", "v1", "suite.yaml");
-  const suite = loadSuite(suitePath);
-  const requestedSurface = concreteSurface(args);
-  const benchmarkScope: SurfaceId[] =
-    (suite.methodology?.surface_scope?.filter((surface) => surface === "api" || surface === "cli") as SurfaceId[] | undefined)
-    ?? ["api", "cli"];
-  if (requestedSurface && !benchmarkScope.includes(requestedSurface)) {
-    throw new Error(`DAEB/database v1 low-pass scope is ${benchmarkScope.join(", ")}; surface "${requestedSurface}" is out of scope.`);
-  }
-  const vendors = args.vendor
-    ? [args.vendor]
-    : args.vendors
-      ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
-      : daebVendorOrder();
-  const runRoot = defaultLowPassRunRoot(root, args.runDir);
-  mkdirSync(runRoot, { recursive: true });
-  const supportMatrix = loadSupportMatrix(root, suitePath) ?? undefined;
-
-  for (const vendor of vendors) {
-    const committedPackPath = daebPackPath(root, vendor);
-    if (!existsSync(committedPackPath)) {
-      throw new Error(`No compiled DAEB pack for vendor "${vendor}" at ${committedPackPath}`);
-    }
-    const approvedPack = loadPack(committedPackPath);
-    const freshPackPath = daebFreshPackPath(runRoot, vendor, suitePath);
-    let packPath = committedPackPath;
-    const vendorCard = loadVendorCard(root, vendor);
-    const extract = vendorCard ? loadOracleExtract(root, vendorCard.slug, suite.name) : null;
-    if (vendorCard && extract) {
-      const surfaces = loadSurfaceExtract(root, vendorCard.slug) ?? undefined;
-      const freshPack = composePack(suite, vendorCard, extract, {
-        surfaces,
-        supportMatrix,
-      });
-      mkdirSync(dirname(freshPackPath), { recursive: true });
-      writeFileSync(
-        freshPackPath,
-          `# GENERATED — fresh medium-effort compiled pack. Do not hand-edit.\n` +
-          `# source_suite: ${suitePath}\n` +
-          `# source_vendor: ${vendorCard.slug}\n` +
-          yamlStringify(freshPack),
-      );
-      stageApprovedEquivalentPack({
-        approvedPack,
-        approvedPackPath: committedPackPath,
-        candidatePack: freshPack,
-        candidatePackPath: freshPackPath,
-      });
-      packPath = freshPackPath;
-    }
-    const pack = loadPack(packPath);
-    const surfaces = supportedLowPassSurfaces(pack, requestedSurface, benchmarkScope);
-    const manifestPath = resolve(runRoot, vendor, "low-pass.manifest.json");
-    const existingManifest = existsSync(manifestPath)
-      ? JSON.parse(readFileSync(manifestPath, "utf8")) as LowPassManifest
-      : null;
-    const manifest: LowPassManifest = existingManifest?.schema === DAEB_LOW_PASS_SCHEMA
-      ? {
-          ...existingManifest,
-          suite: suitePath,
-          vendor,
-          generated_at: new Date().toISOString(),
-          harnesses: ["codex", "claude-code"],
-          profile: "medium",
-          execution_mode: "task",
-          surfaces: [...existingManifest.surfaces],
-        }
-      : {
-          schema: DAEB_LOW_PASS_SCHEMA,
-          suite: suitePath,
-          vendor,
-          generated_at: new Date().toISOString(),
-          harnesses: ["codex", "claude-code"],
-          profile: "medium",
-          execution_mode: "task",
-          surfaces: [],
-        };
-    console.log(`\nVendor ${vendor}: ${surfaces.length ? surfaces.join(", ") : "no supported api/cli benchmark surfaces"}`);
-    for (const surface of surfaces) {
-      const surfaceDir = resolve(runRoot, vendor, surface);
-      mkdirSync(surfaceDir, { recursive: true });
-      console.log(`\nRunning ${vendor}/${surface}: Codex medium + Claude medium in parallel`);
-      const invocationResults = await Promise.allSettled([
-        runCliSubcommand([
-          "exec-plan",
-          "--pack", packPath,
-          "--run-dir", surfaceDir,
-          "--invoke",
-          "--execution-mode", "task",
-          "--harness", "codex",
-          "--profile", "medium",
-          "--effort", "medium",
-          "--surface", surface,
-          "--model", args.codexModel,
-          "--invoke-retries", "0",
-          "--first-action-timeout", String(args.firstActionTimeout || 180),
-          "--concurrency", "1",
-        ]),
-        runCliSubcommand([
-          "exec-plan",
-          "--pack", packPath,
-          "--run-dir", surfaceDir,
-          "--invoke",
-          "--execution-mode", "task",
-          "--harness", "claude-code",
-          "--profile", "medium",
-          "--effort", "medium",
-          "--surface", surface,
-          "--model", args.claudeModel,
-          "--invoke-retries", "0",
-          "--first-action-timeout", String(args.firstActionTimeout || 180),
-          "--concurrency", "1",
-        ]),
-      ]);
-
-      const expectedResultPaths = [
-        combinedResultPath(surfaceDir, "codex", "medium", surface),
-        combinedResultPath(surfaceDir, "claude-code", "medium", surface),
-      ];
-      const resultPaths = expectedResultPaths.filter((path) => existsSync(path));
-      const missingResultPaths = expectedResultPaths.filter((path) => !existsSync(path));
-      const invocationErrors = invocationResults
-        .filter((result): result is PromiseRejectedResult => result.status === "rejected")
-        .map((result) => result.reason instanceof Error ? result.reason.message : String(result.reason));
-
-      const htmlPath = resolve(surfaceDir, "generated-eval.html");
-      const snapshotPath = resolve(surfaceDir, "generated-eval.snapshot.json");
-      let verifyStatus: "passed" | "failed" = "passed";
-      let verifyError: string | undefined;
-      try {
-        if (resultPaths.length === 0) throw new Error(`No aggregated result files were produced for ${vendor}/${surface}`);
-        await runCliSubcommand([
-          "verify-generated",
-          "--pack", packPath,
-          ...resultPaths.flatMap((path) => ["--results", path]),
-          "--run-dir", surfaceDir,
-          "--html", htmlPath,
-          "--snapshot", snapshotPath,
-          "--min-pass-rate", "0.8",
-        ]);
-      } catch (error) {
-        verifyStatus = "failed";
-        verifyError = error instanceof Error ? error.message : String(error);
-        console.warn(`verify-generated failed for ${vendor}/${surface}; continuing to cleanup before halting or classifying.`);
-      }
-      const classificationPath = resolve(surfaceDir, "failure-review.md");
-      let snapshotValid = false;
-      if (existsSync(snapshotPath)) {
-        try {
-          const snapshot = loadGeneratedReportSnapshot(snapshotPath);
-          writeFailureClassificationStub(snapshot, classificationPath, { vendor, surface });
-          snapshotValid = true;
-        } catch (error) {
-          verifyStatus = "failed";
-          verifyError = `snapshot unreadable: ${error instanceof Error ? error.message : String(error)}`;
-        }
-      }
-
-      const loadedResults = loadLowPassResults(resultPaths, loadResults);
-      const namespaces = loadedResults
-        .map((loaded) => loaded.result?.ns)
-        .filter((value): value is string => Boolean(value));
-      const resetRecord = await cleanupLowPassResults({
-        loadedResults,
-        missingResultPaths,
-        skipReset: args.skipReset,
-        reset: async (result) => {
-          const scope = resolveScope(pack);
-          const client = new BearerClient(buildVerificationClientOptions(pack, result));
-          return resetPack(pack, client, scope, { ns: result.ns });
-        },
-      });
-
-      const surfaceRecord: LowPassSurfaceRecord = {
-        surface,
-        run_dir: surfaceDir,
-        result_paths: resultPaths,
-        html_report: htmlPath,
-        snapshot_path: snapshotPath,
-        classification_path: classificationPath,
-        namespaces,
-        reset: resetRecord,
-        verify_status: verifyStatus,
-        verify_error: verifyError,
-      };
-      const finalized = persistLowPassSurfaceOutcome({
-        manifestPath,
-        manifest,
-        record: surfaceRecord,
-        safety: {
-          invocationErrors,
-          missingResultPaths,
-          cleanupSupported: resetRecord.supported,
-          cleanupMessage: resetRecord.message,
-          verifyError,
-          snapshotValid,
-        },
-      });
-      manifest.surfaces = finalized.manifest.surfaces;
-      const unsafeReasons = finalized.unsafeReasons;
-      if (unsafeReasons.length) {
-        throw new Error(`Low-pass lane ${vendor}/${surface} halted after verification and cleanup attempts: ${unsafeReasons.join(" | ")}`);
-      }
-    }
-  }
-  console.log(`\nCompleted DAEB low-pass workflow → ${runRoot}`);
   return 0;
 }
 
@@ -2950,39 +1243,6 @@ function cmdReview(args: Parsed): number {
  *  surface — the override only applies when the caller named a single surface. */
 function concreteSurface(args: Parsed): SurfaceId | undefined {
   return args.surface && args.surface !== "all" && isSurfaceId(args.surface) ? args.surface : undefined;
-}
-
-function currentCliExecArgs(subcommandArgs: string[]): string[] {
-  const entry = process.argv[1] ?? fileURLToPath(import.meta.url);
-  return entry.endsWith(".ts")
-    ? ["--import", "tsx", entry, ...subcommandArgs]
-    : [entry, ...subcommandArgs];
-}
-
-function runCliSubcommand(subcommandArgs: string[], envOverrides: Record<string, string | undefined> = {}): Promise<void> {
-  return new Promise((resolvePromise, rejectPromise) => {
-    const child = spawn(process.execPath, currentCliExecArgs(subcommandArgs), {
-      cwd: process.cwd(),
-      stdio: "inherit",
-      env: { ...process.env, ...envOverrides },
-    });
-    let settled = false;
-    const finish = (error?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (error) rejectPromise(error);
-      else resolvePromise();
-    };
-    child.on("error", (error) => finish(error));
-    // Use the child process' actual exit as the completion signal. Some harness
-    // wrappers spawn descendants that briefly keep inherited stdio open after the
-    // main subcommand exits, which can delay or suppress `close` and wedge the
-    // production rerun orchestrator even though the subprocess is done.
-    child.on("exit", (code) => {
-      if ((code ?? 1) === 0) finish();
-      else finish(new Error(`subcommand failed (${subcommandArgs.join(" ")}) with exit ${code ?? "unknown"}`));
-    });
-  });
 }
 
 function packWithTask(pack: TargetPack, task: Task): TargetPack {
@@ -3168,24 +1428,35 @@ function buildResetClient(pack: TargetPack): BearerClient {
 }
 
 /** Pre-run hygiene gate: list or reclaim probe resources left in the sandbox.
- *  Never throws — failures are warnings so the main run isn't blocked. */
-async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<void> {
+ *  Inventory failures remain warnings; an explicitly requested reclaim fails
+ *  closed when core has no compatible provider. */
+async function runHealthCheck(pack: TargetPack, reclaim: boolean): Promise<boolean> {
   try {
-    const client = buildResetClient(pack);
-    const scope = resolveScope(pack);
-    const result = await healthCheckPack(pack, client, scope, { reclaim });
-    console.log(`  ${result.message}`);
-    if (!result.supported && result.candidates > 0) {
-      console.warn(`  health-check not supported for ${pack.name}; manual cleanup may be needed.`);
+    const result = await healthCheckPack(
+      pack,
+      () => buildResetClient(pack),
+      () => resolveScope(pack),
+      { reclaim },
+    );
+    if (!result.supported) {
+      console.warn(`  ${result.message}`);
+      if (reclaim) {
+        console.error(`  refusing --reclaim: ${pack.name} requires an explicit ResetProvider`);
+        return false;
+      }
+      return true;
     }
+    console.log(`  ${result.message}`);
     if (result.signals.namespace_pollution_risk) {
       console.warn(`  health-check signal: leftover probe resources may pollute the next trial namespace`);
     }
     if (result.signals.quota_pressure_hint) {
       console.warn(`  health-check signal: quota/rate-limit pressure detected — pause or reclaim before continuing`);
     }
+    return true;
   } catch (e) {
     console.warn(`  health-check skipped: ${e instanceof Error ? e.message : String(e)}`);
+    return !reclaim;
   }
 }
 
@@ -3200,6 +1471,10 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   if (args.task && pack.tasks.length === 0) {
     throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
   }
+  if (args.reclaim && !hasCoreResetStrategy(pack)) {
+    await runHealthCheck(pack, true);
+    return 1;
+  }
   const missingRequiredEnv = describeRequiredEnv(pack)
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
@@ -3210,7 +1485,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     );
   }
   // Hygiene gate: warn about or reclaim leftover probe resources before we start.
-  await runHealthCheck(pack, args.reclaim);
+  if (!await runHealthCheck(pack, args.reclaim)) return 1;
   // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
   if (!args.skipReview) {
     const status = checkApproval(pack, args.pack);
@@ -3305,9 +1580,6 @@ interface InvokeGroup {
         );
       }
       const add = auth.missing.length ? ` Add to .env: ${auth.missing.join(", ")}.` : "";
-      const why = auth.blocked === "requires-oauth"
-        ? "OAuth-only surface — register an OAuth app and store a refresh token"
-        : "missing this surface's credential";
       blockedNotes.push(
         `  ${surfaceId}: ${auth.blocked}.${add}` +
           (auth.instructions ? `\n    ${auth.instructions}` : ""),
@@ -3577,7 +1849,7 @@ interface InvokeGroup {
         `${conc === 1 ? " (serial)" : ""}… this may take several minutes.`,
     );
     if (args.executionMode === "task") {
-      await runPool(taskGroups, conc, async ([groupKey, group]) => {
+      await runPool(taskGroups, conc, async ([, group]) => {
         if (group.bootstrapPaths && group.bootstrapRunOpts) {
           console.log(`  ▶ start  ${group.label}/bootstrap`);
           const bootstrapInvoke = await runInvokeHarness(group.bootstrapRunOpts);
@@ -3628,16 +1900,6 @@ interface InvokeGroup {
             `  ${invoke.ok ? "✓ done " : "✗ FAIL "} ${job.label} → ${invoke.ok ? "DONE" : "FAILED"}` +
               `${note ? ` (${note})` : ""} (results→${job.paths.resultsPath})`,
           );
-          if (job.taskId && taskUsesSqlRole(job.runOpts.pack, job.taskId)) {
-            try {
-              await resetSqlSession(job.runOpts.pack);
-              console.log(`  ↻ sql session RESET ROLE after ${job.taskId}`);
-            } catch (err) {
-              console.warn(
-                `  WARN: RESET ROLE after ${job.taskId} failed: ${err instanceof Error ? err.message : String(err)}`,
-              );
-            }
-          }
         }
       });
       for (const group of invokeGroups.values()) {
@@ -4012,38 +2274,6 @@ function mergeDiscoveryResults(observed: DiscoveryResult, selfReported: Discover
   };
 }
 
-/**
- * Render the local competitive report from normalized records. Reads every
- * `--results <*.normalized.json>` (the cube cells emitted by verify-generated)
- * and renders the surface × product plane: cross-surface (per product) and
- * cross-product (per surface) comparisons. The third axis (which agent/harness
- * ran the tasks) is not computed locally.
- */
-async function cmdCompetitive(args: Parsed): Promise<number> {
-  if (args.results.length === 0) {
-    throw new Error(
-      "usage: ax-eval competitive --results <run.normalized.json>... [--html out.html]",
-    );
-  }
-  const records: NormalizedResult[] = [];
-  for (const rPath of args.results) {
-    const parsed = JSON.parse(readFileSync(rPath, "utf8")) as NormalizedResult;
-    if (parsed?.schema !== "ax.normalized-result/v1") {
-      throw new Error(`${rPath} is not an ax.normalized-result/v1 record`);
-    }
-    records.push(parsed);
-  }
-  const harnesses = [...new Set(records.map((r) => r.harness))];
-  const html = renderCompetitiveReport(records, {
-    harness: harnesses.length === 1 ? harnesses[0] : undefined,
-  });
-  const outPath = args.html || `${args.runDir}/competitive.html`;
-  mkdirSync(dirname(outPath), { recursive: true });
-  writeFileSync(outPath, html);
-  console.log(`Saved competitive report → ${outPath} (${records.length} cell(s))`);
-  return 0;
-}
-
 function absoluteIfPresent(baseDir: string, path: string | undefined): string | undefined {
   return path ? resolve(baseDir, path) : undefined;
 }
@@ -4133,9 +2363,9 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
         /* discovery block below will warn if needed */
       }
     }
-    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun);
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
     let trace = loadTrace(tracePath);
+    const outcomes = await verifyGeneratedPack(pack, executor, client, surface, observedRun, { trace });
     if (!existsSync(tracePath)) {
       warnings.push(
         `No trace file at ${rel(tracePath)} — trace checks for ${executor.profile} fall back to whatever the agent self-reported (or none).`,
@@ -4358,30 +2588,24 @@ function cmdTraceDiff(args: Parsed): number {
  * Sandbox teardown for pass@k hygiene — delete the probe resources a run left
  * behind (named `AX probe … {ns}`) so repeated live runs don't contaminate each
  * other. Target-agnostic: resolves the pack's declared sandbox scope, then a
- * per-target resetter lists + deletes. Destructive resets require `--ns`;
- * `--dry-run` may omit it to inventory every probe resource. Targets without a
- * resetter degrade gracefully (no throw).
+ * compatibility resetter lists + deletes. Destructive resets require `--ns`;
+ * `--dry-run` may omit it to inventory every probe resource. Unsupported
+ * targets return a failure status and must use an explicit arena ResetProvider.
  */
 async function cmdReset(args: Parsed): Promise<number> {
   loadDotenv();
   if (!args.pack) throw new Error("usage: ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]");
   const pack = loadPack(args.pack);
-  const client = new BearerClient({
-    baseUrl: resolveEnvTemplate(pack.base_url),
-    token: resolveToken(pack),
-    responseEnvelope: pack.response_envelope,
-    authScheme: pack.auth?.type ?? "bearer",
-    authHeader: pack.auth?.header,
-    extraAuthHeader: pack.auth?.extra_header,
-    extraHeaders: pack.headers,
-    apiStyle: pack.api_style,
-  });
-  const scope = resolveScope(pack);
-  const result = await resetPack(pack, client, scope, { ns: args.ns || undefined, dryRun: args.dryRun });
+  const result = await resetPack(
+    pack,
+    () => buildResetClient(pack),
+    () => resolveScope(pack),
+    { ns: args.ns || undefined, dryRun: args.dryRun },
+  );
   console.log(result.message);
   for (const id of result.deleted) console.log(`  ${args.dryRun ? "would delete" : "deleted"} ${id}`);
   for (const e of result.errors) console.error(`  ! ${e}`);
-  if (!result.supported) return 0;
+  if (!result.supported) return 1;
   return result.errors.length ? 1 : 0;
 }
 
@@ -4629,6 +2853,34 @@ async function cmdAutomateReport(args: Parsed): Promise<number> {
   return fullVerify;
 }
 
+async function cmdCell(argv: string[]): Promise<number> {
+  if (argv[0] !== "run") {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  let inputPath = "";
+  let outputPath = "";
+  for (let i = 1; i < argv.length; i += 1) {
+    const flag = argv[i];
+    const value = argv[i + 1];
+    if (flag !== "--input" && flag !== "--output") {
+      throw new Error(`unknown cell run flag ${flag}`);
+    }
+    if (!value || value.startsWith("--")) throw new Error(`flag ${flag} requires a value`);
+    if (flag === "--input") inputPath = value;
+    else outputPath = value;
+    i += 1;
+  }
+  if (!inputPath || !outputPath) {
+    throw new Error("usage: ax-eval cell run --input <cell.json> --output <record.json>");
+  }
+  const cell = EvaluationCellSchema.parse(JSON.parse(readFileSync(inputPath, "utf8")));
+  const record = await runCell(cell, { credentials: process.env });
+  mkdirSync(dirname(outputPath), { recursive: true });
+  writeFileSync(outputPath, `${JSON.stringify(record, null, 2)}\n`);
+  console.log(`Saved normalized cell record → ${outputPath}`);
+  return record.status === "completed" ? 0 : 1;
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2);
   const command = argv[0];
@@ -4642,10 +2894,14 @@ async function main(): Promise<number> {
     console.error(USAGE);
     return 2;
   }
+  if (isLegacyArenaCommand(command)) {
+    return await delegateLegacyArenaCommand(command, argv.slice(1));
+  }
   if (argv.slice(1).some(isHelpToken)) {
     console.log(commandUsage(command));
     return 0;
   }
+  if (command === "cell") return cmdCell(argv.slice(1));
   const args = parseArgs(argv.slice(1));
   switch (command) {
     case "run":
@@ -4682,40 +2938,12 @@ async function main(): Promise<number> {
       return cmdVerifyGenerated(args);
     case "render-generated":
       return cmdRenderGenerated(args);
-    case "competitive":
-      return cmdCompetitive(args);
     case "trace-diff":
       return cmdTraceDiff(args);
     case "reset":
       return cmdReset(args);
-    case "resolve-vendor":
-      return cmdResolveVendor(args);
-    case "import-registry":
-      return cmdImportRegistry(args);
-    case "extract-tasks":
-      return cmdExtractTasks(args);
-    case "compose-pack":
-      return cmdComposePack(args);
-    case "extract-surfaces":
-      return cmdExtractSurfaces(args);
-    case "extract-capabilities":
-      return cmdExtractCapabilities(args);
-    case "audit-extracts":
-      return await cmdAuditExtracts(args);
-    case "audit-suite":
-      return cmdAuditSuite(args);
-    case "synthesize-suite":
-      return cmdSynthesizeSuite(args);
-    case "publication-bundle":
-      return cmdPublicationBundle(args);
-    case "export-publication":
-      return cmdExportPublication(args);
     case "records-diff":
       return cmdRecordsDiff(args);
-    case "daeb-low-pass":
-      return await cmdDaebLowPass(args);
-    case "daeb-production-rerun":
-      return await cmdDaebProductionRerun(args);
     default:
       console.error(USAGE);
       return 2;

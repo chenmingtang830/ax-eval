@@ -20,6 +20,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Check import boundaries
+        run: npm run check:boundaries
+
       - name: Typecheck
         run: npm run typecheck
 
