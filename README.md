@@ -270,7 +270,9 @@ npm run ax-arena -- benchmark synthesize-suite --help
 The `resolve-vendor`, `import-registry`, extract, audit, `compose-pack`, and
 `synthesize-suite` commands use this `ax-arena benchmark` form. Their former
 `ax-eval` spellings remain shell-free deprecation launchers for one minor
-release and preserve the arena command exit status.
+release and preserve the arena command exit status. Vendor-specific pack
+composition and database prompt policy are implemented only inside the arena
+workspace; `ax-eval` supplies the generic pack schemas and execution boundary.
 
 Arena runtime commands use the same boundary: `plan` freezes an explicit batch
 configuration into an opaque batch manifest plus an ordered, per-cell

@@ -1,7 +1,13 @@
-import type { SuiteTask } from "./suite.js";
-import type { SurfaceExtractResult } from "./surface-extract.js";
-import type { OracleExtractResult } from "./task-extract.js";
-import type { ResolveResult } from "./vendor-resolve.js";
+import type {
+  DiscoverySpec,
+  OracleExtractResult,
+  ResolveResult,
+  SuiteTask,
+  SurfaceExtractResult,
+} from "ax-eval";
+
+export type DatabasePackVendor = Pick<ResolveResult, "vendor" | "slug" | "category">
+  & Partial<Pick<ResolveResult, "site_url" | "docs_url" | "openapi_url">>;
 
 const CONVEX_IDENTIFIER_NOTE = [
   "",
@@ -212,7 +218,7 @@ function sqlCliDataPlaneNote(vendorSlug: string, sqlEnv: string): string {
 }
 
 export function applyDatabasePackPromptOverride(
-  vendor: ResolveResult,
+  vendor: DatabasePackVendor,
   task: SuiteTask,
   prompt: string,
   /** Support-matrix-narrowed surfaces for this vendor/task; defaults to suite task surfaces. */
@@ -277,7 +283,7 @@ export function applyDatabasePackPromptOverride(
  * did not produce explicit CLI/SDK metadata. Keep this category-specific: core
  * composition still enforces that non-API task surfaces have declarations. */
 export function databaseSurfaceFallback(
-  vendor: ResolveResult,
+  vendor: DatabasePackVendor,
   extract: OracleExtractResult,
 ): SurfaceExtractResult | undefined {
   if (vendor.slug === "cockroachdb") {
@@ -373,7 +379,7 @@ export function databaseSurfaceFallback(
 }
 
 /** Official hostnames for behavioral discovery scoring (site + docs). */
-export function officialDomainsFromVendor(vendor: ResolveResult): string[] {
+export function officialDomainsFromVendor(vendor: DatabasePackVendor): string[] {
   const domains = new Set<string>();
   for (const raw of [vendor.site_url, vendor.docs_url]) {
     if (!raw) continue;
@@ -434,9 +440,9 @@ const DAEB_PRODUCT_LABEL: Record<string, string> = {
 
 /** Cold-start DiscoverySpec for DAEB composed packs (Agent Discovery Score). */
 export function databaseDiscoverySpec(
-  vendor: ResolveResult,
+  vendor: DatabasePackVendor,
   extract: OracleExtractResult,
-): import("../schemas.js").DiscoverySpec {
+): DiscoverySpec {
   const domains = officialDomainsFromVendor(vendor);
   const product = DAEB_PRODUCT_LABEL[vendor.slug] ?? vendor.vendor;
   const canonical =

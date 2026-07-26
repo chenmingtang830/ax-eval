@@ -2,7 +2,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { basename } from "node:path";
 import {
   assertCanonicalDaebWritePath,
-  composePack,
   createDaebPathContext,
   daebReadVendorsDir,
   extractCapabilities,
@@ -28,11 +27,11 @@ import {
 } from "ax-eval";
 import {
   writeCapabilityExtract,
-  writeComposedPack,
   writeOracleExtract,
   writeSurfaceExtract,
   writeVendorCard,
 } from "./artifact-writers.js";
+import { composePack, writeComposedPack } from "./compose-pack.js";
 import { adviseVendorExtract, writeExtractAdvisory } from "./extract-advisory.js";
 import {
   applyExtractAudit,

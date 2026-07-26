@@ -96,6 +96,11 @@ const missingExports = requiredExports.filter((name) => !(name in publicApi));
 if (missingExports.length) {
   throw new Error(`missing public API exports: ${missingExports.join(", ")}`);
 }
+const detachedArenaExports = ["composePack", "writeComposedPack"]
+  .filter((name) => name in publicApi);
+if (detachedArenaExports.length) {
+  throw new Error(`core package exposes arena-owned API exports: ${detachedArenaExports.join(", ")}`);
+}
 
 const declaration = readFileSync(resolve(process.cwd(), "dist", "index.d.ts"), "utf8");
 const declarationExports = declaration.match(/export\s*\{[^}]+\}/gs)?.join("\n") ?? "";
