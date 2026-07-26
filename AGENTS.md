@@ -91,6 +91,7 @@ Use this before opening a PR:
 - `src/generate/` — pack generation, review gate, verification, report, records.
 - `src/harness/` — host-agent profiles, subprocess invoke (claude-code/codex),
   transcript + trace parsing, probe.
+- `src/runtime/` — immutable per-cell extension registries and lifecycle seams.
 - `src/surface/` — API/CLI/SDK/MCP prompt adapters.
 - `src/target/` — pack-declared auth + sandbox scope + reset.
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).

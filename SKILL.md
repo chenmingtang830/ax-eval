@@ -178,6 +178,18 @@ id, chooses benchmark defaults, aggregates trials, publishes rankings, or runs
 cleanup. Verify/live read-back completes before the record is returned; cleanup
 is a separate explicit controller step.
 
+Library controllers may attach one immutable `RuntimeExtensionRegistry` with
+versioned oracle, health-check, provisioning, reset, and target-adapter
+providers. Health checks run before provisioning; provider failures are
+redacted into the cell result. Persist the returned record before invoking a
+reset provider. `runCell` never calls reset itself, and reset-provider identity
+belongs with later cleanup evidence rather than the verified cell record.
+Supply controller-only read-back secrets through `verificationCredentials`;
+they reach health checks and oracle providers but never the harness child.
+Provisioning providers receive no verifier-only credentials, cannot replace
+PATH or existing environment keys, and every environment value they add is
+redacted as secret material.
+
 ### 3. Emit the medium-effort prompt
 
 ```bash

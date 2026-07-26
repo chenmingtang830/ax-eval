@@ -1,6 +1,8 @@
 import { spawnSync } from "node:child_process";
-import { readFileSync } from "node:fs";
-import { resolve } from "node:path";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const npm = process.env.npm_execpath
   ? { command: process.execPath, args: [process.env.npm_execpath] }
@@ -34,6 +36,41 @@ const builtBin = spawnSync(process.execPath, [resolve(process.cwd(), "dist", "cl
 });
 if (builtBin.error || builtBin.status !== 0 || !builtBin.stdout.includes("usage: ax-arena benchmark")) {
   throw new Error(builtBin.error?.message || builtBin.stderr || "built ax-arena binary did not print benchmark help");
+}
+
+const workspaceRoot = resolve(dirname(fileURLToPath(import.meta.url)), "../../..");
+const smokeRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-package-smoke-"));
+try {
+  const installedCore = resolve(smokeRoot, "node_modules", "ax-eval");
+  const installedArena = resolve(smokeRoot, "node_modules", "@ax-arena", "benchmark");
+  mkdirSync(installedCore, { recursive: true });
+  mkdirSync(installedArena, { recursive: true });
+  cpSync(resolve(workspaceRoot, "dist"), resolve(installedCore, "dist"), { recursive: true });
+  cpSync(resolve(workspaceRoot, "package.json"), resolve(installedCore, "package.json"));
+  cpSync(resolve(process.cwd(), "dist"), resolve(installedArena, "dist"), { recursive: true });
+  cpSync(resolve(process.cwd(), "package.json"), resolve(installedArena, "package.json"));
+  const corePackage = JSON.parse(readFileSync(resolve(workspaceRoot, "package.json"), "utf8"));
+  for (const dependency of Object.keys(corePackage.dependencies ?? {})) {
+    const installedDependency = resolve(smokeRoot, "node_modules", dependency);
+    mkdirSync(dirname(installedDependency), { recursive: true });
+    symlinkSync(resolve(workspaceRoot, "node_modules", dependency), installedDependency, "dir");
+  }
+
+  const publicImport = spawnSync(process.execPath, [
+    "--input-type=module",
+    "--eval",
+    "import { createArenaRuntimeExtensionRegistry } from '@ax-arena/benchmark'; " +
+      "const registry = createArenaRuntimeExtensionRegistry(); " +
+      "if (registry.inspect().length !== 0) process.exit(1);",
+  ], {
+    cwd: smokeRoot,
+    encoding: "utf8",
+  });
+  if (publicImport.error || publicImport.status !== 0) {
+    throw new Error(publicImport.error?.message || publicImport.stderr || "built arena package could not import public ax-eval");
+  }
+} finally {
+  rmSync(smokeRoot, { recursive: true, force: true });
 }
 
 console.log(`Verified ${files.size} arena package files (${report.filename}).`);

@@ -67,6 +67,12 @@ export const CellTaskResultSchema = z.object({
 
 const NullableNonNegativeNumber = z.number().nonnegative().nullable();
 
+export const ProviderProvenanceSchema = z.object({
+  kind: z.enum(["oracle", "provisioning", "health-check", "target-adapter"]),
+  id: NonEmptyString,
+  version: NonEmptyString,
+}).strict();
+
 /**
  * A one-cell record has its own strict discriminator so existing
  * normalized-result/v1 validators remain unchanged. The legacy
@@ -119,11 +125,20 @@ export const NormalizedCellRecordSchema = z.object({
   started_at: z.string().datetime(),
   completed_at: z.string().datetime(),
   status: z.enum(["completed", "failed", "blocked"]),
-  blocked: z.enum(["requires-oauth", "missing-credential", "missing-harness", "invoke-failed"]).optional(),
+  blocked: z.enum([
+    "requires-oauth",
+    "missing-credential",
+    "missing-harness",
+    "health-check-failed",
+    "invoke-failed",
+  ]).optional(),
   error: z.object({
     stage: z.enum(["preflight", "provision", "invoke", "verify"]),
     message: z.string(),
   }).strict().nullable(),
+  /** Optional so pre-extension v1 records remain valid byte-for-byte. Reset is
+   * recorded in post-persistence cleanup evidence, never in this record. */
+  provider_provenance: z.array(ProviderProvenanceSchema).optional(),
   task_results: z.array(CellTaskResultSchema),
   artifacts: z.object({
     base_dir: NonEmptyString,

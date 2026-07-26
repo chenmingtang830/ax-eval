@@ -62,10 +62,16 @@ Implementation progress:
 
 - PR #172 established the first oracle-provider seam and merged this design.
 - PR #174 publishes a typed package root for core contracts and
-  verification/record primitives. Harness execution remains private until the
-  one-cell API is defined.
+  verification/record primitives.
 - PR #175 adds immutable per-verification oracle registries; global provider
   registration remains only as a temporary compatibility path.
+- PR #176 implements the explicit one-cell `runCell` and CLI contracts.
+- PR #177 adds the private arena workspace and import/package boundary gates.
+- PR #178 extends immutable per-cell registries across oracle, reset,
+  provisioning, health-check, and target-adapter seams. The arena imports their
+  constructor only through the public `ax-eval` package specifier.
+- Reset remains outside `runCell` so verified-record persistence can precede
+  cleanup.
 
 ## 2. Goals
 
@@ -532,6 +538,7 @@ registry:
 ```ts
 interface OracleProvider {
   id: string;
+  version: string;
   supports(input: OracleRequest): boolean;
   verify(input: OracleRequest, context: OracleContext): Promise<OracleResult>;
 }
@@ -924,6 +931,11 @@ changes with file movement unless tests prove parity independently.
   API is corrected.
 
 ### Phase 2: Complete explicit runtime extension seams
+
+**Progress:** Registry contracts, per-cell health/provisioning dispatch,
+versioned provenance, adapter composition, and reset plan/execute interfaces are
+implemented in the active stack. Moving the existing database/target
+implementations behind those seams remains a later quarantine slice.
 
 **Changes**
 

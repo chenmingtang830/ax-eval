@@ -21,7 +21,6 @@ import { buildBlockedResult, buildNormalizedResult } from "../generate/record.js
 import { checkCellApproval, packFileContentHash } from "../generate/review.js";
 import { buildVerificationClientOptions } from "../generate/verification-client.js";
 import {
-  createOracleProviderRegistry,
   type OracleProviderRegistry,
 } from "../generate/oracle-provider.js";
 import {
@@ -55,6 +54,17 @@ import {
 } from "../harness/mcp-provision.js";
 import { BearerClient } from "../http/client.js";
 import { redactSensitiveText } from "../safety/redaction.js";
+import {
+  createRuntimeExtensionRegistry,
+  resolveRuntimeExtensions,
+  type HealthCheckProvider,
+  type ProviderReference,
+  type ProvisioningEvidence,
+  type ProvisioningProvider,
+  type RuntimeExtensionKind,
+  type RuntimeExtensionRegistry,
+  type TargetAdapter,
+} from "../runtime/extensions.js";
 import { getSurface, resolveSurfaceSelection, tasksForSurface } from "../surface/index.js";
 import {
   describeRequiredEnv,
@@ -76,7 +86,13 @@ export type CredentialSource = EnvSource;
 export interface RunCellOptions {
   /** Values are supplied out-of-band and are never serialized into the cell or record. */
   credentials: CredentialSource;
+  /** Controller-only verifier credentials. These are available to read-back
+   * providers and health checks, but never copied into the harness child. */
+  verificationCredentials?: CredentialSource;
   extensions?: {
+    /** Immutable, per-cell registry. Arena/controller code should use this path. */
+    registry?: RuntimeExtensionRegistry;
+    /** @deprecated Compatibility for callers predating the combined registry. */
     oracleProviders?: OracleProviderRegistry;
   };
   signal?: AbortSignal;
@@ -111,6 +127,7 @@ const DEFAULT_RUNTIME: CellRuntimeDependencies = {
     verifyGeneratedPack(pack, executor, client, cell.surface, observed, {
       oracleProviders,
       env: credentials,
+      credentials,
       trace,
     }),
 };
@@ -129,6 +146,12 @@ const SAFE_PARENT_ENV = [
   "CI",
 ] as const;
 
+function deepFreeze<T>(value: T): T {
+  if (value === null || typeof value !== "object" || Object.isFrozen(value)) return value;
+  for (const nested of Object.values(value as Record<string, unknown>)) deepFreeze(nested);
+  return Object.freeze(value);
+}
+
 function scopedCredentials(cell: EvaluationCell, source: CredentialSource): Record<string, string> {
   const values: Record<string, string> = {};
   for (const name of cell.required_credentials) {
@@ -138,22 +161,113 @@ function scopedCredentials(cell: EvaluationCell, source: CredentialSource): Reco
   return values;
 }
 
+function normalizedCredentials(source: CredentialSource): Record<string, string> {
+  return Object.fromEntries(Object.entries(source).flatMap(([name, value]) => {
+    const normalized = value?.trim();
+    return normalized ? [[name, normalized] as const] : [];
+  }));
+}
+
+function verifierOnlyCredentialNames(pack: TargetPack): Set<string> {
+  // A distinct verification credential is deliberately kept out of the host
+  // agent process. It remains available to the independent read-back client.
+  return new Set([
+    pack.auth?.verify_env,
+    ...(pack.auth?.verify_env_aliases ?? []),
+  ].filter((name): name is string => Boolean(name)));
+}
+
+function harnessCredentials(pack: TargetPack, credentials: Record<string, string>): Record<string, string> {
+  const verifierOnly = verifierOnlyCredentialNames(pack);
+  return Object.fromEntries(Object.entries(credentials).filter(([name]) => !verifierOnly.has(name)));
+}
+
 function childEnvironment(pack: TargetPack, credentials: Record<string, string>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const name of SAFE_PARENT_ENV) {
     const value = process.env[name];
     if (value) out[name] = value;
   }
-  // A distinct verification credential is deliberately kept out of the host
-  // agent process. It remains available to the independent read-back client.
-  const verifierOnly = new Set([
-    pack.auth?.verify_env,
-    ...(pack.auth?.verify_env_aliases ?? []),
-  ].filter((name): name is string => Boolean(name)));
-  for (const [name, value] of Object.entries(credentials)) {
-    if (!verifierOnly.has(name)) out[name] = value;
-  }
+  Object.assign(out, harnessCredentials(pack, credentials));
   return out;
+}
+
+type CellProviderReference = Omit<ProviderReference, "kind"> & {
+  kind: Exclude<RuntimeExtensionKind, "reset">;
+};
+
+function compareText(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function selectedProviderProvenance(
+  cell: EvaluationCell,
+  pack: TargetPack,
+  oracleProviders: OracleProviderRegistry,
+  provisioningProvider: ProvisioningProvider | undefined,
+  healthCheckProvider: { id: string; version: string } | undefined,
+  targetAdapter: { id: string; version: string } | undefined,
+): CellProviderReference[] {
+  const references: CellProviderReference[] = [];
+  if (targetAdapter) references.push({ kind: "target-adapter", id: targetAdapter.id, version: targetAdapter.version });
+  if (provisioningProvider) references.push({ kind: "provisioning", id: provisioningProvider.id, version: provisioningProvider.version });
+  if (healthCheckProvider) references.push({ kind: "health-check", id: healthCheckProvider.id, version: healthCheckProvider.version });
+  for (const task of tasksForSurface(pack, cell.surface)) {
+    for (const oracle of task.oracles) {
+      try {
+        const provider = oracleProviders.providerFor(oracle);
+        if (provider) references.push({ kind: "oracle", id: provider.id, version: provider.version });
+      } catch {
+        // Verification contains matcher failures per oracle. Provenance must
+        // never promote one broken matcher into a cell-wide preflight block.
+      }
+    }
+  }
+  const unique = new Map(references.map((entry) => [`${entry.kind}\0${entry.id}\0${entry.version}`, entry]));
+  return [...unique.values()].sort((a, b) =>
+    compareText(a.kind, b.kind) || compareText(a.id, b.id) || compareText(a.version, b.version));
+}
+
+function recordProvenance(providers: readonly CellProviderReference[]): object {
+  return providers.length ? { provider_provenance: providers } : {};
+}
+
+function mergeExtensionProvisioning(
+  core: HarnessProvisioning,
+  extension: ProvisioningEvidence | undefined,
+  provider: ProvisioningProvider | undefined,
+  baseEnv: Readonly<Record<string, string>>,
+  reservedCredentials: Readonly<Record<string, string>>,
+): HarnessProvisioning {
+  if (!extension || !provider) return core;
+  const additions = { ...(extension.env ?? {}) };
+  for (const [name, value] of Object.entries(additions)) {
+    if (typeof value !== "string") {
+      throw new Error(`provisioning provider "${provider.id}" returned a non-string value for ${name}`);
+    }
+  }
+  const reservedEnvironment = new Set<string>([...SAFE_PARENT_ENV, "CODEX_HOME"]);
+  const collisions = Object.keys(additions).filter((name) =>
+    reservedEnvironment.has(name) || name in reservedCredentials || name in baseEnv || name in core.env);
+  if (collisions.length) {
+    throw new Error(`provisioning provider "${provider.id}" attempted to replace environment key(s): ${collisions.join(", ")}`);
+  }
+  const env = { ...core.env, ...additions };
+  if (extension.metadata) {
+    try {
+      JSON.stringify(extension.metadata);
+    } catch {
+      throw new Error(`provisioning provider "${provider.id}" returned non-serializable metadata`);
+    }
+  }
+  return {
+    env,
+    meta: {
+      ...(core.meta ?? {}),
+      extension_provider: { id: provider.id, version: provider.version },
+      ...(extension.metadata ? { extension_metadata: extension.metadata } : {}),
+    },
+  };
 }
 
 function detectionEnvironment(artifactDir: string): Record<string, string> {
@@ -209,12 +323,18 @@ function terminalRecord(args: {
   paths: ReturnType<typeof defaultInvokePaths>;
   startedAt: string;
   completedAt: string;
-  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "invoke-failed";
+  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "health-check-failed" | "invoke-failed";
   stage: "preflight" | "provision" | "invoke" | "verify";
   message: string;
   status?: "failed" | "blocked";
+  providerProvenance?: readonly CellProviderReference[];
 }): NormalizedCellRecord {
-  const base = buildBlockedResult(args.pack, args.cell.surface, args.cell.harness.id, args.blocked);
+  const base = buildBlockedResult(
+    args.pack,
+    args.cell.surface,
+    args.cell.harness.id,
+    args.blocked === "health-check-failed" ? "invoke-failed" : args.blocked,
+  );
   const record = {
     ...base,
     schema: NORMALIZED_CELL_RECORD_SCHEMA,
@@ -236,7 +356,9 @@ function terminalRecord(args: {
     started_at: args.startedAt,
     completed_at: args.completedAt,
     status: args.status ?? "blocked",
+    blocked: args.blocked,
     error: { stage: args.stage, message: args.message },
+    ...recordProvenance(args.providerProvenance ?? []),
     task_results: [],
     artifacts: artifactNames(args.paths),
   };
@@ -307,7 +429,16 @@ function providerOwnsConnectionRole(
   const relevant = tasks.flatMap((task) => task.oracles).filter((oracle) =>
     role === "sql_conn" ? Boolean(oracle.sqlQuery) : Boolean(oracle.mongoQuery)
   );
-  return relevant.length > 0 && relevant.every((oracle) => providers.providerFor(oracle) !== undefined);
+  return relevant.length > 0 && relevant.every((oracle) => {
+    try {
+      return providers.providerFor(oracle) !== undefined;
+    } catch {
+      // Verification treats a cached selection failure as a contained oracle
+      // failure and does not fall back to the built-in DB verifier. Do not
+      // require an otherwise-unused built-in connection credential here.
+      return true;
+    }
+  });
 }
 
 function verifierExecutor(executor: ExecutorResults, cell: EvaluationCell, ns: string): ExecutorResults {
@@ -375,11 +506,16 @@ function assertRegularCellArtifact(path: string, artifactDir: string, label: str
 
 function exactSecretValues(
   pack: TargetPack,
-  credentials: Record<string, string>,
+  credentialSets: readonly Readonly<Record<string, string>>[],
   provisioning: HarnessProvisioning,
   executor: ExecutorResults,
+  extensionSecrets: readonly string[] = [],
 ): string[] {
-  const values = new Set([...Object.values(credentials), ...provisioningSecretValues(provisioning)]);
+  const values = new Set([
+    ...credentialSets.flatMap((credentials) => Object.values(credentials)),
+    ...provisioningSecretValues(provisioning),
+    ...extensionSecrets,
+  ]);
   for (const task of pack.tasks) {
     const reported = executor.results[task.id];
     if (!reported) continue;
@@ -594,13 +730,13 @@ export async function runCellWithRuntime(
   options: RunCellOptions,
   runtime: CellRuntimeDependencies,
 ): Promise<NormalizedCellRecord> {
-  const cell = EvaluationCellSchema.parse(input);
+  const cell = deepFreeze(EvaluationCellSchema.parse(input));
   if (options.signal?.aborted) throw options.signal.reason ?? new Error("cell run aborted");
 
   const cwd = resolve(cell.run_context.cwd);
   const packPath = resolveWithin(cwd, cell.pack.path, "pack.path");
   const artifactDir = resolveWithin(cwd, cell.run_context.artifact_dir, "run_context.artifact_dir");
-  const pack = loadPack(packPath);
+  const pack = deepFreeze(loadPack(packPath));
   assertCellMatchesPack(cell, pack, packPath);
 
   mkdirSync(artifactDir, { recursive: true });
@@ -623,10 +759,49 @@ export async function runCellWithRuntime(
   }
   const startedAt = runtime.now().toISOString();
   const credentials = scopedCredentials(cell, options.credentials);
-  const oracleProviders = options.extensions?.oracleProviders ?? createOracleProviderRegistry();
+  const verificationCredentials = options.verificationCredentials === undefined
+    ? credentials
+    : normalizedCredentials(options.verificationCredentials);
+  const resolutionCredentials = { ...credentials, ...verificationCredentials };
+  const credentialSecrets = [...Object.values(credentials), ...Object.values(verificationCredentials)];
+  let oracleProviders: OracleProviderRegistry;
+  let provisioningProvider: ProvisioningProvider | undefined;
+  let healthCheckProvider: HealthCheckProvider | undefined;
+  let targetAdapter: TargetAdapter | undefined;
+  let providerProvenance: CellProviderReference[];
+  try {
+    if (options.extensions?.registry && options.extensions.oracleProviders) {
+      throw new Error("pass either extensions.registry or the legacy oracleProviders option, not both");
+    }
+    const extensionRegistry = options.extensions?.registry ?? createRuntimeExtensionRegistry();
+    const resolvedExtensions = resolveRuntimeExtensions(extensionRegistry, { cell, pack });
+    oracleProviders = options.extensions?.oracleProviders ?? resolvedExtensions.oracleProviders;
+    provisioningProvider = resolvedExtensions.provisioningProviders.providerFor({ cell, pack });
+    healthCheckProvider = resolvedExtensions.healthCheckProviders.providerFor({ cell, pack });
+    targetAdapter = resolvedExtensions.targetAdapter;
+    providerProvenance = selectedProviderProvenance(
+      cell,
+      pack,
+      oracleProviders,
+      provisioningProvider,
+      healthCheckProvider,
+      targetAdapter,
+    );
+  } catch (error) {
+    return terminalRecord({
+      cell,
+      pack,
+      paths,
+      startedAt,
+      completedAt: runtime.now().toISOString(),
+      blocked: "invoke-failed",
+      stage: "preflight",
+      message: safeMessage(error, credentialSecrets),
+    });
+  }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
   const selectedTasks = tasksForSurface(pack, cell.surface);
-  const missingPack = describeRequiredEnv(pack, credentials, {
+  const missingPack = describeRequiredEnv(pack, resolutionCredentials, {
     tasks: selectedTasks,
     includeAuth: false,
   })
@@ -636,8 +811,16 @@ export async function runCellWithRuntime(
     ))
     .filter((requirement) => requirement.required && !requirement.set)
     .map((requirement) => requirement.env);
+  const missingVerifierAuth = options.verificationCredentials === undefined
+    ? []
+    : describeRequiredEnv(pack, verificationCredentials, {
+        tasks: selectedTasks,
+        includeAuth: true,
+      })
+      .filter((requirement) => requirement.role === "auth" && requirement.required && !requirement.set)
+      .map(() => pack.auth?.verify_env ?? pack.auth?.env ?? "ASANA_VERIFY_PAT");
   const auth = surfaceAuthStatus(pack, cell.surface, credentials);
-  const missing = [...new Set([...missingDeclared, ...missingPack, ...auth.missing])];
+  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierAuth, ...auth.missing])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
       cell,
@@ -648,6 +831,7 @@ export async function runCellWithRuntime(
       blocked: auth.blocked ?? "missing-credential",
       stage: "preflight",
       message: `missing required credential env name(s): ${missing.join(", ") || "surface OAuth configuration"}`,
+      providerProvenance,
     });
   }
 
@@ -662,23 +846,107 @@ export async function runCellWithRuntime(
       blocked: "missing-harness",
       stage: "preflight",
       message: detection.detail ?? detection.reason ?? `unable to detect ${cell.harness.id}`,
+      providerProvenance,
     });
   }
 
+  if (healthCheckProvider) {
+    try {
+      const evidence = await healthCheckProvider.check({
+        cell,
+        pack,
+        credentials: Object.freeze({ ...verificationCredentials }),
+        signal: options.signal,
+      });
+      if (!Array.isArray(evidence) || evidence.some((entry) =>
+        !entry || !["pass", "warn", "fail"].includes(entry.status) || typeof entry.message !== "string")) {
+        throw new Error(`health-check provider "${healthCheckProvider.id}" returned invalid evidence`);
+      }
+      const failures = evidence.filter((entry) => entry.status === "fail");
+      if (failures.length) {
+        return terminalRecord({
+          cell,
+          pack,
+          paths,
+          startedAt,
+          completedAt: runtime.now().toISOString(),
+          blocked: "health-check-failed",
+          stage: "preflight",
+          message: safeMessage(
+            `health-check provider "${healthCheckProvider.id}": ${failures.map((entry) => entry.message).join("; ")}`,
+            Object.values(verificationCredentials),
+          ),
+          providerProvenance,
+        });
+      }
+    } catch (error) {
+      return terminalRecord({
+        cell,
+        pack,
+        paths,
+        startedAt,
+        completedAt: runtime.now().toISOString(),
+        blocked: "health-check-failed",
+        stage: "preflight",
+        message: `health-check provider "${healthCheckProvider.id}" failed`,
+        providerProvenance,
+      });
+    }
+  }
+
   let provisioning: HarnessProvisioning;
+  let extensionSecrets: string[] = [];
   try {
-    provisioning = await runtime.provisionHarness({
+    let extensionProvisioning: ProvisioningEvidence | undefined;
+    if (provisioningProvider) {
+      const inspectionContext = {
+        cell,
+        pack,
+        cwd,
+        artifactDir,
+        signal: options.signal,
+      };
+      const inspection = await provisioningProvider.inspect(inspectionContext);
+      if (!inspection || typeof inspection.ready !== "boolean"
+        || (inspection.detail !== undefined && typeof inspection.detail !== "string")) {
+        throw new Error(`provisioning provider "${provisioningProvider.id}" returned an invalid inspection`);
+      }
+      if (!inspection.ready) {
+        throw new Error(
+          `provisioning provider "${provisioningProvider.id}" is not ready${inspection.detail ? `: ${inspection.detail}` : ""}`,
+        );
+      }
+      try {
+        extensionProvisioning = deepFreeze(structuredClone(await provisioningProvider.provision({
+          ...inspectionContext,
+          credentials: Object.freeze(harnessCredentials(pack, credentials)),
+        })));
+      } catch {
+        throw new Error(`provisioning provider "${provisioningProvider.id}" failed`);
+      }
+      extensionSecrets = Object.values(extensionProvisioning.env ?? {})
+        .filter((value): value is string => typeof value === "string");
+    }
+    const baseEnv = childEnvironment(pack, credentials);
+    const coreProvisioning = await runtime.provisionHarness({
       pack,
       harness: cell.harness.id,
       surface: cell.surface,
       paths,
       cwd,
-      env: childEnvironment(pack, credentials),
+      env: baseEnv,
       allowDownloads: false,
       allowAmbientHarnessAuth: false,
     });
+    provisioning = mergeExtensionProvisioning(
+      coreProvisioning,
+      extensionProvisioning,
+      provisioningProvider,
+      baseEnv,
+      { ...credentials, ...verificationCredentials },
+    );
   } catch (error) {
-    scrubArtifacts(paths, Object.values(credentials), [], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, credentialSecrets, [], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -687,7 +955,8 @@ export async function runCellWithRuntime(
       completedAt: runtime.now().toISOString(),
       blocked: "invoke-failed",
       stage: "provision",
-      message: safeMessage(error, Object.values(credentials)),
+      message: safeMessage(error, credentialSecrets),
+      providerProvenance,
     });
   }
 
@@ -713,7 +982,11 @@ export async function runCellWithRuntime(
   replaceFileWithoutFollowing(paths.promptPath, prompt);
 
   const env = { ...childEnvironment(pack, credentials), ...provisioning.env };
-  const failureSecrets = [...Object.values(credentials), ...provisioningSecretValues(provisioning)];
+  const failureSecrets = [
+    ...credentialSecrets,
+    ...provisioningSecretValues(provisioning),
+    ...extensionSecrets,
+  ];
   let invoke: InvokeRunResult;
   try {
     invoke = await runtime.invokeHarness({
@@ -748,6 +1021,7 @@ export async function runCellWithRuntime(
       stage: "invoke",
       status: "failed",
       message: safeMessage(error, failureSecrets),
+      providerProvenance,
     });
   }
 
@@ -774,17 +1048,27 @@ export async function runCellWithRuntime(
       stage: "invoke",
       status: "failed",
       message: safeMessage(error, failureSecrets),
+      providerProvenance,
     });
   }
 
-  const observed = observedTranscript(pack, paths.transcriptPath, credentials);
+  const observed = observedTranscript(pack, paths.transcriptPath, resolutionCredentials);
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
   try {
-    const client = runtime.verificationClient(pack, executor, credentials);
-    outcomes = await runtime.verify(pack, executor, client, cell, observed, trace, oracleProviders, credentials);
+    const client = runtime.verificationClient(pack, executor, verificationCredentials);
+    outcomes = await runtime.verify(
+      pack,
+      executor,
+      client,
+      cell,
+      observed,
+      trace,
+      oracleProviders,
+      verificationCredentials,
+    );
   } catch (error) {
-    verifyError = safeMessage(error, Object.values(credentials));
+    verifyError = safeMessage(error, Object.values(verificationCredentials));
     outcomes = failedOutcomes(pack, cell, verifyError);
   }
 
@@ -792,7 +1076,7 @@ export async function runCellWithRuntime(
   let discoverySource: ProfileRun["discoverySource"];
   if (pack.discovery?.product) {
     try {
-      const client = runtime.verificationClient(pack, executor, credentials);
+      const client = runtime.verificationClient(pack, executor, verificationCredentials);
       if (observed) {
         discovery = await scoreDiscovery(
           pack.discovery,
@@ -813,7 +1097,13 @@ export async function runCellWithRuntime(
     }
   }
 
-  const secrets = exactSecretValues(pack, credentials, provisioning, executor);
+  const secrets = exactSecretValues(
+    pack,
+    [credentials, verificationCredentials],
+    provisioning,
+    executor,
+    extensionSecrets,
+  );
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
   scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
@@ -857,6 +1147,7 @@ export async function runCellWithRuntime(
           stage: "invoke",
           message: safeMessage(invoke.error ?? "harness invocation failed", secrets),
         },
+    ...recordProvenance(providerProvenance),
     task_results: outcomes,
     artifacts: artifactNames(paths),
   };

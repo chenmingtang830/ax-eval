@@ -77,9 +77,11 @@ export {
   registerOracleProvider,
 } from "./generate/oracle-provider.js";
 export type {
+  LegacyOracleProvider,
   OracleProvider,
   OracleProviderRegistry,
   OracleVerifyContext,
+  VersionedOracleProvider,
 } from "./generate/oracle-provider.js";
 export { verifyGeneratedPack } from "./generate/verify.js";
 export type {
@@ -103,6 +105,7 @@ export {
   NORMALIZED_CELL_RECORD_SCHEMA,
   EvaluationCellSchema,
   NormalizedCellRecordSchema,
+  ProviderProvenanceSchema,
   ReviewedPackReferenceSchema,
 } from "./cell/schema.js";
 export type {
@@ -115,6 +118,39 @@ export type {
   CredentialSource,
   RunCellOptions,
 } from "./cell/run.js";
+export {
+  createHealthCheckProviderRegistry,
+  createProvisioningProviderRegistry,
+  createResetProviderRegistry,
+  createRuntimeExtensionRegistry,
+  createTargetAdapterRegistry,
+  resolveRuntimeExtensions,
+} from "./runtime/extensions.js";
+export type {
+  HealthCheckContext,
+  HealthCheckEvidence,
+  HealthCheckProvider,
+  HealthCheckProviderRegistry,
+  ProviderIdentity,
+  ProviderReference,
+  ProvisioningContext,
+  ProvisioningEvidence,
+  ProvisioningInspection,
+  ProvisioningProvider,
+  ProvisioningProviderRegistry,
+  ResetContext,
+  ResetEvidence,
+  ResetPlan,
+  ResetProvider,
+  ResetProviderRegistry,
+  ResolvedRuntimeExtensions,
+  RuntimeExtensionInput,
+  RuntimeExtensionKind,
+  RuntimeExtensionRegistry,
+  TargetAdapter,
+  TargetAdapterRegistry,
+  TargetDescriptor,
+} from "./runtime/extensions.js";
 export type {
   BlockedReason,
   NormalizedResult,
