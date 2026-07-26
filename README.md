@@ -144,6 +144,9 @@ controller entrypoints. Core harness provisioning does not download, locate, or
 inject product-specific CLI tools; arena supplies pinned tools through its
 runtime-extension registry. A direct generic `runCell` call without that registry
 uses the caller-selected PATH and is not a trusted/comparable arena execution.
+Arena database health checks also validate product-specific credential scope,
+including Nile database/connection binding, before invocation; generic core
+`check-env` reports only pack-declared requirements.
 Canonical/legacy DAEB path selection and all benchmark
 authoring persistence are arena-owned; core exposes only generic authoring
 schemas, single-product capability/surface extraction, and explicit-input

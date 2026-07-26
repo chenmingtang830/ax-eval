@@ -217,7 +217,10 @@ homes and MCP auth configuration only; it has no product-name branch, tool
 downloader, or Turso PATH fallback. Arena's Turso provider owns binary discovery,
 version/hash attestation, and additive PATH registration. A direct core cell
 without an arena registry retains ordinary caller-PATH CLI behavior and cannot
-be admitted as a trusted arena cell.
+be admitted as a trusted arena cell. Product-specific credential relationships
+are likewise arena preflight policy: the Postgres health provider fails a Nile
+cell before connecting unless `NILE_DB` matches the database in
+`NILE_DATABASE_URL`.
 Trusted dispatch validation, OCI/sysroot preparation, Bubblewrap smoke tests,
 sealed-artifact export, and detached-subject construction live under
 `ax-arena/benchmark/scripts/`. GitHub keeps only its required launcher under

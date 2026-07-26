@@ -41,6 +41,12 @@ export const DETACHED_ARENA_CORE_DECLARATIONS = Object.freeze([
   { path: "src/generate/vendor-resolve.ts", identifier: "loadVendorCard" },
   { path: "src/generate/vendor-resolve.ts", identifier: "writeVendorCard" },
 ]);
+export const DETACHED_ARENA_CORE_TEXT_PATTERNS = Object.freeze([
+  {
+    pattern: /NILE_(?:DB|DATABASE_URL)|Nile sandbox binding/,
+    label: "Nile credential-scope policy",
+  },
+]);
 
 export function declaredPackageDependencies(packageJson) {
   return {
@@ -151,6 +157,12 @@ export function findImportBoundaryViolations(root = process.cwd()) {
   }
   for (const file of coreScan.files) {
     const corePath = relative(repoRoot, file).split(sep).join("/");
+    const sourceText = readFileSync(file, "utf8");
+    for (const rule of DETACHED_ARENA_CORE_TEXT_PATTERNS) {
+      if (rule.pattern.test(sourceText)) {
+        violations.push(`${corePath} must not contain arena-owned ${rule.label}`);
+      }
+    }
     for (const rule of DETACHED_ARENA_CORE_DECLARATIONS) {
       if (corePath === rule.path && declaredIdentifiers(file).has(rule.identifier)) {
         violations.push(`${corePath} must not declare arena-owned ${rule.identifier}`);

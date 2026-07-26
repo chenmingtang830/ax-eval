@@ -12,12 +12,13 @@ import {
   tursoHealthCheckProvider,
 } from "../src/providers/database-health.js";
 
-const pgMock = vi.hoisted(() => ({ tableCount: 0, functionCount: 0, roleCount: 0, connectError: false }));
+const pgMock = vi.hoisted(() => ({ tableCount: 0, functionCount: 0, roleCount: 0, connectError: false, connectCalls: 0 }));
 const mongoMock = vi.hoisted(() => ({ collections: [] as string[] }));
 
 vi.mock("pg", () => ({
   Client: class {
     async connect() {
+      pgMock.connectCalls += 1;
       if (pgMock.connectError) throw new Error("secret connection failed");
     }
     async end() {}
@@ -75,6 +76,7 @@ describe("arena database health providers", () => {
     pgMock.functionCount = 0;
     pgMock.roleCount = 0;
     pgMock.connectError = false;
+    pgMock.connectCalls = 0;
     mongoMock.collections = [];
     vi.unstubAllGlobals();
   });
@@ -104,6 +106,40 @@ describe("arena database health providers", () => {
     const evidence = await postgresHealthCheckProvider.check(context(pack, { DATABASE_URL: "top-secret" }));
     expect(evidence).toEqual([{ status: "fail", message: "Postgres health check failed" }]);
     expect(JSON.stringify(evidence)).not.toContain("top-secret");
+  });
+
+  it("fails Nile before connecting when the scoped database and connection URL diverge", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "nile",
+      sql_conn: { dialect: "postgres", connection_string_env: "NILE_DATABASE_URL" },
+      sandbox_scope: [{ name: "database", env: "NILE_DB", required: true }],
+      tasks: [],
+    });
+    const evidence = await postgresHealthCheckProvider.check(context(pack, {
+      NILE_DB: "reviewed_sandbox",
+      NILE_DATABASE_URL: "postgresql://user:secret@example.test/other_database",
+    }));
+    expect(evidence).toEqual([{
+      status: "fail",
+      message: "Nile sandbox binding requires NILE_DB to match the NILE_DATABASE_URL database",
+    }]);
+    expect(pgMock.connectCalls).toBe(0);
+    expect(JSON.stringify(evidence)).not.toContain("reviewed_sandbox");
+    expect(JSON.stringify(evidence)).not.toContain("other_database");
+  });
+
+  it("checks Postgres only after the Nile sandbox binding matches", async () => {
+    const pack = TargetPackSchema.parse({
+      name: "nile",
+      sql_conn: { dialect: "postgres", connection_string_env: "NILE_DATABASE_URL" },
+      sandbox_scope: [{ name: "database", env: "NILE_DB", required: true }],
+      tasks: [],
+    });
+    await expect(postgresHealthCheckProvider.check(context(pack, {
+      NILE_DB: "reviewed_sandbox",
+      NILE_DATABASE_URL: "postgresql://user:secret@example.test/reviewed_sandbox",
+    }))).resolves.toEqual([{ status: "pass", message: "Postgres connection is reachable" }]);
+    expect(pgMock.connectCalls).toBe(1);
   });
 
   it("pings a dedicated MongoDB database and inventories arena collections", async () => {

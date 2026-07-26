@@ -26,6 +26,7 @@ describe("arena public engine boundary", () => {
       { kind: "oracle", id: "arena-mongo", version: "1.0.0" },
       { kind: "reset", id: "ax-arena-postgres-reset", version: "1.0.0" },
       { kind: "provisioning", id: "ax-arena-turso-cli", version: "1.0.0" },
+      { kind: "health-check", id: "ax-arena-postgres-health", version: "1.1.0" },
       { kind: "health-check", id: "ax-arena-mongodb-atlas-health", version: "1.0.0" },
     ]));
   });
