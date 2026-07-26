@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, readFileSync, realpathSync } from "node:fs";
-import { dirname, isAbsolute, relative, resolve } from "node:path";
+import { basename, dirname, isAbsolute, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveBatchIdentity, writeBatchPlan } from "../controller/batch.js";
 import { assertArenaOutputRoot, resolveSourceCommitSha } from "../controller/cell.js";
@@ -50,7 +50,10 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
     return "usage: ax-arena benchmark competitive --from <sealed-publication-bundle> [--html out.html] [--generated-at <UTC ISO>]";
   }
   if (command === "publication-bundle") {
-    return "usage: ax-arena benchmark publication-bundle --run-root <completed-run-dir> --out <new-bundle-dir> [--benchmark-root <arena-daeb-root>] [--generated-at <exact UTC ISO>]";
+    return [
+      "usage: ax-arena benchmark publication-bundle --run-root <completed-run-dir> --out <new-bundle-dir> [--benchmark-root <arena-daeb-root>] [--generated-at <exact UTC ISO>]",
+      "  Legacy aliases also accept --run-dir, --suite, --vendors, and effort-profile selectors when they exactly match the immutable batch.",
+    ].join("\n");
   }
   if (command === "publish") {
     return "usage: ax-arena benchmark publish --run-root <dir>\n  Publication remains fail-closed until trusted workflow activation.";
@@ -106,6 +109,71 @@ function one(values: Map<string, string[]>, flag: string, required = false): str
 function assertOnly(values: Map<string, string[]>, allowed: readonly string[]): void {
   const unknown = [...values.keys()].filter((flag) => !allowed.includes(flag));
   if (unknown.length) throw new Error(`unknown flag ${unknown[0]}`);
+}
+
+function csvSet(value: string, flag: string): string[] {
+  const values = value.split(",").map((item) => item.trim()).filter(Boolean);
+  if (!values.length || new Set(values).size !== values.length) {
+    throw new Error(`${flag} must contain unique comma-separated values`);
+  }
+  return values.sort();
+}
+
+function sameValues(left: readonly string[], right: readonly string[]): boolean {
+  const a = [...left].sort();
+  const b = [...right].sort();
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+function resolveFromCanonicalCwd(cwd: string, input: string): string {
+  const absolute = resolve(cwd, input);
+  const suffix = [basename(absolute)];
+  let existingParent = dirname(absolute);
+  while (!existsSync(existingParent)) {
+    const parent = dirname(existingParent);
+    if (parent === existingParent) return absolute;
+    suffix.unshift(basename(existingParent));
+    existingParent = parent;
+  }
+  return resolve(realpathSync(existingParent), ...suffix);
+}
+
+function assertLegacyPublicationSelectors(
+  values: Map<string, string[]>,
+  runRoot: string,
+  cwd: string,
+): string | undefined {
+  const suiteValue = one(values, "--suite");
+  const vendorsValue = one(values, "--vendors");
+  const effortProfilesValue = one(values, "--effort-profiles");
+  const requiredEffortProfilesValue = one(values, "--required-effort-profiles");
+  if (!suiteValue && !vendorsValue && !effortProfilesValue && !requiredEffortProfilesValue) return undefined;
+
+  const batch = ArenaBatchManifestSchema.parse(
+    readBoundedJson(resolve(runRoot, "batch.json"), "legacy publication batch manifest"),
+  );
+  if (vendorsValue && !sameValues(
+    csvSet(vendorsValue, "--vendors"),
+    batch.configuration.packs.map((pack) => pack.vendor),
+  )) {
+    throw new Error("--vendors must exactly match the immutable batch vendors");
+  }
+  const profiles = [...new Set(batch.configuration.cells.map((cell) => cell.profile))];
+  for (const [flag, selected] of [
+    ["--effort-profiles", effortProfilesValue],
+    ["--required-effort-profiles", requiredEffortProfilesValue],
+  ] as const) {
+    if (selected && !sameValues(csvSet(selected, flag), profiles)) {
+      throw new Error(`${flag} must exactly match the immutable batch profiles`);
+    }
+  }
+  if (!suiteValue) return undefined;
+  const suitePath = resolveFromCanonicalCwd(cwd, suiteValue);
+  if (basename(suitePath) !== "suite.yaml"
+    || basename(dirname(suitePath)) !== `v${batch.configuration.suite.version}`) {
+    throw new Error("--suite must identify the immutable batch suite path");
+  }
+  return dirname(dirname(suitePath));
 }
 
 function readBoundedJson(path: string, label: string): unknown {
@@ -240,11 +308,29 @@ export async function runRuntimeCommand(
     return 0;
   }
   if (command === "publication-bundle") {
-    assertOnly(values, ["--run-root", "--out", "--benchmark-root", "--generated-at"]);
-    const runRoot = resolve(cwd, one(values, "--run-root", true)!);
-    const outDir = resolve(cwd, one(values, "--out", true)!);
+    assertOnly(values, [
+      "--run-root", "--run-dir", "--out", "--benchmark-root", "--generated-at",
+      "--suite", "--vendors", "--effort-profiles", "--required-effort-profiles",
+    ]);
+    const runRootValue = one(values, "--run-root");
+    const legacyRunDir = one(values, "--run-dir");
+    if (runRootValue && legacyRunDir
+      && resolveFromCanonicalCwd(cwd, runRootValue) !== resolveFromCanonicalCwd(cwd, legacyRunDir)) {
+      throw new Error("--run-root and legacy --run-dir must identify the same completed batch");
+    }
+    const selectedRunRoot = runRootValue ?? legacyRunDir;
+    if (!selectedRunRoot) throw new Error("missing required flag --run-root (or legacy --run-dir)");
+    const runRoot = resolveFromCanonicalCwd(cwd, selectedRunRoot);
+    const outDir = resolveFromCanonicalCwd(cwd, one(values, "--out", true)!);
     const benchmarkRootValue = one(values, "--benchmark-root");
-    const benchmarkRoot = benchmarkRootValue ? resolve(cwd, benchmarkRootValue) : shippedBenchmarkRoot();
+    const legacySuiteRoot = assertLegacyPublicationSelectors(values, runRoot, cwd);
+    if (benchmarkRootValue && legacySuiteRoot
+      && resolveFromCanonicalCwd(cwd, benchmarkRootValue) !== resolve(legacySuiteRoot)) {
+      throw new Error("--benchmark-root and legacy --suite must identify the same arena DAEB root");
+    }
+    const benchmarkRoot = benchmarkRootValue
+      ? resolveFromCanonicalCwd(cwd, benchmarkRootValue)
+      : legacySuiteRoot ?? shippedBenchmarkRoot();
     const generatedAtValue = one(values, "--generated-at");
     const generatedAt = generatedAtValue === undefined ? new Date() : new Date(generatedAtValue);
     if (!Number.isFinite(generatedAt.getTime())

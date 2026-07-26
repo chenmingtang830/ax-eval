@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -177,6 +177,32 @@ describe("ax-arena benchmark CLI scaffold", () => {
       "--generated-at", "2026-07-21T00:00:00.000Z",
     ], extraPack.io, root)).resolves.toBe(1);
     expect(extraPack.stderr[0]).toContain("--pack vendors must exactly match the batch");
+    const benchmarkRoot = resolve(root, "ax-arena", "benchmark", "daeb");
+    const legacySuite = resolve(benchmarkRoot, "v1", "suite.yaml");
+    mkdirSync(resolve(legacySuite, ".."), { recursive: true });
+    writeFileSync(legacySuite, "name: DAEB-1\nversion: 1\ncategory: database\ntasks: []\n");
+    const legacyPublication = capture();
+    await expect(runArenaCli([
+      "benchmark", "publication-bundle",
+      "--run-dir", runRoot,
+      "--suite", legacySuite,
+      "--vendors", "neon",
+      "--effort-profiles", "medium",
+      "--required-effort-profiles", "medium",
+      "--out", resolve(root, "legacy-publication"),
+    ], legacyPublication.io, root)).resolves.toBe(1);
+    expect(legacyPublication.stderr[0]).toMatch(/batch completion|trusted run attestation subject/);
+    expect(legacyPublication.stderr[0]).not.toContain("unknown flag");
+
+    const mismatchedLegacyVendors = capture();
+    await expect(runArenaCli([
+      "benchmark", "publication-bundle",
+      "--run-dir", runRoot,
+      "--suite", legacySuite,
+      "--vendors", "typo",
+      "--out", resolve(root, "mismatched-publication"),
+    ], mismatchedLegacyVendors.io, root)).resolves.toBe(1);
+    expect(mismatchedLegacyVendors.stderr[0]).toContain("must exactly match the immutable batch vendors");
   }, 20_000);
 
   it("exposes runtime help and fails execution closed", async () => {

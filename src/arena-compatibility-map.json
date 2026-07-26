@@ -8,6 +8,9 @@
   "audit-extracts": "audit-extracts",
   "audit-suite": "audit-suite",
   "synthesize-suite": "synthesize-suite",
+  "competitive": "competitive",
+  "publication-bundle": "publication-bundle",
+  "export-publication": "export-publication",
   "daeb-low-pass": "daeb-low-pass",
   "daeb-production-rerun": "daeb-production-rerun"
 }

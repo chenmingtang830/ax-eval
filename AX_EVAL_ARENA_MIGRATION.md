@@ -78,9 +78,11 @@ Implementation progress:
   database connection implementation.
 - The legacy DAEB low-pass and production command names delegate to arena, and
   the old core trial loop, runtime model selection, cleanup policy, and
-  production aggregate helpers have been removed. Temporary core publication
-  compatibility still validates the frozen model/effort/trial metadata until
-  its own cutover.
+  production aggregate helpers have been removed. Arena publication validates
+  the frozen model/effort/trial metadata against the immutable batch.
+- Competitive reporting, publication bundle construction, and publication
+  export now execute only in the arena workspace; the former `ax-eval` command
+  names are process-launcher compatibility aliases.
 - Trusted dispatch validation, OCI/sysroot and tool preparation, Bubblewrap
   smoke tests, sealed-artifact export, detached attestation construction, and
   their tests are owned under `ax-arena/benchmark/`. The required

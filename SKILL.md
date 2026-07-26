@@ -307,8 +307,8 @@ Render that cross-product view with `npm run ax-arena -- benchmark competitive
 bundle fixes the expected structural-N/A matrix, models, exact harness pins,
 effort, three-trial sources, and completed-cell evidence; mixed, incomplete, or
 resealed-score inputs fail closed. Create the ignored output directory first.
-The legacy `ax-eval`
-command remains active during the private-workspace compatibility period.
+The deprecated `ax-eval competitive` name delegates to that arena command
+during the private-workspace compatibility period.
 
 When consolidating a report for review, put every cell's artifacts in one run
 directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
@@ -408,9 +408,10 @@ recomputed from the three completed trials.
 
 This keeps the repo boundary clean: `ax-eval` owns generic single-product
 execution and verification, while `ax-arena` owns benchmark aggregation,
-publication exports, and the eventual curated website handoff. The legacy
-`ax-eval export-publication` command remains active during the private-workspace
-compatibility period and is not yet a delegated alias.
+publication exports, and the eventual curated website handoff. The deprecated
+`ax-eval publication-bundle`, `ax-eval export-publication`, and
+`ax-eval competitive` names are shell-free launchers for their arena commands
+during the compatibility period.
 
 ## Rules
 

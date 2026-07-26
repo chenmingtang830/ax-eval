@@ -1,7 +1,7 @@
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { execFileSync } from "node:child_process";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
 import { stringify as yamlStringify } from "yaml";
@@ -199,21 +199,64 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("usage: ax-eval automate-report --company <name>");
   });
 
-  it("publication-bundle help prints command usage with exit 0", () => {
-    const { code, out } = runCli(["publication-bundle", "--help"]);
-    expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval publication-bundle");
-    expect(out).toContain("--suite <suite.yaml>");
-    expect(out).toContain("--effort-profiles <a,b,c>");
-    expect(out).toContain("--benchmark-root <dir>");
+  it("delegates competitive and publication help to the arena CLI", () => {
+    for (const command of ["competitive", "publication-bundle", "export-publication"] as const) {
+      const direct = runArenaCli(["benchmark", command, "--help"]);
+      const delegated = runCli([command, "--help"]);
+      expect(delegated).toEqual(direct);
+      expect(delegated.out).toContain(`usage: ax-arena benchmark ${command}`);
+    }
   });
 
-  it("export-publication help prints command usage with exit 0", () => {
-    const { code, out } = runCli(["export-publication", "--help"]);
-    expect(code).toBe(0);
-    expect(out).toContain("usage: ax-eval export-publication");
-    expect(out).toContain("--from <publication-bundle-dir>");
-    expect(out).toContain("axarena-ready JSON dataset");
+  it("preserves arena failures through competitive and publication aliases", () => {
+    const cases = [
+      { command: "competitive", args: [] as string[], error: "missing required flag --from" },
+      { command: "publication-bundle", args: ["--out", "bundle"], error: "missing required flag --run-root" },
+      { command: "export-publication", args: [] as string[], error: "missing required flag --from" },
+    ] as const;
+    for (const test of cases) {
+      const direct = runArenaCli(["benchmark", test.command, ...test.args]);
+      const delegated = runCli([test.command, ...test.args]);
+      expect(delegated.code).toBe(direct.code);
+      expect(delegated.out).toContain(
+        `warning: ax-eval ${test.command} is deprecated; use ax-arena benchmark ${test.command} instead.`,
+      );
+      expect(delegated.out).toContain(test.error);
+    }
+  });
+
+  it("rejects the legacy raw-result competitive path instead of bypassing sealed publication", () => {
+    const dir = mkdtempSync(resolve(tmpdir(), "ax-competitive-alias-"));
+    try {
+      const recordPath = resolve(dir, "record.json");
+      writeFileSync(recordPath, JSON.stringify({
+        schema: "ax.normalized-result/v1",
+        surface: "api",
+        product: "demo",
+        harness: "codex",
+        standard_set_version: "demo-v1",
+        generated_at: "2026-07-21T00:00:00.000Z",
+        tasks_total: 1,
+        tasks_passed: 1,
+        pass_at_1: 1,
+        pass_at_k: 1,
+        attempts: 1,
+        discovery_score: null,
+        content_quality: null,
+        profiles: ["high"],
+        best_profile: "high",
+      }));
+      const runDir = resolve(dir, "legacy-run");
+      const result = runCli([
+        "competitive", "--results", recordPath, "--run-dir", runDir,
+        "--generated-at", "2026-07-21T00:00:00.000Z",
+      ], {}, dir);
+      expect(result.code).toBe(1);
+      expect(result.out).toContain("unknown flag --results");
+      expect(existsSync(resolve(runDir, "competitive.html"))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it("records-diff writes deterministic Markdown", () => {
@@ -350,46 +393,6 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     const { code, out } = runCli(["audit", "--offline"]);
     expect(code).toBe(0);
     expect(out).toContain("Agent-readiness score");
-  });
-
-  it("publication-bundle writes a manifest for a canonical-suite vendor adapter", () => {
-    const outDir = mkdtempSync(resolve(tmpdir(), "ax-pub-"));
-    try {
-      const { code, out } = runCli([
-        "publication-bundle",
-        "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
-        "--vendors", "supabase",
-        "--run-dir", "results/runs/does-not-exist",
-        "--out", outDir,
-      ]);
-      expect(code).toBe(0);
-      expect(out).toContain("Saved publication bundle");
-      const manifest = JSON.parse(readFileSync(resolve(outDir, "manifest.json"), "utf8"));
-      expect(manifest.schema).toBe("ax.publication-bundle/v2");
-      expect(manifest.benchmark).toBe("DAEB-1");
-      expect(manifest.publication_readiness).toBe("draft");
-      expect(manifest.expected_matrix.surfaces).toEqual(["api", "cli"]);
-      expect(manifest.expected_matrix.harnesses).toEqual(["codex", "claude-code"]);
-      expect(manifest.expected_matrix.effort_profiles).toEqual(["high"]);
-      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "matrix-completeness" && gate.status === "fail")).toBe(true);
-      expect(manifest.quality_gates.some((gate: { id: string; status: string }) => gate.id === "efficiency-metrics" && gate.status === "fail")).toBe(true);
-      expect(manifest.layers.static_ax).toBeTruthy();
-      expect(manifest.layers.behavioral).toBeTruthy();
-      expect(manifest.notes.some((note: string) => note.includes("Publication-grade bundles require both Discoverability & Readiness artifacts"))).toBe(true);
-      expect(manifest.vendors).toHaveLength(1);
-      expect(manifest.vendors[0].slug).toBe("supabase");
-      // Pack may be absent mid-authoring (e.g. after archive, before compose-pack).
-      if (manifest.vendors[0].artifacts.compiled_pack) {
-        expect(manifest.vendors[0].artifacts.compiled_pack).toBe("vendors/supabase/compiled-pack.yaml");
-      } else {
-        expect(manifest.vendors[0].missing.some((m: string) => m.includes("pack.yaml"))).toBe(true);
-      }
-      expect(manifest.missing.some((m: string) => m.endsWith("competitive.html"))).toBe(true);
-      // Methodology and compiled packs may exist while run artifacts remain absent.
-      expect(manifest.vendors[0].missing.some((m: string) => m.includes("*.normalized.json"))).toBe(true);
-    } finally {
-      rmSync(outDir, { recursive: true, force: true });
-    }
   });
 
   it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {

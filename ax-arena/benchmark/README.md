@@ -143,8 +143,9 @@ sealed publication bundle. Its canonical batch supplies each vendor's supported
 surfaces, and its completed records bind every displayed score, model, and exact
 harness pin. Structural N/A rows remain explicit. The ignored output directory
 must already exist; the no-follow writer never creates parent directories. The
-legacy `ax-eval` command remains active during the private-workspace
-compatibility period. Pass `--from <sealed-publication-bundle>`.
+deprecated `ax-eval competitive` name delegates to this command during the
+private-workspace compatibility period. Pass
+`--from <sealed-publication-bundle>`.
 
 `ax-arena benchmark publication-bundle` freezes a completed, aggregated arena
 run into a hardened `ax.publication-bundle/v2` directory. The immutable batch
@@ -169,6 +170,9 @@ Downstream cohort loading repeats that derivation, verifies
 the signed DAEB source set and exact physical inventory, and rejects rewritten
 manifest prose or extra files; a self-described integrity envelope is never
 sufficient.
+Legacy `ax-eval publication-bundle` flags remain accepted only when their
+suite, vendor, and effort selectors exactly match the immutable batch; they
+cannot narrow or rewrite the cohort.
 Freeze runs after all harness children exit and assumes exclusive use by the
 trusted controller UID; do not run an untrusted same-UID process concurrently
 against the output parent. The output parent must not be writable by an

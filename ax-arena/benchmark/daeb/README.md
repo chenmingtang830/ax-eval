@@ -129,13 +129,9 @@ alias intentionally fail closed without the workflow-attested OS sandbox.
 After production cells are verified:
 
 ```bash
-npm run ax-eval -- publication-bundle \
-  --suite ax-arena/benchmark/daeb/v1/suite.yaml \
-  --vendors neon,cockroachdb,turso,supabase,insforge,nile \
-  --run-dir results/runs/daeb-1-v1-production \
-  --out results/runs/daeb-1-v1-production/publication-bundle \
-  --effort-profiles high \
-  --required-effort-profiles high
+npm run ax-arena -- benchmark publication-bundle \
+  --run-root results/runs/daeb-1-v1-production \
+  --out results/runs/daeb-1-v1-production/publication-bundle
 
 npm run ax-arena -- benchmark export-publication \
   --from results/runs/daeb-1-v1-production/publication-bundle-final \
@@ -143,13 +139,14 @@ npm run ax-arena -- benchmark export-publication \
 ```
 
 The bundle ties together suite, vendor cards, extracts, compiled packs,
-approvals, snapshots, normalized records, and competitive report. Missing live
-artifacts are listed explicitly. Arena export additionally requires the final
-bundle to carry and satisfy a complete `ax.publication-integrity/v1` envelope;
-the envelope binds canonical production batch/completion bytes, all completed
-cell sidecars and nested evidence, and recomputable three-trial aggregates.
-Legacy unsealed v2 bundles remain draft-only. `ax-eval` owns truth generation;
-the AXArena website imports exported JSON indexes rather than recomputing scores.
+approvals, snapshots, normalized records, and competitive report. Bundle
+creation accepts only a complete `pinned-oci + hosted-trusted` production cohort
+with a verified detached GitHub OIDC attestation. Missing, incomplete, local,
+unsealed, or invalid inputs fail closed and emit no bundle. The required
+`ax.publication-integrity/v1` envelope binds canonical production
+batch/completion bytes, every completed-cell sidecar and nested evidence path,
+and recomputable three-trial aggregates. The AXArena website imports the
+verified exported JSON indexes rather than recomputing scores.
 
 ## Hygiene
 
