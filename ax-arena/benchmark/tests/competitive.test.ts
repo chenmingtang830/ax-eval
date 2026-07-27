@@ -464,7 +464,8 @@ function createSealedBundle(
   const vendorSurfaces = Object.fromEntries(batch.configuration.packs.map((pack) => [pack.vendor, pack.surfaces]));
   const manifest = {
     schema: "ax.publication-bundle/v2",
-    benchmark: "AXeval-Database v1",
+    benchmark: "axeval-database",
+    display_name: "AXeval-Database",
     category: "database",
     suite: "suite/axeval-database-v1.yaml",
     suite_version: 1,

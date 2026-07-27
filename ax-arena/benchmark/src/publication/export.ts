@@ -43,6 +43,7 @@ import { TrustedRunSubjectSchema, verifyBundledHostedAttestation, type TrustedRu
 import {
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
+  publicBenchmarkIdentity,
   publicationArtifactPaths,
   type ArenaPublicationBundle,
 } from "./contracts.js";
@@ -50,17 +51,18 @@ import { assertCanonicalRuntimeDerivation } from "./derivation.js";
 import { renderArenaCompetitiveReport } from "./competitive.js";
 
 export {
+  AXEVAL_DATABASE_BENCHMARK_ID,
+  AXEVAL_DATABASE_DISPLAY_NAME,
   PUBLICATION_INTEGRITY_SCHEMA,
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
+  publicBenchmarkIdentity,
   publicationArtifactPaths,
 } from "./contracts.js";
 export type { ArenaPublicationBundle, ArenaPublicationIntegrity } from "./contracts.js";
 
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
 const PUBLICATION_EFFORT = "high" as const;
-const publicBenchmarkName = (suiteName: string): string =>
-  suiteName === "DAEB-1" ? "AXeval-Database v1" : suiteName;
 const METHODOLOGY_FILES = [
   "suite.methodology.yaml",
   "suite.concept-universe.yaml",
@@ -86,6 +88,7 @@ const PROTECTED_REPOSITORY_PATHS = [
 export const ArenaPublicationExportManifestSchema = z.object({
   schema: z.literal("ax.axarena-export/v1"),
   benchmark: z.string().min(1),
+  display_name: z.string().min(1),
   category: z.string().min(1),
   suite_version: z.number().int().nonnegative(),
   generated_at: z.string(),
@@ -999,8 +1002,10 @@ function assertComparableLeaderboardRecords(
       throw new Error(`publication vendor ${vendor.slug} surfaces do not match the sealed batch`);
     }
   }
+  const expectedIdentity = publicBenchmarkIdentity(batch.configuration.suite.name);
   if (bundle.suite_version !== batch.configuration.suite.version
-    || bundle.benchmark !== publicBenchmarkName(batch.configuration.suite.name)) {
+    || bundle.benchmark !== expectedIdentity.benchmark
+    || bundle.display_name !== expectedIdentity.displayName) {
     throw new Error("publication suite identity does not match the sealed batch");
   }
   const expectedKeys = bundle.vendors.flatMap((vendor) =>
@@ -1181,7 +1186,8 @@ function assertCanonicalPublicationManifest(input: {
   });
   const expectedMetadata = {
     schema: "ax.publication-bundle/v2",
-    benchmark: publicBenchmarkName(suite.name),
+    benchmark: publicBenchmarkIdentity(suite.name).benchmark,
+    display_name: publicBenchmarkIdentity(suite.name).displayName,
     category: suite.category,
     suite: "suite/suite.yaml",
     suite_version: suite.version,
@@ -1510,6 +1516,7 @@ function buildArenaPublicationExportInternal(
     "leaderboard.json": {
       schema: "ax.axarena-leaderboard/v2",
       benchmark: bundle.benchmark,
+      display_name: bundle.display_name,
       generated_at: generatedAtIso,
       scoring: {
         primary: "mean pass@1 within surface, then equal-weight macro-average across participating surfaces",
@@ -1519,16 +1526,17 @@ function buildArenaPublicationExportInternal(
       },
       agents: leaderboard,
     },
-    "cells.json": { schema: "ax.axarena-cells/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, cells },
-    "tasks.json": { schema: "ax.axarena-tasks/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, tasks: [...tasks.values()].sort((a, b) => String(a.task_id).localeCompare(String(b.task_id))) },
-    "trials.json": { schema: "ax.axarena-trials/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, task_results: taskResults },
-    "failures.json": { schema: "ax.axarena-failures/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, failures },
-    "evidence-index.json": { schema: "ax.axarena-evidence-index/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, evidence },
-    "methodology-index.json": { schema: "ax.axarena-methodology-index/v1", benchmark: bundle.benchmark, generated_at: generatedAtIso, methodology },
+    "cells.json": { schema: "ax.axarena-cells/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, cells },
+    "tasks.json": { schema: "ax.axarena-tasks/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, tasks: [...tasks.values()].sort((a, b) => String(a.task_id).localeCompare(String(b.task_id))) },
+    "trials.json": { schema: "ax.axarena-trials/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, task_results: taskResults },
+    "failures.json": { schema: "ax.axarena-failures/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, failures },
+    "evidence-index.json": { schema: "ax.axarena-evidence-index/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, evidence },
+    "methodology-index.json": { schema: "ax.axarena-methodology-index/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, methodology },
   };
   const exportManifest = ArenaPublicationExportManifestSchema.parse({
     schema: "ax.axarena-export/v1",
     benchmark: bundle.benchmark,
+    display_name: bundle.display_name,
     category: bundle.category,
     suite_version: bundle.suite_version,
     generated_at: generatedAtIso,

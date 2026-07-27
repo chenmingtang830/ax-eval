@@ -427,6 +427,10 @@ subject cannot authorize its own workflow revision. Canonical aggregation and
 reporting run before the atomic rename and again on every downstream load,
 which also checks signed source assets, canonical metadata, and the exact
 physical inventory rather than trusting self-hashed manifest fields.
+The handoff contract keeps identity fields separate: `axeval-database` is the
+stable machine id, `AXeval-Database` is the display name, and the numeric
+release belongs in `suite_version`. The frozen `daeb-1-v1` value remains
+approval provenance and never becomes a public label.
 
 Full tree, authoring commands, gates, and hygiene:
 [`ax-arena/benchmark/axeval-database/README.md`](./ax-arena/benchmark/axeval-database/README.md).

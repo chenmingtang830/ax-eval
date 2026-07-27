@@ -76,11 +76,14 @@ export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export {
+  AXEVAL_DATABASE_BENCHMARK_ID,
+  AXEVAL_DATABASE_DISPLAY_NAME,
   PUBLICATION_INTEGRITY_SCHEMA,
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
   ArenaPublicationExportManifestSchema,
   ArenaNormalizedResultSchema,
+  publicBenchmarkIdentity,
   publicationArtifactPaths,
   loadArenaPublicationCohort,
   buildArenaPublicationExport,

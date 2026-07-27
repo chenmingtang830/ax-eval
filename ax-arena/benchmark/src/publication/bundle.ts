@@ -16,7 +16,11 @@ import { ArenaRuntimeReportSchema } from "../controller/schemas.js";
 import { bubblewrapPolicyHash } from "../controller/sandbox.js";
 import { verifyHostedRunAttestation } from "./attestation.js";
 import { renderArenaCompetitiveReport } from "./competitive.js";
-import { ArenaPublicationBundleSchema, type ArenaPublicationBundle } from "./contracts.js";
+import {
+  ArenaPublicationBundleSchema,
+  publicBenchmarkIdentity,
+  type ArenaPublicationBundle,
+} from "./contracts.js";
 import { assertCanonicalRuntimeDerivation } from "./derivation.js";
 import { ArenaNormalizedResultSchema, loadArenaPublicationCohort } from "./export.js";
 import {
@@ -150,6 +154,7 @@ export interface PublicationArtifactSet {
 interface BuiltArenaPublicationBundle {
   schema: "ax.publication-bundle/v2";
   benchmark: string;
+  display_name: string;
   category: string;
   suite: string;
   suite_version: number;
@@ -792,10 +797,11 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   ];
   const staticMethodology = methodologyPaths.filter((path) => /methodology|concept-universe|coverage-matrix|selection-ledger|failure-taxonomy|trace-review/i.test(path));
   const behavioralMethodology = methodologyPaths.filter((path) => /support-matrix|grader-ledger|selection-ledger|coverage-matrix|methodology/i.test(path));
-  const publicBenchmarkName = suite.name === "DAEB-1" ? "AXeval-Database v1" : suite.name;
+  const publicIdentity = publicBenchmarkIdentity(suite.name);
   const bundleWithoutIntegrity = {
     schema: "ax.publication-bundle/v2" as const,
-    benchmark: publicBenchmarkName,
+    benchmark: publicIdentity.benchmark,
+    display_name: publicIdentity.displayName,
     category: suite.category,
     suite: "suite/suite.yaml",
     suite_version: suite.version,

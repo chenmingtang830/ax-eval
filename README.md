@@ -406,6 +406,10 @@ rename; the reporting timestamp must equal the signed completion timestamp.
 The signed subject also binds the canonical AXeval-Database source-artifact set.
 Export and competitive-report readers then re-verify the detached attestation,
 exact physical inventory, canonical manifest metadata, and regenerated reports.
+The public identity is split explicitly: `benchmark: axeval-database` is the
+stable machine id, `display_name: AXeval-Database` is the human-facing name,
+and `suite_version: 1` carries the release version. Frozen `daeb-1-v1`
+identifiers remain internal pack provenance only.
 
 Arena export accepts only bundles with a complete `ax.publication-integrity/v1`
 envelope. It binds aggregate scores to the canonical production batch and

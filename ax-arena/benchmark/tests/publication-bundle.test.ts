@@ -499,7 +499,8 @@ describe("arena publication bundle", () => {
     addFormats(ajv);
     const validate = ajv.compile(schema);
     expect(validate(bundle), JSON.stringify(validate.errors)).toBe(true);
-    expect(bundle.benchmark).toBe("AXeval-Database v1");
+    expect(bundle.benchmark).toBe("axeval-database");
+    expect(bundle.display_name).toBe("AXeval-Database");
     expect(bundle.expected_matrix).toMatchObject({
       surfaces: ["api"], harnesses: ["codex", "claude-code"], effort_profiles: ["high"], expected_cells: 2,
     });

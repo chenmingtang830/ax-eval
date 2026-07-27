@@ -408,6 +408,10 @@ completed record/cleanup/artifact, every normalized source record, and every
 nested snapshot evidence path. Export rejects aggregates whose scores cannot be
 recomputed from the three completed trials.
 
+Website handoff uses `axeval-database` as the stable machine id and
+`AXeval-Database` as the display name. The version stays in `suite_version`;
+do not expose frozen `daeb-1-v1` provenance as the public benchmark name.
+
 This keeps the repo boundary clean: `ax-eval` owns generic single-product
 execution and verification, while `ax-arena` owns benchmark aggregation,
 publication exports, and the eventual curated website handoff. The deprecated

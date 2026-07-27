@@ -400,7 +400,8 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
   artifactText("provenance/github-attestation-bundles.jsonl", detachedBundles.toString("utf8"));
   const manifest = {
     schema: "ax.publication-bundle/v2",
-    benchmark: "AXeval-Database v1",
+    benchmark: "axeval-database",
+    display_name: "AXeval-Database",
     category: "database",
     suite: "suite/axeval-database-v1.yaml",
     suite_version: 1,
@@ -555,9 +556,13 @@ describe("arena publication export", () => {
       expect(verifyBundledAttestation.mock.calls.at(-1)?.[1]).toBeInstanceOf(Buffer);
       expect(cohort.batch.batch_id).toBe("batch-1");
       expect(cohort.records).toHaveLength(8);
+      expect(manifest.benchmark).toBe("axeval-database");
+      expect(manifest.display_name).toBe("AXeval-Database");
       expect(manifest.files).toHaveLength(7);
       for (const file of manifest.files) expect(existsSync(resolve(root, "arena-out", file.path))).toBe(true);
       const leaderboard = parse(resolve(root, "arena-out/leaderboard.json"));
+      expect(leaderboard.benchmark).toBe("axeval-database");
+      expect(leaderboard.display_name).toBe("AXeval-Database");
       const codex = leaderboard.agents.find((agent: { harness: string }) => agent.harness === "codex");
       expect(codex.views.overall.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["beta", "alpha"]);
       expect(codex.views.overall.rows.find((row: { vendor: string }) => row.vendor === "alpha").mean_pass_at_1).toBeCloseTo(0.7);

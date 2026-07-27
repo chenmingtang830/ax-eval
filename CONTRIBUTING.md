@@ -62,6 +62,9 @@ shape.
   matches the committed approved pack. Stage the existing human approval and
   let `exec-plan` check it normally; never add an orchestration-only
   `--skip-review` bypass.
+- **Keep public and frozen identities separate.** Publication output uses
+  `axeval-database` plus display name `AXeval-Database`; committed
+  `daeb-1-v1` values remain immutable pack/approval provenance.
 - **Failed live trials must not leak state forward.** Preserve results and
   verification artifacts first, then record namespace cleanup. If cleanup is
   missing, unsupported, or errors, halt the lane before another trial starts.
