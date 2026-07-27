@@ -549,8 +549,8 @@ This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
 
 OpenCode is the third open-source core runner, with an API/CLI/SDK-only MVP. It
-requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` with the
-global `--no-env-file` flag plus `--format json`, `--auto`, and `--pure`, and
+requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` from a
+disposable cwd with `--format json`, `--auto`, and `--pure`, and
 requires `--model provider/model` before the prompt. Each run receives isolated
 `HOME`, `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
 `XDG_CACHE_HOME`, and `XDG_STATE_HOME` roots. It enables OpenCode's Exa-backed

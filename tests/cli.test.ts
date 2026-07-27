@@ -884,10 +884,6 @@ if (args.includes("--version")) {
   console.log("1.18.3");
   process.exit(0);
 }
-if (args[0] !== "--no-env-file") {
-  console.error("OpenCode dotenv autoload was not disabled");
-  process.exit(8);
-}
 if (process.cwd() === ${JSON.stringify(process.cwd())} || fs.existsSync(".env")) {
   console.error("OpenCode did not receive a secret-free disposable cwd");
   process.exit(9);

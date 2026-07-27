@@ -329,7 +329,7 @@ function detectPlannedInvokeHarness(harness: InvokeHarnessId) {
       const value = process.env[name];
       if (value) env[name] = value;
     }
-    return detectInvokeHarness(harness, undefined, env);
+    return detectInvokeHarness(harness, undefined, env, true, home);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
