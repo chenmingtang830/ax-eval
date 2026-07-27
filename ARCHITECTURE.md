@@ -568,8 +568,19 @@ keeping secret handling local to the invoking process.
 
 ### Transcript parsing
 
-[src/harness/transcript.ts](./src/harness/transcript.ts) parses harness-native
-event streams into a shared observed-run shape.
+[src/harness/transcript-decoder.ts](./src/harness/transcript-decoder.ts) first
+decodes each harness's native JSONL into a small versioned event contract.
+[src/harness/transcript.ts](./src/harness/transcript.ts) then applies shared AX
+surface semantics to those events and produces the observed-run shape. Decoders
+are fixed, pure adapters rather than a mutable registry, so a new harness cannot
+silently replace another cell's interpretation.
+
+Callers that know the harness pass it explicitly. Auto-detection selects one
+decoder for the whole transcript from harness-specific signals; generic error
+events do not identify a harness. The diagnostics API reports only bounded
+counts and line numbers (decoder/version, parsed, recognized, emitted,
+malformed), never command text, tool arguments, or result bodies. Production
+verification falls back to labeled self-report when no event is recognized.
 
 It extracts:
 

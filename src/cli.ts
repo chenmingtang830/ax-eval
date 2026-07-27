@@ -85,7 +85,11 @@ import {
   type InvokeRunOptions,
 } from "./harness/invoke.js";
 import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
-import { observedToDiscovery, observedToTrace, parseTranscript } from "./harness/transcript.js";
+import {
+  observedToDiscovery,
+  observedToTrace,
+  parseTranscriptWithDiagnostics,
+} from "./harness/transcript.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
@@ -2344,6 +2348,10 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const executor = loadResults(rPath);
     const invokeMeta = siblingInvokeMeta(rPath);
     const executorHarness = executorHarnessFromArtifacts(executor.harness, invokeMeta);
+    const transcriptParseOpts = {
+      ...parseOpts,
+      ...(isInvokeHarnessId(executorHarness) ? { harness: executorHarness } : {}),
+    };
     const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);
     const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
@@ -2360,9 +2368,18 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     let observedRun = undefined;
     if (obsPath && existsSync(obsPath)) {
       try {
-        observedRun = parseTranscript(obsPath, parseOpts);
-      } catch {
-        /* discovery block below will warn if needed */
+        const parsed = parseTranscriptWithDiagnostics(obsPath, transcriptParseOpts);
+        if (parsed.diagnostics.recognized > 0) {
+          observedRun = parsed.run;
+        } else {
+          warnings.push(
+            `Transcript ${rel(obsPath)} for ${executor.profile} contained no events recognized by ${executorHarness ?? "a supported harness"} decoder — falling back to self-reported evidence.`,
+          );
+        }
+      } catch (err) {
+        warnings.push(
+          `Failed to parse transcript ${rel(obsPath)} for ${executor.profile} (${err instanceof Error ? err.message : String(err)}) — falling back to self-reported evidence.`,
+        );
       }
     }
     const tracePath = rPath.replace(/\.json$/, ".trace.json");
@@ -2395,9 +2412,15 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
           discovery = await scoreDiscovery(pack.discovery, result, client, { surface, apiStyle: pack.api_style });
           discoverySource = "self-report";
         }
+      } else if (!observedRun) {
+        if (executor.discovery) {
+          const result = { ...executor.discovery, ns: executor.discovery.ns ?? executor.ns };
+          discovery = await scoreDiscovery(pack.discovery, result, client, { surface, apiStyle: pack.api_style });
+          discoverySource = "self-report";
+        }
       } else {
         try {
-          const run = observedRun ?? parseTranscript(obsPath, parseOpts);
+          const run = observedRun;
           const selfReported = executor.discovery
             ? { ...executor.discovery, ns: executor.discovery.ns ?? executor.ns }
             : undefined;
@@ -2408,7 +2431,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
             { surface, apiStyle: pack.api_style },
           );
           discoverySource = "observed";
-          const objTrace = observedToTrace(run);
+          const objTrace = observedToTrace(run, surface);
           if (objTrace.length && trace.length === 0) trace = objTrace;
         } catch (err) {
           warnings.push(

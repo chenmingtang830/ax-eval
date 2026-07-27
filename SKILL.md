@@ -294,6 +294,15 @@ product, harness}` record per cell. `verify` then renders them as a single
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 
+Harness stdout is decoded before AX surface semantics are applied. Keep native
+wire-shape handling in the harness decoder and scoring meaning in the shared
+transcript layer. When integrating a new harness, pass its known id instead of
+depending on auto-detection, preserve result bodies only in already-redacted
+raw artifacts, and inspect the content-free decoder diagnostics
+(`decoderVersion`, parsed/recognized/emitted/malformed counts). A transcript
+with zero recognized events is not objective evidence and must retain the
+labeled self-report fallback.
+
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
 and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
 CLI, and SDK Codex cells are invoked with an isolated Codex home plus

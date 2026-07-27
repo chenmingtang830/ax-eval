@@ -5,9 +5,10 @@
  * self-reported (the agent writes them because the prompt asks it to). The
  * harness, however, keeps an objective event log of the sub-agent: the model's
  * reasoning plus every tool call with its real inputs — WebSearch queries, the
- * actual curl commands (method + URL + body), and file reads/writes. It does
- * NOT capture tool *results* (HTTP status, bodies), so this reconstructs WHAT
- * the agent did, not WHAT came back (outcomes stay verified by live readback).
+ * actual curl commands (method + URL + body), and file reads/writes. Decoder
+ * events may link tool results to their calls, but result bodies are discarded
+ * and shell exit status is never interpreted as HTTP status. This reconstructs
+ * WHAT the agent did, not WHAT came back (outcomes stay verified by readback).
  *
  * Parsing this lets discovery be scored from observed behavior instead of the
  * agent's narration — e.g. it reveals a profile that *claimed* to read the docs
@@ -21,6 +22,12 @@ import type { DiscoveryResult } from "../generate/discovery.js";
 import { detectWireSignals } from "../generate/surface-honesty.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { TraceStep } from "./executor.js";
+import {
+  decodeTranscriptContent,
+  type HarnessEvent,
+  type TranscriptDecodeDiagnostics,
+  type TranscriptHarnessId,
+} from "./transcript-decoder.js";
 
 export interface ApiCall {
   method: string;
@@ -60,8 +67,6 @@ export interface ObservedRun {
    *  surface-honesty grading). */
   wireSignals: string[];
 }
-
-const FETCH_TOOLS = new Set(["WebFetch", "open_resource", "Fetch"]);
 
 const HTTP_METHODS = "GET|POST|PUT|PATCH|DELETE";
 
@@ -223,6 +228,8 @@ function basePrefix(baseUrl: string | undefined): { host: string; prefix: string
 }
 
 export interface ParseOptions {
+  /** Known host harness. Supplying it avoids ambiguous stdout auto-detection. */
+  harness?: TranscriptHarnessId;
   /** API base URL — lets curl/code calls to the API host be told from doc fetches. */
   baseUrl?: string;
   /** CLI binary (from the cli surface) to recognize vendor-CLI invocations. */
@@ -236,7 +243,11 @@ export interface ParseOptions {
   classifyUnknownCurlAsApi?: boolean;
 }
 
-export function parseTranscriptContent(text: string, opts: ParseOptions = {}): ObservedRun {
+/** Apply ax-eval's surface semantics to harness-neutral decoder events. */
+export function observedRunFromHarnessEvents(
+  events: readonly HarnessEvent[],
+  opts: ParseOptions = {},
+): ObservedRun {
   const { host: apiHost, prefix } = basePrefix(opts.baseUrl);
   const run: ObservedRun = {
     searches: [],
@@ -293,75 +304,38 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
     if (/tools\/list/i.test(cmd)) run.mcpToolsListed = true;
   };
 
-  // Codex (`codex exec --json`) emits `{type:"item.completed", item:{...}}` events
-  // with a different shape from Claude's `tool_use`. Map them onto the same run:
-  // web_search → searches/urls, command_execution → scanCommand.
-  const handleCodexItem = (item: Record<string, unknown>): void => {
-    const itype = item.type;
-    if (itype === "web_search" && typeof item.query === "string") {
-      const q = item.query;
-      // Codex folds "open this URL" into web_search too — a query that is a URL is
-      // a page visit, not a search term.
-      if (/^https?:\/\//i.test(q)) run.urlsFetched.push(q);
-      else run.searches.push(q);
-    } else if (itype === "command_execution" && typeof item.command === "string") {
-      scanCommand(item.command);
-    } else if (itype === "mcp_tool_call") {
-      const server = typeof item.server === "string" ? item.server : "";
-      const tool = typeof item.tool === "string" ? item.tool : "";
+  for (const event of events) {
+    if (event.kind === "search") {
+      run.searches.push(event.query);
+    } else if (event.kind === "fetch") {
+      run.urlsFetched.push(event.url);
+    } else if (event.kind === "command") {
+      scanCommand(event.command);
+    } else if (event.kind === "file_write") {
+      if (event.path) run.filesWritten.push(event.path);
+      if (event.content) scanCommand(event.content);
+    } else if (event.kind === "tool_call" && event.server !== undefined) {
+      // Harness-native MCP call (currently Codex). Results and arguments stay
+      // outside ObservedRun; only provider/tool identity contributes evidence.
       const configured = opts.mcpServer;
-      const inScope = !configured || !server || server.includes(configured) || configured.includes(server);
-      if (!inScope || !tool) return;
-      if (/^(?:tools\/list|list_tools)$/i.test(tool)) {
+      const inScope = !configured || !event.server ||
+        event.server.includes(configured) || configured.includes(event.server);
+      if (!inScope) continue;
+      if (/^(?:tools\/list|list_tools)$/i.test(event.name)) {
         run.mcpToolsListed = true;
       } else {
-        // Retain only the native provider/tool identity. Arguments and results
-        // may contain credentials or product data and never enter reporting.
-        run.mcpToolCalls.push([server, tool].filter(Boolean).join("."));
+        run.mcpToolCalls.push([event.server, event.name].filter(Boolean).join("."));
       }
-    }
-  };
-
-  for (const line of text.split("\n")) {
-    if (!line.trim()) continue;
-    let evt: unknown;
-    try {
-      evt = JSON.parse(line);
-    } catch {
-      continue;
-    }
-    // Codex event stream.
-    const e = evt as { type?: string; item?: Record<string, unknown> };
-    if (e.type === "item.completed" && e.item) {
-      handleCodexItem(e.item);
-      continue;
-    }
-    // Claude Code (stream-json / single-result) tool_use content.
-    const content = (evt as { message?: { content?: unknown } })?.message?.content;
-    if (!Array.isArray(content)) continue;
-    for (const part of content) {
-      const p = part as { type?: string; name?: string; input?: Record<string, unknown> };
-      if (p.type !== "tool_use" || !p.input) continue;
-      const input = p.input;
-      if (p.name === "WebSearch" && typeof input.search_term === "string") {
-        run.searches.push(input.search_term);
-      } else if (p.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
+    } else if (event.kind === "tool_call") {
+      const input = event.input;
+      if (event.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
         // ToolSearch is how a Claude Code agent enumerates available (incl. MCP)
-        // tools — the `tools/list` equivalent for this harness. A query that
-        // targets MCP tools means the agent inspected the surface's own toolset.
+        // tools — the `tools/list` equivalent for this harness.
         run.mcpToolsListed = true;
-      } else if (p.name && FETCH_TOOLS.has(p.name) && typeof input.url === "string") {
-        run.urlsFetched.push(input.url);
-      } else if (p.name && p.name.startsWith("mcp__")) {
-        // Claude Code surfaces MCP tools as namespaced tool_use names:
-        // `mcp__<server>__<tool>` (e.g. mcp__claude_ai_Asana__create_tasks).
-        // This is the actual shape in a real run — record it as an MCP call.
-        // The URL-scoping used for CallMcpTool can't apply (the name carries no
-        // URL), and a pack on the mcp surface wants these counted regardless.
-        run.mcpToolCalls.push(p.name);
-      } else if (p.name === "CallMcpTool") {
-        // An MCP tool invocation may also surface as a CallMcpTool tool_use. Scope
-        // to the product's server when one is configured; else record any MCP call.
+      } else if (event.name.startsWith("mcp__")) {
+        // Claude Code carries provider/tool identity in the namespaced name.
+        run.mcpToolCalls.push(event.name);
+      } else if (event.name === "CallMcpTool") {
         const server = typeof input.server === "string" ? input.server : "";
         const tool =
           (typeof input.toolName === "string" && input.toolName) ||
@@ -370,30 +344,49 @@ export function parseTranscriptContent(text: string, opts: ParseOptions = {}): O
         if (!opts.mcpServer || !server || server.includes(opts.mcpServer) || opts.mcpServer.includes(server)) {
           run.mcpToolCalls.push([server, tool].filter(Boolean).join(".") || "(mcp tool)");
         }
-      } else if ((p.name === "ListMcpResources" || /tools?[_/]?list/i.test(p.name ?? "")) && p.name !== "Shell" && p.name !== "Bash") {
+      } else if (event.name === "ListMcpResources" || /tools?[_/]?list/i.test(event.name)) {
         run.mcpToolsListed = true;
-      } else if (p.name === "Shell" || p.name === "Bash" || p.name === "Write" || p.name === "Edit") {
-        // Claude Code's shell tool is `Bash`; other hosts use `Shell`. Both carry
-        // the agent's curl/script commands — without recognizing `Bash`, an API
-        // run's calls are invisible and discovery (canonical/auth) is undercounted.
-        if ((p.name === "Write" || p.name === "Edit") && typeof input.path === "string") {
-          run.filesWritten.push(input.path);
-        }
-        // Scan both shell commands and any script the agent wrote (then ran).
-        const cmd =
-          (typeof input.command === "string" && input.command) ||
-          (typeof input.contents === "string" && input.contents) ||
-          (typeof input.new_string === "string" && input.new_string) ||
-          "";
-        scanCommand(cmd);
       }
+    } else if (event.kind === "tool_result") {
+      // Linkage/outcome is available to decoder consumers, but objective AX
+      // semantics intentionally rely on live readback rather than tool output.
+      continue;
     }
   }
   return run;
 }
 
+export interface ParsedTranscriptContent {
+  run: ObservedRun;
+  diagnostics: TranscriptDecodeDiagnostics;
+}
+
+/** Parse with safe decoder diagnostics, including an explicit recognized count. */
+export function parseTranscriptContentWithDiagnostics(
+  text: string,
+  opts: ParseOptions = {},
+): ParsedTranscriptContent {
+  const decoded = decodeTranscriptContent(text, { harness: opts.harness });
+  return {
+    run: observedRunFromHarnessEvents(decoded.events, opts),
+    diagnostics: decoded.diagnostics,
+  };
+}
+
+export function parseTranscriptContent(text: string, opts: ParseOptions = {}): ObservedRun {
+  return parseTranscriptContentWithDiagnostics(text, opts).run;
+}
+
 export function parseTranscript(path: string, opts: ParseOptions = {}): ObservedRun {
   return parseTranscriptContent(readFileSync(path, "utf8"), opts);
+}
+
+/** File-based counterpart used by production callers that must detect incompatible streams. */
+export function parseTranscriptWithDiagnostics(
+  path: string,
+  opts: ParseOptions = {},
+): ParsedTranscriptContent {
+  return parseTranscriptContentWithDiagnostics(readFileSync(path, "utf8"), opts);
 }
 
 /**
@@ -433,7 +426,7 @@ export function observedToDiscovery(run: ObservedRun, ns?: string, surface: Surf
   };
 }
 
-/** Objective per-call trace (no status — the transcript omits tool results). */
+/** Objective per-call trace (tool outcomes are not HTTP readback evidence). */
 export function observedToTrace(run: ObservedRun, surface: SurfaceId = "api"): TraceStep[] {
   const calls = surface === "cli"
     ? run.cliCommands.map((command) => ({
