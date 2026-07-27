@@ -59,6 +59,8 @@ export type { ArenaPublicationBundle, ArenaPublicationIntegrity } from "./contra
 
 const MAX_JSON_BYTES = 16 * 1024 * 1024;
 const PUBLICATION_EFFORT = "high" as const;
+const publicBenchmarkName = (suiteName: string): string =>
+  suiteName === "DAEB-1" ? "AXeval-Database v1" : suiteName;
 const METHODOLOGY_FILES = [
   "suite.methodology.yaml",
   "suite.concept-universe.yaml",
@@ -480,7 +482,7 @@ function verifyBatchBinding(
     const entry = requireIntegrityEntry(entries, path, label);
     if (entry.sha256 !== reference.sha256) throw new Error(`${label} hash does not match the signed subject`);
   }
-  if (batch.configuration.command !== "daeb-production-rerun"
+  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
     || batch.batch_id !== bundle.integrity.batch_id
     || batch.source_commit_sha !== bundle.integrity.source_commit_sha
     || batch.configuration_hash !== bundle.integrity.configuration_hash
@@ -559,7 +561,7 @@ function verifySignedSourceArtifacts(input: {
   const entries = integrityEntries(bundle);
   const signedSources = new Map(subject.source_artifacts.map((artifact) => [artifact.path, artifact.sha256]));
   const expectedDestinations = new Map<string, string>();
-  const suitePrefix = `ax-arena/benchmark/daeb/v${batch.configuration.suite.version}`;
+  const suitePrefix = `ax-arena/benchmark/axeval-database/v${batch.configuration.suite.version}`;
   const requireSource = (destination: string, sourcePath: string, label: string): Buffer => {
     const signedHash = signedSources.get(sourcePath);
     if (!signedHash) throw new Error(`${label} is absent from the signed protected-main source artifact set`);
@@ -609,7 +611,7 @@ function verifySignedSourceArtifacts(input: {
     packs.set(slug, pack);
     packPaths[slug] = safeBundleFile(bundleRoot, packDestination, `canonical pack ${slug}`);
     requireSource(`vendors/${slug}/pack.approval.json`, `${suitePrefix}/packs/${slug}/pack.approval.json`, `canonical approval ${slug}`);
-    requireSource(`vendors/${slug}/vendor.discovered.yaml`, `ax-arena/benchmark/daeb/vendors/${slug}.discovered.yaml`, `canonical vendor card ${slug}`);
+    requireSource(`vendors/${slug}/vendor.discovered.yaml`, `ax-arena/benchmark/axeval-database/vendors/${slug}.discovered.yaml`, `canonical vendor card ${slug}`);
     requireSource(`vendors/${slug}/oracle-extract.yaml`, `${suitePrefix}/extracts/${slug}/oracles.yaml`, `canonical oracle extract ${slug}`);
     requireSource(`vendors/${slug}/suite-support-matrix.yaml`, `${suitePrefix}/suite.support-matrix.yaml`, `canonical support matrix ${slug}`);
   }
@@ -998,7 +1000,7 @@ function assertComparableLeaderboardRecords(
     }
   }
   if (bundle.suite_version !== batch.configuration.suite.version
-    || bundle.benchmark !== batch.configuration.suite.name) {
+    || bundle.benchmark !== publicBenchmarkName(batch.configuration.suite.name)) {
     throw new Error("publication suite identity does not match the sealed batch");
   }
   const expectedKeys = bundle.vendors.flatMap((vendor) =>
@@ -1179,7 +1181,7 @@ function assertCanonicalPublicationManifest(input: {
   });
   const expectedMetadata = {
     schema: "ax.publication-bundle/v2",
-    benchmark: suite.name,
+    benchmark: publicBenchmarkName(suite.name),
     category: suite.category,
     suite: "suite/suite.yaml",
     suite_version: suite.version,

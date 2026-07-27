@@ -2,7 +2,7 @@
 
 **Status:** In-repository separation implemented; release compatibility window not yet started
 
-**Scope:** Separate the reusable `ax-eval` execution engine from DAEB/arena policy,
+**Scope:** Separate the reusable `ax-eval` execution engine from AXeval-Database/arena policy,
 orchestration, aggregation, and publication
 
 **Baseline audit date:** 2026-07-21
@@ -13,7 +13,7 @@ orchestration, aggregation, and publication
 
 - PR #172 branch: `2aaff3534e98733d7c68aaf805485571a94fcb31`
 - `origin/main`: `8228d2220a191f5c62edd19b873c8402cc163326`
-- Cumulative DAEB stack through PR #171:
+- Cumulative AXeval-Database stack through PR #171:
   `4fa2e2ba9c3d186fd2230077ae020611f9198cae`
 
 ## 1. Executive Summary
@@ -26,7 +26,7 @@ The intended architecture is correct:
 
 At the audited refs, PR #172 began this separation by adding an `OracleProvider`
 seam. That was a useful enabling change, but did not by itself separate the two
-systems. The baseline cumulative DAEB implementation still placed benchmark
+systems. The baseline cumulative AXeval-Database implementation still placed benchmark
 policy, database-specific runtime behavior, orchestration, production workflow
 behavior, and publication inside the `ax-eval` package.
 
@@ -52,7 +52,7 @@ ax-arena
       ax-eval
 
 ax-eval
-  has no dependency on ax-arena, DAEB, its vendor roster, or its publication
+  has no dependency on ax-arena, AXeval-Database, its vendor roster, or its publication
   policy
 ```
 
@@ -72,10 +72,10 @@ Implementation progress:
 - Reset remains outside `runCell` so verified-record persistence can precede
   cleanup.
 - The root package no longer declares database-only SDKs or drivers. SQL/Mongo
-  verification and DAEB database cleanup execute only through arena-owned,
+  verification and AXeval-Database database cleanup execute only through arena-owned,
   explicitly injected providers; core retains v1 declaration readers but no
   database connection implementation.
-- The legacy DAEB low-pass and production command names delegate to arena, and
+- The legacy AXeval-Database low-pass and production command names delegate to arena, and
   the old core trial loop, runtime model selection, cleanup policy, and
   production aggregate helpers have been removed. Arena publication validates
   the frozen model/effort/trial metadata against the immutable batch.
@@ -87,12 +87,12 @@ Implementation progress:
   their tests are owned under `ax-arena/benchmark/`. The required
   `.github/workflows/` file remains only the launcher and secret-binding
   surface.
-- Canonical DAEB artifacts, authoring persistence, suite composition, oracle
+- Canonical AXeval-Database artifacts, authoring persistence, suite composition, oracle
   extraction, artifact contracts, and database-specific inventory audit policy
   live under `ax-arena/benchmark/`; core retains only reusable explicit-input
   contracts and single-product transforms.
 - Exported suite writers enforce canonical lowercase `.yaml` destinations,
-  preserve explicit DAEB path contexts, and the CLI preflights its complete
+  preserve explicit AXeval-Database path contexts, and the CLI preflights its complete
   11-output suite bundle before mutation.
 
 ## 2. Goals
@@ -101,7 +101,7 @@ Implementation progress:
 
 - Make `ax-eval` usable as a library and CLI for one product/surface/harness/
   trial evaluation without importing benchmark policy.
-- Make `ax-arena` the sole owner of DAEB methodology, benchmark expansion,
+- Make `ax-arena` the sole owner of AXeval-Database methodology, benchmark expansion,
   production distribution, aggregation, comparison, and publication.
 - Preserve the existing review gate, live verification ordering, trace parsing,
   surface awareness, and secret-redaction behavior.
@@ -116,7 +116,7 @@ Implementation progress:
 - Reduce `ax-eval` package size and remove benchmark-only database drivers.
 - Make benchmark runs reproducible from an immutable batch plan.
 - Make credential requirements machine-readable and auditable per cell.
-- Allow future arenas to reuse `ax-eval` without inheriting DAEB-specific
+- Allow future arenas to reuse `ax-eval` without inheriting AXeval-Database-specific
   schemas or policies.
 
 ## 3. Non-Goals
@@ -227,17 +227,17 @@ layer.
 
 ### 5.3 Generic verification still contains vertical implementations
 
-In the cumulative DAEB stack, `src/generate/verify.ts` imports SQL, MongoDB, and
+In the cumulative AXeval-Database stack, `src/generate/verify.ts` imports SQL, MongoDB, and
 surface-honesty implementations. The provider seam should invert those
 dependencies:
 
 ```text
 before
-  generic verify -> SQL/Mongo/DAEB implementation
+  generic verify -> SQL/Mongo/AXeval-Database implementation
 
 after
   ax-eval verify -> provider interface
-  ax-arena       -> SQL/Mongo/DAEB providers
+  ax-arena       -> SQL/Mongo/AXeval-Database providers
 ```
 
 The generic verifier should continue to own common oracle scheduling, result
@@ -310,7 +310,7 @@ Arena responsibilities include:
 
 - vendor-roster resolution;
 - canonical extraction ledgers;
-- DAEB suite composition and audit;
+- AXeval-Database suite composition and audit;
 - run-matrix expansion;
 - low-pass and production rerun policy;
 - benchmark aggregation;
@@ -330,7 +330,7 @@ The migration should separate:
 
 - generic pack and record fields owned by `ax-eval`;
 - provider-owned typed extension declarations;
-- DAEB evaluation-set identity and publication schemas owned by `ax-arena`.
+- AXeval-Database evaluation-set identity and publication schemas owned by `ax-arena`.
 
 The core record should use generic identity fields:
 
@@ -345,7 +345,7 @@ v1 records, but new code should not treat it as the only set identity.
 
 ### 5.10 Package ownership is mixed
 
-The cumulative package adds DAEB artifacts to the `ax-eval` tarball and adds
+The cumulative package adds AXeval-Database artifacts to the `ax-eval` tarball and adds
 database runtime dependencies including Neon, Supabase, MongoDB, MySQL, and
 Postgres clients. These are not required by the generic execution engine.
 
@@ -353,7 +353,7 @@ The current package also exposes only the `ax-eval` binary; it has no supported
 library export. That makes an arena-to-engine dependency difficult to express
 without importing internal files.
 
-The migration must add a public library entry point and move DAEB artifacts and
+The migration must add a public library entry point and move AXeval-Database artifacts and
 database dependencies to `ax-arena` or separately versioned target plugins.
 
 ### 5.11 Production workflow is a cell runner and controller simultaneously
@@ -414,7 +414,7 @@ Before secrets are exposed, the workflow should:
 
 ### 5.14 Pure extraction logic should not be moved wholesale
 
-Some cumulative modules combine reusable single-target logic with DAEB artifact
+Some cumulative modules combine reusable single-target logic with AXeval-Database artifact
 paths and methodology:
 
 - capability extraction;
@@ -423,7 +423,7 @@ paths and methodology:
 - registry ingestion.
 
 The pure resolver/extractor contracts and functions can remain in `ax-eval` if
-they are useful outside DAEB. Canonical cohort schemas, benchmark ledgers,
+they are useful outside AXeval-Database. Canonical cohort schemas, benchmark ledgers,
 methodology, persistence paths, support matrices, and selection policy belong to
 `ax-arena`.
 
@@ -441,7 +441,7 @@ responsibility instead.
   | roster + canonical suite + benchmark methodology     |
   | model/effort/trial policy + immutable batch planner   |
   | production controller + credential routing           |
-  | SQL/Mongo/DB providers + DAEB target adapters         |
+  | SQL/Mongo/DB providers + AXeval-Database target adapters         |
   | aggregation + completeness + comparison + publish    |
   +---------------------------+---------------------------+
                               |
@@ -674,7 +674,7 @@ interface RuntimeExtensionRegistry {
 }
 ```
 
-`ax-arena` composes DAEB providers and passes the registry to `runCell`.
+`ax-arena` composes AXeval-Database providers and passes the registry to `runCell`.
 `ax-eval` neither imports those providers nor discovers them through ambient
 global state.
 
@@ -699,7 +699,7 @@ global state.
 
 - target roster and selection ledger;
 - canonical capability/surface extracts;
-- DAEB suite, methodology, and support matrix;
+- AXeval-Database suite, methodology, and support matrix;
 - benchmark run matrix and immutable batch manifest;
 - post-record cell cleanup/result sidecars and their integrity bindings;
 - trial aggregate and exact-pass policy;
@@ -845,7 +845,7 @@ Ownership is now separated inside one repository:
 src/                       # existing generic modules
 schemas/                   # public core schemas
 ax-arena/benchmark/        # private arena npm workspace
-ax-arena/benchmark/daeb/   # canonical arena artifacts
+ax-arena/benchmark/axeval-database/   # canonical arena artifacts
 ```
 
 Dependency rules enforce `arena -> core` only. This makes a later optional
@@ -884,12 +884,12 @@ Arena code imports only public exports; direct `src/...` imports are forbidden.
 - generic schemas and reports;
 - generic surface/harness behavior;
 - public target packs or adapters that are intentionally reusable;
-- no DAEB benchmark artifacts;
+- no AXeval-Database benchmark artifacts;
 - no benchmark-only database dependencies.
 
 `ax-arena` package/repository:
 
-- DAEB methodology and canonical artifacts;
+- AXeval-Database methodology and canonical artifacts;
 - database providers and runtime dependencies;
 - controller/workflows;
 - aggregation and publication;
@@ -908,7 +908,7 @@ CI checks fail when:
 - known arena-owned module filenames or declarations are reintroduced into
   core; CLI/help tests separately pin the allowlisted compatibility launchers.
 
-Lexical checks for DAEB or vendor names are useful warnings, not authoritative
+Lexical checks for AXeval-Database or vendor names are useful warnings, not authoritative
 rules. Import and package boundaries are the enforceable source of truth.
 
 ## 11. Migration Plan
@@ -918,14 +918,14 @@ changes with file movement unless tests prove parity independently.
 
 ### Phase 0: Freeze and characterize current behavior
 
-**Progress:** Implemented through offline surface/harness fixtures, frozen DAEB
+**Progress:** Implemented through offline surface/harness fixtures, frozen AXeval-Database
 hash/approval tests, ownership guards, and package inspections.
 
 **Changes**
 
 - Capture golden normalized records for representative API, CLI, SDK, and MCP
   fixtures using both harness transcript shapes.
-- Capture current DAEB plan, aggregate, and publication fixtures.
+- Capture current AXeval-Database plan, aggregate, and publication fixtures.
 - Add a machine-readable inventory assigning every cumulative module, command,
   schema, artifact, workflow, and dependency to core, arena, split, or temporary
   compatibility ownership.
@@ -975,7 +975,7 @@ schemas, `runCell`, runtime extension contracts, and the one-cell CLI boundary.
 
 **Progress:** Registry contracts, per-cell health/provisioning dispatch,
 versioned provenance, adapter composition, and reset plan/execute interfaces are
-implemented in the cumulative stack. SQL/Mongo verification and DAEB database
+implemented in the cumulative stack. SQL/Mongo verification and AXeval-Database database
 reset implementations now live only behind arena-owned providers; core retains
 no database driver and its database runtime aliases delegate to arena's
 fail-closed trusted-workflow boundary.
@@ -1039,15 +1039,15 @@ window.
 ### Phase 4: Quarantine arena implementation in-repository
 
 **Progress:** Implemented. The private `ax-arena/benchmark/` npm workspace owns
-canonical DAEB files, authoring policy, providers, controller, aggregation, and
+canonical AXeval-Database files, authoring policy, providers, controller, aggregation, and
 publication. Import and package guards enforce the one-way dependency and
 tarball ownership boundaries.
 
 **Changes**
 
-- Move DAEB suite synthesis, support matrices, extraction ledgers, production
+- Move AXeval-Database suite synthesis, support matrices, extraction ledgers, production
   policy, aggregation, and publication under an arena-owned tree.
-- Split reusable pure extraction/resolution functions from DAEB persistence and
+- Split reusable pure extraction/resolution functions from AXeval-Database persistence and
   methodology.
 - Move database providers and dependencies to the arena boundary.
 - Add import-boundary tests.
@@ -1095,8 +1095,8 @@ compatibility clock begins only when the arena package is available to users.
 
 - Revert this phase as a unit. There is no legacy-orchestrator fallback flag.
   Compatibility launchers remain functional for non-credentialed reporting and
-  export commands; `execute`, direct `publish`, `daeb-low-pass`, and
-  `daeb-production-rerun` fail closed outside the trusted workflow.
+  export commands; `execute`, direct `publish`, `axeval-database-low-pass`, and
+  `axeval-database-production-rerun` fail closed outside the trusted workflow.
 
 ### Phase 6: Split packages and optionally repositories
 
@@ -1109,13 +1109,13 @@ repository split remains an optional later gate after parity sign-off.
 
 - Publish a versioned `ax-eval` package with the stable library API.
 - Create `ax-arena` with a pinned engine dependency.
-- Move DAEB artifacts, workflows, providers, and DB dependencies.
+- Move AXeval-Database artifacts, workflows, providers, and DB dependencies.
 - Remove arena files from the `ax-eval` package manifest.
 - Update contributor and release documentation in both projects.
 
 **Exit criteria**
 
-- `npm pack --dry-run` for `ax-eval` contains no DAEB artifacts.
+- `npm pack --dry-run` for `ax-eval` contains no AXeval-Database artifacts.
 - A clean `ax-arena` install can execute fixture cells through public exports.
 - Package dependency inspection shows no arena-only DB drivers in `ax-eval`.
 - Both projects pass offline unit, type, build, and package smoke tests.
@@ -1167,20 +1167,20 @@ classifications as decision rules, not as permission for unreviewed bulk moves.
 
 ### 12.2 Owned by ax-arena
 
-- `ax-arena/benchmark/daeb/**` methodology and canonical artifacts (formerly
+- `ax-arena/benchmark/axeval-database/**` methodology and canonical artifacts (formerly
   `benchmarks/daeb/**` during the one-release read compatibility window).
-- DAEB roster, selection ledger, support matrix, suite synthesis, and audit.
+- AXeval-Database roster, selection ledger, support matrix, suite synthesis, and audit.
 - Database pack overrides tied to the canonical arena suite.
-- DAEB low-pass and production-rerun policy.
+- AXeval-Database low-pass and production-rerun policy.
 - Hardcoded benchmark models, effort, harness matrix, and three-trial policy.
-- SQL/Mongo/DB providers used by the DAEB cohort.
+- SQL/Mongo/DB providers used by the AXeval-Database cohort.
 - Cross-trial aggregation and exact-pass policy.
 - Cross-target comparison, leaderboard, publication bundle, and export.
 - Trusted benchmark execution and publication workflows.
 - Arena cell-result, cleanup, batch, reporting, and publication schemas that are
   not part of the generic normalized-cell contract.
 
-Current stack status: DAEB roster, coverage/task-fit, synthesis, extract/suite
+Current stack status: AXeval-Database roster, coverage/task-fit, synthesis, extract/suite
 audit, pack composition, artifact contracts/readers/writers, and their CLI
 handlers live under `ax-arena/benchmark/src/authoring/`. Providers, cell/batch
 lifecycle, runtime reporting, aggregation, competitive reporting, publication,
@@ -1190,13 +1190,13 @@ implementations.
 
 ### 12.3 Split by responsibility
 
-- **Vendor/product resolution:** generic resolver in core; DAEB roster decisions
+- **Vendor/product resolution:** generic resolver in core; AXeval-Database roster decisions
   and artifact paths in arena.
 - **Surface extraction:** protocol inspection in core; canonical extract ledger
   and cohort coverage requirements in arena.
 - **Capability extraction:** generic product capability model in core if reusable;
-  DAEB concept universe, methodology, and selection policy in arena.
-- **Registry ingestion:** generic integrations registry ingestion in core; DAEB
+  AXeval-Database concept universe, methodology, and selection policy in arena.
+- **Registry ingestion:** generic integrations registry ingestion in core; AXeval-Database
   target selection and snapshots in arena.
 - **Reset:** lifecycle and safety contract in core; implementations in target or
   arena providers.
@@ -1330,12 +1330,13 @@ linking the superseded attempt.
 
 ### 15.4 Artifact path compatibility
 
-- Canonical artifacts live under `ax-arena/benchmark/daeb/`; writers never use
+- Canonical artifacts live under `ax-arena/benchmark/axeval-database/`; writers never use
   the former root.
-- During the one-minor-release read window, readers use `benchmarks/daeb/` only when
+- During the compatibility window, readers use `ax-arena/benchmark/daeb/` or
+  `benchmarks/daeb/` only when
   the canonical root is absent and emit a deprecation warning.
 - If both roots exist, callers must choose explicitly with `--benchmark-root`
-  or a `DaebPathContext`; no manifest, duplicate tree, or symlink alias is used.
+  or an `AxevalDatabasePathContext`; no manifest, duplicate tree, or symlink alias is used.
 - The relocation preserves canonical artifact and approval bytes. Immutable
   published bundles retain their historical references.
 
@@ -1436,7 +1437,7 @@ The separation is complete only when all statements below are true:
 - Normal runtime does not depend on mutable global provider state.
 - The normalized cell record schema is owned by `ax-eval`.
 - Aggregate, leaderboard, and publication schemas are owned by `ax-arena`.
-- DAEB artifacts and database-only runtime dependencies are absent from the
+- AXeval-Database artifacts and database-only runtime dependencies are absent from the
   `ax-eval` package.
 - `ax-arena` imports only public `ax-eval` exports.
 - Core-to-arena imports are blocked in CI.

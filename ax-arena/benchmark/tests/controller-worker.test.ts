@@ -77,7 +77,7 @@ function configuration(
 ): ArenaBatchConfiguration {
   const hostNames = harnesses.map((harness) => harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY");
   return {
-    command: "daeb-low-pass",
+    command: "axeval-database-low-pass",
     execution: pinnedLocal
       ? { runtime_backend: "pinned-oci", trust_level: "local" }
       : { runtime_backend: "native", trust_level: "local" },
@@ -90,7 +90,7 @@ function configuration(
       executable_sha256: "6".repeat(64),
       runtime_roots: ["/usr", "/opt/ax-arena-tools"],
     } } : {}),
-    suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+    suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor,
       file_hash: fileHash,

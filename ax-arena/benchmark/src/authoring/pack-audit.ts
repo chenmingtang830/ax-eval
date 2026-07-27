@@ -4,7 +4,7 @@ import {
   type OracleExtractResult,
 } from "ax-eval";
 import type { SupportMatrix } from "./artifact-contracts.js";
-import { daebReadCompiledPackPath, type DaebPathInput } from "./benchmark-paths.js";
+import { axevalDatabaseReadCompiledPackPath, type AxevalDatabasePathInput } from "./benchmark-paths.js";
 
 export interface PackAuditFinding {
   severity: "error" | "warn";
@@ -67,7 +67,7 @@ export function auditComposedPack(
 }
 
 export function auditCorePacks(
-  root: DaebPathInput,
+  root: AxevalDatabasePathInput,
   slugs: string[],
   extracts: Map<string, OracleExtractResult>,
   supportMatrix: SupportMatrix,
@@ -75,7 +75,7 @@ export function auditCorePacks(
   return slugs.flatMap((slug) => {
     const extract = extracts.get(slug);
     return extract
-      ? auditComposedPack(daebReadCompiledPackPath(root, slug), extract, supportMatrix)
+      ? auditComposedPack(axevalDatabaseReadCompiledPackPath(root, slug), extract, supportMatrix)
       : [];
   });
 }

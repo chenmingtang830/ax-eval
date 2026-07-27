@@ -18,7 +18,7 @@ function fixture() {
   const source = "a".repeat(40);
   const lockHash = "b".repeat(64);
   const configuration = {
-    command: "daeb-production-rerun",
+    command: "axeval-database-production-rerun",
     execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
     sandbox: { runtime_lock_sha256: lockHash },
   };

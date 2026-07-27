@@ -115,10 +115,10 @@ if (required("TRUSTED_CONTAINER_IMAGE") !== expectedImage) {
   throw new Error("workflow container does not match the reviewed runtime lock digest");
 }
 const configurationPath = realpathSync(resolve(root, required("CONFIGURATION_PATH")));
-const daebRoot = resolve(root, "ax-arena", "benchmark", "daeb");
-if (!inside(daebRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical DAEB root");
+const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axeval-database");
+if (!inside(axevalDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXeval-Database root");
 const configuration = JSON.parse(committedBytes(root, sourceSha, configurationPath, "batch configuration").toString("utf8"));
-if (configuration.command !== "daeb-production-rerun"
+if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)
   || configuration.execution?.runtime_backend !== "pinned-oci"
   || configuration.execution?.trust_level !== "hosted-trusted"
   || configuration.reset_required !== true
@@ -147,7 +147,7 @@ if (sandbox?.kind !== "bubblewrap" || sandbox?.policy_version !== "ax.arena-bubb
   || !exactSet(sandbox?.runtime_roots, ["/usr", "/opt/ax-arena-tools"])) {
   throw new Error("trusted sandbox policy does not match the reviewed runtime lock");
 }
-const suiteBytes = committedBytes(root, sourceSha, resolve(daebRoot, "v1", "suite.yaml"), "canonical suite");
+const suiteBytes = committedBytes(root, sourceSha, resolve(axevalDatabaseRoot, "v1", "suite.yaml"), "canonical suite");
 if (configuration.suite?.name !== yamlScalar(suiteBytes, "name")
   || configuration.suite?.version !== Number(yamlScalar(suiteBytes, "version"))
   || configuration.suite?.file_hash !== sha256(suiteBytes)) {
@@ -157,7 +157,7 @@ if (!Array.isArray(configuration.packs) || configuration.packs.length < 1) {
   throw new Error("trusted configuration requires at least one canonical pack");
 }
 for (const configuredPack of configuration.packs) {
-  const packPath = resolve(daebRoot, "v1", "packs", configuredPack.vendor, "pack.yaml");
+  const packPath = resolve(axevalDatabaseRoot, "v1", "packs", configuredPack.vendor, "pack.yaml");
   const packBytes = committedBytes(root, sourceSha, packPath, `canonical ${configuredPack.vendor} pack`);
   const approval = JSON.parse(committedBytes(
     root,

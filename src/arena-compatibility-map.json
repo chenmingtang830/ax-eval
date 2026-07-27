@@ -11,6 +11,8 @@
   "competitive": "competitive",
   "publication-bundle": "publication-bundle",
   "export-publication": "export-publication",
-  "daeb-low-pass": "daeb-low-pass",
-  "daeb-production-rerun": "daeb-production-rerun"
+  "axeval-database-low-pass": "axeval-database-low-pass",
+  "axeval-database-production-rerun": "axeval-database-production-rerun",
+  "daeb-low-pass": "axeval-database-low-pass",
+  "daeb-production-rerun": "axeval-database-production-rerun"
 }

@@ -37,12 +37,12 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
     runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
   };
   const configuration: ArenaBatchConfiguration = {
-    command: "daeb-low-pass",
+    command: "axeval-database-low-pass",
     execution: options.sandboxed
       ? { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" }
       : { runtime_backend: "native", trust_level: "local" },
     ...(options.sandboxed ? { sandbox } : {}),
-    suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+    suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor: "neon",
       file_hash: packFileContentHash(packPath),
@@ -96,7 +96,7 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
     const cleanupPath = resolve(directory, "cleanup.json");
     const cellId = arenaCellId({
       batchId: batch.batch_id,
-      evaluationSetId: "DAEB-1",
+      evaluationSetId: "AXeval-Database v1",
       targetId: "neon",
       surface: "api",
       harness: harnessId,
@@ -110,7 +110,7 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
       schema: "ax.evaluation-cell/v1",
       cell_id: cellId,
       batch_id: batch.batch_id,
-      evaluation_set_id: "DAEB-1",
+      evaluation_set_id: "AXeval-Database v1",
       evaluation_set_version: "database-v1",
       target_id: "neon",
       pack: { path: "pack.yaml", content_hash: configuration.packs[0]!.file_hash },
@@ -163,7 +163,7 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
       record_id: cell.cell_id,
       cell_id: cell.cell_id,
       batch_id: batch.batch_id,
-      evaluation_set_id: "DAEB-1",
+      evaluation_set_id: "AXeval-Database v1",
       evaluation_set_version: "database-v1",
       pack_content_hash: configuration.packs[0]!.file_hash,
       source_commit_sha: batch.source_commit_sha,

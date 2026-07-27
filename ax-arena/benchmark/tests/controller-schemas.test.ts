@@ -112,8 +112,8 @@ describe("arena batch schemas", () => {
     })).toBe(false);
 
     const legacy = ArenaBatchConfigurationSchema.parse({
-      command: "daeb-low-pass",
-      suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+      command: "axeval-database-low-pass",
+      suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
       packs: [{
         vendor: "neon", file_hash: "2".repeat(64), standard_set_version: "database-v1",
         surfaces: ["api"], host_credential_names: ["OPENAI_API_KEY", "ANTHROPIC_API_KEY"],
@@ -180,8 +180,8 @@ describe("arena batch schemas", () => {
     const validatePlan = ajv.compile(shippedSchema("arena-batch-plan.v1.json"));
     const validateCompletion = ajv.compile(shippedSchema("arena-batch-completion.v1.json"));
     const configuration: ArenaBatchConfiguration = {
-      command: "daeb-low-pass",
-      suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+      command: "axeval-database-low-pass",
+      suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
       packs: [{
         vendor: "neon",
         file_hash: "3".repeat(64),
@@ -242,7 +242,7 @@ describe("arena batch schemas", () => {
       created_at: "2026-07-21T00:00:00.000Z",
       configuration_hash: arenaBatchConfigurationHash(configuration),
       configuration_source: {
-        path: "ax-arena/benchmark/daeb/v1/batch-configuration.json",
+        path: "ax-arena/benchmark/axeval-database/v1/batch-configuration.json",
         file_hash: "7".repeat(64),
       },
       configuration,
@@ -429,7 +429,7 @@ describe("arena batch schemas", () => {
     })));
     const production: ArenaBatchConfiguration = {
       ...configuration,
-      command: "daeb-production-rerun",
+      command: "axeval-database-production-rerun",
       packs: [{
         ...configuration.packs[0]!,
         host_credential_names: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"],

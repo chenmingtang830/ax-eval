@@ -234,7 +234,7 @@ not weaken the source, digest, lock, sandbox, or attestation checks.
 - runtime-lock hash, OCI digest, runtime-manifest hash, and tool-tree hash;
 - exact configuration bytes and configuration hash;
 - batch ID, batch manifest hash, batch completion hash, and cell count.
-- a canonical, sorted hash list of every file under `ax-arena/benchmark/daeb`.
+- a canonical, sorted hash list of every file under `ax-arena/benchmark/axeval-database`.
 
 The signing job recalculates every referenced hash before requesting the GitHub
 artifact attestation. Every per-cell environment and the signing environment

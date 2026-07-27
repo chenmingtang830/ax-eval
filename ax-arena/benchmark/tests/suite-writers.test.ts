@@ -12,9 +12,9 @@ import { resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { applySuiteAudit, type SuiteAuditReport } from "../src/authoring/suite-audit.js";
 import {
-  DAEB_BENCHMARK_ROOT,
-  DAEB_LEGACY_BENCHMARK_ROOT,
-  createDaebPathContext,
+  AXEVAL_DATABASE_BENCHMARK_ROOT,
+  AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT,
+  createAxevalDatabasePathContext,
 } from "../src/authoring/benchmark-paths.js";
 import {
   synthesizeSuite,
@@ -37,11 +37,11 @@ function genericNameReport(suitePath: string): SuiteAuditReport {
     findings: [{
       severity: "error",
       code: "generic_suite_name",
-      message: "Use DAEB-1.",
+      message: "Use AXeval-Database v1.",
       auto_fixable: true,
     }],
     summary: { errors: 1, warns: 0, infos: 0, autoFixable: 1 },
-    suggestedName: "DAEB-1",
+    suggestedName: "AXeval-Database v1",
     suggestedVersion: 1,
   };
 }
@@ -89,7 +89,7 @@ describe("canonical suite writers", () => {
 
     const written = writeSuiteFiles(
       root,
-      "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       "suite",
       "synthesis",
     );
@@ -101,7 +101,7 @@ describe("canonical suite writers", () => {
     const root = freshRoot();
     const result = await synthesisFixture();
     for (const name of ["suite.YAML", "suite.yml", "suite"]) {
-      const path = `ax-arena/benchmark/daeb/v1/${name}`;
+      const path = `ax-arena/benchmark/axeval-database/v1/${name}`;
       expect(() => writeSuiteFiles(root, path, "suite", "synthesis"))
         .toThrow(/canonical lowercase \.yaml/);
       expect(() => writeSuiteArtifacts(root, path, result))
@@ -114,15 +114,16 @@ describe("canonical suite writers", () => {
 
   it("requires an explicit path context for ambiguous roots and supports it consistently", async () => {
     const root = freshRoot();
-    const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
-    const legacy = resolve(root, DAEB_LEGACY_BENCHMARK_ROOT);
+    const canonical = resolve(root, AXEVAL_DATABASE_BENCHMARK_ROOT);
+    const legacy = resolve(root, AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT);
     mkdirSync(resolve(canonical, "v1"), { recursive: true });
-    mkdirSync(legacy, { recursive: true });
-    const suitePath = "ax-arena/benchmark/daeb/v1/suite.yaml";
+    mkdirSync(resolve(legacy, "v1"), { recursive: true });
+    writeFileSync(resolve(legacy, "v1", "suite.yaml"), "name: legacy\n");
+    const suitePath = "ax-arena/benchmark/axeval-database/v1/suite.yaml";
 
     expect(() => writeSuiteFiles(root, suitePath, "name: SUITE\nversion: 0\n", "synthesis"))
       .toThrow(/ambiguous benchmark roots/);
-    const paths = createDaebPathContext(root, { explicitRoot: DAEB_BENCHMARK_ROOT });
+    const paths = createAxevalDatabasePathContext(root, { explicitRoot: AXEVAL_DATABASE_BENCHMARK_ROOT });
     const suite = writeSuiteFiles(paths, suitePath, "name: SUITE\nversion: 0\n", "synthesis");
     const artifacts = writeSuiteArtifacts(paths, suitePath, await synthesisFixture());
     const audit = applySuiteAudit(paths, suitePath, genericNameReport(suitePath));
@@ -130,12 +131,12 @@ describe("canonical suite writers", () => {
     expect(suite.suitePath).toBe(resolve(canonical, "v1", "suite.yaml"));
     expect(artifacts).toHaveLength(9);
     expect(audit).toHaveLength(2);
-    expect(readFileSync(suite.suitePath, "utf8")).toMatch(/name: DAEB-1/);
+    expect(readFileSync(suite.suitePath, "utf8")).toMatch(/name: AXeval-Database v1/);
   });
 
   it("preflights every suite sibling before the first write", () => {
     const root = freshRoot();
-    const version = resolve(root, "ax-arena", "benchmark", "daeb", "v1");
+    const version = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1");
     mkdirSync(version, { recursive: true });
     const outside = resolve(root, "outside.txt");
     writeFileSync(outside, "unchanged");
@@ -143,7 +144,7 @@ describe("canonical suite writers", () => {
 
     expect(() => writeSuiteFiles(
       root,
-      "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       "suite",
       "synthesis",
     )).toThrow(/regular, single-link non-symlink/);
@@ -164,13 +165,13 @@ describe("canonical suite writers", () => {
   it("preflights every methodology artifact before writing any sibling", async () => {
     const root = freshRoot();
     const result = await synthesisFixture();
-    const version = resolve(root, "ax-arena", "benchmark", "daeb", "v1");
+    const version = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1");
     mkdirSync(version, { recursive: true });
     const outside = resolve(root, "outside.txt");
     writeFileSync(outside, "unchanged");
     symlinkSync(outside, resolve(version, "suite.support-summary.md"));
 
-    expect(() => writeSuiteArtifacts(root, "ax-arena/benchmark/daeb/v1/suite.yaml", result))
+    expect(() => writeSuiteArtifacts(root, "ax-arena/benchmark/axeval-database/v1/suite.yaml", result))
       .toThrow(/regular, single-link non-symlink/);
     expect(existsSync(resolve(version, "suite.methodology.yaml"))).toBe(false);
     expect(readFileSync(outside, "utf8")).toBe("unchanged");
@@ -179,7 +180,7 @@ describe("canonical suite writers", () => {
   it("preflights the complete CLI bundle before replacing the suite pair", async () => {
     const root = freshRoot();
     const result = await synthesisFixture();
-    const version = resolve(root, "ax-arena", "benchmark", "daeb", "v1");
+    const version = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1");
     const suitePath = resolve(version, "suite.yaml");
     const synthesisPath = resolve(version, "suite.synthesis.md");
     mkdirSync(version, { recursive: true });
@@ -191,7 +192,7 @@ describe("canonical suite writers", () => {
 
     expect(() => writeSuiteBundle(
       root,
-      "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       "replacement suite",
       "replacement synthesis",
       result,
@@ -211,7 +212,7 @@ describe("canonical suite writers", () => {
     expect(readFileSync(legacySuite, "utf8")).toBe("name: SUITE\nversion: 0\n");
 
     const canonicalRoot = freshRoot();
-    const canonicalSuite = resolve(canonicalRoot, "ax-arena", "benchmark", "daeb", "v1", "suite.yaml");
+    const canonicalSuite = resolve(canonicalRoot, "ax-arena", "benchmark", "axeval-database", "v1", "suite.yaml");
     mkdirSync(resolve(canonicalSuite, ".."), { recursive: true });
     writeFileSync(canonicalSuite, "name: SUITE\nversion: 0\n");
     const outside = resolve(canonicalRoot, "outside.txt");
@@ -226,13 +227,13 @@ describe("canonical suite writers", () => {
 
   it("writes canonical audit fixes through the contained writer", () => {
     const root = freshRoot();
-    const suitePath = resolve(root, "ax-arena", "benchmark", "daeb", "v1", "suite.yaml");
+    const suitePath = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1", "suite.yaml");
     mkdirSync(resolve(suitePath, ".."), { recursive: true });
     writeFileSync(suitePath, "name: SUITE\nversion: 0\n");
 
     const written = applySuiteAudit(root, suitePath, genericNameReport(suitePath));
     expect(written).toEqual([suitePath, suitePath.replace(/\.yaml$/, ".audit-notes.md")]);
-    expect(readFileSync(suitePath, "utf8")).toMatch(/name: DAEB-1/);
+    expect(readFileSync(suitePath, "utf8")).toMatch(/name: AXeval-Database v1/);
     expect(readFileSync(written[1]!, "utf8")).toContain("Suite audit autofix notes");
   });
 });

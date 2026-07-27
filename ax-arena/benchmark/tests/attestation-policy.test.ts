@@ -41,7 +41,7 @@ function subject() {
       completion: { path: "batch-completion.json", sha256: "4".repeat(64) },
     },
     source_artifacts: [{
-      path: "ax-arena/benchmark/daeb/v1/suite.yaml",
+      path: "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       sha256: "5".repeat(64),
     }],
   });
@@ -59,7 +59,7 @@ describe("hosted attestation signer policy", () => {
   });
 
   it("rejects noncanonical source artifact paths in the signed subject", () => {
-    const value = { ...subject(), source_artifacts: [{ path: "ax-arena/benchmark/daeb/../payload", sha256: "5".repeat(64) }] };
+    const value = { ...subject(), source_artifacts: [{ path: "ax-arena/benchmark/axeval-database/../payload", sha256: "5".repeat(64) }] };
     expect(() => TrustedRunSubjectSchema.parse(value)).toThrow(/canonical and contained/);
   });
 });

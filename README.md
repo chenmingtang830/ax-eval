@@ -135,7 +135,7 @@ pack again; ax-eval never upgrades that human decision automatically.
 ### Private arena workspace
 
 The repository now contains a private `@ax-arena/benchmark` workspace at
-`ax-arena/benchmark/`. It owns canonical DAEB artifacts plus roster, synthesis,
+`ax-arena/benchmark/`. It owns canonical AXeval-Database artifacts plus roster, synthesis,
 audit, and authoring-command policy behind `ax-arena benchmark`. Arena source
 may consume only public `ax-eval` exports; CI rejects core-to-arena imports and
 private `ax-eval/src/**` imports. Arena owns its database runtime providers,
@@ -147,7 +147,7 @@ uses the caller-selected PATH and is not a trusted/comparable arena execution.
 Arena database health checks also validate product-specific credential scope,
 including Nile database/connection binding, before invocation; generic core
 `check-env` reports only pack-declared requirements.
-Canonical/legacy DAEB path selection and all benchmark
+Canonical/legacy AXeval-Database path selection and all benchmark
 authoring persistence are arena-owned; core exposes only generic authoring
 schemas, single-product capability/surface extraction, and explicit-input
 transforms. Concept-universe, coverage/selection/support matrix, grader-ledger,
@@ -155,7 +155,7 @@ failure-taxonomy, and trace-review contracts live with the arena, as does the
 database-specific capability-inventory audit; core retains the generic
 capability-inventory and suite-methodology shapes. Canonical-suite oracle
 extraction—including grounded prompt, concurrency, support-matrix, and database
-seed policy—is arena-owned alongside suite methodology defaults. Canonical DAEB
+seed policy—is arena-owned alongside suite methodology defaults. Canonical AXeval-Database
 artifact assertions run in the arena test workspace; core suite-contract tests
 use synthetic explicit inputs. The
 former core arena command names are one-minor process-launcher aliases; their
@@ -243,9 +243,9 @@ like.
 These are stable copies of real run artifacts, so you can inspect the output
 without digging through `results/runs/`.
 
-## DAEB-1 Publication Flow
+## AXeval-Database v1 Publication Flow
 
-DAEB-1, the AXArena database benchmark, uses a stricter publication pipeline
+AXeval-Database v1, the AXeval-Database benchmark, uses a stricter publication pipeline
 than ordinary local pack authoring:
 
 ```text
@@ -259,27 +259,28 @@ cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 after team review; do not treat the commands below as the default next step.
 Research-lane tasks (e.g. backup/CDC/integrity) stay out of the scored
 denominator. Core facts live under
-[`ax-arena/benchmark/daeb/v1/`](./ax-arena/benchmark/daeb/v1/).
+[`ax-arena/benchmark/axeval-database/v1/`](./ax-arena/benchmark/axeval-database/v1/).
 
 The canonical benchmark contract is
-[`ax-arena/benchmark/daeb/v1/suite.yaml`](./ax-arena/benchmark/daeb/v1/suite.yaml).
+[`ax-arena/benchmark/axeval-database/v1/suite.yaml`](./ax-arena/benchmark/axeval-database/v1/suite.yaml).
 Its purposive-stratified core/research/excluded cohort is recorded separately in
-[`ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml`](./ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml);
+[`ax-arena/benchmark/axeval-database/v1/vendor-selection-ledger.yaml`](./ax-arena/benchmark/axeval-database/v1/vendor-selection-ledger.yaml);
 vendor inclusion is fixed before task outcomes and requires a persistent free
 managed sandbox plus documented headless API/CLI access for the core cohort.
 Each database vendor has a compiled pack under
-`ax-arena/benchmark/daeb/v1/packs/<vendor>/pack.yaml`,
+`ax-arena/benchmark/axeval-database/v1/packs/<vendor>/pack.yaml`,
 but those packs are execution artifacts, not independently authored benchmark
 definitions. They are produced from the same suite plus vendor-specific public
 metadata, outcome-verifier checks, auth/base URLs, N/A mapping, and surface
 configuration.
 
-During the one-minor-release relocation window, DAEB readers fall back to the
-former `benchmarks/daeb/` root only when the canonical arena root is absent and
-emit a deprecation warning. If both roots exist, pass `--benchmark-root <dir>`
-to choose explicitly. Writers always use `ax-arena/benchmark/daeb/`.
+During the compatibility window, AXeval-Database readers fall back to the former
+`ax-arena/benchmark/daeb/` or `benchmarks/daeb/` roots only when the canonical
+arena root is absent and emit a deprecation warning. If multiple roots exist,
+pass `--benchmark-root <dir>` explicitly. Writers always use
+`ax-arena/benchmark/axeval-database/`.
 
-DAEB authoring is owned by the private arena workspace:
+AXeval-Database authoring is owned by the private arena workspace:
 
 ```bash
 npm run ax-arena -- benchmark synthesize-suite --help
@@ -305,9 +306,11 @@ provides the other half of the matrix fan-out boundary. The protected workflow
 uses that boundary directly: its YAML derives the matrix and tool pins from the
 committed plan and contains no benchmark roster or individual secret mapping.
 This source cutover does not itself activate a live run. In a source checkout,
-the legacy `ax-eval daeb-low-pass` and `ax-eval daeb-production-rerun` aliases
+`ax-eval axeval-database-low-pass` and `ax-eval axeval-database-production-rerun`
 are shell-free launchers for the arena commands, whose direct runtime path fails
-closed in favor of the protected workflow. The npm release gate prevents those
+closed in favor of the protected workflow. The former `daeb-low-pass` and
+`daeb-production-rerun` spellings remain deprecated compatibility aliases. The
+npm release gate prevents those
 delegated aliases from shipping before the arena package is public; the
 one-minor compatibility clock begins only after that publication gate passes.
 
@@ -317,7 +320,7 @@ the release version of `ax-eval`. The dependency remains one-way; users of the
 temporary aliases install the now-available arena package explicitly. Dry-run
 package inspection remains available during the private workspace migration.
 
-Until human **publication** freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+Until human **publication** freeze, AXeval-Database v1 is one mutable v1 draft: re-synthesis
 overwrites the same suite and invalidates content-hash approvals. Git SHAs and
 artifact content hashes identify exact draft states; draft iterations do not
 increment the suite version. Benchmark-of-record results are produced only after
@@ -332,16 +335,16 @@ Suite freeze additionally requires `suite.trace-review.yaml` to record a
 completed fixed-sample review (sample IDs, reviewer, timestamp, commit SHA, and
 findings); regeneration resets that checkpoint to `pending`.
 
-For DAEB-1/database v1, the benchmark-of-record production lane is narrower
+For AXeval-Database v1, the benchmark-of-record production lane is narrower
 than the generic engine: `api` and `cli` only, Codex with `gpt-5.6-terra` and
 Claude Code with `claude-sonnet-5`, both at high effort, and three clean trials
-per supported vendor/surface/harness cell. SDK remains available in the engine, but DAEB-1
+per supported vendor/surface/harness cell. SDK remains available in the engine, but AXeval-Database v1
 SDK evidence is research-only for v1.
 
 The direct command is retained only for help and compatibility validation:
 
 ```bash
-npm run ax-arena -- benchmark daeb-production-rerun \
+npm run ax-arena -- benchmark axeval-database-production-rerun \
   --help
 ```
 
@@ -381,9 +384,9 @@ running and verifying the vendor matrix, freeze a publication bundle:
 
 ```bash
 npm run ax-arena -- benchmark publication-bundle \
-  --run-root results/runs/daeb-1-v1-production \
-  --out results/runs/daeb-1-v1-production/publication-bundle \
-  --benchmark-root ax-arena/benchmark/daeb
+  --run-root results/runs/axeval-database-v1-production \
+  --out results/runs/axeval-database-v1-production/publication-bundle \
+  --benchmark-root ax-arena/benchmark/axeval-database
 ```
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
@@ -396,11 +399,11 @@ workflow commit before bundle creation or downstream loading. The protected
 `trusted-sandbox` environment supplies the same value as
 `vars.AX_ARENA_APPROVED_SIGNER_SHA`; the subject cannot approve its own signer.
 Low-pass, local, native, missing-attestation, and invalid-attestation inputs are
-rejected; a publication-ready DAEB-1 v1 bundle has no missing references and
+rejected; a publication-ready AXeval-Database v1 bundle has no missing references and
 all required quality gates passing. The writer recomputes aggregates, process
 snapshots, HTML, and failure review from attested cell bytes before its atomic
 rename; the reporting timestamp must equal the signed completion timestamp.
-The signed subject also binds the canonical DAEB source-artifact set.
+The signed subject also binds the canonical AXeval-Database source-artifact set.
 Export and competitive-report readers then re-verify the detached attestation,
 exact physical inventory, canonical manifest metadata, and regenerated reports.
 
@@ -416,8 +419,8 @@ exported dataset instead of learning runner internals or recomputing scores:
 
 ```bash
 npm run ax-arena -- benchmark export-publication \
-  --from results/runs/daeb-1-v1-production/publication-bundle-final \
-  --out results/runs/daeb-1-v1-production/axarena-export
+  --from results/runs/axeval-database-v1-production/publication-bundle-final \
+  --out results/runs/axeval-database-v1-production/axarena-export
 ```
 
 This writes website-ready JSON indexes for leaderboard rows, cells, task
@@ -567,7 +570,7 @@ src/harness/        host-agent profiles, transcripts, traces, probe
 src/surface/        API, CLI, SDK, MCP surface prompt adapters
 src/target/         pack-declared auth, sandbox scope, reset
 targets/            tool-layer example packs (see targets/README.md)
-ax-arena/benchmark/ private arena workspace and DAEB publication contract
+ax-arena/benchmark/ private arena workspace and AXeval-Database publication contract
 examples/           stable example reports and case-study artifacts
 tests/              vitest suite, keyless/offline by default
 assets/             README images and report screenshots

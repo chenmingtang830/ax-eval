@@ -22,7 +22,7 @@ export function createArenaRuntimeExtensionRegistry(
   return createRuntimeExtensionRegistry(input);
 }
 
-/** Construct one isolated DAEB database registry. Controller-selected ambient
+/** Construct one isolated AXeval-Database database registry. Controller-selected ambient
  * state is explicit so providers never read process.env and cells cannot share
  * mutable registrations. */
 export function createDatabaseRuntimeExtensionRegistry(

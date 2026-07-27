@@ -301,10 +301,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     }
   });
 
-  it("delegates daeb-low-pass help to the arena CLI", () => {
-    const { code, out } = runCli(["daeb-low-pass", "--help"]);
+  it("delegates axeval-database-low-pass help to the arena CLI", () => {
+    const { code, out } = runCli(["axeval-database-low-pass", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-arena benchmark daeb-low-pass");
+    expect(out).toContain("usage: ax-arena benchmark axeval-database-low-pass");
     expect(out).toContain("--surface api|cli|all");
     expect(out).toContain("--codex-model <slug>");
     expect(out).toContain("--claude-model <slug>");
@@ -312,10 +312,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("--benchmark-root <dir>");
   });
 
-  it("delegates daeb-production-rerun help to the arena CLI", () => {
-    const { code, out } = runCli(["daeb-production-rerun", "--help"]);
+  it("delegates axeval-database-production-rerun help to the arena CLI", () => {
+    const { code, out } = runCli(["axeval-database-production-rerun", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-arena benchmark daeb-production-rerun");
+    expect(out).toContain("usage: ax-arena benchmark axeval-database-production-rerun");
     expect(out).toContain("--trial-count 3");
     expect(out).toContain("--invoke-timeout seconds");
     expect(out).toContain("--skip-archive");
@@ -331,8 +331,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
   it("fails ambiguous benchmark roots unless --benchmark-root selects one", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-cli-benchmark-root-"));
     try {
-      mkdirSync(resolve(dir, "ax-arena", "benchmark", "daeb"), { recursive: true });
-      mkdirSync(resolve(dir, "benchmarks", "daeb"), { recursive: true });
+      mkdirSync(resolve(dir, "ax-arena", "benchmark", "daeb", "v1"), { recursive: true });
+      mkdirSync(resolve(dir, "benchmarks", "daeb", "v1"), { recursive: true });
+      writeFileSync(resolve(dir, "ax-arena", "benchmark", "daeb", "v1", "suite.yaml"), "name: legacy-arena\n", { flag: "w" });
+      writeFileSync(resolve(dir, "benchmarks", "daeb", "v1", "suite.yaml"), "name: legacy-repository\n", { flag: "w" });
 
       const ambiguous = runCli(["audit-extracts"], {}, dir);
       expect(ambiguous.code).toBe(1);
@@ -340,7 +342,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
 
       const explicit = runCli([
         "audit-extracts",
-        "--benchmark-root", "ax-arena/benchmark/daeb",
+        "--benchmark-root", "ax-arena/benchmark/axeval-database",
       ], {}, dir);
       expect(explicit.code).toBe(0);
       expect(explicit.out).toContain("0 vendor(s)");
@@ -420,10 +422,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("Agent-readiness score");
   });
 
-  it("daeb-low-pass rejects sdk because DAEB/database v1 scope is api+cli", () => {
+  it("axeval-database-low-pass rejects sdk because AXeval-Database v1 scope is api+cli", () => {
     const { code, out } = runCli([
-      "daeb-low-pass",
-      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "axeval-database-low-pass",
+      "--suite", "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -431,10 +433,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  it("daeb-production-rerun rejects sdk because DAEB/database v1 scope is api+cli", () => {
+  it("axeval-database-production-rerun rejects sdk because AXeval-Database v1 scope is api+cli", () => {
     const { code, out } = runCli([
-      "daeb-production-rerun",
-      "--suite", "ax-arena/benchmark/daeb/v1/suite.yaml",
+      "axeval-database-production-rerun",
+      "--suite", "ax-arena/benchmark/axeval-database/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -442,25 +444,25 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  it("daeb-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
-    const model = runCli(["daeb-production-rerun", "--codex-model", "gpt-5.4"]);
+  it("axeval-database-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
+    const model = runCli(["axeval-database-production-rerun", "--codex-model", "gpt-5.4"]);
     expect(model.code).toBe(1);
     expect(model.out).toContain("production models are frozen");
-    const trials = runCli(["daeb-production-rerun", "--trial-count", "2"]);
+    const trials = runCli(["axeval-database-production-rerun", "--trial-count", "2"]);
     expect(trials.code).toBe(1);
     expect(trials.out).toContain("exactly 3 clean trials");
-    const reset = runCli(["daeb-production-rerun", "--skip-reset"]);
+    const reset = runCli(["axeval-database-production-rerun", "--skip-reset"]);
     expect(reset.code).toBe(1);
     expect(reset.out).toContain("--skip-reset is not allowed");
   });
 
-  it("delegates legacy DAEB runtime aliases to arena's fail-closed boundary", () => {
+  it("delegates legacy AXeval-Database runtime aliases to arena's fail-closed boundary", () => {
     const direct = runArenaCli(["benchmark", "daeb-low-pass"]);
     const delegated = runCli(["daeb-low-pass"]);
     expect(direct.code).toBe(1);
     expect(delegated.code).toBe(direct.code);
     expect(delegated.out).toContain(
-      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark daeb-low-pass instead.",
+      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark axeval-database-low-pass instead.",
     );
     expect(delegated.out).toContain("requires the trusted workflow OS sandbox");
   });

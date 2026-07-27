@@ -97,12 +97,12 @@ Use this before opening a PR:
 - `src/static/` — static readiness audit (discoverability + OpenAPI smells).
 - `targets/` — target-pack index; example target packs live under
   `targets/examples/` (Notion, Stripe, Linear, Exa, Monday, Asana) with approvals.
-- `ax-arena/benchmark/daeb/` — canonical DAEB-1 suite, extracts, and compiled packs
-  (separate from single-vendor `targets/examples/`). For current DAEB status
+- `ax-arena/benchmark/axeval-database/` — canonical AXeval-Database v1 suite, extracts, and compiled packs
+  (separate from single-vendor `targets/examples/`). For current AXeval-Database status
   (authoring freeze vs deferred production), maintainers use
-  `docs/latest_plan.md`; facts live under `ax-arena/benchmark/daeb/v1/`.
+  `docs/latest_plan.md`; facts live under `ax-arena/benchmark/axeval-database/v1/`.
 - `ax-arena/benchmark/` — private workspace boundary for arena-owned code and
-  canonical DAEB files. `src/authoring/`, `src/providers/`, `src/runtime/`,
+  canonical AXeval-Database files. `src/authoring/`, `src/providers/`, `src/runtime/`,
   `src/controller/`, and `src/publication/` own benchmark policy and behavior,
   including aggregation; root workflow YAML is only a thin launcher for
   arena-owned trusted scripts.

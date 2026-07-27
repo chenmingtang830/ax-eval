@@ -33,21 +33,21 @@ import {
 import { auditCapabilityInventory } from "./inventory-audit.js";
 import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
-  assertCanonicalDaebWritePath,
-  daebCapabilityInventoryPath,
-  daebLegacyCapabilitiesPath,
-  daebOraclesPath,
-  daebReadCapabilityInventoryPath,
-  daebReadLegacyCapabilitiesPath,
-  daebReadOraclesPath,
-  daebReadRoot,
-  daebReadSurfacesPath,
-  daebReadVendorCardPath,
-  daebRepositoryRoot,
-  daebRoot,
-  daebSurfacesPath,
-  daebVendorCardPath,
-  type DaebPathInput,
+  assertCanonicalAxevalDatabaseWritePath,
+  axevalDatabaseCapabilityInventoryPath,
+  axevalDatabaseLegacyCapabilitiesPath,
+  axevalDatabaseOraclesPath,
+  axevalDatabaseReadCapabilityInventoryPath,
+  axevalDatabaseReadLegacyCapabilitiesPath,
+  axevalDatabaseReadOraclesPath,
+  axevalDatabaseReadRoot,
+  axevalDatabaseReadSurfacesPath,
+  axevalDatabaseReadVendorCardPath,
+  axevalDatabaseRepositoryRoot,
+  axevalDatabaseRoot,
+  axevalDatabaseSurfacesPath,
+  axevalDatabaseVendorCardPath,
+  type AxevalDatabasePathInput,
 } from "./benchmark-paths.js";
 
 function parseYaml<TSchema extends z.ZodTypeAny>(
@@ -63,24 +63,24 @@ function parseYaml<TSchema extends z.ZodTypeAny>(
   return result.data;
 }
 
-function readDaebYaml<TSchema extends z.ZodTypeAny>(
-  root: DaebPathInput,
+function readAxevalDatabaseYaml<TSchema extends z.ZodTypeAny>(
+  root: AxevalDatabasePathInput,
   path: string,
   schema: TSchema,
   label: string,
 ): z.infer<TSchema> | null {
-  const readRoot = daebReadRoot(root);
+  const readRoot = axevalDatabaseReadRoot(root);
   const raw = readContainedText(readRoot, readRoot, path, label);
   return raw === null ? null : parseYaml(raw, path, schema, label);
 }
 
-function writeDaebText(root: DaebPathInput, path: string, contents: string, label: string): string {
-  const canonical = assertCanonicalDaebWritePath(root, path);
-  return writeContainedText(daebRepositoryRoot(root), daebRoot(root), canonical, contents, label);
+function writeAxevalDatabaseText(root: AxevalDatabasePathInput, path: string, contents: string, label: string): string {
+  const canonical = assertCanonicalAxevalDatabaseWritePath(root, path);
+  return writeContainedText(axevalDatabaseRepositoryRoot(root), axevalDatabaseRoot(root), canonical, contents, label);
 }
 
-function explicitArtifactPath(root: DaebPathInput, suitePath: string, suffix: string): string {
-  return `${resolve(daebRepositoryRoot(root), suitePath).replace(/\.yaml$/i, "")}${suffix}`;
+function explicitArtifactPath(root: AxevalDatabasePathInput, suitePath: string, suffix: string): string {
+  return `${resolve(axevalDatabaseRepositoryRoot(root), suitePath).replace(/\.yaml$/i, "")}${suffix}`;
 }
 
 function readExplicitYaml<TSchema extends z.ZodTypeAny>(
@@ -93,29 +93,29 @@ function readExplicitYaml<TSchema extends z.ZodTypeAny>(
   return raw === null ? null : parseYaml(raw, path, schema, label);
 }
 
-function writeMethodologyArtifact(root: DaebPathInput, path: string, value: unknown, label: string): string {
-  const canonical = assertCanonicalDaebWritePath(root, path);
-  return writeContainedText(daebRepositoryRoot(root), daebRoot(root), canonical, yamlStringify(value), label);
+function writeMethodologyArtifact(root: AxevalDatabasePathInput, path: string, value: unknown, label: string): string {
+  const canonical = assertCanonicalAxevalDatabaseWritePath(root, path);
+  return writeContainedText(axevalDatabaseRepositoryRoot(root), axevalDatabaseRoot(root), canonical, yamlStringify(value), label);
 }
 
-export function vendorCardPath(root: DaebPathInput, slug: string): string {
-  return daebVendorCardPath(root, slug);
+export function vendorCardPath(root: AxevalDatabasePathInput, slug: string): string {
+  return axevalDatabaseVendorCardPath(root, slug);
 }
 
-export function writeVendorCard(root: DaebPathInput, result: ResolveResult): string {
-  return writeDaebText(root, vendorCardPath(root, result.slug), yamlStringify(result), "vendor card");
+export function writeVendorCard(root: AxevalDatabasePathInput, result: ResolveResult): string {
+  return writeAxevalDatabaseText(root, vendorCardPath(root, result.slug), yamlStringify(result), "vendor card");
 }
 
-export function loadVendorCard(root: DaebPathInput, slug: string): ResolveResult | null {
-  return readDaebYaml(root, daebReadVendorCardPath(root, slug), ResolveResultSchema, "vendor card");
+export function loadVendorCard(root: AxevalDatabasePathInput, slug: string): ResolveResult | null {
+  return readAxevalDatabaseYaml(root, axevalDatabaseReadVendorCardPath(root, slug), ResolveResultSchema, "vendor card");
 }
 
-export function capabilityInventoryPath(root: DaebPathInput, slug: string): string {
-  return daebCapabilityInventoryPath(root, slug);
+export function capabilityInventoryPath(root: AxevalDatabasePathInput, slug: string): string {
+  return axevalDatabaseCapabilityInventoryPath(root, slug);
 }
 
-export function legacyCapabilityExtractPath(root: DaebPathInput, slug: string): string {
-  return daebLegacyCapabilitiesPath(root, slug);
+export function legacyCapabilityExtractPath(root: AxevalDatabasePathInput, slug: string): string {
+  return axevalDatabaseLegacyCapabilitiesPath(root, slug);
 }
 
 const CAPABILITY_INVENTORY_HEADER = [
@@ -126,8 +126,8 @@ const CAPABILITY_INVENTORY_HEADER = [
   "",
 ].join("\n");
 
-export function writeCapabilityInventory(root: DaebPathInput, inventory: CapabilityInventory): string {
-  return writeDaebText(
+export function writeCapabilityInventory(root: AxevalDatabasePathInput, inventory: CapabilityInventory): string {
+  return writeAxevalDatabaseText(
     root,
     capabilityInventoryPath(root, inventory.slug),
     `${CAPABILITY_INVENTORY_HEADER}${yamlStringify(auditCapabilityInventory(inventory))}`,
@@ -135,24 +135,24 @@ export function writeCapabilityInventory(root: DaebPathInput, inventory: Capabil
   );
 }
 
-export function loadCapabilityInventory(root: DaebPathInput, slug: string): CapabilityInventory | null {
-  return readDaebYaml(root, daebReadCapabilityInventoryPath(root, slug), CapabilityInventorySchema, "capability inventory")
-    ?? readDaebYaml(root, daebReadLegacyCapabilitiesPath(root, slug), CapabilityInventorySchema, "legacy capability inventory");
+export function loadCapabilityInventory(root: AxevalDatabasePathInput, slug: string): CapabilityInventory | null {
+  return readAxevalDatabaseYaml(root, axevalDatabaseReadCapabilityInventoryPath(root, slug), CapabilityInventorySchema, "capability inventory")
+    ?? readAxevalDatabaseYaml(root, axevalDatabaseReadLegacyCapabilitiesPath(root, slug), CapabilityInventorySchema, "legacy capability inventory");
 }
 
-export function capabilityExtractPath(root: DaebPathInput, slug: string): string {
+export function capabilityExtractPath(root: AxevalDatabasePathInput, slug: string): string {
   return capabilityInventoryPath(root, slug);
 }
 
-export function writeCapabilityExtract(root: DaebPathInput, result: CapabilityExtractResult): string {
+export function writeCapabilityExtract(root: AxevalDatabasePathInput, result: CapabilityExtractResult): string {
   return writeCapabilityInventory(root, result);
 }
 
-export function loadCapabilityExtract(root: DaebPathInput, slug: string): CapabilityExtractResult | null {
-  const inventoryPath = daebReadCapabilityInventoryPath(root, slug);
-  const legacyPath = daebReadLegacyCapabilitiesPath(root, slug);
-  const inventoryRaw = readContainedText(daebReadRoot(root), daebReadRoot(root), inventoryPath, "capability extract");
-  const legacyRaw = readContainedText(daebReadRoot(root), daebReadRoot(root), legacyPath, "legacy capability extract");
+export function loadCapabilityExtract(root: AxevalDatabasePathInput, slug: string): CapabilityExtractResult | null {
+  const inventoryPath = axevalDatabaseReadCapabilityInventoryPath(root, slug);
+  const legacyPath = axevalDatabaseReadLegacyCapabilitiesPath(root, slug);
+  const inventoryRaw = readContainedText(axevalDatabaseReadRoot(root), axevalDatabaseReadRoot(root), inventoryPath, "capability extract");
+  const legacyRaw = readContainedText(axevalDatabaseReadRoot(root), axevalDatabaseReadRoot(root), legacyPath, "legacy capability extract");
   if (inventoryRaw !== null) {
     const inventory = CapabilityExtractResultSchema.safeParse(yamlParse(inventoryRaw));
     if (inventory.success) {
@@ -177,8 +177,8 @@ export function loadCapabilityExtract(root: DaebPathInput, slug: string): Capabi
   return parseYaml(legacyRaw, legacyPath, CapabilityExtractResultSchema, "capability extract");
 }
 
-export function surfaceExtractPath(root: DaebPathInput, slug: string): string {
-  return daebSurfacesPath(root, slug);
+export function surfaceExtractPath(root: AxevalDatabasePathInput, slug: string): string {
+  return axevalDatabaseSurfacesPath(root, slug);
 }
 
 const SURFACE_EXTRACT_HEADER = [
@@ -188,8 +188,8 @@ const SURFACE_EXTRACT_HEADER = [
   "",
 ].join("\n");
 
-export function writeSurfaceExtract(root: DaebPathInput, result: SurfaceExtractResult): string {
-  return writeDaebText(
+export function writeSurfaceExtract(root: AxevalDatabasePathInput, result: SurfaceExtractResult): string {
+  return writeAxevalDatabaseText(
     root,
     surfaceExtractPath(root, result.slug),
     `${SURFACE_EXTRACT_HEADER}${yamlStringify(auditSurfaceExtract(result))}`,
@@ -197,16 +197,16 @@ export function writeSurfaceExtract(root: DaebPathInput, result: SurfaceExtractR
   );
 }
 
-export function loadSurfaceExtract(root: DaebPathInput, slug: string): SurfaceExtractResult | null {
-  return readDaebYaml(root, daebReadSurfacesPath(root, slug), SurfaceExtractResultSchema, "surface extract");
+export function loadSurfaceExtract(root: AxevalDatabasePathInput, slug: string): SurfaceExtractResult | null {
+  return readAxevalDatabaseYaml(root, axevalDatabaseReadSurfacesPath(root, slug), SurfaceExtractResultSchema, "surface extract");
 }
 
-export function oracleExtractPath(root: DaebPathInput, slug: string, _suiteName: string): string {
-  return daebOraclesPath(root, slug);
+export function oracleExtractPath(root: AxevalDatabasePathInput, slug: string, _suiteName: string): string {
+  return axevalDatabaseOraclesPath(root, slug);
 }
 
-export function writeOracleExtract(root: DaebPathInput, result: OracleExtractResult): string {
-  return writeDaebText(
+export function writeOracleExtract(root: AxevalDatabasePathInput, result: OracleExtractResult): string {
+  return writeAxevalDatabaseText(
     root,
     oracleExtractPath(root, result.slug, result.suite_name),
     yamlStringify(result),
@@ -214,86 +214,86 @@ export function writeOracleExtract(root: DaebPathInput, result: OracleExtractRes
   );
 }
 
-export function loadOracleExtract(root: DaebPathInput, slug: string, _suiteName: string): OracleExtractResult | null {
-  return readDaebYaml(root, daebReadOraclesPath(root, slug), OracleExtractResultSchema, "oracle extract");
+export function loadOracleExtract(root: AxevalDatabasePathInput, slug: string, _suiteName: string): OracleExtractResult | null {
+  return readAxevalDatabaseYaml(root, axevalDatabaseReadOraclesPath(root, slug), OracleExtractResultSchema, "oracle extract");
 }
 
-export function methodologyPath(root: DaebPathInput, suitePath: string): string {
+export function methodologyPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".methodology.yaml");
 }
 
-export function conceptUniversePath(root: DaebPathInput, suitePath: string): string {
+export function conceptUniversePath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".concept-universe.yaml");
 }
 
-export function coverageMatrixPath(root: DaebPathInput, suitePath: string): string {
+export function coverageMatrixPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".coverage-matrix.yaml");
 }
 
-export function selectionLedgerPath(root: DaebPathInput, suitePath: string): string {
+export function selectionLedgerPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".selection-ledger.yaml");
 }
 
-export function supportMatrixPath(root: DaebPathInput, suitePath: string): string {
+export function supportMatrixPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".support-matrix.yaml");
 }
 
-export function graderLedgerPath(root: DaebPathInput, suitePath: string): string {
+export function graderLedgerPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".grader-ledger.yaml");
 }
 
-export function failureTaxonomyPath(root: DaebPathInput, suitePath: string): string {
+export function failureTaxonomyPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".failure-taxonomy.yaml");
 }
 
-export function traceReviewPath(root: DaebPathInput, suitePath: string): string {
+export function traceReviewPath(root: AxevalDatabasePathInput, suitePath: string): string {
   return explicitArtifactPath(root, suitePath, ".trace-review.yaml");
 }
 
-export function writeMethodology(root: DaebPathInput, suitePath: string, value: SuiteMethodology): string {
+export function writeMethodology(root: AxevalDatabasePathInput, suitePath: string, value: SuiteMethodology): string {
   return writeMethodologyArtifact(root, methodologyPath(root, suitePath), value, "suite methodology");
 }
 
-export function writeConceptUniverse(root: DaebPathInput, suitePath: string, value: ConceptUniverse): string {
+export function writeConceptUniverse(root: AxevalDatabasePathInput, suitePath: string, value: ConceptUniverse): string {
   return writeMethodologyArtifact(root, conceptUniversePath(root, suitePath), value, "concept universe");
 }
 
-export function writeCoverageMatrix(root: DaebPathInput, suitePath: string, value: CoverageMatrix): string {
+export function writeCoverageMatrix(root: AxevalDatabasePathInput, suitePath: string, value: CoverageMatrix): string {
   return writeMethodologyArtifact(root, coverageMatrixPath(root, suitePath), value, "coverage matrix");
 }
 
-export function writeSelectionLedger(root: DaebPathInput, suitePath: string, value: SelectionLedger): string {
+export function writeSelectionLedger(root: AxevalDatabasePathInput, suitePath: string, value: SelectionLedger): string {
   return writeMethodologyArtifact(root, selectionLedgerPath(root, suitePath), value, "selection ledger");
 }
 
-export function writeSupportMatrix(root: DaebPathInput, suitePath: string, value: SupportMatrix): string {
+export function writeSupportMatrix(root: AxevalDatabasePathInput, suitePath: string, value: SupportMatrix): string {
   return writeMethodologyArtifact(root, supportMatrixPath(root, suitePath), value, "support matrix");
 }
 
-export function writeGraderLedger(root: DaebPathInput, suitePath: string, value: GraderLedger): string {
+export function writeGraderLedger(root: AxevalDatabasePathInput, suitePath: string, value: GraderLedger): string {
   return writeMethodologyArtifact(root, graderLedgerPath(root, suitePath), value, "grader ledger");
 }
 
-export function writeFailureTaxonomy(root: DaebPathInput, suitePath: string, value: FailureTaxonomy): string {
+export function writeFailureTaxonomy(root: AxevalDatabasePathInput, suitePath: string, value: FailureTaxonomy): string {
   return writeMethodologyArtifact(root, failureTaxonomyPath(root, suitePath), value, "failure taxonomy");
 }
 
-export function writeTraceReview(root: DaebPathInput, suitePath: string, value: TraceReviewMemo): string {
+export function writeTraceReview(root: AxevalDatabasePathInput, suitePath: string, value: TraceReviewMemo): string {
   return writeMethodologyArtifact(root, traceReviewPath(root, suitePath), value, "trace review");
 }
 
-export function loadTraceReview(root: DaebPathInput, suitePath: string): TraceReviewMemo | null {
+export function loadTraceReview(root: AxevalDatabasePathInput, suitePath: string): TraceReviewMemo | null {
   return readExplicitYaml(traceReviewPath(root, suitePath), TraceReviewMemoSchema, "trace review");
 }
 
-export function loadSupportMatrix(root: DaebPathInput, suitePath: string): SupportMatrix | null {
+export function loadSupportMatrix(root: AxevalDatabasePathInput, suitePath: string): SupportMatrix | null {
   return readExplicitYaml(supportMatrixPath(root, suitePath), SupportMatrixSchema, "support matrix");
 }
 
-export function loadCoverageMatrix(root: DaebPathInput, suitePath: string): CoverageMatrix | null {
+export function loadCoverageMatrix(root: AxevalDatabasePathInput, suitePath: string): CoverageMatrix | null {
   return readExplicitYaml(coverageMatrixPath(root, suitePath), CoverageMatrixSchema, "coverage matrix");
 }
 
-export function loadSelectionLedger(root: DaebPathInput, suitePath: string): SelectionLedger | null {
+export function loadSelectionLedger(root: AxevalDatabasePathInput, suitePath: string): SelectionLedger | null {
   return readExplicitYaml(selectionLedgerPath(root, suitePath), SelectionLedgerSchema, "selection ledger");
 }

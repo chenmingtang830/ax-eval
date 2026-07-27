@@ -22,7 +22,7 @@ The full test suite is **keyless and offline** — it needs no API keys and make
 no network calls. You should be able to run `npm test` immediately after
 `npm ci`. Keys are only needed for the *live* generated pipeline; copy the
 relevant section from `.env.example` to `.env` for ordinary targets, or from
-`ax-arena/benchmark/.env.example` for a reviewed DAEB cohort.
+`ax-arena/benchmark/.env.example` for a reviewed AXeval-Database cohort.
 
 The quickest local sanity check:
 
@@ -49,7 +49,7 @@ shape.
   `src/static/fixtures/`) and the keyless mock harnesses.
 - **No committed secrets.** Real keys live only in `.env` (gitignored). Use the
   root `.env.example` for generic targets and `ax-arena/benchmark/.env.example`
-  for DAEB cohorts; never paste tokens, real workspace ids, or personal
+  for AXeval-Database cohorts; never paste tokens, real workspace ids, or personal
   identifiers into tracked files. Runtime/tool identity comes only from the
   committed arena runtime lock. `results/` is gitignored — keep run artifacts
   out of commits.
@@ -57,7 +57,7 @@ shape.
   is approved by `ax-eval review --approve`, which writes a `*.approval.json`
   keyed on a sha256 of the reviewable fields. Any edit to the pack re-closes the
   gate, so re-run `review` after changing a pack. No AI-approves-AI.
-- **Runtime recompilation must preserve that approval.** DAEB orchestration may
+- **Runtime recompilation must preserve that approval.** AXeval-Database orchestration may
   write a run-scoped compiled pack only after proving its reviewable content
   matches the committed approved pack. Stage the existing human approval and
   let `exec-plan` check it normally; never add an orchestration-only
@@ -78,18 +78,18 @@ shape.
   shaping, but schema validation and the review gate remain authoritative;
   `generate --deterministic` is the keyless fixture path. Neither path, nor
   `automate-report`, replaces human review.
-- **DAEB-1 draft iterations stay v1.** Before human **publication** freeze,
+- **AXeval-Database v1 draft iterations stay v1.** Before human **publication** freeze,
   re-synthesis overwrites the same v1 suite; git SHAs and content hashes identify
   exact draft states and invalidate stale approvals. Do not increment the suite
   version for authoring iterations or publish benchmark-of-record results from an
   unfrozen draft. **Current status:** authoring freeze is done for the 6-vendor
   core cohort (packs approved; trace review completed); production 3-trial and
   publication freeze are deferred until after team review.
-- **Freeze the vendor cohort before task outcomes.** The DAEB vendor-selection
+- **Freeze the vendor cohort before task outcomes.** The AXeval-Database vendor-selection
   ledger records core, research, and excluded candidates using managed-sandbox,
   headless-auth, benchmark-surface, and product-stratum criteria. Only core
   vendors affect synthesis and production order.
-- **Concept coverage is not task applicability.** DAEB coverage artifacts retain
+- **Concept coverage is not task applicability.** AXeval-Database coverage artifacts retain
   ranked capability candidates and same-surface capability bundles. A support
   cell may be enabled only when its bundle satisfies every concrete task
   requirement; never promote the first broad concept match directly into the

@@ -18,7 +18,7 @@
       "additionalProperties": false,
       "required": ["command", "suite", "packs", "cells", "harnesses", "reset_required", "invoke_timeout_seconds", "first_action_timeout_seconds", "invoke_retries"],
       "properties": {
-        "command": { "enum": ["daeb-low-pass", "daeb-production-rerun"] },
+        "command": { "enum": ["axeval-database-low-pass", "axeval-database-production-rerun", "daeb-low-pass", "daeb-production-rerun"] },
         "execution": {
           "type": "object",
           "additionalProperties": false,

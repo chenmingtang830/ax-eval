@@ -26,6 +26,7 @@ docs/
 
 # Local DAEB authoring archives (pre-resynth packs/oracles, hygiene moves).
 # Keep on disk for rollback; do not publish in PRs.
+ax-arena/benchmark/axeval-database/_archive/
 ax-arena/benchmark/daeb/_archive/
 benchmarks/daeb/_archive/
 

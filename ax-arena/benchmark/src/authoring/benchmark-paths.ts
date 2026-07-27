@@ -1,37 +1,38 @@
 /**
- * On-disk layout for the AXArena / DAEB publication contract.
+ * On-disk layout for the AXeval-Database publication contract.
  *
  * Tool-layer example packs stay under `targets/examples/`. Arena-owned files
- * are canonical under `ax-arena/benchmark/daeb/`; the former
- * `benchmarks/daeb/` root is read-only compatibility for one minor release.
+ * are canonical under `ax-arena/benchmark/axeval-database/`. The former arena
+ * and repository-level AXeval-Database roots remain read-only compatibility paths.
  */
-import { existsSync, lstatSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-export const DAEB_BENCHMARK_ROOT = "ax-arena/benchmark/daeb";
-export const DAEB_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
+export const AXEVAL_DATABASE_BENCHMARK_ROOT = "ax-arena/benchmark/axeval-database";
+export const AXEVAL_DATABASE_LEGACY_ARENA_ROOT = "ax-arena/benchmark/daeb";
+export const AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
 /** Active publication version directory name. */
-export const DAEB_ACTIVE_VERSION = "v1";
+export const AXEVAL_DATABASE_ACTIVE_VERSION = "v1";
 
-export interface DaebBenchmarkRootOptions {
+export interface AxevalDatabaseBenchmarkRootOptions {
   access: "read" | "write";
   explicitRoot?: string;
   warn?: (message: string) => void;
 }
 
-export interface DaebPathContext {
-  readonly [DAEB_PATH_CONTEXT]: true;
+export interface AxevalDatabasePathContext {
+  readonly [AXEVAL_DATABASE_PATH_CONTEXT]: true;
   readonly repositoryRoot: string;
   readonly readRoot: string;
   readonly writeRoot: string;
   readonly explicitReadRoot: boolean;
-  readonly readRootKind: "canonical" | "legacy" | "explicit";
+  readonly readRootKind: "canonical" | "legacy-arena" | "legacy-repository" | "explicit";
 }
 
-export type DaebPathInput = string | DaebPathContext;
+export type AxevalDatabasePathInput = string | AxevalDatabasePathContext;
 
 const warnedLegacyRoots = new Set<string>();
-const DAEB_PATH_CONTEXT: unique symbol = Symbol("ax-arena.daeb-path-context");
+const AXEVAL_DATABASE_PATH_CONTEXT: unique symbol = Symbol("axeval-database.path-context");
 
 function absoluteRoot(repositoryRoot: string, path: string): string {
   return isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
@@ -95,15 +96,29 @@ function warnLegacyRoot(
     console.warn(message);
   }
 }
-export function resolveDaebBenchmarkRoot(
+
+function hasLegacyBenchmarkArtifacts(root: string): boolean {
+  if (existsSync(resolve(root, "v1", "suite.yaml"))) return true;
+  const containsFile = (path: string, depth = 0): boolean => {
+    if (!existsSync(path) || depth > 3) return false;
+    return readdirSync(path, { withFileTypes: true }).some((entry) =>
+      entry.isFile() || entry.isDirectory() && containsFile(resolve(path, entry.name), depth + 1));
+  };
+  return [resolve(root, "v1", "extracts"), resolve(root, "v1", "packs"), resolve(root, "vendors")]
+    .some((path) => containsFile(path));
+}
+
+export function resolveAxevalDatabaseBenchmarkRoot(
   repositoryRoot: string,
-  options: DaebBenchmarkRootOptions,
+  options: AxevalDatabaseBenchmarkRootOptions,
 ): string {
   const root = resolve(repositoryRoot);
-  const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
-  const legacy = resolve(root, DAEB_LEGACY_BENCHMARK_ROOT);
+  const canonical = resolve(root, AXEVAL_DATABASE_BENCHMARK_ROOT);
+  const legacyArena = resolve(root, AXEVAL_DATABASE_LEGACY_ARENA_ROOT);
+  const legacyRepository = resolve(root, AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT);
   assertRealInRepositoryPath(root, canonical, "canonical benchmark root");
-  assertRealInRepositoryPath(root, legacy, "legacy benchmark root");
+  assertRealInRepositoryPath(root, legacyArena, "legacy arena benchmark root");
+  assertRealInRepositoryPath(root, legacyRepository, "legacy repository benchmark root");
 
   if (options.access === "write") {
     if (options.explicitRoot && absoluteRoot(root, options.explicitRoot) !== canonical) {
@@ -115,91 +130,100 @@ export function resolveDaebBenchmarkRoot(
   if (options.explicitRoot) {
     const explicit = absoluteRoot(root, options.explicitRoot);
     assertRealDirectory(explicit, "explicit benchmark root");
-    if (explicit === legacy) warnLegacyRoot(legacy, canonical, options.warn);
+    if (explicit === legacyArena || explicit === legacyRepository) {
+      warnLegacyRoot(explicit, canonical, options.warn);
+    }
     return explicit;
   }
-  const hasCanonical = existsSync(canonical);
-  const hasLegacy = existsSync(legacy);
-  if (hasCanonical && hasLegacy) {
+  const existingRoots = [
+    canonical,
+    ...(hasLegacyBenchmarkArtifacts(legacyArena) ? [legacyArena] : []),
+    ...(hasLegacyBenchmarkArtifacts(legacyRepository) ? [legacyRepository] : []),
+  ].filter((candidate, index, candidates) => existsSync(candidate) && candidates.indexOf(candidate) === index);
+  if (existingRoots.length > 1) {
     throw new Error(
-      `ambiguous benchmark roots: both ${canonical} and ${legacy} exist; pass --benchmark-root <path> explicitly`,
+      `ambiguous benchmark roots: ${existingRoots.join(", ")} exist; pass --benchmark-root <path> explicitly`,
     );
   }
-  if (hasLegacy) {
-    warnLegacyRoot(legacy, canonical, options.warn);
-    return legacy;
+  if (existingRoots[0] && existingRoots[0] !== canonical) {
+    warnLegacyRoot(existingRoots[0], canonical, options.warn);
+    return existingRoots[0];
   }
   return canonical;
 }
 
-export function createDaebPathContext(
+export function createAxevalDatabasePathContext(
   repositoryRoot: string,
-  options: Omit<DaebBenchmarkRootOptions, "access"> = {},
-): DaebPathContext {
+  options: Omit<AxevalDatabaseBenchmarkRootOptions, "access"> = {},
+): AxevalDatabasePathContext {
   const root = resolve(repositoryRoot);
-  const readRoot = resolveDaebBenchmarkRoot(root, { ...options, access: "read" });
-  const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
+  const readRoot = resolveAxevalDatabaseBenchmarkRoot(root, { ...options, access: "read" });
+  const canonical = resolve(root, AXEVAL_DATABASE_BENCHMARK_ROOT);
   const context = {
     repositoryRoot: root,
     readRoot,
-    writeRoot: resolveDaebBenchmarkRoot(root, { access: "write" }),
+    writeRoot: resolveAxevalDatabaseBenchmarkRoot(root, { access: "write" }),
     explicitReadRoot: options.explicitRoot !== undefined,
     readRootKind: options.explicitRoot !== undefined
       ? "explicit" as const
       : readRoot === canonical
         ? "canonical" as const
-        : "legacy" as const,
-  } as DaebPathContext;
-  Object.defineProperty(context, DAEB_PATH_CONTEXT, { value: true });
+        : readRoot === resolve(root, AXEVAL_DATABASE_LEGACY_ARENA_ROOT)
+          ? "legacy-arena" as const
+          : "legacy-repository" as const,
+  } as AxevalDatabasePathContext;
+  Object.defineProperty(context, AXEVAL_DATABASE_PATH_CONTEXT, { value: true });
   return Object.freeze(context);
 }
 
-function assertPathContext(input: DaebPathContext): DaebPathContext {
-  if (input[DAEB_PATH_CONTEXT] !== true) {
-    throw new Error("DAEB path context must be created by createDaebPathContext");
+function assertPathContext(input: AxevalDatabasePathContext): AxevalDatabasePathContext {
+  if (input[AXEVAL_DATABASE_PATH_CONTEXT] !== true) {
+    throw new Error("AXeval-Database path context must be created by createAxevalDatabasePathContext");
   }
   const repositoryRoot = resolve(input.repositoryRoot);
-  const expectedWriteRoot = resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
+  const expectedWriteRoot = resolveAxevalDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
   if (resolve(input.writeRoot) !== expectedWriteRoot) {
-    throw new Error(`DAEB path context write root must be canonical: ${expectedWriteRoot}`);
+    throw new Error(`AXeval-Database path context write root must be canonical: ${expectedWriteRoot}`);
   }
   const expectedReadRoot = input.readRootKind === "canonical"
-    ? resolve(repositoryRoot, DAEB_BENCHMARK_ROOT)
-    : input.readRootKind === "legacy"
-      ? resolve(repositoryRoot, DAEB_LEGACY_BENCHMARK_ROOT)
-      : resolve(input.readRoot);
+    ? resolve(repositoryRoot, AXEVAL_DATABASE_BENCHMARK_ROOT)
+    : input.readRootKind === "legacy-arena"
+      ? resolve(repositoryRoot, AXEVAL_DATABASE_LEGACY_ARENA_ROOT)
+      : input.readRootKind === "legacy-repository"
+        ? resolve(repositoryRoot, AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT)
+        : resolve(input.readRoot);
   if (resolve(input.readRoot) !== expectedReadRoot) {
-    throw new Error(`DAEB path context read root no longer matches root policy: ${expectedReadRoot}`);
+    throw new Error(`AXeval-Database path context read root no longer matches root policy: ${expectedReadRoot}`);
   }
   if (input.readRootKind === "explicit") assertRealDirectory(expectedReadRoot, "explicit benchmark root");
   else assertRealInRepositoryPath(repositoryRoot, expectedReadRoot, `${input.readRootKind} benchmark root`);
   return input;
 }
 
-function readRoot(input: DaebPathInput): string {
+function readRoot(input: AxevalDatabasePathInput): string {
   return typeof input === "string"
-    ? resolveDaebBenchmarkRoot(input, { access: "read" })
+    ? resolveAxevalDatabaseBenchmarkRoot(input, { access: "read" })
     : assertPathContext(input).readRoot;
 }
 
-export function daebRepositoryRoot(input: DaebPathInput): string {
+export function axevalDatabaseRepositoryRoot(input: AxevalDatabasePathInput): string {
   return resolve(typeof input === "string" ? input : assertPathContext(input).repositoryRoot);
 }
 
-function writeRoot(input: DaebPathInput): string {
-  const repositoryRoot = daebRepositoryRoot(input);
+function writeRoot(input: AxevalDatabasePathInput): string {
+  const repositoryRoot = axevalDatabaseRepositoryRoot(input);
   // A bare repository root carries no explicit root selection. Validate the
   // read-side compatibility state first so direct library writers fail on the
   // same canonical+legacy ambiguity as CLI callers.
-  if (typeof input === "string") resolveDaebBenchmarkRoot(repositoryRoot, { access: "read" });
+  if (typeof input === "string") resolveAxevalDatabaseBenchmarkRoot(repositoryRoot, { access: "read" });
   else assertPathContext(input);
-  return resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
+  return resolveAxevalDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
 }
 
-/** Resolve an explicit writer destination and reject paths outside canonical DAEB. */
-export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string): string {
+/** Resolve an explicit writer destination and reject paths outside AXeval-Database. */
+export function assertCanonicalAxevalDatabaseWritePath(input: AxevalDatabasePathInput, path: string): string {
   const root = writeRoot(input);
-  const repositoryRoot = daebRepositoryRoot(input);
+  const repositoryRoot = axevalDatabaseRepositoryRoot(input);
   const candidate = isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
   if (!contained(root, candidate)) {
     throw new Error(`writers use only the canonical benchmark root: ${root}`);
@@ -217,8 +241,8 @@ export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string)
 }
 
 /** Suite writers use one unambiguous stem and the canonical lowercase extension. */
-export function assertCanonicalDaebSuiteWritePath(input: DaebPathInput, path: string): string {
-  const candidate = assertCanonicalDaebWritePath(input, path);
+export function assertCanonicalAxevalDatabaseSuiteWritePath(input: AxevalDatabasePathInput, path: string): string {
+  const candidate = assertCanonicalAxevalDatabaseWritePath(input, path);
   if (!candidate.endsWith(".yaml")) {
     throw new Error(`suite writers require a canonical lowercase .yaml path: ${candidate}`);
   }
@@ -226,139 +250,139 @@ export function assertCanonicalDaebSuiteWritePath(input: DaebPathInput, path: st
 }
 
 /** Canonical-only root used by every writer. */
-export function daebRoot(root: DaebPathInput): string {
+export function axevalDatabaseRoot(root: AxevalDatabasePathInput): string {
   return writeRoot(root);
 }
 
-export function daebReadRoot(root: DaebPathInput): string {
+export function axevalDatabaseReadRoot(root: AxevalDatabasePathInput): string {
   return readRoot(root);
 }
 
-export function daebVendorsDir(root: DaebPathInput): string {
-  return resolve(daebRoot(root), "vendors");
+export function axevalDatabaseVendorsDir(root: AxevalDatabasePathInput): string {
+  return resolve(axevalDatabaseRoot(root), "vendors");
 }
 
-export function daebReadVendorsDir(root: DaebPathInput): string {
-  return resolve(daebReadRoot(root), "vendors");
+export function axevalDatabaseReadVendorsDir(root: AxevalDatabasePathInput): string {
+  return resolve(axevalDatabaseReadRoot(root), "vendors");
 }
 
-export function daebVersionDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebRoot(root), safeSegment(version, "benchmark version"));
+export function axevalDatabaseVersionDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function daebReadVersionDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadRoot(root), safeSegment(version, "benchmark version"));
+export function axevalDatabaseReadVersionDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function daebSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(root, resolve(daebVersionDir(root, version), "suite.yaml"));
+export function axevalDatabaseSuitePath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(root, resolve(axevalDatabaseVersionDir(root, version), "suite.yaml"));
 }
 
-export function daebReadSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "suite.yaml");
+export function axevalDatabaseReadSuitePath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVersionDir(root, version), "suite.yaml");
 }
 
-export function daebVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVersionDir(root, version), "vendor-selection-ledger.yaml"),
+    resolve(axevalDatabaseVersionDir(root, version), "vendor-selection-ledger.yaml"),
   );
 }
 
-export function daebReadVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "vendor-selection-ledger.yaml");
+export function axevalDatabaseReadVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVersionDir(root, version), "vendor-selection-ledger.yaml");
 }
 
-export function daebExtractsDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "extracts");
+export function axevalDatabaseExtractsDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseVersionDir(root, version), "extracts");
 }
 
-export function daebReadExtractsDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "extracts");
+export function axevalDatabaseReadExtractsDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVersionDir(root, version), "extracts");
 }
 
-export function daebVendorExtractDir(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebExtractsDir(root, version), safeSegment(slug, "vendor slug"));
+export function axevalDatabaseVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function daebReadVendorExtractDir(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadExtractsDir(root, version), safeSegment(slug, "vendor slug"));
+export function axevalDatabaseReadVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function daebCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
+    resolve(axevalDatabaseVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
   );
 }
 
-export function daebReadCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "capability-inventory.yaml");
+export function axevalDatabaseReadCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "capability-inventory.yaml");
 }
 
-export function daebLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "capabilities.yaml"),
+    resolve(axevalDatabaseVendorExtractDir(root, slug, version), "capabilities.yaml"),
   );
 }
 
-export function daebReadLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "capabilities.yaml");
+export function axevalDatabaseReadLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "capabilities.yaml");
 }
 
-export function daebSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "surfaces.yaml"),
+    resolve(axevalDatabaseVendorExtractDir(root, slug, version), "surfaces.yaml"),
   );
 }
 
-export function daebReadSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "surfaces.yaml");
+export function axevalDatabaseReadSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "surfaces.yaml");
 }
 
-export function daebOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "oracles.yaml"),
+    resolve(axevalDatabaseVendorExtractDir(root, slug, version), "oracles.yaml"),
   );
 }
 
-export function daebReadOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "oracles.yaml");
+export function axevalDatabaseReadOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "oracles.yaml");
 }
 
-export function daebPacksDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "packs");
+export function axevalDatabasePacksDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseVersionDir(root, version), "packs");
 }
 
-export function daebReadPacksDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "packs");
+export function axevalDatabaseReadPacksDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadVersionDir(root, version), "packs");
 }
 
-export function daebCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
+    resolve(axevalDatabasePacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
   );
 }
 
-export function daebReadCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
+export function axevalDatabaseReadCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axevalDatabaseReadPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
 }
 
-export function daebVendorCardPath(root: DaebPathInput, slug: string): string {
-  return assertCanonicalDaebWritePath(
+export function axevalDatabaseVendorCardPath(root: AxevalDatabasePathInput, slug: string): string {
+  return assertCanonicalAxevalDatabaseWritePath(
     root,
-    resolve(daebVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`),
+    resolve(axevalDatabaseVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`),
   );
 }
 
-export function daebReadVendorCardPath(root: DaebPathInput, slug: string): string {
-  return resolve(daebReadVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`);
+export function axevalDatabaseReadVendorCardPath(root: AxevalDatabasePathInput, slug: string): string {
+  return resolve(axevalDatabaseReadVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`);
 }
 
-export function daebArchiveDir(root: DaebPathInput): string {
-  return resolve(daebRoot(root), "_archive");
+export function axevalDatabaseArchiveDir(root: AxevalDatabasePathInput): string {
+  return resolve(axevalDatabaseRoot(root), "_archive");
 }

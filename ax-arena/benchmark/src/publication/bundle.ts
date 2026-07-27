@@ -351,7 +351,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   if (opts.generatedAt && opts.generatedAt.toISOString() !== generatedAtIso) {
     throw new Error("publication generatedAt must equal the canonical runtime reporting timestamp");
   }
-  if (batch.configuration.command !== "daeb-production-rerun"
+  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
     || batch.configuration.execution?.runtime_backend !== "pinned-oci"
     || batch.configuration.execution?.trust_level !== "hosted-trusted"
     || !batch.configuration.sandbox
@@ -440,7 +440,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   const signedSources = new Map(attested.subject.source_artifacts.map((artifact) => [artifact.path, artifact.sha256]));
   const sourcePlan = (path: string, file: PinnedFile, label: string): PublicationPlan => {
     const sourcePath = relative(root, file.path).replaceAll("\\", "/");
-    if (!sourcePath.startsWith("ax-arena/benchmark/daeb/") || signedSources.get(sourcePath) !== sha256(file.bytes)) {
+    if (!sourcePath.startsWith("ax-arena/benchmark/axeval-database/") || signedSources.get(sourcePath) !== sha256(file.bytes)) {
       throw new Error(`${label} is not bound by the signed protected-main source artifact set`);
     }
     return { path, bytes: file.bytes, sourcePath };
@@ -729,7 +729,9 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     const versions = new Set(records.map((record) => record.harness_version_semver));
     if (!records.length || versions.size !== 1 || versions.has(null) || versions.has(undefined)) canonicalIssues.push(`${harness}: harness_version_semver must be present and identical`);
   }
-  if (batch.configuration.command !== "daeb-production-rerun") canonicalIssues.push("batch command is not daeb-production-rerun");
+  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)) {
+    canonicalIssues.push("batch command is not axeval-database-production-rerun");
+  }
   const traceIssues = [...snapshotValues.entries()].flatMap(([key, snapshot]) => {
     const issue = traceCoverageIssue(snapshot);
     return issue ? [`${key}: ${issue}`] : [];
@@ -790,9 +792,10 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   ];
   const staticMethodology = methodologyPaths.filter((path) => /methodology|concept-universe|coverage-matrix|selection-ledger|failure-taxonomy|trace-review/i.test(path));
   const behavioralMethodology = methodologyPaths.filter((path) => /support-matrix|grader-ledger|selection-ledger|coverage-matrix|methodology/i.test(path));
+  const publicBenchmarkName = suite.name === "DAEB-1" ? "AXeval-Database v1" : suite.name;
   const bundleWithoutIntegrity = {
     schema: "ax.publication-bundle/v2" as const,
-    benchmark: suite.name,
+    benchmark: publicBenchmarkName,
     category: suite.category,
     suite: "suite/suite.yaml",
     suite_version: suite.version,

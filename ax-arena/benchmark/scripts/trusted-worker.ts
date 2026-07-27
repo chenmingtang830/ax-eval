@@ -85,7 +85,7 @@ if (arenaBatchConfigurationHash(committedConfiguration) !== batch.configuration_
 const plan = loadBatchPlan(runRoot, batch);
 const descriptor = selectArenaWorkerCell(plan, oneFlag(flags, "--cell-key"));
 
-const suitePath = resolve(root, "ax-arena", "benchmark", "daeb", "v1", "suite.yaml");
+const suitePath = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1", "suite.yaml");
 const suiteBytes = assertCommittedFile(root, sourceSha, suitePath, "canonical suite");
 const suite = loadSuite(suitePath);
 if (suite.name !== batch.configuration.suite.name
@@ -93,7 +93,7 @@ if (suite.name !== batch.configuration.suite.name
   || createHash("sha256").update(suiteBytes).digest("hex") !== batch.configuration.suite.file_hash) {
   throw new Error("trusted arena canonical suite identity does not match the immutable batch");
 }
-const packPath = resolve(root, "ax-arena", "benchmark", "daeb", "v1", "packs", descriptor.vendor, "pack.yaml");
+const packPath = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1", "packs", descriptor.vendor, "pack.yaml");
 assertCommittedFile(root, sourceSha, packPath, "canonical pack");
 const pack = loadPack(packPath);
 if (pack.name !== descriptor.vendor

@@ -23,11 +23,11 @@ import {
 import { writeContainedText, type ContainedWriteHooks } from "./artifact-filesystem.js";
 import type { SupportMatrix } from "./artifact-contracts.js";
 import {
-  assertCanonicalDaebWritePath,
-  daebCompiledPackPath,
-  daebRepositoryRoot,
-  daebRoot,
-  type DaebPathInput,
+  assertCanonicalAxevalDatabaseWritePath,
+  axevalDatabaseCompiledPackPath,
+  axevalDatabaseRepositoryRoot,
+  axevalDatabaseRoot,
+  type AxevalDatabasePathInput,
 } from "./benchmark-paths.js";
 import {
   applyDatabasePackPromptOverride,
@@ -75,7 +75,7 @@ function vendorSandboxScope(vendor: DatabasePackVendor): TargetPack["sandbox_sco
         name: "database",
         env: "NILE_DB",
         required: true,
-        instructions: "disposable Nile database dedicated to DAEB namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
+        instructions: "disposable Nile database dedicated to AXeval-Database namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
       },
     ];
   }
@@ -264,17 +264,17 @@ export function composePack(
   return parsed;
 }
 
-/** Path where a composed pack is written (DAEB v1 layout uses pack.yaml). */
-export function composedPackPath(root: DaebPathInput, slug: string, _suiteName: string): string {
-  return assertCanonicalDaebWritePath(root, daebCompiledPackPath(root, slug));
+/** Path where a composed pack is written (AXeval-Database v1 layout uses pack.yaml). */
+export function composedPackPath(root: AxevalDatabasePathInput, slug: string, _suiteName: string): string {
+  return assertCanonicalAxevalDatabaseWritePath(root, axevalDatabaseCompiledPackPath(root, slug));
 }
 
 /** Write a composed pack to disk as YAML. */
-export function writeComposedPack(root: DaebPathInput, slug: string, suiteName: string, pack: TargetPack): string {
+export function writeComposedPack(root: AxevalDatabasePathInput, slug: string, suiteName: string, pack: TargetPack): string {
   const path = composedPackPath(root, slug, suiteName);
   writeContainedText(
-    daebRepositoryRoot(root),
-    daebRoot(root),
+    axevalDatabaseRepositoryRoot(root),
+    axevalDatabaseRoot(root),
     path,
     `# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.\n` +
       `# generated_by: ${pack.generated_by}\n` +
@@ -295,7 +295,7 @@ export function writeComposedPackFileForTest(
 ): void {
   writeContainedText(
     repositoryRoot,
-    daebRoot(repositoryRoot),
+    axevalDatabaseRoot(repositoryRoot),
     path,
     contents,
     "composed pack output",

@@ -12,7 +12,7 @@ export type DatabasePackVendor = Pick<ResolveResult, "vendor" | "slug" | "catego
 const CONVEX_IDENTIFIER_NOTE = [
   "",
   "Convex-specific database adapter note: Convex table and function identifiers may only use letters, digits,",
-  "and underscores, while the canonical DAEB namespace may contain hyphens. When a canonical container or",
+  "and underscores, while the canonical AXeval-Database namespace may contain hyphens. When a canonical container or",
   "function name is not a valid Convex identifier, use a deterministic Convex-safe identifier by replacing",
   "non-alphanumeric characters with underscores. Preserve the exact canonical names and marker strings in",
   "record values or verifier query results, and report the requested verifier query path for read-back.",
@@ -37,7 +37,7 @@ const CONVEX_DEPLOYMENT_FLOW_NOTE = [
   "previous scaffold is missing or broken. In particular, if one task has already deployed successfully, treat later",
   "tasks as edits to that working local scaffold first, not as a reason to run `npm install` or other package bootstrap",
   "steps again.",
-  "For DAEB Convex database tasks, prefer that preview-deployment path by default whenever the task needs task-local",
+  "For AXeval-Database Convex database tasks, prefer that preview-deployment path by default whenever the task needs task-local",
   "tables, queries, actions, or verifier functions. Do not assume the base deployment already exposes benchmark helper",
   "functions for this namespace. After deploying, invoke the exact exported public function paths you just created and",
   "smoke-check them on the preview deployment before finalizing the reported `*_probe_path` fields.",
@@ -75,7 +75,7 @@ const INSFORGE_API_SCHEMA_NOTE = [
   "fail with `Cannot read properties of undefined (reading 'sqlType')`. Use the same live schema field",
   "names for `PATCH /api/database/tables/{tableName}/schema` and its `addColumns` body. Admin bearer",
   "tokens are project credentials, not end-user session cookies: do not call user-session discovery",
-  "endpoints such as `GET /api/auth/sessions/current` to discover the active principal for DAEB tasks.",
+  "endpoints such as `GET /api/auth/sessions/current` to discover the active principal for AXeval-Database tasks.",
   "After creating a table, re-read `GET /api/database/tables/{tableName}/schema` (and, if needed,",
   "`GET /api/database/tables`) before attempting row writes so the hosted control plane has acknowledged",
   "the table. Prefer single-record JSON objects rather than array batch bodies unless the live docs",
@@ -95,7 +95,7 @@ const INSFORGE_API_SCHEMA_NOTE = [
 ].join(" ");
 
 const SQL_IDENTIFIER_CONTRACT_NOTE = [
-  "Database SQL identifier contract: DAEB namespaces may contain hyphens. When issuing SQL through",
+  "Database SQL identifier contract: AXeval-Database namespaces may contain hyphens. When issuing SQL through",
   "a SQL-compatible API, CLI, or SDK path, double-quote table, function, policy, index, trigger,",
   "schema, and other SQL identifiers that include canonical task names or `{ns}`. Preserve the exact",
   "canonical names expected by the verifier; do not replace hyphens with underscores for SQL-backed",
@@ -416,7 +416,7 @@ function authSchemeLabel(authType: OracleExtractResult["vendor_config"]["auth_ty
  * surface. Used only for the behavioral discovery *score* — prompts must not
  * leak this string (executor already keeps Phase 0 free of endpoints).
  */
-const DAEB_CANONICAL_ENDPOINT: Record<string, string> = {
+const AXEVAL_DATABASE_CANONICAL_ENDPOINT: Record<string, string> = {
   neon: "GET /projects",
   cockroachdb: "GET /clusters",
   turso: "POST /v2/pipeline",
@@ -427,7 +427,7 @@ const DAEB_CANONICAL_ENDPOINT: Record<string, string> = {
   convex: "POST /api/query",
 };
 
-const DAEB_PRODUCT_LABEL: Record<string, string> = {
+const AXEVAL_DATABASE_PRODUCT_LABEL: Record<string, string> = {
   neon: "Neon",
   cockroachdb: "CockroachDB",
   turso: "Turso",
@@ -438,15 +438,15 @@ const DAEB_PRODUCT_LABEL: Record<string, string> = {
   convex: "Convex",
 };
 
-/** Cold-start DiscoverySpec for DAEB composed packs (Agent Discovery Score). */
+/** Cold-start DiscoverySpec for AXeval-Database composed packs (Agent Discovery Score). */
 export function databaseDiscoverySpec(
   vendor: DatabasePackVendor,
   extract: OracleExtractResult,
 ): DiscoverySpec {
   const domains = officialDomainsFromVendor(vendor);
-  const product = DAEB_PRODUCT_LABEL[vendor.slug] ?? vendor.vendor;
+  const product = AXEVAL_DATABASE_PRODUCT_LABEL[vendor.slug] ?? vendor.vendor;
   const canonical =
-    DAEB_CANONICAL_ENDPOINT[vendor.slug] ??
+    AXEVAL_DATABASE_CANONICAL_ENDPOINT[vendor.slug] ??
     (extract.vendor_config.base_url ? "GET /" : "");
   return {
     product,

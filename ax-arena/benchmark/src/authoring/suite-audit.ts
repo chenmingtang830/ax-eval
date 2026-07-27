@@ -21,13 +21,13 @@ import {
 } from "ax-eval";
 import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
 import {
-  assertCanonicalDaebWritePath,
-  assertCanonicalDaebSuiteWritePath,
-  createDaebPathContext,
-  daebReadVendorsDir,
-  daebRepositoryRoot,
-  daebRoot,
-  type DaebPathInput,
+  assertCanonicalAxevalDatabaseWritePath,
+  assertCanonicalAxevalDatabaseSuiteWritePath,
+  createAxevalDatabasePathContext,
+  axevalDatabaseReadVendorsDir,
+  axevalDatabaseRepositoryRoot,
+  axevalDatabaseRoot,
+  type AxevalDatabasePathInput,
 } from "./benchmark-paths.js";
 import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
@@ -63,10 +63,10 @@ export interface SuiteAuditReport {
   suggestedVersion?: number;
 }
 
-function listDatabaseSlugs(root: DaebPathInput): string[] {
+function listDatabaseSlugs(root: AxevalDatabasePathInput): string[] {
   const selected = coreVendorSlugs(root);
   if (selected) return [...selected].sort();
-  const dir = daebReadVendorsDir(root);
+  const dir = axevalDatabaseReadVendorsDir(root);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".discovered.yaml"))
@@ -76,7 +76,7 @@ function listDatabaseSlugs(root: DaebPathInput): string[] {
 
 /** Find inventory capabilities that should map to a concept but didn't. */
 export function findMappingMisses(
-  root: DaebPathInput,
+  root: AxevalDatabasePathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -127,7 +127,7 @@ export function findMappingMisses(
 /** Find stale/false-positive coverage decisions whose cited capability no
  * longer maps to the claimed concept under the current semantic rules. */
 export function findMappingFalsePositives(
-  root: DaebPathInput,
+  root: AxevalDatabasePathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -251,7 +251,7 @@ export function findTaskFitAuditFindings(
  * catches artifacts generated before a task-fit rule or inventory correction
  * landed, even when their stored matrix is internally self-consistent. */
 export function findStaleTaskFitFindings(
-  root: DaebPathInput,
+  root: AxevalDatabasePathInput,
   coverage: CoverageMatrix,
   selectedConcepts: Set<string>,
   slugs: string[],
@@ -315,7 +315,7 @@ export function findStaleTaskFitFindings(
 export function auditSuite(
   root: string,
   suitePath: string,
-  benchmarkPaths: DaebPathInput = root,
+  benchmarkPaths: AxevalDatabasePathInput = root,
 ): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
@@ -343,7 +343,7 @@ export function auditSuite(
     findings.push({
       severity: "error",
       code: "generic_suite_name",
-      message: `Suite name is generic ("${suite.name}" from ${stem}.yaml); prefer DAEB-1`,
+      message: `Suite name is generic ("${suite.name}" from ${stem}.yaml); prefer AXeval-Database v1`,
       auto_fixable: true,
     });
   }
@@ -477,7 +477,7 @@ export function auditSuite(
       infos: findings.filter((f) => f.severity === "info").length,
       autoFixable: findings.filter((f) => f.auto_fixable).length,
     },
-    suggestedName: "DAEB-1",
+    suggestedName: "AXeval-Database v1",
     suggestedVersion: 1,
   };
 }
@@ -499,16 +499,16 @@ export function formatSuiteAuditReport(report: SuiteAuditReport): string {
  * Apply metadata autofixes (name/version). Mapping fixes live in code
  * (DATABASE_DETERMINISTIC_RULES); caller should re-synthesize after --apply.
  */
-export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: SuiteAuditReport): string[] {
+export function applySuiteAudit(root: AxevalDatabasePathInput, suitePath: string, report: SuiteAuditReport): string[] {
   const written: string[] = [];
-  const paths = typeof root === "string" ? createDaebPathContext(root) : root;
-  const abs = assertCanonicalDaebSuiteWritePath(paths, suitePath);
-  const notePath = assertCanonicalDaebWritePath(
+  const paths = typeof root === "string" ? createAxevalDatabasePathContext(root) : root;
+  const abs = assertCanonicalAxevalDatabaseSuiteWritePath(paths, suitePath);
+  const notePath = assertCanonicalAxevalDatabaseWritePath(
     paths,
     resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
   );
-  const repositoryRoot = daebRepositoryRoot(paths);
-  const allowedRoot = daebRoot(paths);
+  const repositoryRoot = axevalDatabaseRepositoryRoot(paths);
+  const allowedRoot = axevalDatabaseRoot(paths);
   const rawSuite = readContainedText(repositoryRoot, allowedRoot, abs, "suite audit target");
   if (rawSuite === null) return written;
   // Validate the sibling before mutating the suite, so a static alias cannot
@@ -517,7 +517,7 @@ export function applySuiteAudit(root: DaebPathInput, suitePath: string, report: 
   const raw = yamlParse(rawSuite) as Record<string, unknown>;
   let changed = false;
   if (report.findings.some((f) => f.code === "generic_suite_name")) {
-    raw.name = report.suggestedName ?? "DAEB-1";
+    raw.name = report.suggestedName ?? "AXeval-Database v1";
     if (typeof raw.version !== "number" || raw.version < 1) raw.version = report.suggestedVersion ?? 1;
     changed = true;
   }

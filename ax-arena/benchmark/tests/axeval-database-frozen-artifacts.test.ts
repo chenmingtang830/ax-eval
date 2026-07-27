@@ -17,8 +17,8 @@ import {
 } from "../src/authoring/artifact-persistence.js";
 
 const ROOT = resolve(import.meta.dirname, "../../..");
-const SUITE_PATH = "ax-arena/benchmark/daeb/v1/suite.yaml";
-const VERSION_DIR = resolve(ROOT, "ax-arena/benchmark/daeb/v1");
+const SUITE_PATH = "ax-arena/benchmark/axeval-database/v1/suite.yaml";
+const VERSION_DIR = resolve(ROOT, "ax-arena/benchmark/axeval-database/v1");
 const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
   cockroachdb: {
     approval: "9c4980cb7b34a08dd980bd23df27baa02acc0573186c68b6128801b177f64910",
@@ -60,7 +60,7 @@ function findSymlinks(path: string): string[] {
   return symlinks;
 }
 
-describe("frozen DAEB artifacts", () => {
+describe("frozen AXeval-Database artifacts", () => {
   it("loads the canonical concept, coverage, and selection contracts", () => {
     const concept = ConceptUniverseSchema.parse(parseYaml(
       readFileSync(resolve(VERSION_DIR, "suite.concept-universe.yaml"), "utf8"),
@@ -79,7 +79,7 @@ describe("frozen DAEB artifacts", () => {
     for (const vendor of vendors) {
       expect(loadCapabilityExtract(ROOT, vendor)).not.toBeNull();
       expect(loadSurfaceExtract(ROOT, vendor)).not.toBeNull();
-      expect(loadOracleExtract(ROOT, vendor, "daeb")).not.toBeNull();
+      expect(loadOracleExtract(ROOT, vendor, "axeval-database")).not.toBeNull();
       const packPath = resolve(VERSION_DIR, "packs", vendor, "pack.yaml");
       expect(checkApproval(loadPack(packPath), packPath), vendor).toEqual({ ok: true });
       expect(sha256(packPath), `${vendor} pack bytes`).toBe(FROZEN_PACK_HASHES[vendor]?.pack);
@@ -89,7 +89,7 @@ describe("frozen DAEB artifacts", () => {
   });
 
   it("stores the canonical tree only in the arena workspace without symlinks", () => {
-    expect(existsSync(resolve(ROOT, "benchmarks", "daeb"))).toBe(false);
-    expect(findSymlinks(resolve(ROOT, "ax-arena", "benchmark", "daeb"))).toEqual([]);
+    expect(existsSync(resolve(ROOT, "benchmarks", "daeb", "v1", "suite.yaml"))).toBe(false);
+    expect(findSymlinks(resolve(ROOT, "ax-arena", "benchmark", "axeval-database"))).toEqual([]);
   });
 });
