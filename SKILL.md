@@ -255,6 +255,10 @@ npm run ax-eval -- verify-generated --pack <pack.yaml> \
   --html results/runs/<id>/generated-eval.html
 ```
 
+When `exec-plan` selected one task with `--task <id>`, retain the same flag on
+`verify-generated`; the generated follow-up command does this automatically.
+Otherwise the verifier intentionally treats the full pack as the denominator.
+
 The CLI GETs every resource back, scores outcome verifiers + each profile's
 discovery funnel, gates on `--min-pass-rate`, and writes a self-contained HTML
 report. Then summarize for the user:
@@ -308,6 +312,11 @@ raw artifacts, and inspect the content-free decoder diagnostics
 (`decoderVersion`, parsed/recognized/emitted/malformed counts). A transcript
 with zero recognized events is not objective evidence and must retain the
 labeled self-report fallback.
+The same normalized events drive `tool_call_count`. Retry metadata records a
+bounded `outcome_reason` per attempt, so an exit-0 process that omitted results
+is distinguishable from a timeout or nonzero exit without persisting raw error
+text. API cells that objectively invoke a vendor CLI fail the surface-honesty
+gate even if they also make successful HTTP calls.
 
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
 and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults;

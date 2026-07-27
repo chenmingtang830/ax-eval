@@ -405,7 +405,9 @@ one hash-bound result per planned key and byte-identical manifests before
 completion; an isolated OIDC-enabled job reverifies and signs the detached
 subject. Pull requests remain keyless and never receive arena secrets.
 
-Invocation metadata preserves every retry attempt. The normalized public record
+Invocation metadata preserves every retry attempt, including a bounded
+controller-derived outcome reason (`missing-results`, `nonzero-exit`, timeout,
+unsafe artifact, and so on) that does not copy stderr or agent content. The normalized public record
 uses successful-attempt latency, retry-inclusive total duration/tokens/native
 cost, raw + semver harness version, and run batch identity. Production
 aggregation uses median trial latency and total consumption. `pass_hat_3`
@@ -578,7 +580,9 @@ AXArena production-harness designation.
 This layer captures the native OpenCode JSONL and removes duplicated tool
 outputs before durable stdout/transcript persistence. Its decoder maps native
 tool calls into the same stable event contract as Claude Code and Codex before
-shared observed-run semantics are applied.
+shared observed-run semantics are applied. Efficiency `tool_call_count` is also
+derived from that stable event stream, rather than re-parsing each harness's raw
+shape independently.
 
 ### MCP provisioning
 
@@ -625,6 +629,11 @@ It extracts:
 - SDK install and method-call hints
 - MCP tool listing and tool calls
 - API-like call traces when observable
+
+For an API cell, an objectively observed vendor-CLI invocation is a
+cross-surface failure even when the same run also reaches the HTTP API. Pack
+verification supplies both the declared data-plane CLI binary and conventional
+product CLI entrypoints (for example `@product/cli`) to this gate.
 
 The parser then projects that observed behavior into:
 

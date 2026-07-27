@@ -520,6 +520,10 @@ npm run ax-arena -- benchmark competitive --from <sealed-publication-bundle> --h
 npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
 
+For a single-task `exec-plan --task <id>` run, verify with the same `--task
+<id>` so unexecuted pack tasks are not added to that pilot's denominator. The
+follow-up command printed by `exec-plan` preserves this selection.
+
 The legacy `ax-eval reset` helper retains only the generic HTTP/Asana example
 resetter. Database and benchmark-target cleanup is arena-owned and requires an
 explicit `ResetProvider` after verified-record persistence.
@@ -564,7 +568,11 @@ canonical AXArena production harness matrix.
 
 The MVP captures OpenCode's native JSONL and decodes its tool calls through the
 same harness-event seam as Claude Code and Codex, so `--observe` discovery and
-process evidence retain the shared surface semantics. Legacy `exec-plan` runs
+process evidence retain the shared surface semantics and normalized
+`tool_call_count` does not silently fall back to zero. Retry metadata includes a
+bounded controller-derived outcome reason per attempt. An API cell that invokes
+a detected vendor CLI fails surface-honesty even when HTTP calls also succeed.
+Legacy `exec-plan` runs
 OpenCode from a disposable secret-free cwd and exact-redacts forwarded credential
 values from artifacts. That cwd is defense in depth, not an OS filesystem
 boundary: use a dedicated sandbox/checkout for hostile prompts. Arena cells keep

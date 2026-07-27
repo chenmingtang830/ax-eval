@@ -234,6 +234,10 @@ export interface ParseOptions {
   baseUrl?: string;
   /** CLI binary (from the cli surface) to recognize vendor-CLI invocations. */
   cliBin?: string;
+  /** Additional product CLI entrypoints. This catches control-plane CLIs that
+   * differ from a pack's primary data-plane binary (for example psql versus
+   * `npx @vendor/cli`) without weakening the configured `cliBin` signal. */
+  cliBins?: string[];
   /** SDK package (from the sdk surface) to recognize install/import/usage. */
   sdkPackage?: string;
   /** MCP server id/URL (from the mcp surface) to scope which tool calls count. */
@@ -295,9 +299,10 @@ export function observedRunFromHarnessEvents(
     // Strategy B: code-style calls (python/node), method + relative path.
     run.apiCalls.push(...extractCodeCalls(cmd));
     // Surface-specific signals (only when the surface declares an identifier).
-    if (opts.cliBin) {
-      run.cliCommands.push(...extractCliCommands(cmd, opts.cliBin));
-      if (inspectsCliHelp(cmd, opts.cliBin)) run.cliHelpInspected = true;
+    const cliBins = [...new Set([opts.cliBin, ...(opts.cliBins ?? [])].filter((bin): bin is string => Boolean(bin)))];
+    for (const cliBin of cliBins) {
+      run.cliCommands.push(...extractCliCommands(cmd, cliBin));
+      if (inspectsCliHelp(cmd, cliBin)) run.cliHelpInspected = true;
     }
     if (opts.sdkPackage) run.sdkUsage.push(...extractSdkUsage(cmd, opts.sdkPackage));
     // A `tools/list` may also be issued as a raw shell/JSON-RPC line.

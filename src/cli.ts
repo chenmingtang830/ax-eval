@@ -97,6 +97,7 @@ import {
   observedToTrace,
   parseTranscriptWithDiagnostics,
 } from "./harness/transcript.js";
+import { transcriptArtifactMetrics } from "./harness/transcript-metrics.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
@@ -412,7 +413,7 @@ function commandUsage(command: string | undefined): string {
       return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
-      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
+      return "usage: ax-eval verify-generated --pack <yaml> [--task id] --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
     case "render-generated":
       return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
     case "trace-diff":
@@ -1695,6 +1696,12 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
         `OpenCode provider ${openCodeProviderId(args.model!)} requires one of: ${providerCredentials.join(", ")}`,
       );
     }
+    // Validate controller-owned environment names before harness detection. A
+    // missing OpenCode binary must not turn an unsafe pack into a successful
+    // blocked plan (and made this gate platform-dependent in CI).
+    for (const surface of surfaceIds.filter((candidate) => candidate !== "mcp")) {
+      invokedHarnessEnvironment(pack, surface, "opencode", args.model, {});
+    }
   }
   // A structurally unsupported-only plan must not require target credentials or
   // perform a live health GET. Mixed plans retain these gates for their runnable
@@ -2241,6 +2248,7 @@ interface InvokeGroup {
       );
       console.log(
         `  ax-eval verify-generated --pack ${args.pack} ` +
+          (args.task ? `--task ${args.task} ` : "") +
           allInvoked.map((p) => `--results ${p}`).join(" ") +
           ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
       );
@@ -2451,23 +2459,7 @@ function executorModelFromArtifacts(
     ?? codexBannerModelForRun(resultPath);
 }
 
-function addTokenField(acc: Record<string, number>, key: string, value: unknown): void {
-  if (typeof value === "number" && Number.isFinite(value)) acc[key] = (acc[key] ?? 0) + value;
-}
-
-function collectTokenUsage(value: unknown, acc: Record<string, number>): void {
-  if (!value || typeof value !== "object") return;
-  const record = value as Record<string, unknown>;
-  addTokenField(acc, "input_tokens", record.input_tokens ?? record.inputTokens);
-  addTokenField(acc, "output_tokens", record.output_tokens ?? record.outputTokens);
-  addTokenField(acc, "total_tokens", record.total_tokens ?? record.totalTokens);
-  if (record.usage && record.usage !== value) collectTokenUsage(record.usage, acc);
-  if (record.modelUsage && typeof record.modelUsage === "object") {
-    for (const entry of Object.values(record.modelUsage as Record<string, unknown>)) collectTokenUsage(entry, acc);
-  }
-}
-
-function transcriptMetrics(path: string | undefined): {
+function transcriptMetrics(path: string | undefined, harness?: InvokeHarnessId): {
   tool_call_count: number | null;
   token_usage: Record<string, number> | null;
   transcript_event_count: number | null;
@@ -2476,45 +2468,15 @@ function transcriptMetrics(path: string | undefined): {
   if (!path || !existsSync(path)) {
     return { tool_call_count: null, token_usage: null, transcript_event_count: null, action_occurred: null };
   }
-  const tokenUsage: Record<string, number> = {};
-  let toolCalls = 0;
-  let events = 0;
-  let actionOccurred = false;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const event = JSON.parse(trimmed) as Record<string, unknown>;
-      events += 1;
-      collectTokenUsage(event, tokenUsage);
-      const item = event.item as { type?: unknown } | undefined;
-      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
-        toolCalls += 1;
-        actionOccurred = true;
-      }
-      const message = event.message as { content?: unknown } | undefined;
-      if (Array.isArray(message?.content)) {
-        const claudeToolCalls = message.content.filter((block) =>
-          block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
-        ).length;
-        toolCalls += claudeToolCalls;
-        if (claudeToolCalls > 0) actionOccurred = true;
-      }
-    } catch {
-      /* Non-JSON transcript lines are allowed; they just do not carry metrics. */
-    }
-  }
-  return {
-    tool_call_count: toolCalls,
-    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
-    transcript_event_count: events,
-    action_occurred: actionOccurred,
-  };
+  return transcriptArtifactMetrics(readFileSync(path, "utf8"), harness);
 }
 
 function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
   const meta = siblingInvokeMeta(resultPath);
-  const metrics = transcriptMetrics(transcriptPath);
+  const metrics = transcriptMetrics(
+    transcriptPath,
+    isInvokeHarnessId(meta?.harness) ? meta.harness : undefined,
+  );
   const native = meta?.metrics && typeof meta.metrics === "object" && !Array.isArray(meta.metrics)
     ? meta.metrics as Record<string, unknown>
     : undefined;
@@ -2628,6 +2590,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const parseOpts = {
     baseUrl: pack.base_url,
     cliBin: pack.surfaces?.cli?.bin,
+    cliBins: [pack.name, `@${pack.name}/cli`],
     sdkPackage: pack.surfaces?.sdk?.package,
     mcpServer: pack.surfaces?.mcp?.server,
   };

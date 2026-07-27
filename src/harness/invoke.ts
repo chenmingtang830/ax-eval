@@ -131,6 +131,20 @@ export interface InvokeAttemptMetrics {
   signal: NodeJS.Signals | null;
   timed_out: boolean;
   timeout_reason?: "wall" | "first-action";
+  /** Controller-derived bounded reason for this attempt's outcome. Dynamic
+   * stderr and artifact contents stay out of retry provenance. */
+  outcome_reason:
+    | "success"
+    | "timeout-wall"
+    | "timeout-first-action"
+    | "spawn-error"
+    | "unsafe-output"
+    | "unsafe-results"
+    | "unsafe-trace"
+    | "missing-results"
+    | "missing-or-invalid-trace"
+    | "nonzero-exit"
+    | "unknown-failure";
   cost_usd: number | null;
   token_usage: Record<string, number> | null;
   num_turns: number | null;
@@ -1683,6 +1697,25 @@ async function runInvokeHarnessInner(
       (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
     const nativeMetrics = parseHarnessMetrics(opts.harness, stdout);
     const attemptFinished = new Date();
+    const outcomeReason: InvokeAttemptMetrics["outcome_reason"] = ok
+      ? "success"
+      : attemptUnsafeHarnessOutput
+        ? "unsafe-output"
+        : attemptUnsafeResults
+          ? "unsafe-results"
+          : attemptUnsafeTrace
+            ? "unsafe-trace"
+            : res.timedOut
+              ? res.timeoutReason === "first-action" ? "timeout-first-action" : "timeout-wall"
+              : res.error
+                ? "spawn-error"
+                : (res.status ?? null) !== 0 && !transcriptShowsSuccess(opts.harness, stdout)
+                  ? "nonzero-exit"
+                  : !regularFileExists(opts.paths.resultsPath)
+                    ? "missing-results"
+                    : requiredTraceFailed
+                      ? "missing-or-invalid-trace"
+                      : "unknown-failure";
     attemptMetrics.push({
       attempt,
       started_at: attemptStarted.toISOString(),
@@ -1693,6 +1726,7 @@ async function runInvokeHarnessInner(
       signal: res.signal ?? null,
       timed_out: res.timedOut ?? false,
       timeout_reason: res.timeoutReason,
+      outcome_reason: outcomeReason,
       cost_usd: nativeMetrics.cost_usd,
       token_usage: nativeMetrics.token_usage,
       num_turns: nativeMetrics.num_turns,
