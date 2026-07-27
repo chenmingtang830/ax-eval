@@ -6,7 +6,7 @@
  * transcript.ts so adding a harness cannot silently change AX scoring rules.
  */
 
-export type TranscriptHarnessId = "claude-code" | "codex";
+export type TranscriptHarnessId = "claude-code" | "codex" | "opencode";
 
 export type HarnessEvent =
   | { kind: "search"; query: string; callId?: string }
@@ -99,6 +99,14 @@ const CLAUDE_EVENT_TYPES = new Set([
   "result",
   "stream_event",
   "rate_limit_event",
+]);
+const OPENCODE_EVENT_TYPES = new Set([
+  "step_start",
+  "step_finish",
+  "text",
+  "reasoning",
+  "tool_use",
+  "error",
 ]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -275,10 +283,86 @@ const codexDecoder: TranscriptLineDecoder = {
   decode: decodeCodexLine,
 };
 
-// Fixed pure decoders, intentionally not a mutable process-global registry.
-const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder];
+function decodeOpenCodeToolUse(value: Record<string, unknown>): { events: HarnessEvent[]; malformed: number } {
+  const part = record(value.part);
+  const state = record(part?.state);
+  const name = part ? stringField(part, "tool") : undefined;
+  const input = record(state?.input);
+  if (!part || !state || !name || !input) return { events: [], malformed: 1 };
 
-/** Decode Codex/Claude stdout JSONL into stable harness events plus safe diagnostics. */
+  const id = optionalCallId(part, "callID", "callId", "call_id", "id");
+  const normalizedName = name.toLowerCase().replace(/[-_]/g, "");
+  const action: HarnessEvent[] = [];
+  let malformed = 0;
+
+  if (normalizedName === "websearch") {
+    const query = stringField(input, "query", "search_term");
+    if (query) action.push({ kind: "search", query, ...id });
+    else malformed += 1;
+  } else if (normalizedName === "webfetch" || normalizedName === "fetch") {
+    const url = stringField(input, "url");
+    if (url) action.push({ kind: "fetch", url, ...id });
+    else malformed += 1;
+  } else if (normalizedName === "bash" || normalizedName === "shell") {
+    const command = stringField(input, "command", "contents");
+    if (command) action.push({ kind: "command", command, ...id });
+    else malformed += 1;
+  } else if (["write", "edit", "patch", "applypatch"].includes(normalizedName)) {
+    const path = stringField(input, "filePath", "file_path", "path");
+    const content = stringField(input, "content", "newString", "new_string", "patch");
+    if (path || content) {
+      action.push({
+        kind: "file_write",
+        ...(path ? { path } : {}),
+        ...(content ? { content } : {}),
+        ...id,
+      });
+    } else {
+      malformed += 1;
+    }
+  } else {
+    action.push({ kind: "tool_call", name, input, ...id });
+  }
+
+  const status = stringField(state, "status");
+  if (status === "completed" || status === "error") {
+    if (id.callId) {
+      action.push({
+        kind: "tool_result",
+        callId: id.callId,
+        outcome: status === "completed" ? "success" : "error",
+      });
+    } else {
+      malformed += 1;
+    }
+  }
+  // state.output/error/attachments and metadata.output are deliberately never
+  // copied. They are product data, not objective action semantics.
+  return { events: action, malformed };
+}
+
+function decodeOpenCodeLine(value: Record<string, unknown>): DecodedLine | undefined {
+  const type = typeof value.type === "string" ? value.type : "";
+  if (!OPENCODE_EVENT_TYPES.has(type)) return undefined;
+  if (type !== "tool_use") return { harness: "opencode", events: [], malformed: 0 };
+  const decoded = decodeOpenCodeToolUse(value);
+  return { harness: "opencode", ...decoded };
+}
+
+const openCodeDecoder: TranscriptLineDecoder = {
+  id: "opencode",
+  matches(value) {
+    const type = typeof value.type === "string" ? value.type : "";
+    // A bare `error` event is shared with Codex and cannot identify a harness.
+    return type !== "error" && OPENCODE_EVENT_TYPES.has(type);
+  },
+  decode: decodeOpenCodeLine,
+};
+
+// Fixed pure decoders, intentionally not a mutable process-global registry.
+const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder, openCodeDecoder];
+
+/** Decode supported harness stdout JSONL into stable events plus safe diagnostics. */
 export function decodeTranscriptContent(
   text: string,
   opts: TranscriptDecodeOptions = {},

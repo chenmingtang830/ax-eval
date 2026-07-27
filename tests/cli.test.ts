@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { afterEach, describe, expect, it } from "vitest";
-import { stringify as yamlStringify } from "yaml";
+import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import { TargetPackSchema } from "../src/schemas.js";
 import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 
@@ -883,11 +883,17 @@ for (const name of ["UNRELATED_DOTENV_SECRET", "OPENCODE_CONFIG_CONTENT", "OPENC
     process.exit(2);
   }
 }
-for (const name of ["OPENROUTER_API_KEY", "ASANA_PAT", "OPENCODE_CONFIG_DIR", "XDG_DATA_HOME"]) {
+const model = args[args.indexOf("--model") + 1] || "";
+for (const name of ["ASANA_PAT", "OPENCODE_CONFIG_DIR", "XDG_DATA_HOME"]) {
   if (!process.env[name]) {
     console.error("missing scoped env " + name);
     process.exit(3);
   }
+}
+if (model.startsWith("openrouter/") && (!process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) process.exit(6);
+if (model.startsWith("custom/") && ["OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((name) => process.env[name])) {
+  console.error("unknown provider inherited unrelated provider credentials");
+  process.exit(7);
 }
 if (process.env.OPENCODE_DISABLE_PROJECT_CONFIG !== "1" || args.includes("--variant")) {
   console.error("unsafe OpenCode controls");
@@ -919,6 +925,8 @@ console.log(JSON.stringify({
     ], {
       PATH: `${binDir}:${process.env.PATH ?? ""}`,
       OPENROUTER_API_KEY: "provider-scoped-key",
+      OPENAI_API_KEY: "unrelated-openai-key",
+      ANTHROPIC_API_KEY: "unrelated-anthropic-key",
       UNRELATED_DOTENV_SECRET: "must-not-cross",
       OPENCODE_CONFIG_CONTENT: '{"mcp":{"ambient":{}}}',
       OPENCODE_PERMISSION: "allow-all",
@@ -931,6 +939,33 @@ console.log(JSON.stringify({
       harness: "opencode",
       model: "openrouter/example/model",
     });
+
+    const unknownDir = freshDir();
+    const unknown = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "opencode",
+      "--model", "custom/example-model", "--attempts", "1", "--run-dir", unknownDir,
+    ], {
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      OPENROUTER_API_KEY: "must-not-cross",
+      OPENAI_API_KEY: "must-not-cross",
+      ANTHROPIC_API_KEY: "must-not-cross",
+    });
+    expect(unknown.code, unknown.out).toBe(0);
+  });
+
+  it("rejects pack-declared OpenCode control variables before invocation", () => {
+    const dir = freshDir();
+    const packPath = resolve(dir, "unsafe-pack.yaml");
+    const raw = yamlParse(readFileSync(PACK, "utf8")) as Record<string, unknown>;
+    raw.auth = { ...raw.auth as Record<string, unknown>, env: "OPENCODE_CONFIG_CONTENT", env_aliases: [] };
+    writeFileSync(packPath, yamlStringify(TargetPackSchema.parse(raw)));
+
+    const result = runCli([
+      "exec-plan", "--pack", packPath, "--skip-review", "--invoke", "--harness", "opencode",
+      "--model", "openrouter/example-model", "--attempts", "1", "--run-dir", resolve(dir, "run"),
+    ], { OPENCODE_CONFIG_CONTENT: '{"permission":"allow"}' });
+    expect(result.code).not.toBe(0);
+    expect(result.out).toContain("conflicts with controller-owned OpenCode isolation");
   });
 
   it("`--execution-mode task` runs one prompt per task and aggregates them back into a combined run", () => {

@@ -542,8 +542,11 @@ OpenCode invocation requires 1.18.3 or newer. The adapter runs headlessly with
 `--pure`, `--auto`, and JSON output. It sets fresh per-run
 `HOME`, `OPENCODE_CONFIG_DIR`, and XDG config, data, cache, and state roots;
 disables autoupdate, LSP downloads, and Claude-compatibility loading; and never
-copies ambient `auth.json`. Provider credentials must be explicitly scoped into
-the child environment. Its model is an explicit `provider/model`; the adapter
+copies ambient `auth.json`. The disposable home is removed after recovery and
+metrics parsing so OpenCode's binary session database is not retained. Provider
+credentials are selected from the explicit `provider/model`; an unknown
+provider receives no unrelated provider keys, and pack-declared OpenCode/XDG
+control variables are rejected. The adapter
 leaves `--variant` unset so the provider default applies. The record preserves
 that requested route, but does not claim that the provider actually served that
 model. OpenCode's self-reported dollar cost is not trusted, so runtime
@@ -551,9 +554,9 @@ model. OpenCode's self-reported dollar cost is not trusted, so runtime
 invocation. This generic core integration does not add OpenCode to the
 canonical AXArena production harness matrix.
 
-The MVP captures OpenCode's native JSONL. Its observed-run decoder is layered
-after the shared transcript-decoder seam; until that decoder is present, do not
-treat OpenCode `--observe` discovery or process evidence as complete.
+The MVP captures OpenCode's native JSONL and decodes its tool calls through the
+same harness-event seam as Claude Code and Codex, so `--observe` discovery and
+process evidence retain the shared surface semantics.
 
 ## Safety
 

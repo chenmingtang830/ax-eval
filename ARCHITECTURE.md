@@ -556,8 +556,10 @@ requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` with
 `XDG_CACHE_HOME`, and `XDG_STATE_HOME` roots. It enables OpenCode's Exa-backed
 web search and disables autoupdate, LSP downloads, and Claude-compatibility
 loading. Ambient `auth.json` is never copied; provider credentials must be
-explicitly scoped into the child environment. `AX_EVAL_OPENCODE_BIN` can pin
-the executable. The adapter never passes `--variant`, even when the cell has an
+explicitly scoped into the child environment, and pack env names cannot replace
+OpenCode/XDG isolation controls. The disposable home is deleted after recovery
+so SQLite session/tool-output data is not retained. `AX_EVAL_OPENCODE_BIN` can
+pin the executable. The adapter never passes `--variant`, even when the cell has an
 effort label, so the provider default applies. It records the requested
 `provider/model` route rather than claiming the served model was observed, and
 does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
@@ -565,10 +567,9 @@ MCP is rejected before OpenCode invocation. This core capability is not an
 AXArena production-harness designation.
 
 This layer captures the native OpenCode JSONL and removes duplicated tool
-outputs before durable stdout/transcript persistence. OpenCode observed-run
-decoding is a separate layer that must stack after the shared transcript-decoder
-seam. Until that decoder lands, capture is available but `--observe` discovery
-and process evidence is not complete.
+outputs before durable stdout/transcript persistence. Its decoder maps native
+tool calls into the same stable event contract as Claude Code and Codex before
+shared observed-run semantics are applied.
 
 ### MCP provisioning
 
@@ -704,9 +705,8 @@ Several architectural choices are load-bearing:
 - **Surface-awareness**
   - API assumptions must not leak into CLI / SDK / MCP paths
 - **Harness-specific parsing**
-  - Claude Code and Codex are normalized after capture, not forced into one raw
-    wire format; OpenCode follows this boundary after its decoder stacks on the
-    shared transcript-decoder seam
+  - Claude Code, Codex, and OpenCode are normalized after capture, not forced
+    into one raw wire format; each decoder feeds the shared event seam
 - **Blocked, not fake-failed**
   - missing surface auth should render as blocked configuration state, not a
     misleading 0%
@@ -724,7 +724,8 @@ Several architectural choices are load-bearing:
 - Prompt builder: [src/harness/executor.ts](./src/harness/executor.ts)
 - Harness runtime: [src/harness/invoke.ts](./src/harness/invoke.ts)
 - MCP provisioning: [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts)
-- Transcript parsing: [src/harness/transcript.ts](./src/harness/transcript.ts)
+- Transcript decoding: [src/harness/transcript-decoder.ts](./src/harness/transcript-decoder.ts)
+- Transcript semantics: [src/harness/transcript.ts](./src/harness/transcript.ts)
 - Verification: [src/generate/verify.ts](./src/generate/verify.ts)
 - Normalized records: [src/generate/record.ts](./src/generate/record.ts)
 - Report rendering: [src/generate/report.ts](./src/generate/report.ts)

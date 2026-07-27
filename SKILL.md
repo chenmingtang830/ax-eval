@@ -317,16 +317,17 @@ API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 failures. OpenCode runs with `--pure` and `--auto` in fresh config, data, cache,
 and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
 disabled. It never copies ambient `auth.json`; provider credentials must be
-explicitly scoped into the child environment. Its self-reported dollar cost is
-not trusted, so runtime `cost_usd` remains null. Claude Code and Codex MCP cells
+explicitly scoped into the child environment. The per-run home is deleted after
+artifact recovery so the binary session database is not retained; pack env
+names cannot replace OpenCode/XDG isolation controls. Its self-reported dollar
+cost is not trusted, so runtime `cost_usd` remains null. Claude Code and Codex MCP cells
 still receive their explicit pack-declared MCP provisioning; OpenCode has no
 MCP provisioning path. Adding this generic core runner does not make it a
 canonical AXArena production harness. This is one product across
 harnesses/surfaces — `competitive` is reserved for cross-*product* comparison.
 
-The OpenCode runner captures native JSONL first. Its observed-run decoder must
-stack after the shared transcript-decoder seam; until then, do not present
-OpenCode `--observe` discovery or process evidence as complete.
+The OpenCode runner captures native JSONL and maps its tool calls through the
+shared transcript-decoder seam before AX surface semantics are applied.
 
 Render that cross-product view with `npm run ax-arena -- benchmark competitive
 --from <sealed-publication-bundle> --html <ignored-output.html>`. The verified
