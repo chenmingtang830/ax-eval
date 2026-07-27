@@ -214,6 +214,29 @@ function childEnvironment(pack: TargetPack, credentials: Record<string, string>)
   return out;
 }
 
+function cellChildEnvironment(
+  pack: TargetPack,
+  credentials: Record<string, string>,
+  harness: EvaluationCell["harness"]["id"],
+): Record<string, string> {
+  const out = childEnvironment(pack, credentials);
+  if (harness !== "opencode") return out;
+  // Cell credential manifests must not be able to smuggle host-control knobs
+  // that override the controller-owned OpenCode isolation policy. The safe
+  // values from core provisioning are merged back after this filter.
+  for (const name of Object.keys(out)) {
+    if (name.startsWith("OPENCODE_") || [
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_CACHE_HOME",
+      "XDG_STATE_HOME",
+    ].includes(name)) {
+      delete out[name];
+    }
+  }
+  return out;
+}
+
 type CellProviderReference = Omit<ProviderReference, "kind"> & {
   kind: Exclude<RuntimeExtensionKind, "reset">;
 };
@@ -270,9 +293,27 @@ function mergeExtensionProvisioning(
       throw new Error(`provisioning provider "${provider.id}" returned a non-string value for ${name}`);
     }
   }
-  const reservedEnvironment = new Set<string>([...SAFE_PARENT_ENV, "CODEX_HOME"]);
+  const reservedEnvironment = new Set<string>([
+    ...SAFE_PARENT_ENV,
+    "CODEX_HOME",
+    "OPENCODE_CONFIG_DIR",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
+    "OPENCODE_ENABLE_EXA",
+    "OPENCODE_DISABLE_PROJECT_CONFIG",
+    "OPENCODE_DISABLE_CLAUDE_CODE",
+    "OPENCODE_DISABLE_CLAUDE_CODE_PROMPT",
+    "OPENCODE_DISABLE_LSP_DOWNLOAD",
+    "OPENCODE_DISABLE_AUTOUPDATE",
+  ]);
   const collisions = Object.keys(additions).filter((name) =>
-    reservedEnvironment.has(name) || name in reservedCredentials || name in baseEnv || name in core.env);
+    reservedEnvironment.has(name)
+    || name.startsWith("OPENCODE_")
+    || name in reservedCredentials
+    || name in baseEnv
+    || name in core.env);
   if (collisions.length) {
     throw new Error(`provisioning provider "${provider.id}" attempted to replace environment key(s): ${collisions.join(", ")}`);
   }
@@ -482,7 +523,9 @@ function executionNamespace(pack: TargetPack, cell: EvaluationCell): string {
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 12) || "cell";
-  const harness = cell.harness.id === "codex" ? "cdx" : "cld";
+  const harness = cell.harness.id === "codex"
+    ? "cdx"
+    : cell.harness.id === "opencode" ? "opc" : "cld";
   const digest = createHash("sha256")
     .update(JSON.stringify([
       cell.batch_id,
@@ -666,6 +709,18 @@ function provisioningSecretValues(provisioning: HarnessProvisioning): string[] {
   return Object.entries(provisioning.env)
     .filter(([name, value]) => secretName.test(name) && value.length > 0)
     .map(([, value]) => value);
+}
+
+function provisioningHomePaths(provisioning: HarnessProvisioning): (string | undefined)[] {
+  return [
+    provisioning.env.HOME,
+    provisioning.env.CODEX_HOME,
+    provisioning.env.OPENCODE_CONFIG_DIR,
+    provisioning.env.XDG_CONFIG_HOME,
+    provisioning.env.XDG_DATA_HOME,
+    provisioning.env.XDG_CACHE_HOME,
+    provisioning.env.XDG_STATE_HOME,
+  ];
 }
 
 function scrubText(value: string, secrets: readonly string[]): string {
@@ -1087,7 +1142,7 @@ export async function runCellWithRuntime(
       extensionSecrets = Object.values(extensionProvisioning.env ?? {})
         .filter((value): value is string => typeof value === "string");
     }
-    const baseEnv = childEnvironment(pack, credentials);
+    const baseEnv = cellChildEnvironment(pack, credentials, cell.harness.id);
     const coreProvisioning = await runtime.provisionHarness({
       pack,
       harness: cell.harness.id,
@@ -1139,7 +1194,7 @@ export async function runCellWithRuntime(
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);
 
-  const env = { ...childEnvironment(pack, credentials), ...provisioning.env };
+  const env = { ...cellChildEnvironment(pack, credentials, cell.harness.id), ...provisioning.env };
   const failureSecrets = [
     ...credentialSecrets,
     ...provisioningSecretValues(provisioning),
@@ -1169,7 +1224,7 @@ export async function runCellWithRuntime(
       sandbox: options.sandbox,
     });
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -1186,7 +1241,7 @@ export async function runCellWithRuntime(
   }
 
   if (options.signal?.aborted) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     throw options.signal.reason ?? new Error("cell run aborted");
   }
   let executor: ExecutorResults;
@@ -1197,7 +1252,7 @@ export async function runCellWithRuntime(
     trace = requiredTrace(paths.tracePath, artifactDir);
     executor = verifierExecutor(loadResults(paths.resultsPath), cell, ns);
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -1286,7 +1341,7 @@ export async function runCellWithRuntime(
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
   discovery = scrubDiscovery(discovery, secrets);
-  scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+  scrubArtifacts(paths, secrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
 
   const profileRun = executionProfileRun({
     cell,

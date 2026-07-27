@@ -258,6 +258,42 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
   return { home, configPath };
 }
 
+function writeOpenCodeNoMcpHome(opts: {
+  paths: InvokePaths;
+  surface: SurfaceId;
+}): {
+  home: string;
+  configDir: string;
+  configPath: string;
+  xdgConfigHome: string;
+  dataHome: string;
+  cacheHome: string;
+  stateHome: string;
+} {
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const root = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-opencode-${opts.surface}-no-mcp`);
+  // HOME is the per-run root so invoke.ts's containment-checked recursive
+  // scrubber covers every OpenCode config/session/cache directory below.
+  const home = root;
+  const xdgConfigHome = resolve(root, "config");
+  const configDir = resolve(xdgConfigHome, "opencode");
+  const dataHome = resolve(root, "data");
+  const cacheHome = resolve(root, "cache");
+  const stateHome = resolve(root, "state");
+  rmSync(root, { recursive: true, force: true });
+  for (const path of [home, configDir, dataHome, cacheHome, stateHome]) {
+    mkdirSync(path, { recursive: true });
+  }
+  const configPath = resolve(configDir, "opencode.json");
+  // A fresh config plus --pure keeps non-MCP cells from inheriting unrelated
+  // operator MCP servers or plugins. OPENCODE_CONFIG_DIR also redirects global
+  // AGENTS.md lookup; the repository-local AGENTS.md remains intentionally in
+  // scope for the evaluated workspace.
+  writeFileSync(configPath, `${JSON.stringify({ mcp: {} }, null, 2)}\n`, { mode: 0o600 });
+  try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome };
+}
+
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
   const artifactDir = resolve(dirname(paths.resultsPath));
   const homeRoot = resolve(artifactDir, ".invoke-home");
@@ -308,6 +344,35 @@ export async function provisionHarnessForSurface(opts: {
         },
       };
     }
+    if (opts.harness === "opencode") {
+      const opencode = writeOpenCodeNoMcpHome({ paths: opts.paths, surface: opts.surface });
+      return {
+        env: {
+          HOME: opencode.home,
+          OPENCODE_CONFIG_DIR: opencode.configDir,
+          XDG_CONFIG_HOME: opencode.xdgConfigHome,
+          XDG_DATA_HOME: opencode.dataHome,
+          XDG_CACHE_HOME: opencode.cacheHome,
+          XDG_STATE_HOME: opencode.stateHome,
+          OPENCODE_ENABLE_EXA: "1",
+          OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+          OPENCODE_DISABLE_CLAUDE_CODE: "1",
+          OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+          OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+          OPENCODE_DISABLE_AUTOUPDATE: "1",
+        },
+        meta: {
+          opencode_home: opencode.home,
+          opencode_config_dir: opencode.configDir,
+          opencode_config: opencode.configPath,
+          opencode_xdg_config_home: opencode.xdgConfigHome,
+          opencode_data_home: opencode.dataHome,
+          opencode_cache_home: opencode.cacheHome,
+          opencode_state_home: opencode.stateHome,
+          mcp_provisioning: "disabled_for_non_mcp_surface",
+        },
+      };
+    }
     if (opts.harness !== "codex") {
       return { env: {} };
     }
@@ -330,6 +395,12 @@ export async function provisionHarnessForSurface(opts: {
     };
   }
   const mcp = opts.pack.surfaces?.mcp;
+  // OpenCode is added for broad API/CLI/SDK model coverage. Until its MCP
+  // client config and trace semantics have dedicated fixtures, never let an MCP
+  // cell silently run without the reviewed pack-declared server.
+  if (opts.harness === "opencode") {
+    throw new Error("OpenCode MCP surface provisioning is not supported; use claude-code or codex");
+  }
   if (!mcp) return { env: {} };
   const downloadLaunchers = new Set(["npx", "npm", "pnpm", "yarn", "bunx", "uvx"]);
   if (opts.allowDownloads === false && mcp.transport === "stdio" && downloadLaunchers.has(basename(mcp.server))) {

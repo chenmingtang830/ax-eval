@@ -233,6 +233,26 @@ describe("runCell", () => {
     expect(record).not.toHaveProperty("provider_provenance");
   });
 
+  it("uses a distinct bounded namespace for OpenCode cells", async () => {
+    const { cell } = fixture();
+    cell.harness = {
+      id: "opencode",
+      profile: "medium",
+      model: "openrouter/openai/gpt-5.2",
+      effort: "medium",
+    };
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(cell, { credentials: {} }, runtime(invokes));
+
+    expect(invokes[0]?.harness).toBe("opencode");
+    expect(invokes[0]?.ns).toMatch(/^example-run-opc-m-[a-f0-9]{24}$/);
+    expect(record).toMatchObject({
+      harness: "opencode",
+      requested_model: "openrouter/openai/gpt-5.2",
+      execution_namespace: invokes[0]?.ns,
+    });
+  });
+
   it("keeps namespaces bounded and collision-resistant for large trial values", async () => {
     const { cell } = fixture();
     const invokes: InvokeRunOptions[] = [];
@@ -551,6 +571,29 @@ describe("runCell", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("reserves OpenCode isolation paths from runtime extensions", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "xdg-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { XDG_DATA_HOME: "/tmp/untrusted-opencode-data" } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record.error?.message).toContain("attempted to replace environment key(s): XDG_DATA_HOME");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
   it("never exposes verifier-only credentials to provisioning or its harness environment", async () => {

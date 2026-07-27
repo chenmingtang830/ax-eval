@@ -26,7 +26,7 @@
  *   ax-arena benchmark publication-bundle --run-root <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
- *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
+ *   ax-eval exec-plan --invoke --harness claude-code|codex|opencode [--profile medium] run prompts locally
  *   ax-eval cell run --input cell.json --output record.json           run one fully specified cell
  */
 import { fileURLToPath } from "node:url";
@@ -118,6 +118,33 @@ import { resolveGraphqlGeneratePreset, resolveOpenApiGeneratePreset } from "./pr
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "examples", "asana", "pack.yaml");
 const INVOKE_HARNESS_LIST = INVOKE_HARNESS_IDS.join("|");
+const INVOKE_SAFE_PARENT_ENV = [
+  "PATH",
+  "HOME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "CI",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "SSL_CERT_FILE",
+  "NODE_EXTRA_CA_CERTS",
+] as const;
+const OPENCODE_PROVIDER_ENV_BY_ID: Readonly<Record<string, readonly string[]>> = {
+  openrouter: ["OPENROUTER_API_KEY"],
+  anthropic: ["ANTHROPIC_API_KEY"],
+  openai: ["OPENAI_API_KEY"],
+  google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
+  xai: ["XAI_API_KEY"],
+  deepseek: ["DEEPSEEK_API_KEY"],
+  mistral: ["MISTRAL_API_KEY"],
+};
 const COMMANDS = [
   "run",
   "audit",
@@ -166,6 +193,60 @@ const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
 
 function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
   return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
+}
+
+function invokedHarnessEnvironment(
+  pack: TargetPack,
+  surface: SurfaceId,
+  harness: InvokeHarnessId,
+  model: string | undefined,
+  provisioning: Readonly<Record<string, string>>,
+): Record<string, string> {
+  if (harness !== "opencode") return { ...provisioning };
+  const scoped: Record<string, string> = {};
+  const copy = (name: string | undefined) => {
+    if (!name) return;
+    const value = process.env[name];
+    if (value !== undefined) scoped[name] = value;
+  };
+  for (const name of INVOKE_SAFE_PARENT_ENV) copy(name);
+
+  // Provider credentials are explicit env vars, never an ambient auth.json.
+  // When --model names a provider, expose only that provider's documented key
+  // candidates; an unpinned model keeps the small supported-provider allowlist.
+  const provider = model?.split("/", 1)[0]?.toLowerCase();
+  const providerNames = provider && OPENCODE_PROVIDER_ENV_BY_ID[provider]
+    ? OPENCODE_PROVIDER_ENV_BY_ID[provider]
+    : Object.values(OPENCODE_PROVIDER_ENV_BY_ID).flat();
+  for (const name of providerNames) copy(name);
+
+  const requirements = [
+    ...describeRequiredEnv(pack, process.env, {
+      tasks: tasksForSurface(pack, surface),
+      includeAuth: true,
+    }).filter((requirement) => requirement.role !== "sql_conn" && requirement.role !== "mongo_conn"),
+    ...surfaceAuthStatus(pack, surface).requirements,
+  ];
+  for (const requirement of requirements) copy(requirement.env);
+  for (const name of [pack.auth?.env, ...(pack.auth?.env_aliases ?? [])]) copy(name);
+  const surfaceConfig = surface === "api"
+    ? undefined
+    : pack.surfaces?.[surface] as { auth?: {
+        token_env?: string;
+        token_env_aliases?: string[];
+        client_id_env?: string;
+        client_secret_env?: string;
+        refresh_token_env?: string;
+      } } | undefined;
+  for (const name of [
+    surfaceConfig?.auth?.token_env,
+    ...(surfaceConfig?.auth?.token_env_aliases ?? []),
+    surfaceConfig?.auth?.client_id_env,
+    surfaceConfig?.auth?.client_secret_env,
+    surfaceConfig?.auth?.refresh_token_env,
+    ...pack.sandbox_scope.map((entry) => entry.env),
+  ]) copy(name);
+  return { ...scoped, ...provisioning };
 }
 
 function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): Promise<number> {
@@ -287,7 +368,8 @@ interface Parsed {
   model: string;
   /** Optional effort level (`--effort low|medium|high`). Overrides the profile's
    *  effort, and is translated to each harness's native convention at invocation
-   *  (codex → model_reasoning_effort; claude-code → prompt-level). */
+   *  (codex → model_reasoning_effort; claude-code → prompt-level;
+   *  OpenCode keeps its provider-specific default variant in the MVP). */
   effort: string;
   deterministic: boolean;
   smokeOnly: boolean;
@@ -1575,13 +1657,16 @@ interface InvokeGroup {
     if (auth.blocked) {
       const harnesses = args.invoke ? invokeHarnesses : [probeHarness().host];
       for (const harness of harnesses) {
-        const record = buildBlockedResult(pack, surfaceId, harness, auth.blocked);
+        const blocked = harness === "opencode" && surfaceId === "mcp"
+          ? "invoke-failed"
+          : auth.blocked;
+        const record = buildBlockedResult(pack, surfaceId, harness, blocked);
         const suffix = args.invoke ? `-${harness}` : "";
         const recordPath = `${dir}/run-${surfaceId}${suffix}-blocked.normalized.json`;
         writeFileSync(recordPath, JSON.stringify(record, null, 2));
         console.log(
           args.invoke
-            ? `surface=${surfaceId} harness=${harness} → BLOCKED (${auth.blocked}) → ${recordPath}`
+            ? `surface=${surfaceId} harness=${harness} → BLOCKED (${blocked}) → ${recordPath}`
             : `surface=${surfaceId} → BLOCKED (${auth.blocked}) → ${recordPath}`,
         );
       }
@@ -1638,7 +1723,12 @@ interface InvokeGroup {
                 cwd: process.cwd(),
               });
             } catch (e) {
-              const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+              const record = buildBlockedResult(
+                pack,
+                surfaceId,
+                harness,
+                harness === "opencode" ? "invoke-failed" : "requires-oauth",
+              );
               const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
               writeFileSync(recordPath, JSON.stringify(record, null, 2));
               console.log(
@@ -1657,18 +1747,20 @@ interface InvokeGroup {
             const eligibleTasks = tasksForSurface(pack, surfaceId);
             const groupKey = `${harness}::${surfaceId}::${name}::${attempt}`;
             const baseLabel = `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`;
+            const invokedModel = args.model || undefined;
             const sharedRunOpts = {
               harness,
               profile: name,
               surface: surfaceId,
               ns,
               cwd: process.cwd(),
-              model: args.model || undefined,
+              model: invokedModel,
               effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
               timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
               firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
               retries: args.invokeRetries,
-              env: provisioning.env,
+              env: invokedHarnessEnvironment(pack, surfaceId, harness, invokedModel, provisioning.env),
+              replaceEnv: harness === "opencode" ? true : undefined,
               provisioning: provisioning.meta,
               harnessDetection: detection,
               runBatchId: args.runBatchId || basename(resolve(dir)),
@@ -1684,7 +1776,12 @@ interface InvokeGroup {
                     cwd: process.cwd(),
                   });
                 } catch (e) {
-                  const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+                  const record = buildBlockedResult(
+                    pack,
+                    surfaceId,
+                    harness,
+                    harness === "opencode" ? "invoke-failed" : "requires-oauth",
+                  );
                   const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
                   writeFileSync(recordPath, JSON.stringify(record, null, 2));
                   console.log(
@@ -1726,7 +1823,13 @@ interface InvokeGroup {
                     pack: packWithoutTasks(pack),
                     paths: bootstrapPaths,
                     ...sharedRunOpts,
-                    env: bootstrapProvisioning.env,
+                    env: invokedHarnessEnvironment(
+                      packWithoutTasks(pack),
+                      surfaceId,
+                      harness,
+                      invokedModel,
+                      bootstrapProvisioning.env,
+                    ),
                     provisioning: bootstrapProvisioning.meta,
                   }
                   : undefined,
@@ -1773,7 +1876,13 @@ interface InvokeGroup {
                     pack: packWithTask(pack, task),
                     paths: taskPaths,
                     ...sharedRunOpts,
-                    env: taskProvisioning.env,
+                    env: invokedHarnessEnvironment(
+                      packWithTask(pack, task),
+                      surfaceId,
+                      harness,
+                      invokedModel,
+                      taskProvisioning.env,
+                    ),
                     provisioning: taskProvisioning.meta,
                   },
                 };

@@ -287,9 +287,15 @@ CLI drive them as subprocesses: run one lane per harness so each receives a
 compatible model slug, for example `exec-plan --invoke --harness claude-code
 --surface all --profile medium --effort medium --model sonnet --invoke-retries 0`,
 then a separate Codex lane with `--harness codex --profile medium --effort medium --model <gpt-model>
---invoke-retries 0`. The CLI stamps the model each harness actually reported,
-applies native effort where available, and writes one normalized `{surface,
-product, harness}` record per cell. `verify` then renders them as a single
+--invoke-retries 0`. An OpenCode lane uses `--harness opencode --surface api
+--profile medium --model <provider/model> --invoke-retries 0`; repeat it only
+for the API, CLI, and SDK surfaces the pack supports. OpenCode 1.18.3+ is
+required, and MCP is unsupported in this MVP. Claude Code and Codex retain
+their native reported-model handling. OpenCode instead records the requested
+`provider/model` route, not an attestation of the model actually served, and
+leaves its provider-specific `--variant` unset to use the provider default.
+The CLI writes one normalized `{surface, product, harness}` record per cell.
+`verify` then renders them as a single
 **neutral matrix** (surface · harness · effort) — no cell is crowned "best".
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
@@ -304,12 +310,23 @@ with zero recognized events is not objective evidence and must retain the
 labeled self-report fallback.
 
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
-and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
-CLI, and SDK Codex cells are invoked with an isolated Codex home plus
+and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults;
+tool-track OpenCode lanes have the equivalent `AX_EVAL_OPENCODE_BIN` override.
+API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 `mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
-failures. MCP cells still receive their explicit pack-declared MCP provisioning.
-This is one product across harnesses/surfaces — `competitive` is reserved for
-cross-*product* comparison.
+failures. OpenCode runs with `--pure` and `--auto` in fresh config, data, cache,
+and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
+disabled. It never copies ambient `auth.json`; provider credentials must be
+explicitly scoped into the child environment. Its self-reported dollar cost is
+not trusted, so runtime `cost_usd` remains null. Claude Code and Codex MCP cells
+still receive their explicit pack-declared MCP provisioning; OpenCode has no
+MCP provisioning path. Adding this generic core runner does not make it a
+canonical AXArena production harness. This is one product across
+harnesses/surfaces — `competitive` is reserved for cross-*product* comparison.
+
+The OpenCode runner captures native JSONL first. Its observed-run decoder must
+stack after the shared transcript-decoder seam; until then, do not present
+OpenCode `--observe` discovery or process evidence as complete.
 
 Render that cross-product view with `npm run ax-arena -- benchmark competitive
 --from <sealed-publication-bundle> --html <ignored-output.html>`. The verified

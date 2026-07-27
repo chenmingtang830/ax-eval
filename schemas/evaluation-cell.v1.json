@@ -32,7 +32,7 @@
       "additionalProperties": false,
       "required": ["id", "profile", "model", "effort"],
       "properties": {
-        "id": { "enum": ["claude-code", "codex"] },
+        "id": { "enum": ["claude-code", "codex", "opencode"] },
         "profile": { "enum": ["low", "medium", "high"] },
         "model": { "$ref": "#/$defs/nonBlank" },
         "effort": { "enum": ["low", "medium", "high"] }

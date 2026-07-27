@@ -38,6 +38,10 @@ describe("evaluation cell schema", () => {
       delete invalid[field];
       expect(EvaluationCellSchema.safeParse(invalid).success, field).toBe(false);
     }
+    expect(EvaluationCellSchema.safeParse({
+      ...cell(),
+      harness: { id: "opencode", profile: "medium", model: "openrouter/openai/gpt-5.2", effort: "medium" },
+    }).success).toBe(true);
     for (const field of ["model", "effort"]) {
       const invalid = cell();
       delete (invalid.harness as Record<string, unknown>)[field];
@@ -63,6 +67,7 @@ describe("evaluation cell schema", () => {
     const output = JSON.parse(readFileSync(resolve("schemas/normalized-cell-record.v1.json"), "utf8"));
     const legacy = JSON.parse(readFileSync(resolve("schemas/normalized-result.v1.json"), "utf8"));
     expect(input.properties.schema.const).toBe("ax.evaluation-cell/v1");
+    expect(input.properties.harness.properties.id.enum).toContain("opencode");
     expect(output.properties.schema.const).toBe("ax.normalized-cell-record/v1");
     for (const field of ["cell_id", "batch_id", "evaluation_set_id", "pack_content_hash", "task_results"]) {
       expect(output.required).toContain(field);
