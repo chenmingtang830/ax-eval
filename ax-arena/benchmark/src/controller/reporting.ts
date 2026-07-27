@@ -13,7 +13,7 @@ import {
   loadPack,
   observedToTrace,
   packFileContentHash,
-  parseTranscriptContent,
+  parseTranscriptContentWithDiagnostics,
   renderGeneratedSnapshot,
   type GeneratedReportSnapshot,
   type NormalizedCellRecord,
@@ -187,13 +187,21 @@ function profileRun(
   artifacts: VerifiedArtifacts,
 ): ProfileRun & { cell_key: string; trial: number } {
   const { results, trace, transcript } = artifacts;
-  const observed = parseTranscriptContent(transcript.bytes.toString("utf8"), {
+  if (record.harness !== "codex" && record.harness !== "claude-code") {
+    throw new Error(`unsupported transcript harness in arena reporting: ${record.harness}`);
+  }
+  const parsedTranscript = parseTranscriptContentWithDiagnostics(transcript.bytes.toString("utf8"), {
+    harness: record.harness,
     baseUrl: pack.base_url.includes("${") ? undefined : pack.base_url,
     classifyUnknownCurlAsApi: record.surface === "api" && pack.base_url.includes("${"),
     cliBin: pack.surfaces?.cli?.bin,
     sdkPackage: pack.surfaces?.sdk?.package,
     mcpServer: pack.surfaces?.mcp?.server,
   });
+  if (parsedTranscript.diagnostics.recognized === 0) {
+    throw new Error(`transcript artifact contained no events recognized by the ${record.harness} decoder`);
+  }
+  const observed = parsedTranscript.run;
   return {
     cell_key: `${record.target_id}/${record.surface}/${record.harness}/trial-${record.trial}`,
     trial: record.trial,

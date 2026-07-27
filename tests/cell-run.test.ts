@@ -387,7 +387,7 @@ describe("runCell", () => {
       trace: Array<{ taskId: string; path?: string }>;
     };
     expect(Object.isFrozen(adapterContext)).toBe(true);
-    expect(adapterContext.observed).toMatchObject({ apiCalls: [] });
+    expect(adapterContext.observed).toBeUndefined();
     expect(adapterContext.trace).toEqual([
       expect.objectContaining({ taskId: "task-1", path: "/examples" }),
     ]);
@@ -1074,12 +1074,12 @@ describe("runCell", () => {
     expect(record.execution_namespace).toBe(invokes[0]!.ns);
   });
 
-  it("passes the required trace independently from the parsed transcript", async () => {
+  it("passes the required trace independently from an empty transcript", async () => {
     const { cell } = fixture();
     const isolated = runtime([]);
     const verify = isolated.verify;
     isolated.verify = async (...args) => {
-      expect(args[4]).toBeDefined();
+      expect(args[4]).toBeUndefined();
       expect(args[5]).toEqual([
         { step: 1, taskId: "task-1", action: "POST", method: "POST", path: "/examples" },
       ]);
