@@ -538,25 +538,37 @@ pin the executable. Non-MCP Codex cells use an isolated Codex home and
 `mcp_servers={}` so API/CLI/SDK scores are not polluted by unrelated global MCP
 server logins.
 
-OpenCode invocation requires 1.18.3 or newer. The adapter runs headlessly with
-`--pure`, `--auto`, and JSON output. It sets fresh per-run
+OpenCode invocation requires 1.18.3 or newer and an explicit
+`--model <provider/model>`. Known providers are blocked before invocation when
+none of their supported credential env vars is present. The adapter runs
+headlessly with `--no-env-file`, `--pure`, `--auto`, and JSON output. It sets fresh per-run
 `HOME`, `OPENCODE_CONFIG_DIR`, and XDG config, data, cache, and state roots;
 disables autoupdate, LSP downloads, and Claude-compatibility loading; and never
 copies ambient `auth.json`. The disposable home is removed after recovery and
 metrics parsing so OpenCode's binary session database is not retained. Provider
 credentials are selected from the explicit `provider/model`; an unknown
 provider receives no unrelated provider keys, and pack-declared OpenCode/XDG
-control variables are rejected. The adapter
+control variables are rejected case-insensitively. System/MDM-managed OpenCode
+configuration blocks the lane because it would override the controller config.
+The controller disables OpenCode's `task` subagent tool because root JSONL omits
+child-session actions. The adapter
 leaves `--variant` unset so the provider default applies. The record preserves
 that requested route, but does not claim that the provider actually served that
 model. OpenCode's self-reported dollar cost is not trusted, so runtime
-`cost_usd` remains null. OpenCode MCP cells fail as unsupported before
-invocation. This generic core integration does not add OpenCode to the
+`cost_usd` remains null. OpenCode MCP cells fail before invocation; one-cell
+records emit `blocked: unsupported-surface`. To keep the historical
+`ax.normalized-result/v1` enum unchanged, legacy `exec-plan` reports the gap
+clearly but maps its blocked cube record to `invoke-failed`. This generic core integration does not add OpenCode to the
 canonical AXArena production harness matrix.
 
 The MVP captures OpenCode's native JSONL and decodes its tool calls through the
 same harness-event seam as Claude Code and Codex, so `--observe` discovery and
-process evidence retain the shared surface semantics.
+process evidence retain the shared surface semantics. Legacy `exec-plan` runs
+OpenCode from a disposable secret-free cwd and exact-redacts forwarded credential
+values from artifacts. That cwd is defense in depth, not an OS filesystem
+boundary: use a dedicated sandbox/checkout for hostile prompts. Arena cells keep
+their controller-supplied process/filesystem sandbox; unsandboxed library cells
+receive the disposable cwd automatically.
 
 ## Safety
 

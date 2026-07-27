@@ -1,10 +1,15 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { defaultInvokePaths } from "../src/harness/invoke.js";
-import { provisionHarnessForSurface } from "../src/harness/mcp-provision.js";
+import { openCodeManagedProgramData, provisionHarnessForSurface } from "../src/harness/mcp-provision.js";
+import {
+  findOpenCodeManagedConfig,
+  isOpenCodeReservedChildEnv,
+  openCodeManagedConfigCandidates,
+} from "../src/harness/opencode.js";
 
 const dirs: string[] = [];
 const oldEnv = { ...process.env };
@@ -129,6 +134,7 @@ describe("provisionHarnessForSurface", () => {
         OPENCODE_CONFIG_DIR: "/ambient/opencode-config",
         XDG_DATA_HOME: "/ambient/opencode-data",
       },
+      isolateWorkspace: true,
     });
     const second = await provisionHarnessForSurface({
       pack: cliPack(),
@@ -136,7 +142,11 @@ describe("provisionHarnessForSurface", () => {
       surface: "cli",
       paths: defaultInvokePaths(dir, "opencode-low-cli", "opencode"),
       cwd: "/repo",
+      isolateWorkspace: true,
     });
+    for (const root of [first.meta?.opencode_work_root, second.meta?.opencode_work_root]) {
+      if (typeof root === "string") dirs.push(root);
+    }
 
     expect(first.env.HOME).toContain(".invoke-home");
     expect(first.env.HOME).not.toBe(second.env.HOME);
@@ -157,9 +167,54 @@ describe("provisionHarnessForSurface", () => {
     expect(first.env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
     expect(first.env.OPENCODE_ENABLE_EXA).toBe("1");
     expect(first.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
+    expect(first.meta?.opencode_work_dir).toEqual(expect.stringContaining("ax-eval-opencode-"));
+    expect(first.meta?.opencode_work_dir).not.toContain("/repo");
+    expect(existsSync(first.meta?.opencode_work_dir as string)).toBe(true);
     const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
-    expect(config).toEqual({ mcp: {} });
+    expect(config).toEqual({
+      mcp: {},
+      permission: { task: "deny" },
+      share: "disabled",
+      autoshare: false,
+    });
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
+  });
+
+  it("enumerates and fails closed on OpenCode managed config sources", () => {
+    expect(openCodeManagedConfigCandidates({ platform: "linux" })).toEqual([
+      "/etc/opencode/opencode.json",
+      "/etc/opencode/opencode.jsonc",
+    ]);
+    const darwin = openCodeManagedConfigCandidates({ platform: "darwin", username: "eval-user" });
+    expect(darwin).toContain("/Library/Application Support/opencode/opencode.json");
+    expect(darwin).toContain("/Library/Managed Preferences/eval-user/ai.opencode.managed.plist");
+    expect(darwin).toContain("/Library/Managed Preferences/ai.opencode.managed.plist");
+    expect(findOpenCodeManagedConfig(
+      { platform: "darwin", username: "eval-user" },
+      (path) => path.endsWith("ai.opencode.managed.plist"),
+    )).toHaveLength(2);
+    expect(openCodeManagedConfigCandidates({
+      platform: "win32",
+      programData: "D:\\ManagedData",
+    })).toContain("D:\\ManagedData/opencode/opencode.json");
+    expect(openCodeManagedProgramData({ ProgramData: "D:\\ManagedData" })).toBe("D:\\ManagedData");
+    expect(openCodeManagedProgramData({ PROGRAMDATA: "E:\\MachineData" })).toBe("E:\\MachineData");
+    expect(openCodeManagedProgramData({}, { ProgramData: "F:\\HostPolicy" })).toBe("F:\\HostPolicy");
+    expect(isOpenCodeReservedChildEnv("opencode_config_content")).toBe(true);
+    expect(isOpenCodeReservedChildEnv("xdg_data_home")).toBe(true);
+  });
+
+  it("creates the OpenCode session home with owner-only permissions", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "api",
+      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      cwd: "/repo",
+      env: {},
+    });
+    expect(statSync(provisioning.env.HOME!).mode & 0o777).toBe(0o700);
   });
 
   it("fails closed before invoking or exchanging auth for OpenCode MCP cells", async () => {

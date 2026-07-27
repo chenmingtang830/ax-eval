@@ -78,6 +78,7 @@ function opts(dir: string, harness: "claude-code" | "codex" | "opencode" = "clau
     ns: "gen-ceiling-abcd",
     paths,
     cwd: dir,
+    ...(harness === "opencode" ? { model: "openrouter/example-model" } : {}),
   };
 }
 
@@ -129,7 +130,7 @@ describe("detectInvokeHarness", () => {
   it("requires an OpenCode version with the confirmed headless flags", () => {
     const supported = detectInvokeHarness("opencode", (command, args) => {
       expect(command).toBe("opencode");
-      expect(args).toEqual(["--version"]);
+      expect(args).toEqual(["--no-env-file", "--version"]);
       return spawnResult({ stdout: Buffer.from("1.18.3\n") });
     });
     expect(supported).toMatchObject({ ok: true, command: "opencode", version: "1.18.3" });
@@ -147,6 +148,32 @@ describe("detectInvokeHarness", () => {
       return spawnResult({ stdout: Buffer.from("1.18.3\n") });
     });
     expect(detected).toMatchObject({ ok: true, command: "/pinned/opencode" });
+  });
+
+  it("retains an absolute OpenCode command when a relative override is detected", async () => {
+    vi.stubEnv("AX_EVAL_OPENCODE_BIN", "./bin/opencode");
+    const expected = resolve(process.cwd(), "bin", "opencode");
+    const detection = detectInvokeHarness("opencode", (command) => {
+      expect(command).toBe(expected);
+      return spawnResult({ stdout: Buffer.from("1.18.3\n") });
+    });
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const isolatedCwd = resolve(dir, "isolated-workspace");
+    mkdirSync(isolatedCwd, { recursive: true });
+    let invokedCommand = "";
+    await runInvokeHarness({ ...run, cwd: isolatedCwd, harnessDetection: detection }, async (command) => {
+      invokedCommand = command;
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        results: { t1: { gid: "g" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(JSON.stringify({ type: "step_finish", part: { reason: "stop" } })) });
+    });
+    expect(invokedCommand).toBe(expected);
   });
 });
 
@@ -262,6 +289,7 @@ describe("runInvokeHarness", () => {
     const spawn: AsyncSpawn = async (command, args) => {
       expect(command).toBe("/pinned/opencode");
       expect(args).toEqual([
+        "--no-env-file",
         "run",
         "--format", "json",
         "--auto",
@@ -298,6 +326,14 @@ describe("runInvokeHarness", () => {
     expect(result.ok).toBe(true);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(executor.model).toBe("openrouter/anthropic/claude-sonnet-4.5");
+  });
+
+  it("rejects an OpenCode invocation without an explicit provider/model route", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    await expect(runInvokeHarness({ ...run, model: undefined }, async () => {
+      throw new Error("spawn must not run");
+    })).rejects.toThrow(/explicit provider\/model/);
   });
 
   it("disables inherited MCP servers for non-MCP Codex invocations", async () => {
@@ -555,6 +591,32 @@ describe("runInvokeHarness", () => {
     const result = await runInvokeHarness(run, spawn);
     expect(result.ok).toBe(false);
     expect(result.validity_status).toBe("results_json_invalid");
+    expect(result.error).toContain("results JSON invalid");
+  });
+
+  it.each([
+    ["null root", null],
+    ["string root", "not-an-object"],
+    ["array root", []],
+    ["missing results", { profile: "ceiling" }],
+    ["null results", { profile: "ceiling", results: null }],
+    ["array results", { profile: "ceiling", results: [] }],
+  ])("rejects a structurally invalid result payload: %s", async (_label, payload) => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify(payload));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).toBe("results_json_invalid");
+    expect(result.error).toContain("results JSON");
+    expect(result.attempt_metrics?.[0]?.ok).toBe(false);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    expect(executor.results.t1.gid).toBeNull();
   });
 
   it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
@@ -600,6 +662,33 @@ describe("runInvokeHarness", () => {
     }
   });
 
+  it("redacts secret-keyed provisioning values while keeping invoke meta parseable", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "codex");
+    const secret = "opaque-value-123";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({
+          profile: run.profile,
+          ns: run.ns,
+          surface: run.surface,
+          discovery: {},
+          results: { t1: { gid: "g" } },
+        }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"ok":true}') });
+    };
+
+    const result = await runInvokeHarness({ ...run, provisioning: { apiKey: secret } }, spawn);
+    expect(result.ok).toBe(true);
+    const persisted = readFileSync(run.paths.metaPath, "utf8");
+    const meta = JSON.parse(persisted);
+    expect(meta.provisioning.apiKey).toBe("<redacted>");
+    expect(persisted).not.toContain(secret);
+  });
+
   it("redacts isolated invoke-home host CLI caches", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
@@ -629,6 +718,9 @@ describe("runInvokeHarness", () => {
     const dir = freshDir();
     const run = opts(dir, "opencode");
     const home = resolve(dir, ".invoke-home", "demo-opencode");
+    const workRoot = mkdtempSync(resolve(tmpdir(), "ax-eval-opencode-"));
+    dirs.push(workRoot);
+    mkdirSync(resolve(workRoot, "workspace"), { recursive: true });
     const dataDir = resolve(home, "data", "opencode");
     mkdirSync(dataDir, { recursive: true });
     const database = resolve(dataDir, "opencode.db");
@@ -643,9 +735,201 @@ describe("runInvokeHarness", () => {
       return spawnResult({ stdout: Buffer.from(JSON.stringify({ type: "step_finish", part: { reason: "stop" } })) });
     };
 
-    const result = await runInvokeHarness({ ...run, env: { HOME: home } }, spawn);
+    const result = await runInvokeHarness({
+      ...run,
+      cwd: resolve(workRoot, "workspace"),
+      env: { HOME: home },
+      provisioning: { opencode_work_root: workRoot, opencode_work_dir: resolve(workRoot, "workspace") },
+    }, spawn);
     expect(result.ok).toBe(true);
     expect(existsSync(home)).toBe(false);
+    expect(existsSync(workRoot)).toBe(false);
+  });
+
+  it("exact-redacts opaque scoped credentials from every OpenCode artifact", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const secret = "opaque-value-123-not-shape-detectable";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: { notes: `model repeated ${secret}` },
+        results: { t1: { gid: "g" } },
+      }));
+      writeFileSync(run.paths.tracePath, JSON.stringify([
+        { step: 1, taskId: "t1", action: "bash", note: secret },
+      ]));
+      return spawnResult({
+        stdout: Buffer.from([
+          JSON.stringify({ type: "text", part: { text: `credential ${secret}` } }),
+          JSON.stringify({
+            type: "tool_use",
+            part: { tool: "bash", callID: "c1", state: { status: "completed", input: { command: `echo ${secret}` } } },
+          }),
+          JSON.stringify({ type: "step_finish", part: { reason: "stop" } }),
+        ].join("\n")),
+      });
+    };
+
+    await runInvokeHarness({ ...run, redactionValues: [secret] }, spawn);
+    for (const path of [
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.metaPath,
+    ]) {
+      const persisted = readFileSync(path, "utf8");
+      expect(persisted).not.toContain(secret);
+    }
+    expect(readFileSync(run.paths.transcriptPath, "utf8")).toContain("<redacted>");
+  });
+
+  it("fails closed with parseable artifacts when a short exact credential reaches structured output", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const secret = "q7x";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: { notes: `model repeated ${secret}` },
+        results: { t1: { gid: secret } },
+      }));
+      writeFileSync(run.paths.tracePath, JSON.stringify([
+        { step: 1, taskId: "t1", action: "bash", note: secret },
+      ]));
+      return spawnResult({
+        stdout: Buffer.from([
+          JSON.stringify({ type: "text", part: { text: `credential ${secret}` } }),
+          JSON.stringify({ type: "step_finish", part: { reason: "stop" } }),
+        ].join("\n")),
+      });
+    };
+
+    const result = await runInvokeHarness({ ...run, redactionValues: [secret] }, spawn);
+
+    expect(result.ok).toBe(false);
+    expect(result.validity_status).not.toBe("valid");
+    expect(result.attempts).toBe(1);
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    const trace = JSON.parse(readFileSync(run.paths.tracePath, "utf8"));
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(executor.results.t1.gid).toBeNull();
+    expect(trace[0].note).toContain("short exact-redaction value");
+    expect(meta.ok).toBe(false);
+    expect(meta.validity_status).not.toBe("valid");
+    for (const path of [
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.metaPath,
+    ]) {
+      expect(readFileSync(path, "utf8")).not.toContain(secret);
+    }
+    expect(readFileSync(run.paths.stdoutPath, "utf8")).toBe("<redacted-sensitive-text>");
+    expect(readFileSync(run.paths.transcriptPath, "utf8")).toBe("<redacted-sensitive-text>");
+  });
+
+  it("fails closed when only an OpenCode tool input exposes a short exact credential", async () => {
+    const dir = freshDir();
+    const run = { ...opts(dir, "opencode"), retries: 2 };
+    const secret = "r6v";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: {},
+        results: { t1: { gid: "clean-gid" } },
+      }));
+      writeFileSync(run.paths.tracePath, JSON.stringify([
+        { step: 1, taskId: "t1", action: "clean action" },
+      ]));
+      return spawnResult({
+        stdout: Buffer.from([
+          JSON.stringify({
+            type: "tool_use",
+            part: {
+              tool: "bash",
+              callID: "c1",
+              state: { status: "completed", input: { command: `printf ${secret}` }, output: "clean" },
+            },
+          }),
+          JSON.stringify({ type: "step_finish", part: { reason: "stop" } }),
+        ].join("\n")),
+      });
+    };
+
+    const result = await runInvokeHarness({ ...run, redactionValues: [secret] }, spawn);
+
+    expect(result).toMatchObject({ ok: false, attempts: 1, validity_status: "trace_invalid" });
+    expect(result.attempt_metrics?.[0]?.ok).toBe(false);
+    expect(result.error).toContain("harness output contained");
+    const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
+    const trace = JSON.parse(readFileSync(run.paths.tracePath, "utf8"));
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(executor.results.t1.gid).toBeNull();
+    expect(trace[0].note).toContain("harness output contained");
+    expect(meta.ok).toBe(false);
+    for (const path of [
+      run.paths.resultsPath,
+      run.paths.tracePath,
+      run.paths.stdoutPath,
+      run.paths.stderrPath,
+      run.paths.transcriptPath,
+      run.paths.metaPath,
+    ]) {
+      expect(readFileSync(path, "utf8")).not.toContain(secret);
+    }
+  });
+
+  it("omits OpenCode reasoning text from durable stdout and transcript artifacts", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const toolDerivedValue = "opaque-tool-derived-value";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: {},
+        results: { t1: { gid: "clean-gid" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({
+        stdout: Buffer.from([
+          JSON.stringify({
+            type: "reasoning",
+            timestamp: 123,
+            sessionID: "session-1",
+            part: { id: "part-1", type: "reasoning", text: `derived ${toolDerivedValue}` },
+          }),
+          JSON.stringify({ type: "step_finish", part: { reason: "stop" } }),
+        ].join("\n")),
+      });
+    };
+
+    const result = await runInvokeHarness(run, spawn);
+    expect(result.ok).toBe(true);
+    for (const path of [run.paths.stdoutPath, run.paths.transcriptPath]) {
+      const persisted = readFileSync(path, "utf8");
+      expect(persisted).not.toContain(toolDerivedValue);
+      const reasoning = JSON.parse(persisted.split("\n")[0]!);
+      expect(reasoning).toMatchObject({
+        type: "reasoning",
+        timestamp: 123,
+        sessionID: "session-1",
+        part: { id: "part-1", type: "reasoning" },
+      });
+      expect(reasoning.part).not.toHaveProperty("text");
+    }
   });
 
   it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
@@ -668,16 +952,16 @@ describe("runInvokeHarness", () => {
     expect(seenArgs).toContain('approval_policy="never"');
   });
 
-  it("locks Codex structured output metadata to the current run and stamps empty partial metadata", async () => {
+  it("locks Codex structured output metadata to the current run and overwrites agent values", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
     const spawn: AsyncSpawn = async () => {
       writeFileSync(
         run.paths.resultsPath,
         JSON.stringify({
-          profile: "",
-          ns: "",
-          surface: "",
+          profile: "agent-spoofed-profile",
+          ns: "agent-spoofed-namespace",
+          surface: "mcp",
           discovery: { notes: "partial progress message" },
           results: { t1: { gid: null } },
         }),

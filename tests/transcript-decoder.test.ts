@@ -254,4 +254,22 @@ describe("harness transcript decoders", () => {
     ]);
     expect(JSON.stringify(decoded.events)).not.toMatch(/SECRET_RESULT_BODY|SECRET_ATTACHMENT/);
   });
+
+  it("decodes OpenCode's native apply_patch patchText input", () => {
+    const patchText = "*** Begin Patch\n*** Add File: run.mjs\n+fetch('https://app.asana.com/api/1.0/tasks')\n*** End Patch";
+    const decoded = decodeTranscriptContent(JSON.stringify({
+      type: "tool_use",
+      part: {
+        type: "tool",
+        tool: "apply_patch",
+        callID: "call-patch",
+        state: { status: "completed", input: { patchText } },
+      },
+    }), { harness: "opencode" });
+    expect(decoded.events).toEqual([
+      { kind: "file_write", content: patchText, callId: "call-patch" },
+      { kind: "tool_result", callId: "call-patch", outcome: "success" },
+    ]);
+    expect(decoded.diagnostics.malformed).toBe(0);
+  });
 });

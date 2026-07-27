@@ -549,21 +549,30 @@ This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
 
 OpenCode is the third open-source core runner, with an API/CLI/SDK-only MVP. It
-requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` with
-`--format json`, `--auto`, and `--pure`, optionally adding `--model` with a
-`provider/model` value, before the prompt. Each run receives isolated
+requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` with the
+global `--no-env-file` flag plus `--format json`, `--auto`, and `--pure`, and
+requires `--model provider/model` before the prompt. Each run receives isolated
 `HOME`, `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
 `XDG_CACHE_HOME`, and `XDG_STATE_HOME` roots. It enables OpenCode's Exa-backed
 web search and disables autoupdate, LSP downloads, and Claude-compatibility
 loading. Ambient `auth.json` is never copied; provider credentials must be
 explicitly scoped into the child environment, and pack env names cannot replace
-OpenCode/XDG isolation controls. The disposable home is deleted after recovery
+OpenCode/XDG isolation controls. Managed system config and macOS MDM preferences
+fail closed because OpenCode merges them last. Root-session JSONL excludes
+subagent actions, so controller config denies the `task` tool. The disposable home is deleted after recovery
 so SQLite session/tool-output data is not retained. `AX_EVAL_OPENCODE_BIN` can
 pin the executable. The adapter never passes `--variant`, even when the cell has an
 effort label, so the provider default applies. It records the requested
 `provider/model` route rather than claiming the served model was observed, and
 does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
-MCP is rejected before OpenCode invocation. This core capability is not an
+MCP is rejected before OpenCode invocation. The one-cell record uses
+`blocked: unsupported-surface`; legacy `exec-plan` preserves the unchanged
+`ax.normalized-result/v1` enum by mapping its cube record to `invoke-failed`
+while reporting the structural gap explicitly.
+Legacy `exec-plan` uses a disposable cwd outside the checkout and exact-value
+credential redaction; it remains defense in depth rather than an OS sandbox.
+Unsandboxed `runCell` callers receive that cwd too, while arena cells retain the
+controller's stronger process/filesystem sandbox. This core capability is not an
 AXArena production-harness designation.
 
 This layer captures the native OpenCode JSONL and removes duplicated tool

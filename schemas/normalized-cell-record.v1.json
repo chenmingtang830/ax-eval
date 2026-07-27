@@ -94,7 +94,7 @@
     "started_at": { "type": "string", "format": "date-time" },
     "completed_at": { "type": "string", "format": "date-time" },
     "status": { "enum": ["completed", "failed", "blocked"] },
-    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "health-check-failed", "invoke-failed"] },
+    "blocked": { "enum": ["requires-oauth", "missing-credential", "missing-harness", "unsupported-surface", "health-check-failed", "invoke-failed"] },
     "error": {
       "oneOf": [
         { "type": "null" },

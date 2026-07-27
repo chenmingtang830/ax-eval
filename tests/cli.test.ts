@@ -13,6 +13,7 @@ const CLI = resolve(ROOT, "src", "cli.ts");
 const ARENA_CLI = resolve(ROOT, "ax-arena", "benchmark", "src", "cli.ts");
 const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
+const NEON_PACK = resolve(ROOT, "ax-arena", "benchmark", "daeb", "v1", "packs", "neon", "pack.yaml");
 
 function writeSyntheticSuite(root: string): string {
   const path = resolve(root, "suite.yaml");
@@ -874,8 +875,22 @@ console.log(JSON.stringify({ ok: true }));
 const fs = require("fs");
 const args = process.argv.slice(2);
 if (args.includes("--version")) {
+  for (const name of ["ASANA_PAT", "OPENROUTER_API_KEY", "UNRELATED_DOTENV_SECRET"]) {
+    if (process.env[name]) {
+      console.error("detection inherited secret env " + name);
+      process.exit(10);
+    }
+  }
   console.log("1.18.3");
   process.exit(0);
+}
+if (args[0] !== "--no-env-file") {
+  console.error("OpenCode dotenv autoload was not disabled");
+  process.exit(8);
+}
+if (process.cwd() === ${JSON.stringify(process.cwd())} || fs.existsSync(".env")) {
+  console.error("OpenCode did not receive a secret-free disposable cwd");
+  process.exit(9);
 }
 for (const name of ["UNRELATED_DOTENV_SECRET", "OPENCODE_CONFIG_CONTENT", "OPENCODE_PERMISSION"]) {
   if (process.env[name]) {
@@ -884,11 +899,24 @@ for (const name of ["UNRELATED_DOTENV_SECRET", "OPENCODE_CONFIG_CONTENT", "OPENC
   }
 }
 const model = args[args.indexOf("--model") + 1] || "";
-for (const name of ["ASANA_PAT", "OPENCODE_CONFIG_DIR", "XDG_DATA_HOME"]) {
+for (const name of ["OPENCODE_CONFIG_DIR", "XDG_DATA_HOME"]) {
   if (!process.env[name]) {
     console.error("missing scoped env " + name);
     process.exit(3);
   }
+}
+if (model === "custom/sql-model") {
+  if (!process.env.NEON_DATABASE_URL || !process.env.NEON_API_KEY || !process.env.NEON_PROJECT_ID) {
+    console.error("missing declared CLI data-plane environment");
+    process.exit(11);
+  }
+  if (process.env.ASANA_PAT) {
+    console.error("CLI data-plane run inherited an unrelated target credential");
+    process.exit(12);
+  }
+} else if (!process.env.ASANA_PAT) {
+  console.error("missing scoped env ASANA_PAT");
+  process.exit(3);
 }
 if (model.startsWith("openrouter/") && (!process.env.OPENROUTER_API_KEY || process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY)) process.exit(6);
 if (model.startsWith("custom/") && ["OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"].some((name) => process.env[name])) {
@@ -911,6 +939,12 @@ fs.writeFileSync(resultPath, JSON.stringify({
   results: {}
 }));
 fs.writeFileSync(tracePath, "[]");
+if (model === "openrouter/example/model") {
+  console.log(JSON.stringify({
+    type: "tool_use",
+    part: { tool: "bash", callID: "scope", state: { status: "completed", input: { command: "echo " + process.env.ASANA_SANDBOX_PROJECT_GID } } }
+  }));
+}
 console.log(JSON.stringify({
   type: "step_finish",
   part: { reason: "stop", tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } }
@@ -925,6 +959,7 @@ console.log(JSON.stringify({
     ], {
       PATH: `${binDir}:${process.env.PATH ?? ""}`,
       OPENROUTER_API_KEY: "provider-scoped-key",
+      ASANA_SANDBOX_PROJECT_GID: "opaque-project-scope",
       OPENAI_API_KEY: "unrelated-openai-key",
       ANTHROPIC_API_KEY: "unrelated-anthropic-key",
       UNRELATED_DOTENV_SECRET: "must-not-cross",
@@ -939,6 +974,9 @@ console.log(JSON.stringify({
       harness: "opencode",
       model: "openrouter/example/model",
     });
+    const transcript = readFileSync(resolve(dir, "run-opencode-medium.transcript.jsonl"), "utf8");
+    expect(transcript).not.toContain("opaque-project-scope");
+    expect(transcript).toContain("<redacted>");
 
     const unknownDir = freshDir();
     const unknown = runCli([
@@ -951,6 +989,48 @@ console.log(JSON.stringify({
       ANTHROPIC_API_KEY: "must-not-cross",
     });
     expect(unknown.code, unknown.out).toBe(0);
+
+    const sqlDir = freshDir();
+    const sql = runCli([
+      "exec-plan", "--pack", NEON_PACK, "--skip-review", "--surface", "cli", "--invoke",
+      "--harness", "opencode", "--model", "custom/sql-model", "--attempts", "1", "--run-dir", sqlDir,
+    ], {
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      NEON_DATABASE_URL: "postgresql://sandbox.example.test/eval",
+      NEON_API_KEY: "neon-api-key",
+      NEON_PROJECT_ID: "neon-project-id",
+    });
+    expect(sql.code, sql.out).toBe(0);
+  });
+
+  it("blocks a missing known-provider credential before invoking OpenCode", () => {
+    const result = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "opencode",
+      "--model", "openrouter/example-model", "--attempts", "1", "--run-dir", freshDir(),
+    ], { OPENROUTER_API_KEY: "" });
+    expect(result.code).not.toBe(0);
+    expect(result.out).toContain("OpenCode provider openrouter requires one of: OPENROUTER_API_KEY");
+  });
+
+  it("marks OpenCode MCP unsupported before provider credential checks", () => {
+    const dir = freshDir();
+    const result = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--surface", "mcp", "--invoke",
+      "--harness", "opencode", "--attempts", "1",
+      "--run-dir", dir,
+    ], {
+      OPENROUTER_API_KEY: "",
+      ASANA_PAT: "",
+      ASANA_SANDBOX_PROJECT_GID: "",
+    });
+    expect(result.code, result.out).toBe(0);
+    expect(result.out).toContain("BLOCKED (unsupported harness/surface)");
+    expect(result.out).toContain("unsupported harness/surface cell(s)");
+    expect(result.out).not.toContain("requires --model");
+    expect(result.out).not.toContain("Add the keys above");
+    expect(result.out).not.toContain("health-check");
+    const record = JSON.parse(readFileSync(resolve(dir, "run-mcp-opencode-blocked.normalized.json"), "utf8"));
+    expect(record).toMatchObject({ harness: "opencode", surface: "mcp", blocked: "invoke-failed" });
   });
 
   it("rejects pack-declared OpenCode control variables before invocation", () => {
@@ -963,7 +1043,10 @@ console.log(JSON.stringify({
     const result = runCli([
       "exec-plan", "--pack", packPath, "--skip-review", "--invoke", "--harness", "opencode",
       "--model", "openrouter/example-model", "--attempts", "1", "--run-dir", resolve(dir, "run"),
-    ], { OPENCODE_CONFIG_CONTENT: '{"permission":"allow"}' });
+    ], {
+      OPENROUTER_API_KEY: "provider-key",
+      OPENCODE_CONFIG_CONTENT: '{"permission":"allow"}',
+    });
     expect(result.code).not.toBe(0);
     expect(result.out).toContain("conflicts with controller-owned OpenCode isolation");
   });

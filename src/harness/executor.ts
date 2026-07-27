@@ -249,6 +249,9 @@ export interface BuildPromptOptions {
     urls_visited?: string[];
     notes?: string;
   };
+  /** The harness runs in a disposable, secret-free workspace rather than the
+   * repository checkout. Result and trace paths are absolute in this mode. */
+  isolatedWorkspace?: boolean;
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
@@ -305,7 +308,9 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
 
   return [
     `You are an agent being evaluated on whether you can discover and use the ${pack.name} ${surface.subject}`,
-    `from a cold start. Work in the repo root.`,
+    opts.isolatedWorkspace
+      ? `from a cold start. Work only in the isolated task workspace.`
+      : `from a cold start. Work in the repo root.`,
     ``,
     `=== PROFILE: "${profile.name}" (${effortLabel}, effort=${profile.effort}, model=${profile.model ?? "host-default"}) ===`,
     EFFORT_BLOCK[profile.effort],

@@ -46,6 +46,11 @@ import {
   type InvokeRunResult,
 } from "../harness/invoke.js";
 import type { ChildProcessSandbox } from "../harness/child-sandbox.js";
+import {
+  isOpenCodeReservedChildEnv,
+  openCodeProviderCredentialNames,
+  openCodeProviderId,
+} from "../harness/opencode.js";
 import { buildExecutorPrompt, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
@@ -224,15 +229,11 @@ function cellChildEnvironment(
   // Cell credential manifests must not be able to smuggle host-control knobs
   // that override the controller-owned OpenCode isolation policy. The safe
   // values from core provisioning are merged back after this filter.
-  for (const name of Object.keys(out)) {
-    if (name.startsWith("OPENCODE_") || [
-      "XDG_CONFIG_HOME",
-      "XDG_DATA_HOME",
-      "XDG_CACHE_HOME",
-      "XDG_STATE_HOME",
-    ].includes(name)) {
-      delete out[name];
-    }
+  const conflicts = Object.keys(out).filter(isOpenCodeReservedChildEnv);
+  if (conflicts.length) {
+    throw new Error(
+      `cell credential env name(s) conflict with controller-owned OpenCode isolation: ${conflicts.join(", ")}`,
+    );
   }
   return out;
 }
@@ -310,7 +311,7 @@ function mergeExtensionProvisioning(
   ]);
   const collisions = Object.keys(additions).filter((name) =>
     reservedEnvironment.has(name)
-    || name.startsWith("OPENCODE_")
+    || isOpenCodeReservedChildEnv(name)
     || name in reservedCredentials
     || name in baseEnv
     || name in core.env);
@@ -413,7 +414,7 @@ function terminalRecord(args: {
   paths: ReturnType<typeof defaultInvokePaths>;
   startedAt: string;
   completedAt: string;
-  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "health-check-failed" | "invoke-failed";
+  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "unsupported-surface" | "health-check-failed" | "invoke-failed";
   stage: "preflight" | "provision" | "invoke" | "verify";
   message: string;
   status?: "failed" | "blocked";
@@ -424,7 +425,9 @@ function terminalRecord(args: {
     args.pack,
     args.cell.surface,
     args.cell.harness.id,
-    args.blocked === "health-check-failed" ? "invoke-failed" : args.blocked,
+    args.blocked === "health-check-failed" || args.blocked === "unsupported-surface"
+      ? "invoke-failed"
+      : args.blocked,
   );
   const record = {
     ...base,
@@ -704,11 +707,32 @@ function exactSecretValues(
   return [...values].filter(Boolean).sort((a, b) => b.length - a.length);
 }
 
+const SECRET_CREDENTIAL_ENV_NAME = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
+
 function provisioningSecretValues(provisioning: HarnessProvisioning): string[] {
-  const secretName = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
   return Object.entries(provisioning.env)
-    .filter(([name, value]) => secretName.test(name) && value.length > 0)
+    .filter(([name, value]) => SECRET_CREDENTIAL_ENV_NAME.test(name) && value.length > 0)
     .map(([, value]) => value);
+}
+
+function invokeSecretValues(
+  pack: TargetPack,
+  credentials: Readonly<Record<string, string>>,
+  provisioning: HarnessProvisioning,
+  extensionSecrets: readonly string[],
+): string[] {
+  const verifierOnly = verifierOnlyCredentialNames(pack);
+  return [...new Set([
+    ...Object.entries(credentials)
+      .filter(([name]) => !verifierOnly.has(name))
+      .map(([, value]) => value),
+    // Core provisioning uses controller-owned HOME/XDG/control values that are
+    // not credentials (some are single-character flags). Its actual secrets
+    // use credential-shaped names; extension env values are all untrusted and
+    // therefore treated as secret regardless of their names.
+    ...provisioningSecretValues(provisioning),
+    ...extensionSecrets,
+  ])].filter(Boolean).sort((a, b) => b.length - a.length);
 }
 
 function provisioningHomePaths(provisioning: HarnessProvisioning): (string | undefined)[] {
@@ -1000,7 +1024,39 @@ export async function runCellWithRuntime(
       message: safeMessage(error, credentialSecrets),
     });
   }
+  if (cell.harness.id === "opencode" && cell.surface === "mcp") {
+    return terminalRecord({
+      cell,
+      pack,
+      paths,
+      startedAt,
+      completedAt: runtime.now().toISOString(),
+      blocked: "unsupported-surface",
+      stage: "preflight",
+      message: "OpenCode MCP surface execution is not supported; use claude-code or codex",
+      providerProvenance,
+    });
+  }
+  const openCodeControlConflicts = cell.harness.id === "opencode"
+    ? cell.required_credentials.filter(isOpenCodeReservedChildEnv)
+    : [];
+  if (openCodeControlConflicts.length) {
+    return terminalRecord({
+      cell,
+      pack,
+      paths,
+      startedAt,
+      completedAt: runtime.now().toISOString(),
+      blocked: "invoke-failed",
+      stage: "preflight",
+      message: `credential env name(s) conflict with controller-owned OpenCode isolation: ${openCodeControlConflicts.join(", ")}`,
+      providerProvenance,
+    });
+  }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const missingOpenCodeProvider = cell.harness.id === "opencode"
+    ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
+    : [];
   const connectionDataPlaneCli = connectionDataPlaneCliOwnsAuth(pack, cell);
   const selectedTasks = tasksForSurface(pack, cell.surface);
   const missingPack = describeRequiredEnv(pack, resolutionCredentials, {
@@ -1030,7 +1086,17 @@ export async function runCellWithRuntime(
   const auth = connectionDataPlaneCli
     ? { blocked: null, missing: [] }
     : surfaceAuthStatus(pack, cell.surface, credentials);
-  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierRequirements, ...auth.missing])];
+  const openCodeProviderMissing = missingOpenCodeProvider.length > 0
+    && missingOpenCodeProvider.length === openCodeProviderCredentialNames(cell.harness.model).length
+      ? [`one of ${openCodeProviderCredentialNames(cell.harness.model).join(" or ")} for ${openCodeProviderId(cell.harness.model)}`]
+      : [];
+  const missing = [...new Set([
+    ...missingDeclared,
+    ...missingPack,
+    ...missingVerifierRequirements,
+    ...auth.missing,
+    ...openCodeProviderMissing,
+  ])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
       cell,
@@ -1110,6 +1176,7 @@ export async function runCellWithRuntime(
   }
 
   let provisioning: HarnessProvisioning;
+  let invokeCwd = cwd;
   let extensionSecrets: string[] = [];
   try {
     let extensionProvisioning: ProvisioningEvidence | undefined;
@@ -1152,6 +1219,7 @@ export async function runCellWithRuntime(
       env: baseEnv,
       allowDownloads: false,
       allowAmbientHarnessAuth: false,
+      isolateWorkspace: cell.harness.id === "opencode" && !options.sandbox,
     });
     provisioning = mergeExtensionProvisioning(
       coreProvisioning,
@@ -1162,6 +1230,13 @@ export async function runCellWithRuntime(
       cwd,
       artifactDir,
     );
+    if (cell.harness.id === "opencode" && !options.sandbox) {
+      const workDir = provisioning.meta?.opencode_work_dir;
+      if (typeof workDir !== "string" || !workDir) {
+        throw new Error("OpenCode provisioning did not create an isolated task workspace");
+      }
+      invokeCwd = workDir;
+    }
   } catch (error) {
     scrubArtifacts(paths, credentialSecrets, [], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
@@ -1190,6 +1265,7 @@ export async function runCellWithRuntime(
     resultsPath: paths.resultsPath,
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
+    isolatedWorkspace: cell.harness.id === "opencode",
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);
@@ -1200,6 +1276,7 @@ export async function runCellWithRuntime(
     ...provisioningSecretValues(provisioning),
     ...extensionSecrets,
   ];
+  const invokeRedactionValues = invokeSecretValues(pack, credentials, provisioning, extensionSecrets);
   let invoke: InvokeRunResult;
   try {
     invoke = await runtime.invokeHarness({
@@ -1209,7 +1286,7 @@ export async function runCellWithRuntime(
       surface: cell.surface,
       ns,
       paths,
-      cwd,
+      cwd: invokeCwd,
       model: cell.harness.model,
       effort: cell.harness.effort,
       timeoutMs: cell.run_context.invoke_timeout_ms || undefined,
@@ -1217,6 +1294,7 @@ export async function runCellWithRuntime(
       retries: cell.run_context.invoke_retries,
       env,
       replaceEnv: true,
+      redactionValues: invokeRedactionValues,
       provisioning: provisioning.meta,
       harnessDetection: detection,
       runBatchId: cell.batch_id,

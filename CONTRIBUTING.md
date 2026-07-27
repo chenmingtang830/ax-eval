@@ -72,6 +72,9 @@ shape.
   one fully specified reviewed pack/surface/harness/model/effort/trial and use
   the caller-supplied batch id. Roster expansion, trial counts, aggregation,
   ranking, publication, and cleanup policy belong to the controller.
+- **Structural harness gaps are not runtime crashes.** Emit
+  `blocked: unsupported-surface` when a harness intentionally cannot execute a
+  requested surface; reserve `invoke-failed` for an attempted invocation.
 - **Runtime extensions are explicit and versioned.** Build an immutable
   per-cell registry; do not add ambient provider discovery or target-name
   dispatch. Health checks precede provisioning, environment changes are
