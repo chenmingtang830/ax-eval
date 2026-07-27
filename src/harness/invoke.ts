@@ -595,7 +595,7 @@ function isInvokeHomePath(path: string): boolean {
   return path.split(/[\\/]/).includes(".invoke-home");
 }
 
-function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
+function sanitizeInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   const home = opts.env?.HOME;
   if (!home || !isInvokeHomePath(home)) return;
   const allowedRoot = resolve(dirname(opts.paths.resultsPath), ".invoke-home");
@@ -607,6 +607,14 @@ function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
     const realRel = relative(realpathSync(allowedRoot), realpathSync(home));
     if (realRel === ".." || realRel.startsWith(`..${sep}`) || isAbsolute(realRel)) return;
   } catch {
+    return;
+  }
+  if (opts.harness === "opencode") {
+    // OpenCode stores complete messages, tool outputs, and errors in SQLite
+    // (plus WAL files) under XDG_DATA_HOME. Binary databases cannot be safely
+    // field-redacted, and the per-run home is disposable after recovery and
+    // metrics parsing, so remove the contained home in full.
+    rmSync(home, { recursive: true, force: true });
     return;
   }
   const visit = (path: string) => {
@@ -1533,7 +1541,7 @@ export async function runInvokeHarness(
     persistedHarnessOutput(opts.harness, stdout || stderr),
   );
   if (invokeHomeIdentity) assertDirectoryIdentity(invokeHomeRoot, invokeHomeIdentity);
-  redactInvokeHomeIfPresent(opts);
+  sanitizeInvokeHomeIfPresent(opts);
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;

@@ -144,7 +144,21 @@ const OPENCODE_PROVIDER_ENV_BY_ID: Readonly<Record<string, readonly string[]>> =
   xai: ["XAI_API_KEY"],
   deepseek: ["DEEPSEEK_API_KEY"],
   mistral: ["MISTRAL_API_KEY"],
+  groq: ["GROQ_API_KEY"],
+  cerebras: ["CEREBRAS_API_KEY"],
+  cohere: ["COHERE_API_KEY"],
+  perplexity: ["PERPLEXITY_API_KEY"],
 };
+const OPENCODE_RESERVED_CHILD_ENV = new Set([
+  "XDG_CONFIG_HOME",
+  "XDG_DATA_HOME",
+  "XDG_CACHE_HOME",
+  "XDG_STATE_HOME",
+]);
+
+function isOpenCodeReservedChildEnv(name: string): boolean {
+  return name.startsWith("OPENCODE_") || OPENCODE_RESERVED_CHILD_ENV.has(name);
+}
 const COMMANDS = [
   "run",
   "audit",
@@ -209,15 +223,24 @@ function invokedHarnessEnvironment(
     const value = process.env[name];
     if (value !== undefined) scoped[name] = value;
   };
+  const copyPackEnv = (name: string | undefined) => {
+    if (!name) return;
+    if (isOpenCodeReservedChildEnv(name)) {
+      throw new Error(`pack environment name ${name} conflicts with controller-owned OpenCode isolation`);
+    }
+    copy(name);
+  };
   for (const name of INVOKE_SAFE_PARENT_ENV) copy(name);
 
   // Provider credentials are explicit env vars, never an ambient auth.json.
   // When --model names a provider, expose only that provider's documented key
   // candidates; an unpinned model keeps the small supported-provider allowlist.
-  const provider = model?.split("/", 1)[0]?.toLowerCase();
-  const providerNames = provider && OPENCODE_PROVIDER_ENV_BY_ID[provider]
-    ? OPENCODE_PROVIDER_ENV_BY_ID[provider]
-    : Object.values(OPENCODE_PROVIDER_ENV_BY_ID).flat();
+  const provider = model?.includes("/") ? model.split("/", 1)[0]?.toLowerCase() : undefined;
+  const providerNames = model === undefined
+    ? Object.values(OPENCODE_PROVIDER_ENV_BY_ID).flat()
+    : provider && OPENCODE_PROVIDER_ENV_BY_ID[provider]
+      ? OPENCODE_PROVIDER_ENV_BY_ID[provider]
+      : [];
   for (const name of providerNames) copy(name);
 
   const requirements = [
@@ -227,8 +250,8 @@ function invokedHarnessEnvironment(
     }).filter((requirement) => requirement.role !== "sql_conn" && requirement.role !== "mongo_conn"),
     ...surfaceAuthStatus(pack, surface).requirements,
   ];
-  for (const requirement of requirements) copy(requirement.env);
-  for (const name of [pack.auth?.env, ...(pack.auth?.env_aliases ?? [])]) copy(name);
+  for (const requirement of requirements) copyPackEnv(requirement.env);
+  for (const name of [pack.auth?.env, ...(pack.auth?.env_aliases ?? [])]) copyPackEnv(name);
   const surfaceConfig = surface === "api"
     ? undefined
     : pack.surfaces?.[surface] as { auth?: {
@@ -245,7 +268,7 @@ function invokedHarnessEnvironment(
     surfaceConfig?.auth?.client_secret_env,
     surfaceConfig?.auth?.refresh_token_env,
     ...pack.sandbox_scope.map((entry) => entry.env),
-  ]) copy(name);
+  ]) copyPackEnv(name);
   return { ...scoped, ...provisioning };
 }
 

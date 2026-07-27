@@ -94,6 +94,47 @@ describe("harness transcript decoders", () => {
     for (const step of observedToTrace(parsed.run)) expect(step).not.toHaveProperty("status");
   });
 
+  it("decodes native OpenCode tool events without retaining tool outputs", () => {
+    const text = fixture("opencode-run.redacted.jsonl");
+    const decoded = decodeTranscriptContent(text, { harness: "opencode" });
+
+    expect(decoded.diagnostics).toMatchObject({
+      decoder: "opencode",
+      decoderVersion: 1,
+      lines: 6,
+      parsed: 6,
+      recognized: 6,
+      emitted: 8,
+      invalid: 0,
+      unrecognized: 0,
+      malformed: 0,
+    });
+    expect(JSON.stringify(decoded.events)).not.toContain("omitted-tool-output");
+    expect(decoded.events).toContainEqual({
+      kind: "command",
+      command: "curl -X POST https://app.asana.com/api/1.0/tasks -H 'Authorization: Bearer $ASANA_PAT'",
+      callId: "call-bash-redacted",
+    });
+    expect(decoded.events).toContainEqual({
+      kind: "tool_result",
+      callId: "call-write-redacted",
+      outcome: "success",
+    });
+
+    const parsed = parseTranscriptContentWithDiagnostics(text, {
+      harness: "opencode",
+      baseUrl: BASE,
+    });
+    expect(parsed.run.searches).toEqual(["Asana API create task authorization"]);
+    expect(parsed.run.urlsFetched).toEqual(["https://developers.asana.com/reference/createtask"]);
+    expect(parsed.run.filesWritten).toEqual(["/workspace/run.mjs"]);
+    expect(parsed.run.apiCalls).toEqual(expect.arrayContaining([
+      { method: "POST", path: "/tasks", host: "app.asana.com" },
+      { method: "GET", path: "/users/me", host: "" },
+    ]));
+    expect(parsed.run.sawBearer).toBe(true);
+  });
+
   it("makes incompatible input explicit with deterministic, bounded, content-free diagnostics", () => {
     const secret = "sk_live_diagnostic_secret_must_not_leak";
     const text = Array.from({ length: 25 }, (_, index) => index % 2 === 0
@@ -149,6 +190,9 @@ describe("harness transcript decoders", () => {
     const explicit = decodeTranscriptContent(genericError, { harness: "codex" });
     expect(explicit.diagnostics).toMatchObject({ decoder: "codex", recognized: 1 });
 
+    const explicitOpenCode = decodeTranscriptContent(genericError, { harness: "opencode" });
+    expect(explicitOpenCode.diagnostics).toMatchObject({ decoder: "opencode", recognized: 1 });
+
     const mixed = [
       JSON.stringify({ type: "item.completed", item: { type: "command_execution", command: "codex-only" } }),
       JSON.stringify({ type: "assistant", message: { content: [] } }),
@@ -187,5 +231,27 @@ describe("harness transcript decoders", () => {
       const decoded = decodeTranscriptContent(JSON.stringify({ type }), { harness: "claude-code" });
       expect(decoded.diagnostics).toMatchObject({ recognized: 0, unrecognized: 1 });
     }
+  });
+
+  it("records an OpenCode failed tool outcome without copying its error body", () => {
+    const decoded = decodeTranscriptContent(JSON.stringify({
+      type: "tool_use",
+      part: {
+        type: "tool",
+        tool: "bash",
+        callID: "call-failed",
+        state: {
+          status: "error",
+          input: { command: "false" },
+          error: "SECRET_RESULT_BODY",
+          attachments: [{ content: "SECRET_ATTACHMENT" }],
+        },
+      },
+    }), { harness: "opencode" });
+    expect(decoded.events).toEqual([
+      { kind: "command", command: "false", callId: "call-failed" },
+      { kind: "tool_result", callId: "call-failed", outcome: "error" },
+    ]);
+    expect(JSON.stringify(decoded.events)).not.toMatch(/SECRET_RESULT_BODY|SECRET_ATTACHMENT/);
   });
 });

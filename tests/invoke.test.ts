@@ -625,6 +625,29 @@ describe("runInvokeHarness", () => {
     expect(content).not.toContain(secretDsn);
   });
 
+  it("removes the disposable OpenCode home so binary session databases cannot retain tool output", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const home = resolve(dir, ".invoke-home", "demo-opencode");
+    const dataDir = resolve(home, "data", "opencode");
+    mkdirSync(dataDir, { recursive: true });
+    const database = resolve(dataDir, "opencode.db");
+    const secret = "tool-output-that-must-not-remain-in-sqlite";
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(database, Buffer.concat([Buffer.from("SQLite format 3\0"), Buffer.from(secret)]));
+      writeFileSync(
+        run.paths.resultsPath,
+        JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
+      );
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(JSON.stringify({ type: "step_finish", part: { reason: "stop" } })) });
+    };
+
+    const result = await runInvokeHarness({ ...run, env: { HOME: home } }, spawn);
+    expect(result.ok).toBe(true);
+    expect(existsSync(home)).toBe(false);
+  });
+
   it("invokes codex exec with config-based approval disabled for non-interactive runs", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
