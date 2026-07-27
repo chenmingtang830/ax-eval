@@ -31,7 +31,7 @@ describe("public API", () => {
     expect(TargetPackSchema).toBeDefined();
     expect(BearerClient).toBeTypeOf("function");
     expect(SURFACE_IDS).toEqual(["api", "cli", "sdk", "mcp"]);
-    expect(INVOKE_HARNESS_IDS).toEqual(["claude-code", "codex"]);
+    expect(INVOKE_HARNESS_IDS).toEqual(["claude-code", "codex", "opencode"]);
     expect(NORMALIZED_RESULT_SCHEMA).toBe("ax.normalized-result/v1");
     expect(REPORT_STYLE).toContain(".ax-main");
     expect(EVALUATION_CELL_SCHEMA).toBe("ax.evaluation-cell/v1");

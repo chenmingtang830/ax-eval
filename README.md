@@ -1,6 +1,6 @@
 # ax-eval is the open-source, CLI-first way to test whether AI agents can discover and use your product.
 
-## API · CLI · SDK · MCP across Codex and Claude Code
+## API · CLI · SDK across Codex, Claude Code, and OpenCode · MCP across Codex and Claude Code
 
 ## Can AI agents actually use your product?
 
@@ -24,7 +24,9 @@ real agent harnesses, then verifies outcomes with independent outcome verificati
 
 The open skill can run through the agent you already have open. The CLI can also
 drive local harnesses directly with `exec-plan --invoke --harness
-claude-code|codex`, producing the same neutral report matrix.
+claude-code|codex|opencode`, producing the same neutral report matrix. OpenCode
+is the third, open-source core runner for API, CLI, and SDK cells; its MVP does
+not support MCP cells.
 
 ## Quickstart
 
@@ -502,6 +504,9 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness codex --surface all --profile medium --effort medium \
   --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness opencode --surface api --profile medium \
+  --model <provider/model> --run-dir <dir> --invoke-retries 0 # OpenCode 1.18.3+, API/CLI/SDK only
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
@@ -526,12 +531,29 @@ CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
 authoring is a developer workflow that ends at `review --approve`.
 
-For publication-grade cross-harness lanes, prefer native host-agent binaries over
-PATH wrappers when a wrapper injects unrelated local config. `AX_EVAL_CLAUDE_BIN`
-and `AX_EVAL_CODEX_BIN` let a run pin the executable while the normalized record
-still stamps the model actually reported by the harness. Non-MCP Codex cells are
-run with an isolated Codex home and `mcp_servers={}` so API/CLI/SDK scores are not
-polluted by the operator's unrelated global MCP server logins.
+For controlled tool-track cross-harness lanes, prefer native host-agent binaries
+over PATH wrappers when a wrapper injects unrelated local config.
+`AX_EVAL_CLAUDE_BIN`, `AX_EVAL_CODEX_BIN`, and `AX_EVAL_OPENCODE_BIN` let a run
+pin the executable. Non-MCP Codex cells use an isolated Codex home and
+`mcp_servers={}` so API/CLI/SDK scores are not polluted by unrelated global MCP
+server logins.
+
+OpenCode invocation requires 1.18.3 or newer. The adapter runs headlessly with
+`--pure`, `--auto`, and JSON output. It sets fresh per-run
+`HOME`, `OPENCODE_CONFIG_DIR`, and XDG config, data, cache, and state roots;
+disables autoupdate, LSP downloads, and Claude-compatibility loading; and never
+copies ambient `auth.json`. Provider credentials must be explicitly scoped into
+the child environment. Its model is an explicit `provider/model`; the adapter
+leaves `--variant` unset so the provider default applies. The record preserves
+that requested route, but does not claim that the provider actually served that
+model. OpenCode's self-reported dollar cost is not trusted, so runtime
+`cost_usd` remains null. OpenCode MCP cells fail as unsupported before
+invocation. This generic core integration does not add OpenCode to the
+canonical AXArena production harness matrix.
+
+The MVP captures OpenCode's native JSONL. Its observed-run decoder is layered
+after the shared transcript-decoder seam; until that decoder is present, do not
+treat OpenCode `--observe` discovery or process evidence as complete.
 
 ## Safety
 

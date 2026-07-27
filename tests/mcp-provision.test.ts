@@ -117,6 +117,70 @@ describe("provisionHarnessForSurface", () => {
     expect(text).not.toContain("[mcp_servers.");
   });
 
+  it("isolates every OpenCode non-MCP run across config, data, cache, and state", async () => {
+    const dir = freshDir();
+    const first = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "api",
+      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      cwd: "/repo",
+      env: {
+        OPENCODE_CONFIG_DIR: "/ambient/opencode-config",
+        XDG_DATA_HOME: "/ambient/opencode-data",
+      },
+    });
+    const second = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-low-cli", "opencode"),
+      cwd: "/repo",
+    });
+
+    expect(first.env.HOME).toContain(".invoke-home");
+    expect(first.env.HOME).not.toBe(second.env.HOME);
+    for (const name of [
+      "OPENCODE_CONFIG_DIR",
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_CACHE_HOME",
+      "XDG_STATE_HOME",
+    ]) {
+      expect(first.env[name]?.startsWith(`${first.env.HOME}/`)).toBe(true);
+      expect(existsSync(first.env[name]!)).toBe(true);
+    }
+    expect(first.env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_CLAUDE_CODE).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_CLAUDE_CODE_PROMPT).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_LSP_DOWNLOAD).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
+    expect(first.env.OPENCODE_ENABLE_EXA).toBe("1");
+    expect(first.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
+    const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config).toEqual({ mcp: {} });
+    expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
+  });
+
+  it("fails closed before invoking or exchanging auth for OpenCode MCP cells", async () => {
+    const dir = freshDir();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "opencode-low-mcp", "opencode"),
+      cwd: "/repo",
+      env: {
+        ASANA_MCP_CLIENT_ID: "client-id",
+        ASANA_MCP_CLIENT_SECRET: "client-secret",
+        ASANA_MCP_REFRESH_TOKEN: "refresh-token",
+      },
+    })).rejects.toThrow(/OpenCode MCP surface provisioning is not supported/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
     const dir = freshDir();
     process.env.ASANA_MCP_CLIENT_ID = "client-id";

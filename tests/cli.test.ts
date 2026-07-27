@@ -90,6 +90,12 @@ describe("cli arg handling", () => {
     expect(out).not.toContain("unknown flag");
   });
 
+  it("exec-plan help exposes OpenCode as an invoked harness", () => {
+    const { code, out } = runCli(["exec-plan", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("--harness claude-code|codex|opencode");
+  });
+
   it("delegates legacy authoring help to the arena CLI", () => {
     const direct = runArenaCli(["benchmark", "audit-extracts", "--help"]);
     const delegated = runCli(["audit-extracts", "--help"]);
@@ -856,6 +862,75 @@ console.log(JSON.stringify({ ok: true }));
     const executor = JSON.parse(readFileSync(resolve(dir, "run-claude-code-medium.json"), "utf8"));
     expect(executor.harness).toBe("claude-code");
     expect(executor.profile).toBe("medium");
+  });
+
+  it("runs OpenCode with an explicit allowlisted environment", () => {
+    const dir = freshDir();
+    const binDir = freshDir();
+    const fakeOpenCode = resolve(binDir, "opencode");
+    writeFileSync(
+      fakeOpenCode,
+      `#!/usr/bin/env node
+const fs = require("fs");
+const args = process.argv.slice(2);
+if (args.includes("--version")) {
+  console.log("1.18.3");
+  process.exit(0);
+}
+for (const name of ["UNRELATED_DOTENV_SECRET", "OPENCODE_CONFIG_CONTENT", "OPENCODE_PERMISSION"]) {
+  if (process.env[name]) {
+    console.error("inherited unsafe env " + name);
+    process.exit(2);
+  }
+}
+for (const name of ["OPENROUTER_API_KEY", "ASANA_PAT", "OPENCODE_CONFIG_DIR", "XDG_DATA_HOME"]) {
+  if (!process.env[name]) {
+    console.error("missing scoped env " + name);
+    process.exit(3);
+  }
+}
+if (process.env.OPENCODE_DISABLE_PROJECT_CONFIG !== "1" || args.includes("--variant")) {
+  console.error("unsafe OpenCode controls");
+  process.exit(4);
+}
+const prompt = args.at(-1) || "";
+const resultPath = /Write (\\S+run-[^\\s]+\\.json) with EXACTLY/.exec(prompt)?.[1];
+const tracePath = /write (\\S+run-[^\\s]+\\.trace\\.json) as/.exec(prompt)?.[1];
+if (!resultPath || !tracePath) process.exit(5);
+fs.writeFileSync(resultPath, JSON.stringify({
+  profile: "medium",
+  ns: "fake-opencode-ns",
+  surface: "api",
+  discovery: {},
+  results: {}
+}));
+fs.writeFileSync(tracePath, "[]");
+console.log(JSON.stringify({
+  type: "step_finish",
+  part: { reason: "stop", tokens: { input: 1, output: 1, reasoning: 0, cache: { read: 0, write: 0 } } }
+}));
+`,
+    );
+    chmodSync(fakeOpenCode, 0o755);
+
+    const { code, out } = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "opencode",
+      "--model", "openrouter/example/model", "--attempts", "1", "--run-dir", dir,
+    ], {
+      PATH: `${binDir}:${process.env.PATH ?? ""}`,
+      OPENROUTER_API_KEY: "provider-scoped-key",
+      UNRELATED_DOTENV_SECRET: "must-not-cross",
+      OPENCODE_CONFIG_CONTENT: '{"mcp":{"ambient":{}}}',
+      OPENCODE_PERMISSION: "allow-all",
+    });
+
+    expect(code, out).toBe(0);
+    expect(out).toContain("opencode/API/medium");
+    const executor = JSON.parse(readFileSync(resolve(dir, "run-opencode-medium.json"), "utf8"));
+    expect(executor).toMatchObject({
+      harness: "opencode",
+      model: "openrouter/example/model",
+    });
   });
 
   it("`--execution-mode task` runs one prompt per task and aggregates them back into a combined run", () => {

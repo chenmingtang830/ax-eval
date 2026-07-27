@@ -121,8 +121,8 @@ The runtime is organized into four layers:
 1. **Contracts** — shared schemas; most modules consume or emit a `TargetPack`.
 2. **Planning and orchestration** — CLI coordinates authoring, exec, verify,
    reset, reporting, and (for AXArena-Database) publication.
-3. **Harness and surface runtime** — surface adapters + Claude Code / Codex
-   invoke, MCP provision, transcript recovery.
+3. **Harness and surface runtime** — surface adapters + Claude Code / Codex /
+   OpenCode invoke, MCP provision for Claude Code and Codex, transcript recovery.
 4. **Verification and interpretation** — live read-back oracles, reports,
    normalized records.
 
@@ -536,7 +536,7 @@ The main subprocess runtime is [src/harness/invoke.ts](./src/harness/invoke.ts).
 
 It is responsible for:
 
-- detecting the harness CLI (`claude` or `codex`)
+- detecting the harness CLI (`claude`, `codex`, or `opencode`)
 - building the exact invocation arguments
 - writing a strict Codex output schema
 - applying per-run env overrides
@@ -548,6 +548,28 @@ It is responsible for:
 This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
 
+OpenCode is the third open-source core runner, with an API/CLI/SDK-only MVP. It
+requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` with
+`--format json`, `--auto`, and `--pure`, optionally adding `--model` with a
+`provider/model` value, before the prompt. Each run receives isolated
+`HOME`, `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
+`XDG_CACHE_HOME`, and `XDG_STATE_HOME` roots. It enables OpenCode's Exa-backed
+web search and disables autoupdate, LSP downloads, and Claude-compatibility
+loading. Ambient `auth.json` is never copied; provider credentials must be
+explicitly scoped into the child environment. `AX_EVAL_OPENCODE_BIN` can pin
+the executable. The adapter never passes `--variant`, even when the cell has an
+effort label, so the provider default applies. It records the requested
+`provider/model` route rather than claiming the served model was observed, and
+does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
+MCP is rejected before OpenCode invocation. This core capability is not an
+AXArena production-harness designation.
+
+This layer captures the native OpenCode JSONL and removes duplicated tool
+outputs before durable stdout/transcript persistence. OpenCode observed-run
+decoding is a separate layer that must stack after the shared transcript-decoder
+seam. Until that decoder lands, capture is available but `--observe` discovery
+and process evidence is not complete.
+
 ### MCP provisioning
 
 MCP provisioning lives in [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts).
@@ -558,6 +580,9 @@ It supports:
 - OAuth-app MCP auth via refresh-token exchange
 - isolated per-run Codex and Claude homes/configs
 - bearer token injection without writing secrets to tracked files
+
+OpenCode is intentionally absent from MCP provisioning in this MVP; its
+supported core surfaces are API, CLI, and SDK.
 
 It does not install or select product CLIs. Controllers provide those through
 the runtime provisioning registry; AXArena-Database's pinned Turso implementation lives in
@@ -680,7 +705,8 @@ Several architectural choices are load-bearing:
   - API assumptions must not leak into CLI / SDK / MCP paths
 - **Harness-specific parsing**
   - Claude Code and Codex are normalized after capture, not forced into one raw
-    wire format
+    wire format; OpenCode follows this boundary after its decoder stacks on the
+    shared transcript-decoder seam
 - **Blocked, not fake-failed**
   - missing surface auth should render as blocked configuration state, not a
     misleading 0%

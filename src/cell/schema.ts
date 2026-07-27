@@ -21,7 +21,7 @@ export const EvaluationCellSchema = z.object({
   pack: ReviewedPackReferenceSchema,
   surface: z.enum(["api", "cli", "sdk", "mcp"]),
   harness: z.object({
-    id: z.enum(["claude-code", "codex"]),
+    id: z.enum(["claude-code", "codex", "opencode"]),
     profile: z.enum(["low", "medium", "high"]),
     model: NonEmptyString,
     effort: z.enum(["low", "medium", "high"]),
