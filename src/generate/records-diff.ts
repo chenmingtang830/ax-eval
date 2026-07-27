@@ -93,6 +93,30 @@ function tokens(record: NormalizedResult | undefined): number | null {
   return (record.token_usage.input_tokens ?? 0) + (record.token_usage.output_tokens ?? 0);
 }
 
+function correctnessRegressions(
+  baseRecords: Map<string, NormalizedResult>,
+  headRecords: Map<string, NormalizedResult>,
+): string[] {
+  const regressions: string[] = [];
+  const epsilon = 1e-12;
+  for (const [key, base] of baseRecords) {
+    const head = headRecords.get(key);
+    const label = `\`${base.product} / ${base.harness} / ${base.surface}\``;
+    if (!head) {
+      regressions.push(`${label}: baseline cell disappeared or became blocked.`);
+      continue;
+    }
+    if (head.pass_at_1 < base.pass_at_1 - epsilon) {
+      regressions.push(`${label}: pass@1 ${rate(base.pass_at_1)} → ${rate(head.pass_at_1)} (${delta(base.pass_at_1, head.pass_at_1)}).`);
+    }
+    if (typeof base.task_consistency_at_3 === "number" &&
+      (typeof head.task_consistency_at_3 !== "number" || head.task_consistency_at_3 < base.task_consistency_at_3 - epsilon)) {
+      regressions.push(`${label}: pass³ ${rate(base.task_consistency_at_3)} → ${rate(head.task_consistency_at_3)} (${delta(base.task_consistency_at_3, head.task_consistency_at_3)}).`);
+    }
+  }
+  return regressions;
+}
+
 interface OverallRow {
   product: string;
   harness: string;
@@ -137,6 +161,20 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
   const headOverall = overallRows(headRecords);
   const overallKeys = [...new Set([...baseOverall.keys(), ...headOverall.keys()])].sort();
   const cellKeys = [...new Set([...baseRecords.keys(), ...headRecords.keys()])].sort();
+  const regressions = correctnessRegressions(baseRecords, headRecords);
+  const verdict = regressions.length
+    ? [
+        "## ❌ FAIL — Correctness regression detected",
+        "",
+        `Found ${regressions.length} regression signal(s) across ${baseRecords.size} baseline surface cell(s):`,
+        "",
+        ...regressions.map((regression) => `- ${regression}`),
+      ]
+    : [
+        "## ✅ PASS — No correctness regression detected",
+        "",
+        `Compared ${baseRecords.size} baseline surface cell(s); no existing pass@1 or pass³ score decreased or disappeared.`,
+      ];
 
   const overallTable = overallKeys.map((key) => {
     const base = baseOverall.get(key);
@@ -154,6 +192,8 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
   return [
     "# Normalized records diff",
     "",
+    ...verdict,
+    "",
     "Overall is a macro-average of participating surface scores. Agents are never averaged together.",
     "",
     "## Overall by agent",
@@ -168,7 +208,7 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
     "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ...(cellsTable.length ? cellsTable : ["| — | — | — | — | — | — | — | — | — | — | — | — |"]),
     "",
-    "Operational metrics are context only and never affect ranking.",
+    "Operational metrics are context only and never affect the verdict or ranking.",
     "",
   ].join("\n");
 }
