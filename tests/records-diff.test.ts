@@ -47,9 +47,29 @@ describe("records diff markdown", () => {
     ];
 
     const markdown = renderRecordsDiffMarkdown(base, head);
+    expect(markdown).toContain("## ✅ PASS — No correctness regression detected");
+    expect(markdown).toContain("Compared 3 baseline surface cell(s)");
     expect(markdown).toContain("| neon | codex | 70.0% | 90.0% | +20.0 pp | 50.0% (5/10) | 80.0% (8/10) | 2 |");
     expect(markdown).toContain("| neon | claude-code | 90.0% | 90.0% | +0.0 pp");
     expect(markdown).toContain("42.9% (3/7)");
     expect(markdown).toContain("Operational metrics are context only");
+  });
+
+  it("fails fast when a correctness score regresses", () => {
+    const base = [record({ pass_at_1: 5 / 7, task_consistency_at_3: 3 / 7 })];
+    const head = [record({ pass_at_1: 4 / 7, task_consistency_at_3: 2 / 7 })];
+
+    const markdown = renderRecordsDiffMarkdown(base, head);
+    expect(markdown).toContain("## ❌ FAIL — Correctness regression detected");
+    expect(markdown).toContain("Found 2 regression signal(s) across 1 baseline surface cell(s)");
+    expect(markdown).toContain("`neon / codex / api`: pass@1 71.4% → 57.1% (-14.3 pp)");
+    expect(markdown).toContain("`neon / codex / api`: pass³ 42.9% → 28.6% (-14.3 pp)");
+  });
+
+  it("fails when a baseline cell disappears or becomes blocked", () => {
+    const markdown = renderRecordsDiffMarkdown([record()], [record({ blocked: true, blocked_reason: "auth" })]);
+
+    expect(markdown).toContain("## ❌ FAIL — Correctness regression detected");
+    expect(markdown).toContain("`neon / codex / api`: baseline cell disappeared or became blocked.");
   });
 });
