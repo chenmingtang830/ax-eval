@@ -16,7 +16,11 @@ import type { DiscoveryReport } from "./discovery.js";
 
 export const NORMALIZED_RESULT_SCHEMA = "ax.normalized-result/v1" as const;
 
-export type BlockedReason = "requires-oauth" | "missing-credential" | "missing-harness" | "invoke-failed";
+export type BlockedReason =
+  | "requires-oauth"
+  | "missing-credential"
+  | "missing-harness"
+  | "invoke-failed";
 
 export interface NormalizedResult {
   schema: typeof NORMALIZED_RESULT_SCHEMA;
@@ -98,8 +102,8 @@ export interface NormalizedResult {
   source_records?: string[];
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
-   *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
-   *  "missing-credential" (the developer hasn't set the surface's token). */
+   *  0%). Reasons cover auth/credential gates, a missing harness, and
+   *  pre-execution invoke failures. */
   blocked?: BlockedReason;
 }
 
@@ -366,11 +370,12 @@ export function buildNormalizedResultCells(
 }
 
 /**
- * Build a "blocked" cube cell for a surface that can't be evaluated headlessly
- * (no credential / OAuth-only). Metrics are zeroed and `blocked` is set so the
- * competitive report shows an honest "blocked" state instead of a 0% that would
- * read as "the agent failed". Emitted by exec-plan when a requested surface is
- * unauthenticated, so the cube still has a cell documenting why.
+ * Build a "blocked" cube cell for a surface/harness cell that cannot be
+ * evaluated. Metrics are zeroed and `blocked` is set so the competitive report
+ * shows an honest pre-execution state instead of a 0% that would read as "the
+ * agent failed". Emitted by exec-plan for auth gates, missing harnesses, and
+ * invoke provisioning failures. Structural gaps use a clear CLI diagnostic but
+ * map to `invoke-failed` here to preserve the historical v1 enum.
  */
 export function buildBlockedResult(
   pack: TargetPack,

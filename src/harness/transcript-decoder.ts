@@ -309,7 +309,7 @@ function decodeOpenCodeToolUse(value: Record<string, unknown>): { events: Harnes
     else malformed += 1;
   } else if (["write", "edit", "patch", "applypatch"].includes(normalizedName)) {
     const path = stringField(input, "filePath", "file_path", "path");
-    const content = stringField(input, "content", "newString", "new_string", "patch");
+    const content = stringField(input, "content", "newString", "new_string", "patch", "patchText");
     if (path || content) {
       action.push({
         kind: "file_write",

@@ -314,15 +314,22 @@ and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults;
 tool-track OpenCode lanes have the equivalent `AX_EVAL_OPENCODE_BIN` override.
 API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 `mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
-failures. OpenCode runs with `--pure` and `--auto` in fresh config, data, cache,
+failures. OpenCode requires an explicit `provider/model` and runs with
+`--no-env-file`, `--pure`, and `--auto` in fresh config, data, cache,
 and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
 disabled. It never copies ambient `auth.json`; provider credentials must be
 explicitly scoped into the child environment. The per-run home is deleted after
 artifact recovery so the binary session database is not retained; pack env
-names cannot replace OpenCode/XDG isolation controls. Its self-reported dollar
+names cannot replace OpenCode/XDG isolation controls. Managed system/MDM config
+blocks the lane, and `task` subagents are denied because their actions are absent
+from root JSONL. Legacy `exec-plan` also uses a disposable secret-free cwd and
+exact credential-value artifact redaction; this is not an OS sandbox. Its self-reported dollar
 cost is not trusted, so runtime `cost_usd` remains null. Claude Code and Codex MCP cells
 still receive their explicit pack-declared MCP provisioning; OpenCode has no
-MCP provisioning path. Adding this generic core runner does not make it a
+MCP provisioning path. One-cell records emit `blocked: unsupported-surface`;
+legacy `exec-plan` keeps the unchanged `ax.normalized-result/v1` enum and maps
+that pre-execution cube cell to `invoke-failed` while printing the structural
+gap explicitly. Adding this generic core runner does not make it a
 canonical AXArena production harness. This is one product across
 harnesses/surfaces — `competitive` is reserved for cross-*product* comparison.
 

@@ -1,15 +1,26 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { homedir } from "node:os";
+import { homedir, tmpdir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
+import { findOpenCodeManagedConfig } from "./opencode.js";
 
 export interface HarnessProvisioning {
   /** Environment overrides for the harness child process. */
   env: Record<string, string>;
   /** Non-secret metadata safe to persist in invoke meta artifacts. */
   meta?: Record<string, unknown>;
+}
+
+export function openCodeManagedProgramData(
+  source: Readonly<Record<string, string | undefined>>,
+  ambient: Readonly<Record<string, string | undefined>> = process.env,
+): string | undefined {
+  return source.ProgramData
+    ?? source.PROGRAMDATA
+    ?? ambient.ProgramData
+    ?? ambient.PROGRAMDATA;
 }
 
 function env(
@@ -261,6 +272,7 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
 function writeOpenCodeNoMcpHome(opts: {
   paths: InvokePaths;
   surface: SurfaceId;
+  isolateWorkspace?: boolean;
 }): {
   home: string;
   configDir: string;
@@ -269,6 +281,8 @@ function writeOpenCodeNoMcpHome(opts: {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
+  workRoot?: string;
+  workDir?: string;
 } {
   const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
   const root = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-opencode-${opts.surface}-no-mcp`);
@@ -282,16 +296,35 @@ function writeOpenCodeNoMcpHome(opts: {
   const stateHome = resolve(root, "state");
   rmSync(root, { recursive: true, force: true });
   for (const path of [home, configDir, dataHome, cacheHome, stateHome]) {
-    mkdirSync(path, { recursive: true });
+    mkdirSync(path, { recursive: true, mode: 0o700 });
   }
+  // OpenCode stores full messages and tool output in SQLite below this root.
+  // Keep the short-lived session private even on shared hosts, before the
+  // containment-checked cleanup in invoke.ts removes it.
+  try { chmodSync(home, 0o700); } catch { /* best effort on non-POSIX hosts */ }
   const configPath = resolve(configDir, "opencode.json");
-  // A fresh config plus --pure keeps non-MCP cells from inheriting unrelated
-  // operator MCP servers or plugins. OPENCODE_CONFIG_DIR also redirects global
-  // AGENTS.md lookup; the repository-local AGENTS.md remains intentionally in
-  // scope for the evaluated workspace.
-  writeFileSync(configPath, `${JSON.stringify({ mcp: {} }, null, 2)}\n`, { mode: 0o600 });
+  // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
+  // `task` so objective transcript evidence remains complete for this lane.
+  writeFileSync(configPath, `${JSON.stringify({
+    mcp: {},
+    permission: { task: "deny" },
+    share: "disabled",
+    autoshare: false,
+  }, null, 2)}\n`, { mode: 0o600 });
   try { chmodSync(configPath, 0o600); } catch { /* best effort */ }
-  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome };
+  let workRoot: string | undefined;
+  let workDir: string | undefined;
+  if (opts.isolateWorkspace) {
+    workRoot = mkdtempSync(resolve(tmpdir(), "ax-eval-opencode-"));
+    workDir = resolve(workRoot, "workspace");
+    try {
+      mkdirSync(workDir, { recursive: true });
+    } catch (error) {
+      rmSync(workRoot, { recursive: true, force: true });
+      throw error;
+    }
+  }
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir };
 }
 
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
@@ -326,6 +359,9 @@ export async function provisionHarnessForSurface(opts: {
   env?: Readonly<Record<string, string | undefined>>;
   allowDownloads?: boolean;
   allowAmbientHarnessAuth?: boolean;
+  /** Legacy exec-plan uses a disposable cwd so OpenCode/Bun cannot autoload
+   * the repository's .env. Arena cells provide their own OS sandbox. */
+  isolateWorkspace?: boolean;
 }): Promise<HarnessProvisioning> {
   ensureInvokeHomeRoot(opts.paths);
   const source = opts.env ?? process.env;
@@ -345,7 +381,22 @@ export async function provisionHarnessForSurface(opts: {
       };
     }
     if (opts.harness === "opencode") {
-      const opencode = writeOpenCodeNoMcpHome({ paths: opts.paths, surface: opts.surface });
+      const managed = findOpenCodeManagedConfig({
+        // Cell execution supplies a deliberately minimal child env that omits
+        // ProgramData. Managed config is host policy, so inspect the ambient
+        // controller value as a fallback without forwarding it to the child.
+        programData: openCodeManagedProgramData(opts.env ?? {}, process.env),
+      });
+      if (managed.length) {
+        throw new Error(
+          `OpenCode managed configuration prevents an isolated evaluation: ${managed.join(", ")}`,
+        );
+      }
+      const opencode = writeOpenCodeNoMcpHome({
+        paths: opts.paths,
+        surface: opts.surface,
+        isolateWorkspace: opts.isolateWorkspace,
+      });
       return {
         env: {
           HOME: opencode.home,
@@ -369,6 +420,8 @@ export async function provisionHarnessForSurface(opts: {
           opencode_data_home: opencode.dataHome,
           opencode_cache_home: opencode.cacheHome,
           opencode_state_home: opencode.stateHome,
+          ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
+          ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
