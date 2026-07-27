@@ -128,11 +128,13 @@ describe("detectInvokeHarness", () => {
   });
 
   it("requires an OpenCode version with the confirmed headless flags", () => {
-    const supported = detectInvokeHarness("opencode", (command, args) => {
+    const detectionCwd = freshDir();
+    const supported = detectInvokeHarness("opencode", (command, args, options) => {
       expect(command).toBe("opencode");
-      expect(args).toEqual(["--no-env-file", "--version"]);
+      expect(args).toEqual(["--version"]);
+      expect(options?.cwd).toBe(detectionCwd);
       return spawnResult({ stdout: Buffer.from("1.18.3\n") });
-    });
+    }, undefined, true, detectionCwd);
     expect(supported).toMatchObject({ ok: true, command: "opencode", version: "1.18.3" });
 
     const unsupported = detectInvokeHarness("opencode", () =>
@@ -289,7 +291,6 @@ describe("runInvokeHarness", () => {
     const spawn: AsyncSpawn = async (command, args) => {
       expect(command).toBe("/pinned/opencode");
       expect(args).toEqual([
-        "--no-env-file",
         "run",
         "--format", "json",
         "--auto",

@@ -766,10 +766,8 @@ function removeOpenCodeWorkRootIfPresent(opts: InvokeRunOptions): void {
   }
 }
 
-function detectionArgs(id: InvokeHarnessId): string[] {
-  // Bun-built OpenCode autoloads cwd/.env unless the global flag precedes the
-  // subcommand. Detection must honor the same secret boundary as execution.
-  return id === "opencode" ? ["--no-env-file", "--version"] : ["--version"];
+function detectionArgs(_id: InvokeHarnessId): string[] {
+  return ["--version"];
 }
 
 function detectWith(
@@ -777,8 +775,9 @@ function detectWith(
   command: string,
   spawn: Spawn,
   env?: Record<string, string>,
+  cwd?: string,
 ): InvokeDetection {
-  const res = spawn(command, detectionArgs(id), { stdio: ["ignore", "pipe", "pipe"], env });
+  const res = spawn(command, detectionArgs(id), { stdio: ["ignore", "pipe", "pipe"], env, cwd });
   if (res.error) {
     const code = (res.error as NodeJS.ErrnoException).code;
     return {
@@ -832,11 +831,12 @@ export function detectInvokeHarness(
   spawn: Spawn = DEFAULT_SPAWN,
   env?: Record<string, string>,
   allowAmbientCommandOverride = true,
+  cwd?: string,
 ): InvokeDetection {
   const command = allowAmbientCommandOverride
     ? commandFor(id)
     : defaultCommandFor(id);
-  return validateDetection(id, detectWith(id, command, spawn, env));
+  return validateDetection(id, detectWith(id, command, spawn, env, cwd));
 }
 
 /** Run version detection through the same PID/filesystem sandbox as execution.
@@ -955,11 +955,11 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     // OpenCode's provider-specific --variant vocabulary is not equivalent to
     // ax-eval's shared low/medium/high labels. The MVP deliberately leaves the
     // model at its native default even when the cell carries an effort label.
-    // The global --no-env-file flag must precede `run`; otherwise Bun may load
-    // provider credentials from cwd/.env before the scoped child env applies.
+    // OpenCode/Bun may autoload cwd/.env. Callers therefore provision a
+    // disposable cwd outside the checkout before this command is built.
     return {
       command: opts.harnessDetection?.command ?? commandFor("opencode"),
-      args: ["--no-env-file", "run", "--format", "json", "--auto", "--pure", "--model", opts.model, prompt],
+      args: ["run", "--format", "json", "--auto", "--pure", "--model", opts.model, prompt],
     };
   }
   if (!opts.paths.codexSchemaPath) {

@@ -315,7 +315,7 @@ tool-track OpenCode lanes have the equivalent `AX_EVAL_OPENCODE_BIN` override.
 API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 `mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
 failures. OpenCode requires an explicit `provider/model` and runs with
-`--no-env-file`, `--pure`, and `--auto` in fresh config, data, cache,
+`--pure` and `--auto` from a disposable cwd outside the checkout, with fresh config, data, cache,
 and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
 disabled. It never copies ambient `auth.json`; provider credentials must be
 explicitly scoped into the child environment. The per-run home is deleted after

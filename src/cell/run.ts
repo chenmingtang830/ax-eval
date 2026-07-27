@@ -145,7 +145,7 @@ const DEFAULT_RUNTIME: CellRuntimeDependencies = {
   now: () => new Date(),
   detectHarness: (id, env, sandbox, cwd) => sandbox && cwd
     ? detectInvokeHarnessSandboxed(id, sandbox, cwd, env)
-    : detectInvokeHarness(id, undefined, env, false),
+    : detectInvokeHarness(id, undefined, env, false, cwd),
   provisionHarness: provisionHarnessForSurface,
   invokeHarness: runInvokeHarness,
   verificationClient: (pack, executor, credentials) =>
@@ -1111,11 +1111,12 @@ export async function runCellWithRuntime(
     });
   }
 
+  const detectionCwd = cell.harness.id === "opencode" ? artifactDir : cwd;
   const detection = runtime.detectHarness(
     cell.harness.id,
     detectionEnvironment(artifactDir),
     options.sandbox,
-    cwd,
+    detectionCwd,
   );
   if (!detection.ok) {
     return terminalRecord({

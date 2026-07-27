@@ -541,7 +541,8 @@ server logins.
 OpenCode invocation requires 1.18.3 or newer and an explicit
 `--model <provider/model>`. Known providers are blocked before invocation when
 none of their supported credential env vars is present. The adapter runs
-headlessly with `--no-env-file`, `--pure`, `--auto`, and JSON output. It sets fresh per-run
+headlessly with `--pure`, `--auto`, and JSON output from a disposable cwd outside
+the checkout, so Bun cannot autoload the repository `.env`. It sets fresh per-run
 `HOME`, `OPENCODE_CONFIG_DIR`, and XDG config, data, cache, and state roots;
 disables autoupdate, LSP downloads, and Claude-compatibility loading; and never
 copies ambient `auth.json`. The disposable home is removed after recovery and
