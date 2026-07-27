@@ -49,6 +49,33 @@ describe("surface honesty", () => {
     expect(gradeSurfaceHonesty(run, "api", pack).passed).toBe(true);
   });
 
+  it("fails api cells that invoke a vendor CLI even when API calls also succeed", () => {
+    const insforge = {
+      ...pack,
+      name: "insforge",
+      base_url: "https://sandbox.insforge.app",
+    } as TargetPack;
+    const text = JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        command: [
+          "npx @insforge/cli projects restore",
+          "curl -s -X POST https://sandbox.insforge.app/api/database/tables",
+        ].join(" && "),
+      },
+    });
+    const run = parseTranscriptContent(text, {
+      baseUrl: insforge.base_url,
+      cliBins: ["insforge", "@insforge/cli"],
+    });
+    const grade = gradeSurfaceHonesty(run, "api", insforge);
+    expect(run.cliCommands).toEqual(["@insforge/cli projects restore"]);
+    expect(run.apiCalls).toHaveLength(1);
+    expect(grade.passed).toBe(false);
+    expect(grade.detail).toContain("cross-surface");
+  });
+
   it("does not gate cli cells that use psql", () => {
     const text = [
       JSON.stringify({

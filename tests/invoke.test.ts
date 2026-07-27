@@ -620,6 +620,23 @@ describe("runInvokeHarness", () => {
     expect(executor.results.t1.gid).toBeNull();
   });
 
+  it("records an exit-zero attempt that omitted results as missing-results", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "opencode");
+    const result = await runInvokeHarness(
+      { ...run, retries: 0 },
+      async () => {
+        writeFileSync(run.paths.tracePath, "[]");
+        return spawnResult({ status: 0, stdout: Buffer.from(JSON.stringify({ type: "step_finish", part: { reason: "stop" } })) });
+      },
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.attempt_metrics?.[0]?.outcome_reason).toBe("missing-results");
+    const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
+    expect(meta.attempt_metrics[0].outcome_reason).toBe("missing-results");
+  });
+
   it("redacts harness stdout, transcript, trace, results, and meta artifacts", async () => {
     const dir = freshDir();
     const run = opts(dir, "codex");
@@ -872,6 +889,7 @@ describe("runInvokeHarness", () => {
 
     expect(result).toMatchObject({ ok: false, attempts: 1, validity_status: "trace_invalid" });
     expect(result.attempt_metrics?.[0]?.ok).toBe(false);
+    expect(result.attempt_metrics?.[0]?.outcome_reason).toBe("unsafe-output");
     expect(result.error).toContain("harness output contained");
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     const trace = JSON.parse(readFileSync(run.paths.tracePath, "utf8"));
@@ -1137,10 +1155,15 @@ describe("runInvokeHarness", () => {
     expect(result.attempt_metrics?.every((attempt) => typeof attempt.duration_ms === "number")).toBe(true);
     expect(result.attempt_metrics?.[0]?.ok).toBe(false);
     expect(result.attempt_metrics?.[1]?.ok).toBe(true);
+    expect(result.attempt_metrics?.map((attempt) => attempt.outcome_reason)).toEqual(["nonzero-exit", "success"]);
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(executor.metrics.cost_usd).toBeCloseTo(0.3);
     const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
     expect(meta.attempt_metrics).toHaveLength(2);
+    expect(meta.attempt_metrics.map((attempt: { outcome_reason: string }) => attempt.outcome_reason)).toEqual([
+      "nonzero-exit",
+      "success",
+    ]);
   });
 
   it("captures Codex turn token usage and leaves dollar cost null", async () => {
@@ -1347,6 +1370,7 @@ describe("runInvokeHarness", () => {
     expect(result.transcript_event_count).toBe(0);
     expect(result.ok).toBe(false);
     expect(result.attempts).toBe(1);
+    expect(result.attempt_metrics?.[0]?.outcome_reason).toBe("timeout-first-action");
     const executor = JSON.parse(readFileSync(run.paths.resultsPath, "utf8"));
     expect(executor.model).toBe("sonnet");
     expect(String(executor.discovery?.notes ?? "")).toMatch(/before first action/i);
@@ -1371,6 +1395,7 @@ describe("runInvokeHarness", () => {
     expect(result.validity_status).toBe("runtime_timeout_partial");
     expect(result.action_occurred).toBe(true);
     expect(result.transcript_event_count).toBe(1);
+    expect(result.attempt_metrics?.[0]?.outcome_reason).toBe("timeout-wall");
     const meta = JSON.parse(readFileSync(run.paths.metaPath, "utf8"));
     expect(meta.validity_status).toBe("runtime_timeout_partial");
     expect(meta.action_occurred).toBe(true);

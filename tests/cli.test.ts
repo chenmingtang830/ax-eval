@@ -97,6 +97,12 @@ describe("cli arg handling", () => {
     expect(out).toContain("--harness claude-code|codex|opencode");
   });
 
+  it("verify-generated help exposes the single-task denominator", () => {
+    const { code, out } = runCli(["verify-generated", "--help"]);
+    expect(code).toBe(0);
+    expect(out).toContain("[--task id]");
+  });
+
   it("delegates legacy authoring help to the arena CLI", () => {
     const direct = runArenaCli(["benchmark", "audit-extracts", "--help"]);
     const delegated = runCli(["audit-extracts", "--help"]);
@@ -951,7 +957,8 @@ console.log(JSON.stringify({
 
     const { code, out } = runCli([
       "exec-plan", "--pack", PACK, "--skip-review", "--invoke", "--harness", "opencode",
-      "--model", "openrouter/example/model", "--attempts", "1", "--run-dir", dir,
+      "--model", "openrouter/example/model", "--task", "asana-create-task",
+      "--attempts", "1", "--run-dir", dir,
     ], {
       PATH: `${binDir}:${process.env.PATH ?? ""}`,
       OPENROUTER_API_KEY: "provider-scoped-key",
@@ -965,6 +972,8 @@ console.log(JSON.stringify({
 
     expect(code, out).toBe(0);
     expect(out).toContain("opencode/API/medium");
+    expect(out).toContain("verify-generated --pack");
+    expect(out).toContain("--task asana-create-task");
     const executor = JSON.parse(readFileSync(resolve(dir, "run-opencode-medium.json"), "utf8"));
     expect(executor).toMatchObject({
       harness: "opencode",

@@ -9,6 +9,7 @@ import { resolveEnvTemplate, type EnvSource } from "../target/config.js";
 export interface SurfaceHonestyInput {
   wireSignals: string[];
   apiCalls: Array<{ host: string }>;
+  cliCommands?: string[];
 }
 
 export interface SurfaceHonestyGrade {
@@ -69,9 +70,18 @@ export function gradeSurfaceHonesty(
   }
   const host = packApiHost(pack, env);
   const wireSignals = [...(run.wireSignals ?? [])];
+  const cliCommands = [...(run.cliCommands ?? [])];
   const controlPlaneCalls = host
     ? run.apiCalls.filter((c) => c.host.toLowerCase() === host).length
     : run.apiCalls.length;
+  if (cliCommands.length > 0) {
+    return {
+      passed: false,
+      detail: `declared api cell invoked vendor CLI (${cliCommands.length} command(s)); cross-surface actions are not API evidence`,
+      wireSignals,
+      controlPlaneCalls,
+    };
+  }
   if (wireSignals.length === 0) {
     return {
       passed: true,
