@@ -36,7 +36,7 @@ describe("arena public engine boundary", () => {
       schema: "ax.evaluation-cell/v1",
       cell_id: "cell-turso-cli",
       batch_id: "batch-1",
-      evaluation_set_id: "axeval-database",
+      evaluation_set_id: "axarena-database",
       evaluation_set_version: "1",
       target_id: "turso",
       pack: { path: "pack.yaml", content_hash: "0".repeat(64) },

@@ -60,21 +60,21 @@ function requireTree(directory, prefix) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const child = resolve(directory, entry.name);
     const path = `${prefix}/${entry.name}`;
-    if (path === "axeval-database/_archive") continue;
+    if (path === "axarena-database/_archive") continue;
     if (entry.isSymbolicLink()) throw new Error(`arena package source rejects symlink: ${path}`);
     if (entry.isDirectory()) requireTree(child, path);
     else if (entry.isFile()) required.push(path);
   }
 }
-requireTree(resolve(process.cwd(), "axeval-database"), "axeval-database");
+requireTree(resolve(process.cwd(), "axarena-database"), "axarena-database");
 const missing = required.filter((path) => !files.has(path));
 const forbidden = [...files].filter((path) =>
   path.startsWith("src/")
   || path.startsWith("tests/")
   || path.startsWith("scripts/")
   || path.startsWith("benchmarks/daeb/")
-  || path === "axeval-database/_archive"
-  || path.startsWith("axeval-database/_archive/"),
+  || path === "axarena-database/_archive"
+  || path.startsWith("axarena-database/_archive/"),
 );
 if (missing.length || forbidden.length) {
   throw new Error([

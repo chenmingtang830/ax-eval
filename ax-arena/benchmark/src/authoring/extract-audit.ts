@@ -180,7 +180,7 @@ function auditInventoryFindings(
         severity: "warn",
         code: "manual_backup_workflow",
         message:
-          "Backup/restore is documented as a managed or support-mediated workflow; do not expose it as a self-service AXeval-Database API/CLI task without direct automation evidence.",
+          "Backup/restore is documented as a managed or support-mediated workflow; do not expose it as a self-service AXArena-Database API/CLI task without direct automation evidence.",
         capability_name: cap.capability_name,
         auto_fixable: false,
       });

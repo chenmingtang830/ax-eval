@@ -73,7 +73,7 @@ const cell = EvaluationCellSchema.parse({
   schema: "ax.evaluation-cell/v1",
   cell_id: "cell-1",
   batch_id: "batch-1",
-  evaluation_set_id: "axeval-database",
+  evaluation_set_id: "axarena-database",
   evaluation_set_version: "1",
   target_id: "database",
   pack: { path: "pack.yaml", content_hash: "0".repeat(64) },
@@ -216,7 +216,7 @@ describe("arena database reset providers", () => {
   });
 
   it("accepts the dotted namespace produced by the current gpt-5.6-terra runtime", async () => {
-    const namespace = "axeval-database-high-batch-gpt-5.6-terra-t1";
+    const namespace = "axarena-database-high-batch-gpt-5.6-terra-t1";
     const pack = TargetPackSchema.parse({
       name: "turso",
       auth: { type: "bearer", env: "TURSO_TOKEN" },

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { defaultSuiteMethodology } from "../src/authoring/methodology-policy.js";
 
 describe("arena suite methodology policy", () => {
-  it("keeps AXeval-Database v1 on api/cli while other categories retain the generic engine surfaces", () => {
+  it("keeps AXArena-Database v1 on api/cli while other categories retain the generic engine surfaces", () => {
     const database = defaultSuiteMethodology("database");
     expect(database.surface_scope).toEqual(["api", "cli"]);
     expect(database.target_task_count).toBe(7);

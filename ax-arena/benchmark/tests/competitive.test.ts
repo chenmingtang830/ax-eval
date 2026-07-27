@@ -71,7 +71,7 @@ function createBatch(root: string, betaSurfaces: Array<"api" | "cli"> = ["api", 
       reset_provider: { id: `fixture-${vendor}-reset`, version: "1.0.0" },
     })))));
   const configuration = {
-    command: "axeval-database-production-rerun" as const,
+    command: "axarena-database-production-rerun" as const,
     execution: { runtime_backend: "pinned-oci" as const, trust_level: "hosted-trusted" as const },
     sandbox: {
       kind: "bubblewrap" as const,
@@ -82,11 +82,11 @@ function createBatch(root: string, betaSurfaces: Array<"api" | "cli"> = ["api", 
       executable_sha256: "8".repeat(64),
       runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
     },
-    suite: { name: "AXeval-Database v1", version: 1, file_hash: "e".repeat(64) },
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: "e".repeat(64) },
     packs: Object.entries(vendorSurfaces).map(([vendor, surfaces]) => ({
       vendor,
       file_hash: (vendor === "alpha" ? "1" : "2").repeat(64),
-      standard_set_version: "AXeval-Database v1-v1",
+      standard_set_version: "AXArena-Database v1-v1",
       surfaces,
       host_credential_names: [],
       verification_credential_names: [],
@@ -128,7 +128,7 @@ function record(input: {
     surface: input.surface,
     product: input.product,
     harness: input.harness,
-    standard_set_version: "AXeval-Database v1-v1",
+    standard_set_version: "AXArena-Database v1-v1",
     generated_at: "2026-07-20T01:00:00.000Z",
     tasks_total: 100,
     tasks_passed: Math.round(input.rate * 100),
@@ -229,7 +229,7 @@ function createSealedBundle(
       surface: cell.surface,
       product: cell.vendor,
       harness: cell.harness,
-      standard_set_version: "AXeval-Database v1-v1",
+      standard_set_version: "AXArena-Database v1-v1",
       generated_at: "2026-07-20T00:30:00.000Z",
       tasks_total: 100,
       tasks_passed: aggregate.tasks_passed,
@@ -260,8 +260,8 @@ function createSealedBundle(
       record_id: recordId,
       cell_id: recordId,
       batch_id: batch.batch_id,
-      evaluation_set_id: "AXeval-Database v1",
-      evaluation_set_version: "AXeval-Database v1-v1",
+      evaluation_set_id: "AXArena-Database v1",
+      evaluation_set_version: "AXArena-Database v1-v1",
       pack_content_hash: (cell.vendor === "alpha" ? "1" : "2").repeat(64),
       source_commit_sha: batch.source_commit_sha,
       execution_namespace: `fixture-${cell.vendor}-${cell.surface}-${cell.harness}-${cell.trial}`,
@@ -385,7 +385,7 @@ function createSealedBundle(
     });
     artifactJson(`snapshots/${vendor}.json`, { runs });
   }
-  artifactText("suite/axeval-database-v1.yaml", "name: AXeval-Database v1\nversion: 1\n");
+  artifactText("suite/axarena-database-v1.yaml", "name: AXArena-Database v1\nversion: 1\n");
   artifactText("methodology.md", "# Methodology\n");
   artifactText("competitive.html", "<html>previous</html>\n");
   const batchBytes = readFileSync(resolve(bundle, "provenance/batch.json"));
@@ -457,17 +457,17 @@ function createSealedBundle(
       manifest: { path: "batch.json", sha256: createHash("sha256").update(batchBytes).digest("hex") },
       completion: { path: "batch-completion.json", sha256: createHash("sha256").update(completionBytes).digest("hex") },
     },
-    source_artifacts: [{ path: "ax-arena/benchmark/axeval-database/v1/suite.yaml", sha256: "e".repeat(64) }],
+    source_artifacts: [{ path: "ax-arena/benchmark/axarena-database/v1/suite.yaml", sha256: "e".repeat(64) }],
   });
   const detachedBundles = Buffer.from('{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n');
   artifactText("provenance/github-attestation-bundles.jsonl", detachedBundles.toString("utf8"));
   const vendorSurfaces = Object.fromEntries(batch.configuration.packs.map((pack) => [pack.vendor, pack.surfaces]));
   const manifest = {
     schema: "ax.publication-bundle/v2",
-    benchmark: "axeval-database",
-    display_name: "AXeval-Database",
+    benchmark: "axarena-database",
+    display_name: "AXArena-Database",
     category: "database",
-    suite: "suite/axeval-database-v1.yaml",
+    suite: "suite/axarena-database-v1.yaml",
     suite_version: 1,
     generated_at: "2026-07-20T01:00:00.000Z",
     publication_readiness: "publication_ready",

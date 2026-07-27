@@ -49,9 +49,9 @@ describe("arena artifact persistence", () => {
         }],
       }));
       expect(inventoryPath).toContain("capability-inventory.yaml");
-      expect(readdirSync(resolve(dir, "ax-arena", "benchmark", "axeval-database", "v1", "extracts", "acme"))).not.toContain("capabilities.yaml");
+      expect(readdirSync(resolve(dir, "ax-arena", "benchmark", "axarena-database", "v1", "extracts", "acme"))).not.toContain("capabilities.yaml");
 
-      writeSupportMatrix(dir, "ax-arena/benchmark/axeval-database/v1/suite.yaml", SupportMatrixSchema.parse({
+      writeSupportMatrix(dir, "ax-arena/benchmark/axarena-database/v1/suite.yaml", SupportMatrixSchema.parse({
         schema: "ax.support-matrix/v1",
         benchmark: "DEMO",
         category: "database",
@@ -64,7 +64,7 @@ describe("arena artifact persistence", () => {
           source_concept: "schema-migration",
         }],
       }));
-      expect(loadSupportMatrix(dir, "ax-arena/benchmark/axeval-database/v1/suite.yaml")?.entries).toHaveLength(1);
+      expect(loadSupportMatrix(dir, "ax-arena/benchmark/axarena-database/v1/suite.yaml")?.entries).toHaveLength(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -94,7 +94,7 @@ describe("arena artifact persistence", () => {
       expect(loaded?.capabilities[0]?.capability_name).toBe("row-level-security");
       expect(loaded?.capabilities[0]?.family).toBeUndefined();
       expect(loaded?.capabilities[0]?.evidence[0]?.doc_url).toBe("https://docs.example/rls");
-      expect(readdirSync(resolve(dir, "ax-arena", "benchmark", "axeval-database", "v1", "extracts", "acme")))
+      expect(readdirSync(resolve(dir, "ax-arena", "benchmark", "axarena-database", "v1", "extracts", "acme")))
         .toContain("capability-inventory.yaml");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -104,7 +104,7 @@ describe("arena artifact persistence", () => {
   it("rejects a malformed canonical capability inventory without a legacy fallback", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-malformed-"));
     try {
-      const extractDir = resolve(dir, "ax-arena", "benchmark", "axeval-database", "v1", "extracts", "acme");
+      const extractDir = resolve(dir, "ax-arena", "benchmark", "axarena-database", "v1", "extracts", "acme");
       mkdirSync(extractDir, { recursive: true });
       writeFileSync(resolve(extractDir, "capability-inventory.yaml"), "vendor: Acme\n");
       expect(() => loadCapabilityExtract(dir, "acme")).toThrow(/capability-extract.*malformed/);
@@ -146,7 +146,7 @@ describe("arena artifact persistence", () => {
   it("persists publication-grade methodology artifacts for both layers without coupling scores", () => {
     const dir = mkdtempSync(resolve(tmpdir(), "ax-methodology-pub-"));
     try {
-      const suitePath = "ax-arena/benchmark/axeval-database/v1/suite.yaml";
+      const suitePath = "ax-arena/benchmark/axarena-database/v1/suite.yaml";
       const methodology = defaultSuiteMethodology("database");
       writeMethodology(dir, suitePath, methodology);
       writeCoverageMatrix(dir, suitePath, {

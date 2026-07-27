@@ -266,7 +266,7 @@ async function invokeHarnessInner(prompt: string, opts: InvokeHarnessOptions, ti
     // --verbose switches --output-format json from a single result object to
     // an array of turn messages, which is the only way to see real tool_use
     // blocks (see countWebToolUse). Only requested when grounding is being
-    // enforced, to leave the existing non-AXeval-Database generate path unchanged.
+    // enforced, to leave the existing non-AXArena-Database generate path unchanged.
     const verboseArgs = opts.requireWebFetch ? ["--verbose"] : [];
     const runClaude = async (groundedPrompt: string): Promise<string> => {
       const { stdout } = await runDetached(

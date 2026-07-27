@@ -22,7 +22,7 @@ export function createArenaRuntimeExtensionRegistry(
   return createRuntimeExtensionRegistry(input);
 }
 
-/** Construct one isolated AXeval-Database database registry. Controller-selected ambient
+/** Construct one isolated AXArena-Database database registry. Controller-selected ambient
  * state is explicit so providers never read process.env and cells cannot share
  * mutable registrations. */
 export function createDatabaseRuntimeExtensionRegistry(
@@ -76,8 +76,8 @@ export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export {
-  AXEVAL_DATABASE_BENCHMARK_ID,
-  AXEVAL_DATABASE_DISPLAY_NAME,
+  AXARENA_DATABASE_BENCHMARK_ID,
+  AXARENA_DATABASE_DISPLAY_NAME,
   PUBLICATION_INTEGRITY_SCHEMA,
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,

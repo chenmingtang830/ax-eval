@@ -343,7 +343,7 @@ export function auditSuite(
     findings.push({
       severity: "error",
       code: "generic_suite_name",
-      message: `Suite name is generic ("${suite.name}" from ${stem}.yaml); prefer AXeval-Database v1`,
+      message: `Suite name is generic ("${suite.name}" from ${stem}.yaml); prefer AXArena-Database v1`,
       auto_fixable: true,
     });
   }
@@ -477,7 +477,7 @@ export function auditSuite(
       infos: findings.filter((f) => f.severity === "info").length,
       autoFixable: findings.filter((f) => f.auto_fixable).length,
     },
-    suggestedName: "AXeval-Database v1",
+    suggestedName: "AXArena-Database v1",
     suggestedVersion: 1,
   };
 }
@@ -517,7 +517,7 @@ export function applySuiteAudit(root: AxevalDatabasePathInput, suitePath: string
   const raw = yamlParse(rawSuite) as Record<string, unknown>;
   let changed = false;
   if (report.findings.some((f) => f.code === "generic_suite_name")) {
-    raw.name = report.suggestedName ?? "AXeval-Database v1";
+    raw.name = report.suggestedName ?? "AXArena-Database v1";
     if (typeof raw.version !== "number" || raw.version < 1) raw.version = report.suggestedVersion ?? 1;
     changed = true;
   }

@@ -58,7 +58,7 @@ export async function adviseVendorExtract(
   const prompt = [
     `Audit this database vendor extraction for semantic risks. You MUST WebFetch every URL you cite.`,
     `This is advisory only: do not invent capability support. Review self-service vs support-mediated operations,`,
-    `CLI/SDK headless auth, GUI mislabeled as CLI, and whether a cited capability can perform a AXeval-Database operational task.`,
+    `CLI/SDK headless auth, GUI mislabeled as CLI, and whether a cited capability can perform a AXArena-Database operational task.`,
     `Vendor: ${inventory.vendor}`,
     `CLI surface: ${JSON.stringify(surfaces.cli ?? null)}`,
     `SDK surface: ${JSON.stringify(surfaces.sdk ?? null)}`,

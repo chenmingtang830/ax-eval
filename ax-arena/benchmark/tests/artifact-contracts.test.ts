@@ -5,7 +5,7 @@ describe("arena artifact contracts", () => {
   it("requires explicit reviewer metadata and a full sample before trace review completion", () => {
     expect(TraceReviewMemoSchema.safeParse({
       schema: "ax.trace-review/v1",
-      benchmark: "AXeval-Database v1",
+      benchmark: "AXArena-Database v1",
       generated_at: "2026-01-01T00:00:00.000Z",
       status: "completed",
       sample_size: 2,
@@ -16,7 +16,7 @@ describe("arena artifact contracts", () => {
 
     expect(TraceReviewMemoSchema.safeParse({
       schema: "ax.trace-review/v1",
-      benchmark: "AXeval-Database v1",
+      benchmark: "AXArena-Database v1",
       generated_at: "2026-01-01T00:00:00.000Z",
       status: "completed",
       sample_size: 2,

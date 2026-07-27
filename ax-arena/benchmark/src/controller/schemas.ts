@@ -163,8 +163,8 @@ const ArenaBatchCellSchema = z.object({
 
 export const ArenaBatchConfigurationSchema = z.object({
   command: z.enum([
-    "axeval-database-low-pass",
-    "axeval-database-production-rerun",
+    "axarena-database-low-pass",
+    "axarena-database-production-rerun",
     "daeb-low-pass",
     "daeb-production-rerun",
   ]),
@@ -289,7 +289,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     context.addIssue({
       code: "custom",
       path: ["harnesses"],
-      message: "AXeval-Database batches require both Codex and Claude Code harness pins",
+      message: "AXArena-Database batches require both Codex and Claude Code harness pins",
     });
   }
   const trials = [...new Set(configuration.cells.map((cell) => cell.trial))].sort((left, right) => left - right);
@@ -336,7 +336,7 @@ export const ArenaBatchConfigurationSchema = z.object({
   if (configuration.reset_required && configuration.cells.some((cell) => cell.reset_provider === null)) {
     context.addIssue({ code: "custom", path: ["cells"], message: "reset-required batches must pin every reset provider" });
   }
-  if (["axeval-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)) {
+  if (["axarena-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)) {
     const exactTrials = JSON.stringify(trials) === "[1,2,3]";
     const canonicalPolicy = configuration.cells.every((cell) => cell.profile === "high"
       && cell.effort === "high"

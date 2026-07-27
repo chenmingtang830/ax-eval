@@ -6,11 +6,11 @@ import { tmpdir } from "node:os";
 import { loadSuite, suitePromptFragment, validatePackAgainstSuite } from "ax-eval";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const AXEVAL_DATABASE_V1 = resolve(ROOT, "axeval-database", "v1", "suite.yaml");
+const AXARENA_DATABASE_V1 = resolve(ROOT, "axarena-database", "v1", "suite.yaml");
 
 describe("canonical task suite", () => {
-  it("loads and validates the shipped AXeval-Database v1 suite", () => {
-    const suite = loadSuite(AXEVAL_DATABASE_V1);
+  it("loads and validates the shipped AXArena-Database v1 suite", () => {
+    const suite = loadSuite(AXARENA_DATABASE_V1);
     // The v1 bytes retain the pre-rename machine identity so approvals remain valid.
     expect(suite.name).toBe("DAEB-1");
     expect(suite.version).toBe(1);
@@ -36,14 +36,14 @@ describe("canonical task suite", () => {
       "failure-taxonomy.yaml",
       "trace-review.yaml",
     ]) {
-      expect(readFileSync(resolve(ROOT, "axeval-database", "v1", `suite.${suffix}`), "utf8"))
+      expect(readFileSync(resolve(ROOT, "axarena-database", "v1", `suite.${suffix}`), "utf8"))
         .toMatch(/^benchmark: DAEB-1$/m);
     }
   });
 
   it("publishes a human-readable support matrix summary", () => {
     const summary = readFileSync(
-      resolve(ROOT, "axeval-database", "v1", "suite.support-summary.md"),
+      resolve(ROOT, "axarena-database", "v1", "suite.support-summary.md"),
       "utf8",
     );
     expect(summary).toContain("# DAEB-1 — Support Summary");
@@ -62,7 +62,7 @@ describe("canonical task suite", () => {
   });
 
   it("renders a prompt fragment that names every task id", () => {
-    const suite = loadSuite(AXEVAL_DATABASE_V1);
+    const suite = loadSuite(AXARENA_DATABASE_V1);
     const fragment = suitePromptFragment(suite);
     expect(fragment).toMatch(/DAEB-1/);
     for (const task of suite.tasks) {
@@ -76,13 +76,13 @@ describe("canonical task suite", () => {
   });
 
   it("validation passes when pack matches the suite exactly", () => {
-    const suite = loadSuite(AXEVAL_DATABASE_V1);
+    const suite = loadSuite(AXARENA_DATABASE_V1);
     const matching = suite.tasks.map((t) => ({ id: t.id, title: t.title, difficulty: t.difficulty }));
     expect(validatePackAgainstSuite(matching, suite)).toEqual([]);
   });
 
   it("validation catches missing, extra, and divergent tasks", () => {
-    const suite = loadSuite(AXEVAL_DATABASE_V1);
+    const suite = loadSuite(AXARENA_DATABASE_V1);
     const first = suite.tasks[0]!;
     const altDifficulty = (["L1", "L2", "L3", "L4"] as const).find((d) => d !== first.difficulty) ?? "L4";
     const broken = [

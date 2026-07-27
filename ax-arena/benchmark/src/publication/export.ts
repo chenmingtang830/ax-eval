@@ -51,8 +51,8 @@ import { assertCanonicalRuntimeDerivation } from "./derivation.js";
 import { renderArenaCompetitiveReport } from "./competitive.js";
 
 export {
-  AXEVAL_DATABASE_BENCHMARK_ID,
-  AXEVAL_DATABASE_DISPLAY_NAME,
+  AXARENA_DATABASE_BENCHMARK_ID,
+  AXARENA_DATABASE_DISPLAY_NAME,
   PUBLICATION_INTEGRITY_SCHEMA,
   ArenaPublicationBundleSchema,
   ArenaPublicationIntegritySchema,
@@ -485,7 +485,7 @@ function verifyBatchBinding(
     const entry = requireIntegrityEntry(entries, path, label);
     if (entry.sha256 !== reference.sha256) throw new Error(`${label} hash does not match the signed subject`);
   }
-  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
+  if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
     || batch.batch_id !== bundle.integrity.batch_id
     || batch.source_commit_sha !== bundle.integrity.source_commit_sha
     || batch.configuration_hash !== bundle.integrity.configuration_hash
@@ -564,7 +564,7 @@ function verifySignedSourceArtifacts(input: {
   const entries = integrityEntries(bundle);
   const signedSources = new Map(subject.source_artifacts.map((artifact) => [artifact.path, artifact.sha256]));
   const expectedDestinations = new Map<string, string>();
-  const suitePrefix = `ax-arena/benchmark/axeval-database/v${batch.configuration.suite.version}`;
+  const suitePrefix = `ax-arena/benchmark/axarena-database/v${batch.configuration.suite.version}`;
   const requireSource = (destination: string, sourcePath: string, label: string): Buffer => {
     const signedHash = signedSources.get(sourcePath);
     if (!signedHash) throw new Error(`${label} is absent from the signed protected-main source artifact set`);
@@ -614,7 +614,7 @@ function verifySignedSourceArtifacts(input: {
     packs.set(slug, pack);
     packPaths[slug] = safeBundleFile(bundleRoot, packDestination, `canonical pack ${slug}`);
     requireSource(`vendors/${slug}/pack.approval.json`, `${suitePrefix}/packs/${slug}/pack.approval.json`, `canonical approval ${slug}`);
-    requireSource(`vendors/${slug}/vendor.discovered.yaml`, `ax-arena/benchmark/axeval-database/vendors/${slug}.discovered.yaml`, `canonical vendor card ${slug}`);
+    requireSource(`vendors/${slug}/vendor.discovered.yaml`, `ax-arena/benchmark/axarena-database/vendors/${slug}.discovered.yaml`, `canonical vendor card ${slug}`);
     requireSource(`vendors/${slug}/oracle-extract.yaml`, `${suitePrefix}/extracts/${slug}/oracles.yaml`, `canonical oracle extract ${slug}`);
     requireSource(`vendors/${slug}/suite-support-matrix.yaml`, `${suitePrefix}/suite.support-matrix.yaml`, `canonical support matrix ${slug}`);
   }

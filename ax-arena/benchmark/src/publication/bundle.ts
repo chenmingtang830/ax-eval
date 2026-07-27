@@ -356,7 +356,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   if (opts.generatedAt && opts.generatedAt.toISOString() !== generatedAtIso) {
     throw new Error("publication generatedAt must equal the canonical runtime reporting timestamp");
   }
-  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
+  if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)
     || batch.configuration.execution?.runtime_backend !== "pinned-oci"
     || batch.configuration.execution?.trust_level !== "hosted-trusted"
     || !batch.configuration.sandbox
@@ -445,7 +445,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   const signedSources = new Map(attested.subject.source_artifacts.map((artifact) => [artifact.path, artifact.sha256]));
   const sourcePlan = (path: string, file: PinnedFile, label: string): PublicationPlan => {
     const sourcePath = relative(root, file.path).replaceAll("\\", "/");
-    if (!sourcePath.startsWith("ax-arena/benchmark/axeval-database/") || signedSources.get(sourcePath) !== sha256(file.bytes)) {
+    if (!sourcePath.startsWith("ax-arena/benchmark/axarena-database/") || signedSources.get(sourcePath) !== sha256(file.bytes)) {
       throw new Error(`${label} is not bound by the signed protected-main source artifact set`);
     }
     return { path, bytes: file.bytes, sourcePath };
@@ -734,8 +734,8 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     const versions = new Set(records.map((record) => record.harness_version_semver));
     if (!records.length || versions.size !== 1 || versions.has(null) || versions.has(undefined)) canonicalIssues.push(`${harness}: harness_version_semver must be present and identical`);
   }
-  if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)) {
-    canonicalIssues.push("batch command is not axeval-database-production-rerun");
+  if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)) {
+    canonicalIssues.push("batch command is not axarena-database-production-rerun");
   }
   const traceIssues = [...snapshotValues.entries()].flatMap(([key, snapshot]) => {
     const issue = traceCoverageIssue(snapshot);

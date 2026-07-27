@@ -182,7 +182,7 @@ export type {
 } from "./generate/record.js";
 
 // Generic authoring schemas, extraction, and explicit-input transforms consumed
-// by arena. Canonical AXeval-Database paths and persistence live in the arena workspace.
+// by arena. Canonical AXArena-Database paths and persistence live in the arena workspace.
 export {
   SuiteSchema,
   SuiteTaskSchema,

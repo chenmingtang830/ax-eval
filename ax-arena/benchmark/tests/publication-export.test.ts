@@ -110,7 +110,7 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
             surface,
             product: vendor,
             harness,
-            standard_set_version: "AXeval-Database v1-v1",
+            standard_set_version: "AXArena-Database v1-v1",
             generated_at: "2026-07-20T00:30:00.000Z",
             tasks_total: 100,
             tasks_passed: Math.round(rate * 100),
@@ -141,8 +141,8 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
             record_id: recordId,
             cell_id: recordId,
             batch_id: "batch-1",
-            evaluation_set_id: "AXeval-Database v1",
-            evaluation_set_version: "AXeval-Database v1-v1",
+            evaluation_set_id: "AXArena-Database v1",
+            evaluation_set_version: "AXArena-Database v1-v1",
             pack_content_hash: (vendor === "alpha" ? "1" : "2").repeat(64),
             source_commit_sha: "a".repeat(40),
             execution_namespace: `fixture-${vendor}-${surface}-${harness}-${trial}`,
@@ -229,7 +229,7 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     }
   }
   const configuration = {
-    command: "axeval-database-production-rerun" as const,
+    command: "axarena-database-production-rerun" as const,
     execution: { runtime_backend: "pinned-oci" as const, trust_level: "hosted-trusted" as const },
     sandbox: {
       kind: "bubblewrap" as const,
@@ -240,11 +240,11 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
       executable_sha256: "8".repeat(64),
       runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
     },
-    suite: { name: "AXeval-Database v1", version: 1, file_hash: "e".repeat(64) },
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: "e".repeat(64) },
     packs: Object.entries(vendorSurfaces).map(([vendor, surfaces]) => ({
       vendor,
       file_hash: (vendor === "alpha" ? "1" : "2").repeat(64),
-      standard_set_version: "AXeval-Database v1-v1",
+      standard_set_version: "AXArena-Database v1-v1",
       surfaces,
       host_credential_names: [],
       verification_credential_names: [],
@@ -323,7 +323,7 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     artifactJson(`snapshots/${vendor}.json`, { runs });
   }
   artifactText("reports/alpha.html", "<html>alpha</html>\n");
-  artifactText("suite/axeval-database-v1.yaml", "name: AXeval-Database v1\nversion: 1\n");
+  artifactText("suite/axarena-database-v1.yaml", "name: AXArena-Database v1\nversion: 1\n");
   artifactText("methodology.md", "# Methodology\n");
   artifactText("competitive.html", "<html>competitive</html>\n");
   const batchBytes = readFileSync(resolve(bundle, "provenance/batch.json"));
@@ -394,16 +394,16 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
       manifest: { path: "batch.json", sha256: createHash("sha256").update(batchBytes).digest("hex") },
       completion: { path: "batch-completion.json", sha256: createHash("sha256").update(completionBytes).digest("hex") },
     },
-    source_artifacts: [{ path: "ax-arena/benchmark/axeval-database/v1/suite.yaml", sha256: "e".repeat(64) }],
+    source_artifacts: [{ path: "ax-arena/benchmark/axarena-database/v1/suite.yaml", sha256: "e".repeat(64) }],
   });
   const detachedBundles = Buffer.from('{"mediaType":"application/vnd.dev.sigstore.bundle.v0.3+json"}\n');
   artifactText("provenance/github-attestation-bundles.jsonl", detachedBundles.toString("utf8"));
   const manifest = {
     schema: "ax.publication-bundle/v2",
-    benchmark: "axeval-database",
-    display_name: "AXeval-Database",
+    benchmark: "axarena-database",
+    display_name: "AXArena-Database",
     category: "database",
-    suite: "suite/axeval-database-v1.yaml",
+    suite: "suite/axarena-database-v1.yaml",
     suite_version: 1,
     generated_at: "2026-07-20T01:30:00.000Z",
     expected_matrix: {
@@ -556,13 +556,13 @@ describe("arena publication export", () => {
       expect(verifyBundledAttestation.mock.calls.at(-1)?.[1]).toBeInstanceOf(Buffer);
       expect(cohort.batch.batch_id).toBe("batch-1");
       expect(cohort.records).toHaveLength(8);
-      expect(manifest.benchmark).toBe("axeval-database");
-      expect(manifest.display_name).toBe("AXeval-Database");
+      expect(manifest.benchmark).toBe("axarena-database");
+      expect(manifest.display_name).toBe("AXArena-Database");
       expect(manifest.files).toHaveLength(7);
       for (const file of manifest.files) expect(existsSync(resolve(root, "arena-out", file.path))).toBe(true);
       const leaderboard = parse(resolve(root, "arena-out/leaderboard.json"));
-      expect(leaderboard.benchmark).toBe("axeval-database");
-      expect(leaderboard.display_name).toBe("AXeval-Database");
+      expect(leaderboard.benchmark).toBe("axarena-database");
+      expect(leaderboard.display_name).toBe("AXArena-Database");
       const codex = leaderboard.agents.find((agent: { harness: string }) => agent.harness === "codex");
       expect(codex.views.overall.rows.map((row: { vendor: string }) => row.vendor)).toEqual(["beta", "alpha"]);
       expect(codex.views.overall.rows.find((row: { vendor: string }) => row.vendor === "alpha").mean_pass_at_1).toBeCloseTo(0.7);

@@ -586,7 +586,7 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
     targetTaskCount: args.taskCount,
   });
   const stem = basename(outPath).replace(/\.yaml$/, "");
-  const name = /^suite$/i.test(stem) ? "AXeval-Database v1" : stem.toUpperCase();
+  const name = /^suite$/i.test(stem) ? "AXArena-Database v1" : stem.toUpperCase();
   const version = /^suite$/i.test(stem) ? 1 : inferSuiteVersionFromStem(stem);
   const yaml = renderSuiteYaml(name, version, args.category, result);
   const synthesis = renderSynthesisDoc(name, args.category, result);

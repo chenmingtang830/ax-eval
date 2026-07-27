@@ -272,7 +272,7 @@ if (cellResultsRoots.length) {
 }
 const vendors = [...new Set(plan.cells.map((descriptor) => descriptor.vendor))];
 const canonicalPackPaths = Object.fromEntries(vendors.map((vendor) => {
-  const path = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1", "packs", vendor, "pack.yaml");
+  const path = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "packs", vendor, "pack.yaml");
   assertCommittedFile(root, batch.source_commit_sha, path, `canonical ${vendor} pack`);
   return [vendor, path];
 }));

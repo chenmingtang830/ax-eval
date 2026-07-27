@@ -25,7 +25,7 @@ export const VendorSelectionEntrySchema = z.object({
 
 export const VendorSelectionLedgerSchema = z.object({
   schema: z.literal("ax.vendor-selection-ledger/v1"),
-  benchmark: z.enum(["AXeval-Database v1", "DAEB-1"]),
+  benchmark: z.enum(["AXArena-Database v1", "DAEB-1"]),
   generated_at: z.string().min(1),
   methodology: z.object({
     sampling: z.literal("purposive-stratified"),

@@ -795,14 +795,14 @@ function databaseTaskSupportOverride(
   if (vendor === "Nile" && surface === "api") {
     return {
       status: "unsupported",
-      reason: "Nile AXeval-Database v1 data-plane tasks use documented PostgreSQL command-line connectivity; the Nile API is control-plane only for this cohort.",
+      reason: "Nile AXArena-Database v1 data-plane tasks use documented PostgreSQL command-line connectivity; the Nile API is control-plane only for this cohort.",
     };
   }
   if (vendor === "MongoDB Atlas" && task.skill === "server-side-execution" && decision.capability_name === "server-side-javascript-function") {
     return {
       status: "unsupported",
       reason:
-        "MongoDB Atlas evidence is inline aggregation `$function`; AXeval-Database T08 requires a named server-side routine with observable invocation output, so this concrete task is unsupported for the current database benchmark template.",
+        "MongoDB Atlas evidence is inline aggregation `$function`; AXArena-Database T08 requires a named server-side routine with observable invocation output, so this concrete task is unsupported for the current database benchmark template.",
     };
   }
   if (surface !== "sdk") return null;
@@ -881,25 +881,25 @@ const NILE_SDK_UNSUPPORTED = new Set([
 
 function databaseSdkUnsupportedReason(vendor: string, skill: string): string | null {
   if (vendor === "Supabase" && SUPABASE_SDK_UNSUPPORTED.has(skill)) {
-    return "Supabase JS is a data-plane client and does not expose the DDL/control-plane path this AXeval-Database task requires from a blank sandbox; unsupported SDK cells are excluded from the denominator.";
+    return "Supabase JS is a data-plane client and does not expose the DDL/control-plane path this AXArena-Database task requires from a blank sandbox; unsupported SDK cells are excluded from the denominator.";
   }
   if (vendor === "Neon" && NEON_SDK_UNSUPPORTED.has(skill)) {
     return "Neon's serverless driver is a SQL data-plane driver; this task requires backup/CDC/control-plane behavior not evidenced through that SDK path.";
   }
   if (vendor === "MongoDB Atlas" && MONGODB_ATLAS_SDK_UNSUPPORTED.has(skill)) {
-    return "MongoDB's Node driver supports data-plane operations, but this AXeval-Database task requires Atlas Admin/control-plane or named-routine behavior not evidenced through the driver.";
+    return "MongoDB's Node driver supports data-plane operations, but this AXArena-Database task requires Atlas Admin/control-plane or named-routine behavior not evidenced through the driver.";
   }
   if (vendor === "Turso" && TURSO_SDK_UNSUPPORTED.has(skill)) {
-    return "Turso's libSQL client supports SQL data-plane operations, but this AXeval-Database task requires access-control, backup, CDC, or server-side routine behavior not evidenced through the SDK.";
+    return "Turso's libSQL client supports SQL data-plane operations, but this AXArena-Database task requires access-control, backup, CDC, or server-side routine behavior not evidenced through the SDK.";
   }
   if (vendor === "Convex" && CONVEX_SDK_UNSUPPORTED.has(skill)) {
-    return "Convex AXeval-Database tasks require project code/schema/function deployment; no standalone official SDK path is evidenced for completing this canonical task from the benchmark runner.";
+    return "Convex AXArena-Database tasks require project code/schema/function deployment; no standalone official SDK path is evidenced for completing this canonical task from the benchmark runner.";
   }
   if (vendor === "Insforge" && INSFORGE_SDK_UNSUPPORTED.has(skill)) {
-    return "Insforge has no benchmark-declared official SDK/client-library path for completing this AXeval-Database task; API support is not inherited by SDK.";
+    return "Insforge has no benchmark-declared official SDK/client-library path for completing this AXArena-Database task; API support is not inherited by SDK.";
   }
   if (vendor === "Nile" && NILE_SDK_UNSUPPORTED.has(skill)) {
-    return "Nile's SDK path is not benchmark-declared for AXeval-Database v1; only documented API/CLI task-fit evidence enters the denominator.";
+    return "Nile's SDK path is not benchmark-declared for AXArena-Database v1; only documented API/CLI task-fit evidence enters the denominator.";
   }
   return null;
 }
@@ -907,7 +907,7 @@ function databaseSdkUnsupportedReason(vendor: string, skill: string): string | n
 function databaseSdkFamilyUnsupportedReason(vendor: string, skill: string): string | null {
   if (vendor === "CockroachDB") return null;
   if (["backup-and-restore", "change-data-capture"].includes(skill) && ["Neon", "Turso"].includes(vendor)) {
-    return `${vendor}'s SDK path is treated as data-plane only for AXeval-Database; ${skill} requires explicit SDK evidence before it can enter the denominator.`;
+    return `${vendor}'s SDK path is treated as data-plane only for AXArena-Database; ${skill} requires explicit SDK evidence before it can enter the denominator.`;
   }
   return null;
 }
@@ -941,7 +941,7 @@ function buildFailureTaxonomyArtifact(benchmark: string) {
     categories: [
       { id: "generic-harness-tooling-bug", label: "Generic harness/tooling bug", description: "A reusable runner, transcript, redaction, invocation, metrics, or execution-control bug independent of the database category." },
       { id: "generic-methodology-artifact-bug", label: "Generic methodology/artifact bug", description: "A reusable suite artifact, schema, selection, support, or reporting contract bug independent of the database category." },
-      { id: "database-category-seed-template-verifier-bug", label: "Database-category seed/template/verifier bug", description: "A AXeval-Database database-specific deterministic seed, task template, verifier seed, or category adapter bug that should stay isolated from generic engine logic." },
+      { id: "database-category-seed-template-verifier-bug", label: "Database-category seed/template/verifier bug", description: "A AXArena-Database database-specific deterministic seed, task template, verifier seed, or category adapter bug that should stay isolated from generic engine logic." },
       { id: "vendor-specific-adapter-bug", label: "Vendor-specific adapter bug", description: "A bug in one vendor's auth, endpoint, verifier, N/A mapping, or surface adapter that should not generalize without cross-vendor evidence." },
       { id: "agent-execution-failure", label: "Agent execution failure", description: "The product and verifier were supportable, but the agent failed to discover, plan, execute, or report the task correctly in a trial." },
     ],
@@ -1145,7 +1145,7 @@ export function renderSuiteYaml(name: string, version: number, category: string,
       },
       layers: {
         static_ax: "Discoverability & Readiness is published separately and never alters usability-suite pass rates.",
-        behavioral: "Usability Canonical Suite is scored only from verified outcomes on api/cli for AXeval-Database v1; SDK remains a deferred future surface and any existing SDK runs are research artifacts, not benchmark-of-record cells.",
+        behavioral: "Usability Canonical Suite is scored only from verified outcomes on api/cli for AXArena-Database v1; SDK remains a deferred future surface and any existing SDK runs are research artifacts, not benchmark-of-record cells.",
       },
     },
   };
@@ -1157,7 +1157,7 @@ export function renderSynthesisDoc(name: string, category: string, result: Synth
   const lines: string[] = [
     `# ${name} — Suite Synthesis Audit Trail`,
     ``,
-    `Generated by \`synthesize-suite\` from vendor capability inventories (\`ax-arena/benchmark/axeval-database/v1/extracts/<vendor>/capability-inventory.yaml\`).`,
+    `Generated by \`synthesize-suite\` from vendor capability inventories (\`ax-arena/benchmark/axarena-database/v1/extracts/<vendor>/capability-inventory.yaml\`).`,
     `Every task below traces to specific, cited vendor documentation.`,
     ``,
     `## Two-layer methodology`,
@@ -1329,7 +1329,7 @@ function writePreparedSuiteArtifacts(
 ): string[] {
   const repositoryRoot = axevalDatabaseRepositoryRoot(paths);
   const stem = canonicalSuitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
-  const benchmark = /^suite$/i.test(stem) ? "AXeval-Database v1" : stem.toUpperCase();
+  const benchmark = /^suite$/i.test(stem) ? "AXArena-Database v1" : stem.toUpperCase();
   const written = [
     writeMethodology(paths, canonicalSuitePath, result.methodology),
     writeConceptUniverse(paths, canonicalSuitePath, result.conceptUniverse),

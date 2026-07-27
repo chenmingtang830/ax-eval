@@ -26,7 +26,7 @@ function commit(root: string, message: string): string {
 
 function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = false) {
   const root = mkdtempSync(resolve(tmpdir(), "ax-trusted-dispatch-"));
-  const daeb = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1");
+  const daeb = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1");
   const packDir = resolve(daeb, "packs", "neon");
   const runtimeDir = resolve(root, "ax-arena", "benchmark", "trusted-runtime");
   mkdirSync(packDir, { recursive: true });
@@ -39,7 +39,7 @@ function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = fal
   if (mainTrustDrift === "removed-tsup-config") {
     writeFileSync(resolve(root, "tsup.config.ts"), "throw new Error('historical build drift');\n");
   }
-  const suite = "name: AXeval-Database v1\nversion: 1\ncategory: database\ntasks: []\n";
+  const suite = "name: AXArena-Database v1\nversion: 1\ncategory: database\ntasks: []\n";
   const pack = "name: neon\nstandard_set_version: database-v1\nbase_url: https://example.invalid\ntasks: []\n";
   writeFileSync(resolve(daeb, "suite.yaml"), suite);
   writeFileSync(resolve(packDir, "pack.yaml"), pack);
@@ -71,10 +71,10 @@ function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = fal
     reset_provider: { id: "fixture-reset", version: "1.0.0" },
   });
   const configuration = {
-    command: "axeval-database-production-rerun",
+    command: "axarena-database-production-rerun",
     execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
     reset_required: true,
-    suite: { name: "AXeval-Database v1", version: 1, file_hash: sha256(suite) },
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: sha256(suite) },
     packs: [{
       vendor: "neon",
       file_hash: sha256(pack),

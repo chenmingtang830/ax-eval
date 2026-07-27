@@ -75,7 +75,7 @@ function vendorSandboxScope(vendor: DatabasePackVendor): TargetPack["sandbox_sco
         name: "database",
         env: "NILE_DB",
         required: true,
-        instructions: "disposable Nile database dedicated to AXeval-Database namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
+        instructions: "disposable Nile database dedicated to AXArena-Database namespaced resources; require NILE_DB to match the database name in NILE_DATABASE_URL",
       },
     ];
   }
@@ -264,7 +264,7 @@ export function composePack(
   return parsed;
 }
 
-/** Path where a composed pack is written (AXeval-Database v1 layout uses pack.yaml). */
+/** Path where a composed pack is written (AXArena-Database v1 layout uses pack.yaml). */
 export function composedPackPath(root: AxevalDatabasePathInput, slug: string, _suiteName: string): string {
   return assertCanonicalAxevalDatabaseWritePath(root, axevalDatabaseCompiledPackPath(root, slug));
 }

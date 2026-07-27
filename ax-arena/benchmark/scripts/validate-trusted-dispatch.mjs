@@ -115,10 +115,10 @@ if (required("TRUSTED_CONTAINER_IMAGE") !== expectedImage) {
   throw new Error("workflow container does not match the reviewed runtime lock digest");
 }
 const configurationPath = realpathSync(resolve(root, required("CONFIGURATION_PATH")));
-const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axeval-database");
-if (!inside(axevalDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXeval-Database root");
+const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
+if (!inside(axevalDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXArena-Database root");
 const configuration = JSON.parse(committedBytes(root, sourceSha, configurationPath, "batch configuration").toString("utf8"));
-if (!["axeval-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)
+if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)
   || configuration.execution?.runtime_backend !== "pinned-oci"
   || configuration.execution?.trust_level !== "hosted-trusted"
   || configuration.reset_required !== true

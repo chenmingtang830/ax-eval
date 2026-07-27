@@ -56,8 +56,8 @@ function writeCommittedPack(cwd: string, name = "example"): {
   const packPath = resolve(cwd, "pack.yaml");
   const pack = TargetPackSchema.parse({
     name,
-    standard_set_version: "axeval-database-v1",
-    run_id: "axeval-database",
+    standard_set_version: "axarena-database-v1",
+    run_id: "axarena-database",
     auth: { type: "none" },
     base_url: "https://example.invalid",
     tasks: [],
@@ -143,7 +143,7 @@ function cellSpec(cwd: string, packPath: string, sourceCommitSha: string, artifa
     cleanupPath: resolve(artifactDir, "cleanup.json"),
     packPath,
     batchId: "batch-1",
-    evaluationSetId: "axeval-database",
+    evaluationSetId: "axarena-database",
     targetId: "example",
     surface: "api" as const,
     harness: "codex" as const,
@@ -223,7 +223,7 @@ describe("arena cell controller", () => {
   it("binds every comparable matrix dimension into the cell id", () => {
     const base = {
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "example",
       surface: "api" as const,
       harness: "codex" as const,
@@ -260,7 +260,7 @@ describe("arena cell controller", () => {
       cleanupPath: resolve(artifactDir, "cleanup.json"),
       packPath: resolve(cwd, "pack.yaml"),
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "example",
       surface: "api",
       harness: "claude-code",
@@ -300,7 +300,7 @@ describe("arena cell controller", () => {
       cleanupPath: resolve(artifactDir, "cleanup.json"),
       packPath: resolve(cwd, "pack.yaml"),
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "example",
       surface: "api",
       harness: "codex",
@@ -424,13 +424,13 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     })).rejects.toThrow(/cleanup path must remain outside the harness-writable workspace/);
   });
 
-  it("runs a canonical committed legacy-approved AXeval-Database pack through the real cell runtime", async () => {
+  it("runs a canonical committed legacy-approved AXArena-Database pack through the real cell runtime", async () => {
     const cwd = mkdtempSync(resolve(tmpdir(), "ax-arena-controller-canonical-"));
     const repo = fileURLToPath(new URL("../../../", import.meta.url));
     const packPath = resolve(cwd, "pack.yaml");
-    copyFileSync(resolve(repo, "ax-arena/benchmark/axeval-database/v1/packs/neon/pack.yaml"), packPath);
+    copyFileSync(resolve(repo, "ax-arena/benchmark/axarena-database/v1/packs/neon/pack.yaml"), packPath);
     copyFileSync(
-      resolve(repo, "ax-arena/benchmark/axeval-database/v1/packs/neon/pack.approval.json"),
+      resolve(repo, "ax-arena/benchmark/axarena-database/v1/packs/neon/pack.approval.json"),
       resolve(cwd, "pack.approval.json"),
     );
     const git = (...args: string[]) => execFileSync("git", args, { cwd, stdio: "ignore" });
@@ -523,7 +523,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       cleanupPath: resolve(artifactDir, "cleanup.json"),
       packPath,
       batchId: "batch-1",
-      evaluationSetId: "AXeval-Database v1",
+      evaluationSetId: "AXArena-Database v1",
       targetId: "neon",
       surface: "api",
       harness: "codex",
@@ -558,7 +558,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     mkdirSync(artifactDir, { recursive: true });
     const pack = TargetPackSchema.parse({
       name: "example",
-      standard_set_version: "axeval-database-v1",
+      standard_set_version: "axarena-database-v1",
       auth: { type: "none" },
       tasks: [],
     });
@@ -575,7 +575,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       cleanupPath: resolve(artifactDir, "cleanup.json"),
       packPath,
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "example",
       surface: "api",
       harness: "codex",
@@ -610,8 +610,8 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     const cleanupPath = resolve(artifactDir, "cleanup.json");
     const pack = TargetPackSchema.parse({
       name: "convex",
-      standard_set_version: "axeval-database-v1",
-      run_id: "axeval-database",
+      standard_set_version: "axarena-database-v1",
+      run_id: "axarena-database",
       auth: { type: "none" },
       base_url: "https://example.invalid",
       tasks: [],
@@ -653,7 +653,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       cleanupPath,
       packPath,
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "convex",
       surface: "api",
       harness: "codex",
@@ -699,7 +699,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
           surface: "api",
           product: "convex",
           harness: "codex",
-          standard_set_version: "axeval-database-v1",
+          standard_set_version: "axarena-database-v1",
           generated_at: "2026-07-21T00:00:00.000Z",
           tasks_total: 0,
           tasks_passed: 0,
@@ -787,7 +787,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       cleanupPath: cleanupPath2,
       packPath,
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "convex",
       surface: "api",
       harness: "codex",
@@ -1264,7 +1264,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     const artifactDir = resolve(cwd, "results", "cell");
     const pack = TargetPackSchema.parse({
       name: "example",
-      standard_set_version: "axeval-database-v1",
+      standard_set_version: "axarena-database-v1",
       auth: { type: "none" },
       tasks: [],
     });
@@ -1288,7 +1288,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       cleanupPath: resolve(artifactDir, "cleanup.json"),
       packPath,
       batchId: "batch-1",
-      evaluationSetId: "axeval-database",
+      evaluationSetId: "axarena-database",
       targetId: "example",
       surface: "api",
       harness: "codex",
@@ -1319,7 +1319,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
           surface: "api",
           product: "example",
           harness: "codex",
-          standard_set_version: "axeval-database-v1",
+          standard_set_version: "axarena-database-v1",
           generated_at: "2026-07-21T00:00:00.000Z",
           tasks_total: 0,
           tasks_passed: 0,

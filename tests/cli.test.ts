@@ -301,10 +301,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     }
   });
 
-  it("delegates axeval-database-low-pass help to the arena CLI", () => {
-    const { code, out } = runCli(["axeval-database-low-pass", "--help"]);
+  it("delegates axarena-database-low-pass help to the arena CLI", () => {
+    const { code, out } = runCli(["axarena-database-low-pass", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-arena benchmark axeval-database-low-pass");
+    expect(out).toContain("usage: ax-arena benchmark axarena-database-low-pass");
     expect(out).toContain("--surface api|cli|all");
     expect(out).toContain("--codex-model <slug>");
     expect(out).toContain("--claude-model <slug>");
@@ -312,10 +312,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("--benchmark-root <dir>");
   });
 
-  it("delegates axeval-database-production-rerun help to the arena CLI", () => {
-    const { code, out } = runCli(["axeval-database-production-rerun", "--help"]);
+  it("delegates axarena-database-production-rerun help to the arena CLI", () => {
+    const { code, out } = runCli(["axarena-database-production-rerun", "--help"]);
     expect(code).toBe(0);
-    expect(out).toContain("usage: ax-arena benchmark axeval-database-production-rerun");
+    expect(out).toContain("usage: ax-arena benchmark axarena-database-production-rerun");
     expect(out).toContain("--trial-count 3");
     expect(out).toContain("--invoke-timeout seconds");
     expect(out).toContain("--skip-archive");
@@ -342,7 +342,7 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
 
       const explicit = runCli([
         "audit-extracts",
-        "--benchmark-root", "ax-arena/benchmark/axeval-database",
+        "--benchmark-root", "ax-arena/benchmark/axarena-database",
       ], {}, dir);
       expect(explicit.code).toBe(0);
       expect(explicit.out).toContain("0 vendor(s)");
@@ -422,10 +422,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain("Agent-readiness score");
   });
 
-  it("axeval-database-low-pass rejects sdk because AXeval-Database v1 scope is api+cli", () => {
+  it("axarena-database-low-pass rejects sdk because AXArena-Database v1 scope is api+cli", () => {
     const { code, out } = runCli([
-      "axeval-database-low-pass",
-      "--suite", "ax-arena/benchmark/axeval-database/v1/suite.yaml",
+      "axarena-database-low-pass",
+      "--suite", "ax-arena/benchmark/axarena-database/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -433,10 +433,10 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  it("axeval-database-production-rerun rejects sdk because AXeval-Database v1 scope is api+cli", () => {
+  it("axarena-database-production-rerun rejects sdk because AXArena-Database v1 scope is api+cli", () => {
     const { code, out } = runCli([
-      "axeval-database-production-rerun",
-      "--suite", "ax-arena/benchmark/axeval-database/v1/suite.yaml",
+      "axarena-database-production-rerun",
+      "--suite", "ax-arena/benchmark/axarena-database/v1/suite.yaml",
       "--vendor", "neon",
       "--surface", "sdk",
     ]);
@@ -444,25 +444,25 @@ console.log(JSON.stringify({ type: "result", subtype: "success", model: "claude-
     expect(out).toContain('surface "sdk" is out of scope');
   });
 
-  it("axeval-database-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
-    const model = runCli(["axeval-database-production-rerun", "--codex-model", "gpt-5.4"]);
+  it("axarena-database-production-rerun rejects noncanonical models, trial counts, and skipped cleanup", () => {
+    const model = runCli(["axarena-database-production-rerun", "--codex-model", "gpt-5.4"]);
     expect(model.code).toBe(1);
     expect(model.out).toContain("production models are frozen");
-    const trials = runCli(["axeval-database-production-rerun", "--trial-count", "2"]);
+    const trials = runCli(["axarena-database-production-rerun", "--trial-count", "2"]);
     expect(trials.code).toBe(1);
     expect(trials.out).toContain("exactly 3 clean trials");
-    const reset = runCli(["axeval-database-production-rerun", "--skip-reset"]);
+    const reset = runCli(["axarena-database-production-rerun", "--skip-reset"]);
     expect(reset.code).toBe(1);
     expect(reset.out).toContain("--skip-reset is not allowed");
   });
 
-  it("delegates legacy AXeval-Database runtime aliases to arena's fail-closed boundary", () => {
+  it("delegates legacy AXArena-Database runtime aliases to arena's fail-closed boundary", () => {
     const direct = runArenaCli(["benchmark", "daeb-low-pass"]);
     const delegated = runCli(["daeb-low-pass"]);
     expect(direct.code).toBe(1);
     expect(delegated.code).toBe(direct.code);
     expect(delegated.out).toContain(
-      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark axeval-database-low-pass instead.",
+      "warning: ax-eval daeb-low-pass is deprecated; use ax-arena benchmark axarena-database-low-pass instead.",
     );
     expect(delegated.out).toContain("requires the trusted workflow OS sandbox");
   });

@@ -15,7 +15,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [{
@@ -49,7 +49,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [{
@@ -69,7 +69,7 @@ describe("task extraction seeds", () => {
       effort: "low",
       supportMatrix: {
         schema: "ax.support-matrix/v1",
-        benchmark: "AXeval-Database v1",
+        benchmark: "AXArena-Database v1",
         category: "database",
         generated_at: "2026-01-01T00:00:00.000Z",
         entries: [
@@ -97,7 +97,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [
@@ -144,7 +144,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [{
@@ -183,7 +183,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [
@@ -230,7 +230,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [{
@@ -264,7 +264,7 @@ describe("task extraction seeds", () => {
       http_status: null,
     };
     const suite: Suite = {
-      name: "AXeval-Database v1",
+      name: "AXArena-Database v1",
       version: 1,
       category: "database",
       tasks: [

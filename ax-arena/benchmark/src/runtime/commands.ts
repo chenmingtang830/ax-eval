@@ -23,8 +23,8 @@ export const RUNTIME_COMMANDS = [
   "publication-bundle",
   "publish",
   "export-publication",
-  "axeval-database-low-pass",
-  "axeval-database-production-rerun",
+  "axarena-database-low-pass",
+  "axarena-database-production-rerun",
   // Deprecated aliases retained for one compatibility window.
   "daeb-low-pass",
   "daeb-production-rerun",
@@ -54,7 +54,7 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
   }
   if (command === "publication-bundle") {
     return [
-      "usage: ax-arena benchmark publication-bundle --run-root <completed-run-dir> --out <new-bundle-dir> [--benchmark-root <axeval-database-root>] [--generated-at <exact UTC ISO>]",
+      "usage: ax-arena benchmark publication-bundle --run-root <completed-run-dir> --out <new-bundle-dir> [--benchmark-root <axarena-database-root>] [--generated-at <exact UTC ISO>]",
       "  Legacy aliases also accept --run-dir, --suite, --vendors, and effort-profile selectors when they exactly match the immutable batch.",
     ].join("\n");
   }
@@ -64,16 +64,16 @@ export function runtimeCommandUsage(command: RuntimeCommand): string {
   if (command === "export-publication") {
     return "usage: ax-arena benchmark export-publication --from <publication-bundle-dir> --out <dir> [--generated-at <UTC ISO>]";
   }
-  if (command === "axeval-database-low-pass" || command === "daeb-low-pass") {
+  if (command === "axarena-database-low-pass" || command === "daeb-low-pass") {
     return [
-      "usage: ax-arena benchmark axeval-database-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
+      "usage: ax-arena benchmark axarena-database-low-pass [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
       "                                          [--surface api|cli|all] [--run-dir <dir>]",
       "                                          [--codex-model <slug>] [--claude-model <slug>] [--skip-reset]",
       "                                          [--benchmark-root <dir>]",
     ].join("\n");
   }
   return [
-    "usage: ax-arena benchmark axeval-database-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
+    "usage: ax-arena benchmark axarena-database-production-rerun [--suite <suite.yaml>] [--vendor <slug> | --vendors <a,b,c>]",
     "                                                  [--surface api|cli|all] [--run-dir <dir>]",
     "                                                  [--trial-count 3] [--invoke-timeout seconds]",
     "                                                  [--first-action-timeout seconds] [--skip-archive] [--reclaim]",
@@ -220,27 +220,27 @@ function committedConfigurationSource(
 function shippedBenchmarkRoot(): string {
   const moduleDirectory = dirname(fileURLToPath(import.meta.url));
   const candidates = [
-    resolve(moduleDirectory, "../../axeval-database"),
-    resolve(moduleDirectory, "../axeval-database"),
+    resolve(moduleDirectory, "../../axarena-database"),
+    resolve(moduleDirectory, "../axarena-database"),
   ];
   const found = candidates.find((candidate) => existsSync(candidate));
-  if (!found) throw new Error("could not locate the shipped AXeval-Database root; pass --benchmark-root explicitly");
+  if (!found) throw new Error("could not locate the shipped AXArena-Database root; pass --benchmark-root explicitly");
   return found;
 }
 
 function failClosedExecution(command: RuntimeCommand, argv: readonly string[]): never {
   const values = flagValues(argv);
   if ([
-    "axeval-database-low-pass",
-    "axeval-database-production-rerun",
+    "axarena-database-low-pass",
+    "axarena-database-production-rerun",
     "daeb-low-pass",
     "daeb-production-rerun",
   ].includes(command)) {
     const surface = one(values, "--surface");
     if (surface && !["api", "cli", "all"].includes(surface)) {
-      throw new Error(`AXeval-Database v1 surface "${surface}" is out of scope; expected api, cli, or all`);
+      throw new Error(`AXArena-Database v1 surface "${surface}" is out of scope; expected api, cli, or all`);
     }
-    if (command === "axeval-database-production-rerun" || command === "daeb-production-rerun") {
+    if (command === "axarena-database-production-rerun" || command === "daeb-production-rerun") {
       const codexModel = one(values, "--codex-model");
       const claudeModel = one(values, "--claude-model");
       if ((codexModel && codexModel !== "gpt-5.6-terra")
@@ -262,7 +262,7 @@ export async function runRuntimeCommand(
   cwd = process.cwd(),
 ): Promise<number> {
   if (command === "execute" || command === "publish"
-    || command === "axeval-database-low-pass" || command === "axeval-database-production-rerun"
+    || command === "axarena-database-low-pass" || command === "axarena-database-production-rerun"
     || command === "daeb-low-pass" || command === "daeb-production-rerun") {
     return failClosedExecution(command, argv);
   }
@@ -335,7 +335,7 @@ export async function runRuntimeCommand(
     const legacySuiteRoot = assertLegacyPublicationSelectors(values, runRoot, cwd);
     if (benchmarkRootValue && legacySuiteRoot
       && resolveFromCanonicalCwd(cwd, benchmarkRootValue) !== resolve(legacySuiteRoot)) {
-      throw new Error("--benchmark-root and legacy --suite must identify the same AXeval-Database root");
+      throw new Error("--benchmark-root and legacy --suite must identify the same AXArena-Database root");
     }
     const benchmarkRoot = benchmarkRootValue
       ? resolveFromCanonicalCwd(cwd, benchmarkRootValue)

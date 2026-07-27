@@ -31,17 +31,17 @@ const pack = TargetPackSchema.parse({
 });
 
 describe("arena pack composition paths", () => {
-  it("writes only to the canonical AXeval-Database pack tree", () => {
+  it("writes only to the canonical AXArena-Database pack tree", () => {
     const repositoryRoot = mkdtempSync(resolve(tmpdir(), "ax-compose-path-"));
     try {
       const paths = createAxevalDatabasePathContext(repositoryRoot);
       const expected = resolve(
         repositoryRoot,
-        "ax-arena/benchmark/axeval-database/v1/packs/acme/pack.yaml",
+        "ax-arena/benchmark/axarena-database/v1/packs/acme/pack.yaml",
       );
-      expect(composedPackPath(repositoryRoot, "acme", "AXeval-Database v1")).toBe(expected);
-      expect(composedPackPath(paths, "acme", "AXeval-Database v1")).toBe(expected);
-      expect(() => composedPackPath(paths, "../outside", "AXeval-Database v1"))
+      expect(composedPackPath(repositoryRoot, "acme", "AXArena-Database v1")).toBe(expected);
+      expect(composedPackPath(paths, "acme", "AXArena-Database v1")).toBe(expected);
+      expect(() => composedPackPath(paths, "../outside", "AXArena-Database v1"))
         .toThrow(/single safe path segment/);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
@@ -54,11 +54,11 @@ describe("arena pack composition paths", () => {
     try {
       expect(() => composedPackPath({
         repositoryRoot,
-        readRoot: resolve(repositoryRoot, "ax-arena/benchmark/axeval-database"),
+        readRoot: resolve(repositoryRoot, "ax-arena/benchmark/axarena-database"),
         writeRoot: outside,
         explicitReadRoot: false,
         readRootKind: "canonical",
-      } as unknown as AxevalDatabasePathContext, "acme", "AXeval-Database v1")).toThrow(/created by createAxevalDatabasePathContext/);
+      } as unknown as AxevalDatabasePathContext, "acme", "AXArena-Database v1")).toThrow(/created by createAxevalDatabasePathContext/);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });
@@ -74,17 +74,17 @@ describe("arena pack composition paths", () => {
       try {
         if (mode === "ancestor") {
           mkdirSync(resolve(repositoryRoot, "ax-arena", "benchmark"), { recursive: true });
-          symlinkSync(outside, resolve(repositoryRoot, "ax-arena", "benchmark", "axeval-database"), "dir");
+          symlinkSync(outside, resolve(repositoryRoot, "ax-arena", "benchmark", "axarena-database"), "dir");
         } else if (mode === "leaf") {
-          const packDir = resolve(repositoryRoot, "ax-arena/benchmark/axeval-database/v1/packs/acme");
+          const packDir = resolve(repositoryRoot, "ax-arena/benchmark/axarena-database/v1/packs/acme");
           mkdirSync(packDir, { recursive: true });
           symlinkSync(outsidePack, resolve(packDir, "pack.yaml"));
         } else {
-          const packDir = resolve(repositoryRoot, "ax-arena/benchmark/axeval-database/v1/packs/acme");
+          const packDir = resolve(repositoryRoot, "ax-arena/benchmark/axarena-database/v1/packs/acme");
           mkdirSync(packDir, { recursive: true });
           linkSync(outsidePack, resolve(packDir, "pack.yaml"));
         }
-        expect(() => writeComposedPack(repositoryRoot, "acme", "AXeval-Database v1", pack))
+        expect(() => writeComposedPack(repositoryRoot, "acme", "AXArena-Database v1", pack))
           .toThrow(/symlink|single-link/);
         expect(readFileSync(outsidePack, "utf8")).toBe("outside remains unchanged\n");
       } finally {
@@ -97,7 +97,7 @@ describe("arena pack composition paths", () => {
   it("keeps the canonical pack intact when a staged write fails", () => {
     const repositoryRoot = mkdtempSync(resolve(tmpdir(), "ax-compose-failed-write-"));
     try {
-      const path = composedPackPath(repositoryRoot, "acme", "AXeval-Database v1");
+      const path = composedPackPath(repositoryRoot, "acme", "AXArena-Database v1");
       mkdirSync(resolve(path, ".."), { recursive: true });
       writeFileSync(path, "original pack\n");
       expect(() => writeComposedPackFileForTest(path, repositoryRoot, "replacement pack\n", {
@@ -116,7 +116,7 @@ describe("arena pack composition paths", () => {
   it("rejects parent substitution before creating the staged file without leaving output", () => {
     const repositoryRoot = mkdtempSync(resolve(tmpdir(), "ax-compose-parent-open-swap-"));
     try {
-      const path = composedPackPath(repositoryRoot, "acme", "AXeval-Database v1");
+      const path = composedPackPath(repositoryRoot, "acme", "AXArena-Database v1");
       const parent = resolve(path, "..");
       const displaced = `${parent}-displaced`;
       mkdirSync(parent, { recursive: true });
@@ -141,7 +141,7 @@ describe("arena pack composition paths", () => {
       const repositoryRoot = mkdtempSync(resolve(tmpdir(), `ax-compose-atomic-${mode}-`));
       const outside = mkdtempSync(resolve(tmpdir(), `ax-compose-atomic-${mode}-outside-`));
       try {
-        const path = composedPackPath(repositoryRoot, "acme", "AXeval-Database v1");
+        const path = composedPackPath(repositoryRoot, "acme", "AXArena-Database v1");
         const parent = resolve(path, "..");
         const displaced = `${parent}-displaced`;
         const saved = resolve(outside, "saved-pack.yaml");

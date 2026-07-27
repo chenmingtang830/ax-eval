@@ -26,8 +26,8 @@ import {
 
 function configuration(): ArenaBatchConfiguration {
   return {
-    command: "axeval-database-low-pass",
-    suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
+    command: "axarena-database-low-pass",
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor: "neon",
       file_hash: "2".repeat(64),
@@ -87,7 +87,7 @@ function productionConfiguration(): ArenaBatchConfiguration {
   const base = configuration();
   return {
     ...base,
-    command: "axeval-database-production-rerun",
+    command: "axarena-database-production-rerun",
     cells: base.cells.flatMap((cell) => [1, 2, 3].map((trial) => ({
       ...cell,
       key: `${cell.vendor}/${cell.surface}/${cell.harness}/trial-${trial}`,

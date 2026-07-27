@@ -52,7 +52,7 @@ export interface RoundtripOutcome {
   oracleResults: OracleResult[];
   error: string | null;
   /** True when the pack marks this task N/A for the vendor (its only
-   *  oracle is type "na") — per AXeval-Database methodology, N/A tasks are excluded
+   *  oracle is type "na") — per AXArena-Database methodology, N/A tasks are excluded
    *  from both the numerator and denominator of the pass rate, not
    *  counted as failures. */
   na: boolean;
@@ -298,7 +298,7 @@ async function verifyRoundtrip(
     }
 
     const gid = reported?.gid;
-    // Only AXeval-Database-style count/state checks that reference {gid} need one —
+    // Only AXArena-Database-style count/state checks that reference {gid} need one —
     // a "does this table have 100 rows" query addresses state by {ns}, not
     // a single resource. Templates that don't mention {gid} skip the check.
     const needsGid = (t: string | undefined) => Boolean(t?.includes("{gid}"));
@@ -337,7 +337,7 @@ async function verifyRoundtrip(
       continue;
     }
 
-    // REST targets (Asana/Notion/Exa/AXeval-Database vendors): read back the path and assert the field.
+    // REST targets (Asana/Notion/Exa/AXArena-Database vendors): read back the path and assert the field.
     if (!oracle.readPathTemplate || !oracle.assertField) {
       out.push({ type: "roundtrip", passed: false, detail: "oracle missing readPath/assertField" });
       continue;

@@ -16,9 +16,9 @@ function configuration(
     vendorCount === 1 ? "neon" : `vendor-${String(index + 1).padStart(3, "0")}`);
   const harnesses = ["codex", "claude-code"] as const;
   return {
-    command: "axeval-database-low-pass",
+    command: "axarena-database-low-pass",
     ...(hosted ? { execution: { runtime_backend: "pinned-oci" as const, trust_level: "hosted-trusted" as const } } : {}),
-    suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: "1".repeat(64) },
     packs: vendors.map((vendor) => ({
       vendor,
       file_hash: "2".repeat(64),
@@ -79,7 +79,7 @@ function fixture(
     "a".repeat(40),
     new Date("2026-07-22T00:00:00.000Z"),
     configuration(resetRequired, surface, vendorCount, hosted),
-    { path: "ax-arena/benchmark/axeval-database/v1/trusted-global.json", file_hash: "5".repeat(64) },
+    { path: "ax-arena/benchmark/axarena-database/v1/trusted-global.json", file_hash: "5".repeat(64) },
   );
   return { batch, plan: buildBatchPlan(batch) };
 }
@@ -90,7 +90,7 @@ describe("trusted whole-benchmark workflow dispatch", () => {
     const dispatch = buildTrustedWorkflowDispatch(batch, plan);
     expect(dispatch).toMatchObject({
       batch_id: batch.batch_id,
-      configuration_source: "ax-arena/benchmark/axeval-database/v1/trusted-global.json",
+      configuration_source: "ax-arena/benchmark/axarena-database/v1/trusted-global.json",
       configuration_sha256: "5".repeat(64),
     });
     expect(dispatch.matrix.include).toEqual([

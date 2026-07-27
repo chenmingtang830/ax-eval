@@ -48,7 +48,7 @@ describe("arena vendor-card persistence", () => {
 
   it("returns null for a missing card and rejects malformed YAML", () => {
     expect(loadVendorCard(root, "nope")).toBeNull();
-    mkdirSync(resolve(root, "ax-arena", "benchmark", "axeval-database", "vendors"), { recursive: true });
+    mkdirSync(resolve(root, "ax-arena", "benchmark", "axarena-database", "vendors"), { recursive: true });
     writeFileSync(vendorCardPath(root, "bad"), "vendor: Bad\ncategory: db\n");
     expect(() => loadVendorCard(root, "bad")).toThrow(/malformed/);
   });

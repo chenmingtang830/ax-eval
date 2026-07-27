@@ -66,12 +66,12 @@ export const ArenaPublicationIntegritySchema = z.object({
 });
 export type ArenaPublicationIntegrity = z.infer<typeof ArenaPublicationIntegritySchema>;
 
-export const AXEVAL_DATABASE_BENCHMARK_ID = "axeval-database";
-export const AXEVAL_DATABASE_DISPLAY_NAME = "AXeval-Database";
+export const AXARENA_DATABASE_BENCHMARK_ID = "axarena-database";
+export const AXARENA_DATABASE_DISPLAY_NAME = "AXArena-Database";
 
 export function publicBenchmarkIdentity(suiteName: string): { benchmark: string; displayName: string } {
-  if (suiteName === "DAEB-1" || suiteName === "AXeval-Database v1") {
-    return { benchmark: AXEVAL_DATABASE_BENCHMARK_ID, displayName: AXEVAL_DATABASE_DISPLAY_NAME };
+  if (suiteName === "DAEB-1" || suiteName === "AXArena-Database v1") {
+    return { benchmark: AXARENA_DATABASE_BENCHMARK_ID, displayName: AXARENA_DATABASE_DISPLAY_NAME };
   }
   return { benchmark: suiteName, displayName: suiteName };
 }

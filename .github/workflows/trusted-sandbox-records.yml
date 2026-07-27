@@ -8,7 +8,7 @@ on:
         required: true
         type: string
       configuration_path:
-        description: Committed whole-benchmark configuration under ax-arena/benchmark/axeval-database
+        description: Committed whole-benchmark configuration under ax-arena/benchmark/axarena-database
         required: true
         type: string
       runner_pool:

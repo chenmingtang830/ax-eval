@@ -19,7 +19,7 @@ const roots: string[] = [];
 function fixture(): { root: string; vendorDir: string; outside: string; advisory: ExtractAdvisory } {
   const root = mkdtempSync(resolve(tmpdir(), "ax-arena-writer-"));
   roots.push(root);
-  const extracts = resolve(root, "ax-arena", "benchmark", "axeval-database", "v1", "extracts");
+  const extracts = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "extracts");
   const vendorDir = resolve(extracts, "vendor");
   const outside = resolve(root, "outside");
   mkdirSync(extracts, { recursive: true });
@@ -69,7 +69,7 @@ describe("canonical arena artifact writers", () => {
   it("protects command-owned vendor cards from hard-linked outputs", () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-vendor-writer-"));
     roots.push(root);
-    const vendorDir = resolve(root, "ax-arena", "benchmark", "axeval-database", "vendors");
+    const vendorDir = resolve(root, "ax-arena", "benchmark", "axarena-database", "vendors");
     const outside = resolve(root, "outside.txt");
     const cardPath = resolve(vendorDir, "vendor.discovered.yaml");
     mkdirSync(vendorDir, { recursive: true });

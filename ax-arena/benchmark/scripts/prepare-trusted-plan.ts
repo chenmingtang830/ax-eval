@@ -30,9 +30,9 @@ const {
   writeBatchPlan,
 } = await import(arenaRuntimeModule) as typeof import("../src/index.js");
 const configurationPath = resolve(oneFlag(flags, "--configuration"));
-const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axeval-database");
+const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
 if (!isInside(axevalDatabaseRoot, configurationPath)) {
-  throw new Error("trusted arena configuration must live under the canonical AXeval-Database root");
+  throw new Error("trusted arena configuration must live under the canonical AXArena-Database root");
 }
 assertNoSymlinkChain(root, configurationPath, "trusted arena configuration");
 const runRoot = resolve(oneFlag(flags, "--run-root"));

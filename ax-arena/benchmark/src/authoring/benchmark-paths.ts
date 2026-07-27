@@ -1,18 +1,18 @@
 /**
- * On-disk layout for the AXeval-Database publication contract.
+ * On-disk layout for the AXArena-Database publication contract.
  *
  * Tool-layer example packs stay under `targets/examples/`. Arena-owned files
- * are canonical under `ax-arena/benchmark/axeval-database/`. The former arena
- * and repository-level AXeval-Database roots remain read-only compatibility paths.
+ * are canonical under `ax-arena/benchmark/axarena-database/`. The former arena
+ * and repository-level AXArena-Database roots remain read-only compatibility paths.
  */
 import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-export const AXEVAL_DATABASE_BENCHMARK_ROOT = "ax-arena/benchmark/axeval-database";
-export const AXEVAL_DATABASE_LEGACY_ARENA_ROOT = "ax-arena/benchmark/daeb";
-export const AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
+export const AXARENA_DATABASE_BENCHMARK_ROOT = "ax-arena/benchmark/axarena-database";
+export const AXARENA_DATABASE_LEGACY_ARENA_ROOT = "ax-arena/benchmark/daeb";
+export const AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
 /** Active publication version directory name. */
-export const AXEVAL_DATABASE_ACTIVE_VERSION = "v1";
+export const AXARENA_DATABASE_ACTIVE_VERSION = "v1";
 
 export interface AxevalDatabaseBenchmarkRootOptions {
   access: "read" | "write";
@@ -21,7 +21,7 @@ export interface AxevalDatabaseBenchmarkRootOptions {
 }
 
 export interface AxevalDatabasePathContext {
-  readonly [AXEVAL_DATABASE_PATH_CONTEXT]: true;
+  readonly [AXARENA_DATABASE_PATH_CONTEXT]: true;
   readonly repositoryRoot: string;
   readonly readRoot: string;
   readonly writeRoot: string;
@@ -32,7 +32,7 @@ export interface AxevalDatabasePathContext {
 export type AxevalDatabasePathInput = string | AxevalDatabasePathContext;
 
 const warnedLegacyRoots = new Set<string>();
-const AXEVAL_DATABASE_PATH_CONTEXT: unique symbol = Symbol("axeval-database.path-context");
+const AXARENA_DATABASE_PATH_CONTEXT: unique symbol = Symbol("axarena-database.path-context");
 
 function absoluteRoot(repositoryRoot: string, path: string): string {
   return isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
@@ -113,9 +113,9 @@ export function resolveAxevalDatabaseBenchmarkRoot(
   options: AxevalDatabaseBenchmarkRootOptions,
 ): string {
   const root = resolve(repositoryRoot);
-  const canonical = resolve(root, AXEVAL_DATABASE_BENCHMARK_ROOT);
-  const legacyArena = resolve(root, AXEVAL_DATABASE_LEGACY_ARENA_ROOT);
-  const legacyRepository = resolve(root, AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT);
+  const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
+  const legacyArena = resolve(root, AXARENA_DATABASE_LEGACY_ARENA_ROOT);
+  const legacyRepository = resolve(root, AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT);
   assertRealInRepositoryPath(root, canonical, "canonical benchmark root");
   assertRealInRepositoryPath(root, legacyArena, "legacy arena benchmark root");
   assertRealInRepositoryPath(root, legacyRepository, "legacy repository benchmark root");
@@ -158,7 +158,7 @@ export function createAxevalDatabasePathContext(
 ): AxevalDatabasePathContext {
   const root = resolve(repositoryRoot);
   const readRoot = resolveAxevalDatabaseBenchmarkRoot(root, { ...options, access: "read" });
-  const canonical = resolve(root, AXEVAL_DATABASE_BENCHMARK_ROOT);
+  const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
   const context = {
     repositoryRoot: root,
     readRoot,
@@ -168,32 +168,32 @@ export function createAxevalDatabasePathContext(
       ? "explicit" as const
       : readRoot === canonical
         ? "canonical" as const
-        : readRoot === resolve(root, AXEVAL_DATABASE_LEGACY_ARENA_ROOT)
+        : readRoot === resolve(root, AXARENA_DATABASE_LEGACY_ARENA_ROOT)
           ? "legacy-arena" as const
           : "legacy-repository" as const,
   } as AxevalDatabasePathContext;
-  Object.defineProperty(context, AXEVAL_DATABASE_PATH_CONTEXT, { value: true });
+  Object.defineProperty(context, AXARENA_DATABASE_PATH_CONTEXT, { value: true });
   return Object.freeze(context);
 }
 
 function assertPathContext(input: AxevalDatabasePathContext): AxevalDatabasePathContext {
-  if (input[AXEVAL_DATABASE_PATH_CONTEXT] !== true) {
-    throw new Error("AXeval-Database path context must be created by createAxevalDatabasePathContext");
+  if (input[AXARENA_DATABASE_PATH_CONTEXT] !== true) {
+    throw new Error("AXArena-Database path context must be created by createAxevalDatabasePathContext");
   }
   const repositoryRoot = resolve(input.repositoryRoot);
   const expectedWriteRoot = resolveAxevalDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
   if (resolve(input.writeRoot) !== expectedWriteRoot) {
-    throw new Error(`AXeval-Database path context write root must be canonical: ${expectedWriteRoot}`);
+    throw new Error(`AXArena-Database path context write root must be canonical: ${expectedWriteRoot}`);
   }
   const expectedReadRoot = input.readRootKind === "canonical"
-    ? resolve(repositoryRoot, AXEVAL_DATABASE_BENCHMARK_ROOT)
+    ? resolve(repositoryRoot, AXARENA_DATABASE_BENCHMARK_ROOT)
     : input.readRootKind === "legacy-arena"
-      ? resolve(repositoryRoot, AXEVAL_DATABASE_LEGACY_ARENA_ROOT)
+      ? resolve(repositoryRoot, AXARENA_DATABASE_LEGACY_ARENA_ROOT)
       : input.readRootKind === "legacy-repository"
-        ? resolve(repositoryRoot, AXEVAL_DATABASE_LEGACY_BENCHMARK_ROOT)
+        ? resolve(repositoryRoot, AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT)
         : resolve(input.readRoot);
   if (resolve(input.readRoot) !== expectedReadRoot) {
-    throw new Error(`AXeval-Database path context read root no longer matches root policy: ${expectedReadRoot}`);
+    throw new Error(`AXArena-Database path context read root no longer matches root policy: ${expectedReadRoot}`);
   }
   if (input.readRootKind === "explicit") assertRealDirectory(expectedReadRoot, "explicit benchmark root");
   else assertRealInRepositoryPath(repositoryRoot, expectedReadRoot, `${input.readRootKind} benchmark root`);
@@ -220,7 +220,7 @@ function writeRoot(input: AxevalDatabasePathInput): string {
   return resolveAxevalDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
 }
 
-/** Resolve an explicit writer destination and reject paths outside AXeval-Database. */
+/** Resolve an explicit writer destination and reject paths outside AXArena-Database. */
 export function assertCanonicalAxevalDatabaseWritePath(input: AxevalDatabasePathInput, path: string): string {
   const root = writeRoot(input);
   const repositoryRoot = axevalDatabaseRepositoryRoot(input);
@@ -266,109 +266,109 @@ export function axevalDatabaseReadVendorsDir(root: AxevalDatabasePathInput): str
   return resolve(axevalDatabaseReadRoot(root), "vendors");
 }
 
-export function axevalDatabaseVersionDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseVersionDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function axevalDatabaseReadVersionDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadVersionDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function axevalDatabaseSuitePath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseSuitePath(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(root, resolve(axevalDatabaseVersionDir(root, version), "suite.yaml"));
 }
 
-export function axevalDatabaseReadSuitePath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadSuitePath(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVersionDir(root, version), "suite.yaml");
 }
 
-export function axevalDatabaseVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabaseVersionDir(root, version), "vendor-selection-ledger.yaml"),
   );
 }
 
-export function axevalDatabaseReadVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadVendorSelectionLedgerPath(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVersionDir(root, version), "vendor-selection-ledger.yaml");
 }
 
-export function axevalDatabaseExtractsDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseExtractsDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseVersionDir(root, version), "extracts");
 }
 
-export function axevalDatabaseReadExtractsDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadExtractsDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVersionDir(root, version), "extracts");
 }
 
-export function axevalDatabaseVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function axevalDatabaseReadVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadVendorExtractDir(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function axevalDatabaseCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabaseVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
   );
 }
 
-export function axevalDatabaseReadCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadCapabilityInventoryPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "capability-inventory.yaml");
 }
 
-export function axevalDatabaseLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabaseVendorExtractDir(root, slug, version), "capabilities.yaml"),
   );
 }
 
-export function axevalDatabaseReadLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadLegacyCapabilitiesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "capabilities.yaml");
 }
 
-export function axevalDatabaseSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabaseVendorExtractDir(root, slug, version), "surfaces.yaml"),
   );
 }
 
-export function axevalDatabaseReadSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadSurfacesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "surfaces.yaml");
 }
 
-export function axevalDatabaseOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabaseVendorExtractDir(root, slug, version), "oracles.yaml"),
   );
 }
 
-export function axevalDatabaseReadOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadOraclesPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVendorExtractDir(root, slug, version), "oracles.yaml");
 }
 
-export function axevalDatabasePacksDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabasePacksDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseVersionDir(root, version), "packs");
 }
 
-export function axevalDatabaseReadPacksDir(root: AxevalDatabasePathInput, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadPacksDir(root: AxevalDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadVersionDir(root, version), "packs");
 }
 
-export function axevalDatabaseCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return assertCanonicalAxevalDatabaseWritePath(
     root,
     resolve(axevalDatabasePacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
   );
 }
 
-export function axevalDatabaseReadCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXEVAL_DATABASE_ACTIVE_VERSION): string {
+export function axevalDatabaseReadCompiledPackPath(root: AxevalDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
   return resolve(axevalDatabaseReadPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
 }
 

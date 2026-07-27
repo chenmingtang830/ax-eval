@@ -49,8 +49,8 @@ describe("ax-arena benchmark CLI scaffold", () => {
     const configurationPath = resolve(root, "configuration.json");
     const runRoot = resolve(root, "results", "run");
     writeFileSync(configurationPath, JSON.stringify({
-      command: "axeval-database-low-pass",
-      suite: { name: "AXeval-Database v1", version: 1, file_hash: "1".repeat(64) },
+      command: "axarena-database-low-pass",
+      suite: { name: "AXArena-Database v1", version: 1, file_hash: "1".repeat(64) },
       packs: [{
         vendor: "neon", file_hash: "2".repeat(64), standard_set_version: "database-v1", surfaces: ["api"],
         host_credential_names: ["ANTHROPIC_API_KEY", "OPENAI_API_KEY"], verification_credential_names: [], reset_credential_names: [], sandbox_scope_names: [],
@@ -177,10 +177,10 @@ describe("ax-arena benchmark CLI scaffold", () => {
       "--generated-at", "2026-07-21T00:00:00.000Z",
     ], extraPack.io, root)).resolves.toBe(1);
     expect(extraPack.stderr[0]).toContain("--pack vendors must exactly match the batch");
-    const benchmarkRoot = resolve(root, "ax-arena", "benchmark", "axeval-database");
+    const benchmarkRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
     const legacySuite = resolve(benchmarkRoot, "v1", "suite.yaml");
     mkdirSync(resolve(legacySuite, ".."), { recursive: true });
-    writeFileSync(legacySuite, "name: AXeval-Database v1\nversion: 1\ncategory: database\ntasks: []\n");
+    writeFileSync(legacySuite, "name: AXArena-Database v1\nversion: 1\ncategory: database\ntasks: []\n");
     const legacyPublication = capture();
     await expect(runArenaCli([
       "benchmark", "publication-bundle",
@@ -231,7 +231,7 @@ describe("ax-arena benchmark CLI scaffold", () => {
     const bundleHelp = capture();
     await expect(runArenaCli(["benchmark", "publication-bundle", "--help"], bundleHelp.io)).resolves.toBe(0);
     expect(bundleHelp.stdout[0]).toContain("--run-root <completed-run-dir>");
-    expect(bundleHelp.stdout[0]).toContain("--benchmark-root <axeval-database-root>");
+    expect(bundleHelp.stdout[0]).toContain("--benchmark-root <axarena-database-root>");
 
     const bundleMissing = capture();
     await expect(runArenaCli(["benchmark", "publication-bundle", "--out", "bundle"], bundleMissing.io)).resolves.toBe(1);
