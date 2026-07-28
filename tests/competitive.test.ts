@@ -77,7 +77,8 @@ describe("buildNormalizedResult", () => {
     expect(rec.tasks_passed).toBe(2);
     // Discovery score reported from the best (ceiling) profile: 3/4.
     expect(rec.discovery_score).toBe(0.75);
-    expect(rec.profiles).toEqual(["ceiling", "floor"]);
+    expect(rec.profiles).toEqual(["ceiling"]);
+    expect(rec.effort).toBe("high");
     // Content quality defaults to null (not measured) when not passed.
     expect(rec.content_quality).toBeNull();
   });
@@ -152,12 +153,17 @@ describe("buildNormalizedResult", () => {
       ],
       0.7,
     );
-    expect(cells.map((c) => c.fileStem).sort()).toEqual(["claude-code.mcp", "codex.api"]);
-    const mcp = cells.find((c) => c.fileStem === "claude-code.mcp")!.record;
+    expect(cells.map((c) => c.fileStem).sort()).toEqual([
+      "claude-code.mcp.unknown-model.high",
+      "claude-code.mcp.unknown-model.low",
+      "codex.api.unknown-model.low",
+    ]);
+    const mcp = cells.find((c) => c.fileStem === "claude-code.mcp.unknown-model.high")!.record;
     expect(mcp.product).toBe("exa");
     expect(mcp.surface).toBe("mcp");
     expect(mcp.harness).toBe("claude-code");
-    expect(mcp.profiles).toEqual(["low", "high"]);
+    expect(mcp.profiles).toEqual(["high"]);
+    expect(mcp.effort).toBe("high");
     expect(mcp.pass_at_1).toBe(1);
     expect(mcp.content_quality).toBe(0.7);
   });
@@ -182,9 +188,36 @@ describe("buildNormalizedResult", () => {
       null,
       "codex",
     );
-    expect(cells).toHaveLength(1);
-    expect(cells[0]!.fileStem).toBe("codex.cli");
-    expect(cells[0]!.record.harness).toBe("codex");
-    expect(cells[0]!.record.profiles).toEqual(["low", "high"]);
+    expect(cells).toHaveLength(2);
+    expect(cells.map((cell) => cell.fileStem).sort()).toEqual([
+      "codex.cli.unknown-model.high",
+      "codex.cli.unknown-model.low",
+    ]);
+    expect(cells.every((cell) => cell.record.harness === "codex")).toBe(true);
+    expect(cells.map((cell) => cell.record.effort).sort()).toEqual(["high", "low"]);
+  });
+
+  it("keeps multiple models under one harness as separate cells", () => {
+    const cells = buildNormalizedResultCells(makePack("neon"), [
+      {
+        profile: "medium",
+        harness: "opencode",
+        model: "provider/model-a",
+        effort: "medium",
+        surface: "mcp",
+        outcomes: [outcome("t1", true)],
+      },
+      {
+        profile: "medium",
+        harness: "opencode",
+        model: "provider/model-b",
+        effort: "medium",
+        surface: "mcp",
+        outcomes: [outcome("t1", false)],
+      },
+    ]);
+    expect(cells).toHaveLength(2);
+    expect(cells.map((cell) => cell.model).sort()).toEqual(["provider/model-a", "provider/model-b"]);
+    expect(cells.map((cell) => cell.record.pass_at_1).sort()).toEqual([0, 1]);
   });
 });

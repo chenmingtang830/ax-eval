@@ -82,12 +82,22 @@ function assertComparableCompetitiveRecords(
   const harnesses = batch.configuration.harnesses.map((pin) => pin.harness).sort();
   if (products.length < 2) throw new Error("competitive requires at least two products");
 
-  const keys = records.map((record) => JSON.stringify([record.product, record.harness, record.surface]));
+  const keys = records.map((record) => JSON.stringify([
+    record.product,
+    record.harness,
+    record.model,
+    record.effort,
+    record.surface,
+  ]));
   if (new Set(keys).size !== keys.length) {
     throw new Error("competitive records contain a duplicate product, harness, and surface cell");
   }
   const expectedKeys = batch.configuration.packs.flatMap((pack) => harnesses.flatMap((harness) =>
-    pack.surfaces.map((surface) => JSON.stringify([pack.vendor, harness, surface]))));
+    pack.surfaces.map((surface) => {
+      const configured = batch.configuration.cells.find((cell) =>
+        cell.vendor === pack.vendor && cell.harness === harness && cell.surface === surface);
+      return JSON.stringify([pack.vendor, harness, configured?.model ?? null, configured?.effort ?? null, surface]);
+    })));
   const actualKeys = new Set(keys);
   if (records.length !== expectedKeys.length || expectedKeys.some((key) => !actualKeys.has(key))) {
     throw new Error("competitive records must form one complete product, harness, and surface matrix");
@@ -111,7 +121,8 @@ function assertComparableCompetitiveRecords(
     assertExactIsoTimestamp(record.generated_at, `competitive record ${record.product}/${record.harness}/${record.surface} generated_at`);
     if (!pack || !pin || configured.length !== 3
       || record.standard_set_version !== pack.standard_set_version
-      || record.model !== configured[0]!.model || record.harness_version_raw !== pin.version_raw
+      || record.model !== configured[0]!.model || record.effort !== configured[0]!.effort
+      || record.harness_version_raw !== pin.version_raw
       || record.harness_version_semver !== pin.version_semver
       || record.blocked || record.summary_kind !== "aggregate" || record.validity_status !== "valid"
       || record.best_profile !== PUBLICATION_EFFORT || record.profiles.length !== 1
@@ -179,11 +190,11 @@ function bySurfaceOrder(left: SurfaceId, right: SurfaceId): number {
 function renderCrossSurface(records: NormalizedResult[]): string {
   const byProductHarness = new Map<string, NormalizedResult[]>();
   for (const record of records) {
-    const key = JSON.stringify([record.product, record.harness]);
+    const key = JSON.stringify([record.product, record.harness, record.model, record.effort]);
     byProductHarness.set(key, [...(byProductHarness.get(key) ?? []), record]);
   }
   const blocks = [...byProductHarness.entries()].sort(([left], [right]) => left.localeCompare(right)).map(([key, productRecords]) => {
-    const [product, harness] = JSON.parse(key) as [string, string];
+    const [product, harness, model, effort] = JSON.parse(key) as [string, string, string | null, string | null];
     const sorted = [...productRecords].sort((left, right) => bySurfaceOrder(left.surface, right.surface));
     const bestScore = Math.max(...sorted.map((record) => record.pass_at_1));
     const bestCount = sorted.filter((record) => record.pass_at_1 === bestScore).length;
@@ -204,7 +215,7 @@ function renderCrossSurface(records: NormalizedResult[]): string {
           <td>${esc(record.tasks_passed)}/${esc(record.tasks_total)}</td>
         </tr>`;
     }).join("");
-    return `<h3 class="ax-subhead">${esc(product)} / ${esc(harness)}</h3>
+    return `<h3 class="ax-subhead">${esc(product)} / ${esc(harness)} / ${esc(model ?? "unknown-model")} / ${esc(effort ?? "unknown-effort")}</h3>
       <table class="ax-table"><thead><tr><th>surface</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th><th>tasks</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join("\n      ");
   return `<section class="ax-section">
@@ -215,13 +226,26 @@ function renderCrossSurface(records: NormalizedResult[]): string {
 }
 
 function renderCrossProduct(records: NormalizedResult[], batch: ArenaBatchManifest): string {
-  const byKey = new Map(records.map((record) => [JSON.stringify([record.product, record.harness, record.surface]), record]));
+  const byKey = new Map(records.map((record) => [JSON.stringify([
+    record.product,
+    record.harness,
+    record.model,
+    record.effort,
+    record.surface,
+  ]), record]));
   const surfaces = [...new Set(batch.configuration.packs.flatMap((pack) => pack.surfaces))].sort(bySurfaceOrder);
   const harnesses = batch.configuration.harnesses.map((pin) => pin.harness).sort();
   const blocks = harnesses.flatMap((harness) => surfaces.map((surface) => {
     const supported = batch.configuration.packs.filter((pack) => pack.surfaces.includes(surface));
     const structuralNa = batch.configuration.packs.filter((pack) => !pack.surfaces.includes(surface));
-    const ranked = supported.map((pack) => byKey.get(JSON.stringify([pack.vendor, harness, surface]))!)
+    const pin = batch.configuration.cells.find((cell) => cell.harness === harness && cell.surface === surface);
+    const ranked = supported.map((pack) => byKey.get(JSON.stringify([
+      pack.vendor,
+      harness,
+      pin?.model ?? null,
+      pin?.effort ?? null,
+      surface,
+    ]))!)
       .sort((left, right) => right.pass_at_1 - left.pass_at_1
         || right.pass_at_k - left.pass_at_k || left.product.localeCompare(right.product));
     let previous: NormalizedResult | undefined;
@@ -243,6 +267,7 @@ function renderCrossProduct(records: NormalizedResult[], batch: ArenaBatchManife
     const naRows = structuralNa.sort((left, right) => left.vendor.localeCompare(right.vendor)).map((pack) =>
       `<tr class="ax-row--blocked"><td>—</td><td>${esc(pack.vendor)}</td><td colspan="4"><span class="ax-heat ax-heat--na">structural N/A</span></td></tr>`);
     return `<h3 class="ax-subhead">${esc(surface)} / ${esc(harness)} leaderboard</h3>
+      <p class="ax-note">model: ${code(pin?.model ?? "unknown-model")} · effort: ${code(pin?.effort ?? "unknown-effort")}</p>
       <table class="ax-table"><thead><tr><th>#</th><th>product</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead><tbody>${[...rankedRows, ...naRows].join("")}</tbody></table>`;
   })).join("\n      ");
   return `<section class="ax-section">
@@ -272,10 +297,11 @@ function renderCrossHarness(records: NormalizedResult[]): string {
         const wins = bestScore !== null && record.pass_at_1 === bestScore
           && record.pass_at_k === bestPassAtK && runnable.length > 1;
         const bestLabel = bestCount > 1 ? "tied best" : "best";
-        if (record.blocked) return `<tr class="ax-row--blocked"><td>${esc(record.harness)}</td><td>${blockedPill(record.blocked)}</td><td>${blockedPill(record.blocked)}</td><td>${heat(record.discovery_score)}</td><td>${heat(record.content_quality)}</td></tr>`;
-        return `<tr${wins ? ' class="ax-row--best"' : ""}><td>${esc(record.harness)}${wins ? ` <span class="ax-task__diff">${bestLabel}</span>` : ""}</td><td>${heat(record.pass_at_1)}</td><td>${heat(record.pass_at_k)}</td><td>${heat(record.discovery_score)}</td><td>${heat(record.content_quality)}</td></tr>`;
+        const execution = `${record.harness} / ${record.model ?? "unknown-model"} / ${record.effort ?? "unknown-effort"}`;
+        if (record.blocked) return `<tr class="ax-row--blocked"><td>${esc(execution)}</td><td>${blockedPill(record.blocked)}</td><td>${blockedPill(record.blocked)}</td><td>${heat(record.discovery_score)}</td><td>${heat(record.content_quality)}</td></tr>`;
+        return `<tr${wins ? ' class="ax-row--best"' : ""}><td>${esc(execution)}${wins ? ` <span class="ax-task__diff">${bestLabel}</span>` : ""}</td><td>${heat(record.pass_at_1)}</td><td>${heat(record.pass_at_k)}</td><td>${heat(record.discovery_score)}</td><td>${heat(record.content_quality)}</td></tr>`;
       }).join("");
-      return `<h3 class="ax-subhead">${esc(product)} / ${esc(surface)}</h3><table class="ax-table"><thead><tr><th>harness</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead><tbody>${rows}</tbody></table>`;
+      return `<h3 class="ax-subhead">${esc(product)} / ${esc(surface)}</h3><table class="ax-table"><thead><tr><th>execution identity</th><th>pass@1</th><th>pass@k</th><th>discovery</th><th>content</th></tr></thead><tbody>${rows}</tbody></table>`;
     }).join("\n      ");
   return blocks ? `<section class="ax-section"><h2>Cross-harness (same product + surface)</h2><p class="ax-note">When multiple local harnesses have records for the same product/surface cell, this compares them without changing the oracle. A blocked local CLI is shown as blocked, not as a failed task run.</p>${blocks}</section>` : "";
 }
@@ -305,7 +331,7 @@ export function renderArenaCompetitiveReport(
     renderCrossSurface(records),
     renderCrossProduct(records, batch),
     renderCrossHarness(records),
-    `<section class="ax-section"><h2>Methodology &amp; scope</h2><p class="ax-note">Each cell is a normalized <code class="ax-code">${esc(NORMALIZED_RESULT_SCHEMA)}</code> record keyed by { surface, product, harness }. Metrics report the strongest profile. The surface × product tables answer which interface serves agents best; the optional cross-harness table answers which local agent CLI performed best for the same product/surface, without changing the deterministic oracle.</p></section>`,
+    `<section class="ax-section"><h2>Methodology &amp; scope</h2><p class="ax-note">Each cell is a normalized <code class="ax-code">${esc(NORMALIZED_RESULT_SCHEMA)}</code> record keyed by { product, surface, harness, model, effort }. Metrics report one execution identity. The surface × product tables answer which interface serves agents best; the optional cross-harness table answers which local agent configuration performed best for the same product/surface, without changing the deterministic oracle.</p></section>`,
     `</main>`,
   ].join("\n");
   return `<!doctype html>\n<html lang="en"><head><meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" /><title>AX eval — competitive report</title><style>${REPORT_STYLE}</style></head><body><div class="ax-main">${body}</div></body></html>\n`;

@@ -5,7 +5,7 @@ import { aggregateNormalizedResults, type NormalizedResult } from "../src/genera
 
 function record(overrides: Partial<NormalizedResult>): NormalizedResult {
   return {
-    schema: "ax.normalized-result/v1",
+    schema: "ax.normalized-result/v2",
     surface: "api",
     product: "supabase",
     harness: "claude-code",
@@ -21,6 +21,7 @@ function record(overrides: Partial<NormalizedResult>): NormalizedResult {
     profiles: ["high"],
     best_profile: "high",
     model: "claude-sonnet-5",
+    effort: "high",
     harness_version_raw: "2.1.5 (Claude Code)",
     harness_version_semver: "2.1.5",
     run_batch_id: "batch-a",
@@ -45,12 +46,26 @@ describe("normalized operational metrics", () => {
     expect(aggregate.run_batch_id).toBe("batch-a");
   });
 
-  it("ships an additive public schema that marks mean-cubed reliability deprecated", () => {
-    const schema = JSON.parse(readFileSync(resolve(process.cwd(), "schemas", "normalized-result.v1.json"), "utf8"));
-    expect(schema.properties.schema.const).toBe("ax.normalized-result/v1");
+  it("ships v2 identity while retaining the strict v1 compatibility schema", () => {
+    const schema = JSON.parse(readFileSync(resolve(process.cwd(), "schemas", "normalized-result.v2.json"), "utf8"));
+    const legacy = JSON.parse(readFileSync(resolve(process.cwd(), "schemas", "normalized-result.v1.json"), "utf8"));
+    expect(schema.properties.schema.const).toBe("ax.normalized-result/v2");
+    expect(schema.required).toEqual(expect.arrayContaining(["model", "effort"]));
+    expect(legacy.properties.schema.const).toBe("ax.normalized-result/v1");
     expect(schema.properties.pass_hat_3.deprecated).toBe(true);
     for (const field of ["harness_version_raw", "harness_version_semver", "run_batch_id", "cost_usd", "pass_3_tasks", "pass_3_tasks_total"]) {
       expect(schema.properties).toHaveProperty(field);
     }
+  });
+
+  it("rejects aggregation across model or effort identities", () => {
+    expect(() => aggregateNormalizedResults([
+      record({}),
+      record({ model: "claude-opus-5" }),
+    ])).toThrow("requires one product, surface, harness, model, effort");
+    expect(() => aggregateNormalizedResults([
+      record({}),
+      record({ effort: "medium" }),
+    ])).toThrow("requires one product, surface, harness, model, effort");
   });
 });

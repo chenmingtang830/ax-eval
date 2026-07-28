@@ -750,7 +750,7 @@ describe("arena publication export", () => {
       writeJson(resolve(root, "bundle", recordPath), mismatched);
       resealArtifact(root, recordPath);
       expect(() => buildArenaPublicationExport({ root, bundleDir: "bundle", outDir: "mixed-out" }))
-        .toThrow(/one model and one exact harness version/);
+        .toThrow(/sealed model\/effort configuration/);
       expect(existsSync(resolve(root, "mixed-out"))).toBe(false);
 
       createBundle(root);

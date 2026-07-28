@@ -35,6 +35,9 @@ export interface ProfileRun {
   /** The model the harness ACTUALLY ran as (ground truth, stamped from harness
    *  output). Preferred over the profile's hardcoded label in the report. */
   model?: string;
+  /** Canonical effort that actually ran. Together with model this is part of
+   *  normalized-result/v2 cell identity, not merely display metadata. */
+  effort?: "low" | "medium" | "high";
   outcomes: RoundtripOutcome[];
   /** Surface this run drove the product through (api/cli/sdk/mcp). Defaults to
    *  "api" when unset so single-surface reports are unchanged. Used to tag the
