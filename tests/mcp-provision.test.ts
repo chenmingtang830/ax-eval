@@ -217,11 +217,14 @@ describe("provisionHarnessForSurface", () => {
     expect(statSync(provisioning.env.HOME!).mode & 0o777).toBe(0o700);
   });
 
-  it("fails closed before invoking or exchanging auth for OpenCode MCP cells", async () => {
+  it("exchanges OAuth and writes an isolated OpenCode remote MCP config without embedding secrets", async () => {
     const dir = freshDir();
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ access_token: "short-lived-access-token" }),
+    })) as unknown as typeof fetch;
     vi.stubGlobal("fetch", fetchMock);
-    await expect(provisionHarnessForSurface({
+    const provisioning = await provisionHarnessForSurface({
       pack: pack(),
       harness: "opencode",
       surface: "mcp",
@@ -232,8 +235,28 @@ describe("provisionHarnessForSurface", () => {
         ASANA_MCP_CLIENT_SECRET: "client-secret",
         ASANA_MCP_REFRESH_TOKEN: "refresh-token",
       },
-    })).rejects.toThrow(/OpenCode MCP surface provisioning is not supported/);
-    expect(fetchMock).not.toHaveBeenCalled();
+      isolateWorkspace: true,
+    });
+    if (typeof provisioning.meta?.opencode_work_root === "string") {
+      dirs.push(provisioning.meta.opencode_work_root);
+    }
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(provisioning.meta).toMatchObject({
+      mcp_provisioning: "oauth_refresh_to_bearer",
+      mcp_server: "asana",
+    });
+    expect(provisioning.env.AX_EVAL_MCP_BEARER_TOKEN_ASANA).toBe("short-lived-access-token");
+    expect(provisioning.env.OPENCODE_CONFIG_DIR).toContain(".invoke-home");
+    expect(provisioning.meta?.opencode_work_dir).not.toContain("/repo");
+    const config = JSON.parse(readFileSync(resolve(provisioning.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config.mcp.asana).toEqual({
+      type: "remote",
+      url: "https://mcp.asana.com/v2/mcp",
+      enabled: true,
+      headers: { Authorization: "Bearer {env:AX_EVAL_MCP_BEARER_TOKEN_ASANA}" },
+    });
+    expect(JSON.stringify(config)).not.toMatch(/short-lived-access-token|refresh-token|client-secret/);
   });
 
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
@@ -357,6 +380,26 @@ describe("provisionHarnessForSurface", () => {
     expect(config).toContain('args = ["-y", "@demo/mcp"]');
     expect(config).not.toContain("stdio-secret");
     expect(provisioning.env.DEMO_MCP_TOKEN).toBe("stdio-secret");
+
+    const openCode = await provisionHarnessForSurface({
+      pack: stdioPack,
+      harness: "opencode",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "opencode-low-mcp", "opencode"),
+      cwd: "/repo",
+      env: { DEMO_MCP_TOKEN: "stdio-secret" },
+    });
+    const openCodeConfig = JSON.parse(readFileSync(
+      resolve(openCode.env.OPENCODE_CONFIG_DIR!, "opencode.json"),
+      "utf8",
+    ));
+    expect(openCodeConfig.mcp.demo).toEqual({
+      type: "local",
+      command: ["npx", "-y", "@demo/mcp"],
+      enabled: true,
+    });
+    expect(JSON.stringify(openCodeConfig)).not.toContain("stdio-secret");
+    expect(openCode.env.DEMO_MCP_TOKEN).toBe("stdio-secret");
   });
 
   it("provisions inherited HTTP bearer auth instead of falling through to global config", async () => {

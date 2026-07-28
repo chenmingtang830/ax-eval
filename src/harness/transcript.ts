@@ -60,8 +60,8 @@ export interface ObservedRun {
   /** MCP signals (when an `opts.mcpServer` is provided): a `tools/list` listing
    *  and each MCP tool the agent invoked (server.tool), in order. */
   mcpToolCalls: string[];
-  /** Whether the agent enumerated the MCP server's tools (tools/list — the
-   *  MCP-surface authoritative discovery source). */
+  /** Whether the harness loaded or the agent enumerated the MCP server's tool
+   *  catalog (the MCP-surface authoritative discovery source). */
   mcpToolsListed: boolean;
   /** SQL-wire / node-pg / libsql signals observed in shell/scripts (for api
    *  surface-honesty grading). */
@@ -242,6 +242,9 @@ export interface ParseOptions {
   sdkPackage?: string;
   /** MCP server id/URL (from the mcp surface) to scope which tool calls count. */
   mcpServer?: string;
+  /** Harness-local MCP server name. OpenCode exposes tools as
+   * `<server>_<tool>`, so the isolated provisioning name scopes native calls. */
+  mcpServerName?: string;
   /** Treat literal curl URLs as API calls when a templated base URL cannot be
    * resolved to a host. Intended for sealed API-surface benchmark transcripts. */
   classifyUnknownCurlAsApi?: boolean;
@@ -333,7 +336,16 @@ export function observedRunFromHarnessEvents(
       }
     } else if (event.kind === "tool_call") {
       const input = event.input;
-      if (event.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
+      const openCodePrefix = opts.harness === "opencode" && opts.mcpServerName
+        ? `${opts.mcpServerName}_`
+        : undefined;
+      if (openCodePrefix && event.name.startsWith(openCodePrefix) && event.name.length > openCodePrefix.length) {
+        // OpenCode does not emit its internal tools/list request. A callable
+        // namespaced tool proves the configured catalog was loaded; retain only
+        // provider/tool identity and continue discarding arguments/results.
+        run.mcpToolsListed = true;
+        run.mcpToolCalls.push(`${opts.mcpServerName}.${event.name.slice(openCodePrefix.length)}`);
+      } else if (event.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
         // ToolSearch is how a Claude Code agent enumerates available (incl. MCP)
         // tools — the `tools/list` equivalent for this harness.
         run.mcpToolsListed = true;
