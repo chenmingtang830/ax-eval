@@ -435,6 +435,11 @@ The handoff contract keeps identity fields separate: `axarena-database` is the
 stable machine id, `AXArena-Database` is the display name, and the numeric
 release belongs in `suite_version`. The frozen `daeb-1-v1` value remains
 approval provenance and never becomes a public label.
+The signed source set includes a provider/model/effort roster and dated pricing
+snapshot. Publication derives `economics.json` from those files plus normalized
+token usage, then verifies the derivation again on load. Native harness cost and
+estimated API list-price cost stay separate; cost per verified success is an
+observability dimension, not a score, gate, or tie-breaker.
 
 Full tree, authoring commands, gates, and hygiene:
 [`ax-arena/benchmark/axarena-database/README.md`](./ax-arena/benchmark/axarena-database/README.md).

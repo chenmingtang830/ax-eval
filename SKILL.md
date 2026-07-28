@@ -333,7 +333,10 @@ names cannot replace OpenCode/XDG isolation controls. Managed system/MDM config
 blocks the lane, and `task` subagents are denied because their actions are absent
 from root JSONL. Legacy `exec-plan` also uses a disposable secret-free cwd and
 exact credential-value artifact redaction; this is not an OS sandbox. Its self-reported dollar
-cost is not trusted, so runtime `cost_usd` remains null. MCP cells for every
+cost is not trusted, so runtime `cost_usd` remains null. Publication may add a
+separate API list-price estimate from the committed dated pricing snapshot and
+normalized token usage; never copy that estimate into `cost_usd` or use cost per
+success for pass/fail or ranking. MCP cells for every
 harness receive only their explicit pack-declared server. OpenCode provisions
 local stdio and remote HTTP servers in its isolated config; bearer tokens remain
 in the child environment, and OAuth-app credentials are exchanged headlessly

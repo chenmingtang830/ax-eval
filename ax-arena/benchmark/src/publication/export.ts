@@ -49,6 +49,14 @@ import {
 } from "./contracts.js";
 import { assertCanonicalRuntimeDerivation } from "./derivation.js";
 import { renderArenaCompetitiveReport } from "./competitive.js";
+import {
+  ArenaEconomicsReportSchema,
+  buildArenaEconomicsReport,
+  parsePricingSnapshot,
+  parseProviderModelRoster,
+  type ArenaEconomicsReport,
+  type ProviderModelRoster,
+} from "./economics.js";
 
 export {
   AXARENA_DATABASE_BENCHMARK_ID,
@@ -173,6 +181,7 @@ export interface VerifiedArenaPublicationCohort {
   bundle: ArenaPublicationBundle;
   batch: ArenaBatchManifest;
   records: Array<{ vendor: string; path: string; record: NormalizedResult }>;
+  economics: ArenaEconomicsReport;
 }
 
 function inside(root: string, candidate: string): boolean {
@@ -591,6 +600,16 @@ function verifySignedSourceArtifacts(input: {
     requireSource(`suite/${name}`, `${suitePrefix}/${name}`, `canonical methodology ${name}`);
     return `suite/${name}`;
   });
+  requireSource(
+    bundle.provider_model_roster,
+    `${suitePrefix}/provider-model-roster.yaml`,
+    "canonical provider/model roster",
+  );
+  requireSource(
+    bundle.pricing_snapshot,
+    `${suitePrefix}/pricing-snapshot.yaml`,
+    "canonical pricing snapshot",
+  );
 
   const packPaths: Record<string, string> = Object.create(null) as Record<string, string>;
   const packs = new Map<string, z.infer<typeof TargetPackSchema>>();
@@ -644,6 +663,7 @@ function assertCanonicalIntegritySet(
     bundle.integrity.batch_completion_path,
     bundle.integrity.runtime_report_path,
     "competitive.html",
+    bundle.economics_report,
     ...bundle.integrity.files.filter((entry) => entry.source_path !== undefined).map((entry) => entry.path),
   ];
   for (const cell of completion.cells) {
@@ -1108,8 +1128,10 @@ function assertCanonicalPublicationManifest(input: {
   expectedMethodology: string[];
   snapshots: ReadonlyMap<string, unknown>;
   normalizedRecords: ReadonlyMap<string, NormalizedResult>;
+  roster: ProviderModelRoster;
+  economics: ArenaEconomicsReport;
 }): void {
-  const { bundleRoot, bundle, batch, report, suite, expectedMethodology, snapshots, normalizedRecords } = input;
+  const { bundleRoot, bundle, batch, report, suite, expectedMethodology, snapshots, normalizedRecords, roster, economics } = input;
   const expectedSurfaces = (["api", "cli", "sdk", "mcp"] as const).filter((surface) =>
     batch.configuration.cells.some((cell) => cell.surface === surface));
   const expectedHarnesses = (["codex", "claude-code"] as const).filter((harness) =>
@@ -1125,9 +1147,9 @@ function assertCanonicalPublicationManifest(input: {
   if (aggregateRecords.some((record) => !hasEfficiency(record))) {
     throw new Error("official publication records must retain all canonical efficiency metrics");
   }
-  const expectedModels = { codex: "gpt-5.6-terra", "claude-code": "claude-sonnet-5" } as const;
   if (aggregateRecords.some((record) =>
-    expectedModels[record.harness as keyof typeof expectedModels] !== record.model
+    !roster.entries.some((entry) => entry.role === "production"
+      && entry.harness === record.harness && entry.model === record.model && entry.effort === record.effort)
     || record.summary_kind !== "aggregate" || record.trial_count !== 3 || !record.profiles.includes("high"))) {
     throw new Error("official publication records do not use the frozen production execution policy");
   }
@@ -1156,6 +1178,10 @@ function assertCanonicalPublicationManifest(input: {
     {
       id: "efficiency-metrics", label: "Efficiency metrics are present in normalized records", status: "pass",
       detail: "Normalized records include latency, token/cost, and tool-call metrics.",
+    },
+    {
+      id: "cost-economics", label: "Cost economics use the pinned roster and pricing snapshot", status: "pass",
+      detail: `${economics.cells.length} cell(s) have reproducible API list-price estimates and cost-per-success context.`,
     },
     {
       id: "canonical-execution-config", label: "Production records use the frozen execution configuration", status: "pass",
@@ -1230,6 +1256,9 @@ function assertCanonicalPublicationManifest(input: {
       },
     },
     vendors,
+    provider_model_roster: "suite/provider-model-roster.yaml",
+    pricing_snapshot: "suite/pricing-snapshot.yaml",
+    economics_report: "economics.json",
     competitive_report: "competitive.html",
     missing: [],
     notes: [
@@ -1239,6 +1268,7 @@ function assertCanonicalPublicationManifest(input: {
       `Publication readiness requires all artifacts, required profile matrix coverage (${expectedProfiles.join("/")}), efficiency metrics, and competitive report gates to pass.`,
       "Optional profile artifacts remain valuable execution-learning and publication evidence, but missing optional coverage does not block a publication-ready bundle when required profile coverage is complete.",
       "The detached GitHub OIDC attestation binds this bundle to its protected-main workflow, pinned runtime, exact batch, and completion.",
+      "Cost per success is contextual only and uses the committed API list-price snapshot; it never affects correctness or rank.",
       "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle.",
     ],
   };
@@ -1252,6 +1282,7 @@ function assertCanonicalPublicationManifest(input: {
   const expectedCompetitive = Buffer.from(renderArenaCompetitiveReport(aggregateRecords, {
     batch,
     generatedAt: report.generated_at,
+    economics: economics.cells,
   }));
   if (!competitiveBytes.equals(expectedCompetitive)) {
     throw new Error("competitive report does not match canonical signed-cohort rendering");
@@ -1275,6 +1306,9 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
     bundle.integrity.runtime_report_path,
     bundle.integrity.attestation.subject_path,
     bundle.integrity.attestation.detached_bundles_path,
+    bundle.provider_model_roster,
+    bundle.pricing_snapshot,
+    bundle.economics_report,
     ...bundle.integrity.files.filter((entry) => entry.source_path !== undefined).map((entry) => entry.path),
   ]));
   const verifiedJson = verifyPublicationIntegrity(bundleRoot, bundle, retainedJsonPaths);
@@ -1320,6 +1354,15 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
   }
   assertNestedEvidenceCoverage(bundle, completion, completedRecords, normalizedRecords, snapshots);
 
+  const rosterBytes = verifiedJson.get(bundle.provider_model_roster);
+  const pricingBytes = verifiedJson.get(bundle.pricing_snapshot);
+  if (!rosterBytes || !pricingBytes) throw new Error("publication integrity did not retain roster and pricing artifacts");
+  const roster = parseProviderModelRoster(rosterBytes.toString("utf8"));
+  const pricing = parsePricingSnapshot(pricingBytes.toString("utf8"));
+  const economics = ArenaEconomicsReportSchema.parse(
+    readPublicationJson(bundle.economics_report, `economics report ${bundle.economics_report}`),
+  );
+
   const leaderboardRecords: Array<{ vendor: string; path: string; record: NormalizedResult }> = [];
   const taskResults = taskResultsFromCompletedCells(completion, completedRecords);
   const evidence: Array<Record<string, unknown>> = [];
@@ -1346,6 +1389,14 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
   }
   assertComparableLeaderboardRecords(bundle, batch, selectedRecords);
   assertAggregateSourceBinding(batch, completion, completedRecords, selectedRecords);
+  const expectedEconomics = buildArenaEconomicsReport(
+    [...selectedRecords.values()].map((entry) => entry.record),
+    roster,
+    pricing,
+  );
+  if (!isDeepStrictEqual(economics, expectedEconomics)) {
+    throw new Error("economics report is not the canonical derivation of normalized records, roster, and pricing snapshot");
+  }
   if (requireCanonicalOfficial) {
     assertCanonicalPublicationManifest({
       bundleRoot,
@@ -1356,6 +1407,8 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
       expectedMethodology: signedSources!.expectedMethodology,
       snapshots,
       normalizedRecords,
+      roster,
+      economics,
     });
   }
   return {
@@ -1372,6 +1425,9 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
     selectedRecords,
     taskResults,
     evidence,
+    roster,
+    pricing,
+    economics,
   };
 }
 
@@ -1383,6 +1439,7 @@ export function loadArenaPublicationCohort(
     bundle: source.bundle,
     batch: source.batch,
     records: [...source.selectedRecords.values()].map(({ vendor, path, record }) => ({ vendor, path, record })),
+    economics: source.economics,
   };
 }
 
@@ -1398,6 +1455,7 @@ export function loadArenaPublicationCohortForTest(
     bundle: source.bundle,
     batch: source.batch,
     records: [...source.selectedRecords.values()].map(({ vendor, path, record }) => ({ vendor, path, record })),
+    economics: source.economics,
   };
 }
 
@@ -1415,6 +1473,7 @@ function buildArenaPublicationExportInternal(
     selectedRecords,
     taskResults,
     evidence,
+    economics,
   } = source;
   const outRoot = resolveContained(root, opts.outDir, "publication export output");
   assertSafeOutput(root, bundleRoot, outRoot);
@@ -1425,6 +1484,10 @@ function buildArenaPublicationExportInternal(
   for (const { vendor, path: recordPath, record } of leaderboardRecords) {
     const key = JSON.stringify([vendor, record.harness, record.model, record.effort, record.surface]);
     if (selectedRecords.get(key)?.record !== record) continue;
+    const economic = economics.cells.find((cell) => cell.product === vendor
+      && cell.surface === record.surface && cell.harness === record.harness
+      && cell.model === record.model && cell.effort === record.effort);
+    if (!economic) throw new Error(`publication economics cell is missing: ${key}`);
     cells.push({
       id: `${vendor}/${record.surface}/${record.harness}/${record.model ?? "unknown-model"}/${record.effort ?? "unknown-effort"}`,
       vendor,
@@ -1451,6 +1514,13 @@ function buildArenaPublicationExportInternal(
       token_usage: record.token_usage ?? null,
       token_cost: record.token_cost ?? null,
       cost_usd: record.cost_usd ?? null,
+      provider: economic.provider,
+      pricing_snapshot_id: economic.pricing_snapshot_id,
+      cost_status: economic.status,
+      estimated_cost_usd: economic.estimated_cost_usd,
+      cost_per_success_usd: economic.cost_per_success_usd,
+      task_runs_passed: economic.task_runs_passed,
+      task_runs_total: economic.task_runs_total,
       tokens_in: record.tokens_in ?? null,
       tokens_out: record.tokens_out ?? null,
       harness_version_raw: record.harness_version_raw ?? null,
@@ -1521,12 +1591,20 @@ function buildArenaPublicationExportInternal(
     classification_status: "needs_review",
   }));
   if (bundle.competitive_report) evidence.push({ kind: "competitive_report", path: bundle.competitive_report });
+  evidence.push(
+    { kind: "provider_model_roster", path: bundle.provider_model_roster },
+    { kind: "pricing_snapshot", path: bundle.pricing_snapshot },
+    { kind: "economics_report", path: bundle.economics_report },
+  );
   const methodology = {
     static_ax: bundle.layers.static_ax,
     behavioral: bundle.layers.behavioral,
     suite: bundle.suite,
     expected_matrix: bundle.expected_matrix,
     quality_gates: bundle.quality_gates,
+    provider_model_roster: bundle.provider_model_roster,
+    pricing_snapshot: bundle.pricing_snapshot,
+    economics_report: bundle.economics_report,
   };
   const files: ArenaPublicationExportFile[] = [
     { id: "leaderboard", path: "leaderboard.json" },
@@ -1536,6 +1614,7 @@ function buildArenaPublicationExportInternal(
     { id: "failures", path: "failures.json" },
     { id: "evidence-index", path: "evidence-index.json" },
     { id: "methodology-index", path: "methodology-index.json" },
+    { id: "economics", path: "economics.json" },
   ];
   const outputs: Record<string, unknown> = {
     "leaderboard.json": {
@@ -1557,6 +1636,7 @@ function buildArenaPublicationExportInternal(
     "failures.json": { schema: "ax.axarena-failures/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, failures },
     "evidence-index.json": { schema: "ax.axarena-evidence-index/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, evidence },
     "methodology-index.json": { schema: "ax.axarena-methodology-index/v1", benchmark: bundle.benchmark, display_name: bundle.display_name, generated_at: generatedAtIso, methodology },
+    "economics.json": economics,
   };
   const exportManifest = ArenaPublicationExportManifestSchema.parse({
     schema: "ax.axarena-export/v1",
