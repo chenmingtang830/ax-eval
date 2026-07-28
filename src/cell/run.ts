@@ -915,6 +915,7 @@ function executionProfileRun(args: {
     profile: args.cell.harness.profile,
     harness: args.cell.harness.id,
     model: args.executor.model ?? args.cell.harness.model,
+    effort: args.cell.harness.effort,
     outcomes: args.outcomes,
     surface: args.cell.surface,
     ns: args.executor.ns,

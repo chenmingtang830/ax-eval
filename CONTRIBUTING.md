@@ -135,6 +135,11 @@ which product surfaces exist, while harness profiles vary execution settings
 legacy low/high artifacts remain readable. Do not use profiles to smuggle in or
 hide surfaces.
 
+Normalized aggregate records use `ax.normalized-result/v2`. Treat product,
+surface, harness, model, and effort as one indivisible identity: never average,
+deduplicate, or select a latest record across different values. The v1 schema is
+frozen for compatibility and must not be widened to carry new identity fields.
+
 ## Pull requests
 
 - **Tests green.** CI runs `npm ci → npm run typecheck → npm test` on Node 22.
