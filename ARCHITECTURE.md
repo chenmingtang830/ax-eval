@@ -122,7 +122,7 @@ The runtime is organized into four layers:
 2. **Planning and orchestration** — CLI coordinates authoring, exec, verify,
    reset, reporting, and (for AXArena-Database) publication.
 3. **Harness and surface runtime** — surface adapters + Claude Code / Codex /
-   OpenCode invoke, MCP provision for Claude Code and Codex, transcript recovery.
+   OpenCode invoke, MCP provision for all three harnesses, transcript recovery.
 4. **Verification and interpretation** — live read-back oracles, reports,
    normalized records.
 
@@ -550,7 +550,7 @@ It is responsible for:
 This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
 
-OpenCode is the third open-source core runner, with an API/CLI/SDK-only MVP. It
+OpenCode is the third open-source core runner across API, CLI, SDK, and MCP. It
 requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` from a
 disposable cwd with `--format json`, `--auto`, and `--pure`, and
 requires `--model provider/model` before the prompt. Each run receives isolated
@@ -568,10 +568,11 @@ pin the executable. The adapter passes the controller's portable
 matches the invoked configuration. It records the requested
 `provider/model` route rather than claiming the served model was observed, and
 does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
-MCP is rejected before OpenCode invocation. The one-cell record uses
-`blocked: unsupported-surface`; legacy `exec-plan` preserves the unchanged
-`ax.normalized-result/v1` enum by mapping its cube record to `invoke-failed`
-while reporting the structural gap explicitly.
+MCP runs receive a single reviewed pack-declared local stdio or remote HTTP
+entry in the isolated OpenCode config. Stdio credentials are inherited only
+through the declared token env; remote bearer headers use `{env:NAME}` rather
+than embedding a value. OAuth-app auth uses the controller's headless refresh
+exchange, while interactive browser OAuth remains unsupported.
 Legacy `exec-plan` uses a disposable cwd outside the checkout and exact-value
 credential redaction; it remains defense in depth rather than an OS sandbox.
 Unsandboxed `runCell` callers receive that cwd too, while arena cells retain the
@@ -593,11 +594,12 @@ It supports:
 
 - token-based MCP auth
 - OAuth-app MCP auth via refresh-token exchange
-- isolated per-run Codex and Claude homes/configs
+- isolated per-run Codex, Claude Code, and OpenCode homes/configs
 - bearer token injection without writing secrets to tracked files
 
-OpenCode is intentionally absent from MCP provisioning in this MVP; its
-supported core surfaces are API, CLI, and SDK.
+OpenCode maps a native `<server>_<tool>` event to MCP evidence only when
+`<server>` matches the isolated provisioning metadata. This prevents ordinary
+OpenCode tools or ambient MCP configuration from becoming product evidence.
 
 It does not install or select product CLIs. Controllers provide those through
 the runtime provisioning registry; AXArena-Database's pinned Turso implementation lives in

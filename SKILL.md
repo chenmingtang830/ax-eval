@@ -291,11 +291,10 @@ CLI drive them as subprocesses: run one lane per harness so each receives a
 compatible model slug, for example `exec-plan --invoke --harness claude-code
 --surface all --profile medium --effort medium --model sonnet --invoke-retries 0`,
 then a separate Codex lane with `--harness codex --profile medium --effort medium --model <gpt-model>
---invoke-retries 0`. An OpenCode lane uses `--harness opencode --surface api
---profile medium --model <provider/model> --invoke-retries 0`; repeat it only
-for the API, CLI, and SDK surfaces the pack supports. OpenCode 1.18.3+ is
-required, and MCP is unsupported in this MVP. Claude Code and Codex retain
-their native reported-model handling. OpenCode instead records the requested
+--invoke-retries 0`. An OpenCode lane uses `--harness opencode --surface all
+--profile medium --model <provider/model> --invoke-retries 0` for every surface
+the pack supports, including MCP. OpenCode 1.18.3+ is required. Claude Code and
+Codex retain their native reported-model handling. OpenCode instead records the requested
 `provider/model` route, not an attestation of the model actually served, and
 passes the selected `low`/`medium`/`high` effort through its provider-specific
 `--variant` flag so the recorded execution identity was actually invoked.
@@ -334,12 +333,12 @@ names cannot replace OpenCode/XDG isolation controls. Managed system/MDM config
 blocks the lane, and `task` subagents are denied because their actions are absent
 from root JSONL. Legacy `exec-plan` also uses a disposable secret-free cwd and
 exact credential-value artifact redaction; this is not an OS sandbox. Its self-reported dollar
-cost is not trusted, so runtime `cost_usd` remains null. Claude Code and Codex MCP cells
-still receive their explicit pack-declared MCP provisioning; OpenCode has no
-MCP provisioning path. One-cell records emit `blocked: unsupported-surface`;
-legacy `exec-plan` keeps the unchanged `ax.normalized-result/v1` enum and maps
-that pre-execution cube cell to `invoke-failed` while printing the structural
-gap explicitly. Adding this generic core runner does not make it a
+cost is not trusted, so runtime `cost_usd` remains null. MCP cells for every
+harness receive only their explicit pack-declared server. OpenCode provisions
+local stdio and remote HTTP servers in its isolated config; bearer tokens remain
+in the child environment, and OAuth-app credentials are exchanged headlessly
+from a refresh token. Interactive browser OAuth is not supported. Adding this
+generic core runner does not make it a
 canonical AXArena production harness. This is one product across
 harnesses/surfaces — `competitive` is reserved for cross-*product* comparison.
 

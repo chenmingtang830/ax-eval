@@ -1739,7 +1739,6 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   };
   const resetHints: string[] = [];
   const credentialBlockedNotes: string[] = [];
-  const unsupportedBlockedNotes: string[] = [];
   // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
@@ -1768,21 +1767,7 @@ interface InvokeGroup {
   const invokeJobs: InvokeJob[] = [];
   const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
-    const surfaceInvokeHarnesses = args.invoke && surfaceId === "mcp"
-      ? invokeHarnesses.filter((harness) => harness !== "opencode")
-      : invokeHarnesses;
-    if (args.invoke && surfaceId === "mcp" && invokeHarnesses.includes("opencode")) {
-      // Keep the historical normalized-result/v1 enum stable. The one-cell v1
-      // schema can represent `unsupported-surface` directly; this legacy cube
-      // record maps the structural gap to its existing pre-execution bucket.
-      const record = buildBlockedResult(pack, surfaceId, "opencode", "invoke-failed");
-      const recordPath = `${dir}/run-${surfaceId}-opencode-blocked.normalized.json`;
-      writeFileSync(recordPath, JSON.stringify(record, null, 2));
-      rememberBlockedRecord(recordPath);
-      console.log(`surface=${surfaceId} harness=opencode → BLOCKED (unsupported harness/surface) → ${recordPath}`);
-      unsupportedBlockedNotes.push("  mcp/opencode: unsupported in the OpenCode MVP; use claude-code or codex.");
-      if (surfaceInvokeHarnesses.length === 0) continue;
-    }
+    const surfaceInvokeHarnesses = invokeHarnesses;
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
     // runnable prompts for it. Instead write a `blocked` cube cell (so the
@@ -2281,12 +2266,6 @@ interface InvokeGroup {
         `then re-run exec-plan to generate their prompts.`,
     );
   }
-  if (unsupportedBlockedNotes.length) {
-    console.log(
-      `\n${unsupportedBlockedNotes.length} unsupported harness/surface cell(s) were emitted as blocked records:\n` +
-        unsupportedBlockedNotes.join("\n"),
-    );
-  }
   if (blockedRecordPaths.length) {
     console.log(
       `\nBlocked normalized record(s) for downstream competitive/publication inputs:\n` +
@@ -2600,6 +2579,11 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const executorHarness = executorHarnessFromArtifacts(executor.harness, invokeMeta);
     const transcriptParseOpts = {
       ...parseOpts,
+      ...(invokeMeta?.provisioning && typeof invokeMeta.provisioning === "object"
+        && !Array.isArray(invokeMeta.provisioning)
+        && typeof (invokeMeta.provisioning as Record<string, unknown>).mcp_server === "string"
+        ? { mcpServerName: (invokeMeta.provisioning as Record<string, unknown>).mcp_server as string }
+        : {}),
       ...(isInvokeHarnessId(executorHarness) ? { harness: executorHarness } : {}),
     };
     const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);

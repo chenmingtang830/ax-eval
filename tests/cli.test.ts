@@ -1018,7 +1018,7 @@ console.log(JSON.stringify({
     expect(result.out).toContain("OpenCode provider openrouter requires one of: OPENROUTER_API_KEY");
   });
 
-  it("marks OpenCode MCP unsupported before provider credential checks", () => {
+  it("routes OpenCode MCP cells through normal auth validation instead of marking them unsupported", () => {
     const dir = freshDir();
     const result = runCli([
       "exec-plan", "--pack", PACK, "--skip-review", "--surface", "mcp", "--invoke",
@@ -1028,15 +1028,17 @@ console.log(JSON.stringify({
       OPENROUTER_API_KEY: "",
       ASANA_PAT: "",
       ASANA_SANDBOX_PROJECT_GID: "",
+      ASANA_MCP_CLIENT_ID: "",
+      ASANA_MCP_CLIENT_SECRET: "",
+      ASANA_MCP_REFRESH_TOKEN: "",
     });
     expect(result.code, result.out).toBe(0);
-    expect(result.out).toContain("BLOCKED (unsupported harness/surface)");
-    expect(result.out).toContain("unsupported harness/surface cell(s)");
-    expect(result.out).not.toContain("requires --model");
-    expect(result.out).not.toContain("Add the keys above");
+    expect(result.out).toContain("BLOCKED (requires-oauth)");
+    expect(result.out).not.toContain("unsupported harness/surface");
+    expect(result.out).toContain("Add the keys above");
     expect(result.out).not.toContain("health-check");
     const record = JSON.parse(readFileSync(resolve(dir, "run-mcp-opencode-blocked.normalized.json"), "utf8"));
-    expect(record).toMatchObject({ harness: "opencode", surface: "mcp", blocked: "invoke-failed" });
+    expect(record).toMatchObject({ harness: "opencode", surface: "mcp", blocked: "requires-oauth" });
   });
 
   it("rejects pack-declared OpenCode control variables before invocation", () => {

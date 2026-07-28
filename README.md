@@ -1,6 +1,6 @@
 # ax-eval is the open-source, CLI-first way to test whether AI agents can discover and use your product.
 
-## API · CLI · SDK across Codex, Claude Code, and OpenCode · MCP across Codex and Claude Code
+## API · CLI · SDK · MCP across Codex, Claude Code, and OpenCode
 
 ## Can AI agents actually use your product?
 
@@ -25,8 +25,7 @@ real agent harnesses, then verifies outcomes with independent outcome verificati
 The open skill can run through the agent you already have open. The CLI can also
 drive local harnesses directly with `exec-plan --invoke --harness
 claude-code|codex|opencode`, producing the same neutral report matrix. OpenCode
-is the third, open-source core runner for API, CLI, and SDK cells; its MVP does
-not support MCP cells.
+is the third, open-source core runner across API, CLI, SDK, and MCP cells.
 
 ## Quickstart
 
@@ -505,8 +504,8 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness codex --surface all --profile medium --effort medium \
   --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
-  --harness opencode --surface api --profile medium \
-  --model <provider/model> --run-dir <dir> --invoke-retries 0 # OpenCode 1.18.3+, API/CLI/SDK only
+  --harness opencode --surface all --profile medium \
+  --model <provider/model> --run-dir <dir> --invoke-retries 0 # OpenCode 1.18.3+, including pack-declared MCP
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
@@ -560,14 +559,16 @@ child-session actions. The adapter passes the controller's portable
 `low`/`medium`/`high` effort through OpenCode's `--variant`, so the record preserves
 that requested route, but does not claim that the provider actually served that
 model. OpenCode's self-reported dollar cost is not trusted, so runtime
-`cost_usd` remains null. OpenCode MCP cells fail before invocation; one-cell
-records emit `blocked: unsupported-surface`. To keep the historical
-`ax.normalized-result/v1` enum unchanged, legacy `exec-plan` reports the gap
-clearly but maps its blocked cube record to `invoke-failed`. This generic core integration does not add OpenCode to the
-canonical AXArena production harness matrix.
+`cost_usd` remains null. For MCP cells, the controller writes only the reviewed
+pack-declared local stdio or remote HTTP server into the same isolated config.
+Tokens stay in the child environment; remote configs reference them through an
+OpenCode `{env:NAME}` header placeholder. OAuth-app auth is supported through a
+headless refresh-token exchange, but interactive browser OAuth is not. This
+generic core integration does not add OpenCode to the canonical AXArena
+production harness matrix.
 
-The MVP captures OpenCode's native JSONL and decodes its tool calls through the
-same harness-event seam as Claude Code and Codex, so `--observe` discovery and
+The adapter captures OpenCode's native JSONL and decodes its tool calls through
+the same harness-event seam as Claude Code and Codex, so `--observe` discovery and
 process evidence retain the shared surface semantics and normalized
 `tool_call_count` does not silently fall back to zero. Retry metadata includes a
 bounded controller-derived outcome reason per attempt. An API cell that invokes
