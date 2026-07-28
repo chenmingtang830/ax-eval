@@ -159,8 +159,8 @@ executable identity is committed in `trusted-runtime/runtime-lock.json` and has
 no environment override.
 
 `ax-arena benchmark export-publication` provides offline parity for converting
-a sealed `ax.publication-bundle/v2` directory into the seven axarena JSON
-indexes. It validates canonical batch/completion provenance, derives task and
+a sealed `ax.publication-bundle/v2` directory into the eight axarena JSON
+indexes, including `economics.json`. It validates canonical batch/completion provenance, derives task and
 trial outputs from completed records, binds snapshot outcomes to exact cell
 evidence, and recomputes aggregate scores before an atomic output write. This
 does not activate the trusted `publish` command, which remains fail-closed.
@@ -197,7 +197,12 @@ failure review. Its reporting timestamp must equal the signed completion time.
 Downstream cohort loading repeats that derivation, verifies
 the signed AXArena-Database source set and exact physical inventory, and rejects rewritten
 manifest prose or extra files; a self-described integrity envelope is never
-sufficient.
+sufficient. The sealed provider/model roster must exactly match the production
+batch. A dated, source-linked pricing snapshot derives API list-price estimates
+and cost per verified task success from normalized token usage. These economics
+are context only: they never change pass/fail, publication rank, or native
+`cost_usd`, and they exclude subscriptions, credits, tool fees, long-context
+premiums, and regional multipliers.
 Legacy `ax-eval publication-bundle` flags remain accepted only when their
 suite, vendor, and effort selectors exactly match the immutable batch; they
 cannot narrow or rewrite the cohort.

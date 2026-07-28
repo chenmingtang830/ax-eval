@@ -26,6 +26,7 @@ import {
   writeArenaCompetitiveReportFromVerifiedCohort,
 } from "../src/publication/competitive.js";
 import { loadArenaPublicationCohortForTest } from "../src/publication/export.js";
+import { buildArenaEconomicsReport } from "../src/publication/economics.js";
 
 vi.mock("../src/publication/attestation.js", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../src/publication/attestation.js")>();
@@ -368,6 +369,29 @@ function createSealedBundle(
     artifactJson(path, aggregate);
     recordsByVendor[aggregate.product]!.push(path);
   }
+  const roster = {
+    schema: "ax.provider-model-roster/v1" as const,
+    roster_id: "fixture-production-roster",
+    as_of: "2026-07-20",
+    entries: [
+      { harness: "codex" as const, provider: "openai", model: "gpt-5.6-terra", effort: "high" as const, role: "production" as const, pricing_key: "openai-gpt-5.6-terra" },
+      { harness: "claude-code" as const, provider: "anthropic", model: "claude-sonnet-5", effort: "high" as const, role: "production" as const, pricing_key: "anthropic-claude-sonnet-5" },
+    ],
+  };
+  const pricing = {
+    schema: "ax.model-pricing-snapshot/v1" as const,
+    snapshot_id: "fixture-pricing-2026-07-20",
+    as_of: "2026-07-20",
+    currency: "USD" as const,
+    unit: "per_1m_tokens" as const,
+    rates: [
+      { pricing_key: "openai-gpt-5.6-terra", provider: "openai", model: "gpt-5.6-terra", valid_from: "2026-07-01", valid_through: null, input_accounting: "cached_subset_of_input" as const, input_usd: 2.5, cached_input_usd: 0.25, cache_write_5m_usd: 3.125, output_usd: 15, source_url: "https://example.invalid/openai", notes: ["fixture"] },
+      { pricing_key: "anthropic-claude-sonnet-5", provider: "anthropic", model: "claude-sonnet-5", valid_from: "2026-07-01", valid_through: null, input_accounting: "cache_tokens_separate" as const, input_usd: 2, cached_input_usd: 0.2, cache_write_5m_usd: 2.5, output_usd: 10, source_url: "https://example.invalid/anthropic", notes: ["fixture"] },
+    ],
+  };
+  artifactJson("suite/provider-model-roster.yaml", roster);
+  artifactJson("suite/pricing-snapshot.yaml", pricing);
+  artifactJson("economics.json", buildArenaEconomicsReport(records, roster, pricing));
   for (const vendor of ["alpha", "beta"]) {
     const runs = completion.cells.filter((cell) => cell.key.startsWith(`${vendor}/`)).map((cell) => {
       const completedRecord = JSON.parse(readFileSync(resolve(bundle, cell.record_path), "utf8"));
@@ -492,6 +516,9 @@ function createSealedBundle(
       validation_errors: [],
       artifacts: { normalized_records: recordsByVendor[vendor], snapshots: [`snapshots/${vendor}.json`] },
     })),
+    provider_model_roster: "suite/provider-model-roster.yaml",
+    pricing_snapshot: "suite/pricing-snapshot.yaml",
+    economics_report: "economics.json",
     competitive_report: "competitive.html",
     missing: [],
     notes: [],
@@ -601,6 +628,8 @@ describe("arena competitive reporting", () => {
       const html = readFileSync(resolve(root, "results/competitive.html"), "utf8");
       expect(html).toContain("beta / codex");
       expect(html).toContain("<dt>cells</dt><dd>6</dd>");
+      expect(html).toContain("Cost per verified success");
+      expect(html).toContain("Context only; never used for pass/fail or ranking.");
       const cliCodex = html.match(/cli \/ codex leaderboard<\/h3>[\s\S]*?<\/table>/)?.[0] ?? "";
       expect(cliCodex).toContain("alpha");
       expect(cliCodex).toContain("beta");

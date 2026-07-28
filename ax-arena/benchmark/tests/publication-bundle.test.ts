@@ -525,7 +525,7 @@ describe("arena publication bundle", () => {
       outDir: resolve(test.root, "export"),
       generatedAt: new Date("2026-07-21T14:00:00.000Z"),
     });
-    expect(exported.files).toHaveLength(7);
+    expect(exported.files).toHaveLength(8);
     for (const file of exported.files) expect(existsSync(resolve(test.root, "export", file.path))).toBe(true);
     expect(JSON.parse(readFileSync(resolve(test.root, "export/tasks.json"), "utf8")).tasks.length).toBeGreaterThan(0);
     expect(JSON.parse(readFileSync(resolve(test.root, "export/trials.json"), "utf8")).task_results.length).toBeGreaterThan(0);

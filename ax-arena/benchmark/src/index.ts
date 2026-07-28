@@ -103,6 +103,7 @@ export {
 } from "./publication/competitive.js";
 export type { WriteArenaCompetitiveReportOptions } from "./publication/competitive.js";
 export * from "./publication/bundle.js";
+export * from "./publication/economics.js";
 export {
   ARENA_BATCH_COMPLETION_SCHEMA,
   ARENA_BATCH_PLAN_SCHEMA,
