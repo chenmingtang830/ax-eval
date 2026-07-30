@@ -209,7 +209,7 @@ renames are outside this boundary. Every exported AXArena-Database authoring wri
 including advisory output, uses this wrapper. Multi-file suite synthesis and
 audit-autofix writers preflight every sibling destination under the canonical
 AXArena-Database root before their first mutation. They require a
-lowercase `.yaml` suite path and accept `AxevalDatabasePathContext` so an explicit root
+lowercase `.yaml` suite path and accept `AxArenaDatabasePathContext` so an explicit root
 selection remains stable; bare roots fail when canonical and legacy trees are
 both present.
 

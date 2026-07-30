@@ -54,13 +54,13 @@ import {
   writeTraceReview,
 } from "./artifact-persistence.js";
 import {
-  assertCanonicalAxevalDatabaseWritePath,
-  assertCanonicalAxevalDatabaseSuiteWritePath,
-  createAxevalDatabasePathContext,
-  axevalDatabaseRepositoryRoot,
-  axevalDatabaseRoot,
-  type AxevalDatabasePathContext,
-  type AxevalDatabasePathInput,
+  assertCanonicalAxArenaDatabaseWritePath,
+  assertCanonicalAxArenaDatabaseSuiteWritePath,
+  createAxArenaDatabasePathContext,
+  axArenaDatabaseRepositoryRoot,
+  axArenaDatabaseRoot,
+  type AxArenaDatabasePathContext,
+  type AxArenaDatabasePathInput,
 } from "./benchmark-paths.js";
 
 const CoverageSchema = z.object({ vendor: z.string(), capability_name: z.string() });
@@ -1190,15 +1190,15 @@ export function renderSynthesisDoc(name: string, category: string, result: Synth
 }
 
 function canonicalSuiteWriteTargets(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   targets: ReadonlyArray<{ path: string; label: string }>,
 ): string[] {
   const canonical = targets.map((target) => ({
     ...target,
-    path: assertCanonicalAxevalDatabaseWritePath(root, target.path),
+    path: assertCanonicalAxArenaDatabaseWritePath(root, target.path),
   }));
-  const repositoryRoot = axevalDatabaseRepositoryRoot(root);
-  const allowedRoot = axevalDatabaseRoot(root);
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(root);
+  const allowedRoot = axArenaDatabaseRoot(root);
   // Validate every existing sibling before the first mutation. This prevents a
   // later symlink/hard-link rejection from leaving an earlier artifact changed.
   for (const target of canonical) {
@@ -1207,8 +1207,8 @@ function canonicalSuiteWriteTargets(
   return canonical.map((target) => target.path);
 }
 
-function suiteWriterContext(root: AxevalDatabasePathInput): AxevalDatabasePathContext {
-  return typeof root === "string" ? createAxevalDatabasePathContext(root) : root;
+function suiteWriterContext(root: AxArenaDatabasePathInput): AxArenaDatabasePathContext {
+  return typeof root === "string" ? createAxArenaDatabasePathContext(root) : root;
 }
 
 function suiteFileWriteTargets(canonicalSuitePath: string): ReadonlyArray<{ path: string; label: string }> {
@@ -1219,22 +1219,22 @@ function suiteFileWriteTargets(canonicalSuitePath: string): ReadonlyArray<{ path
 }
 
 function writePreparedSuiteFiles(
-  paths: AxevalDatabasePathContext,
+  paths: AxArenaDatabasePathContext,
   targets: readonly [string, string],
   suiteYaml: string,
   synthesisDoc: string,
 ): { suitePath: string; synthesisPath: string } {
   const [suitePath, synthesisPath] = targets;
-  const repositoryRoot = axevalDatabaseRepositoryRoot(paths);
-  const allowedRoot = axevalDatabaseRoot(paths);
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(paths);
+  const allowedRoot = axArenaDatabaseRoot(paths);
   writeContainedText(repositoryRoot, allowedRoot, suitePath, suiteYaml, "canonical suite");
   writeContainedText(repositoryRoot, allowedRoot, synthesisPath, synthesisDoc, "suite synthesis audit trail");
   return { suitePath, synthesisPath };
 }
 
-export function writeSuiteFiles(root: AxevalDatabasePathInput, path: string, suiteYaml: string, synthesisDoc: string): { suitePath: string; synthesisPath: string } {
+export function writeSuiteFiles(root: AxArenaDatabasePathInput, path: string, suiteYaml: string, synthesisDoc: string): { suitePath: string; synthesisPath: string } {
   const paths = suiteWriterContext(root);
-  const candidateSuitePath = assertCanonicalAxevalDatabaseSuiteWritePath(paths, path);
+  const candidateSuitePath = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, path);
   const targets = canonicalSuiteWriteTargets(paths, suiteFileWriteTargets(candidateSuitePath)) as [string, string];
   return writePreparedSuiteFiles(paths, targets, suiteYaml, synthesisDoc);
 }
@@ -1305,7 +1305,7 @@ export function renderSupportSummaryMarkdown(
 }
 
 function suiteArtifactWriteTargets(
-  paths: AxevalDatabasePathContext,
+  paths: AxArenaDatabasePathContext,
   canonicalSuitePath: string,
 ): ReadonlyArray<{ path: string; label: string }> {
   return [
@@ -1322,12 +1322,12 @@ function suiteArtifactWriteTargets(
 }
 
 function writePreparedSuiteArtifacts(
-  paths: AxevalDatabasePathContext,
+  paths: AxArenaDatabasePathContext,
   canonicalSuitePath: string,
   result: SynthesizeResult,
   targets: readonly string[],
 ): string[] {
-  const repositoryRoot = axevalDatabaseRepositoryRoot(paths);
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(paths);
   const stem = canonicalSuitePath.split("/").pop()?.replace(/\.yaml$/i, "") ?? "canonical-suite";
   const benchmark = /^suite$/i.test(stem) ? "AXArena-Database v1" : stem.toUpperCase();
   const written = [
@@ -1343,7 +1343,7 @@ function writePreparedSuiteArtifacts(
   const supportSummaryPath = targets[8]!;
   writeContainedText(
     repositoryRoot,
-    axevalDatabaseRoot(paths),
+    axArenaDatabaseRoot(paths),
     supportSummaryPath,
     renderSupportSummaryMarkdown(
       benchmark,
@@ -1356,22 +1356,22 @@ function writePreparedSuiteArtifacts(
   return [...written, supportSummaryPath];
 }
 
-export function writeSuiteArtifacts(root: AxevalDatabasePathInput, suitePath: string, result: SynthesizeResult): string[] {
+export function writeSuiteArtifacts(root: AxArenaDatabasePathInput, suitePath: string, result: SynthesizeResult): string[] {
   const paths = suiteWriterContext(root);
-  const canonicalSuitePath = assertCanonicalAxevalDatabaseSuiteWritePath(paths, suitePath);
+  const canonicalSuitePath = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, suitePath);
   const targets = canonicalSuiteWriteTargets(paths, suiteArtifactWriteTargets(paths, canonicalSuitePath));
   return writePreparedSuiteArtifacts(paths, canonicalSuitePath, result, targets);
 }
 
 export function writeSuiteBundle(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   suitePath: string,
   suiteYaml: string,
   synthesisDoc: string,
   result: SynthesizeResult,
 ): { suitePath: string; synthesisPath: string; artifactPaths: string[] } {
   const paths = suiteWriterContext(root);
-  const canonicalSuitePath = assertCanonicalAxevalDatabaseSuiteWritePath(paths, suitePath);
+  const canonicalSuitePath = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, suitePath);
   const targets = canonicalSuiteWriteTargets(paths, [
     ...suiteFileWriteTargets(canonicalSuitePath),
     ...suiteArtifactWriteTargets(paths, canonicalSuitePath),

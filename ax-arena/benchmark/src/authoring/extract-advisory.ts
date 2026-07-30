@@ -14,11 +14,11 @@ import {
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
 import {
-  assertCanonicalAxevalDatabaseWritePath,
-  axevalDatabaseRepositoryRoot,
-  axevalDatabaseRoot,
-  axevalDatabaseVendorExtractDir,
-  type AxevalDatabasePathInput,
+  assertCanonicalAxArenaDatabaseWritePath,
+  axArenaDatabaseRepositoryRoot,
+  axArenaDatabaseRoot,
+  axArenaDatabaseVendorExtractDir,
+  type AxArenaDatabasePathInput,
 } from "./benchmark-paths.js";
 import { loadCapabilityExtract, loadSurfaceExtract } from "./artifact-persistence.js";
 
@@ -41,7 +41,7 @@ export type ExtractAdvisory = z.infer<typeof AdvisoryResultSchema> & {
 };
 
 export async function adviseVendorExtract(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   slug: string,
   opts: { harness?: HarnessId; model?: string; effort?: Effort } = {},
 ): Promise<ExtractAdvisory> {
@@ -88,14 +88,14 @@ export async function adviseVendorExtract(
   };
 }
 
-export function writeExtractAdvisory(root: AxevalDatabasePathInput, advisory: ExtractAdvisory): string {
-  const path = assertCanonicalAxevalDatabaseWritePath(
+export function writeExtractAdvisory(root: AxArenaDatabasePathInput, advisory: ExtractAdvisory): string {
+  const path = assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(axevalDatabaseVendorExtractDir(root, advisory.slug), "advisory.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, advisory.slug), "advisory.yaml"),
   );
   return writeContainedText(
-    axevalDatabaseRepositoryRoot(root),
-    axevalDatabaseRoot(root),
+    axArenaDatabaseRepositoryRoot(root),
+    axArenaDatabaseRoot(root),
     path,
     yamlStringify(advisory),
     "extract advisory",

@@ -14,7 +14,7 @@ import { applySuiteAudit, type SuiteAuditReport } from "../src/authoring/suite-a
 import {
   AXARENA_DATABASE_BENCHMARK_ROOT,
   AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT,
-  createAxevalDatabasePathContext,
+  createAxArenaDatabasePathContext,
 } from "../src/authoring/benchmark-paths.js";
 import {
   synthesizeSuite,
@@ -123,7 +123,7 @@ describe("canonical suite writers", () => {
 
     expect(() => writeSuiteFiles(root, suitePath, "name: SUITE\nversion: 0\n", "synthesis"))
       .toThrow(/ambiguous benchmark roots/);
-    const paths = createAxevalDatabasePathContext(root, { explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT });
+    const paths = createAxArenaDatabasePathContext(root, { explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT });
     const suite = writeSuiteFiles(paths, suitePath, "name: SUITE\nversion: 0\n", "synthesis");
     const artifacts = writeSuiteArtifacts(paths, suitePath, await synthesisFixture());
     const audit = applySuiteAudit(paths, suitePath, genericNameReport(suitePath));

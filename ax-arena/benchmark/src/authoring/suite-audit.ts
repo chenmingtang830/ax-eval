@@ -21,13 +21,13 @@ import {
 } from "ax-eval";
 import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
 import {
-  assertCanonicalAxevalDatabaseWritePath,
-  assertCanonicalAxevalDatabaseSuiteWritePath,
-  createAxevalDatabasePathContext,
-  axevalDatabaseReadVendorsDir,
-  axevalDatabaseRepositoryRoot,
-  axevalDatabaseRoot,
-  type AxevalDatabasePathInput,
+  assertCanonicalAxArenaDatabaseWritePath,
+  assertCanonicalAxArenaDatabaseSuiteWritePath,
+  createAxArenaDatabasePathContext,
+  axArenaDatabaseReadVendorsDir,
+  axArenaDatabaseRepositoryRoot,
+  axArenaDatabaseRoot,
+  type AxArenaDatabasePathInput,
 } from "./benchmark-paths.js";
 import { readContainedText, writeContainedText } from "./artifact-filesystem.js";
 import {
@@ -63,10 +63,10 @@ export interface SuiteAuditReport {
   suggestedVersion?: number;
 }
 
-function listDatabaseSlugs(root: AxevalDatabasePathInput): string[] {
+function listDatabaseSlugs(root: AxArenaDatabasePathInput): string[] {
   const selected = coreVendorSlugs(root);
   if (selected) return [...selected].sort();
-  const dir = axevalDatabaseReadVendorsDir(root);
+  const dir = axArenaDatabaseReadVendorsDir(root);
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
     .filter((f) => f.endsWith(".discovered.yaml"))
@@ -76,7 +76,7 @@ function listDatabaseSlugs(root: AxevalDatabasePathInput): string[] {
 
 /** Find inventory capabilities that should map to a concept but didn't. */
 export function findMappingMisses(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -127,7 +127,7 @@ export function findMappingMisses(
 /** Find stale/false-positive coverage decisions whose cited capability no
  * longer maps to the claimed concept under the current semantic rules. */
 export function findMappingFalsePositives(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   coverage: CoverageMatrix,
   slugs: string[],
 ): SuiteFinding[] {
@@ -251,7 +251,7 @@ export function findTaskFitAuditFindings(
  * catches artifacts generated before a task-fit rule or inventory correction
  * landed, even when their stored matrix is internally self-consistent. */
 export function findStaleTaskFitFindings(
-  root: AxevalDatabasePathInput,
+  root: AxArenaDatabasePathInput,
   coverage: CoverageMatrix,
   selectedConcepts: Set<string>,
   slugs: string[],
@@ -315,7 +315,7 @@ export function findStaleTaskFitFindings(
 export function auditSuite(
   root: string,
   suitePath: string,
-  benchmarkPaths: AxevalDatabasePathInput = root,
+  benchmarkPaths: AxArenaDatabasePathInput = root,
 ): SuiteAuditReport {
   const abs = resolve(root, suitePath);
   const suite = loadSuite(abs);
@@ -499,16 +499,16 @@ export function formatSuiteAuditReport(report: SuiteAuditReport): string {
  * Apply metadata autofixes (name/version). Mapping fixes live in code
  * (DATABASE_DETERMINISTIC_RULES); caller should re-synthesize after --apply.
  */
-export function applySuiteAudit(root: AxevalDatabasePathInput, suitePath: string, report: SuiteAuditReport): string[] {
+export function applySuiteAudit(root: AxArenaDatabasePathInput, suitePath: string, report: SuiteAuditReport): string[] {
   const written: string[] = [];
-  const paths = typeof root === "string" ? createAxevalDatabasePathContext(root) : root;
-  const abs = assertCanonicalAxevalDatabaseSuiteWritePath(paths, suitePath);
-  const notePath = assertCanonicalAxevalDatabaseWritePath(
+  const paths = typeof root === "string" ? createAxArenaDatabasePathContext(root) : root;
+  const abs = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, suitePath);
+  const notePath = assertCanonicalAxArenaDatabaseWritePath(
     paths,
     resolve(dirname(abs), `${basename(abs, ".yaml")}.audit-notes.md`),
   );
-  const repositoryRoot = axevalDatabaseRepositoryRoot(paths);
-  const allowedRoot = axevalDatabaseRoot(paths);
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(paths);
+  const allowedRoot = axArenaDatabaseRoot(paths);
   const rawSuite = readContainedText(repositoryRoot, allowedRoot, abs, "suite audit target");
   if (rawSuite === null) return written;
   // Validate the sibling before mutating the suite, so a static alias cannot

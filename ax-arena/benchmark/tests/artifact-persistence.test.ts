@@ -24,7 +24,7 @@ import {
   writeSupportMatrix,
   writeTraceReview,
 } from "../src/authoring/artifact-persistence.js";
-import { createAxevalDatabasePathContext } from "../src/authoring/benchmark-paths.js";
+import { createAxArenaDatabasePathContext } from "../src/authoring/benchmark-paths.js";
 
 describe("arena artifact persistence", () => {
   it("writes capability inventory and support matrix artifacts", () => {
@@ -133,7 +133,7 @@ describe("arena artifact persistence", () => {
           "",
         ].join("\n"));
       }
-      const paths = createAxevalDatabasePathContext(dir, { warn: (message) => warnings.push(message) });
+      const paths = createAxArenaDatabasePathContext(dir, { warn: (message) => warnings.push(message) });
       expect(loadCapabilityExtract(paths, "acme")?.slug).toBe("acme");
       expect(loadCapabilityExtract(paths, "bravo")?.slug).toBe("bravo");
       expect(warnings).toHaveLength(1);

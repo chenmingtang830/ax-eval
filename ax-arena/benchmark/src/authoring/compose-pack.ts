@@ -23,11 +23,11 @@ import {
 import { writeContainedText, type ContainedWriteHooks } from "./artifact-filesystem.js";
 import type { SupportMatrix } from "./artifact-contracts.js";
 import {
-  assertCanonicalAxevalDatabaseWritePath,
-  axevalDatabaseCompiledPackPath,
-  axevalDatabaseRepositoryRoot,
-  axevalDatabaseRoot,
-  type AxevalDatabasePathInput,
+  assertCanonicalAxArenaDatabaseWritePath,
+  axArenaDatabaseCompiledPackPath,
+  axArenaDatabaseRepositoryRoot,
+  axArenaDatabaseRoot,
+  type AxArenaDatabasePathInput,
 } from "./benchmark-paths.js";
 import {
   applyDatabasePackPromptOverride,
@@ -265,16 +265,16 @@ export function composePack(
 }
 
 /** Path where a composed pack is written (AXArena-Database v1 layout uses pack.yaml). */
-export function composedPackPath(root: AxevalDatabasePathInput, slug: string, _suiteName: string): string {
-  return assertCanonicalAxevalDatabaseWritePath(root, axevalDatabaseCompiledPackPath(root, slug));
+export function composedPackPath(root: AxArenaDatabasePathInput, slug: string, _suiteName: string): string {
+  return assertCanonicalAxArenaDatabaseWritePath(root, axArenaDatabaseCompiledPackPath(root, slug));
 }
 
 /** Write a composed pack to disk as YAML. */
-export function writeComposedPack(root: AxevalDatabasePathInput, slug: string, suiteName: string, pack: TargetPack): string {
+export function writeComposedPack(root: AxArenaDatabasePathInput, slug: string, suiteName: string, pack: TargetPack): string {
   const path = composedPackPath(root, slug, suiteName);
   writeContainedText(
-    axevalDatabaseRepositoryRoot(root),
-    axevalDatabaseRoot(root),
+    axArenaDatabaseRepositoryRoot(root),
+    axArenaDatabaseRoot(root),
     path,
     `# GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.\n` +
       `# generated_by: ${pack.generated_by}\n` +
@@ -295,7 +295,7 @@ export function writeComposedPackFileForTest(
 ): void {
   writeContainedText(
     repositoryRoot,
-    axevalDatabaseRoot(repositoryRoot),
+    axArenaDatabaseRoot(repositoryRoot),
     path,
     contents,
     "composed pack output",

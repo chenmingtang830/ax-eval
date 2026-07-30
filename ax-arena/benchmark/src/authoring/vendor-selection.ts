@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parse as yamlParse } from "yaml";
 import { z } from "zod";
-import { axevalDatabaseReadVendorSelectionLedgerPath, type AxevalDatabasePathInput } from "./benchmark-paths.js";
+import { axArenaDatabaseReadVendorSelectionLedgerPath, type AxArenaDatabasePathInput } from "./benchmark-paths.js";
 import { loadCapabilityExtract, loadSurfaceExtract } from "./artifact-persistence.js";
 
 const EligibilitySchema = z.object({
@@ -61,13 +61,13 @@ export const VendorSelectionLedgerSchema = z.object({
 
 export type VendorSelectionLedger = z.infer<typeof VendorSelectionLedgerSchema>;
 
-export function loadVendorSelectionLedger(root: AxevalDatabasePathInput): VendorSelectionLedger | null {
-  const path = axevalDatabaseReadVendorSelectionLedgerPath(root);
+export function loadVendorSelectionLedger(root: AxArenaDatabasePathInput): VendorSelectionLedger | null {
+  const path = axArenaDatabaseReadVendorSelectionLedgerPath(root);
   if (!existsSync(path)) return null;
   return VendorSelectionLedgerSchema.parse(yamlParse(readFileSync(path, "utf8")));
 }
 
-export function coreVendorSlugs(root: AxevalDatabasePathInput): string[] | null {
+export function coreVendorSlugs(root: AxArenaDatabasePathInput): string[] | null {
   const ledger = loadVendorSelectionLedger(root);
   return ledger
     ? ledger.entries.filter((entry) => entry.status === "core").map((entry) => entry.slug)
@@ -82,7 +82,7 @@ export interface VendorSelectionFinding {
 }
 
 /** Verify that a ledger's core claims remain backed by authoring artifacts. */
-export function auditVendorSelectionAgainstExtracts(root: AxevalDatabasePathInput): VendorSelectionFinding[] {
+export function auditVendorSelectionAgainstExtracts(root: AxArenaDatabasePathInput): VendorSelectionFinding[] {
   const ledger = loadVendorSelectionLedger(root);
   if (!ledger) return [];
   const findings: VendorSelectionFinding[] = [];

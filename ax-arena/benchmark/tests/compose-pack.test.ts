@@ -18,7 +18,7 @@ import {
   writeComposedPack,
   writeComposedPackFileForTest,
 } from "../src/authoring/compose-pack.js";
-import { createAxevalDatabasePathContext, type AxevalDatabasePathContext } from "../src/authoring/benchmark-paths.js";
+import { createAxArenaDatabasePathContext, type AxArenaDatabasePathContext } from "../src/authoring/benchmark-paths.js";
 
 const pack = TargetPackSchema.parse({
   name: "acme",
@@ -34,7 +34,7 @@ describe("arena pack composition paths", () => {
   it("writes only to the canonical AXArena-Database pack tree", () => {
     const repositoryRoot = mkdtempSync(resolve(tmpdir(), "ax-compose-path-"));
     try {
-      const paths = createAxevalDatabasePathContext(repositoryRoot);
+      const paths = createAxArenaDatabasePathContext(repositoryRoot);
       const expected = resolve(
         repositoryRoot,
         "ax-arena/benchmark/axarena-database/v1/packs/acme/pack.yaml",
@@ -58,7 +58,7 @@ describe("arena pack composition paths", () => {
         writeRoot: outside,
         explicitReadRoot: false,
         readRootKind: "canonical",
-      } as unknown as AxevalDatabasePathContext, "acme", "AXArena-Database v1")).toThrow(/created by createAxevalDatabasePathContext/);
+      } as unknown as AxArenaDatabasePathContext, "acme", "AXArena-Database v1")).toThrow(/created by createAxArenaDatabasePathContext/);
     } finally {
       rmSync(repositoryRoot, { recursive: true, force: true });
       rmSync(outside, { recursive: true, force: true });

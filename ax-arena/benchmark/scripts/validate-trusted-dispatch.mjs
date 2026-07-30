@@ -115,8 +115,8 @@ if (required("TRUSTED_CONTAINER_IMAGE") !== expectedImage) {
   throw new Error("workflow container does not match the reviewed runtime lock digest");
 }
 const configurationPath = realpathSync(resolve(root, required("CONFIGURATION_PATH")));
-const axevalDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
-if (!inside(axevalDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXArena-Database root");
+const axArenaDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
+if (!inside(axArenaDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXArena-Database root");
 const configuration = JSON.parse(committedBytes(root, sourceSha, configurationPath, "batch configuration").toString("utf8"));
 if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)
   || configuration.execution?.runtime_backend !== "pinned-oci"
@@ -147,7 +147,7 @@ if (sandbox?.kind !== "bubblewrap" || sandbox?.policy_version !== "ax.arena-bubb
   || !exactSet(sandbox?.runtime_roots, ["/usr", "/opt/ax-arena-tools"])) {
   throw new Error("trusted sandbox policy does not match the reviewed runtime lock");
 }
-const suiteBytes = committedBytes(root, sourceSha, resolve(axevalDatabaseRoot, "v1", "suite.yaml"), "canonical suite");
+const suiteBytes = committedBytes(root, sourceSha, resolve(axArenaDatabaseRoot, "v1", "suite.yaml"), "canonical suite");
 if (configuration.suite?.name !== yamlScalar(suiteBytes, "name")
   || configuration.suite?.version !== Number(yamlScalar(suiteBytes, "version"))
   || configuration.suite?.file_hash !== sha256(suiteBytes)) {
@@ -157,7 +157,7 @@ if (!Array.isArray(configuration.packs) || configuration.packs.length < 1) {
   throw new Error("trusted configuration requires at least one canonical pack");
 }
 for (const configuredPack of configuration.packs) {
-  const packPath = resolve(axevalDatabaseRoot, "v1", "packs", configuredPack.vendor, "pack.yaml");
+  const packPath = resolve(axArenaDatabaseRoot, "v1", "packs", configuredPack.vendor, "pack.yaml");
   const packBytes = committedBytes(root, sourceSha, packPath, `canonical ${configuredPack.vendor} pack`);
   const approval = JSON.parse(committedBytes(
     root,

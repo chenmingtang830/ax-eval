@@ -19,7 +19,7 @@ import {
   classifyEvidenceStrength,
   hasDocumentedHttpMethodPath,
 } from "./evidence-strength.js";
-import { axevalDatabaseReadExtractsDir, type AxevalDatabasePathInput } from "./benchmark-paths.js";
+import { axArenaDatabaseReadExtractsDir, type AxArenaDatabasePathInput } from "./benchmark-paths.js";
 import {
   loadCapabilityInventory,
   loadSurfaceExtract,
@@ -62,8 +62,8 @@ export function reclassifyEvidenceStrength(
   return classifyEvidenceStrength(evidence);
 }
 
-function listExtractSlugs(root: AxevalDatabasePathInput): string[] {
-  const dir = axevalDatabaseReadExtractsDir(root);
+function listExtractSlugs(root: AxArenaDatabasePathInput): string[] {
+  const dir = axArenaDatabaseReadExtractsDir(root);
   try {
     return readdirSync(dir, { withFileTypes: true })
       .filter((d) => d.isDirectory() && !d.name.startsWith("_") && !d.name.startsWith("."))
@@ -324,7 +324,7 @@ function auditSurfaceFindings(slug: string, surfaces: SurfaceExtractResult): {
   return { findings, surfaces: audited };
 }
 
-export function auditVendorExtracts(root: AxevalDatabasePathInput, slug: string): VendorExtractAudit {
+export function auditVendorExtracts(root: AxArenaDatabasePathInput, slug: string): VendorExtractAudit {
   const inventory = loadCapabilityInventory(root, slug);
   const surfaces = loadSurfaceExtract(root, slug);
   if (!inventory && !surfaces) {
@@ -381,7 +381,7 @@ export function auditVendorExtracts(root: AxevalDatabasePathInput, slug: string)
   };
 }
 
-export function auditAllExtracts(root: AxevalDatabasePathInput, slugs?: string[]): ExtractAuditReport {
+export function auditAllExtracts(root: AxArenaDatabasePathInput, slugs?: string[]): ExtractAuditReport {
   const targets = slugs?.length ? slugs : listExtractSlugs(root);
   const vendors = targets.map((slug) => auditVendorExtracts(root, slug));
   const flat = vendors.flatMap((v) => v.findings);
@@ -397,7 +397,7 @@ export function auditAllExtracts(root: AxevalDatabasePathInput, slugs?: string[]
 }
 
 /** Apply autofixes from a prior auditVendorExtracts result and rewrite YAML. */
-export function applyExtractAudit(root: AxevalDatabasePathInput, audit: VendorExtractAudit): { inventoryPath?: string; surfacesPath?: string } {
+export function applyExtractAudit(root: AxArenaDatabasePathInput, audit: VendorExtractAudit): { inventoryPath?: string; surfacesPath?: string } {
   const out: { inventoryPath?: string; surfacesPath?: string } = {};
   if (audit.inventory) {
     // Mark still-candidate unless zero errors remain after apply.

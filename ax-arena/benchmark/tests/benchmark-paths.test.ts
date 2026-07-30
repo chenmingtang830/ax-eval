@@ -6,15 +6,15 @@ import {
   AXARENA_DATABASE_BENCHMARK_ROOT,
   AXARENA_DATABASE_LEGACY_ARENA_ROOT,
   AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT,
-  assertCanonicalAxevalDatabaseSuiteWritePath,
-  assertCanonicalAxevalDatabaseWritePath,
-  createAxevalDatabasePathContext,
-  axevalDatabaseReadSuitePath,
-  axevalDatabaseSuitePath,
-  axevalDatabaseVendorCardPath,
-  axevalDatabaseVersionDir,
-  resolveAxevalDatabaseBenchmarkRoot,
-  type AxevalDatabasePathContext,
+  assertCanonicalAxArenaDatabaseSuiteWritePath,
+  assertCanonicalAxArenaDatabaseWritePath,
+  createAxArenaDatabasePathContext,
+  axArenaDatabaseReadSuitePath,
+  axArenaDatabaseSuitePath,
+  axArenaDatabaseVendorCardPath,
+  axArenaDatabaseVersionDir,
+  resolveAxArenaDatabaseBenchmarkRoot,
+  type AxArenaDatabasePathContext,
 } from "../src/authoring/benchmark-paths.js";
 
 const roots: string[] = [];
@@ -35,7 +35,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
     mkdirSync(canonical, { recursive: true });
 
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" })).toBe(canonical);
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" })).toBe(canonical);
   });
 
   it("reads the legacy root with a deprecation warning when canonical is absent", () => {
@@ -45,7 +45,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     writeFileSync(resolve(legacy, "v1", "suite.yaml"), "name: legacy\n");
     const warnings: string[] = [];
 
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "read", warn: (message) => warnings.push(message) }))
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read", warn: (message) => warnings.push(message) }))
       .toBe(legacy);
     expect(warnings).toEqual([expect.stringMatching(/deprecated benchmark root.*one minor release/)]);
   });
@@ -57,7 +57,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     writeFileSync(resolve(legacy, "v1", "suite.yaml"), "name: legacy\n");
     const warnings: string[] = [];
 
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "read", warn: (message) => warnings.push(message) }))
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read", warn: (message) => warnings.push(message) }))
       .toBe(legacy);
     expect(warnings).toEqual([expect.stringMatching(/deprecated benchmark root/)]);
   });
@@ -70,66 +70,66 @@ describe("AXArena-Database benchmark root compatibility", () => {
     mkdirSync(resolve(legacy, "v1"), { recursive: true });
     writeFileSync(resolve(legacy, "v1", "suite.yaml"), "name: legacy\n");
 
-    expect(() => resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" }))
+    expect(() => resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" }))
       .toThrow(/ambiguous benchmark roots.*--benchmark-root/);
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "read", explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT }))
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read", explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT }))
       .toBe(canonical);
     const warnings: string[] = [];
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, {
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, {
       access: "read",
       explicitRoot: legacy,
       warn: (message) => warnings.push(message),
     }))
       .toBe(legacy);
     expect(warnings).toEqual([expect.stringMatching(/deprecated benchmark root/)]);
-    expect(() => assertCanonicalAxevalDatabaseWritePath(root, resolve(canonical, "v1", "suite.yaml")))
+    expect(() => assertCanonicalAxArenaDatabaseWritePath(root, resolve(canonical, "v1", "suite.yaml")))
       .toThrow(/ambiguous benchmark roots/);
-    const explicit = createAxevalDatabasePathContext(root, { explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT });
-    expect(assertCanonicalAxevalDatabaseWritePath(explicit, resolve(canonical, "v1", "suite.yaml")))
+    const explicit = createAxArenaDatabasePathContext(root, { explicitRoot: AXARENA_DATABASE_BENCHMARK_ROOT });
+    expect(assertCanonicalAxArenaDatabaseWritePath(explicit, resolve(canonical, "v1", "suite.yaml")))
       .toBe(resolve(canonical, "v1", "suite.yaml"));
   });
 
   it("preserves an explicitly selected read root outside the repository", () => {
     const root = freshRoot();
     const outside = freshRoot();
-    const context = createAxevalDatabasePathContext(root, { explicitRoot: outside });
-    expect(axevalDatabaseReadSuitePath(context)).toBe(resolve(outside, "v1", "suite.yaml"));
-    expect(axevalDatabaseSuitePath(context)).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT, "v1", "suite.yaml"));
+    const context = createAxArenaDatabasePathContext(root, { explicitRoot: outside });
+    expect(axArenaDatabaseReadSuitePath(context)).toBe(resolve(outside, "v1", "suite.yaml"));
+    expect(axArenaDatabaseSuitePath(context)).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT, "v1", "suite.yaml"));
   });
 
   it("routes every write to canonical and rejects an explicit legacy write root", () => {
     const root = freshRoot();
     const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
 
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "write" })).toBe(canonical);
-    expect(() => resolveAxevalDatabaseBenchmarkRoot(root, {
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "write" })).toBe(canonical);
+    expect(() => resolveAxArenaDatabaseBenchmarkRoot(root, {
       access: "write",
       explicitRoot: AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT,
     })).toThrow(/writers use only the canonical benchmark root/);
-    expect(assertCanonicalAxevalDatabaseWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yaml"))
+    expect(assertCanonicalAxArenaDatabaseWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yaml"))
       .toBe(resolve(canonical, "v1", "suite.yaml"));
-    expect(() => assertCanonicalAxevalDatabaseWritePath(root, "benchmarks/daeb/v1/suite.yaml"))
+    expect(() => assertCanonicalAxArenaDatabaseWritePath(root, "benchmarks/daeb/v1/suite.yaml"))
       .toThrow(/writers use only the canonical benchmark root/);
-    expect(() => assertCanonicalAxevalDatabaseWritePath(root, "../outside.yaml"))
+    expect(() => assertCanonicalAxArenaDatabaseWritePath(root, "../outside.yaml"))
       .toThrow(/writers use only the canonical benchmark root/);
-    expect(assertCanonicalAxevalDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yaml"))
+    expect(assertCanonicalAxArenaDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yaml"))
       .toBe(resolve(canonical, "v1", "suite.yaml"));
-    expect(() => assertCanonicalAxevalDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.YAML"))
+    expect(() => assertCanonicalAxArenaDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.YAML"))
       .toThrow(/canonical lowercase \.yaml/);
-    expect(() => assertCanonicalAxevalDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yml"))
+    expect(() => assertCanonicalAxArenaDatabaseSuiteWritePath(root, "ax-arena/benchmark/axarena-database/v1/suite.yml"))
       .toThrow(/canonical lowercase \.yaml/);
   });
 
   it("defaults absent roots to canonical and keeps legacy reads separate from canonical writes", () => {
     const root = freshRoot();
-    expect(resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" })).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT));
+    expect(resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" })).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT));
 
     const legacy = resolve(root, AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT);
     mkdirSync(resolve(legacy, "v1"), { recursive: true });
     writeFileSync(resolve(legacy, "v1", "suite.yaml"), "name: legacy\n");
-    const context = createAxevalDatabasePathContext(root, { warn: () => {} });
-    expect(axevalDatabaseReadSuitePath(context)).toBe(resolve(legacy, "v1", "suite.yaml"));
-    expect(axevalDatabaseSuitePath(context)).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT, "v1", "suite.yaml"));
+    const context = createAxArenaDatabasePathContext(root, { warn: () => {} });
+    expect(axArenaDatabaseReadSuitePath(context)).toBe(resolve(legacy, "v1", "suite.yaml"));
+    expect(axArenaDatabaseSuitePath(context)).toBe(resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT, "v1", "suite.yaml"));
   });
 
   it("rejects symlinked benchmark roots", () => {
@@ -139,7 +139,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     mkdirSync(resolve(root, "ax-arena", "benchmark"), { recursive: true });
     symlinkSync(target, resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT), "dir");
 
-    expect(() => resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" }))
+    expect(() => resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" }))
       .toThrow(/symlink/);
   });
 
@@ -148,7 +148,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     mkdirSync(resolve(root, "ax-arena", "benchmark"), { recursive: true });
     symlinkSync(resolve(root, "missing-target"), resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT), "dir");
 
-    expect(() => resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" }))
+    expect(() => resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" }))
       .toThrow(/symlink/);
   });
 
@@ -158,7 +158,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
       const target = resolve(root, "target");
       if (mode === "linked") mkdirSync(resolve(target, "benchmark", "axarena-database"), { recursive: true });
       symlinkSync(mode === "linked" ? target : resolve(root, "missing"), resolve(root, "ax-arena"), "dir");
-      expect(() => resolveAxevalDatabaseBenchmarkRoot(root, { access: "read" })).toThrow(/symlink/);
+      expect(() => resolveAxArenaDatabaseBenchmarkRoot(root, { access: "read" })).toThrow(/symlink/);
     }
   });
 
@@ -170,7 +170,7 @@ describe("AXArena-Database benchmark root compatibility", () => {
     mkdirSync(outside);
     symlinkSync(outside, resolve(canonical, "v1", "packs"), "dir");
 
-    expect(() => assertCanonicalAxevalDatabaseWritePath(
+    expect(() => assertCanonicalAxArenaDatabaseWritePath(
       root,
       resolve(canonical, "v1", "packs", "vendor", "pack.yaml"),
     )).toThrow(/cannot traverse a symlink/);
@@ -183,17 +183,17 @@ describe("AXArena-Database benchmark root compatibility", () => {
       writeRoot: resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT),
       explicitReadRoot: true,
       readRootKind: "explicit",
-    } as unknown as AxevalDatabasePathContext;
-    expect(() => axevalDatabaseReadSuitePath(forged)).toThrow(/created by createAxevalDatabasePathContext/);
+    } as unknown as AxArenaDatabasePathContext;
+    expect(() => axArenaDatabaseReadSuitePath(forged)).toThrow(/created by createAxArenaDatabasePathContext/);
   });
 
   it("rejects traversal in slug- and version-derived paths", () => {
     const root = freshRoot();
-    expect(() => axevalDatabaseVendorCardPath(root, "../outside"))
+    expect(() => axArenaDatabaseVendorCardPath(root, "../outside"))
       .toThrow(/vendor slug must be a single safe path segment/);
-    expect(() => axevalDatabaseVendorCardPath(root, "/tmp/outside"))
+    expect(() => axArenaDatabaseVendorCardPath(root, "/tmp/outside"))
       .toThrow(/vendor slug must be a single safe path segment/);
-    expect(() => axevalDatabaseVersionDir(root, "../v1"))
+    expect(() => axArenaDatabaseVersionDir(root, "../v1"))
       .toThrow(/benchmark version must be a single safe path segment/);
   });
 });

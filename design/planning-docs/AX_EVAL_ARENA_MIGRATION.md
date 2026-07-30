@@ -1336,7 +1336,7 @@ linking the superseded attempt.
   `benchmarks/daeb/` only when
   the canonical root is absent and emit a deprecation warning.
 - If both roots exist, callers must choose explicitly with `--benchmark-root`
-  or an `AxevalDatabasePathContext`; no manifest, duplicate tree, or symlink alias is used.
+  or an `AxArenaDatabasePathContext`; no manifest, duplicate tree, or symlink alias is used.
 - The relocation preserves canonical artifact and approval bytes. Immutable
   published bundles retain their historical references.
 

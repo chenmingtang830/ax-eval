@@ -51,7 +51,7 @@ writers—uses the contained authoring filesystem; multi-file writers validate
 every destination under the canonical AXArena-Database root before their first mutation.
 Suite destinations require the exact lowercase `.yaml` extension;
 bare repository-root calls fail when canonical and legacy roots coexist, while
-an explicitly created `AxevalDatabasePathContext` preserves the caller's root selection.
+an explicitly created `AxArenaDatabasePathContext` preserves the caller's root selection.
 Canonical-suite oracle
 extraction lives here too: grounded prompts, retry/concurrency behavior,
 support-matrix application, database vendor configuration, and deterministic
