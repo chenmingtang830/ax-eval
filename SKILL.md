@@ -421,8 +421,9 @@ reset before retrying; do not delete evidence before verification.
 
 Normalized aggregates are public `ax.normalized-result/v2` artifacts
 (`schemas/normalized-result.v2.json`). Their identity is product × surface ×
-harness × model × effort, and aggregation fails closed when trial records cross
-an identity boundary. They retain native harness version, run-batch identity,
+standard-set version × harness × model × effort, and aggregation fails closed
+when trial records cross an identity boundary. `records-diff` preserves that
+boundary and fails if a baseline identity disappears. They retain native harness version, run-batch identity,
 successful-attempt latency, retry-inclusive duration and consumption, and exact
 pass³ numerator/denominator. The unchanged v1 schema remains readable for
 migration. Codex dollar cost is null; do not synthesize a price table.

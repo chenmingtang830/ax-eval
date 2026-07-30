@@ -443,6 +443,10 @@ Compare two normalized-record sets without decoding HTML:
 ```bash
 npm run ax-eval -- records-diff --base <baseline-dir> --head <candidate-dir> --out records-diff.md
 ```
+
+The diff keys cells by standard-set version and execution identity, so scores
+from different task sets are never compared; a missing baseline identity fails
+the regression gate.
 New reusable benchmark tooling should live here; the
 `axarena` repo should own the curated website, narrative, and presentation.
 
