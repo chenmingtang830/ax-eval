@@ -426,10 +426,14 @@ Normalized aggregates are public `ax.normalized-result/v2` artifacts
 (`schemas/normalized-result.v2.json`). Their identity is product × surface ×
 standard-set version × harness × model × effort, and aggregation fails closed
 when trial records cross an identity boundary. `records-diff` preserves that
-boundary and fails if a baseline identity disappears. They retain native harness version, run-batch identity,
-successful-attempt latency, retry-inclusive duration and consumption, and exact
-pass³ numerator/denominator. The unchanged v1 schema remains readable for
-migration. Codex dollar cost is null; do not synthesize a price table.
+boundary and fails if a baseline identity disappears. They retain native
+harness version, run-batch identity, successful-attempt latency,
+retry-inclusive duration and consumption, and exact pass³
+numerator/denominator. Provider-native cache-write usage is normalized;
+pricing that requires it remains unavailable when the harness omits that
+telemetry. The unchanged v1 schema remains readable for migration. Codex native
+dollar cost is null; do not synthesize a price table outside the sealed arena
+pricing workflow.
 
 Before human **publication** freeze, regenerate into the same AXArena-Database v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and

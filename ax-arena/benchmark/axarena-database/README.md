@@ -156,7 +156,9 @@ and recomputable three-trial aggregates. The AXArena website imports the
 verified exported JSON indexes rather than recomputing scores. Cost per verified
 task success uses the snapshot's API list-price estimate. It excludes
 subscriptions, credits, tool fees, long-context premiums, regional multipliers, and invoice adjustments,
-and it never affects benchmark correctness or rank.
+and it never affects benchmark correctness or rank. Pricing that requires
+cache-write accounting remains unavailable unless normalized telemetry includes
+the write-token count.
 
 ## Hygiene
 

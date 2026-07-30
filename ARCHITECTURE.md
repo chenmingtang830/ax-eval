@@ -439,7 +439,9 @@ The signed source set includes a provider/model/effort roster and dated pricing
 snapshot. Publication derives `economics.json` from those files plus normalized
 token usage, then verifies the derivation again on load. Native harness cost and
 estimated API list-price cost stay separate; cost per verified success is an
-observability dimension, not a score, gate, or tie-breaker.
+observability dimension, not a score, gate, or tie-breaker. A pricing rate that
+requires cache-write accounting fails unavailable when normalized telemetry
+does not expose the write-token count.
 
 Full tree, authoring commands, gates, and hygiene:
 [`ax-arena/benchmark/axarena-database/README.md`](./ax-arena/benchmark/axarena-database/README.md).

@@ -321,7 +321,7 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     currency: "USD" as const,
     unit: "per_1m_tokens" as const,
     rates: [
-      { pricing_key: "openai-gpt-5.6-terra", provider: "openai", model: "gpt-5.6-terra", valid_from: "2026-07-01", valid_through: null, input_accounting: "cached_subset_of_input" as const, input_usd: 2.5, cached_input_usd: 0.25, cache_write_5m_usd: 3.125, output_usd: 15, source_url: "https://example.invalid/openai", notes: ["fixture"] },
+      { pricing_key: "openai-gpt-5.6-terra", provider: "openai", model: "gpt-5.6-terra", valid_from: "2026-07-01", valid_through: null, input_accounting: "cache_read_and_write_subset_of_input" as const, input_usd: 2.5, cached_input_usd: 0.25, cache_write_5m_usd: 3.125, output_usd: 15, source_url: "https://example.invalid/openai", notes: ["fixture"] },
       { pricing_key: "anthropic-claude-sonnet-5", provider: "anthropic", model: "claude-sonnet-5", valid_from: "2026-07-01", valid_through: null, input_accounting: "cache_tokens_separate" as const, input_usd: 2, cached_input_usd: 0.2, cache_write_5m_usd: 2.5, output_usd: 10, source_url: "https://example.invalid/anthropic", notes: ["fixture"] },
     ],
   };
