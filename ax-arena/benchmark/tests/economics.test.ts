@@ -37,7 +37,12 @@ function record(overrides: Partial<NormalizedResult> = {}): NormalizedResult {
     summary_kind: "aggregate",
     trial_count: 3,
     trial_values: [0.5, 1, 0],
-    token_usage: { input_tokens: 1_000_000, cached_input_tokens: 200_000, output_tokens: 100_000 },
+    token_usage: {
+      input_tokens: 1_000_000,
+      cached_input_tokens: 200_000,
+      cache_write_input_tokens: 100_000,
+      output_tokens: 100_000,
+    },
     cost_usd: null,
     ...overrides,
   };
@@ -57,15 +62,25 @@ describe("provider/model pricing economics", () => {
     const economics = estimateRecordEconomics(record(), roster, pricing);
     expect(economics.status).toBe("priced");
     expect(economics.tokens).toEqual({
-      uncached_input: 800_000,
+      uncached_input: 700_000,
       cached_input: 200_000,
-      cache_write_5m: 0,
+      cache_write_5m: 100_000,
       output: 100_000,
     });
-    expect(economics.estimated_cost_usd).toBeCloseTo(3.55);
+    expect(economics.estimated_cost_usd).toBeCloseTo(3.6125);
     expect(economics.task_runs_passed).toBe(3);
     expect(economics.task_runs_total).toBe(6);
-    expect(economics.cost_per_success_usd).toBeCloseTo(3.55 / 3);
+    expect(economics.cost_per_success_usd).toBeCloseTo(3.6125 / 3);
+  });
+
+  it("does not claim an exact OpenAI estimate without cache-write telemetry", () => {
+    const economics = estimateRecordEconomics(record({
+      token_usage: { input_tokens: 1_000_000, cached_input_tokens: 200_000, output_tokens: 100_000 },
+    }), roster, pricing);
+
+    expect(economics.status).toBe("unavailable");
+    expect(economics.reason).toContain("no cache-write token usage");
+    expect(economics.estimated_cost_usd).toBeNull();
   });
 
   it("prices Anthropic cache tokens separately and retains native cost as context", () => {

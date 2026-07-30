@@ -202,7 +202,8 @@ batch. A dated, source-linked pricing snapshot derives API list-price estimates
 and cost per verified task success from normalized token usage. These economics
 are context only: they never change pass/fail, publication rank, or native
 `cost_usd`, and they exclude subscriptions, credits, tool fees, long-context
-premiums, and regional multipliers.
+premiums, and regional multipliers. If a rate requires cache-write accounting
+and normalized telemetry omits write-token usage, its estimate is unavailable.
 Legacy `ax-eval publication-bundle` flags remain accepted only when their
 suite, vendor, and effort selectors exactly match the immutable batch; they
 cannot narrow or rewrite the cohort.

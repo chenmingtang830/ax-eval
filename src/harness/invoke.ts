@@ -1095,6 +1095,14 @@ function tokenUsageFrom(value: unknown): Record<string, number> | null {
   addMetric(out, "cached_input_tokens", record.cached_input_tokens ?? record.cachedInputTokens);
   addMetric(out, "cache_read_input_tokens", record.cache_read_input_tokens ?? record.cacheReadInputTokens);
   addMetric(out, "cache_creation_input_tokens", record.cache_creation_input_tokens ?? record.cacheCreationInputTokens);
+  addMetric(
+    out,
+    "cache_write_input_tokens",
+    record.cache_write_input_tokens
+      ?? record.cacheWriteInputTokens
+      ?? record.cache_write_tokens
+      ?? record.cacheWriteTokens,
+  );
   addMetric(out, "total_tokens", record.total_tokens ?? record.totalTokens);
   if (out.total_tokens === undefined && (out.input_tokens !== undefined || out.output_tokens !== undefined)) {
     out.total_tokens = (out.input_tokens ?? 0) + (out.output_tokens ?? 0);

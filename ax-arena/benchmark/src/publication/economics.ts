@@ -39,7 +39,11 @@ export const PricingSnapshotSchema = z.object({
     model: NonBlank,
     valid_from: DateOnly,
     valid_through: DateOnly.nullable(),
-    input_accounting: z.enum(["cached_subset_of_input", "cache_tokens_separate"]),
+    input_accounting: z.enum([
+      "cached_subset_of_input",
+      "cache_read_and_write_subset_of_input",
+      "cache_tokens_separate",
+    ]),
     input_usd: NonNegativeFinite,
     cached_input_usd: NonNegativeFinite,
     cache_write_5m_usd: NonNegativeFinite,
@@ -113,6 +117,11 @@ function token(usage: Record<string, number> | null | undefined, key: string): n
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? Math.floor(value) : 0;
 }
 
+function hasToken(usage: Record<string, number> | null | undefined, key: string): boolean {
+  const value = usage?.[key];
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
 function taskRunCounts(record: NormalizedResult): { passed: number; total: number } {
   if (record.summary_kind === "aggregate" && record.trial_values?.length) {
     return {
@@ -180,10 +189,25 @@ export function estimateRecordEconomics(
   const input = token(record.token_usage, "input_tokens");
   const cached = token(record.token_usage, "cached_input_tokens")
     || token(record.token_usage, "cache_read_input_tokens");
-  const cacheWrite = token(record.token_usage, "cache_creation_input_tokens");
-  const uncached = rate.input_accounting === "cached_subset_of_input"
-    ? Math.max(0, input - cached)
-    : input;
+  const cacheWrite = token(record.token_usage, "cache_write_input_tokens")
+    || token(record.token_usage, "cache_creation_input_tokens");
+  if (rate.input_accounting === "cache_read_and_write_subset_of_input"
+    && !hasToken(record.token_usage, "cache_write_input_tokens")
+    && !hasToken(record.token_usage, "cache_creation_input_tokens")) {
+    return ArenaRecordEconomicsSchema.parse({
+      ...base,
+      status: "unavailable",
+      reason: "normalized record has no cache-write token usage required by the pricing snapshot",
+      estimated_cost_usd: null,
+      cost_per_success_usd: null,
+      tokens: null,
+    });
+  }
+  const uncached = rate.input_accounting === "cache_read_and_write_subset_of_input"
+    ? Math.max(0, input - cached - cacheWrite)
+    : rate.input_accounting === "cached_subset_of_input"
+      ? Math.max(0, input - cached)
+      : input;
   const output = token(record.token_usage, "output_tokens");
   const estimatedCost = (
     uncached * rate.input_usd

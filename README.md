@@ -436,7 +436,8 @@ drilldowns, trial outcomes, evidence links, methodology metadata, economics,
 and failure review placeholders. `economics.json` and each exported cell retain
 the pricing snapshot id, API list-price estimate, verified task-run denominator,
 and cost per success. Cost remains contextual and never affects correctness or
-rank. Codex and Claude Code remain
+rank. A price that requires cache-write accounting is unavailable unless the
+normalized harness telemetry reports those tokens. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
 The deprecated `ax-eval publication-bundle` and `ax-eval export-publication`
