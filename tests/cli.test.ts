@@ -13,7 +13,7 @@ const CLI = resolve(ROOT, "src", "cli.ts");
 const ARENA_CLI = resolve(ROOT, "ax-arena", "benchmark", "src", "cli.ts");
 const TSX_LOADER = resolve(ROOT, "node_modules", "tsx", "dist", "loader.mjs");
 const PACK = resolve(ROOT, "targets", "examples", "asana", "pack.yaml");
-const NEON_PACK = resolve(ROOT, "ax-arena", "benchmark", "daeb", "v1", "packs", "neon", "pack.yaml");
+const NEON_PACK = resolve(ROOT, "ax-arena", "benchmark", "axarena-database", "v1", "packs", "neon", "pack.yaml");
 
 function writeSyntheticSuite(root: string): string {
   const path = resolve(root, "suite.yaml");
