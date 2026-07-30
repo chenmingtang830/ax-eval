@@ -11,7 +11,7 @@ import {
   parseProviderModelRoster,
 } from "../src/publication/economics.js";
 
-const root = resolve(process.cwd(), "daeb/v1");
+const root = resolve(process.cwd(), "axarena-database/v1");
 const roster = parseProviderModelRoster(readFileSync(resolve(root, "provider-model-roster.yaml"), "utf8"));
 const pricing = parsePricingSnapshot(readFileSync(resolve(root, "pricing-snapshot.yaml"), "utf8"));
 

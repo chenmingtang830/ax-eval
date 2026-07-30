@@ -211,7 +211,11 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
       total_duration_ms: 20,
       first_action_latency_ms: 1,
       tool_call_count: 2,
-      token_usage: { input_tokens: 10, output_tokens: 2 },
+      token_usage: {
+        input_tokens: 10,
+        output_tokens: 2,
+        ...(cell.harness === "codex" ? { cache_write_input_tokens: 0 } : {}),
+      },
       token_cost: cell.harness === "claude-code" ? 0.01 : null,
       cost_usd: cell.harness === "claude-code" ? 0.01 : null,
       tokens_in: 10,
