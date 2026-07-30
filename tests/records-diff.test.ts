@@ -50,8 +50,8 @@ describe("records diff markdown", () => {
     const markdown = renderRecordsDiffMarkdown(base, head);
     expect(markdown).toContain("## ✅ PASS — No correctness regression detected");
     expect(markdown).toContain("Compared 3 baseline surface cell(s)");
-    expect(markdown).toContain("| neon | daeb-v1 | codex | gpt-5.6-terra | high | 70.0% | 90.0% | +20.0 pp | 50.0% (5/10) | 80.0% (8/10) | 2 |");
-    expect(markdown).toContain("| neon | daeb-v1 | claude-code | claude-sonnet-5 | high | 90.0% | 90.0% | +0.0 pp");
+    expect(markdown).toContain("| neon | axarena-database-v1 | codex | gpt-5.6-terra | high | 70.0% | 90.0% | +20.0 pp | 50.0% (5/10) | 80.0% (8/10) | 2 |");
+    expect(markdown).toContain("| neon | axarena-database-v1 | claude-code | claude-sonnet-5 | high | 90.0% | 90.0% | +0.0 pp");
     expect(markdown).toContain("42.9% (3/7)");
     expect(markdown).toContain("Operational metrics are context only");
   });
@@ -63,15 +63,15 @@ describe("records diff markdown", () => {
     const markdown = renderRecordsDiffMarkdown(base, head);
     expect(markdown).toContain("## ❌ FAIL — Correctness regression detected");
     expect(markdown).toContain("Found 2 regression signal(s) across 1 baseline surface cell(s)");
-    expect(markdown).toContain("`neon / daeb-v1 / codex / gpt-5.6-terra / high / api`: pass@1 71.4% → 57.1% (-14.3 pp)");
-    expect(markdown).toContain("`neon / daeb-v1 / codex / gpt-5.6-terra / high / api`: pass³ 42.9% → 28.6% (-14.3 pp)");
+    expect(markdown).toContain("`neon / axarena-database-v1 / codex / gpt-5.6-terra / high / api`: pass@1 71.4% → 57.1% (-14.3 pp)");
+    expect(markdown).toContain("`neon / axarena-database-v1 / codex / gpt-5.6-terra / high / api`: pass³ 42.9% → 28.6% (-14.3 pp)");
   });
 
   it("fails when a baseline cell disappears or becomes blocked", () => {
     const markdown = renderRecordsDiffMarkdown([record()], [record({ blocked: true, blocked_reason: "auth" })]);
 
     expect(markdown).toContain("## ❌ FAIL — Correctness regression detected");
-    expect(markdown).toContain("`neon / daeb-v1 / codex / gpt-5.6-terra / high / api`: baseline cell disappeared or became blocked.");
+    expect(markdown).toContain("`neon / axarena-database-v1 / codex / gpt-5.6-terra / high / api`: baseline cell disappeared or became blocked.");
   });
 
   it("does not fold two models or efforts running under one harness", () => {
@@ -82,9 +82,9 @@ describe("records diff markdown", () => {
     ];
     const markdown = renderRecordsDiffMarkdown(base, base);
     expect(markdown).toContain("Compared 3 baseline surface cell(s)");
-    expect(markdown).toContain("| neon | daeb-v1 | codex | gpt-a | medium |");
-    expect(markdown).toContain("| neon | daeb-v1 | codex | gpt-b | medium |");
-    expect(markdown).toContain("| neon | daeb-v1 | codex | gpt-a | high |");
+    expect(markdown).toContain("| neon | axarena-database-v1 | codex | gpt-a | medium |");
+    expect(markdown).toContain("| neon | axarena-database-v1 | codex | gpt-b | medium |");
+    expect(markdown).toContain("| neon | axarena-database-v1 | codex | gpt-a | high |");
   });
 
   it("does not compare correctness across standard-set versions", () => {
