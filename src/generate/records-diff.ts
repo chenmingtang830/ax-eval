@@ -64,7 +64,14 @@ function recordEffort(record: ComparableNormalizedResult): NormalizedEffort | nu
 }
 
 function recordKey(record: ComparableNormalizedResult): string {
-  return JSON.stringify([record.product, record.harness, record.surface, record.model, recordEffort(record)]);
+  return JSON.stringify([
+    record.product,
+    record.standard_set_version,
+    record.harness,
+    record.surface,
+    record.model,
+    recordEffort(record),
+  ]);
 }
 
 function selectComparableRecords(records: ComparableNormalizedResult[]): Map<string, ComparableNormalizedResult> {
@@ -117,7 +124,7 @@ function correctnessRegressions(
   const epsilon = 1e-12;
   for (const [key, base] of baseRecords) {
     const head = headRecords.get(key);
-    const label = `\`${base.product} / ${base.harness} / ${base.model ?? "unknown-model"} / ${recordEffort(base) ?? "unknown-effort"} / ${base.surface}\``;
+    const label = `\`${base.product} / ${base.standard_set_version} / ${base.harness} / ${base.model ?? "unknown-model"} / ${recordEffort(base) ?? "unknown-effort"} / ${base.surface}\``;
     if (!head) {
       regressions.push(`${label}: baseline cell disappeared or became blocked.`);
       continue;
@@ -135,6 +142,7 @@ function correctnessRegressions(
 
 interface OverallRow {
   product: string;
+  standardSetVersion: string;
   harness: string;
   model: string | null;
   effort: NormalizedEffort | null;
@@ -148,7 +156,13 @@ interface OverallRow {
 function overallRows(records: Map<string, ComparableNormalizedResult>): Map<string, OverallRow> {
   const grouped = new Map<string, ComparableNormalizedResult[]>();
   for (const record of records.values()) {
-    const key = JSON.stringify([record.product, record.harness, record.model, recordEffort(record)]);
+    const key = JSON.stringify([
+      record.product,
+      record.standard_set_version,
+      record.harness,
+      record.model,
+      recordEffort(record),
+    ]);
     grouped.set(key, [...(grouped.get(key) ?? []), record]);
   }
   return new Map([...grouped.entries()].map(([key, cells]) => {
@@ -157,6 +171,7 @@ function overallRows(records: Map<string, ComparableNormalizedResult>): Map<stri
     const pass3Total = countsAvailable ? cells.reduce((sum, cell) => sum + cell.pass_3_tasks_total!, 0) : null;
     return [key, {
       product: cells[0]!.product,
+      standardSetVersion: cells[0]!.standard_set_version,
       harness: cells[0]!.harness,
       model: cells[0]!.model,
       effort: recordEffort(cells[0]!),
@@ -200,13 +215,13 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
     const base = baseOverall.get(key);
     const head = headOverall.get(key);
     const row = head ?? base!;
-    return `| ${row.product} | ${row.harness} | ${row.model ?? "—"} | ${row.effort ?? "—"} | ${rate(base?.score)} | ${rate(head?.score)} | ${delta(base?.score, head?.score)} | ${overallPass3(base)} | ${overallPass3(head)} | ${head?.surfaceCount ?? base?.surfaceCount ?? 0} |`;
+    return `| ${row.product} | ${row.standardSetVersion} | ${row.harness} | ${row.model ?? "—"} | ${row.effort ?? "—"} | ${rate(base?.score)} | ${rate(head?.score)} | ${delta(base?.score, head?.score)} | ${overallPass3(base)} | ${overallPass3(head)} | ${head?.surfaceCount ?? base?.surfaceCount ?? 0} |`;
   });
   const cellsTable = cellKeys.map((key) => {
     const base = baseRecords.get(key);
     const head = headRecords.get(key);
     const row = head ?? base!;
-    return `| ${row.product} | ${row.harness} | ${row.model ?? "—"} | ${recordEffort(row) ?? "—"} | ${row.surface} | ${rate(base?.pass_at_1)} | ${rate(head?.pass_at_1)} | ${delta(base?.pass_at_1, head?.pass_at_1)} | ${pass3(base)} | ${pass3(head)} | ${number(base?.latency_ms)} → ${number(head?.latency_ms)} | ${number(base?.cost_usd, 4)} → ${number(head?.cost_usd, 4)} | ${number(tokens(base))} → ${number(tokens(head))} | ${base?.harness_version_semver ?? "—"} → ${head?.harness_version_semver ?? "—"} |`;
+    return `| ${row.product} | ${row.standard_set_version} | ${row.harness} | ${row.model ?? "—"} | ${recordEffort(row) ?? "—"} | ${row.surface} | ${rate(base?.pass_at_1)} | ${rate(head?.pass_at_1)} | ${delta(base?.pass_at_1, head?.pass_at_1)} | ${pass3(base)} | ${pass3(head)} | ${number(base?.latency_ms)} → ${number(head?.latency_ms)} | ${number(base?.cost_usd, 4)} → ${number(head?.cost_usd, 4)} | ${number(tokens(base))} → ${number(tokens(head))} | ${base?.harness_version_semver ?? "—"} → ${head?.harness_version_semver ?? "—"} |`;
   });
 
   return [
@@ -214,19 +229,19 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
     "",
     ...verdict,
     "",
-    "Overall is a macro-average of participating surface scores. Harness/model/effort configurations are never averaged together.",
+    "Overall is a macro-average of participating surface scores. Standard-set/harness/model/effort configurations are never averaged together.",
     "",
     "## Overall by execution configuration",
     "",
-    "| Product | Harness | Model | Effort | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Surfaces |",
-    "| --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...(overallTable.length ? overallTable : ["| — | — | — | — | — | — | — | — | — | — |"]),
+    "| Product | Standard set | Harness | Model | Effort | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Surfaces |",
+    "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...(overallTable.length ? overallTable : ["| — | — | — | — | — | — | — | — | — | — | — |"]),
     "",
     "## Surface cells",
     "",
-    "| Product | Harness | Model | Effort | Surface | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Latency ms | Cost USD | Tokens | Harness version |",
-    "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-    ...(cellsTable.length ? cellsTable : ["| — | — | — | — | — | — | — | — | — | — | — | — | — | — |"]),
+    "| Product | Standard set | Harness | Model | Effort | Surface | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Latency ms | Cost USD | Tokens | Harness version |",
+    "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...(cellsTable.length ? cellsTable : ["| — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"]),
     "",
     "Operational metrics are context only and never affect the verdict or ranking.",
     "",
