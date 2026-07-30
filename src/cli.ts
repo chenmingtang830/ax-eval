@@ -1683,10 +1683,8 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
       return 1;
     }
   }
-  const hasRunnableSelection = !args.invoke || surfaceIds.some((surface) =>
-    invokeHarnesses.some((harness) => !(surface === "mcp" && harness === "opencode"))
-  );
-  if (invokeHarnesses.includes("opencode") && surfaceIds.some((surface) => surface !== "mcp")) {
+  const hasRunnableSelection = !args.invoke || (surfaceIds.length > 0 && invokeHarnesses.length > 0);
+  if (invokeHarnesses.includes("opencode")) {
     if (!isOpenCodeModelRoute(args.model)) {
       throw new Error("--invoke --harness opencode requires --model <provider/model>");
     }
@@ -1699,7 +1697,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     // Validate controller-owned environment names before harness detection. A
     // missing OpenCode binary must not turn an unsafe pack into a successful
     // blocked plan (and made this gate platform-dependent in CI).
-    for (const surface of surfaceIds.filter((candidate) => candidate !== "mcp")) {
+    for (const surface of surfaceIds) {
       invokedHarnessEnvironment(pack, surface, "opencode", args.model, {});
     }
   }
