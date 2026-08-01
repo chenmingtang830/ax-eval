@@ -54,7 +54,7 @@ describe("provider/model pricing economics", () => {
       "openai/gpt-5.6-terra",
       "anthropic/claude-sonnet-5",
     ]);
-    expect(pricing.snapshot_id).toBe("axarena-api-list-pricing-2026-07-27");
+    expect(pricing.snapshot_id).toBe("axarena-api-list-pricing-2026-08-01");
     expect(pricing.rates.every((rate) => rate.source_url.startsWith("https://"))).toBe(true);
   });
 
@@ -67,10 +67,10 @@ describe("provider/model pricing economics", () => {
       cache_write_5m: 100_000,
       output: 100_000,
     });
-    expect(economics.estimated_cost_usd).toBeCloseTo(3.6125);
+    expect(economics.estimated_cost_usd).toBeCloseTo(2.89);
     expect(economics.task_runs_passed).toBe(3);
     expect(economics.task_runs_total).toBe(6);
-    expect(economics.cost_per_success_usd).toBeCloseTo(3.6125 / 3);
+    expect(economics.cost_per_success_usd).toBeCloseTo(2.89 / 3);
   });
 
   it("does not claim an exact OpenAI estimate without cache-write telemetry", () => {
