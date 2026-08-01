@@ -925,7 +925,8 @@ if (model.startsWith("custom/") && ["OPENROUTER_API_KEY", "OPENAI_API_KEY", "ANT
   console.error("unknown provider inherited unrelated provider credentials");
   process.exit(7);
 }
-if (process.env.OPENCODE_DISABLE_PROJECT_CONFIG !== "1" || args.includes("--variant")) {
+const variant = args[args.indexOf("--variant") + 1] || "";
+if (process.env.OPENCODE_DISABLE_PROJECT_CONFIG !== "1" || !["low", "medium", "high"].includes(variant)) {
   console.error("unsafe OpenCode controls");
   process.exit(4);
 }

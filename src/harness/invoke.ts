@@ -966,14 +966,23 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     if (!isOpenCodeModelRoute(opts.model)) {
       throw new Error("OpenCode invocation requires an explicit provider/model route");
     }
-    // OpenCode's provider-specific --variant vocabulary is not equivalent to
-    // ax-eval's shared low/medium/high labels. The MVP deliberately leaves the
-    // model at its native default even when the cell carries an effort label.
+    // OpenCode exposes provider-specific reasoning effort through --variant.
+    // The controller only accepts the portable low/medium/high subset and
+    // passes that exact value so the persisted execution identity describes
+    // the configuration that actually ran instead of an unapplied request.
     // OpenCode/Bun may autoload cwd/.env. Callers therefore provision a
     // disposable cwd outside the checkout before this command is built.
     return {
       command: opts.harnessDetection?.command ?? commandFor("opencode"),
-      args: ["run", "--format", "json", "--auto", "--pure", "--model", opts.model, prompt],
+      args: [
+        "run",
+        "--format", "json",
+        "--auto",
+        "--pure",
+        "--model", opts.model,
+        ...(opts.effort ? ["--variant", opts.effort] : []),
+        prompt,
+      ],
     };
   }
   if (!opts.paths.codexSchemaPath) {

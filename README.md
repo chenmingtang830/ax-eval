@@ -556,8 +556,8 @@ provider receives no unrelated provider keys, and pack-declared OpenCode/XDG
 control variables are rejected case-insensitively. System/MDM-managed OpenCode
 configuration blocks the lane because it would override the controller config.
 The controller disables OpenCode's `task` subagent tool because root JSONL omits
-child-session actions. The adapter
-leaves `--variant` unset so the provider default applies. The record preserves
+child-session actions. The adapter passes the controller's portable
+`low`/`medium`/`high` effort through OpenCode's `--variant`, so the record preserves
 that requested route, but does not claim that the provider actually served that
 model. OpenCode's self-reported dollar cost is not trusted, so runtime
 `cost_usd` remains null. OpenCode MCP cells fail before invocation; one-cell

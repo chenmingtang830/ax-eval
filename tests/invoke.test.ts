@@ -285,7 +285,7 @@ describe("runInvokeHarness", () => {
     expect(executor.model).toBe("claude-sonnet-5");
   });
 
-  it("invokes OpenCode headlessly without mapping effort to a provider variant", async () => {
+  it("passes the persisted OpenCode effort through as the provider variant", async () => {
     const dir = freshDir();
     const run = opts(dir, "opencode");
     const spawn: AsyncSpawn = async (command, args) => {
@@ -296,9 +296,9 @@ describe("runInvokeHarness", () => {
         "--auto",
         "--pure",
         "--model", "openrouter/anthropic/claude-sonnet-4.5",
+        "--variant", "high",
         "Do the task and write files.",
       ]);
-      expect(args).not.toContain("--variant");
       writeFileSync(run.paths.resultsPath, JSON.stringify({
         profile: "high",
         ns: run.ns,
