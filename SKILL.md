@@ -297,7 +297,8 @@ for the API, CLI, and SDK surfaces the pack supports. OpenCode 1.18.3+ is
 required, and MCP is unsupported in this MVP. Claude Code and Codex retain
 their native reported-model handling. OpenCode instead records the requested
 `provider/model` route, not an attestation of the model actually served, and
-leaves its provider-specific `--variant` unset to use the provider default.
+passes the selected `low`/`medium`/`high` effort through its provider-specific
+`--variant` flag so the recorded execution identity was actually invoked.
 The CLI writes one normalized `{surface, product, harness}` record per cell.
 `verify` then renders them as a single
 **neutral matrix** (surface · harness · effort) — no cell is crowned "best".

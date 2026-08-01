@@ -563,8 +563,9 @@ OpenCode/XDG isolation controls. Managed system config and macOS MDM preferences
 fail closed because OpenCode merges them last. Root-session JSONL excludes
 subagent actions, so controller config denies the `task` tool. The disposable home is deleted after recovery
 so SQLite session/tool-output data is not retained. `AX_EVAL_OPENCODE_BIN` can
-pin the executable. The adapter never passes `--variant`, even when the cell has an
-effort label, so the provider default applies. It records the requested
+pin the executable. The adapter passes the controller's portable
+`low`/`medium`/`high` effort label through `--variant`, so the persisted identity
+matches the invoked configuration. It records the requested
 `provider/model` route rather than claiming the served model was observed, and
 does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
 MCP is rejected before OpenCode invocation. The one-cell record uses
