@@ -3,7 +3,7 @@
 #   results/runs/axarena-database-v1-YYYYMMDD
 schema: ax.daeb-run-matrix/v1
 suite: ax-arena/benchmark/axarena-database/v1/suite.yaml
-benchmark: AXArena-Database
+benchmark: axarena-database
 suite_version: 1
 surface_scope:
   - api
