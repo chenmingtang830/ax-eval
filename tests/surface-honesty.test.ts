@@ -76,6 +76,20 @@ describe("surface honesty", () => {
     expect(grade.detail).toContain("cross-surface");
   });
 
+  it("does not mistake a pack name inside a quoted URL pattern for its CLI", () => {
+    const exa = { ...pack, name: "exa", base_url: "https://api.exa.ai" } as TargetPack;
+    const text = JSON.stringify({
+      type: "item.completed",
+      item: {
+        type: "command_execution",
+        command: "curl -s https://docs.exa.ai/reference/search | grep -oE '(api.exa.ai|exa.ai/api)'",
+      },
+    });
+    const run = parseTranscriptContent(text, { baseUrl: exa.base_url, cliBins: ["exa", "@exa/cli"] });
+    expect(run.cliCommands).toEqual([]);
+    expect(gradeSurfaceHonesty(run, "api", exa).passed).toBe(true);
+  });
+
   it("does not gate cli cells that use psql", () => {
     const text = [
       JSON.stringify({
