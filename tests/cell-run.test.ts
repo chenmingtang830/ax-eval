@@ -285,6 +285,16 @@ describe("runCell", () => {
     expect(record).toMatchObject({ harness: "pi", requested_model: "openrouter/example-model" });
   });
 
+  it("accepts the native Moonshot Pi provider credential", async () => {
+    const { cell } = fixture();
+    cell.harness = { id: "pi", profile: "medium", model: "moonshotai/kimi-k2.5", effort: "medium" };
+    cell.required_credentials = ["MOONSHOT_API_KEY"];
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(cell, { credentials: { MOONSHOT_API_KEY: "provider-key" } }, runtime(invokes));
+    expect(invokes[0]?.harness).toBe("pi");
+    expect(record).toMatchObject({ harness: "pi", requested_model: "moonshotai/kimi-k2.5" });
+  });
+
   it("blocks a known OpenCode provider before invocation when its credential is absent", async () => {
     const { cell } = fixture();
     cell.harness = {
