@@ -11,6 +11,8 @@
   "competitive": "competitive",
   "publication-bundle": "publication-bundle",
   "export-publication": "export-publication",
-  "daeb-low-pass": "daeb-low-pass",
-  "daeb-production-rerun": "daeb-production-rerun"
+  "axarena-database-low-pass": "axarena-database-low-pass",
+  "axarena-database-production-rerun": "axarena-database-production-rerun",
+  "daeb-low-pass": "axarena-database-low-pass",
+  "daeb-production-rerun": "axarena-database-production-rerun"
 }

@@ -42,7 +42,7 @@ describe("synthesize-suite helpers", () => {
   it("derives supported surfaces from capability inventories instead of assuming all surfaces", () => {
     const methodology = {
       ...defaultSuiteMethodology("database"),
-      // Include sdk so the matrix still adjudicates research surfaces beyond DAEB v1 scope.
+      // Include sdk so the matrix still adjudicates research surfaces beyond AXArena-Database v1 scope.
       surface_scope: ["api", "sdk", "cli"] as Array<"api" | "sdk" | "cli">,
       target_task_count: 1,
       min_vendor_coverage_pct: 0.5,
@@ -247,7 +247,7 @@ describe("synthesize-suite helpers", () => {
       coverage: [{ vendor: "Convex", capability_name: "bulk-export" }],
     };
     const support = buildSupportMatrixArtifact(
-      "DAEB-1",
+      "AXArena-Database v1",
       "database",
       methodology,
       coverageMatrix,
@@ -460,7 +460,7 @@ describe("synthesize-suite helpers", () => {
     expect(status("MongoDB Atlas", "db-T02-backup-and-restore", "sdk")?.status).toBe("unsupported");
   });
 
-  it("persists the execution-learning failure taxonomy used for DAEB-1 hardening", async () => {
+  it("persists the execution-learning failure taxonomy used for AXArena-Database v1 hardening", async () => {
     const result = await synthesizeSuite("database", [{
       schema: "ax.capability-inventory/v1",
       vendor: "Acme",

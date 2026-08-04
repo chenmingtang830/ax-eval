@@ -29,8 +29,8 @@
     ".env.example",
     "README.md",
     "TRUSTED_EXECUTION_DESIGN.md",
-    "daeb",
-    "!daeb/_archive/**",
+    "axarena-database",
+    "!axarena-database/_archive/**",
     "schemas"
   ],
   "scripts": {

@@ -148,6 +148,8 @@ const COMMANDS = [
   "publication-bundle",
   "export-publication",
   "records-diff",
+  "axarena-database-low-pass",
+  "axarena-database-production-rerun",
   "daeb-low-pass",
   "daeb-production-rerun",
 ] as const;
@@ -219,7 +221,7 @@ function commandUsage(command: string | undefined): string {
         "                       [--base-url url] [--out yaml] [--deterministic]",
         "                       [--generator-harness codex|claude-code] [--generator-model m]",
         "                       [--generator-effort low|medium|high]",
-        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (DAEB, ...)",
+        "                       [--suite <suite.yaml>]   constrain generator to a canonical task suite (AXArena-Database, ...)",
         "  docs-only mode: omit --from, pass --suite + --product + --docs.",
         "                  the LLM web-searches the product's docs in lieu of ingest.",
       ].join("\n");
@@ -341,7 +343,7 @@ interface Parsed {
   skipReview: boolean;
   invoke: boolean;
   dryRun: boolean;
-  /** audit-extracts: write autofixes to the canonical arena DAEB extracts. */
+  /** audit-extracts: write autofixes to the canonical AXArena-Database extracts. */
   apply: boolean;
   /** audit-extracts: WebFetch-grounded advisory review; never mutates source artifacts. */
   advisory: boolean;
@@ -350,7 +352,7 @@ interface Parsed {
   trial: number | undefined;
   minPassRate: number | undefined;
   trace: string;
-  /** Path to a canonical-task-suite YAML (DAEB, VAB, ...). When set,
+  /** Path to a canonical-task-suite YAML (AXArena-Database, VAB, ...). When set,
    *  `generate` constrains the LLM to produce a pack whose task ids/titles/
    *  difficulties match the suite exactly — the mechanism that makes
    *  cross-vendor scores comparable. */
@@ -2251,7 +2253,7 @@ function efficiencyForRun(resultPath: string, transcriptPath: string | undefined
 }
 
 function passRate(runs: ProfileRun[]): number {
-  // N/A tasks (per DAEB methodology) are excluded from both the numerator
+  // N/A tasks (per AXArena-Database methodology) are excluded from both the numerator
   // and denominator — a vendor lacking a mechanism entirely shouldn't drag
   // its score down for something it structurally can't do.
   const outcomes = runs.flatMap((r) => r.outcomes).filter((o) => !o.na);

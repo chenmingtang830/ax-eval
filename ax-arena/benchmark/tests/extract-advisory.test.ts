@@ -45,7 +45,7 @@ describe("extract advisory writer", () => {
       root,
       "ax-arena",
       "benchmark",
-      "daeb",
+      "axarena-database",
       "v1",
       "extracts",
       "acme",
@@ -56,7 +56,7 @@ describe("extract advisory writer", () => {
 
   it("rejects a symlinked vendor directory without writing through it", () => {
     const root = freshRoot();
-    const extracts = resolve(root, "ax-arena", "benchmark", "daeb", "v1", "extracts");
+    const extracts = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "extracts");
     const outside = resolve(root, "outside");
     mkdirSync(extracts, { recursive: true });
     mkdirSync(outside);
@@ -69,7 +69,7 @@ describe("extract advisory writer", () => {
   it("rejects symlink and hard-link advisory aliases without changing their targets", () => {
     for (const alias of ["symlink", "hardlink"] as const) {
       const root = freshRoot();
-      const vendorDir = resolve(root, "ax-arena", "benchmark", "daeb", "v1", "extracts", "acme");
+      const vendorDir = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "extracts", "acme");
       const outside = resolve(root, "outside.yaml");
       const path = resolve(vendorDir, "advisory.yaml");
       mkdirSync(vendorDir, { recursive: true });

@@ -23,7 +23,7 @@ describe("arena release gate", () => {
       { "resolve-vendor": "resolve-vendor" },
     );
     expect(issues.join("\n")).toContain("arena aliases have not all switched to delegation");
-    expect(issues.join("\n")).toContain("daeb-production-rerun");
+    expect(issues.join("\n")).toContain("axarena-database-production-rerun");
   });
 
   it("requires an anonymous matching public npm manifest", async () => {

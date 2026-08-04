@@ -115,9 +115,9 @@ describe("arena pack composition policy", () => {
     expect(pack.discovery?.goal).not.toContain(pack.discovery!.canonical_endpoint);
   });
 
-  it("compose-pack keeps DAEB-style API/CLI suite scope even when support matrix retains SDK research entries", () => {
+  it("compose-pack keeps AXArena-Database-style API/CLI suite scope even when support matrix retains SDK research entries", () => {
     const suite: Suite = {
-      name: "DAEB-1-V3",
+      name: "AXArena-Database v1-V3",
       version: 3,
       category: "database",
       methodology: {
@@ -142,7 +142,7 @@ describe("arena pack composition policy", () => {
         vendor: "Acme",
         category: "database",
         slug: "acme",
-        suite_name: "DAEB-1-V3",
+        suite_name: "AXArena-Database v1-V3",
         extracted_at: "2026-01-01T00:00:00.000Z",
         vendor_config: { base_url: "https://api.example", auth_type: "bearer", auth_env: "ACME_TOKEN" },
         tasks: [{
@@ -181,7 +181,7 @@ describe("arena pack composition policy", () => {
         },
         supportMatrix: {
           schema: "ax.support-matrix/v1",
-          benchmark: "DAEB-1-V3",
+          benchmark: "AXArena-Database v1-V3",
           category: "database",
           generated_at: "2026-01-01T00:00:00.000Z",
           entries: [
@@ -380,7 +380,7 @@ describe("arena pack composition policy", () => {
       name: "DEMO",
       version: 1,
       category: "database",
-      // Exercise SDK wire fallback even though DAEB/database v1 publication scope is api+cli.
+      // Exercise SDK wire fallback even though AXArena-Database v1 publication scope is api+cli.
       methodology: {
         ...defaultSuiteMethodology("database"),
         surface_scope: ["api", "sdk", "cli"],

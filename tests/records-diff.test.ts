@@ -8,7 +8,7 @@ function record(overrides: Partial<NormalizedResult> = {}): NormalizedResult {
     surface: "api",
     product: "neon",
     harness: "codex",
-    standard_set_version: "daeb-v1",
+    standard_set_version: "axarena-database-v1",
     generated_at: "2026-07-18T00:00:00.000Z",
     tasks_total: 7,
     tasks_passed: 5,
