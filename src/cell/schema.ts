@@ -21,7 +21,7 @@ export const EvaluationCellSchema = z.object({
   pack: ReviewedPackReferenceSchema,
   surface: z.enum(["api", "cli", "sdk", "mcp"]),
   harness: z.object({
-    id: z.enum(["claude-code", "codex", "opencode"]),
+    id: z.enum(["claude-code", "codex", "opencode", "pi"]),
     profile: z.enum(["low", "medium", "high"]),
     model: NonEmptyString,
     effort: z.enum(["low", "medium", "high"]),
@@ -45,11 +45,11 @@ export const EvaluationCellSchema = z.object({
     invoke_retries: z.number().int().nonnegative(),
   }).strict(),
 }).strict().superRefine((cell, context) => {
-  if (cell.harness.id === "opencode" && !/^[^/\s]+\/[^\s]+$/.test(cell.harness.model)) {
+  if ((cell.harness.id === "opencode" || cell.harness.id === "pi") && !/^[^/\s]+\/[^\s]+$/.test(cell.harness.model)) {
     context.addIssue({
       code: "custom",
       path: ["harness", "model"],
-      message: "OpenCode model must use provider/model",
+      message: `${cell.harness.id === "pi" ? "Pi" : "OpenCode"} model must use provider/model`,
     });
   }
 });

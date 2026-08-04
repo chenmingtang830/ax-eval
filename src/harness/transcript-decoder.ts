@@ -6,7 +6,7 @@
  * transcript.ts so adding a harness cannot silently change AX scoring rules.
  */
 
-export type TranscriptHarnessId = "claude-code" | "codex" | "opencode";
+export type TranscriptHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
 export type HarnessEvent =
   | { kind: "search"; query: string; callId?: string }
@@ -107,6 +107,11 @@ const OPENCODE_EVENT_TYPES = new Set([
   "reasoning",
   "tool_use",
   "error",
+]);
+const PI_EVENT_TYPES = new Set([
+  "session", "agent_start", "agent_end", "turn_start", "turn_end",
+  "message_start", "message_update", "message_end",
+  "tool_execution_start", "tool_execution_update", "tool_execution_end",
 ]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -359,8 +364,53 @@ const openCodeDecoder: TranscriptLineDecoder = {
   decode: decodeOpenCodeLine,
 };
 
+function decodePiTool(value: Record<string, unknown>): { events: HarnessEvent[]; malformed: number } {
+  const name = stringField(value, "toolName");
+  const input = record(value.args);
+  const id = optionalCallId(value, "toolCallId");
+  if (!name || !input) return { events: [], malformed: 1 };
+  const normalized = name.toLowerCase();
+  if (normalized === "bash") {
+    const command = stringField(input, "command");
+    return command ? { events: [{ kind: "command", command, ...id }], malformed: 0 } : { events: [], malformed: 1 };
+  }
+  if (normalized === "write" || normalized === "edit") {
+    const path = stringField(input, "path");
+    const content = stringField(input, "content", "newText");
+    return path || content
+      ? { events: [{ kind: "file_write", ...(path ? { path } : {}), ...(content ? { content } : {}), ...id }], malformed: 0 }
+      : { events: [], malformed: 1 };
+  }
+  return { events: [{ kind: "tool_call", name, input, ...id }], malformed: 0 };
+}
+
+function decodePiLine(value: Record<string, unknown>): DecodedLine | undefined {
+  const type = stringField(value, "type");
+  if (!type || !PI_EVENT_TYPES.has(type)) return undefined;
+  if (type === "tool_execution_start") {
+    const decoded = decodePiTool(value);
+    return { harness: "pi", ...decoded };
+  }
+  if (type === "tool_execution_end") {
+    const id = stringField(value, "toolCallId");
+    return id
+      ? { harness: "pi", events: [{ kind: "tool_result", callId: id, outcome: value.isError === true ? "error" : "success" }], malformed: 0 }
+      : { harness: "pi", events: [], malformed: 1 };
+  }
+  return { harness: "pi", events: [], malformed: 0 };
+}
+
+const piDecoder: TranscriptLineDecoder = {
+  id: "pi",
+  matches(value) {
+    const type = stringField(value, "type");
+    return Boolean(type && PI_EVENT_TYPES.has(type));
+  },
+  decode: decodePiLine,
+};
+
 // Fixed pure decoders, intentionally not a mutable process-global registry.
-const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder, openCodeDecoder];
+const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder, openCodeDecoder, piDecoder];
 
 /** Decode supported harness stdout JSONL into stable events plus safe diagnostics. */
 export function decodeTranscriptContent(

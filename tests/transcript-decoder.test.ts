@@ -16,6 +16,20 @@ function fixture(name: string): string {
 }
 
 describe("harness transcript decoders", () => {
+  it("decodes Pi JSON-mode tool events without retaining tool output", () => {
+    const decoded = decodeTranscriptContent([
+      '{"type":"agent_start"}',
+      '{"type":"tool_execution_start","toolCallId":"p1","toolName":"bash","args":{"command":"curl https://api.example.test/things"}}',
+      '{"type":"tool_execution_end","toolCallId":"p1","result":{"secret":"never-persist"},"isError":false}',
+      '{"type":"agent_end","messages":[]}',
+    ].join("\n"), { harness: "pi" });
+    expect(decoded.diagnostics.decoder).toBe("pi");
+    expect(decoded.events).toEqual([
+      { kind: "command", command: "curl https://api.example.test/things", callId: "p1" },
+      { kind: "tool_result", callId: "p1", outcome: "success" },
+    ]);
+    expect(JSON.stringify(decoded.events)).not.toContain("never-persist");
+  });
   it("decodes real Claude stream-json aliases and links results without their bodies", () => {
     const text = fixture("claude-code-stream.redacted.jsonl");
     const decoded = decodeTranscriptContent(text, { harness: "claude-code" });

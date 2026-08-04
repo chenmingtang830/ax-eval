@@ -67,7 +67,7 @@ function makeSpawnResult() {
   };
 }
 
-function opts(dir: string, harness: "claude-code" | "codex" | "opencode" = "claude-code"): InvokeRunOptions {
+function opts(dir: string, harness: "claude-code" | "codex" | "opencode" | "pi" = "claude-code"): InvokeRunOptions {
   const paths = defaultInvokePaths(dir, `${harness}-ceiling-api`, harness);
   writeFileSync(paths.promptPath, "Do the task and write files.");
   return {
@@ -78,7 +78,7 @@ function opts(dir: string, harness: "claude-code" | "codex" | "opencode" = "clau
     ns: "gen-ceiling-abcd",
     paths,
     cwd: dir,
-    ...(harness === "opencode" ? { model: "openrouter/example-model" } : {}),
+    ...(harness === "opencode" || harness === "pi" ? { model: "openrouter/example-model" } : {}),
   };
 }
 
@@ -150,6 +150,16 @@ describe("detectInvokeHarness", () => {
       return spawnResult({ stdout: Buffer.from("1.18.3\n") });
     });
     expect(detected).toMatchObject({ ok: true, command: "/pinned/opencode" });
+  });
+
+  it("detects Pi with its pinned binary escape hatch", () => {
+    vi.stubEnv("AX_EVAL_PI_BIN", "/pinned/pi");
+    const detected = detectInvokeHarness("pi", (command, args) => {
+      expect(command).toBe("/pinned/pi");
+      expect(args).toEqual(["--version"]);
+      return spawnResult({ stdout: Buffer.from("0.51.0\n") });
+    });
+    expect(detected).toMatchObject({ ok: true, command: "/pinned/pi", version: "0.51.0" });
   });
 
   it("retains an absolute OpenCode command when a relative override is detected", async () => {
@@ -227,6 +237,18 @@ describe("redactHarnessArtifactText", () => {
 });
 
 describe("runInvokeHarness", () => {
+  it("runs Pi as a disposable JSONL agent with an explicit provider/model", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "pi");
+    await runInvokeHarness({ ...run, effort: "high", harnessDetection: { ok: true, command: "pi", version: "0.51.0" } }, async (command, args) => {
+      expect(command).toBe("pi");
+      expect(args).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--offline", "--no-extensions", "--no-skills", "--no-context-files", "--provider", "openrouter", "--model", "example-model", "--thinking", "high"]));
+      writeFileSync(run.paths.resultsPath, JSON.stringify({ results: { t1: { gid: "pi-1" } } }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"type":"agent_end","messages":[]}\n') });
+    });
+    expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8"))).toMatchObject({ harness: "pi", model: "openrouter/example-model" });
+  });
   it("runs a prompt, stores subprocess artifacts, and stamps the executor result with the harness id", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");

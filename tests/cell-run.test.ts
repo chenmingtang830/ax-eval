@@ -269,6 +269,17 @@ describe("runCell", () => {
     });
   });
 
+  it("uses a distinct bounded namespace for Pi cells", async () => {
+    const { cell } = fixture();
+    cell.harness = { id: "pi", profile: "medium", model: "openrouter/example-model", effort: "medium" };
+    cell.required_credentials = ["OPENROUTER_API_KEY"];
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(cell, { credentials: { OPENROUTER_API_KEY: "provider-key" } }, runtime(invokes));
+    expect(invokes[0]?.harness).toBe("pi");
+    expect(invokes[0]?.ns).toMatch(/^example-run-pi-m-[a-f0-9]{24}$/);
+    expect(record).toMatchObject({ harness: "pi", requested_model: "openrouter/example-model" });
+  });
+
   it("blocks a known OpenCode provider before invocation when its credential is absent", async () => {
     const { cell } = fixture();
     cell.harness = {
