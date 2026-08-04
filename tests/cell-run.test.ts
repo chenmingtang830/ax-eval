@@ -85,12 +85,17 @@ function runtime(
     detectHarness: () => ({ ok: true, command: "codex", version: "codex-cli 1.2.3" }),
     provisionHarness: async (options) => {
       const workDir = options.isolateWorkspace
-        ? resolve(dirname(options.paths.resultsPath), "fake-opencode-workspace")
+        ? resolve(dirname(options.paths.resultsPath), `fake-${options.harness}-workspace`)
         : undefined;
       if (workDir) mkdirSync(workDir, { recursive: true });
       return {
         env: { CELL_ONLY: "yes" },
-        meta: { kind: "fake", ...(workDir ? { opencode_work_dir: workDir } : {}) },
+        meta: {
+          kind: "fake",
+          ...(workDir
+            ? options.harness === "pi" ? { pi_work_dir: workDir } : { opencode_work_dir: workDir }
+            : {}),
+        },
       };
     },
     invokeHarness: async (options) => {
