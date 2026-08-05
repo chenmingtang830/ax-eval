@@ -118,6 +118,11 @@ Production lane constraints:
 - Trials: three isolated trials + `aggregate/` mean/range per cell
 - SDK / MCP: research evidence only for v1 scoring denominator
 
+The reviewed production identity set is also committed as
+`v1/provider-model-roster.yaml`. `v1/pricing-snapshot.yaml` pins dated official
+API list prices and source URLs. Update both through review when the production
+roster or a rate changes; do not silently reinterpret an existing result.
+
 When production is unblocked, dispatch the **Trusted sandbox arena benchmark**
 workflow with the full reviewed source SHA and a committed configuration path
 under `ax-arena/benchmark/axarena-database/`. Do not invoke the production command
@@ -140,14 +145,20 @@ npm run ax-arena -- benchmark export-publication \
 ```
 
 The bundle ties together suite, vendor cards, extracts, compiled packs,
-approvals, snapshots, normalized records, and competitive report. Bundle
+approvals, snapshots, normalized records, provider/model roster, pricing
+snapshot, `economics.json`, and competitive report. Bundle
 creation accepts only a complete `pinned-oci + hosted-trusted` production cohort
 with a verified detached GitHub OIDC attestation. Missing, incomplete, local,
 unsealed, or invalid inputs fail closed and emit no bundle. The required
 `ax.publication-integrity/v1` envelope binds canonical production
 batch/completion bytes, every completed-cell sidecar and nested evidence path,
 and recomputable three-trial aggregates. The AXArena website imports the
-verified exported JSON indexes rather than recomputing scores.
+verified exported JSON indexes rather than recomputing scores. Cost per verified
+task success uses the snapshot's API list-price estimate. It excludes
+subscriptions, credits, tool fees, long-context premiums, regional multipliers, and invoice adjustments,
+and it never affects benchmark correctness or rank. Pricing that requires
+cache-write accounting remains unavailable unless normalized telemetry includes
+the write-token count.
 
 ## Hygiene
 

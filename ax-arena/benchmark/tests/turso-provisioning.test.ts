@@ -1,8 +1,19 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { chmodSync, existsSync, mkdtempSync, mkdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EvaluationCellSchema, TargetPackSchema } from "ax-eval";
 import { createTursoCliProvisioningProvider } from "../src/providers/turso-provisioning.js";
@@ -28,6 +39,21 @@ function freshDir(): string {
   const dir = mkdtempSync(resolve(tmpdir(), "ax-arena-turso-"));
   dirs.push(dir);
   return dir;
+}
+
+function controllerWritablePath(path: string): string | null {
+  const uid = typeof process.getuid === "function" ? process.getuid() : undefined;
+  const groups = typeof process.getgroups === "function" ? new Set(process.getgroups()) : new Set<number>();
+  let current = path;
+  for (;;) {
+    const stat = lstatSync(current);
+    if ((stat.mode & 0o002)
+      || (uid !== undefined && stat.uid === uid)
+      || (groups.has(stat.gid) && (stat.mode & 0o020))) return current;
+    const parent = dirname(current);
+    if (parent === current) return null;
+    current = parent;
+  }
 }
 
 afterEach(() => {
@@ -67,7 +93,7 @@ function target(cwd: string, artifactDir: string) {
 }
 
 describe("Turso CLI provisioning provider", () => {
-  it("attests an executable outside writable paths without downloading", async () => {
+  it("attests or securely rejects the host executable according to actual path ownership", async () => {
     const cwd = freshDir();
     const artifactDir = resolve(cwd, "artifacts");
     mkdirSync(artifactDir);
@@ -92,6 +118,14 @@ describe("Turso CLI provisioning provider", () => {
     versionProbe.environments.length = 0;
     vi.stubEnv("AX_ARENA_AMBIENT_SENTINEL", "must-not-reach-version-probe");
 
+    const writablePath = controllerWritablePath(canonicalBinary);
+    if (writablePath) {
+      const detail = `pinned turso path is writable by the controller user: ${writablePath}`;
+      await expect(provider.inspect(context)).resolves.toEqual({ ready: false, detail });
+      expect(versionProbe.environments).toEqual([]);
+      await expect(provider.provision({ ...context, credentials: {} })).rejects.toThrow(detail);
+      return;
+    }
     await expect(provider.inspect(context)).resolves.toEqual({ ready: true });
     expect(versionProbe.environments).toEqual([{}]);
     await expect(provider.provision({ ...context, credentials: {} })).resolves.toEqual({

@@ -72,6 +72,10 @@ shape.
   one fully specified reviewed pack/surface/harness/model/effort/trial and use
   the caller-supplied batch id. Roster expansion, trial counts, aggregation,
   ranking, publication, and cleanup policy belong to the controller.
+- **Pricing is dated evidence, not scoring policy.** Production execution
+  identities must match the committed provider/model roster. Keep native
+  harness cost separate from snapshot-derived API list-price estimates, and
+  never use cost per success as a correctness gate or ranking tie-breaker.
 - **Structural harness gaps are not runtime crashes.** Emit
   `blocked: unsupported-surface` when a harness intentionally cannot execute a
   requested surface; reserve `invoke-failed` for an attempted invocation.

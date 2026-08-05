@@ -16,6 +16,9 @@
     "quality_gates",
     "layers",
     "vendors",
+    "provider_model_roster",
+    "pricing_snapshot",
+    "economics_report",
     "competitive_report",
     "missing",
     "notes",
@@ -86,6 +89,9 @@
         "additionalProperties": false
       }
     },
+    "provider_model_roster": { "$ref": "#/$defs/artifactPath" },
+    "pricing_snapshot": { "$ref": "#/$defs/artifactPath" },
+    "economics_report": { "$ref": "#/$defs/artifactPath" },
     "competitive_report": { "$ref": "#/$defs/artifactPath" },
     "missing": { "type": "array", "items": { "$ref": "#/$defs/artifactPath" } },
     "notes": { "type": "array", "items": { "type": "string" } },

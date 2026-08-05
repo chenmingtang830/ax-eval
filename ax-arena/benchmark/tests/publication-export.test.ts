@@ -26,6 +26,7 @@ import {
   buildArenaPublicationExportForTest as buildArenaPublicationExport,
   loadArenaPublicationCohortForTest as loadArenaPublicationCohort,
 } from "../src/publication/export.js";
+import { buildArenaEconomicsReport } from "../src/publication/economics.js";
 
 const { verifyBundledAttestation } = vi.hoisted(() => ({
   verifyBundledAttestation: vi.fn((_subject: Buffer, bundles: Buffer) => {
@@ -304,6 +305,31 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
     artifactJson(path, aggregateArenaCellRecords(cells, sources, "2026-07-20T01:30:00.000Z"));
     recordPathsByVendor[product]!.push(path);
   }
+  const roster = {
+    schema: "ax.provider-model-roster/v1" as const,
+    roster_id: "fixture-production-roster",
+    as_of: "2026-07-20",
+    entries: [
+      { harness: "codex" as const, provider: "openai", model: "gpt-5.6-terra", effort: "high" as const, role: "production" as const, pricing_key: "openai-gpt-5.6-terra" },
+      { harness: "claude-code" as const, provider: "anthropic", model: "claude-sonnet-5", effort: "high" as const, role: "production" as const, pricing_key: "anthropic-claude-sonnet-5" },
+    ],
+  };
+  const pricing = {
+    schema: "ax.model-pricing-snapshot/v1" as const,
+    snapshot_id: "fixture-pricing-2026-07-20",
+    as_of: "2026-07-20",
+    currency: "USD" as const,
+    unit: "per_1m_tokens" as const,
+    rates: [
+      { pricing_key: "openai-gpt-5.6-terra", provider: "openai", model: "gpt-5.6-terra", valid_from: "2026-07-01", valid_through: null, input_accounting: "cache_read_and_write_subset_of_input" as const, input_usd: 2.5, cached_input_usd: 0.25, cache_write_5m_usd: 3.125, output_usd: 15, source_url: "https://example.invalid/openai", notes: ["fixture"] },
+      { pricing_key: "anthropic-claude-sonnet-5", provider: "anthropic", model: "claude-sonnet-5", valid_from: "2026-07-01", valid_through: null, input_accounting: "cache_tokens_separate" as const, input_usd: 2, cached_input_usd: 0.2, cache_write_5m_usd: 2.5, output_usd: 10, source_url: "https://example.invalid/anthropic", notes: ["fixture"] },
+    ],
+  };
+  const aggregateRecords = Object.values(recordPathsByVendor).flat().map((path) =>
+    JSON.parse(readFileSync(resolve(bundle, path), "utf8")));
+  artifactJson("suite/provider-model-roster.yaml", roster);
+  artifactJson("suite/pricing-snapshot.yaml", pricing);
+  artifactJson("economics.json", buildArenaEconomicsReport(aggregateRecords, roster, pricing));
   for (const vendor of Object.keys(vendorSurfaces)) {
     const runs = completion.cells.filter((cell) => cell.key.startsWith(`${vendor}/`)).map((cell) => {
       const completedRecord = JSON.parse(readFileSync(resolve(bundle, cell.record_path), "utf8"));
@@ -445,6 +471,9 @@ function createBundle(root: string, options: { betaSurfaces?: Array<"api" | "cli
       },
     ],
     publication_readiness: "publication_ready",
+    provider_model_roster: "suite/provider-model-roster.yaml",
+    pricing_snapshot: "suite/pricing-snapshot.yaml",
+    economics_report: "economics.json",
     competitive_report: "competitive.html",
     missing: [],
     notes: [],
@@ -541,7 +570,7 @@ function digest(path: string): { sha256: string; bytes: number } {
 
 describe("arena publication export", () => {
   beforeEach(() => verifyBundledAttestation.mockClear());
-  it("writes all seven indexes with ranking parity and sealed task provenance", async () => {
+  it("writes all eight indexes with ranking parity and sealed task provenance", async () => {
     const root = mkdtempSync(resolve(tmpdir(), "ax-arena-export-"));
     try {
       createBundle(root);
@@ -558,7 +587,7 @@ describe("arena publication export", () => {
       expect(cohort.records).toHaveLength(8);
       expect(manifest.benchmark).toBe("axarena-database");
       expect(manifest.display_name).toBe("AXArena-Database");
-      expect(manifest.files).toHaveLength(7);
+      expect(manifest.files).toHaveLength(8);
       for (const file of manifest.files) expect(existsSync(resolve(root, "arena-out", file.path))).toBe(true);
       const leaderboard = parse(resolve(root, "arena-out/leaderboard.json"));
       expect(leaderboard.benchmark).toBe("axarena-database");
@@ -572,6 +601,8 @@ describe("arena publication export", () => {
       expect(cells.generated_at).toBe(GENERATED_AT.toISOString());
       expect(cells.cells).toHaveLength(8);
       expect(new Set(cells.cells.map((cell: { id: string }) => cell.id)).size).toBe(8);
+      expect(cells.cells[0]).toMatchObject({ pricing_snapshot_id: "fixture-pricing-2026-07-20", cost_status: "unavailable" });
+      expect(parse(resolve(root, "arena-out/economics.json"))).toEqual(cohort.economics);
 
       expect(parse(resolve(root, "arena-out/trials.json")).task_results[0].evidence.record)
         .toContain("provenance/cells/");

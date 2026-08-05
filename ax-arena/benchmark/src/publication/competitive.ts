@@ -23,6 +23,7 @@ import { assertArenaOutputRoot } from "../controller/cell.js";
 import { ArenaBatchManifestSchema, type ArenaBatchManifest } from "../controller/schemas.js";
 import { loadArenaPublicationCohort } from "./export.js";
 import type { VerifiedArenaPublicationCohort } from "./export.js";
+import type { ArenaRecordEconomics } from "./economics.js";
 
 const PUBLICATION_EFFORT = "high" as const;
 const SURFACE_ORDER: SurfaceId[] = ["api", "cli", "sdk", "mcp"];
@@ -306,9 +307,41 @@ function renderCrossHarness(records: NormalizedResult[]): string {
   return blocks ? `<section class="ax-section"><h2>Cross-harness (same product + surface)</h2><p class="ax-note">When multiple local harnesses have records for the same product/surface cell, this compares them without changing the oracle. A blocked local CLI is shown as blocked, not as a failed task run.</p>${blocks}</section>` : "";
 }
 
+function money(value: number | null): string {
+  if (value === null) return "—";
+  if (value === 0) return "$0.00";
+  return value < 0.01 ? `$${value.toFixed(4)}` : `$${value.toFixed(2)}`;
+}
+
+function renderEconomics(economics: readonly ArenaRecordEconomics[] | undefined): string {
+  if (!economics?.length) return "";
+  const rows = [...economics].sort((left, right) => JSON.stringify([
+    left.product,
+    left.harness,
+    left.model,
+    left.effort,
+    left.surface,
+  ]).localeCompare(JSON.stringify([
+    right.product,
+    right.harness,
+    right.model,
+    right.effort,
+    right.surface,
+  ]))).map((cell) => `<tr>
+    <td>${esc(cell.product)}</td><td>${esc(cell.surface)}</td>
+    <td>${esc(cell.harness)} / ${esc(cell.model ?? "unknown-model")} / ${esc(cell.effort ?? "unknown-effort")}</td>
+    <td>${money(cell.estimated_cost_usd)}</td><td>${esc(cell.task_runs_passed)}/${esc(cell.task_runs_total)}</td>
+    <td>${money(cell.cost_per_success_usd)}</td><td>${money(cell.native_cost_usd)}</td>
+  </tr>`).join("");
+  return `<section class="ax-section"><h2>Cost per verified success</h2>
+    <p class="ax-note">Context only; never used for pass/fail or ranking. Estimated cost applies the committed API list-price snapshot to normalized token usage. It excludes subscriptions, credits, tool fees, long-context or regional multipliers. Native harness cost is retained separately when available.</p>
+    <table class="ax-table"><thead><tr><th>product</th><th>surface</th><th>execution identity</th><th>estimated cost</th><th>verified task runs</th><th>cost / success</th><th>native cost</th></tr></thead><tbody>${rows}</tbody></table>
+  </section>`;
+}
+
 export function renderArenaCompetitiveReport(
   records: NormalizedResult[],
-  opts: { batch: ArenaBatchManifest; generatedAt?: string },
+  opts: { batch: ArenaBatchManifest; generatedAt?: string; economics?: readonly ArenaRecordEconomics[] },
 ): string {
   const batch = ArenaBatchManifestSchema.parse(opts.batch);
   assertComparableCompetitiveRecords(batch, records);
@@ -331,6 +364,7 @@ export function renderArenaCompetitiveReport(
     renderCrossSurface(records),
     renderCrossProduct(records, batch),
     renderCrossHarness(records),
+    renderEconomics(opts.economics),
     `<section class="ax-section"><h2>Methodology &amp; scope</h2><p class="ax-note">Each cell is a normalized <code class="ax-code">${esc(NORMALIZED_RESULT_SCHEMA)}</code> record keyed by { product, surface, harness, model, effort }. Metrics report one execution identity. The surface × product tables answer which interface serves agents best; the optional cross-harness table answers which local agent configuration performed best for the same product/surface, without changing the deterministic oracle.</p></section>`,
     `</main>`,
   ].join("\n");
@@ -438,6 +472,7 @@ export function writeArenaCompetitiveReportFromVerifiedCohort(
   const html = renderArenaCompetitiveReport(records, {
     batch: cohort.batch,
     generatedAt: generatedAt.toISOString(),
+    economics: cohort.economics.cells,
   });
   return writeAtomicReport(root, opts.outPath ?? "results/competitive.html", html);
 }

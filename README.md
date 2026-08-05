@@ -394,7 +394,8 @@ npm run ax-arena -- benchmark publication-bundle \
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
 cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
-records, and competitive report. Bundle creation requires a complete
+records, the provider/model roster, dated pricing snapshot, reproducible economics,
+and competitive report. Bundle creation requires a complete
 `pinned-oci + hosted-trusted` production rerun and cryptographically verifies
 its detached GitHub OIDC attestation against the protected-main workflow.
 Set `AX_ARENA_APPROVED_SIGNER_SHA` to the independently approved 40-character
@@ -431,8 +432,12 @@ npm run ax-arena -- benchmark export-publication \
 ```
 
 This writes website-ready JSON indexes for leaderboard rows, cells, task
-drilldowns, trial outcomes, evidence links, methodology metadata, and failure
-review placeholders. Codex and Claude Code remain
+drilldowns, trial outcomes, evidence links, methodology metadata, economics,
+and failure review placeholders. `economics.json` and each exported cell retain
+the pricing snapshot id, API list-price estimate, verified task-run denominator,
+and cost per success. Cost remains contextual and never affects correctness or
+rank. A price that requires cache-write accounting is unavailable unless the
+normalized harness telemetry reports those tokens. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
 The deprecated `ax-eval publication-bundle` and `ax-eval export-publication`

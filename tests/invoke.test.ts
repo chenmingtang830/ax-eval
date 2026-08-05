@@ -1177,7 +1177,7 @@ describe("runInvokeHarness", () => {
       writeFileSync(run.paths.tracePath, "[]");
       return spawnResult({ stdout: Buffer.from(JSON.stringify({
         type: "turn.completed",
-        usage: { input_tokens: 450, cached_input_tokens: 50, output_tokens: 75 },
+        usage: { input_tokens: 450, cached_input_tokens: 50, cache_write_tokens: 25, output_tokens: 75 },
       })) });
     };
     const result = await runInvokeHarness({
@@ -1189,6 +1189,7 @@ describe("runInvokeHarness", () => {
       input_tokens: 450,
       output_tokens: 75,
       cached_input_tokens: 50,
+      cache_write_input_tokens: 25,
       total_tokens: 525,
     });
     expect(result.metrics?.harness_version_semver).toBe("0.121.0");
