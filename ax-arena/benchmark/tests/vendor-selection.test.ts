@@ -9,7 +9,7 @@ import {
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
-describe("DAEB vendor selection ledger", () => {
+describe("AXArena-Database vendor selection ledger", () => {
   it("loads the purposive core/research/excluded cohort", () => {
     const ledger = loadVendorSelectionLedger(ROOT);
     expect(ledger?.methodology.sampling).toBe("purposive-stratified");
@@ -30,7 +30,7 @@ describe("DAEB vendor selection ledger", () => {
   it("rejects core vendors without a persistent free sandbox", () => {
     expect(VendorSelectionLedgerSchema.safeParse({
       schema: "ax.vendor-selection-ledger/v1",
-      benchmark: "DAEB-1",
+      benchmark: "AXArena-Database v1",
       generated_at: "2026-01-01T00:00:00.000Z",
       methodology: {
         sampling: "purposive-stratified",

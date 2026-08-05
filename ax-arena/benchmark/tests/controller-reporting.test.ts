@@ -16,7 +16,12 @@ import { writeRuntimeReportingBundle } from "../src/controller/reporting.js";
 import { bubblewrapPolicyHash } from "../src/controller/sandbox.js";
 import { ArenaCellCleanupSchema, type ArenaBatchConfiguration } from "../src/controller/schemas.js";
 
-function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sandboxed?: boolean } = {}) {
+function fixture(options: {
+  codexTranscript?: string;
+  claudeTranscript?: string;
+  codexTrace?: unknown;
+  sandboxed?: boolean;
+} = {}) {
   const runRoot = mkdtempSync(resolve(tmpdir(), "ax-arena-reporting-"));
   const packPath = resolve(runRoot, "canonical-pack.yaml");
   const pack = TargetPackSchema.parse({
@@ -37,12 +42,12 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
     runtime_roots: ["/usr", "/opt/ax-arena-tools"] as ["/usr", "/opt/ax-arena-tools"],
   };
   const configuration: ArenaBatchConfiguration = {
-    command: "daeb-low-pass",
+    command: "axarena-database-low-pass",
     execution: options.sandboxed
       ? { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" }
       : { runtime_backend: "native", trust_level: "local" },
     ...(options.sandboxed ? { sandbox } : {}),
-    suite: { name: "DAEB-1", version: 1, file_hash: "1".repeat(64) },
+    suite: { name: "AXArena-Database v1", version: 1, file_hash: "1".repeat(64) },
     packs: [{
       vendor: "neon",
       file_hash: packFileContentHash(packPath),
@@ -90,13 +95,16 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
     writeFileSync(resolve(artifacts, "trace.json"), JSON.stringify(harnessId === "codex" && options.codexTrace
       ? options.codexTrace
       : [{ step: 1, taskId: "discovery", action: "GET", method: "GET", path: "/" }]));
-    writeFileSync(resolve(artifacts, "transcript.jsonl"), harnessId === "codex" ? options.codexTranscript ?? "" : "");
+    const transcript = harnessId === "codex"
+      ? options.codexTranscript ?? `${JSON.stringify({ type: "turn.started" })}\n`
+      : options.claudeTranscript ?? `${JSON.stringify({ type: "system", subtype: "init", session_id: "session-redacted" })}\n`;
+    writeFileSync(resolve(artifacts, "transcript.jsonl"), transcript);
     writeFileSync(resolve(artifacts, "invoke.json"), "{}");
     const recordPath = resolve(directory, "record.json");
     const cleanupPath = resolve(directory, "cleanup.json");
     const cellId = arenaCellId({
       batchId: batch.batch_id,
-      evaluationSetId: "DAEB-1",
+      evaluationSetId: "AXArena-Database v1",
       targetId: "neon",
       surface: "api",
       harness: harnessId,
@@ -110,7 +118,7 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
       schema: "ax.evaluation-cell/v1",
       cell_id: cellId,
       batch_id: batch.batch_id,
-      evaluation_set_id: "DAEB-1",
+      evaluation_set_id: "AXArena-Database v1",
       evaluation_set_version: "database-v1",
       target_id: "neon",
       pack: { path: "pack.yaml", content_hash: configuration.packs[0]!.file_hash },
@@ -163,7 +171,7 @@ function fixture(options: { codexTranscript?: string; codexTrace?: unknown; sand
       record_id: cell.cell_id,
       cell_id: cell.cell_id,
       batch_id: batch.batch_id,
-      evaluation_set_id: "DAEB-1",
+      evaluation_set_id: "AXArena-Database v1",
       evaluation_set_version: "database-v1",
       pack_content_hash: configuration.packs[0]!.file_hash,
       source_commit_sha: batch.source_commit_sha,
@@ -305,11 +313,12 @@ describe("arena runtime reporting", () => {
   });
 
   it.each([
-    ["Codex", JSON.stringify({
+    ["Codex", "codex", JSON.stringify({
       type: "item.completed",
       item: { type: "command_execution", command: "curl -X POST https://api.example.test/native" },
     })],
-    ["Claude Code", JSON.stringify({
+    ["Claude Code", "claude-code", JSON.stringify({
+      type: "assistant",
       message: {
         content: [{
           type: "tool_use",
@@ -318,10 +327,10 @@ describe("arena runtime reporting", () => {
         }],
       },
     })],
-  ])("derives process evidence from the native %s transcript", (_harness, event) => {
+  ] as const)("derives process evidence from the native %s transcript", (_label, harness, event) => {
     const test = fixture({
       codexTrace: [{ step: 1, taskId: "forged", action: "GET", method: "GET", path: "/model-authored" }],
-      codexTranscript: `${event}\n`,
+      ...(harness === "codex" ? { codexTranscript: `${event}\n` } : { claudeTranscript: `${event}\n` }),
     });
 
     const report = test.run();
@@ -329,12 +338,22 @@ describe("arena runtime reporting", () => {
       resolve(test.runRoot, report.surface_reports[0]!.snapshot_path),
       "utf8",
     ));
-    const run = snapshot.runs.find((candidate: { harness: string }) => candidate.harness === "codex");
+    const run = snapshot.runs.find((candidate: { harness: string }) => candidate.harness === harness);
     expect(run.trace).toEqual([expect.objectContaining({
       method: "POST",
       path: "/native",
     })]);
     expect(JSON.stringify(run.trace)).not.toContain("model-authored");
+  });
+
+  it("rejects a transcript whose native shape does not match the attested harness", () => {
+    const test = fixture({
+      codexTranscript: `${JSON.stringify({
+        type: "assistant",
+        message: { content: [{ type: "tool_use", name: "Bash", input: { command: "echo wrong-harness" } }] },
+      })}\n`,
+    });
+    expect(test.run).toThrow(/no events recognized by the codex decoder/);
   });
 
   it("rejects post-completion record drift", () => {

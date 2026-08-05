@@ -51,7 +51,7 @@ import { getProfile } from "../harness/profile.js";
 import {
   observedToDiscovery,
   observedToTrace,
-  parseTranscript,
+  parseTranscriptWithDiagnostics,
   type ObservedRun,
 } from "../harness/transcript.js";
 import {
@@ -588,6 +588,7 @@ function observedTranscript(
   pack: TargetPack,
   path: string,
   credentials: CredentialSource,
+  harness: EvaluationCell["harness"]["id"],
 ): ObservedRun | undefined {
   try {
     const stat = lstatSync(path);
@@ -596,12 +597,17 @@ function observedTranscript(
     return undefined;
   }
   try {
-    return parseTranscript(path, {
+    const parsed = parseTranscriptWithDiagnostics(path, {
+      harness,
       baseUrl: resolveEnvTemplate(pack.base_url, credentials),
       cliBin: pack.surfaces?.cli?.bin,
       sdkPackage: pack.surfaces?.sdk?.package,
       mcpServer: pack.surfaces?.mcp?.server,
     });
+    // An incompatible or empty stream is not objective evidence. Let callers
+    // retain their labeled self-report fallback instead of treating an empty
+    // ObservedRun as a successful parse.
+    return parsed.diagnostics.recognized > 0 ? parsed.run : undefined;
   } catch {
     return undefined;
   }
@@ -1207,7 +1213,7 @@ export async function runCellWithRuntime(
     });
   }
 
-  const observed = observedTranscript(pack, paths.transcriptPath, resolutionCredentials);
+  const observed = observedTranscript(pack, paths.transcriptPath, resolutionCredentials, cell.harness.id);
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
   try {

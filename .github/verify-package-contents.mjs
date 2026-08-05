@@ -138,7 +138,7 @@ const detachedArenaExports = [
   "auditCapabilityInventory",
   "applySuiteAudit",
   "composePack",
-  "createDaebPathContext",
+  "createAxevalDatabasePathContext",
   "defaultSuiteMethodology",
   "extractOracles",
   "extractOraclesAll",

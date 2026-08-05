@@ -64,7 +64,7 @@ function relativeFile(root, path, label) {
 }
 
 function sourceArtifactsForRoot(sourceRoot) {
-  const benchmarkRoot = resolve(sourceRoot, "ax-arena/benchmark/daeb");
+  const benchmarkRoot = resolve(sourceRoot, "ax-arena/benchmark/axarena-database");
   if (realpathSync(benchmarkRoot) !== benchmarkRoot) {
     throw new Error("trusted source artifact root cannot traverse a symlink");
   }
@@ -80,7 +80,7 @@ function sourceArtifactsForRoot(sourceRoot) {
         visit(path);
       } else if (entry.isFile() && stat.isFile() && stat.nlink === 1) {
         const relativePath = relative(sourceRoot, path).replaceAll("\\", "/");
-        if (!relativePath.startsWith("ax-arena/benchmark/daeb/") || stat.size > 64 * 1024 * 1024) {
+        if (!relativePath.startsWith("ax-arena/benchmark/axarena-database/") || stat.size > 64 * 1024 * 1024) {
           throw new Error("trusted source artifact is outside the allowlisted tree or exceeds the size limit");
         }
         artifacts.push({ path: relativePath, sha256: sha256(readRegular(path, `trusted source artifact ${relativePath}`)) });
@@ -132,7 +132,7 @@ function validateSubject(subject, root, sourceRoot) {
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) return true;
       try { exactKeys(entry, ["path", "sha256"], "trusted source artifact"); } catch { return true; }
       return typeof entry.path !== "string"
-        || !entry.path.startsWith("ax-arena/benchmark/daeb/")
+        || !entry.path.startsWith("ax-arena/benchmark/axarena-database/")
         || entry.path.includes("\\") || entry.path.includes("\0")
         || entry.path.split("/").some((segment) => segment === "" || segment === "." || segment === "..")
         || !/^[a-f0-9]{64}$/.test(entry.sha256 ?? "");
