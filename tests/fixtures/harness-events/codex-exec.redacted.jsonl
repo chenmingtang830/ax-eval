@@ -1,0 +1,6 @@
+{"type":"thread.started","thread_id":"thread-redacted"}
+{"type":"turn.started"}
+{"type":"item.completed","item":{"id":"item-search-redacted","type":"web_search","query":"Asana API create task authorization"}}
+{"type":"item.completed","item":{"id":"item-command-redacted","type":"command_execution","command":"curl -s -X POST -H 'Authorization: Bearer $ASANA_PAT' https://app.asana.com/api/1.0/tasks","aggregated_output":"HTTP/2 201\nRESULT_BODY_MUST_NOT_SURVIVE","exit_code":0,"status":"completed"}}
+{"type":"item.completed","item":{"id":"item-mcp-redacted","type":"mcp_tool_call","server":"linear","tool":"create_issue","arguments":{"api_key":"[REDACTED]","title":"AX probe"},"result":{"content":"RESULT_BODY_MUST_NOT_SURVIVE"},"status":"completed"}}
+{"type":"turn.completed","usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":50}}

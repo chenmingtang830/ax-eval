@@ -39,7 +39,7 @@ const APPROVED_SIGNER_ENV = "AX_ARENA_APPROVED_SIGNER_SHA";
 
 const SourceArtifactReferenceSchema = z.object({
   path: z.string().min(1).refine((path) =>
-    path.startsWith("ax-arena/benchmark/daeb/")
+    path.startsWith("ax-arena/benchmark/axarena-database/")
     && !path.includes("\\") && !path.includes("\0")
     && posix.normalize(path) === path
     && path.split("/").every((segment) => segment !== "" && segment !== "." && segment !== ".."),

@@ -41,7 +41,7 @@ function target(cwd: string, artifactDir: string) {
     schema: "ax.evaluation-cell/v1",
     cell_id: "cell-1",
     batch_id: "batch-1",
-    evaluation_set_id: "daeb",
+    evaluation_set_id: "axarena-database",
     evaluation_set_version: "1",
     target_id: "turso",
     pack: { path: "pack.yaml", content_hash: "0".repeat(64) },

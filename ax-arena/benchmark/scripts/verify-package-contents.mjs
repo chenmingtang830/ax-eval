@@ -60,21 +60,21 @@ function requireTree(directory, prefix) {
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const child = resolve(directory, entry.name);
     const path = `${prefix}/${entry.name}`;
-    if (path === "daeb/_archive") continue;
+    if (path === "axarena-database/_archive") continue;
     if (entry.isSymbolicLink()) throw new Error(`arena package source rejects symlink: ${path}`);
     if (entry.isDirectory()) requireTree(child, path);
     else if (entry.isFile()) required.push(path);
   }
 }
-requireTree(resolve(process.cwd(), "daeb"), "daeb");
+requireTree(resolve(process.cwd(), "axarena-database"), "axarena-database");
 const missing = required.filter((path) => !files.has(path));
 const forbidden = [...files].filter((path) =>
   path.startsWith("src/")
   || path.startsWith("tests/")
   || path.startsWith("scripts/")
   || path.startsWith("benchmarks/daeb/")
-  || path === "daeb/_archive"
-  || path.startsWith("daeb/_archive/"),
+  || path === "axarena-database/_archive"
+  || path.startsWith("axarena-database/_archive/"),
 );
 if (missing.length || forbidden.length) {
   throw new Error([
@@ -146,10 +146,10 @@ try {
     "--input-type=module",
     "--eval",
     "import * as benchmark from '@ax-arena/benchmark'; " +
-      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, ConceptClusterSchema, ConceptCoverageSchema, ConceptUniverseSchema, CoverageDecisionSchema, CoverageMatrixSchema, FailureTaxonomySchema, GraderLedgerEntrySchema, GraderLedgerSchema, SelectionLedgerEntrySchema, SelectionLedgerSchema, SupportMatrixEntrySchema, SupportMatrixSchema, TraceReviewMemoSchema, applySuiteAudit, auditCapabilityInventory, buildArenaPublicationBundle, buildArenaPublicationExport, buildTrustedWorkflowDispatch, composePack, createArenaRuntimeExtensionRegistry, createDaebPathContext, executeArenaCell, executeArenaWorkerCell, extractOracles, extractOraclesAll, loadArenaPublicationCohort, loadCapabilityExtract, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeCapabilityExtract, writeComposedPack, writeExtractAdvisory, writeRuntimeReportingBundle, writeSuiteArtifacts, writeSuiteBundle, writeSuiteFiles } = benchmark; " +
+      "const { ArenaBatchManifestSchema, ArenaBatchPlanSchema, ArenaCellCleanupSchema, ArenaCellResultSchema, ArenaPublicationBundleSchema, ArenaPublicationExportManifestSchema, ArenaPublicationIntegritySchema, ArenaRuntimeReportSchema, ConceptClusterSchema, ConceptCoverageSchema, ConceptUniverseSchema, CoverageDecisionSchema, CoverageMatrixSchema, FailureTaxonomySchema, GraderLedgerEntrySchema, GraderLedgerSchema, SelectionLedgerEntrySchema, SelectionLedgerSchema, SupportMatrixEntrySchema, SupportMatrixSchema, TraceReviewMemoSchema, applySuiteAudit, auditCapabilityInventory, buildArenaPublicationBundle, buildArenaPublicationExport, buildTrustedWorkflowDispatch, composePack, createArenaRuntimeExtensionRegistry, createAxArenaDatabasePathContext, executeArenaCell, executeArenaWorkerCell, extractOracles, extractOraclesAll, loadArenaPublicationCohort, loadCapabilityExtract, renderArenaCompetitiveReport, writeArenaCompetitiveReport, writeCapabilityExtract, writeComposedPack, writeExtractAdvisory, writeRuntimeReportingBundle, writeSuiteArtifacts, writeSuiteBundle, writeSuiteFiles } = benchmark; " +
       "const registry = createArenaRuntimeExtensionRegistry(); " +
       "if ('executeArenaCellWithInjectedRuntime' in benchmark || registry.inspect().length !== 0 || " +
-      "typeof executeArenaCell !== 'function' || typeof executeArenaWorkerCell !== 'function' || typeof buildTrustedWorkflowDispatch !== 'function' || typeof composePack !== 'function' || typeof createDaebPathContext !== 'function' || typeof extractOracles !== 'function' || typeof extractOraclesAll !== 'function' || typeof loadCapabilityExtract !== 'function' || typeof writeCapabilityExtract !== 'function' || typeof writeComposedPack !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
+      "typeof executeArenaCell !== 'function' || typeof executeArenaWorkerCell !== 'function' || typeof buildTrustedWorkflowDispatch !== 'function' || typeof composePack !== 'function' || typeof createAxArenaDatabasePathContext !== 'function' || typeof extractOracles !== 'function' || typeof extractOraclesAll !== 'function' || typeof loadCapabilityExtract !== 'function' || typeof writeCapabilityExtract !== 'function' || typeof writeComposedPack !== 'function' || typeof writeRuntimeReportingBundle !== 'function' || typeof buildArenaPublicationBundle !== 'function' || typeof buildArenaPublicationExport !== 'function' || typeof loadArenaPublicationCohort !== 'function' || " +
       "typeof renderArenaCompetitiveReport !== 'function' || typeof writeArenaCompetitiveReport !== 'function' || " +
       "!ArenaBatchManifestSchema || !ArenaBatchPlanSchema || !ArenaCellCleanupSchema || !ArenaCellResultSchema || !ArenaPublicationBundleSchema || !ArenaPublicationExportManifestSchema || !ArenaPublicationIntegritySchema || !ArenaRuntimeReportSchema || !ConceptClusterSchema || !ConceptCoverageSchema || !ConceptUniverseSchema || !CoverageDecisionSchema || !CoverageMatrixSchema || !FailureTaxonomySchema || !GraderLedgerEntrySchema || !GraderLedgerSchema || !SelectionLedgerEntrySchema || !SelectionLedgerSchema || !SupportMatrixEntrySchema || !SupportMatrixSchema || !TraceReviewMemoSchema || typeof applySuiteAudit !== 'function' || typeof auditCapabilityInventory !== 'function' || typeof writeExtractAdvisory !== 'function' || typeof writeSuiteArtifacts !== 'function' || typeof writeSuiteBundle !== 'function' || typeof writeSuiteFiles !== 'function') process.exit(1);",
   ], {

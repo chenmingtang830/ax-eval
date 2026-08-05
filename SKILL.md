@@ -61,9 +61,9 @@ add the keys it names to `.env` (`init --surface all` stubs them) and re-run.
 
 ## Workflow
 
-### AXArena / DAEB-1 canonical benchmark path
+### AXArena / AXArena-Database v1 canonical benchmark path
 
-DAEB-1 is different from ordinary per-target authoring. It starts from one
+AXArena-Database v1 is different from ordinary per-target authoring. It starts from one
 canonical suite, then compiles vendor adapters from public vendor cards
 and vendor-specific verification extracts:
 
@@ -71,32 +71,32 @@ and vendor-specific verification extracts:
 evaluation suite -> vendor verification extraction -> TargetPack -> execution -> verification -> normalized records -> leaderboard
 ```
 
-Use `ax-arena/benchmark/daeb/v1/suite.yaml` as the source of truth. The files under
-`ax-arena/benchmark/daeb/v1/packs/<vendor>/pack.yaml` are compiled execution artifacts, not
+Use `ax-arena/benchmark/axarena-database/v1/suite.yaml` as the source of truth. The files under
+`ax-arena/benchmark/axarena-database/v1/packs/<vendor>/pack.yaml` are compiled execution artifacts, not
 separate benchmark definitions. They should keep the same task ids, titles,
 intents, difficulty labels, scoring contract, surfaces, and harness matrix;
 only auth, base URL, outcome-verifier checks, N/A mapping, and surface configuration vary
 by vendor.
 
-Run DAEB authoring commands as `npm run ax-arena -- benchmark <command>`.
+Run AXArena-Database authoring commands as `npm run ax-arena -- benchmark <command>`.
 The old `ax-eval` authoring aliases are temporary one-minor compatibility
 launchers and emit a deprecation warning.
 
-**Current status:** mutable DAEB-1 v1 authoring freeze is done for the 6-vendor
+**Current status:** mutable AXArena-Database v1 authoring freeze is done for the 6-vendor
 core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 approved and trace review is completed. Production 3-trial and publication
 freeze are deferred; do not run them as the default next step. Research-lane
 tasks stay out of the scored denominator. Use
-`ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
+`ax-arena/benchmark/axarena-database/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
 
 When production is unblocked and all vendor runs have been verified, freeze the
 publication bundle (core cohort only):
 
 ```bash
 npm run ax-arena -- benchmark publication-bundle \
-  --run-root results/runs/daeb-1-v1-production \
-  --out results/runs/daeb-1-v1-production/publication-bundle \
-  --benchmark-root ax-arena/benchmark/daeb
+  --run-root results/runs/axarena-database-v1-production \
+  --out results/runs/axarena-database-v1-production/publication-bundle \
+  --benchmark-root ax-arena/benchmark/axarena-database
 ```
 
 The bundle manifest is the handoff to the AXArena static website and the launch
@@ -294,6 +294,15 @@ product, harness}` record per cell. `verify` then renders them as a single
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 
+Harness stdout is decoded before AX surface semantics are applied. Keep native
+wire-shape handling in the harness decoder and scoring meaning in the shared
+transcript layer. When integrating a new harness, pass its known id instead of
+depending on auto-detection, preserve result bodies only in already-redacted
+raw artifacts, and inspect the content-free decoder diagnostics
+(`decoderVersion`, parsed/recognized/emitted/malformed counts). A transcript
+with zero recognized events is not objective evidence and must retain the
+labeled self-report fallback.
+
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
 and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
 CLI, and SDK Codex cells are invoked with an isolated Codex home plus
@@ -315,29 +324,31 @@ directory before rendering the HTML. Keep result JSON, trace JSON, transcript,
 stdout/stderr, invoke metadata, and a small manifest together so reviewers can
 deep-dive without hunting through prior scratch runs.
 
-### DAEB-1 production lane
+### AXArena-Database v1 production lane
 
-DAEB-1/database v1 has a dedicated production rerun command for the
+AXArena-Database v1 has a dedicated production rerun command for the
 benchmark-of-record matrix. **It is deferred** until after team review of the
 approved packs; authoring freeze (approvals + completed trace review) is already
 done for the 6-vendor core cohort.
 
 ```bash
-ax-arena benchmark daeb-production-rerun \
-  --suite ax-arena/benchmark/daeb/v1/suite.yaml
+ax-arena benchmark axarena-database-production-rerun \
+  --suite ax-arena/benchmark/axarena-database/v1/suite.yaml
 ```
 
 Direct arena runtime execution remains intentionally fail-closed. The protected
 workflow is the only entrypoint that supplies and attests the OS sandbox. In a
-source checkout, the deprecated `ax-eval daeb-low-pass` and
-`ax-eval daeb-production-rerun` aliases delegate to that fail-closed arena CLI;
-they no longer execute the core runtime implementation. The npm release gate
+source checkout, `ax-eval axarena-database-low-pass` and
+`ax-eval axarena-database-production-rerun` delegate to that fail-closed arena
+CLI. The former `daeb-low-pass` and `daeb-production-rerun` spellings remain
+deprecated compatibility aliases; none of them execute the core runtime
+implementation. The npm release gate
 keeps those aliases unpublished until the arena package is public, so their
 one-minor compatibility clock has not started.
 
 For hosted execution, dispatch **Trusted sandbox arena benchmark** only. Select
 a full source SHA and a committed whole-benchmark configuration under
-`ax-arena/benchmark/daeb/`, then choose the GitHub-hosted pool unless the approved
+`ax-arena/benchmark/axarena-database/`, then choose the GitHub-hosted pool unless the approved
 self-hosted runner group is required. Harness versions, the OCI digest,
 Bubblewrap, models, surfaces, trials, and the vendor roster come from committed
 locks and configuration, not dispatch inputs.
@@ -364,7 +375,7 @@ This lane is intentionally scoped to `api` and `cli`: Codex runs
 with exactly three clean trials per supported vendor/surface/harness cell.
 It writes `trial-1/2/3` directories plus an `aggregate/` directory whose
 normalized record reports the three-trial mean and range. SDK and MCP should
-not be mixed into the DAEB-1 v1 leaderboard denominator; keep those runs as
+not be mixed into the AXArena-Database v1 leaderboard denominator; keep those runs as
 research evidence unless a later suite revision says otherwise.
 
 The command recomposes a run-scoped pack only when it exactly matches the
@@ -380,10 +391,10 @@ run-batch identity, successful-attempt latency, retry-inclusive duration and
 consumption, and exact pass³ numerator/denominator. Codex dollar cost is null;
 do not synthesize a price table.
 
-Before human **publication** freeze, regenerate into the same DAEB-1 v1
+Before human **publication** freeze, regenerate into the same AXArena-Database v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and
 content hashes identify exact drafts, and any content change invalidates prior
-pack approvals. Use `ax-arena/benchmark/daeb/v1/vendor-selection-ledger.yaml` as the
+pack approvals. Use `ax-arena/benchmark/axarena-database/v1/vendor-selection-ledger.yaml` as the
 core cohort source; research/excluded vendors must not silently enter synthesis
 or production runs. When reviewing coverage, distinguish the broad 75%
 concept-selection bar from task applicability: only support-matrix cells whose
@@ -397,14 +408,18 @@ with:
 
 ```bash
 npm run ax-arena -- benchmark export-publication \
-  --from results/runs/daeb-1-v1-production/publication-bundle-final \
-  --out results/runs/daeb-1-v1-production/axarena-export
+  --from results/runs/axarena-database-v1-production/publication-bundle-final \
+  --out results/runs/axarena-database-v1-production/axarena-export
 ```
 
 The seal must include canonical `batch.json` and `batch-completion.json`, every
 completed record/cleanup/artifact, every normalized source record, and every
 nested snapshot evidence path. Export rejects aggregates whose scores cannot be
 recomputed from the three completed trials.
+
+Website handoff uses `axarena-database` as the stable machine id and
+`AXArena-Database` as the display name. The version stays in `suite_version`;
+do not expose frozen `daeb-1-v1` provenance as the public benchmark name.
 
 This keeps the repo boundary clean: `ax-eval` owns generic single-product
 execution and verification, while `ax-arena` owns benchmark aggregation,

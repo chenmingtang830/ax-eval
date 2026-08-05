@@ -71,8 +71,22 @@ export {
 } from "./harness/invoke.js";
 export type { InvokeHarnessId } from "./harness/invoke.js";
 export type { TraceStep } from "./harness/executor.js";
-export { observedToTrace, parseTranscriptContent } from "./harness/transcript.js";
-export type { ObservedRun } from "./harness/transcript.js";
+export {
+  observedToTrace,
+  parseTranscriptContent,
+  parseTranscriptContentWithDiagnostics,
+  parseTranscriptWithDiagnostics,
+} from "./harness/transcript.js";
+export type { ObservedRun, ParsedTranscriptContent } from "./harness/transcript.js";
+export { decodeTranscriptContent } from "./harness/transcript-decoder.js";
+export type {
+  HarnessEvent,
+  TranscriptDecodeDiagnostics,
+  TranscriptDecodeIssue,
+  TranscriptDecodeOptions,
+  TranscriptDecodeResult,
+  TranscriptHarnessId,
+} from "./harness/transcript-decoder.js";
 
 export {
   BearerClient,
@@ -182,7 +196,7 @@ export type {
 } from "./generate/record.js";
 
 // Generic authoring schemas, extraction, and explicit-input transforms consumed
-// by arena. Canonical DAEB paths and persistence live in the arena workspace.
+// by arena. Canonical AXArena-Database paths and persistence live in the arena workspace.
 export {
   SuiteSchema,
   SuiteTaskSchema,

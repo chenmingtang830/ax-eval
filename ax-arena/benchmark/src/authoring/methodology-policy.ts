@@ -7,7 +7,7 @@ import {
 /** Arena-owned defaults for constructing a cross-target suite methodology.
  * Core owns the schema; category scoring and publication policy live here. */
 export function defaultSuiteMethodology(category: string): SuiteMethodology {
-  // DAEB/database v1 benchmark-of-record is api+cli; SDK stays in the generic
+  // AXArena-Database v1 benchmark-of-record is api+cli; SDK stays in the generic
   // engine but out of the publication scoring denominator.
   const surfaceScope = category === "database" ? (["api", "cli"] as const) : CANONICAL_SURFACE_SCOPE;
   return SuiteMethodologySchema.parse({

@@ -15,9 +15,11 @@ import {
   checkCommittedLegacyCellApproval,
   createOracleProviderRegistry,
   createRuntimeExtensionRegistry,
+  decodeTranscriptContent,
   registerOracleProvider,
   renderGeneratedSnapshot,
   loadRequiredTrace,
+  parseTranscriptContentWithDiagnostics,
   runCell,
   runCellWithRuntime,
   verifyGeneratedPack,
@@ -41,6 +43,8 @@ describe("public API", () => {
     expect(verifyGeneratedPack).toBeTypeOf("function");
     expect(createOracleProviderRegistry).toBeTypeOf("function");
     expect(createRuntimeExtensionRegistry).toBeTypeOf("function");
+    expect(decodeTranscriptContent).toBeTypeOf("function");
+    expect(parseTranscriptContentWithDiagnostics).toBeTypeOf("function");
     expect(registerOracleProvider).toBeTypeOf("function");
     expect(aggregateNormalizedResults).toBeTypeOf("function");
     expect(renderGeneratedSnapshot).toBeTypeOf("function");

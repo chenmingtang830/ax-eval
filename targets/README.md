@@ -19,12 +19,12 @@ not for the shipped example baselines.
 
 Runtime artifacts still belong under `results/`.
 
-## AXArena / DAEB
+## AXArena / AXArena-Database
 
 The Database AX Benchmark publication contract lives under
-[`ax-arena/benchmark/daeb/`](../ax-arena/benchmark/daeb/README.md) — suites, vendor cards,
+[`ax-arena/benchmark/axarena-database/`](../ax-arena/benchmark/axarena-database/README.md) — suites, vendor cards,
 capability inventories, surfaces, and compiled packs for the multi-vendor
-canonical suite. Do not put DAEB artifacts back under `targets/`.
+canonical suite. Do not put AXArena-Database artifacts back under `targets/`.
 
 ## Good starting points (tool demos)
 

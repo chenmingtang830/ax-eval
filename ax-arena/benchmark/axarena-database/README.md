@@ -1,6 +1,6 @@
-# DAEB — Database AX Benchmark
+# AXArena-Database — Database AX Benchmark
 
-Publication contract for the AXArena Database AX Benchmark (DAEB).
+Publication contract for the AXArena-Database benchmark.
 
 This tree is the **benchmark layer**. The ax-eval **tool layer** (generic CLI
 example packs) lives under [`targets/examples/`](../../../targets/examples/).
@@ -19,7 +19,7 @@ team review.
 ## Layout
 
 ```text
-ax-arena/benchmark/daeb/
+ax-arena/benchmark/axarena-database/
   vendors/<slug>.discovered.yaml     # shared vendor cards (docs/site/openapi)
   v1/                                # active mutable version until publication freeze
     vendor-selection-ledger.yaml     # core/research/excluded cohort contract
@@ -58,7 +58,7 @@ import-registry / resolve-vendor
   → extract-capabilities
   → audit-extracts --apply
   → audit-extracts --advisory       # optional WebFetch-grounded human aid
-  → synthesize-suite --out ax-arena/benchmark/daeb/v1/suite.yaml
+  → synthesize-suite --out ax-arena/benchmark/axarena-database/v1/suite.yaml
   → audit-suite                     # task-fit, pack, cohort, trace gates
   → extract-tasks / compose-pack
   → review --approve
@@ -108,7 +108,7 @@ Additional content gates:
 | Mode | Purpose | Root convention |
 |---|---|---|
 | Pilot / remediation / trace refresh | Authoring calibration | local `results/` (gitignored); not benchmark-of-record |
-| `daeb-production-rerun` | Benchmark-of-record matrix | dated `results/runs/daeb-v1-YYYYMMDD/` |
+| `axarena-database-production-rerun` | Benchmark-of-record matrix | dated `results/runs/axarena-database-v1-YYYYMMDD/` |
 
 Production lane constraints:
 
@@ -120,9 +120,10 @@ Production lane constraints:
 
 When production is unblocked, dispatch the **Trusted sandbox arena benchmark**
 workflow with the full reviewed source SHA and a committed configuration path
-under `ax-arena/benchmark/daeb/`. Do not invoke the production command directly:
-both `ax-arena benchmark daeb-production-rerun` and its deprecated `ax-eval`
-alias intentionally fail closed without the workflow-attested OS sandbox.
+under `ax-arena/benchmark/axarena-database/`. Do not invoke the production command
+directly: `ax-arena benchmark axarena-database-production-rerun` intentionally
+fails closed without the workflow-attested OS sandbox. The `ax-eval` launcher
+and former `daeb-production-rerun` spelling remain deprecated compatibility aliases.
 
 ## Publication bundle and export
 
@@ -130,12 +131,12 @@ After production cells are verified:
 
 ```bash
 npm run ax-arena -- benchmark publication-bundle \
-  --run-root results/runs/daeb-1-v1-production \
-  --out results/runs/daeb-1-v1-production/publication-bundle
+  --run-root results/runs/axarena-database-v1-production \
+  --out results/runs/axarena-database-v1-production/publication-bundle
 
 npm run ax-arena -- benchmark export-publication \
-  --from results/runs/daeb-1-v1-production/publication-bundle-final \
-  --out results/runs/daeb-1-v1-production/axarena-export
+  --from results/runs/axarena-database-v1-production/publication-bundle-final \
+  --out results/runs/axarena-database-v1-production/axarena-export
 ```
 
 The bundle ties together suite, vendor cards, extracts, compiled packs,

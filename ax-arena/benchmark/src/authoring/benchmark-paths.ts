@@ -1,37 +1,38 @@
 /**
- * On-disk layout for the AXArena / DAEB publication contract.
+ * On-disk layout for the AXArena-Database publication contract.
  *
  * Tool-layer example packs stay under `targets/examples/`. Arena-owned files
- * are canonical under `ax-arena/benchmark/daeb/`; the former
- * `benchmarks/daeb/` root is read-only compatibility for one minor release.
+ * are canonical under `ax-arena/benchmark/axarena-database/`. The former arena
+ * and repository-level AXArena-Database roots remain read-only compatibility paths.
  */
-import { existsSync, lstatSync } from "node:fs";
+import { existsSync, lstatSync, readdirSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
-export const DAEB_BENCHMARK_ROOT = "ax-arena/benchmark/daeb";
-export const DAEB_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
+export const AXARENA_DATABASE_BENCHMARK_ROOT = "ax-arena/benchmark/axarena-database";
+export const AXARENA_DATABASE_LEGACY_ARENA_ROOT = "ax-arena/benchmark/daeb";
+export const AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT = "benchmarks/daeb";
 /** Active publication version directory name. */
-export const DAEB_ACTIVE_VERSION = "v1";
+export const AXARENA_DATABASE_ACTIVE_VERSION = "v1";
 
-export interface DaebBenchmarkRootOptions {
+export interface AxArenaDatabaseBenchmarkRootOptions {
   access: "read" | "write";
   explicitRoot?: string;
   warn?: (message: string) => void;
 }
 
-export interface DaebPathContext {
-  readonly [DAEB_PATH_CONTEXT]: true;
+export interface AxArenaDatabasePathContext {
+  readonly [AXARENA_DATABASE_PATH_CONTEXT]: true;
   readonly repositoryRoot: string;
   readonly readRoot: string;
   readonly writeRoot: string;
   readonly explicitReadRoot: boolean;
-  readonly readRootKind: "canonical" | "legacy" | "explicit";
+  readonly readRootKind: "canonical" | "legacy-arena" | "legacy-repository" | "explicit";
 }
 
-export type DaebPathInput = string | DaebPathContext;
+export type AxArenaDatabasePathInput = string | AxArenaDatabasePathContext;
 
 const warnedLegacyRoots = new Set<string>();
-const DAEB_PATH_CONTEXT: unique symbol = Symbol("ax-arena.daeb-path-context");
+const AXARENA_DATABASE_PATH_CONTEXT: unique symbol = Symbol("axarena-database.path-context");
 
 function absoluteRoot(repositoryRoot: string, path: string): string {
   return isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
@@ -95,15 +96,29 @@ function warnLegacyRoot(
     console.warn(message);
   }
 }
-export function resolveDaebBenchmarkRoot(
+
+function hasLegacyBenchmarkArtifacts(root: string): boolean {
+  if (existsSync(resolve(root, "v1", "suite.yaml"))) return true;
+  const containsFile = (path: string, depth = 0): boolean => {
+    if (!existsSync(path) || depth > 3) return false;
+    return readdirSync(path, { withFileTypes: true }).some((entry) =>
+      entry.isFile() || entry.isDirectory() && containsFile(resolve(path, entry.name), depth + 1));
+  };
+  return [resolve(root, "v1", "extracts"), resolve(root, "v1", "packs"), resolve(root, "vendors")]
+    .some((path) => containsFile(path));
+}
+
+export function resolveAxArenaDatabaseBenchmarkRoot(
   repositoryRoot: string,
-  options: DaebBenchmarkRootOptions,
+  options: AxArenaDatabaseBenchmarkRootOptions,
 ): string {
   const root = resolve(repositoryRoot);
-  const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
-  const legacy = resolve(root, DAEB_LEGACY_BENCHMARK_ROOT);
+  const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
+  const legacyArena = resolve(root, AXARENA_DATABASE_LEGACY_ARENA_ROOT);
+  const legacyRepository = resolve(root, AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT);
   assertRealInRepositoryPath(root, canonical, "canonical benchmark root");
-  assertRealInRepositoryPath(root, legacy, "legacy benchmark root");
+  assertRealInRepositoryPath(root, legacyArena, "legacy arena benchmark root");
+  assertRealInRepositoryPath(root, legacyRepository, "legacy repository benchmark root");
 
   if (options.access === "write") {
     if (options.explicitRoot && absoluteRoot(root, options.explicitRoot) !== canonical) {
@@ -115,91 +130,100 @@ export function resolveDaebBenchmarkRoot(
   if (options.explicitRoot) {
     const explicit = absoluteRoot(root, options.explicitRoot);
     assertRealDirectory(explicit, "explicit benchmark root");
-    if (explicit === legacy) warnLegacyRoot(legacy, canonical, options.warn);
+    if (explicit === legacyArena || explicit === legacyRepository) {
+      warnLegacyRoot(explicit, canonical, options.warn);
+    }
     return explicit;
   }
-  const hasCanonical = existsSync(canonical);
-  const hasLegacy = existsSync(legacy);
-  if (hasCanonical && hasLegacy) {
+  const existingRoots = [
+    canonical,
+    ...(hasLegacyBenchmarkArtifacts(legacyArena) ? [legacyArena] : []),
+    ...(hasLegacyBenchmarkArtifacts(legacyRepository) ? [legacyRepository] : []),
+  ].filter((candidate, index, candidates) => existsSync(candidate) && candidates.indexOf(candidate) === index);
+  if (existingRoots.length > 1) {
     throw new Error(
-      `ambiguous benchmark roots: both ${canonical} and ${legacy} exist; pass --benchmark-root <path> explicitly`,
+      `ambiguous benchmark roots: ${existingRoots.join(", ")} exist; pass --benchmark-root <path> explicitly`,
     );
   }
-  if (hasLegacy) {
-    warnLegacyRoot(legacy, canonical, options.warn);
-    return legacy;
+  if (existingRoots[0] && existingRoots[0] !== canonical) {
+    warnLegacyRoot(existingRoots[0], canonical, options.warn);
+    return existingRoots[0];
   }
   return canonical;
 }
 
-export function createDaebPathContext(
+export function createAxArenaDatabasePathContext(
   repositoryRoot: string,
-  options: Omit<DaebBenchmarkRootOptions, "access"> = {},
-): DaebPathContext {
+  options: Omit<AxArenaDatabaseBenchmarkRootOptions, "access"> = {},
+): AxArenaDatabasePathContext {
   const root = resolve(repositoryRoot);
-  const readRoot = resolveDaebBenchmarkRoot(root, { ...options, access: "read" });
-  const canonical = resolve(root, DAEB_BENCHMARK_ROOT);
+  const readRoot = resolveAxArenaDatabaseBenchmarkRoot(root, { ...options, access: "read" });
+  const canonical = resolve(root, AXARENA_DATABASE_BENCHMARK_ROOT);
   const context = {
     repositoryRoot: root,
     readRoot,
-    writeRoot: resolveDaebBenchmarkRoot(root, { access: "write" }),
+    writeRoot: resolveAxArenaDatabaseBenchmarkRoot(root, { access: "write" }),
     explicitReadRoot: options.explicitRoot !== undefined,
     readRootKind: options.explicitRoot !== undefined
       ? "explicit" as const
       : readRoot === canonical
         ? "canonical" as const
-        : "legacy" as const,
-  } as DaebPathContext;
-  Object.defineProperty(context, DAEB_PATH_CONTEXT, { value: true });
+        : readRoot === resolve(root, AXARENA_DATABASE_LEGACY_ARENA_ROOT)
+          ? "legacy-arena" as const
+          : "legacy-repository" as const,
+  } as AxArenaDatabasePathContext;
+  Object.defineProperty(context, AXARENA_DATABASE_PATH_CONTEXT, { value: true });
   return Object.freeze(context);
 }
 
-function assertPathContext(input: DaebPathContext): DaebPathContext {
-  if (input[DAEB_PATH_CONTEXT] !== true) {
-    throw new Error("DAEB path context must be created by createDaebPathContext");
+function assertPathContext(input: AxArenaDatabasePathContext): AxArenaDatabasePathContext {
+  if (input[AXARENA_DATABASE_PATH_CONTEXT] !== true) {
+    throw new Error("AXArena-Database path context must be created by createAxArenaDatabasePathContext");
   }
   const repositoryRoot = resolve(input.repositoryRoot);
-  const expectedWriteRoot = resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
+  const expectedWriteRoot = resolveAxArenaDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
   if (resolve(input.writeRoot) !== expectedWriteRoot) {
-    throw new Error(`DAEB path context write root must be canonical: ${expectedWriteRoot}`);
+    throw new Error(`AXArena-Database path context write root must be canonical: ${expectedWriteRoot}`);
   }
   const expectedReadRoot = input.readRootKind === "canonical"
-    ? resolve(repositoryRoot, DAEB_BENCHMARK_ROOT)
-    : input.readRootKind === "legacy"
-      ? resolve(repositoryRoot, DAEB_LEGACY_BENCHMARK_ROOT)
-      : resolve(input.readRoot);
+    ? resolve(repositoryRoot, AXARENA_DATABASE_BENCHMARK_ROOT)
+    : input.readRootKind === "legacy-arena"
+      ? resolve(repositoryRoot, AXARENA_DATABASE_LEGACY_ARENA_ROOT)
+      : input.readRootKind === "legacy-repository"
+        ? resolve(repositoryRoot, AXARENA_DATABASE_LEGACY_BENCHMARK_ROOT)
+        : resolve(input.readRoot);
   if (resolve(input.readRoot) !== expectedReadRoot) {
-    throw new Error(`DAEB path context read root no longer matches root policy: ${expectedReadRoot}`);
+    throw new Error(`AXArena-Database path context read root no longer matches root policy: ${expectedReadRoot}`);
   }
   if (input.readRootKind === "explicit") assertRealDirectory(expectedReadRoot, "explicit benchmark root");
   else assertRealInRepositoryPath(repositoryRoot, expectedReadRoot, `${input.readRootKind} benchmark root`);
   return input;
 }
 
-function readRoot(input: DaebPathInput): string {
+function readRoot(input: AxArenaDatabasePathInput): string {
   return typeof input === "string"
-    ? resolveDaebBenchmarkRoot(input, { access: "read" })
+    ? resolveAxArenaDatabaseBenchmarkRoot(input, { access: "read" })
     : assertPathContext(input).readRoot;
 }
 
-export function daebRepositoryRoot(input: DaebPathInput): string {
+export function axArenaDatabaseRepositoryRoot(input: AxArenaDatabasePathInput): string {
   return resolve(typeof input === "string" ? input : assertPathContext(input).repositoryRoot);
 }
 
-function writeRoot(input: DaebPathInput): string {
-  const repositoryRoot = daebRepositoryRoot(input);
+function writeRoot(input: AxArenaDatabasePathInput): string {
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(input);
   // A bare repository root carries no explicit root selection. Validate the
   // read-side compatibility state first so direct library writers fail on the
   // same canonical+legacy ambiguity as CLI callers.
-  if (typeof input === "string") resolveDaebBenchmarkRoot(repositoryRoot, { access: "read" });
+  if (typeof input === "string") resolveAxArenaDatabaseBenchmarkRoot(repositoryRoot, { access: "read" });
   else assertPathContext(input);
-  return resolveDaebBenchmarkRoot(repositoryRoot, { access: "write" });
+  return resolveAxArenaDatabaseBenchmarkRoot(repositoryRoot, { access: "write" });
 }
 
-/** Resolve an explicit writer destination and reject paths outside canonical DAEB. */
-export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string): string {
+/** Resolve an explicit writer destination and reject paths outside AXArena-Database. */
+export function assertCanonicalAxArenaDatabaseWritePath(input: AxArenaDatabasePathInput, path: string): string {
   const root = writeRoot(input);
-  const repositoryRoot = daebRepositoryRoot(input);
+  const repositoryRoot = axArenaDatabaseRepositoryRoot(input);
   const candidate = isAbsolute(path) ? resolve(path) : resolve(repositoryRoot, path);
   if (!contained(root, candidate)) {
     throw new Error(`writers use only the canonical benchmark root: ${root}`);
@@ -217,8 +241,8 @@ export function assertCanonicalDaebWritePath(input: DaebPathInput, path: string)
 }
 
 /** Suite writers use one unambiguous stem and the canonical lowercase extension. */
-export function assertCanonicalDaebSuiteWritePath(input: DaebPathInput, path: string): string {
-  const candidate = assertCanonicalDaebWritePath(input, path);
+export function assertCanonicalAxArenaDatabaseSuiteWritePath(input: AxArenaDatabasePathInput, path: string): string {
+  const candidate = assertCanonicalAxArenaDatabaseWritePath(input, path);
   if (!candidate.endsWith(".yaml")) {
     throw new Error(`suite writers require a canonical lowercase .yaml path: ${candidate}`);
   }
@@ -226,139 +250,139 @@ export function assertCanonicalDaebSuiteWritePath(input: DaebPathInput, path: st
 }
 
 /** Canonical-only root used by every writer. */
-export function daebRoot(root: DaebPathInput): string {
+export function axArenaDatabaseRoot(root: AxArenaDatabasePathInput): string {
   return writeRoot(root);
 }
 
-export function daebReadRoot(root: DaebPathInput): string {
+export function axArenaDatabaseReadRoot(root: AxArenaDatabasePathInput): string {
   return readRoot(root);
 }
 
-export function daebVendorsDir(root: DaebPathInput): string {
-  return resolve(daebRoot(root), "vendors");
+export function axArenaDatabaseVendorsDir(root: AxArenaDatabasePathInput): string {
+  return resolve(axArenaDatabaseRoot(root), "vendors");
 }
 
-export function daebReadVendorsDir(root: DaebPathInput): string {
-  return resolve(daebReadRoot(root), "vendors");
+export function axArenaDatabaseReadVendorsDir(root: AxArenaDatabasePathInput): string {
+  return resolve(axArenaDatabaseReadRoot(root), "vendors");
 }
 
-export function daebVersionDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebRoot(root), safeSegment(version, "benchmark version"));
+export function axArenaDatabaseVersionDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function daebReadVersionDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadRoot(root), safeSegment(version, "benchmark version"));
+export function axArenaDatabaseReadVersionDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadRoot(root), safeSegment(version, "benchmark version"));
 }
 
-export function daebSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(root, resolve(daebVersionDir(root, version), "suite.yaml"));
+export function axArenaDatabaseSuitePath(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(root, resolve(axArenaDatabaseVersionDir(root, version), "suite.yaml"));
 }
 
-export function daebReadSuitePath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "suite.yaml");
+export function axArenaDatabaseReadSuitePath(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVersionDir(root, version), "suite.yaml");
 }
 
-export function daebVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseVendorSelectionLedgerPath(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVersionDir(root, version), "vendor-selection-ledger.yaml"),
+    resolve(axArenaDatabaseVersionDir(root, version), "vendor-selection-ledger.yaml"),
   );
 }
 
-export function daebReadVendorSelectionLedgerPath(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "vendor-selection-ledger.yaml");
+export function axArenaDatabaseReadVendorSelectionLedgerPath(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVersionDir(root, version), "vendor-selection-ledger.yaml");
 }
 
-export function daebExtractsDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "extracts");
+export function axArenaDatabaseExtractsDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseVersionDir(root, version), "extracts");
 }
 
-export function daebReadExtractsDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "extracts");
+export function axArenaDatabaseReadExtractsDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVersionDir(root, version), "extracts");
 }
 
-export function daebVendorExtractDir(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebExtractsDir(root, version), safeSegment(slug, "vendor slug"));
+export function axArenaDatabaseVendorExtractDir(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function daebReadVendorExtractDir(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadExtractsDir(root, version), safeSegment(slug, "vendor slug"));
+export function axArenaDatabaseReadVendorExtractDir(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadExtractsDir(root, version), safeSegment(slug, "vendor slug"));
 }
 
-export function daebCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseCapabilityInventoryPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, slug, version), "capability-inventory.yaml"),
   );
 }
 
-export function daebReadCapabilityInventoryPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "capability-inventory.yaml");
+export function axArenaDatabaseReadCapabilityInventoryPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVendorExtractDir(root, slug, version), "capability-inventory.yaml");
 }
 
-export function daebLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseLegacyCapabilitiesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "capabilities.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, slug, version), "capabilities.yaml"),
   );
 }
 
-export function daebReadLegacyCapabilitiesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "capabilities.yaml");
+export function axArenaDatabaseReadLegacyCapabilitiesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVendorExtractDir(root, slug, version), "capabilities.yaml");
 }
 
-export function daebSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseSurfacesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "surfaces.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, slug, version), "surfaces.yaml"),
   );
 }
 
-export function daebReadSurfacesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "surfaces.yaml");
+export function axArenaDatabaseReadSurfacesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVendorExtractDir(root, slug, version), "surfaces.yaml");
 }
 
-export function daebOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseOraclesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, slug, version), "oracles.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, slug, version), "oracles.yaml"),
   );
 }
 
-export function daebReadOraclesPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVendorExtractDir(root, slug, version), "oracles.yaml");
+export function axArenaDatabaseReadOraclesPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVendorExtractDir(root, slug, version), "oracles.yaml");
 }
 
-export function daebPacksDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebVersionDir(root, version), "packs");
+export function axArenaDatabasePacksDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseVersionDir(root, version), "packs");
 }
 
-export function daebReadPacksDir(root: DaebPathInput, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadVersionDir(root, version), "packs");
+export function axArenaDatabaseReadPacksDir(root: AxArenaDatabasePathInput, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadVersionDir(root, version), "packs");
 }
 
-export function daebCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseCompiledPackPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
+    resolve(axArenaDatabasePacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml"),
   );
 }
 
-export function daebReadCompiledPackPath(root: DaebPathInput, slug: string, version: string = DAEB_ACTIVE_VERSION): string {
-  return resolve(daebReadPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
+export function axArenaDatabaseReadCompiledPackPath(root: AxArenaDatabasePathInput, slug: string, version: string = AXARENA_DATABASE_ACTIVE_VERSION): string {
+  return resolve(axArenaDatabaseReadPacksDir(root, version), safeSegment(slug, "vendor slug"), "pack.yaml");
 }
 
-export function daebVendorCardPath(root: DaebPathInput, slug: string): string {
-  return assertCanonicalDaebWritePath(
+export function axArenaDatabaseVendorCardPath(root: AxArenaDatabasePathInput, slug: string): string {
+  return assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`),
+    resolve(axArenaDatabaseVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`),
   );
 }
 
-export function daebReadVendorCardPath(root: DaebPathInput, slug: string): string {
-  return resolve(daebReadVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`);
+export function axArenaDatabaseReadVendorCardPath(root: AxArenaDatabasePathInput, slug: string): string {
+  return resolve(axArenaDatabaseReadVendorsDir(root), `${safeSegment(slug, "vendor slug")}.discovered.yaml`);
 }
 
-export function daebArchiveDir(root: DaebPathInput): string {
-  return resolve(daebRoot(root), "_archive");
+export function axArenaDatabaseArchiveDir(root: AxArenaDatabasePathInput): string {
+  return resolve(axArenaDatabaseRoot(root), "_archive");
 }

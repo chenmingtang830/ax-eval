@@ -1,7 +1,7 @@
-# AXArena Benchmark
+# AXArena-Database benchmark workspace
 
 This private workspace is the in-repository ownership boundary for benchmark
-planning, DAEB policy, provider composition, aggregation, and publication. It
+planning, AXArena-Database policy, provider composition, aggregation, and publication. It
 depends on the supported `ax-eval` package API; `ax-eval` must never import it.
 
 **Trusted execution architecture:** read
@@ -9,8 +9,8 @@ depends on the supported `ax-eval` package API; `ax-eval` must never import it.
 runtime backends, credentials, sandboxing, source trust, or publication gates.
 
 The workspace composes immutable runtime-extension registries through the
-public `ax-eval` package specifier and owns canonical DAEB artifacts under
-`daeb/`. DAEB authoring policy and its nine commands now live under
+public `ax-eval` package specifier and owns canonical AXArena-Database artifacts under
+`axarena-database/`. AXArena-Database authoring policy and its nine commands now live under
 `src/authoring/`; the old `ax-eval` spellings delegate here with a one-minor
 deprecation warning.
 
@@ -24,7 +24,7 @@ the core cell API without this arena registry is generic local execution, not a
 trusted or comparable arena result.
 
 Provider cleanup is namespace-bounded and non-cascading. Postgres revalidates
-function identities server-side and includes exact DAEB-created roles; cleanup
+function identities server-side and includes exact AXArena-Database-created roles; cleanup
 remains unconfirmed when unrelated dependencies prevent a drop. Turso CLI
 provisioning requires an explicit install root, version, and SHA-256. Official
 hosted execution gets those values from the committed trusted-runtime lock and
@@ -45,20 +45,20 @@ the generic capability-inventory and suite-methodology schemas. The persistence
 wrappers use no-follow, single-link, and inode
 validation under an exclusive trusted-checkout-UID assumption. Remaining
 controller and publication artifacts use their own contained filesystem
-contracts. Every exported DAEB authoring writer—including advisory, suite,
+contracts. Every exported AXArena-Database authoring writer—including advisory, suite,
 synthesis, methodology-artifact, support-summary, and audit-autofix
 writers—uses the contained authoring filesystem; multi-file writers validate
-every destination under the canonical DAEB root before their first mutation.
+every destination under the canonical AXArena-Database root before their first mutation.
 Suite destinations require the exact lowercase `.yaml` extension;
 bare repository-root calls fail when canonical and legacy roots coexist, while
-an explicitly created `DaebPathContext` preserves the caller's root selection.
+an explicitly created `AxArenaDatabasePathContext` preserves the caller's root selection.
 Canonical-suite oracle
 extraction lives here too: grounded prompts, retry/concurrency behavior,
 support-matrix application, database vendor configuration, and deterministic
 read-back seeds. `ax-eval` exports the reusable oracle-extract validation
 schemas and generic harness helpers, without the arena policy. Suite methodology
 defaults likewise live here rather than in core.
-Tests that read or assert canonical `daeb/` artifacts also live in this
+Tests that read or assert canonical `axarena-database/` artifacts also live in this
 workspace; public `ax-eval` suite helpers are tested in core with synthetic
 inputs rather than arena files.
 
@@ -134,17 +134,18 @@ GitHub-required launcher and environment/credential binding surface.
 lockfile-only repository installation, build, and exact tool sealing before
 the workflow exposes credentials.
 
-For one minor release, DAEB readers accept the former `benchmarks/daeb/` root
-only when this canonical root is absent and emit a deprecation warning. If both
-roots exist, pass `--benchmark-root <dir>` explicitly. Writers use only
-`ax-arena/benchmark/daeb/`; no duplicate files or symlinks are supported.
+During the compatibility window, AXArena-Database readers accept the former
+`ax-arena/benchmark/daeb/` and `benchmarks/daeb/` roots only when the canonical
+root is absent and emit a deprecation warning. If multiple roots exist, pass
+`--benchmark-root <dir>` explicitly. Writers use only
+`ax-arena/benchmark/axarena-database/`; no duplicate files or symlinks are supported.
 
-Frozen benchmark artifacts under `daeb/` moved byte-for-byte so pack approvals
+Frozen benchmark artifacts under `axarena-database/` moved byte-for-byte so pack approvals
 and provenance remain verifiable. Documentation-only path and link corrections
-in `daeb/README.md` do not change pack or approval bytes. The frozen
+in `axarena-database/README.md` do not change pack or approval bytes. The frozen
 `v1/run-matrix.yaml`, `v1/suite.audit-notes.md`, and `v1/suite.synthesis.md`
 still retain historical `benchmarks/daeb/` text from the relocation commit;
-interpret those references as `ax-arena/benchmark/daeb/`.
+interpret those references as `ax-arena/benchmark/axarena-database/`.
 
 ```bash
 npm run ax-arena -- benchmark --help
@@ -179,7 +180,7 @@ run into a hardened `ax.publication-bundle/v2` directory. The immutable batch
 selects the vendors, surfaces, harnesses, models, profiles, and trials; callers
 cannot override the cohort. The command revalidates the batch, completion,
 report, aggregate, suite, pack, and approval hashes, copies only the canonical
-DAEB allowlist, generates the competitive report, and atomically publishes a
+AXArena-Database allowlist, generates the competitive report, and atomically publishes a
 manifest whose integrity section binds every exported artifact. Production
 bundles are created only from `pinned-oci + hosted-trusted` reruns whose
 detached GitHub OIDC attestation verifies against the protected-main workflow;
@@ -194,7 +195,7 @@ the writer reruns the canonical aggregator and reporting renderer from those
 attested cells and requires byte-identical aggregates, snapshots, HTML, and
 failure review. Its reporting timestamp must equal the signed completion time.
 Downstream cohort loading repeats that derivation, verifies
-the signed DAEB source set and exact physical inventory, and rejects rewritten
+the signed AXArena-Database source set and exact physical inventory, and rejects rewritten
 manifest prose or extra files; a self-described integrity envelope is never
 sufficient.
 Legacy `ax-eval publication-bundle` flags remain accepted only when their

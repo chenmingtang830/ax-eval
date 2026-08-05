@@ -14,11 +14,11 @@ import {
 } from "ax-eval";
 import { writeContainedText } from "./artifact-filesystem.js";
 import {
-  assertCanonicalDaebWritePath,
-  daebRepositoryRoot,
-  daebRoot,
-  daebVendorExtractDir,
-  type DaebPathInput,
+  assertCanonicalAxArenaDatabaseWritePath,
+  axArenaDatabaseRepositoryRoot,
+  axArenaDatabaseRoot,
+  axArenaDatabaseVendorExtractDir,
+  type AxArenaDatabasePathInput,
 } from "./benchmark-paths.js";
 import { loadCapabilityExtract, loadSurfaceExtract } from "./artifact-persistence.js";
 
@@ -41,7 +41,7 @@ export type ExtractAdvisory = z.infer<typeof AdvisoryResultSchema> & {
 };
 
 export async function adviseVendorExtract(
-  root: DaebPathInput,
+  root: AxArenaDatabasePathInput,
   slug: string,
   opts: { harness?: HarnessId; model?: string; effort?: Effort } = {},
 ): Promise<ExtractAdvisory> {
@@ -58,7 +58,7 @@ export async function adviseVendorExtract(
   const prompt = [
     `Audit this database vendor extraction for semantic risks. You MUST WebFetch every URL you cite.`,
     `This is advisory only: do not invent capability support. Review self-service vs support-mediated operations,`,
-    `CLI/SDK headless auth, GUI mislabeled as CLI, and whether a cited capability can perform a DAEB operational task.`,
+    `CLI/SDK headless auth, GUI mislabeled as CLI, and whether a cited capability can perform a AXArena-Database operational task.`,
     `Vendor: ${inventory.vendor}`,
     `CLI surface: ${JSON.stringify(surfaces.cli ?? null)}`,
     `SDK surface: ${JSON.stringify(surfaces.sdk ?? null)}`,
@@ -88,14 +88,14 @@ export async function adviseVendorExtract(
   };
 }
 
-export function writeExtractAdvisory(root: DaebPathInput, advisory: ExtractAdvisory): string {
-  const path = assertCanonicalDaebWritePath(
+export function writeExtractAdvisory(root: AxArenaDatabasePathInput, advisory: ExtractAdvisory): string {
+  const path = assertCanonicalAxArenaDatabaseWritePath(
     root,
-    resolve(daebVendorExtractDir(root, advisory.slug), "advisory.yaml"),
+    resolve(axArenaDatabaseVendorExtractDir(root, advisory.slug), "advisory.yaml"),
   );
   return writeContainedText(
-    daebRepositoryRoot(root),
-    daebRoot(root),
+    axArenaDatabaseRepositoryRoot(root),
+    axArenaDatabaseRoot(root),
     path,
     yamlStringify(advisory),
     "extract advisory",
