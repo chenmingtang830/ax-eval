@@ -1018,25 +1018,62 @@ console.log(JSON.stringify({
     expect(result.out).toContain("OpenCode provider openrouter requires one of: OPENROUTER_API_KEY");
   });
 
-  it("marks OpenCode MCP unsupported before provider credential checks", () => {
+  it("routes OpenCode MCP cells through normal auth validation instead of marking them unsupported", () => {
     const dir = freshDir();
     const result = runCli([
       "exec-plan", "--pack", PACK, "--skip-review", "--surface", "mcp", "--invoke",
-      "--harness", "opencode", "--attempts", "1",
+      "--harness", "opencode", "--model", "openrouter/example-model", "--attempts", "1",
       "--run-dir", dir,
     ], {
-      OPENROUTER_API_KEY: "",
-      ASANA_PAT: "",
-      ASANA_SANDBOX_PROJECT_GID: "",
+      OPENROUTER_API_KEY: "provider-key",
+      ASANA_MCP_CLIENT_ID: "",
+      ASANA_MCP_CLIENT_SECRET: "",
+      ASANA_MCP_REFRESH_TOKEN: "",
     });
     expect(result.code, result.out).toBe(0);
-    expect(result.out).toContain("BLOCKED (unsupported harness/surface)");
-    expect(result.out).toContain("unsupported harness/surface cell(s)");
-    expect(result.out).not.toContain("requires --model");
-    expect(result.out).not.toContain("Add the keys above");
-    expect(result.out).not.toContain("health-check");
+    expect(result.out).toContain("BLOCKED (requires-oauth)");
+    expect(result.out).not.toContain("unsupported harness/surface");
+    expect(result.out).toContain("Add the keys above");
+    expect(result.out).toContain("health-check");
     const record = JSON.parse(readFileSync(resolve(dir, "run-mcp-opencode-blocked.normalized.json"), "utf8"));
-    expect(record).toMatchObject({ harness: "opencode", surface: "mcp", blocked: "invoke-failed" });
+    expect(record).toMatchObject({ harness: "opencode", surface: "mcp", blocked: "requires-oauth" });
+  });
+
+  it("applies OpenCode model and hygiene preflight to MCP-only plans", () => {
+    const missingModel = runCli([
+      "exec-plan", "--pack", PACK, "--skip-review", "--surface", "mcp", "--invoke",
+      "--harness", "opencode", "--attempts", "1", "--run-dir", freshDir(),
+    ]);
+    expect(missingModel.code).not.toBe(0);
+    expect(missingModel.out).toContain("--invoke --harness opencode requires --model <provider/model>");
+
+    const dir = freshDir();
+    const packPath = resolve(dir, "pack.yaml");
+    const pack = TargetPackSchema.parse({
+      name: "mcp-preflight",
+      version: "1",
+      standard_set_version: "mcp-preflight-v1",
+      run_id: "mcp-preflight",
+      generated_by: "deterministic@no-model",
+      auth_method: "none",
+      auth: { type: "none" },
+      base_url: "https://example.invalid",
+      site_url: "",
+      docs_urls: [],
+      surfaces: {
+        mcp: { server: "https://mcp.example.invalid", transport: "http" },
+      },
+      tasks: [],
+    });
+    writeFileSync(packPath, yamlStringify(pack));
+    const reclaim = runCli([
+      "exec-plan", "--pack", packPath, "--skip-review", "--surface", "mcp", "--invoke",
+      "--harness", "opencode", "--model", "custom/example-model", "--reclaim",
+      "--attempts", "1", "--run-dir", resolve(dir, "run"),
+    ]);
+    expect(reclaim.code).toBe(1);
+    expect(reclaim.out).toContain("health-check unavailable");
+    expect(reclaim.out).toContain("refusing --reclaim");
   });
 
   it("rejects pack-declared OpenCode control variables before invocation", () => {

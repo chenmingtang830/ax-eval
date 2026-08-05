@@ -269,10 +269,14 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
   return { home, configPath };
 }
 
-function writeOpenCodeNoMcpHome(opts: {
+function writeOpenCodeHome(opts: {
   paths: InvokePaths;
   surface: SurfaceId;
   isolateWorkspace?: boolean;
+  mcp?: {
+    serverName: string;
+    entry: Record<string, unknown>;
+  };
 }): {
   home: string;
   configDir: string;
@@ -285,7 +289,8 @@ function writeOpenCodeNoMcpHome(opts: {
   workDir?: string;
 } {
   const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
-  const root = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-opencode-${opts.surface}-no-mcp`);
+  const suffix = opts.mcp ? `${opts.mcp.serverName}-opencode-mcp` : `opencode-${opts.surface}-no-mcp`;
+  const root = resolve(dirname(opts.paths.resultsPath), ".invoke-home", `${stem}-${suffix}`);
   // HOME is the per-run root so invoke.ts's containment-checked recursive
   // scrubber covers every OpenCode config/session/cache directory below.
   const home = root;
@@ -306,7 +311,7 @@ function writeOpenCodeNoMcpHome(opts: {
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
   writeFileSync(configPath, `${JSON.stringify({
-    mcp: {},
+    mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: { task: "deny" },
     share: "disabled",
     autoshare: false,
@@ -392,7 +397,7 @@ export async function provisionHarnessForSurface(opts: {
           `OpenCode managed configuration prevents an isolated evaluation: ${managed.join(", ")}`,
         );
       }
-      const opencode = writeOpenCodeNoMcpHome({
+      const opencode = writeOpenCodeHome({
         paths: opts.paths,
         surface: opts.surface,
         isolateWorkspace: opts.isolateWorkspace,
@@ -448,12 +453,6 @@ export async function provisionHarnessForSurface(opts: {
     };
   }
   const mcp = opts.pack.surfaces?.mcp;
-  // OpenCode is added for broad API/CLI/SDK model coverage. Until its MCP
-  // client config and trace semantics have dedicated fixtures, never let an MCP
-  // cell silently run without the reviewed pack-declared server.
-  if (opts.harness === "opencode") {
-    throw new Error("OpenCode MCP surface provisioning is not supported; use claude-code or codex");
-  }
   if (!mcp) return { env: {} };
   const downloadLaunchers = new Set(["npx", "npm", "pnpm", "yarn", "bunx", "uvx"]);
   if (opts.allowDownloads === false && mcp.transport === "stdio" && downloadLaunchers.has(basename(mcp.server))) {
@@ -466,6 +465,16 @@ export async function provisionHarnessForSurface(opts: {
     && mcp.server === "exa-mcp-server"
   ) {
     throw new Error("automatic npx MCP download is disabled for cell runs; declare a pinned preinstalled server command");
+  }
+  if (opts.harness === "opencode") {
+    const managed = findOpenCodeManagedConfig({
+      programData: openCodeManagedProgramData(opts.env ?? {}, process.env),
+    });
+    if (managed.length) {
+      throw new Error(
+        `OpenCode managed configuration prevents an isolated evaluation: ${managed.join(", ")}`,
+      );
+    }
   }
   const auth = mcp.auth;
   let bearerToken: string | undefined;
@@ -541,6 +550,63 @@ export async function provisionHarnessForSurface(opts: {
         claude_config: claude.configPath,
         ...(claude.headersHelperPath ? { claude_headers_helper: claude.headersHelperPath } : {}),
         mcp_server: claude.serverName,
+      },
+    };
+  }
+
+  if (opts.harness === "opencode") {
+    const serverName = productSlug(opts.pack.name.replace(/-generated$/, ""));
+    const entry = mcp.transport === "stdio"
+      ? {
+          type: "local",
+          command: mcp.args.length === 0 && mcp.server === "exa-mcp-server"
+            ? ["npx", "-y", "exa-mcp-server"]
+            : [mcp.server, ...mcp.args],
+          enabled: true,
+        }
+      : {
+          type: "remote",
+          url: mcp.server,
+          enabled: true,
+          ...(bearerTokenEnvVar ? {
+            headers: { Authorization: `Bearer {env:${bearerTokenEnvVar}}` },
+          } : {}),
+        };
+    const opencode = writeOpenCodeHome({
+      paths: opts.paths,
+      surface: opts.surface,
+      isolateWorkspace: opts.isolateWorkspace,
+      mcp: { serverName, entry },
+    });
+    return {
+      env: {
+        HOME: opencode.home,
+        OPENCODE_CONFIG_DIR: opencode.configDir,
+        XDG_CONFIG_HOME: opencode.xdgConfigHome,
+        XDG_DATA_HOME: opencode.dataHome,
+        XDG_CACHE_HOME: opencode.cacheHome,
+        XDG_STATE_HOME: opencode.stateHome,
+        OPENCODE_ENABLE_EXA: "1",
+        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+        OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+        OPENCODE_DISABLE_AUTOUPDATE: "1",
+        ...stdioTokenEnv,
+        ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
+      },
+      meta: {
+        mcp_provisioning: authMode,
+        mcp_server: serverName,
+        opencode_home: opencode.home,
+        opencode_config_dir: opencode.configDir,
+        opencode_config: opencode.configPath,
+        opencode_xdg_config_home: opencode.xdgConfigHome,
+        opencode_data_home: opencode.dataHome,
+        opencode_cache_home: opencode.cacheHome,
+        opencode_state_home: opencode.stateHome,
+        ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
+        ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
       },
     };
   }

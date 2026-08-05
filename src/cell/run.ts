@@ -635,6 +635,7 @@ function observedTranscript(
   path: string,
   credentials: CredentialSource,
   harness: EvaluationCell["harness"]["id"],
+  mcpServerName?: string,
 ): ObservedRun | undefined {
   try {
     const stat = lstatSync(path);
@@ -649,6 +650,7 @@ function observedTranscript(
       cliBin: pack.surfaces?.cli?.bin,
       sdkPackage: pack.surfaces?.sdk?.package,
       mcpServer: pack.surfaces?.mcp?.server,
+      mcpServerName,
     });
     // An incompatible or empty stream is not objective evidence. Let callers
     // retain their labeled self-report fallback instead of treating an empty
@@ -1024,19 +1026,6 @@ export async function runCellWithRuntime(
       message: safeMessage(error, credentialSecrets),
     });
   }
-  if (cell.harness.id === "opencode" && cell.surface === "mcp") {
-    return terminalRecord({
-      cell,
-      pack,
-      paths,
-      startedAt,
-      completedAt: runtime.now().toISOString(),
-      blocked: "unsupported-surface",
-      stage: "preflight",
-      message: "OpenCode MCP surface execution is not supported; use claude-code or codex",
-      providerProvenance,
-    });
-  }
   const openCodeControlConflicts = cell.harness.id === "opencode"
     ? cell.required_credentials.filter(isOpenCodeReservedChildEnv)
     : [];
@@ -1347,7 +1336,13 @@ export async function runCellWithRuntime(
     });
   }
 
-  const observed = observedTranscript(pack, paths.transcriptPath, resolutionCredentials, cell.harness.id);
+  const observed = observedTranscript(
+    pack,
+    paths.transcriptPath,
+    resolutionCredentials,
+    cell.harness.id,
+    typeof provisioning.meta?.mcp_server === "string" ? provisioning.meta.mcp_server : undefined,
+  );
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
   try {
