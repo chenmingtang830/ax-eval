@@ -51,6 +51,7 @@ import {
   openCodeProviderCredentialNames,
   openCodeProviderId,
 } from "../harness/opencode.js";
+import { isPiReservedChildEnv, piProviderCredentialNames, piProviderId } from "../harness/pi.js";
 import { buildExecutorPrompt, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
@@ -225,14 +226,15 @@ function cellChildEnvironment(
   harness: EvaluationCell["harness"]["id"],
 ): Record<string, string> {
   const out = childEnvironment(pack, credentials);
-  if (harness !== "opencode") return out;
+  if (harness !== "opencode" && harness !== "pi") return out;
   // Cell credential manifests must not be able to smuggle host-control knobs
   // that override the controller-owned OpenCode isolation policy. The safe
   // values from core provisioning are merged back after this filter.
-  const conflicts = Object.keys(out).filter(isOpenCodeReservedChildEnv);
+  const conflicts = Object.keys(harnessCredentials(pack, credentials))
+    .filter(harness === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv);
   if (conflicts.length) {
     throw new Error(
-      `cell credential env name(s) conflict with controller-owned OpenCode isolation: ${conflicts.join(", ")}`,
+      `cell credential env name(s) conflict with controller-owned ${harness === "pi" ? "Pi" : "OpenCode"} isolation: ${conflicts.join(", ")}`,
     );
   }
   return out;
@@ -528,7 +530,7 @@ function executionNamespace(pack: TargetPack, cell: EvaluationCell): string {
     .slice(0, 12) || "cell";
   const harness = cell.harness.id === "codex"
     ? "cdx"
-    : cell.harness.id === "opencode" ? "opc" : "cld";
+    : cell.harness.id === "opencode" ? "opc" : cell.harness.id === "pi" ? "pi" : "cld";
   const digest = createHash("sha256")
     .update(JSON.stringify([
       cell.batch_id,
@@ -1027,10 +1029,18 @@ export async function runCellWithRuntime(
       message: safeMessage(error, credentialSecrets),
     });
   }
-  const openCodeControlConflicts = cell.harness.id === "opencode"
-    ? cell.required_credentials.filter(isOpenCodeReservedChildEnv)
+  if (cell.harness.id === "pi" && cell.surface === "mcp") {
+    return terminalRecord({
+      cell, pack, paths, startedAt, completedAt: runtime.now().toISOString(),
+      blocked: "unsupported-surface", stage: "preflight",
+      message: "Pi MCP surface execution is not supported; use claude-code, codex, or opencode",
+      providerProvenance,
+    });
+  }
+  const harnessControlConflicts = cell.harness.id === "opencode" || cell.harness.id === "pi"
+    ? cell.required_credentials.filter(cell.harness.id === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv)
     : [];
-  if (openCodeControlConflicts.length) {
+  if (harnessControlConflicts.length) {
     return terminalRecord({
       cell,
       pack,
@@ -1039,13 +1049,16 @@ export async function runCellWithRuntime(
       completedAt: runtime.now().toISOString(),
       blocked: "invoke-failed",
       stage: "preflight",
-      message: `credential env name(s) conflict with controller-owned OpenCode isolation: ${openCodeControlConflicts.join(", ")}`,
+      message: `credential env name(s) conflict with controller-owned ${cell.harness.id === "pi" ? "Pi" : "OpenCode"} isolation: ${harnessControlConflicts.join(", ")}`,
       providerProvenance,
     });
   }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
   const missingOpenCodeProvider = cell.harness.id === "opencode"
     ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
+    : [];
+  const missingPiProvider = cell.harness.id === "pi"
+    ? piProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
     : [];
   const connectionDataPlaneCli = connectionDataPlaneCliOwnsAuth(pack, cell);
   const selectedTasks = tasksForSurface(pack, cell.surface);
@@ -1080,12 +1093,17 @@ export async function runCellWithRuntime(
     && missingOpenCodeProvider.length === openCodeProviderCredentialNames(cell.harness.model).length
       ? [`one of ${openCodeProviderCredentialNames(cell.harness.model).join(" or ")} for ${openCodeProviderId(cell.harness.model)}`]
       : [];
+  const piProviderMissing = missingPiProvider.length > 0
+    && missingPiProvider.length === piProviderCredentialNames(cell.harness.model).length
+      ? [`one of ${piProviderCredentialNames(cell.harness.model).join(" or ")} for ${piProviderId(cell.harness.model)}`]
+      : [];
   const missing = [...new Set([
     ...missingDeclared,
     ...missingPack,
     ...missingVerifierRequirements,
     ...auth.missing,
     ...openCodeProviderMissing,
+    ...piProviderMissing,
   ])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
@@ -1101,7 +1119,7 @@ export async function runCellWithRuntime(
     });
   }
 
-  const detectionCwd = cell.harness.id === "opencode" ? artifactDir : cwd;
+  const detectionCwd = cell.harness.id === "opencode" || cell.harness.id === "pi" ? artifactDir : cwd;
   const detection = runtime.detectHarness(
     cell.harness.id,
     detectionEnvironment(artifactDir),
@@ -1210,7 +1228,7 @@ export async function runCellWithRuntime(
       env: baseEnv,
       allowDownloads: false,
       allowAmbientHarnessAuth: false,
-      isolateWorkspace: cell.harness.id === "opencode" && !options.sandbox,
+      isolateWorkspace: (cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox,
     });
     provisioning = mergeExtensionProvisioning(
       coreProvisioning,
@@ -1221,10 +1239,12 @@ export async function runCellWithRuntime(
       cwd,
       artifactDir,
     );
-    if (cell.harness.id === "opencode" && !options.sandbox) {
-      const workDir = provisioning.meta?.opencode_work_dir;
+    if ((cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox) {
+      const workDir = cell.harness.id === "opencode"
+        ? provisioning.meta?.opencode_work_dir
+        : provisioning.meta?.pi_work_dir ?? provisioning.meta?.opencode_work_dir;
       if (typeof workDir !== "string" || !workDir) {
-        throw new Error("OpenCode provisioning did not create an isolated task workspace");
+        throw new Error(`${cell.harness.id === "pi" ? "Pi" : "OpenCode"} provisioning did not create an isolated task workspace`);
       }
       invokeCwd = workDir;
     }
@@ -1256,7 +1276,7 @@ export async function runCellWithRuntime(
     resultsPath: paths.resultsPath,
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
-    isolatedWorkspace: cell.harness.id === "opencode",
+    isolatedWorkspace: cell.harness.id === "opencode" || cell.harness.id === "pi",
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);

@@ -94,6 +94,7 @@ import {
   openCodeProviderCredentialNames,
   openCodeProviderId,
 } from "./harness/opencode.js";
+import { isPiModelRoute, isPiReservedChildEnv, piProviderCredentialNames, piProviderId } from "./harness/pi.js";
 import {
   observedToDiscovery,
   observedToTrace,
@@ -203,7 +204,7 @@ function invokedHarnessEnvironment(
   model: string | undefined,
   provisioning: Readonly<Record<string, string>>,
 ): Record<string, string> {
-  if (harness !== "opencode") return { ...provisioning };
+  if (harness !== "opencode" && harness !== "pi") return { ...provisioning };
   const scoped: Record<string, string> = {};
   const copy = (name: string | undefined) => {
     if (!name) return;
@@ -212,8 +213,8 @@ function invokedHarnessEnvironment(
   };
   const copyPackEnv = (name: string | undefined) => {
     if (!name) return;
-    if (isOpenCodeReservedChildEnv(name)) {
-      throw new Error(`pack environment name ${name} conflicts with controller-owned OpenCode isolation`);
+    if ((harness === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv)(name)) {
+      throw new Error(`pack environment name ${name} conflicts with controller-owned ${harness === "pi" ? "Pi" : "OpenCode"} isolation`);
     }
     copy(name);
   };
@@ -222,8 +223,8 @@ function invokedHarnessEnvironment(
   // Provider credentials are explicit env vars, never an ambient auth.json.
   // OpenCode always has a pinned provider/model route, so expose only that
   // provider's documented key candidates.
-  const providerNames = model && isOpenCodeModelRoute(model)
-    ? openCodeProviderCredentialNames(model)
+  const providerNames = model && (harness === "pi" ? isPiModelRoute(model) : isOpenCodeModelRoute(model))
+    ? (harness === "pi" ? piProviderCredentialNames(model) : openCodeProviderCredentialNames(model))
     : [];
   for (const name of providerNames) copy(name);
 
@@ -269,9 +270,9 @@ function invokedHarnessRedactionValues(
   model: string | undefined,
   childEnv: Readonly<Record<string, string>>,
 ): string[] {
-  if (harness !== "opencode") return [];
-  const names = new Set<string>(model && isOpenCodeModelRoute(model)
-    ? openCodeProviderCredentialNames(model)
+  if (harness !== "opencode" && harness !== "pi") return [];
+  const names = new Set<string>(model && (harness === "pi" ? isPiModelRoute(model) : isOpenCodeModelRoute(model))
+    ? (harness === "pi" ? piProviderCredentialNames(model) : openCodeProviderCredentialNames(model))
     : []);
   for (const requirement of describeRequiredEnv(pack, childEnv, {
     tasks: tasksForSurface(pack, surface),
@@ -315,17 +316,17 @@ function invokedHarnessCwd(
   provisioning: HarnessProvisioning,
   fallback = process.cwd(),
 ): string {
-  if (harness !== "opencode") return fallback;
-  const workDir = provisioning.meta?.opencode_work_dir;
+  if (harness !== "opencode" && harness !== "pi") return fallback;
+  const workDir = harness === "pi" ? provisioning.meta?.pi_work_dir : provisioning.meta?.opencode_work_dir;
   if (typeof workDir !== "string" || !workDir) {
-    throw new Error("OpenCode provisioning did not create an isolated task workspace");
+    throw new Error(`${harness === "pi" ? "Pi" : "OpenCode"} provisioning did not create an isolated task workspace`);
   }
   return workDir;
 }
 
 function detectPlannedInvokeHarness(harness: InvokeHarnessId) {
-  if (harness !== "opencode") return detectInvokeHarness(harness);
-  const home = mkdtempSync(resolve(tmpdir(), "ax-eval-opencode-detect-"));
+  if (harness !== "opencode" && harness !== "pi") return detectInvokeHarness(harness);
+  const home = mkdtempSync(resolve(tmpdir(), `ax-eval-${harness}-detect-`));
   try {
     const env: Record<string, string> = { HOME: home };
     for (const name of ["PATH", "TMPDIR", "TMP", "TEMP", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "CI"]) {
@@ -1686,21 +1687,20 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
     }
   }
   const hasRunnableSelection = !args.invoke || (surfaceIds.length > 0 && invokeHarnesses.length > 0);
-  if (invokeHarnesses.includes("opencode")) {
-    if (!isOpenCodeModelRoute(args.model)) {
-      throw new Error("--invoke --harness opencode requires --model <provider/model>");
-    }
-    const providerCredentials = openCodeProviderCredentialNames(args.model);
+  for (const harness of ["opencode", "pi"] as const) {
+    if (!invokeHarnesses.includes(harness) || (harness === "pi" && !surfaceIds.some((surface) => surface !== "mcp"))) continue;
+    const validRoute = harness === "pi" ? isPiModelRoute(args.model) : isOpenCodeModelRoute(args.model);
+    if (!validRoute) throw new Error(`--invoke --harness ${harness} requires --model <provider/model>`);
+    const providerCredentials = harness === "pi" ? piProviderCredentialNames(args.model!) : openCodeProviderCredentialNames(args.model!);
     if (providerCredentials.length && !providerCredentials.some((name) => Boolean(process.env[name]?.trim()))) {
-      throw new Error(
-        `OpenCode provider ${openCodeProviderId(args.model!)} requires one of: ${providerCredentials.join(", ")}`,
-      );
+      const provider = harness === "pi" ? piProviderId(args.model!) : openCodeProviderId(args.model!);
+      throw new Error(`${harness === "pi" ? "Pi" : "OpenCode"} provider ${provider} requires one of: ${providerCredentials.join(", ")}`);
     }
     // Validate controller-owned environment names before harness detection. A
     // missing OpenCode binary must not turn an unsafe pack into a successful
     // blocked plan (and made this gate platform-dependent in CI).
-    for (const surface of surfaceIds) {
-      invokedHarnessEnvironment(pack, surface, "opencode", args.model, {});
+    for (const surface of surfaceIds.filter((candidate) => harness !== "pi" || candidate !== "mcp")) {
+      invokedHarnessEnvironment(pack, surface, harness, args.model, {});
     }
   }
   // A structurally unsupported-only plan must not require target credentials or
@@ -1729,7 +1729,7 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   const tagSurface = !(surfaceIds.length === 1 && surfaceIds[0] === "api");
   // OpenCode executes from an external disposable cwd, so every artifact path
   // embedded in its prompt must be absolute.
-  const dir = args.invoke && invokeHarnesses.includes("opencode") ? resolve(args.runDir) : args.runDir;
+  const dir = args.invoke && (invokeHarnesses.includes("opencode") || invokeHarnesses.includes("pi")) ? resolve(args.runDir) : args.runDir;
   mkdirSync(dir, { recursive: true });
   const resultPaths: string[] = [];
   const resultPathsByHarness = new Map<string, string[]>();
@@ -1767,7 +1767,17 @@ interface InvokeGroup {
   const invokeJobs: InvokeJob[] = [];
   const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
-    const surfaceInvokeHarnesses = invokeHarnesses;
+    const surfaceInvokeHarnesses = args.invoke && surfaceId === "mcp"
+      ? invokeHarnesses.filter((harness) => harness !== "pi")
+      : invokeHarnesses;
+    if (args.invoke && surfaceId === "mcp" && invokeHarnesses.includes("pi")) {
+      const record = buildBlockedResult(pack, surfaceId, "pi", "invoke-failed");
+      const recordPath = `${dir}/run-${surfaceId}-pi-blocked.normalized.json`;
+      writeFileSync(recordPath, JSON.stringify(record, null, 2));
+      rememberBlockedRecord(recordPath);
+      console.log(`surface=${surfaceId} harness=pi → BLOCKED (unsupported harness/surface) → ${recordPath}`);
+      if (surfaceInvokeHarnesses.length === 0) continue;
+    }
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
     // runnable prompts for it. Instead write a `blocked` cube cell (so the
@@ -1851,14 +1861,14 @@ interface InvokeGroup {
                   surface: surfaceId,
                   paths,
                   cwd: process.cwd(),
-                  isolateWorkspace: harness === "opencode",
+                  isolateWorkspace: harness === "opencode" || harness === "pi",
                 });
               } catch (e) {
                 const record = buildBlockedResult(
                   pack,
                   surfaceId,
                   harness,
-                  harness === "opencode" ? "invoke-failed" : "requires-oauth",
+                  harness === "opencode" || harness === "pi" ? "invoke-failed" : "requires-oauth",
                   {
                     model: args.model || profile.model || null,
                     effort: (args.effort || profile.effort) as NormalizedEffort,
@@ -1906,7 +1916,7 @@ interface InvokeGroup {
               firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
               retries: args.invokeRetries,
               env: sharedChildEnv,
-              replaceEnv: harness === "opencode" ? true : undefined,
+              replaceEnv: harness === "opencode" || harness === "pi" ? true : undefined,
               redactionValues: invokedHarnessRedactionValues(
                 pack,
                 surfaceId,
@@ -1927,14 +1937,14 @@ interface InvokeGroup {
                     surface: surfaceId,
                     paths: invokePaths,
                     cwd: process.cwd(),
-                    isolateWorkspace: harness === "opencode",
+                    isolateWorkspace: harness === "opencode" || harness === "pi",
                   });
                 } catch (e) {
                   const record = buildBlockedResult(
                     pack,
                     surfaceId,
                     harness,
-                    harness === "opencode" ? "invoke-failed" : "requires-oauth",
+                    harness === "opencode" || harness === "pi" ? "invoke-failed" : "requires-oauth",
                     {
                       model: args.model || profile.model || null,
                       effort: (args.effort || profile.effort) as NormalizedEffort,
@@ -1968,7 +1978,7 @@ interface InvokeGroup {
                   tracePath: bootstrapPaths.tracePath,
                   surface,
                   tasks: [],
-                  isolatedWorkspace: harness === "opencode",
+                  isolatedWorkspace: harness === "opencode" || harness === "pi",
                 });
                 writeFileSync(bootstrapPaths.promptPath, bootstrapPrompt);
               }
@@ -2020,7 +2030,7 @@ interface InvokeGroup {
                   tracePath: taskPaths.tracePath,
                   surface,
                   tasks: [task],
-                  isolatedWorkspace: harness === "opencode",
+                  isolatedWorkspace: harness === "opencode" || harness === "pi",
                 });
                 writeFileSync(taskPaths.promptPath, prompt);
                 const job: InvokeJob = {
@@ -2060,7 +2070,7 @@ interface InvokeGroup {
               resultsPath: paths.resultsPath,
               tracePath: paths.tracePath,
               surface,
-              isolatedWorkspace: harness === "opencode",
+              isolatedWorkspace: harness === "opencode" || harness === "pi",
             });
             writeFileSync(paths.promptPath, prompt);
             invokeJobs.push({
@@ -2172,7 +2182,7 @@ interface InvokeGroup {
               surface: getSurface(job.surfaceId),
               tasks: job.taskId ? [job.runOpts.pack.tasks[0]!] : undefined,
               sharedDiscovery,
-              isolatedWorkspace: job.harness === "opencode",
+              isolatedWorkspace: job.harness === "opencode" || job.harness === "pi",
             });
             writeFileSync(job.paths.promptPath, rerenderedPrompt);
           }

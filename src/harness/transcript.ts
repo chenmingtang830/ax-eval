@@ -84,7 +84,7 @@ function escapeRe(s: string): string {
 function extractCliCommands(cmd: string, bin: string): string[] {
   const out: string[] = [];
   const re = new RegExp(
-    `(?:^|[;&|]|\\bnpx\\s+(?:-y\\s+)?)\\s*(${escapeRe(bin)}\\b[^;&|\\n]*)`,
+    `(?:^|[;&|]|\\bnpx\\s+(?:-y\\s+)?)\\s*(${escapeRe(bin)}(?=\\s|$)[^;&|\\n]*)`,
     "g",
   );
   let m: RegExpExecArray | null;

@@ -298,6 +298,11 @@ Codex retain their native reported-model handling. OpenCode instead records the 
 `provider/model` route, not an attestation of the model actually served, and
 passes the selected `low`/`medium`/`high` effort through its provider-specific
 `--variant` flag so the recorded execution identity was actually invoked.
+Pi has the equivalent API/CLI/SDK-only lane: `--harness pi --surface api
+--profile medium --model <provider/model> --effort medium`. Pi requires an
+explicit provider/model and fails closed for MCP. It runs in JSON mode without a
+session, extensions, skills, prompt templates, themes, or discovered context
+files; its isolated `PI_CODING_AGENT_DIR` and session directory are controller-owned.
 The CLI writes one normalized `{surface, product, harness}` record per cell.
 `verify` then renders them as a single
 **neutral matrix** (surface · harness · effort) — no cell is crowned "best".
@@ -321,6 +326,7 @@ gate even if they also make successful HTTP calls.
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
 and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults;
 tool-track OpenCode lanes have the equivalent `AX_EVAL_OPENCODE_BIN` override.
+Pi lanes have `AX_EVAL_PI_BIN`.
 API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 `mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
 failures. OpenCode requires an explicit `provider/model` and runs with

@@ -24,10 +24,11 @@ import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
 import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
 import { isOpenCodeModelRoute } from "./opencode.js";
+import { isPiModelRoute, piModelId, piProviderId } from "./pi.js";
 
-export type InvokeHarnessId = "claude-code" | "codex" | "opencode";
+export type InvokeHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
-export const INVOKE_HARNESS_IDS: readonly InvokeHarnessId[] = ["claude-code", "codex", "opencode"];
+export const INVOKE_HARNESS_IDS: readonly InvokeHarnessId[] = ["claude-code", "codex", "opencode", "pi"];
 
 export function isInvokeHarnessId(value: unknown): value is InvokeHarnessId {
   return typeof value === "string" && (INVOKE_HARNESS_IDS as readonly string[]).includes(value);
@@ -60,8 +61,8 @@ export interface InvokeRunOptions {
   ns: string;
   paths: InvokePaths;
   cwd: string;
-  /** Model slug to pass to the harness CLI (`claude --model`, `codex -m`,
-   *  `opencode --model`). OpenCode requires an explicit `provider/model` route;
+  /** Model slug to pass to the harness CLI. OpenCode and Pi require an explicit
+   *  `provider/model` route;
    *  Claude Code and Codex may still use their configured default. */
   model?: string;
   /** Canonical effort level. Translated to each harness's native convention at
@@ -369,7 +370,8 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
 function defaultCommandFor(id: InvokeHarnessId): string {
   if (id === "claude-code") return "claude";
   if (id === "codex") return "codex";
-  return "opencode";
+  if (id === "opencode") return "opencode";
+  return "pi";
 }
 
 function resolvedCommandOverride(value: string | undefined, fallback: string): string {
@@ -389,7 +391,8 @@ function resolvedCommandOverride(value: string | undefined, fallback: string): s
 function commandFor(id: InvokeHarnessId): string {
   if (id === "claude-code") return resolvedCommandOverride(process.env.AX_EVAL_CLAUDE_BIN, "claude");
   if (id === "codex") return resolvedCommandOverride(process.env.AX_EVAL_CODEX_BIN, "codex");
-  return resolvedCommandOverride(process.env.AX_EVAL_OPENCODE_BIN, "opencode");
+  if (id === "opencode") return resolvedCommandOverride(process.env.AX_EVAL_OPENCODE_BIN, "opencode");
+  return resolvedCommandOverride(process.env.AX_EVAL_PI_BIN, "pi");
 }
 
 function text(buf: Buffer | string | null | undefined): string {
@@ -724,11 +727,10 @@ function sanitizeInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   } catch {
     return;
   }
-  if (opts.harness === "opencode") {
-    // OpenCode stores complete messages, tool outputs, and errors in SQLite
-    // (plus WAL files) under XDG_DATA_HOME. Binary databases cannot be safely
-    // field-redacted, and the per-run home is disposable after recovery and
-    // metrics parsing, so remove the contained home in full.
+  if (opts.harness === "opencode" || opts.harness === "pi") {
+    // These harnesses may retain complete messages/tool output in internal
+    // stores. The per-run home is disposable after recovery and metrics
+    // parsing, so remove it in full rather than attempting field redaction.
     rmSync(home, { recursive: true, force: true });
     return;
   }
@@ -760,9 +762,11 @@ function sanitizeInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   visit(home);
 }
 
-function removeOpenCodeWorkRootIfPresent(opts: InvokeRunOptions): void {
-  if (opts.harness !== "opencode") return;
-  const root = opts.provisioning?.opencode_work_root;
+function removeIsolatedWorkRootIfPresent(opts: InvokeRunOptions): void {
+  if (opts.harness !== "opencode" && opts.harness !== "pi") return;
+  const root = opts.harness === "opencode"
+    ? opts.provisioning?.opencode_work_root
+    : opts.provisioning?.pi_work_root;
   if (typeof root !== "string" || !isAbsolute(root)) return;
   try {
     const tempRoot = realpathSync(tmpdir());
@@ -772,7 +776,7 @@ function removeOpenCodeWorkRootIfPresent(opts: InvokeRunOptions): void {
     const rel = relative(tempRoot, real);
     const first = rel.split(sep)[0] ?? "";
     if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
-    if (!first.startsWith("ax-eval-opencode-")) return;
+    if (!first.startsWith(opts.harness === "pi" ? "ax-eval-pi-" : "ax-eval-opencode-")) return;
     rmSync(real, { recursive: true, force: true });
   } catch {
     // Best effort: the directory is random, secret-free, and contains no
@@ -981,6 +985,24 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
         "--pure",
         "--model", opts.model,
         ...(opts.effort ? ["--variant", opts.effort] : []),
+        prompt,
+      ],
+    };
+  }
+  if (id === "pi") {
+    if (!isPiModelRoute(opts.model)) {
+      throw new Error("Pi invocation requires an explicit provider/model route");
+    }
+    // JSON mode preserves an objective tool-event transcript. Every user,
+    // project, and package customization is disabled so a cell is comparable
+    // across operators; the controller-owned prompt remains the sole policy.
+    return {
+      command: opts.harnessDetection?.command ?? commandFor("pi"),
+      args: [
+        "--mode", "json", "--no-session", "--offline",
+        "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
+        "--provider", piProviderId(opts.model), "--model", piModelId(opts.model),
+        ...(opts.effort ? ["--thinking", opts.effort] : []),
         prompt,
       ],
     };
@@ -1313,7 +1335,7 @@ function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics):
   // OpenCode's final text/result JSON is agent-authored rather than runtime
   // provenance. When its event stream does not identify a provider/model, only
   // the controller-requested `provider/model` is trustworthy.
-  parsed.model = opts.harness === "opencode"
+  parsed.model = opts.harness === "opencode" || opts.harness === "pi"
     ? observedModel ?? opts.model ?? null
     : observedModel ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   parsed.metrics = metrics;
@@ -1478,7 +1500,9 @@ function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
     ? recoverClaudeWrite(stdout, opts.paths.resultsPath, opts.cwd)
     : opts.harness === "codex"
       ? recoverCodexAgentMessage(stdout)
-      : recoverOpenCodeWrite(stdout, opts.paths.resultsPath, opts.cwd) ?? recoverOpenCodeText(stdout);
+      : opts.harness === "opencode"
+        ? recoverOpenCodeWrite(stdout, opts.paths.resultsPath, opts.cwd) ?? recoverOpenCodeText(stdout)
+        : undefined;
   if (!recovered) return false;
   const parsed = parseResultPayload(recovered);
   if (!parsed) return false;
@@ -1490,7 +1514,7 @@ function recoverTraceFile(opts: InvokeRunOptions, stdout: string): boolean {
   if (regularFileExists(opts.paths.tracePath)) return true;
   const recovered = opts.harness === "claude-code"
     ? recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd)
-    : opts.harness === "opencode"
+    : opts.harness === "opencode" || opts.harness === "pi"
       ? recoverOpenCodeWrite(stdout, opts.paths.tracePath, opts.cwd)
       : undefined;
   if (!recovered) return false;
@@ -1929,7 +1953,7 @@ export async function runInvokeHarness(
     try {
       sanitizeInvokeHomeIfPresent(opts);
     } finally {
-      removeOpenCodeWorkRootIfPresent(opts);
+      removeIsolatedWorkRootIfPresent(opts);
     }
   }
 }
