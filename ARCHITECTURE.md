@@ -171,9 +171,11 @@ to the harness. An optional controller-only verifier credential map is used for
 health checks and independent live read-back without entering the child
 environment. The record persists the runtime-computed resource namespace so a
 later controller can bind cleanup to the exact executed cell.
-Cell output uses `ax.normalized-cell-record/v1`; the strict historical
-`ax.normalized-result/v1` schema is not widened and remains the compatibility
-format for existing report/aggregation commands.
+Cell output uses `ax.normalized-cell-record/v1`. Aggregators emit
+`ax.normalized-result/v2`, keyed by product, surface, harness, model, and effort;
+they reject trial aggregation across any of those dimensions. The strict
+historical `ax.normalized-result/v1` schema is not widened and remains a
+read-only compatibility format for records diff and migration tooling.
 
 This keeps the dependency direction suitable for AXArena:
 

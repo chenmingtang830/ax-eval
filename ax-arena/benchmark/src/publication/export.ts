@@ -117,6 +117,7 @@ export const ArenaNormalizedResultSchema = z.object({
   profiles: z.array(z.string()),
   best_profile: z.string().nullable(),
   model: z.string().nullable().optional(),
+  effort: z.enum(["low", "medium", "high"]).nullable(),
   blocked: z.enum(["requires-oauth", "missing-credential", "missing-harness", "invoke-failed"]).optional(),
   summary_kind: z.enum(["single", "aggregate"]).optional(),
   source_records: z.array(z.string()).optional(),
@@ -814,6 +815,7 @@ function assertAggregateSourceBinding(
   for (const { vendor, record } of selected.values()) {
     const configured = batch.configuration.cells
       .filter((cell) => cell.vendor === vendor && cell.surface === record.surface && cell.harness === record.harness)
+      .filter((cell) => cell.model === record.model && cell.effort === record.effort)
       .sort((left, right) => left.trial - right.trial);
     const expectedPaths = configured.map((cell) => completionByKey.get(cell.key)!.record_path);
     if (!record.source_records || record.source_records.length !== expectedPaths.length
@@ -1008,9 +1010,25 @@ function assertComparableLeaderboardRecords(
     || bundle.display_name !== expectedIdentity.displayName) {
     throw new Error("publication suite identity does not match the sealed batch");
   }
+  if ([...selected.values()].some(({ vendor, record }) =>
+    !batch.configuration.cells.some((cell) => cell.vendor === vendor
+      && cell.surface === record.surface && cell.harness === record.harness
+      && cell.model === record.model && cell.effort === record.effort))) {
+    throw new Error("publication aggregate identity does not match the sealed model/effort configuration");
+  }
   const expectedKeys = bundle.vendors.flatMap((vendor) =>
     bundle.expected_matrix.harnesses.flatMap((harness) =>
-      vendor.expected_surfaces.map((surface) => JSON.stringify([vendor.slug, harness, surface]))));
+      vendor.expected_surfaces.map((surface) => {
+        const configured = batch.configuration.cells.find((cell) =>
+          cell.vendor === vendor.slug && cell.harness === harness && cell.surface === surface);
+        return JSON.stringify([
+          vendor.slug,
+          harness,
+          configured?.model ?? null,
+          configured?.effort ?? null,
+          surface,
+        ]);
+      })));
   if (new Set(expectedKeys).size !== expectedKeys.length
     || bundle.expected_matrix.expected_cells !== expectedKeys.length
     || selected.size !== expectedKeys.length
@@ -1316,7 +1334,13 @@ function loadVerifiedPublicationSource(opts: LoadArenaPublicationCohortOptions, 
   const selectedRecords = new Map<string, { vendor: string; path: string; record: NormalizedResult }>();
   for (const entry of leaderboardRecords) {
     if (entry.record.blocked || entry.record.summary_kind !== "aggregate") continue;
-    const key = JSON.stringify([entry.vendor, entry.record.harness, entry.record.surface]);
+    const key = JSON.stringify([
+      entry.vendor,
+      entry.record.harness,
+      entry.record.model,
+      entry.record.effort,
+      entry.record.surface,
+    ]);
     if (selectedRecords.has(key)) throw new Error(`publication bundle contains duplicate aggregate cohort ${key}`);
     selectedRecords.set(key, entry);
   }
@@ -1399,14 +1423,15 @@ function buildArenaPublicationExportInternal(
   const generatedAtIso = generatedAt.toISOString();
   const cells: Array<Record<string, unknown>> = [];
   for (const { vendor, path: recordPath, record } of leaderboardRecords) {
-    const key = JSON.stringify([vendor, record.harness, record.surface]);
+    const key = JSON.stringify([vendor, record.harness, record.model, record.effort, record.surface]);
     if (selectedRecords.get(key)?.record !== record) continue;
     cells.push({
-      id: `${vendor}/${record.surface}/${record.harness}`,
+      id: `${vendor}/${record.surface}/${record.harness}/${record.model ?? "unknown-model"}/${record.effort ?? "unknown-effort"}`,
       vendor,
       surface: record.surface,
       harness: record.harness,
       model: record.model,
+      effort: record.effort,
       profiles: record.profiles,
       task_count: record.tasks_total,
       tasks_passed: record.tasks_passed,

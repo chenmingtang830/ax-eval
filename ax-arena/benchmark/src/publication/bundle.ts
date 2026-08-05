@@ -580,7 +580,8 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       || record.standard_set_version !== batch.configuration.packs.find((pack) => pack.vendor === entry.vendor)?.standard_set_version
       || record.run_batch_id !== batch.batch_id || record.summary_kind !== "aggregate"
       || record.trial_count !== cells.length || record.generated_at !== report.generated_at
-      || record.model !== configured.model || record.best_profile !== configured.profile
+      || record.model !== configured.model || record.effort !== configured.effort
+      || record.best_profile !== configured.profile
       || !exactSet(record.profiles, [configured.profile])
       || record.harness_version_raw !== pin.version_raw || record.harness_version_semver !== pin.version_semver
       || !exactSet(record.source_records ?? [], expectedCompleted.map((cell) => cell.record_path))) {

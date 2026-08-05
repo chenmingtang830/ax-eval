@@ -63,8 +63,10 @@ import {
 surface, harness, model, effort, trial, batch, and immutable source revision in;
 one strict `ax.normalized-cell-record/v1` record out. The input and output are
 validated by `schemas/evaluation-cell.v1.json` and
-`schemas/normalized-cell-record.v1.json`; legacy `ax.normalized-result/v1`
-records remain unchanged and readable. Credential values
+`schemas/normalized-cell-record.v1.json`. Aggregation and comparison emit
+`ax.normalized-result/v2`, whose identity is
+`{product, surface, harness, model, effort}`; legacy v1 records remain unchanged
+and readable by compatibility commands. Credential values
 are passed out-of-band in `RunCellOptions`, and only names listed by the cell are
 forwarded to its isolated harness environment. Controllers may provide a
 separate `verificationCredentials` map for health checks, target adapters, and
@@ -441,6 +443,10 @@ Compare two normalized-record sets without decoding HTML:
 ```bash
 npm run ax-eval -- records-diff --base <baseline-dir> --head <candidate-dir> --out records-diff.md
 ```
+
+The diff keys cells by standard-set version and execution identity, so scores
+from different task sets are never compared; a missing baseline identity fails
+the regression gate.
 New reusable benchmark tooling should live here; the
 `axarena` repo should own the curated website, narrative, and presentation.
 
@@ -483,7 +489,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
   gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across
   products or surfaces to see where competitors, SDKs, CLIs, APIs, or MCP servers
-  are easier for agents to use successfully.
+  are easier for agents to use successfully. Model and effort are execution
+  identity, so configurations under one harness are never silently averaged.
 
 ## Command Map
 

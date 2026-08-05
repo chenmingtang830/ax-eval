@@ -1,14 +1,26 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve } from "node:path";
-import type { NormalizedResult } from "./record.js";
+import {
+  LEGACY_NORMALIZED_RESULT_SCHEMA,
+  NORMALIZED_RESULT_SCHEMA,
+  type NormalizedEffort,
+  type NormalizedResult,
+} from "./record.js";
 
-export type RecordsDiffInput = string | NormalizedResult[];
+type LegacyNormalizedResult = Omit<NormalizedResult, "schema" | "effort"> & {
+  schema: typeof LEGACY_NORMALIZED_RESULT_SCHEMA;
+  effort?: never;
+};
+type ComparableNormalizedResult = NormalizedResult | LegacyNormalizedResult;
 
-function isNormalizedResult(value: unknown): value is NormalizedResult {
-  return Boolean(value && typeof value === "object" && (value as { schema?: unknown }).schema === "ax.normalized-result/v1");
+export type RecordsDiffInput = string | ComparableNormalizedResult[];
+
+function isNormalizedResult(value: unknown): value is ComparableNormalizedResult {
+  const schema = value && typeof value === "object" ? (value as { schema?: unknown }).schema : undefined;
+  return schema === NORMALIZED_RESULT_SCHEMA || schema === LEGACY_NORMALIZED_RESULT_SCHEMA;
 }
 
-function recordsFromJson(value: unknown): NormalizedResult[] {
+function recordsFromJson(value: unknown): ComparableNormalizedResult[] {
   if (isNormalizedResult(value)) return [value];
   if (Array.isArray(value)) return value.filter(isNormalizedResult);
   if (value && typeof value === "object") {
@@ -21,12 +33,12 @@ function recordsFromJson(value: unknown): NormalizedResult[] {
 /** Load public normalized records from a file or directory without reading raw
  * transcripts. Directories are walked recursively and non-record JSON is
  * ignored, which makes the command safe for a full production run root. */
-export function loadNormalizedRecordsForDiff(path: string): NormalizedResult[] {
+export function loadNormalizedRecordsForDiff(path: string): ComparableNormalizedResult[] {
   if (!existsSync(path)) throw new Error(`records path does not exist: ${path}`);
   if (statSync(path).isFile()) {
     return recordsFromJson(JSON.parse(readFileSync(path, "utf8")) as unknown);
   }
-  const records: NormalizedResult[] = [];
+  const records: ComparableNormalizedResult[] = [];
   const stack = [path];
   while (stack.length) {
     const current = stack.pop()!;
@@ -47,12 +59,23 @@ export function loadNormalizedRecordsForDiff(path: string): NormalizedResult[] {
   return records;
 }
 
-function recordKey(record: NormalizedResult): string {
-  return `${record.product}\0${record.harness}\0${record.surface}`;
+function recordEffort(record: ComparableNormalizedResult): NormalizedEffort | null {
+  return record.schema === NORMALIZED_RESULT_SCHEMA ? record.effort : null;
 }
 
-function selectComparableRecords(records: NormalizedResult[]): Map<string, NormalizedResult> {
-  const selected = new Map<string, NormalizedResult>();
+function recordKey(record: ComparableNormalizedResult): string {
+  return JSON.stringify([
+    record.product,
+    record.standard_set_version,
+    record.harness,
+    record.surface,
+    record.model,
+    recordEffort(record),
+  ]);
+}
+
+function selectComparableRecords(records: ComparableNormalizedResult[]): Map<string, ComparableNormalizedResult> {
+  const selected = new Map<string, ComparableNormalizedResult>();
   for (const record of records) {
     if (record.blocked) continue;
     const key = recordKey(record);
@@ -79,7 +102,7 @@ function delta(base: number | null | undefined, head: number | null | undefined)
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)} pp`;
 }
 
-function pass3(record: NormalizedResult | undefined): string {
+function pass3(record: ComparableNormalizedResult | undefined): string {
   if (!record || typeof record.task_consistency_at_3 !== "number") return "—";
   const count = record.pass_3_tasks;
   const total = record.pass_3_tasks_total;
@@ -87,21 +110,21 @@ function pass3(record: NormalizedResult | undefined): string {
   return `${rate(record.task_consistency_at_3)}${exact}`;
 }
 
-function tokens(record: NormalizedResult | undefined): number | null {
+function tokens(record: ComparableNormalizedResult | undefined): number | null {
   if (!record?.token_usage) return null;
   if (typeof record.token_usage.total_tokens === "number") return record.token_usage.total_tokens;
   return (record.token_usage.input_tokens ?? 0) + (record.token_usage.output_tokens ?? 0);
 }
 
 function correctnessRegressions(
-  baseRecords: Map<string, NormalizedResult>,
-  headRecords: Map<string, NormalizedResult>,
+  baseRecords: Map<string, ComparableNormalizedResult>,
+  headRecords: Map<string, ComparableNormalizedResult>,
 ): string[] {
   const regressions: string[] = [];
   const epsilon = 1e-12;
   for (const [key, base] of baseRecords) {
     const head = headRecords.get(key);
-    const label = `\`${base.product} / ${base.harness} / ${base.surface}\``;
+    const label = `\`${base.product} / ${base.standard_set_version} / ${base.harness} / ${base.model ?? "unknown-model"} / ${recordEffort(base) ?? "unknown-effort"} / ${base.surface}\``;
     if (!head) {
       regressions.push(`${label}: baseline cell disappeared or became blocked.`);
       continue;
@@ -119,7 +142,10 @@ function correctnessRegressions(
 
 interface OverallRow {
   product: string;
+  standardSetVersion: string;
   harness: string;
+  model: string | null;
+  effort: NormalizedEffort | null;
   score: number;
   pass3: number | null;
   pass3Count: number | null;
@@ -127,10 +153,16 @@ interface OverallRow {
   surfaceCount: number;
 }
 
-function overallRows(records: Map<string, NormalizedResult>): Map<string, OverallRow> {
-  const grouped = new Map<string, NormalizedResult[]>();
+function overallRows(records: Map<string, ComparableNormalizedResult>): Map<string, OverallRow> {
+  const grouped = new Map<string, ComparableNormalizedResult[]>();
   for (const record of records.values()) {
-    const key = `${record.product}\0${record.harness}`;
+    const key = JSON.stringify([
+      record.product,
+      record.standard_set_version,
+      record.harness,
+      record.model,
+      recordEffort(record),
+    ]);
     grouped.set(key, [...(grouped.get(key) ?? []), record]);
   }
   return new Map([...grouped.entries()].map(([key, cells]) => {
@@ -139,7 +171,10 @@ function overallRows(records: Map<string, NormalizedResult>): Map<string, Overal
     const pass3Total = countsAvailable ? cells.reduce((sum, cell) => sum + cell.pass_3_tasks_total!, 0) : null;
     return [key, {
       product: cells[0]!.product,
+      standardSetVersion: cells[0]!.standard_set_version,
       harness: cells[0]!.harness,
+      model: cells[0]!.model,
+      effort: recordEffort(cells[0]!),
       score: cells.reduce((sum, cell) => sum + cell.pass_at_1, 0) / cells.length,
       pass3: pass3Count !== null && pass3Total ? pass3Count / pass3Total : null,
       pass3Count,
@@ -180,13 +215,13 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
     const base = baseOverall.get(key);
     const head = headOverall.get(key);
     const row = head ?? base!;
-    return `| ${row.product} | ${row.harness} | ${rate(base?.score)} | ${rate(head?.score)} | ${delta(base?.score, head?.score)} | ${overallPass3(base)} | ${overallPass3(head)} | ${head?.surfaceCount ?? base?.surfaceCount ?? 0} |`;
+    return `| ${row.product} | ${row.standardSetVersion} | ${row.harness} | ${row.model ?? "—"} | ${row.effort ?? "—"} | ${rate(base?.score)} | ${rate(head?.score)} | ${delta(base?.score, head?.score)} | ${overallPass3(base)} | ${overallPass3(head)} | ${head?.surfaceCount ?? base?.surfaceCount ?? 0} |`;
   });
   const cellsTable = cellKeys.map((key) => {
     const base = baseRecords.get(key);
     const head = headRecords.get(key);
     const row = head ?? base!;
-    return `| ${row.product} | ${row.harness} | ${row.surface} | ${rate(base?.pass_at_1)} | ${rate(head?.pass_at_1)} | ${delta(base?.pass_at_1, head?.pass_at_1)} | ${pass3(base)} | ${pass3(head)} | ${number(base?.latency_ms)} → ${number(head?.latency_ms)} | ${number(base?.cost_usd, 4)} → ${number(head?.cost_usd, 4)} | ${number(tokens(base))} → ${number(tokens(head))} | ${base?.harness_version_semver ?? "—"} → ${head?.harness_version_semver ?? "—"} |`;
+    return `| ${row.product} | ${row.standard_set_version} | ${row.harness} | ${row.model ?? "—"} | ${recordEffort(row) ?? "—"} | ${row.surface} | ${rate(base?.pass_at_1)} | ${rate(head?.pass_at_1)} | ${delta(base?.pass_at_1, head?.pass_at_1)} | ${pass3(base)} | ${pass3(head)} | ${number(base?.latency_ms)} → ${number(head?.latency_ms)} | ${number(base?.cost_usd, 4)} → ${number(head?.cost_usd, 4)} | ${number(tokens(base))} → ${number(tokens(head))} | ${base?.harness_version_semver ?? "—"} → ${head?.harness_version_semver ?? "—"} |`;
   });
 
   return [
@@ -194,19 +229,19 @@ export function renderRecordsDiffMarkdown(baseInput: RecordsDiffInput, headInput
     "",
     ...verdict,
     "",
-    "Overall is a macro-average of participating surface scores. Agents are never averaged together.",
+    "Overall is a macro-average of participating surface scores. Standard-set/harness/model/effort configurations are never averaged together.",
     "",
-    "## Overall by agent",
+    "## Overall by execution configuration",
     "",
-    "| Product | Agent | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Surfaces |",
-    "| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
-    ...(overallTable.length ? overallTable : ["| — | — | — | — | — | — | — | — |"]),
+    "| Product | Standard set | Harness | Model | Effort | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Surfaces |",
+    "| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: |",
+    ...(overallTable.length ? overallTable : ["| — | — | — | — | — | — | — | — | — | — | — |"]),
     "",
     "## Surface cells",
     "",
-    "| Product | Agent | Surface | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Latency ms | Cost USD | Tokens | Harness version |",
-    "| --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
-    ...(cellsTable.length ? cellsTable : ["| — | — | — | — | — | — | — | — | — | — | — | — |"]),
+    "| Product | Standard set | Harness | Model | Effort | Surface | Base pass@1 | Head pass@1 | Δ | Base pass³ | Head pass³ | Latency ms | Cost USD | Tokens | Harness version |",
+    "| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ...(cellsTable.length ? cellsTable : ["| — | — | — | — | — | — | — | — | — | — | — | — | — | — | — |"]),
     "",
     "Operational metrics are context only and never affect the verdict or ranking.",
     "",

@@ -66,10 +66,11 @@ describe("evaluation cell schema", () => {
     }).success).toBe(false);
   });
 
-  it("ships separate strict schemas without widening legacy normalized-result/v1", () => {
+  it("ships strict cell, v2 aggregate, and unchanged v1 compatibility schemas", () => {
     const input = JSON.parse(readFileSync(resolve("schemas/evaluation-cell.v1.json"), "utf8"));
     const output = JSON.parse(readFileSync(resolve("schemas/normalized-cell-record.v1.json"), "utf8"));
     const legacy = JSON.parse(readFileSync(resolve("schemas/normalized-result.v1.json"), "utf8"));
+    const aggregate = JSON.parse(readFileSync(resolve("schemas/normalized-result.v2.json"), "utf8"));
     expect(input.properties.schema.const).toBe("ax.evaluation-cell/v1");
     expect(input.properties.harness.properties.id.enum).toContain("opencode");
     expect(input.allOf[0].then.properties.harness.properties.model.pattern).toContain("/");
@@ -83,5 +84,7 @@ describe("evaluation cell schema", () => {
     expect(legacy.properties.schema.const).toBe("ax.normalized-result/v1");
     expect(legacy.properties.blocked.enum).not.toContain("unsupported-surface");
     expect(legacy.properties).not.toHaveProperty("cell_id");
+    expect(aggregate.properties.schema.const).toBe("ax.normalized-result/v2");
+    expect(aggregate.required).toEqual(expect.arrayContaining(["model", "effort"]));
   });
 });

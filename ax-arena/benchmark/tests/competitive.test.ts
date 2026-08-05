@@ -124,7 +124,7 @@ function record(input: {
   overrides?: Record<string, unknown>;
 }): any {
   return {
-    schema: "ax.normalized-result/v1",
+    schema: "ax.normalized-result/v2",
     surface: input.surface,
     product: input.product,
     harness: input.harness,
@@ -140,6 +140,7 @@ function record(input: {
     profiles: ["high"],
     best_profile: "high",
     model: input.harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
+    effort: "high",
     harness_version_raw: input.harness === "codex" ? "codex-cli 1.2.3" : "claude-code 2.3.4",
     harness_version_semver: input.harness === "codex" ? "1.2.3" : "2.3.4",
     run_batch_id: "batch-1",

@@ -121,12 +121,14 @@ export type {
 } from "./generate/verify.js";
 
 export {
+  LEGACY_NORMALIZED_RESULT_SCHEMA,
   NORMALIZED_RESULT_SCHEMA,
   aggregateNormalizedResults,
   buildBlockedResult,
   buildNormalizedResult,
   buildNormalizedResultCells,
   classifyTrialStabilityAt3,
+  normalizedRunIdentity,
   resultCellKey,
 } from "./generate/record.js";
 
@@ -191,6 +193,7 @@ export type {
 } from "./runtime/extensions.js";
 export type {
   BlockedReason,
+  NormalizedEffort,
   NormalizedResult,
   NormalizedResultCell,
 } from "./generate/record.js";

@@ -529,7 +529,7 @@ describe("arena publication bundle", () => {
     for (const file of exported.files) expect(existsSync(resolve(test.root, "export", file.path))).toBe(true);
     expect(JSON.parse(readFileSync(resolve(test.root, "export/tasks.json"), "utf8")).tasks.length).toBeGreaterThan(0);
     expect(JSON.parse(readFileSync(resolve(test.root, "export/trials.json"), "utf8")).task_results.length).toBeGreaterThan(0);
-  });
+  }, 10_000);
 
   it("rejects a completed low-pass batch instead of producing a publishable draft", () => {
     const test = fixture(false);

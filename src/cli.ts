@@ -65,7 +65,9 @@ import {
   buildNormalizedResult,
   buildNormalizedResultCells,
   buildBlockedResult,
+  normalizedRunIdentity,
   resultCellKey,
+  type NormalizedEffort,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
@@ -1776,7 +1778,10 @@ interface InvokeGroup {
       const harnesses = args.invoke ? surfaceInvokeHarnesses : [probeHarness().host];
       for (const harness of harnesses) {
         const blocked = auth.blocked;
-        const record = buildBlockedResult(pack, surfaceId, harness, blocked);
+        const record = buildBlockedResult(pack, surfaceId, harness, blocked, {
+          model: args.model || null,
+          effort: (args.effort || null) as NormalizedEffort | null,
+        });
         const suffix = args.invoke ? `-${harness}` : "";
         const recordPath = `${dir}/run-${surfaceId}${suffix}-blocked.normalized.json`;
         writeFileSync(recordPath, JSON.stringify(record, null, 2));
@@ -1809,7 +1814,10 @@ interface InvokeGroup {
           for (const harness of surfaceInvokeHarnesses) {
             const detection = detectPlannedInvokeHarness(harness);
             if (!detection.ok) {
-              const record = buildBlockedResult(pack, surfaceId, harness, "missing-harness");
+              const record = buildBlockedResult(pack, surfaceId, harness, "missing-harness", {
+                model: args.model || profile.model || null,
+                effort: (args.effort || profile.effort) as NormalizedEffort,
+              });
               const recordPath = `${dir}/run-${surfaceId}-${harness}-blocked.normalized.json`;
               writeFileSync(recordPath, JSON.stringify(record, null, 2));
               rememberBlockedRecord(recordPath);
@@ -1851,6 +1859,10 @@ interface InvokeGroup {
                   surfaceId,
                   harness,
                   harness === "opencode" ? "invoke-failed" : "requires-oauth",
+                  {
+                    model: args.model || profile.model || null,
+                    effort: (args.effort || profile.effort) as NormalizedEffort,
+                  },
                 );
                 const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
                 writeFileSync(recordPath, JSON.stringify(record, null, 2));
@@ -1923,6 +1935,10 @@ interface InvokeGroup {
                     surfaceId,
                     harness,
                     harness === "opencode" ? "invoke-failed" : "requires-oauth",
+                    {
+                      model: args.model || profile.model || null,
+                      effort: (args.effort || profile.effort) as NormalizedEffort,
+                    },
                   );
                   const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
                   writeFileSync(recordPath, JSON.stringify(record, null, 2));
@@ -2293,7 +2309,14 @@ async function runPool<T, R>(items: T[], limit: number, worker: (item: T, index:
 function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
   const grouped = new Map<string, ProfileRun>();
   for (const run of runs) {
-    const key = resultCellKey(run.harness ?? "", run.surface ?? "api", run.profile);
+    const identity = normalizedRunIdentity(run);
+    const key = resultCellKey(
+      run.harness ?? "",
+      run.surface ?? "api",
+      run.profile,
+      identity.model,
+      identity.effort,
+    );
     const current = grouped.get(key);
     if (!current) {
       grouped.set(key, {
@@ -2434,6 +2457,20 @@ function executorModelFromArtifacts(
     ?? (typeof meta?.requestedModel === "string" ? meta.requestedModel : undefined)
     ?? modelFromInvokeArgs(meta)
     ?? codexBannerModelForRun(resultPath);
+}
+
+function executorEffortFromArtifacts(
+  profile: string,
+  meta: Record<string, unknown> | undefined,
+  requestedEffort: string,
+): NormalizedEffort | undefined {
+  const candidate = typeof meta?.effort === "string" ? meta.effort : requestedEffort;
+  if (candidate === "low" || candidate === "medium" || candidate === "high") return candidate;
+  try {
+    return getProfile(profile).effort;
+  } catch {
+    return undefined;
+  }
 }
 
 function transcriptMetrics(path: string | undefined, harness?: InvokeHarnessId): {
@@ -2585,6 +2622,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       ...(isInvokeHarnessId(executorHarness) ? { harness: executorHarness } : {}),
     };
     const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);
+    const executorEffort = executorEffortFromArtifacts(executor.profile, invokeMeta, args.effort);
     const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
     // self-report, else "api" (the default + back-compat surface). `--surface all`
@@ -2681,6 +2719,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       profile: executor.profile,
       harness: executorHarness,
       model: executorModel,
+      effort: executorEffort,
       outcomes,
       surface,
       ns: executor.ns,
@@ -2772,10 +2811,12 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const opener = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
     spawnSync(opener, [outPath], { stdio: "ignore" });
   }
-  // Emit the normalized cell { surface, product, harness } next to the report.
+  // Emit the strongest normalized
+  // {product, surface, harness, model, effort} cell next to the report.
   // This is the durable, aggregatable artifact: the local `competitive` command
   // (or any later aggregator) stacks these across harnesses without re-deriving
-  // anything from the raw run files.
+  // anything from the raw run files. When the report contains multiple
+  // identities, the per-cell files below retain every one separately.
   const cellSurface: SurfaceId = byProfile.find((r) => r.surface)?.surface ?? "api";
   const runHarnesses = [...new Set(byProfile.map((r) => r.harness).filter((h): h is string => !!h))];
   const recordHarness = args.harness.length === 1

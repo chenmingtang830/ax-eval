@@ -243,7 +243,7 @@ function profileRun(
 
 function normalizedResult(record: NormalizedCellRecord): NormalizedResult {
   return {
-    schema: "ax.normalized-result/v1",
+    schema: "ax.normalized-result/v2",
     surface: record.surface,
     product: record.product,
     harness: record.harness,
@@ -259,6 +259,7 @@ function normalizedResult(record: NormalizedCellRecord): NormalizedResult {
     profiles: record.profiles,
     best_profile: record.best_profile,
     model: record.model,
+    effort: record.effort,
     harness_version_raw: record.harness_version_raw,
     harness_version_semver: record.harness_version_semver,
     run_batch_id: record.run_batch_id,

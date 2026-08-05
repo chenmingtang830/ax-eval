@@ -419,11 +419,14 @@ or reset fails and cleanup cannot be confirmed, the workflow stops before the
 next trial. Inspect the preserved artifacts and perform an explicit namespace
 reset before retrying; do not delete evidence before verification.
 
-Normalized records are public, schema-versioned artifacts
-(`schemas/normalized-result.v1.json`). They retain native harness version,
-run-batch identity, successful-attempt latency, retry-inclusive duration and
-consumption, and exact pass³ numerator/denominator. Codex dollar cost is null;
-do not synthesize a price table.
+Normalized aggregates are public `ax.normalized-result/v2` artifacts
+(`schemas/normalized-result.v2.json`). Their identity is product × surface ×
+standard-set version × harness × model × effort, and aggregation fails closed
+when trial records cross an identity boundary. `records-diff` preserves that
+boundary and fails if a baseline identity disappears. They retain native harness version, run-batch identity,
+successful-attempt latency, retry-inclusive duration and consumption, and exact
+pass³ numerator/denominator. The unchanged v1 schema remains readable for
+migration. Codex dollar cost is null; do not synthesize a price table.
 
 Before human **publication** freeze, regenerate into the same AXArena-Database v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and
