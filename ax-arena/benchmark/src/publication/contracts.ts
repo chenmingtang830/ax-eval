@@ -66,12 +66,23 @@ export const ArenaPublicationIntegritySchema = z.object({
 });
 export type ArenaPublicationIntegrity = z.infer<typeof ArenaPublicationIntegritySchema>;
 
+export const AXARENA_DATABASE_BENCHMARK_ID = "axarena-database";
+export const AXARENA_DATABASE_DISPLAY_NAME = "AXArena-Database";
+
+export function publicBenchmarkIdentity(suiteName: string): { benchmark: string; displayName: string } {
+  if (suiteName === "DAEB-1" || suiteName === "AXArena-Database v1") {
+    return { benchmark: AXARENA_DATABASE_BENCHMARK_ID, displayName: AXARENA_DATABASE_DISPLAY_NAME };
+  }
+  return { benchmark: suiteName, displayName: suiteName };
+}
+
 /** Arena exports are publication artifacts, so the integrity envelope is
  * mandatory. Historical unsealed v2 bundles remain readable only by legacy
  * core tooling and cannot be promoted through the arena publication path. */
 export const ArenaPublicationBundleSchema = z.object({
   schema: z.literal("ax.publication-bundle/v2"),
   benchmark: z.string().min(1),
+  display_name: z.string().min(1),
   category: z.string().min(1),
   suite: ArtifactPathSchema,
   suite_version: z.number().int().nonnegative(),

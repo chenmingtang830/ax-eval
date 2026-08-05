@@ -5,7 +5,7 @@ both:
 
 - a **local engineering tool** for evaluating one product across API / CLI / SDK /
   MCP, and
-- the **tooling foundation** for AXArena publication-grade benchmarks (DAEB-1
+- the **tooling foundation** for AXArena publication-grade benchmarks (AXArena-Database v1
   first).
 
 Both tracks converge on the same contracts and runtime: a reviewed `TargetPack`,
@@ -15,7 +15,7 @@ interpretation.
 ## Dual-track overview
 
 ```text
-Tool track                              Benchmark track (DAEB)
+Tool track                              Benchmark track (AXArena-Database)
 ─────────                               ─────────────────────
 OpenAPI / GraphQL / docs                vendor cards + extracts
   -> ingest / generate                    -> synthesize suite
@@ -40,15 +40,15 @@ OpenAPI / GraphQL / docs                vendor cards + extracts
 
 | | **Tool track** | **Benchmark track** |
 |---|---|---|
-| Audience | Product team evaluating one SaaS | AXArena / DAEB publication |
+| Audience | Product team evaluating one SaaS | AXArena / AXArena-Database publication |
 | Source of truth | Per-product pack | Canonical `suite.yaml` + ledger |
-| Packs live under | `targets/examples/` (shipped) or local `targets/` | `ax-arena/benchmark/daeb/v1/packs/<vendor>/` |
+| Packs live under | `targets/examples/` (shipped) or local `targets/` | `ax-arena/benchmark/axarena-database/v1/packs/<vendor>/` |
 | Authoring | `ingest` → `generate` → `review` | `ax-arena benchmark` extract → synthesize → compose → `review` |
 | Execution matrix | Whatever the pack declares | Benchmark-of-record: `api`+`cli`, Codex `gpt-5.6-terra` + Claude Code `claude-sonnet-5`, high, 3 trials |
 | Extra gates | Content-hash approval | Ledger, audit-suite, trace-review, publication freeze |
 
-Deep DAEB artifact detail lives in
-[`ax-arena/benchmark/daeb/README.md`](./ax-arena/benchmark/daeb/README.md). Maintainer status
+Deep AXArena-Database artifact detail lives in
+[`ax-arena/benchmark/axarena-database/README.md`](./ax-arena/benchmark/axarena-database/README.md). Maintainer status
 (authoring freeze vs deferred production) lives in gitignored
 `docs/latest_plan.md`.
 
@@ -72,14 +72,14 @@ spec/docs -> ingest -> generate (LLM-assisted or --deterministic) -> review
 ```
 
 Benchmark-track authoring reaches that pack via arena-owned suite synthesis,
-canonical-suite oracle extraction, and `compose-pack` policy (see DAEB README).
+canonical-suite oracle extraction, and `compose-pack` policy (see AXArena-Database README).
 Those implementations consume only public `ax-eval` schemas, harness helpers,
 and pack contracts. Re-synthesis or pack edits invalidate content-hash
-approvals on both tracks. Tests that inspect canonical DAEB files live in the
+approvals on both tracks. Tests that inspect canonical AXArena-Database files live in the
 arena workspace; core suite tests exercise the reusable contract with synthetic
 explicit inputs.
 
-## Shared vs DAEB-only
+## Shared vs AXArena-Database-only
 
 | Layer | Shared? | Tool source | Benchmark source |
 |---|---|---|---|
@@ -87,12 +87,12 @@ explicit inputs.
 | Review gate (`pack.approval.json`) | yes | `review --approve` | same on compiled packs |
 | `exec-plan` / harness / transcript | yes | generic matrix | narrowed production matrix |
 | Verify / records / report | yes | pack-declared oracles | pack + extract oracles |
-| Vendor-selection ledger | DAEB-only | — | `vendor-selection-ledger.yaml` |
-| Canonical-suite oracle extraction | DAEB-only | — | `extract-tasks` + arena database seeds |
-| Suite synthesis / audit-suite | DAEB-only | — | `synthesize-suite`, `audit-suite` |
-| Trace-review memo | DAEB-only | — | `suite.trace-review.yaml` |
-| `daeb-production-rerun` | DAEB-only | — | 3-trial production lane |
-| `publication-bundle` / `export-publication` | DAEB-only | — | freeze → AXArena export |
+| Vendor-selection ledger | AXArena-Database-only | — | `vendor-selection-ledger.yaml` |
+| Canonical-suite oracle extraction | AXArena-Database-only | — | `extract-tasks` + arena database seeds |
+| Suite synthesis / audit-suite | AXArena-Database-only | — | `synthesize-suite`, `audit-suite` |
+| Trace-review memo | AXArena-Database-only | — | `suite.trace-review.yaml` |
+| `axarena-database-production-rerun` | AXArena-Database-only | — | 3-trial production lane |
+| `publication-bundle` / `export-publication` | AXArena-Database-only | — | freeze → AXArena export |
 
 ## Lifecycle phases (benchmark)
 
@@ -104,7 +104,7 @@ mutable authoring
   -> export-publication -> AXArena site
 ```
 
-Until publication freeze, DAEB-1 is one mutable v1 draft: re-synthesis
+Until publication freeze, AXArena-Database v1 is one mutable v1 draft: re-synthesis
 overwrites the same suite; git SHAs and content hashes identify exact states;
 suite version numbers are not authoring iteration counters. Benchmark-of-record
 results begin only after human freeze. Research-lane tasks stay out of the
@@ -120,7 +120,7 @@ The runtime is organized into four layers:
 
 1. **Contracts** — shared schemas; most modules consume or emit a `TargetPack`.
 2. **Planning and orchestration** — CLI coordinates authoring, exec, verify,
-   reset, reporting, and (for DAEB) publication.
+   reset, reporting, and (for AXArena-Database) publication.
 3. **Harness and surface runtime** — surface adapters + Claude Code / Codex
    invoke, MCP provision, transcript recovery.
 4. **Verification and interpretation** — live read-back oracles, reports,
@@ -186,8 +186,9 @@ private npm workspace during migration, with independent build, typecheck, test,
 and package smoke checks. Root scripts are umbrella checks for both packages.
 An AST-based CI guard rejects `ax-eval` imports of arena code, relative imports
 that escape the arena workspace, and arena imports of unpublished `ax-eval`
-subpaths. Canonical DAEB files live under `ax-arena/benchmark/daeb/`. For one
-minor release, readers fall back to `benchmarks/daeb/` only when canonical files
+subpaths. Canonical AXArena-Database files live under `ax-arena/benchmark/axarena-database/`. For one
+minor release, readers fall back to `ax-arena/benchmark/daeb/` or
+`benchmarks/daeb/` only when canonical files
 are absent and emit a deprecation warning. If both roots exist, callers must
 select one with `--benchmark-root`; writers always use the canonical root.
 Path selection and the YAML persistence wrappers moved from core are implemented
@@ -204,11 +205,11 @@ Those wrappers
 reject static symlink/hard-link aliases and
 pin parent/file identities while reading or updating. Authoring assumes
 exclusive use by the trusted checkout UID; malicious concurrent same-UID parent
-renames are outside this boundary. Every exported DAEB authoring writer,
+renames are outside this boundary. Every exported AXArena-Database authoring writer,
 including advisory output, uses this wrapper. Multi-file suite synthesis and
 audit-autofix writers preflight every sibling destination under the canonical
-DAEB root before their first mutation. They require a
-lowercase `.yaml` suite path and accept `DaebPathContext` so an explicit root
+AXArena-Database root before their first mutation. They require a
+lowercase `.yaml` suite path and accept `AxArenaDatabasePathContext` so an explicit root
 selection remains stable; bare roots fail when canonical and legacy trees are
 both present.
 
@@ -310,7 +311,7 @@ fields. Any edit to the pack re-closes the gate on both tracks. `exec-plan`
 refuses an un-reviewed or edited pack unless `--skip-review`. Do not bypass this
 in code.
 
-DAEB orchestration may recompose a run-scoped pack for provenance, but it must
+AXArena-Database orchestration may recompose a run-scoped pack for provenance, but it must
 first prove that the result matches the committed human-approved content hash.
 The approval sidecar is then staged beside the run-scoped pack and `exec-plan`
 performs its ordinary review check; orchestration does not use `--skip-review`.
@@ -358,8 +359,8 @@ reference artifact.
 
 ## Benchmark track (summary)
 
-DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
-`ax-arena/benchmark/daeb/v1/`:
+AXArena-Database v1 is the AXArena-Database benchmark. Canonical sources live under
+`ax-arena/benchmark/axarena-database/v1/`:
 
 - `suite.yaml` — shared task bank (not a pack)
 - `vendor-selection-ledger.yaml` — core / research / excluded cohort
@@ -370,7 +371,7 @@ DAEB-1 is the AXArena Database AX Benchmark. Canonical sources live under
   alter the usability pass-rate denominator.
 - `suite.trace-review.yaml` — fixed-sample review memo (freeze gate)
 
-The production lane (`daeb-production-rerun`) is narrower than the generic
+The production lane (`axarena-database-production-rerun`) is narrower than the generic
 engine: `api` and `cli` only, Codex `gpt-5.6-terra` and Claude Code
 `claude-sonnet-5` at high effort, three clean trials plus aggregate per
 supported cell. SDK evidence is research-only for v1 scoring. Harness lanes
@@ -381,7 +382,7 @@ the next trial.
 
 This production and low-pass policy is implemented only by the arena
 controller. The deprecated core command names are process launchers; core
-contains no DAEB trial loop, runtime model selection, cleanup policy, or
+contains no AXArena-Database trial loop, runtime model selection, cleanup policy, or
 production aggregate writer. Arena publication revalidates the frozen
 model/effort/trial metadata against the immutable batch.
 
@@ -426,9 +427,13 @@ subject cannot authorize its own workflow revision. Canonical aggregation and
 reporting run before the atomic rename and again on every downstream load,
 which also checks signed source assets, canonical metadata, and the exact
 physical inventory rather than trusting self-hashed manifest fields.
+The handoff contract keeps identity fields separate: `axarena-database` is the
+stable machine id, `AXArena-Database` is the display name, and the numeric
+release belongs in `suite_version`. The frozen `daeb-1-v1` value remains
+approval provenance and never becomes a public label.
 
 Full tree, authoring commands, gates, and hygiene:
-[`ax-arena/benchmark/daeb/README.md`](./ax-arena/benchmark/daeb/README.md).
+[`ax-arena/benchmark/axarena-database/README.md`](./ax-arena/benchmark/axarena-database/README.md).
 
 ## Execution model
 
@@ -438,13 +443,13 @@ Important command groups:
 
 - **Authoring (tool)** — `ingest`, `generate`, `review`; `automate-report`
   orchestrates these steps but still stops at manual review/configuration gates
-- **Authoring (DAEB)** — arena-owned extract / synthesize / audit / compose via
+- **Authoring (AXArena-Database)** — arena-owned extract / synthesize / audit / compose via
   `ax-arena benchmark` (legacy `ax-eval` aliases are one-minor launchers)
 - **Execution** — generic `exec-plan`, `probe`, `check-env`, `init`; arena-owned
   `plan` / `execute` (direct `execute` stays fail-closed; the protected workflow calls the sandboxed cell lifecycle)
 - **Verification and reporting** — core `verify`, `verify-generated`,
   `trace-diff`, and `records-diff`; arena-owned `competitive`
-- **Publication (DAEB)** — arena-owned `aggregate`, `publication-bundle`,
+- **Publication (AXArena-Database)** — arena-owned `aggregate`, `publication-bundle`,
   `export-publication`, and `publish`; deprecated core names delegate through
   the compatibility launcher, while production execution stays fail-closed
 - **Maintenance** — `reset` (after verify, never before)
@@ -555,7 +560,7 @@ It supports:
 - bearer token injection without writing secrets to tracked files
 
 It does not install or select product CLIs. Controllers provide those through
-the runtime provisioning registry; DAEB's pinned Turso implementation lives in
+the runtime provisioning registry; AXArena-Database's pinned Turso implementation lives in
 `ax-arena/benchmark/src/providers/turso-provisioning.ts`.
 
 This is how hosted OAuth-backed MCP surfaces can run headlessly while still
@@ -563,8 +568,19 @@ keeping secret handling local to the invoking process.
 
 ### Transcript parsing
 
-[src/harness/transcript.ts](./src/harness/transcript.ts) parses harness-native
-event streams into a shared observed-run shape.
+[src/harness/transcript-decoder.ts](./src/harness/transcript-decoder.ts) first
+decodes each harness's native JSONL into a small versioned event contract.
+[src/harness/transcript.ts](./src/harness/transcript.ts) then applies shared AX
+surface semantics to those events and produces the observed-run shape. Decoders
+are fixed, pure adapters rather than a mutable registry, so a new harness cannot
+silently replace another cell's interpretation.
+
+Callers that know the harness pass it explicitly. Auto-detection selects one
+decoder for the whole transcript from harness-specific signals; generic error
+events do not identify a harness. The diagnostics API reports only bounded
+counts and line numbers (decoder/version, parsed, recognized, emitted,
+malformed), never command text, tool arguments, or result bodies. Production
+verification falls back to labeled self-report when no event is recognized.
 
 It extracts:
 
@@ -691,7 +707,7 @@ Several architectural choices are load-bearing:
 **Tracks**
 
 - Tool packs: [targets/examples/](./targets/examples/), [targets/README.md](./targets/README.md)
-- DAEB: [ax-arena/benchmark/daeb/](./ax-arena/benchmark/daeb/), especially `v1/`
+- AXArena-Database: [ax-arena/benchmark/axarena-database/](./ax-arena/benchmark/axarena-database/), especially `v1/`
 - Workflow skill: [SKILL.md](./SKILL.md)
 - Contributor conventions: [CONTRIBUTING.md](./CONTRIBUTING.md)
 

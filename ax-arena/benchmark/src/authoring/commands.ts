@@ -17,10 +17,10 @@ import {
 } from "ax-eval";
 import { extractOraclesAll } from "./oracle-extract.js";
 import {
-  assertCanonicalDaebSuiteWritePath,
-  createDaebPathContext,
-  daebReadVendorsDir,
-  type DaebPathContext,
+  assertCanonicalAxArenaDatabaseSuiteWritePath,
+  createAxArenaDatabasePathContext,
+  axArenaDatabaseReadVendorsDir,
+  type AxArenaDatabasePathContext,
 } from "./benchmark-paths.js";
 import {
   loadCapabilityExtract,
@@ -201,11 +201,11 @@ function generatorModel(args: AuthoringArgs, harness: "claude-code" | "codex"): 
       : process.env.AX_EVAL_GENERATOR_CLAUDE_MODEL || "sonnet");
 }
 
-function daebPaths(args: AuthoringArgs, root: string = process.cwd()): DaebPathContext {
-  return createDaebPathContext(root, { explicitRoot: args.benchmarkRoot || undefined });
+function axArenaDatabasePaths(args: AuthoringArgs, root: string = process.cwd()): AxArenaDatabasePathContext {
+  return createAxArenaDatabasePathContext(root, { explicitRoot: args.benchmarkRoot || undefined });
 }
 
-function resolveVendorSelection(args: AuthoringArgs, paths: DaebPathContext): ResolveResult[] | null {
+function resolveVendorSelection(args: AuthoringArgs, paths: AxArenaDatabasePathContext): ResolveResult[] | null {
   const slugs = args.vendors
     ? args.vendors.split(",").map((value) => value.trim()).filter(Boolean)
     : args.vendor ? [args.vendor] : null;
@@ -217,8 +217,8 @@ function resolveVendorSelection(args: AuthoringArgs, paths: DaebPathContext): Re
   });
 }
 
-function allVendorCards(paths: DaebPathContext, category?: string): ResolveResult[] {
-  const vendorDir = daebReadVendorsDir(paths);
+function allVendorCards(paths: AxArenaDatabasePathContext, category?: string): ResolveResult[] {
+  const vendorDir = axArenaDatabaseReadVendorsDir(paths);
   if (!existsSync(vendorDir)) throw new Error(`No vendor cards directory at ${vendorDir}. Run resolve-vendor first.`);
   return readdirSync(vendorDir)
     .filter((file) => file.endsWith(".discovered.yaml"))
@@ -252,7 +252,7 @@ async function cmdResolveVendor(args: AuthoringArgs): Promise<number> {
     model: generatorModel(args, harness),
     effort: generatorEffort(args),
   });
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   for (const result of results) {
     const path = writeVendorCard(paths, result);
     console.log(`\n  ${result.vendor} → ${path}`);
@@ -275,7 +275,7 @@ async function cmdImportRegistry(args: AuthoringArgs): Promise<number> {
   }
   if (!targets.length) throw new Error("provide --domain <example.com> or --vendors <slug=domain,...>");
 
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const missing: string[] = [];
   const ingestHints: string[] = [];
   for (const target of targets) {
@@ -342,7 +342,7 @@ async function cmdExtractTasks(args: AuthoringArgs): Promise<number> {
   const suite = loadSuite(args.suite);
   const category = args.category || suite.category;
   if (!category) throw new Error("--category is required (e.g. --category database)");
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths, category);
   if (!vendors.length) throw new Error(`No vendor cards found for category "${category}".`);
   console.log(`Extracting oracles for ${vendors.length} vendor(s) via ${harness}…`);
@@ -378,7 +378,7 @@ async function cmdExtractTasks(args: AuthoringArgs): Promise<number> {
 
 async function cmdComposePack(args: AuthoringArgs): Promise<number> {
   if (!args.suite) throw new Error("--suite <path> is required");
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const suite = loadSuite(args.suite);
   const vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths);
   for (const vendor of vendors) {
@@ -403,7 +403,7 @@ async function cmdComposePack(args: AuthoringArgs): Promise<number> {
 
 async function cmdExtractSurfaces(args: AuthoringArgs): Promise<number> {
   loadDotenv();
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths);
   if (!vendors.length) throw new Error("No vendors to extract surfaces for.");
   const harness = generatorHarness(args);
@@ -436,7 +436,7 @@ async function cmdExtractSurfaces(args: AuthoringArgs): Promise<number> {
 
 async function cmdExtractCapabilities(args: AuthoringArgs): Promise<number> {
   loadDotenv();
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths);
   if (!vendors.length) throw new Error("No vendors to extract capabilities for.");
   const harness = generatorHarness(args);
@@ -487,7 +487,7 @@ async function cmdExtractCapabilities(args: AuthoringArgs): Promise<number> {
 }
 
 async function cmdAuditExtracts(args: AuthoringArgs): Promise<number> {
-  const paths = daebPaths(args);
+  const paths = axArenaDatabasePaths(args);
   const slugs = [
     ...(args.vendor ? [args.vendor] : []),
     ...args.vendors.split(",").map((value) => value.trim()).filter(Boolean),
@@ -529,11 +529,11 @@ async function cmdAuditExtracts(args: AuthoringArgs): Promise<number> {
 function cmdAuditSuite(args: AuthoringArgs): number {
   if (!args.suite) throw new Error("--suite <suite.yaml> is required");
   const root = process.cwd();
-  const paths = daebPaths(args, root);
+  const paths = axArenaDatabasePaths(args, root);
   const report = auditSuite(root, args.suite, paths);
   console.log(formatSuiteAuditReport(report));
   if (args.apply) {
-    const path = assertCanonicalDaebSuiteWritePath(paths, args.suite);
+    const path = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, args.suite);
     console.log("\nApplying autofixes…");
     const written = applySuiteAudit(paths, path, report);
     for (const output of written) console.log(`  wrote ${output}`);
@@ -550,8 +550,8 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
   if (!args.category) throw new Error("--category is required (e.g. --category database)");
   if (!args.out || args.out === "results/last-run.json") throw new Error("--out <suite.yaml> is required");
   const root = process.cwd();
-  const paths = daebPaths(args, root);
-  const outPath = assertCanonicalDaebSuiteWritePath(paths, args.out);
+  const paths = axArenaDatabasePaths(args, root);
+  const outPath = assertCanonicalAxArenaDatabaseSuiteWritePath(paths, args.out);
   let vendors = resolveVendorSelection(args, paths) ?? allVendorCards(paths, args.category);
   if (!args.vendor && !args.vendors && args.category === "database") {
     const core = coreVendorSlugs(paths);
@@ -586,7 +586,7 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
     targetTaskCount: args.taskCount,
   });
   const stem = basename(outPath).replace(/\.yaml$/, "");
-  const name = /^suite$/i.test(stem) ? "DAEB-1" : stem.toUpperCase();
+  const name = /^suite$/i.test(stem) ? "AXArena-Database v1" : stem.toUpperCase();
   const version = /^suite$/i.test(stem) ? 1 : inferSuiteVersionFromStem(stem);
   const yaml = renderSuiteYaml(name, version, args.category, result);
   const synthesis = renderSynthesisDoc(name, args.category, result);

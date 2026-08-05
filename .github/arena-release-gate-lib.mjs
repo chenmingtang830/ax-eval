@@ -11,6 +11,8 @@ export const REQUIRED_DELEGATED_ARENA_COMMANDS = [
   "competitive",
   "publication-bundle",
   "export-publication",
+  "axarena-database-low-pass",
+  "axarena-database-production-rerun",
   "daeb-low-pass",
   "daeb-production-rerun",
 ];

@@ -75,7 +75,7 @@ function assertComparableCompetitiveRecords(
   records: readonly NormalizedResult[],
 ): void {
   if (!records.length) throw new Error("competitive requires at least one normalized record");
-  if (batch.configuration.command !== "daeb-production-rerun") {
+  if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(batch.configuration.command)) {
     throw new Error("competitive requires a sealed production-rerun batch");
   }
   const products = batch.configuration.packs.map((pack) => pack.vendor).sort();

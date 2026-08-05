@@ -53,7 +53,7 @@ vi.mock("../src/publication/competitive.js", () => ({
 }));
 
 const ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));
-const BENCHMARK_ROOT = resolve(ROOT, "ax-arena/benchmark/daeb");
+const BENCHMARK_ROOT = resolve(ROOT, "ax-arena/benchmark/axarena-database");
 const GENERATED_AT = "2026-07-21T12:00:00.000Z";
 
 function hash(bytes: Buffer | string): string {
@@ -113,7 +113,7 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
     reset_provider: { id: "reset", version: "1.0.0" },
   })));
   const configuration: ArenaBatchConfiguration = ArenaBatchConfigurationSchema.parse({
-    command: production ? "daeb-production-rerun" : "daeb-low-pass",
+    command: production ? "axarena-database-production-rerun" : "axarena-database-low-pass",
     execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
     sandbox,
     suite: { name: suite.name, version: suite.version, file_hash: hash(readFileSync(suitePath)) },
@@ -441,7 +441,7 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
   }
   const configurationBytes = writeCanonical(resolve(runRoot, "configuration.json"), configuration);
   const runtimeManifestBytes = writeCanonical(resolve(runRoot, "runtime-manifest.json"), runtimeManifest);
-  const sourceArtifacts = execFileSync("git", ["ls-files", "ax-arena/benchmark/daeb"], {
+  const sourceArtifacts = execFileSync("git", ["ls-files", "ax-arena/benchmark/axarena-database"], {
     cwd: ROOT,
     encoding: "utf8",
   }).trim().split("\n").filter(Boolean).sort().map((path) => ({ path, sha256: hash(readFileSync(resolve(ROOT, path))) }));
@@ -499,6 +499,8 @@ describe("arena publication bundle", () => {
     addFormats(ajv);
     const validate = ajv.compile(schema);
     expect(validate(bundle), JSON.stringify(validate.errors)).toBe(true);
+    expect(bundle.benchmark).toBe("axarena-database");
+    expect(bundle.display_name).toBe("AXArena-Database");
     expect(bundle.expected_matrix).toMatchObject({
       surfaces: ["api"], harnesses: ["codex", "claude-code"], effort_profiles: ["high"], expected_cells: 2,
     });

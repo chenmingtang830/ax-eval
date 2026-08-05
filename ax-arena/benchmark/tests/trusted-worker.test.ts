@@ -76,7 +76,7 @@ describe("trusted workflow entrypoints", () => {
   });
 
   it("requires an external controller attestation for the committed configuration", () => {
-    const source = { path: "ax-arena/benchmark/daeb/v1/batch.json", file_hash: "a".repeat(64) };
+    const source = { path: "ax-arena/benchmark/axarena-database/v1/batch.json", file_hash: "a".repeat(64) };
     expect(() => assertExpectedConfigurationSource(source, source.path, source.file_hash)).not.toThrow();
     expect(() => assertExpectedConfigurationSource(source, source.path, "b".repeat(64)))
       .toThrow(/external controller attestation/);

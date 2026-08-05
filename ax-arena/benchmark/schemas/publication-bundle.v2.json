@@ -6,6 +6,7 @@
   "required": [
     "schema",
     "benchmark",
+    "display_name",
     "category",
     "suite",
     "suite_version",
@@ -23,6 +24,7 @@
   "properties": {
     "schema": { "const": "ax.publication-bundle/v2" },
     "benchmark": { "$ref": "#/$defs/nonBlank" },
+    "display_name": { "$ref": "#/$defs/nonBlank" },
     "category": { "$ref": "#/$defs/nonBlank" },
     "suite": { "$ref": "#/$defs/artifactPath" },
     "suite_version": { "type": "integer", "minimum": 0 },
