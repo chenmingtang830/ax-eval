@@ -106,4 +106,12 @@ describe("trusted Bubblewrap policy", () => {
       config(), harnessCommand, [], "/work/cell", runtime({ platform: "darwin" }),
     )).toThrow(/requires Linux/);
   });
+
+  it("uses an isolated network namespace when the cell policy is offline", () => {
+    const result = buildBubblewrapInvocationWithRuntime(
+      config({ network_mode: "none" }), harnessCommand, ["exec"], "/work/cell", runtime(),
+    );
+    expect(result.args).toContain("--unshare-net");
+    expect(result.args).not.toContain("--share-net");
+  });
 });

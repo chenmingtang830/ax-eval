@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ExecutionPolicySchema } from "../harness/execution-policy.js";
 
 export const EVALUATION_CELL_SCHEMA = "ax.evaluation-cell/v1" as const;
 export const NORMALIZED_CELL_RECORD_SCHEMA = "ax.normalized-cell-record/v1" as const;
@@ -44,6 +45,8 @@ export const EvaluationCellSchema = z.object({
     first_action_timeout_ms: z.number().int().nonnegative(),
     invoke_retries: z.number().int().nonnegative(),
   }).strict(),
+  /** Explicit harness capability policy. Legacy cells may omit this field. */
+  execution_policy: ExecutionPolicySchema.optional(),
 }).strict().superRefine((cell, context) => {
   if (cell.harness.id === "opencode" && !/^[^/\s]+\/[^\s]+$/.test(cell.harness.model)) {
     context.addIssue({

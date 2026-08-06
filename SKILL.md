@@ -304,6 +304,14 @@ The CLI writes one normalized `{surface, product, harness}` record per cell.
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 
+Each comparable cell also carries `ax.execution-policy/v1`: an explicit
+`network` mode (`shared` for live product operations or `none` for offline
+work) and a canonical tool list. `network: none` requires the controller-owned
+OS sandbox; an isolated cwd or HOME is not sufficient. The policy is copied to
+invoke metadata and the arena plan. AXArena Bubblewrap maps `none` to
+`--unshare-net` and `shared` to `--share-net`. Host/target allowlist egress is
+not claimed until a verified proxy or firewall is available.
+
 Harness stdout is decoded before AX surface semantics are applied. Keep native
 wire-shape handling in the harness decoder and scoring meaning in the shared
 transcript layer. When integrating a new harness, pass its known id instead of

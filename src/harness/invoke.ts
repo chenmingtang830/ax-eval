@@ -24,6 +24,7 @@ import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
 import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
 import { isOpenCodeModelRoute } from "./opencode.js";
+import { executionPolicyHash, type ExecutionPolicy } from "./execution-policy.js";
 
 export type InvokeHarnessId = "claude-code" | "codex" | "opencode";
 
@@ -104,6 +105,8 @@ export interface InvokeRunOptions {
   requireTrace?: boolean;
   /** Controller-owned OS sandbox applied to the harness process and probe. */
   sandbox?: ChildProcessSandbox;
+  /** Immutable capabilities declared by the evaluation cell. */
+  executionPolicy?: ExecutionPolicy;
 }
 
 export interface InvokeHarnessMetrics {
@@ -1004,12 +1007,13 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   // servers. A broken unrelated MCP login can otherwise stall API/CLI/SDK cells
   // and turn the benchmark into a local-config test.
   const mcpArgs = opts.surface === "mcp" ? [] : ["-c", "mcp_servers={}"];
-  // The eval REQUIRES outbound network (the agent calls the product's API / MCP
-  // server and web-searches in discovery). codex's `workspace-write` sandbox
-  // denies network by default (`network_access: false`) — every curl then fails
-  // with "fetch failed; local shell network unavailable" and all gids come back
-  // null. Enable it explicitly while keeping the filesystem sandbox intact.
-  const networkArgs = ["-c", "sandbox_workspace_write.network_access=true"];
+  // Codex's workspace-write sandbox denies network by default. Only opt into
+  // its network capability when the cell's immutable execution policy allows
+  // shared network access. The outer controller sandbox owns the final
+  // process/network boundary for trusted cells.
+  const networkArgs = opts.executionPolicy?.network === "none"
+    ? []
+    : ["-c", "sandbox_workspace_write.network_access=true"];
   // `--output-last-message <resultsPath>` writes codex's final (schema-shaped)
   // message straight to the results file, so we don't depend on the agent doing a
   // shell write of the exact path. `--json` streams events to stdout so the
@@ -1572,6 +1576,21 @@ function transcriptRuntimeDiagnostics(raw: string, firstActionLatencyMs: number 
   };
 }
 
+function executionPolicyViolation(raw: string, policy: ExecutionPolicy | undefined): string | undefined {
+  if (!policy) return undefined;
+  const has = (tool: string) => policy.tools.includes(tool as ExecutionPolicy["tools"][number]);
+  if (!has("shell") && (raw.includes('"command_execution"') || /"(?:tool|name)"\s*:\s*"(?:bash|shell)"/i.test(raw))) {
+    return "execution policy violation: shell tool was used";
+  }
+  if (!has("web_search") && (raw.includes('"web_search"') || /"(?:tool|name)"\s*:\s*"web[-_]?search"/i.test(raw))) {
+    return "execution policy violation: web_search tool was used";
+  }
+  if (!has("mcp") && (raw.includes('"mcp_tool_call"') || raw.includes('"name":"mcp__'))) {
+    return "execution policy violation: mcp tool was used";
+  }
+  return undefined;
+}
+
 function invokeValidityStatus(args: {
   ok: boolean;
   timedOut: boolean;
@@ -1639,6 +1658,12 @@ async function runInvokeHarnessInner(
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
   const startedAt = Date.now();
+  if (opts.executionPolicy?.network === "none" && !opts.sandbox) {
+    throw new Error("execution policy network=none requires a controller-owned OS sandbox");
+  }
+  if (opts.executionPolicy && opts.surface === "mcp" && !opts.executionPolicy.tools.includes("mcp")) {
+    throw new Error("MCP surface requires the mcp execution tool");
+  }
   const artifactDir = dirname(opts.paths.resultsPath);
   const artifactIdentity = directoryIdentity(artifactDir);
   const invokeHomeRoot = resolve(artifactDir, ".invoke-home");
@@ -1846,8 +1871,9 @@ async function runInvokeHarnessInner(
   const exitLabel = exitCode ?? (signal ?? "unknown");
   const durationMs = Date.now() - startedAt;
   const runtimeDiagnostics = transcriptRuntimeDiagnostics(stdout || stderr, res.firstActionLatencyMs);
+  const policyViolation = executionPolicyViolation(stdout || stderr, opts.executionPolicy);
   const stampFailed = stamp.ok === false;
-  const finalOk = ok && !stampFailed && !unsafeShortValueInAnyArtifact;
+  const finalOk = ok && !stampFailed && !unsafeShortValueInAnyArtifact && !policyViolation;
   const validity_status = unsafeShortValueInResults
     ? "results_json_invalid"
     : unsafeShortValueInTrace
@@ -1864,11 +1890,13 @@ async function runInvokeHarnessInner(
                 actionOccurred: runtimeDiagnostics.action_occurred,
                 resultsExists: regularFileExists(opts.paths.resultsPath),
                 traceExists: regularFileExists(opts.paths.tracePath),
-                error: stamp.error ?? error,
+                error: stamp.error ?? policyViolation ?? error,
               });
   const metaError = unsafeShortValueInAnyArtifact
     ? shortExactRedactionError
-    : finalOk
+    : policyViolation
+      ? policyViolation
+      : finalOk
       ? undefined
       : redactHarnessArtifactText(
           (requiredTraceFailed
@@ -1900,6 +1928,7 @@ async function runInvokeHarnessInner(
     metrics,
     attempt_metrics: attemptMetrics,
     ...(sandboxed ? { sandbox_provenance: sandboxed.provenance } : {}),
+    ...(policyViolation ? { error: policyViolation } : {}),
     stdoutPath: opts.paths.stdoutPath,
     stderrPath: opts.paths.stderrPath,
     transcriptPath: opts.paths.transcriptPath,
@@ -1910,7 +1939,18 @@ async function runInvokeHarnessInner(
   };
   writeRedactedJsonFile(
     opts.paths.metaPath,
-    { ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning },
+    {
+      ...meta,
+      command,
+      args,
+      cwd: opts.cwd,
+      promptPath: opts.paths.promptPath,
+      provisioning: opts.provisioning,
+      ...(opts.executionPolicy ? {
+        execution_policy: opts.executionPolicy,
+        execution_policy_sha256: executionPolicyHash(opts.executionPolicy),
+      } : {}),
+    },
     opts.redactionValues ?? [],
   );
   return meta;

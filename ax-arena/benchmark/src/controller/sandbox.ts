@@ -15,6 +15,8 @@ export interface BubblewrapSandboxConfig {
   executable: string;
   executable_sha256: string;
   runtime_roots: string[];
+  /** Explicit network boundary. Legacy pins default to shared for compatibility. */
+  network_mode?: "none" | "shared";
 }
 
 interface SandboxRuntime {
@@ -66,7 +68,7 @@ function policy(config: BubblewrapSandboxConfig): object {
     runtime_roots: [...BUBBLEWRAP_RUNTIME_ROOTS],
     workspace: "single-cell-read-write",
     host_processes: "hidden-by-new-pid-namespace",
-    network: "shared",
+    network: config.network_mode ?? "shared",
     temporary_directory: "private-tmpfs",
     devices: "minimal-bubblewrap-dev",
     capabilities: "dropped",
@@ -152,7 +154,7 @@ export function buildBubblewrapInvocationWithRuntime(
       "--unshare-ipc",
       "--unshare-uts",
       "--unshare-cgroup-try",
-      "--share-net",
+      ...(config.network_mode === "none" ? ["--unshare-net"] : ["--share-net"]),
       "--cap-drop", "ALL",
       "--proc", "/proc",
       "--dev", "/dev",

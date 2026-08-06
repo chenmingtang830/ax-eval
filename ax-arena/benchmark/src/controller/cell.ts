@@ -26,6 +26,7 @@ import {
   redactSensitiveText,
   resolveRuntimeExtensions,
   runCell,
+  type ExecutionPolicy,
   type EvaluationCell,
   type NormalizedCellRecord,
   type ResetEvidence,
@@ -106,6 +107,7 @@ export interface ArenaCellDependencies {
   ): Promise<NormalizedCellRecord>;
   createRegistry(cell: EvaluationCell, pack: TargetPack): Promise<RuntimeExtensionRegistry>;
   execution?: ArenaExecutionMode;
+  executionPolicy?: ExecutionPolicy;
   sandbox?: BubblewrapSandboxConfig;
 }
 
@@ -839,12 +841,19 @@ export async function executeArenaCell(
   }
   if (execution.runtime_backend === "native") {
     if (dependencies.sandbox) throw new Error("native execution cannot claim a pinned OCI sandbox");
+    if (dependencies.executionPolicy?.network === "none") {
+      throw new Error("network=none execution requires the pinned OCI sandbox");
+    }
     return executeArenaCellInternal(spec, {
       ...dependencies,
       runCell,
     }, true);
   }
   if (!dependencies.sandbox) throw new Error("pinned-oci execution requires the reviewed OCI sandbox");
+  if (dependencies.executionPolicy
+    && dependencies.executionPolicy.network !== (dependencies.sandbox.network_mode ?? "shared")) {
+    throw new Error("execution policy network mode does not match the Bubblewrap sandbox");
+  }
   const sandbox = createBubblewrapSandbox(dependencies.sandbox);
   return executeArenaCellInternal(spec, {
     ...dependencies,
@@ -944,6 +953,7 @@ async function executeArenaCellInternal(
       first_action_timeout_ms: spec.firstActionTimeoutMs,
       invoke_retries: spec.invokeRetries,
     },
+    ...(dependencies.executionPolicy ? { execution_policy: dependencies.executionPolicy } : {}),
   }));
   const registry = await dependencies.createRegistry(cell, pack);
   const hostCredentials = selectedCredentials(cell.required_credentials, credentials);
@@ -961,6 +971,7 @@ async function executeArenaCellInternal(
       sourceRepositoryRoot: cwd,
       sourcePackPath: packPath,
     },
+    executionPolicy: dependencies.executionPolicy,
   });
   const parsedRecord = NormalizedCellRecordSchema.safeParse(returnedRecord);
   if (!parsedRecord.success) {

@@ -144,9 +144,21 @@ The most important types are:
   - optional CLI / SDK / MCP surfaces and how each authenticates
 - `RunResult` / `OracleResult`
   - execution and verification result shapes
+- `ExecutionPolicy`
+  - the explicit harness capability contract for network mode and tool surface
+  - carried into cell invocation metadata so different environments are not
+    silently compared
 
 This contract-first design is what makes the runner largely target-agnostic.
 Most SaaS additions should be a new pack, not a code change.
+
+`ExecutionPolicy` is separate from `TargetPack.sandbox_scope`: the latter
+scopes resources in the product under test, while the former scopes the local
+harness environment. Generic local callers may declare a policy, but
+`network: none` is fail-closed unless a controller supplies an OS sandbox.
+AXArena's pinned Bubblewrap backend is the current implementation that enforces
+that boundary. Allowlist egress is not claimed until a verified proxy/firewall
+exists.
 
 ### Public package boundary
 

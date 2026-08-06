@@ -46,6 +46,7 @@ import {
   type InvokeRunResult,
 } from "../harness/invoke.js";
 import type { ChildProcessSandbox } from "../harness/child-sandbox.js";
+import type { ExecutionPolicy } from "../harness/execution-policy.js";
 import {
   isOpenCodeReservedChildEnv,
   openCodeProviderCredentialNames,
@@ -116,6 +117,8 @@ export interface RunCellOptions {
   signal?: AbortSignal;
   /** Trusted controllers use this for the harness process and version probe. */
   sandbox?: ChildProcessSandbox;
+  /** Immutable harness capability policy. */
+  executionPolicy?: ExecutionPolicy;
 }
 
 export interface CellRuntimeDependencies {
@@ -1291,6 +1294,7 @@ export async function runCellWithRuntime(
       runBatchId: cell.batch_id,
       requireTrace: true,
       sandbox: options.sandbox,
+      executionPolicy: options.executionPolicy ?? cell.execution_policy,
     });
   } catch (error) {
     scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
