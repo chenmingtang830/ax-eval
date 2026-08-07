@@ -946,6 +946,20 @@ function renderHeader(pack: TargetPack, generatedAt: string): string {
   </header>`;
 }
 
+function renderReportNav(recCount: number, hasMethodology = true): string {
+  const links = [
+    ["#tldr", "Summary"],
+    ["#discovery", "Discovery"],
+    ["#execution", "Execution"],
+    ["#scores", "Scores"],
+    recCount ? ["#discovery-recommendations", "Recommendations"] : undefined,
+    hasMethodology ? ["#methodology", "Methodology"] : undefined,
+  ].filter((entry): entry is [string, string] => Boolean(entry));
+  return `<nav class="ax-report-nav" aria-label="Report sections">${links
+    .map(([href, label]) => `<a href="${href}">${esc(label)}</a>`)
+    .join("")}</nav>`;
+}
+
 function renderProminentCaveat(warnings?: string[]): string {
   const sample = (warnings ?? []).find((w) => /\bfake\b|\bsample\b/i.test(w));
   if (!sample) return "";
@@ -2123,6 +2137,7 @@ export function renderGeneratedReport(
 
   const body = [
     renderHeader(pack, generatedAt),
+    renderReportNav(recs.length),
     `<main class="ax-main-inner">`,
     renderProminentCaveat(warnings),
     renderTldr(pack, runs, stat, recs.length),
