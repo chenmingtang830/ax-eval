@@ -337,6 +337,8 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
         s.includes('"tool_use"') ||
         s.includes('"command_execution"') ||
         s.includes('"web_search"') ||
+        s.includes('"tool_execution_start"') ||
+        s.includes('"toolName"') ||
         s.includes('"Bash"') ||
         s.includes('"WebFetch"') ||
         s.includes('"WebSearch"')
@@ -1474,6 +1476,35 @@ function recoverOpenCodeWrite(stdout: string, targetPath: string, cwd: string): 
   return found;
 }
 
+/** Recover direct Pi write-tool inputs when an interrupted JSON-mode run did
+ * not flush its controller result artifacts to disk. Edit events are not
+ * reconstructed: their patch semantics do not contain a complete file body. */
+function recoverPiWrite(stdout: string, targetPath: string, cwd: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        toolName?: string;
+        args?: { path?: string; content?: string };
+      };
+      if (
+        parsed.type === "tool_execution_start" &&
+        parsed.toolName?.toLowerCase() === "write" &&
+        samePath(parsed.args?.path, targetPath, cwd) &&
+        typeof parsed.args?.content === "string"
+      ) {
+        found = parsed.args.content;
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return found;
+}
+
 function recoverOpenCodeText(stdout: string): string | undefined {
   let found: string | undefined;
   for (const line of stdout.split("\n")) {
@@ -1502,6 +1533,8 @@ function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
       ? recoverCodexAgentMessage(stdout)
       : opts.harness === "opencode"
         ? recoverOpenCodeWrite(stdout, opts.paths.resultsPath, opts.cwd) ?? recoverOpenCodeText(stdout)
+        : opts.harness === "pi"
+          ? recoverPiWrite(stdout, opts.paths.resultsPath, opts.cwd)
         : undefined;
   if (!recovered) return false;
   const parsed = parseResultPayload(recovered);
@@ -1514,8 +1547,10 @@ function recoverTraceFile(opts: InvokeRunOptions, stdout: string): boolean {
   if (regularFileExists(opts.paths.tracePath)) return true;
   const recovered = opts.harness === "claude-code"
     ? recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd)
-    : opts.harness === "opencode" || opts.harness === "pi"
+    : opts.harness === "opencode"
       ? recoverOpenCodeWrite(stdout, opts.paths.tracePath, opts.cwd)
+      : opts.harness === "pi"
+        ? recoverPiWrite(stdout, opts.paths.tracePath, opts.cwd)
       : undefined;
   if (!recovered) return false;
   try {
@@ -1558,6 +1593,17 @@ function transcriptShowsSuccess(harness: InvokeHarnessId, stdout: string): boole
     }
     return terminal === "success";
   }
+  if (harness === "pi") {
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        if ((JSON.parse(trimmed) as { type?: string }).type === "agent_end") return true;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   return false;
 }
 
@@ -1579,6 +1625,7 @@ function transcriptRuntimeDiagnostics(raw: string, firstActionLatencyMs: number 
         action_occurred = true;
       }
       if (event.type === "tool_use") action_occurred = true;
+      if (event.type === "tool_execution_start") action_occurred = true;
       const message = event.message as { content?: unknown } | undefined;
       if (Array.isArray(message?.content) && message.content.some((block) =>
         block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"

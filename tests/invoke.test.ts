@@ -249,6 +249,18 @@ describe("runInvokeHarness", () => {
     });
     expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8"))).toMatchObject({ harness: "pi", model: "openrouter/example-model" });
   });
+
+  it("recognizes a Pi JSONL tool event as the first action", async () => {
+    const dir = freshDir();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/bin/sh",
+      ["-c", "printf '%s\\n' '{\"type\":\"tool_execution_start\",\"toolName\":\"bash\",\"args\":{\"command\":\"true\"}}'; sleep 0.05"],
+      dir,
+      { timeoutMs: 1_000, firstActionTimeoutMs: 500 },
+    );
+    expect(result.timedOut).toBe(false);
+    expect(result.firstActionLatencyMs).not.toBeNull();
+  });
   it("runs a prompt, stores subprocess artifacts, and stamps the executor result with the harness id", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
@@ -1320,6 +1332,30 @@ describe("runInvokeHarness", () => {
     const persistedStderr = readFileSync(run.paths.stderrPath, "utf8");
     expect(persistedStderr).not.toContain(rawStderrError);
     expect(persistedStderr).toContain("<omitted-error-detail>");
+  });
+
+  it("recovers Pi write events for result and trace artifacts", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "pi");
+    const payload = {
+      profile: "ceiling", ns: run.ns, surface: "api", discovery: {},
+      results: { t1: { gid: "gid-pi" } },
+    };
+    const trace = [{ step: 1, taskId: "t1", action: "create thing" }];
+    const write = (path: string, content: string) => JSON.stringify({
+      type: "tool_execution_start", toolCallId: `pi-${path.endsWith("trace.json") ? "trace" : "result"}`,
+      toolName: "write", args: { path, content },
+    });
+    const result = await runInvokeHarness({ ...run, requireTrace: true, retries: 0 }, async () =>
+      spawnResult({ status: 1, stdout: Buffer.from([
+        write(run.paths.resultsPath, JSON.stringify(payload)),
+        write(run.paths.tracePath, JSON.stringify(trace)),
+        JSON.stringify({ type: "agent_end", messages: [] }),
+      ].join("\n")) }),
+    );
+    expect(result.ok).toBe(true);
+    expect(JSON.parse(readFileSync(run.paths.resultsPath, "utf8")).results.t1.gid).toBe("gid-pi");
+    expect(JSON.parse(readFileSync(run.paths.tracePath, "utf8"))).toEqual(trace);
   });
 
   it("does not recover an OpenCode write until its state is completed", async () => {
