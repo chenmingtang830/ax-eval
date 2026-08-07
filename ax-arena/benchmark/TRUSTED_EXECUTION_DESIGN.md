@@ -113,6 +113,21 @@ the OCI sysroot's `/usr` to read-only `/usr`, maps the reviewed tool tree
 read-only at its canonical path, supplies a private `/proc` and `/tmp`, and
 binds only the current cell workspace read-write.
 
+### Execution policy
+
+Every comparable cell carries `ax.execution-policy/v1`. It records the network
+mode (`shared` for live target operations or `none` for offline work) and the
+canonical harness tool list. The policy is included in the batch plan and
+invoke metadata. Bubblewrap enforces the network mode: `none` uses a new
+network namespace and `shared` uses the host network namespace. Legacy sandbox
+pins without `network_mode` retain the explicit compatibility default `shared`.
+
+The tool list is a harness capability contract, not a claim that arbitrary host
+binaries are safe: the pinned runtime still supplies the executable closure,
+while MCP is provisioned only from the reviewed pack. A future allowlist-egress
+mode must add a verified proxy/firewall and runtime attestation; it must not be
+implemented as prompt text.
+
 ## Backend selection and failure behavior
 
 Backend and trust-level selection are data, not environment inference.

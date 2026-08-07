@@ -46,6 +46,7 @@ import {
   ArenaBatchPlanSchema,
   ArenaCellCleanupSchema,
   arenaExecutionMode,
+  arenaExecutionPolicy,
   type ArenaBatchCellDescriptor,
   type ArenaBatchCompletion,
   type ArenaBatchManifest,
@@ -802,9 +803,16 @@ export async function executeArenaWorkerCell(
   if (!canonicalEqual(executionMode, parsedDescriptor.execution)) {
     throw new Error(`arena worker execution mode does not match ${parsedDescriptor.key}`);
   }
+  const executionPolicy = parsedDescriptor.execution_policy
+    ?? arenaExecutionPolicy(batch.configuration, parsedDescriptor.surface);
+  if (parsedDescriptor.sandbox
+    && executionPolicy.network !== (parsedDescriptor.sandbox.network_mode ?? "shared")) {
+    throw new Error(`arena worker network policy does not match ${parsedDescriptor.key}`);
+  }
   const spec = deriveArenaCellSpec(batch, parsedDescriptor, runRoot, canonicalPackPath);
   const execution = await executeArenaCell(spec, {
     ...dependencies,
+    executionPolicy,
     credentials: Object.fromEntries([...expectedCredentialNames].map((name) => [name, dependencies.credentials[name]])),
   });
   const resultPath = arenaCellResultPath(runRoot, parsedDescriptor);

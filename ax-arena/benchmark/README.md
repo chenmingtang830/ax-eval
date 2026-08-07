@@ -8,6 +8,11 @@ depends on the supported `ax-eval` package API; `ax-eval` must never import it.
 [`TRUSTED_EXECUTION_DESIGN.md`](./TRUSTED_EXECUTION_DESIGN.md) before changing
 runtime backends, credentials, sandboxing, source trust, or publication gates.
 
+Every comparable cell also carries `ax.execution-policy/v1`: a canonical tool
+list plus an explicit `none` or `shared` network mode. The policy is frozen in
+the batch plan and invoke metadata. `none` requires the pinned Bubblewrap
+backend; legacy disposable-cwd execution is not an OS network sandbox.
+
 The workspace composes immutable runtime-extension registries through the
 public `ax-eval` package specifier and owns canonical AXArena-Database artifacts under
 `axarena-database/`. AXArena-Database authoring policy and its nine commands now live under

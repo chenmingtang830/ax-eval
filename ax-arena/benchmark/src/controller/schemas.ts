@@ -1,5 +1,9 @@
 import { createHash } from "node:crypto";
 import { z } from "zod";
+import {
+  ExecutionPolicySchema,
+  type ExecutionPolicy,
+} from "ax-eval";
 
 function canonical(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonical);
@@ -108,7 +112,29 @@ const TrustedSandboxSchema = z.object({
   executable: NonBlank.refine((value) => value.startsWith("/"), "sandbox executable must be absolute"),
   executable_sha256: Sha256,
   runtime_roots: z.tuple([z.literal("/usr"), z.literal("/opt/ax-arena-tools")]),
+  /** Shared network is the compatibility default; pinned cells may opt out. */
+  network_mode: z.enum(["none", "shared"]).optional(),
 }).strict();
+
+const DEFAULT_EXECUTION_POLICY: ExecutionPolicy = {
+  schema: "ax.execution-policy/v1",
+  network: "shared",
+  tools: ["shell", "web_search"],
+};
+
+export function arenaExecutionPolicy(
+  configuration: { execution_policy?: ExecutionPolicy },
+  surface?: "api" | "cli" | "sdk" | "mcp",
+): ExecutionPolicy {
+  const policy = ExecutionPolicySchema.parse(configuration.execution_policy ?? DEFAULT_EXECUTION_POLICY);
+  if (surface === "mcp" && !policy.tools.includes("mcp")) {
+    return ExecutionPolicySchema.parse({
+      ...policy,
+      tools: [...new Set([...policy.tools, "mcp"])].sort(),
+    });
+  }
+  return policy;
+}
 
 export const ARENA_BATCH_SCHEMA = "ax.arena-batch/v1" as const;
 export const ARENA_BATCH_PLAN_SCHEMA = "ax.arena-batch-plan/v1" as const;
@@ -169,6 +195,7 @@ export const ArenaBatchConfigurationSchema = z.object({
     "daeb-production-rerun",
   ]),
   execution: ArenaExecutionModeSchema.optional(),
+  execution_policy: ExecutionPolicySchema.optional(),
   suite: z.object({
     name: NonBlank,
     version: z.number().int().positive(),
@@ -203,6 +230,14 @@ export const ArenaBatchConfigurationSchema = z.object({
   }
   if (execution.runtime_backend === "native" && configuration.sandbox) {
     context.addIssue({ code: "custom", path: ["sandbox"], message: "native execution cannot claim pinned OCI sandbox provenance" });
+  }
+  if (configuration.execution_policy && configuration.sandbox
+    && configuration.execution_policy.network !== (configuration.sandbox.network_mode ?? "shared")) {
+    context.addIssue({
+      code: "custom",
+      path: ["sandbox", "network_mode"],
+      message: "sandbox network_mode must match execution_policy.network",
+    });
   }
   const keys = configuration.cells.map((cell) => cell.key);
   if (new Set(keys).size !== keys.length) {
@@ -456,6 +491,7 @@ export const ArenaBatchCellDescriptorSchema = z.object({
   harness_version_raw: NonBlank,
   harness_version_semver: Semver,
   execution: ArenaExecutionModeSchema,
+  execution_policy: ExecutionPolicySchema.optional(),
   host_credential_names: Names,
   verification_credential_names: Names,
   reset_credential_names: Names,
@@ -486,6 +522,14 @@ export const ArenaBatchCellDescriptorSchema = z.object({
   }
   if (cell.execution.runtime_backend === "native" && cell.sandbox) {
     context.addIssue({ code: "custom", path: ["sandbox"], message: "native descriptors cannot claim a pinned OCI sandbox" });
+  }
+  if (cell.execution_policy && cell.sandbox
+    && cell.execution_policy.network !== (cell.sandbox.network_mode ?? "shared")) {
+    context.addIssue({
+      code: "custom",
+      path: ["sandbox", "network_mode"],
+      message: "descriptor sandbox network_mode must match execution_policy.network",
+    });
   }
   if (cell.reset_required && !cell.reset_provider) {
     context.addIssue({ code: "custom", path: ["reset_provider"], message: "reset-required descriptors must pin the reset provider identity" });

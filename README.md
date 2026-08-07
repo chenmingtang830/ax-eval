@@ -592,6 +592,14 @@ boundary: use a dedicated sandbox/checkout for hostile prompts. Arena cells keep
 their controller-supplied process/filesystem sandbox; unsandboxed library cells
 receive the disposable cwd automatically.
 
+## Execution environment
+
+Comparable cells carry `ax.execution-policy/v1`, which declares the harness
+tool surface and whether its network is `none` or `shared`. Offline network
+isolation is enforced only by a controller-owned OS sandbox; a disposable
+working directory is not a network boundary. Egress allowlists are not yet
+supported.
+
 ## Safety
 
 Live evals make real writes. Use a sandbox, never production. `init` prints the

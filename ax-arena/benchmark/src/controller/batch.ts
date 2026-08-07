@@ -33,6 +33,7 @@ import {
   ArenaCellCleanupSchema,
   arenaBatchConfigurationHash,
   arenaExecutionMode,
+  arenaExecutionPolicy,
   type ArenaBatchCompletion,
   type ArenaBatchConfiguration,
   type ArenaBatchConfigurationSource,
@@ -318,7 +319,13 @@ export function resolveBatchIdentity(
   configuration: ArenaBatchConfiguration,
   configurationSource?: ArenaBatchConfigurationSource,
 ): ArenaBatchManifest {
-  const parsedConfiguration = ArenaBatchConfigurationSchema.parse(configuration);
+  const parsedConfiguration = ArenaBatchConfigurationSchema.parse({
+    ...configuration,
+    // Materialize the compatibility default before hashing the immutable batch
+    // so the environment policy is part of batch identity, even for legacy
+    // configuration files that predate ax.execution-policy/v1.
+    execution_policy: arenaExecutionPolicy(configuration),
+  });
   const parsedConfigurationSource = configurationSource === undefined
     ? undefined
     : ArenaBatchConfigurationSourceSchema.parse(configurationSource);
@@ -416,6 +423,7 @@ export function buildBatchPlan(batch: ArenaBatchManifest): ArenaBatchPlan {
       harness_version_raw: harness.version_raw,
       harness_version_semver: harness.version_semver,
       execution: arenaExecutionMode(parsedBatch.configuration),
+      execution_policy: arenaExecutionPolicy(parsedBatch.configuration, cell.surface),
       host_credential_names: [...cell.host_credential_names],
       verification_credential_names: [...cell.verification_credential_names],
       reset_credential_names: [...cell.reset_credential_names],

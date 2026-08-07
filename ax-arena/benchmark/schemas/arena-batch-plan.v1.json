@@ -96,6 +96,22 @@
         "trust_level": { "enum": ["local", "hosted-trusted"] }
       }
     },
+    "executionPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schema", "network", "tools"],
+      "properties": {
+        "schema": { "const": "ax.execution-policy/v1" },
+        "network": { "enum": ["none", "shared"] },
+        "tools": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": { "enum": ["shell", "read", "write", "edit", "glob", "grep", "web_search", "mcp"] }
+        }
+      }
+    },
     "tursoCliPin": {
       "type": "object",
       "additionalProperties": false,
@@ -123,9 +139,10 @@
           "prefixItems": [{ "const": "/usr" }, { "const": "/opt/ax-arena-tools" }],
           "items": false,
           "minItems": 2,
-          "maxItems": 2,
-          "uniqueItems": true
-        }
+            "maxItems": 2,
+            "uniqueItems": true
+        },
+        "network_mode": { "enum": ["none", "shared"] }
       }
     },
     "cellDescriptor": {
@@ -176,6 +193,7 @@
         "harness_version_raw": { "$ref": "#/$defs/nonBlank" },
         "harness_version_semver": { "$ref": "#/$defs/semver" },
         "execution": { "$ref": "#/$defs/execution" },
+        "execution_policy": { "$ref": "#/$defs/executionPolicy" },
         "host_credential_names": { "$ref": "#/$defs/names" },
         "verification_credential_names": { "$ref": "#/$defs/names" },
         "reset_credential_names": { "$ref": "#/$defs/names" },

@@ -79,6 +79,15 @@ export {
 } from "./harness/transcript.js";
 export type { ObservedRun, ParsedTranscriptContent } from "./harness/transcript.js";
 export { decodeTranscriptContent } from "./harness/transcript-decoder.js";
+export {
+  EXECUTION_POLICY_SCHEMA,
+  ExecutionNetworkModeSchema,
+  ExecutionPolicySchema,
+  ExecutionToolSchema,
+  executionPolicyAllows,
+  executionPolicyHash,
+} from "./harness/execution-policy.js";
+export type { ExecutionPolicy } from "./harness/execution-policy.js";
 export type {
   HarnessEvent,
   TranscriptDecodeDiagnostics,
