@@ -37,6 +37,7 @@
     "./schemas/evaluation-cell.v1.json": "./schemas/evaluation-cell.v1.json",
     "./schemas/normalized-cell-record.v1.json": "./schemas/normalized-cell-record.v1.json",
     "./schemas/normalized-result.v1.json": "./schemas/normalized-result.v1.json",
+    "./schemas/normalized-result.v2.json": "./schemas/normalized-result.v2.json",
     "./package.json": "./package.json"
   },
   "bin": {

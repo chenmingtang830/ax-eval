@@ -13,6 +13,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
@@ -22,10 +23,12 @@ import { resolveEnvTemplate } from "../target/config.js";
 import { parseJsonWithRecovery } from "../util/json-parse.js";
 import { redactSensitiveText as redactCommonSensitiveText } from "../safety/redaction.js";
 import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
+import { isOpenCodeModelRoute } from "./opencode.js";
+import { isPiModelRoute, piModelId, piProviderId } from "./pi.js";
 
-export type InvokeHarnessId = "claude-code" | "codex";
+export type InvokeHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
-export const INVOKE_HARNESS_IDS: readonly InvokeHarnessId[] = ["claude-code", "codex"];
+export const INVOKE_HARNESS_IDS: readonly InvokeHarnessId[] = ["claude-code", "codex", "opencode", "pi"];
 
 export function isInvokeHarnessId(value: unknown): value is InvokeHarnessId {
   return typeof value === "string" && (INVOKE_HARNESS_IDS as readonly string[]).includes(value);
@@ -58,14 +61,14 @@ export interface InvokeRunOptions {
   ns: string;
   paths: InvokePaths;
   cwd: string;
-  /** Optional model slug to pass to the harness CLI (`claude --model`,
-   *  `codex -m`). When set, this is what the agent actually runs as; when
-   *  omitted, the harness uses its own configured default and we record the
-   *  model it reports back. */
+  /** Model slug to pass to the harness CLI. OpenCode and Pi require an explicit
+   *  `provider/model` route;
+   *  Claude Code and Codex may still use their configured default. */
   model?: string;
   /** Canonical effort level. Translated to each harness's native convention at
    *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
-   *  convention); claude-code → `--effort <level>` on modern Claude Code. */
+   *  convention); claude-code → `--effort <level>` on modern Claude Code.
+   *  OpenCode intentionally keeps the model's default variant in the MVP. */
   effort?: "low" | "medium" | "high";
   /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
    *  exceeds it, it is killed and the attempt counts as a timeout failure
@@ -86,6 +89,9 @@ export interface InvokeRunOptions {
    * parent process environment. The one-cell runtime enables this so a cell
    * cannot see unrelated target or harness credentials. */
   replaceEnv?: boolean;
+  /** Exact credential values supplied out of band. They are used only for
+   * artifact redaction and are never serialized into invoke metadata. */
+  redactionValues?: readonly string[];
   /** Non-secret provisioning metadata written to the invoke meta artifact. */
   provisioning?: Record<string, unknown>;
   /** Result of the already-required harness detection probe. Passing it through
@@ -109,7 +115,7 @@ export interface InvokeHarnessMetrics {
   duration_ms: number | null;
   /** Wall time consumed by every attempt, including failed retries. */
   total_duration_ms: number;
-  /** Native harness-reported dollars. Codex is intentionally null. */
+  /** Native harness-reported dollars. Codex and OpenCode are intentionally null. */
   cost_usd: number | null;
   /** Native token counters summed across every attempt. */
   token_usage: Record<string, number> | null;
@@ -126,6 +132,20 @@ export interface InvokeAttemptMetrics {
   signal: NodeJS.Signals | null;
   timed_out: boolean;
   timeout_reason?: "wall" | "first-action";
+  /** Controller-derived bounded reason for this attempt's outcome. Dynamic
+   * stderr and artifact contents stay out of retry provenance. */
+  outcome_reason:
+    | "success"
+    | "timeout-wall"
+    | "timeout-first-action"
+    | "spawn-error"
+    | "unsafe-output"
+    | "unsafe-results"
+    | "unsafe-trace"
+    | "missing-results"
+    | "missing-or-invalid-trace"
+    | "nonzero-exit"
+    | "unknown-failure";
   cost_usd: number | null;
   token_usage: Record<string, number> | null;
   num_turns: number | null;
@@ -317,6 +337,8 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
         s.includes('"tool_use"') ||
         s.includes('"command_execution"') ||
         s.includes('"web_search"') ||
+        s.includes('"tool_execution_start"') ||
+        s.includes('"toolName"') ||
         s.includes('"Bash"') ||
         s.includes('"WebFetch"') ||
         s.includes('"WebSearch"')
@@ -347,12 +369,32 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     });
   });
 
-// AX_EVAL_CLAUDE_BIN / AX_EVAL_CODEX_BIN let callers bypass a PATH-shadowing
-// wrapper (corp shims that inject env/behavior and break in isolated
-// processes) — same escape hatch as generate/harness.ts's invokeHarness.
+function defaultCommandFor(id: InvokeHarnessId): string {
+  if (id === "claude-code") return "claude";
+  if (id === "codex") return "codex";
+  if (id === "opencode") return "opencode";
+  return "pi";
+}
+
+function resolvedCommandOverride(value: string | undefined, fallback: string): string {
+  if (!value) return fallback;
+  // A path-like override is authored relative to the controller cwd. OpenCode
+  // later runs from a disposable workspace, so retain an absolute executable
+  // path from detection through invocation instead of re-resolving it there.
+  return isAbsolute(value) || (!value.includes("/") && !value.includes("\\"))
+    ? value
+    : resolve(value);
+}
+
+// AX_EVAL_CLAUDE_BIN / AX_EVAL_CODEX_BIN / AX_EVAL_OPENCODE_BIN let callers
+// bypass a PATH-shadowing wrapper (corp shims that inject env/behavior and
+// break in isolated processes) — same escape hatch as generate/harness.ts's
+// invokeHarness.
 function commandFor(id: InvokeHarnessId): string {
-  if (id === "claude-code") return process.env.AX_EVAL_CLAUDE_BIN || "claude";
-  return process.env.AX_EVAL_CODEX_BIN || "codex";
+  if (id === "claude-code") return resolvedCommandOverride(process.env.AX_EVAL_CLAUDE_BIN, "claude");
+  if (id === "codex") return resolvedCommandOverride(process.env.AX_EVAL_CODEX_BIN, "codex");
+  if (id === "opencode") return resolvedCommandOverride(process.env.AX_EVAL_OPENCODE_BIN, "opencode");
+  return resolvedCommandOverride(process.env.AX_EVAL_PI_BIN, "pi");
 }
 
 function text(buf: Buffer | string | null | undefined): string {
@@ -364,14 +406,32 @@ const SECRET_ENV_NAME =
   /([A-Z0-9_]*(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DB_URL|DATABASE_URL|CONNECTION_STRING|URI|DSN|PRIVATE_KEY|JWT)[A-Z0-9_]*\s*=\s*)(["']?)[^\s"',}]+/gi;
 const SECRET_JSON_FIELD =
   /(["']?(?:dsn|token|apiKey|api_key|secret|password|privateKey|private_key|accessToken|access_token)["']?\s*[:=]\s*)(["'])([^"']{12,})\2/gi;
+const SECRET_JSON_KEY =
+  /^(?:dsn|token|apiKey|api_key|secret|password|privateKey|private_key|accessToken|access_token)$/i;
 const URL_USERINFO =
   /\b(https?:\/\/)[A-Za-z0-9._~%!$&'()*+,;=:-]{8,}@([A-Za-z0-9.-]+(?::\d+)?[^\s"'<>)]*)/gi;
 
 /** Redact common credential shapes before writing harness artifacts. Recovery
  *  still uses raw in-memory stdout so structured result extraction remains
  *  lossless, but persisted logs/traces/meta must never carry live secrets. */
-export function redactHarnessArtifactText(value: string): string {
-  return redactCommonSensitiveText(value
+export function redactHarnessArtifactText(
+  value: string,
+  exactValues: readonly string[] = [],
+): string {
+  const secrets = [...new Set(exactValues.filter(Boolean))].sort((a, b) => b.length - a.length);
+  if (containsShortExactRedactionValue(value, secrets)) {
+    return "<redacted-sensitive-text>";
+  }
+  let exactRedacted = value;
+  for (const secret of secrets) {
+    if (secret.length < 4) continue;
+    exactRedacted = exactRedacted.split(secret).join("<redacted>");
+    const jsonEscaped = JSON.stringify(secret).slice(1, -1);
+    if (jsonEscaped !== secret) {
+      exactRedacted = exactRedacted.split(jsonEscaped).join("<redacted>");
+    }
+  }
+  return redactCommonSensitiveText(exactRedacted
     .replace(/\b(?:(?:postgres(?:ql)?|mysql|mongodb(?:\+srv)?):\/\/)[^\s"'<>]+/gi, "<redacted-dsn>")
     .replace(URL_USERINFO, "$1<redacted>@$2")
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g, "Bearer <redacted>")
@@ -385,6 +445,163 @@ export function redactHarnessArtifactText(value: string): string {
     .replace(SECRET_ENV_NAME, "$1$2<redacted>")
     .replace(SECRET_JSON_FIELD, "$1$2<redacted>$2"))
     .replace(/\[REDACTED\]/g, "<redacted>");
+}
+
+function containsShortExactRedactionValue(value: string, exactValues: readonly string[]): boolean {
+  return exactValues.some((secret) => {
+    if (!secret || secret.length >= 4) return false;
+    if (value.includes(secret)) return true;
+    const jsonEscaped = JSON.stringify(secret).slice(1, -1);
+    return jsonEscaped !== secret && value.includes(jsonEscaped);
+  });
+}
+
+function regularFileContainsShortExactRedactionValue(
+  path: string,
+  exactValues: readonly string[] = [],
+): boolean {
+  if (!regularFileExists(path)) return false;
+  return containsShortExactRedactionValue(
+    readRegularFileNoFollow(path).toString("utf8"),
+    exactValues,
+  );
+}
+
+function redactJsonArtifactValue(
+  value: unknown,
+  exactValues: readonly string[],
+  fieldName?: string,
+): unknown {
+  if (typeof value === "string") {
+    return fieldName && SECRET_JSON_KEY.test(fieldName)
+      ? "<redacted>"
+      : redactHarnessArtifactText(value, exactValues);
+  }
+  if (Array.isArray(value)) return value.map((item) => redactJsonArtifactValue(item, exactValues));
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [
+      key,
+      redactJsonArtifactValue(item, exactValues, key),
+    ]));
+  }
+  return value;
+}
+
+function writeRedactedJsonFile(path: string, value: unknown, exactValues: readonly string[]): void {
+  replaceFileWithoutFollowing(
+    path,
+    JSON.stringify(redactJsonArtifactValue(value, exactValues), null, 2),
+  );
+}
+
+/** OpenCode repeats complete tool output in both `state.output` and
+ * `state.metadata.output`. Those fields are useful in-memory for live
+ * operation but are an unbounded secret/PII sink in durable artifacts. Keep
+ * the tool name and input (needed by the transcript decoder) while replacing
+ * both output copies before stdout/transcript persistence. */
+function sanitizedOpenCodeStream(value: string): string {
+  const hadTrailingNewline = value.endsWith("\n");
+  const lines = value.split("\n");
+  if (hadTrailingNewline) lines.pop();
+  const sanitized = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return line;
+    try {
+      const event = JSON.parse(trimmed) as Record<string, unknown>;
+      if (!event || typeof event !== "object" || Array.isArray(event)) {
+        return JSON.stringify({ type: "redacted_unparseable" });
+      }
+      if (event.type === "error") {
+        return JSON.stringify({
+          type: "error",
+          ...(typeof event.timestamp === "number" ? { timestamp: event.timestamp } : {}),
+          ...(typeof event.sessionID === "string" ? { sessionID: event.sessionID } : {}),
+          error: "<omitted-error-detail>",
+        });
+      }
+      if (event.type === "reasoning") {
+        const part = event.part;
+        const safePart = part && typeof part === "object" && !Array.isArray(part)
+          ? Object.fromEntries(Object.entries(part as Record<string, unknown>).filter(([key, item]) =>
+              ["id", "sessionID", "messageID", "type"].includes(key)
+              && (typeof item === "string" || typeof item === "number" || typeof item === "boolean" || item === null)
+            ))
+          : undefined;
+        return JSON.stringify({
+          type: "reasoning",
+          ...(typeof event.timestamp === "number" ? { timestamp: event.timestamp } : {}),
+          ...(typeof event.sessionID === "string" ? { sessionID: event.sessionID } : {}),
+          ...(safePart && Object.keys(safePart).length ? { part: safePart } : {}),
+        });
+      }
+      if (event.type !== "tool_use") return JSON.stringify(event);
+      const part = event.part;
+      if (!part || typeof part !== "object" || Array.isArray(part)) {
+        return JSON.stringify({ type: "tool_use", part: { state: { error: "<omitted-invalid-tool-state>" } } });
+      }
+      const partRecord = part as Record<string, unknown>;
+      const state = (part as Record<string, unknown>).state;
+      if (!state || typeof state !== "object" || Array.isArray(state)) {
+        return JSON.stringify({
+          type: "tool_use",
+          part: {
+            ...(typeof partRecord.tool === "string" ? { tool: partRecord.tool } : {}),
+            state: { error: "<omitted-invalid-tool-state>" },
+          },
+        });
+      }
+      const stateRecord = state as Record<string, unknown>;
+      const safeState: Record<string, unknown> = {};
+      if (typeof stateRecord.status === "string") safeState.status = stateRecord.status;
+      if (stateRecord.input && typeof stateRecord.input === "object" && !Array.isArray(stateRecord.input)) {
+        safeState.input = stateRecord.input;
+      }
+      const time = stateRecord.time;
+      if (time && typeof time === "object" && !Array.isArray(time)) {
+        const safeTime = Object.fromEntries(Object.entries(time as Record<string, unknown>)
+          .filter(([key, item]) => (key === "start" || key === "end") && typeof item === "number"));
+        if (Object.keys(safeTime).length) safeState.time = safeTime;
+      }
+      if (Object.hasOwn(stateRecord, "output")) safeState.output = "<omitted-tool-output>";
+      if (Object.hasOwn(stateRecord, "error")) safeState.error = "<omitted-tool-error>";
+      if (Object.hasOwn(stateRecord, "attachments")) safeState.attachments = [];
+      const metadata = stateRecord.metadata;
+      if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
+        const metadataRecord = metadata as Record<string, unknown>;
+        const safeMetadata = Object.fromEntries(Object.entries(metadataRecord).filter(([key, item]) =>
+          ["exit", "truncated", "filepath", "filePath"].includes(key)
+          && (typeof item === "string" || typeof item === "number" || typeof item === "boolean" || item === null)
+        ));
+        if (Object.hasOwn(metadataRecord, "output")) safeMetadata.output = "<omitted-tool-output>";
+        if (Object.keys(safeMetadata).length) safeState.metadata = safeMetadata;
+      }
+      const safePart = Object.fromEntries(Object.entries(partRecord).filter(([key, item]) =>
+        ["id", "sessionID", "messageID", "type", "tool", "callID"].includes(key)
+        && (typeof item === "string" || typeof item === "number" || typeof item === "boolean" || item === null)
+      ));
+      safePart.state = safeState;
+      return JSON.stringify({
+        type: "tool_use",
+        ...(typeof event.timestamp === "number" ? { timestamp: event.timestamp } : {}),
+        ...(typeof event.sessionID === "string" ? { sessionID: event.sessionID } : {}),
+        part: safePart,
+      });
+    } catch {
+      return JSON.stringify({ type: "redacted_unparseable" });
+    }
+  }).join("\n");
+  return hadTrailingNewline ? `${sanitized}\n` : sanitized;
+}
+
+function persistedHarnessOutput(
+  harness: InvokeHarnessId,
+  value: string,
+  exactValues: readonly string[] = [],
+): string {
+  return redactHarnessArtifactText(
+    harness === "opencode" ? sanitizedOpenCodeStream(value) : value,
+    exactValues,
+  );
 }
 
 function assertContainedParent(path: string, allowedRoot = dirname(path)): void {
@@ -485,20 +702,20 @@ function validTraceFile(path: string): boolean {
   }
 }
 
-function writeRedactedFile(path: string, value: string): void {
-  replaceFileWithoutFollowing(path, redactHarnessArtifactText(value));
+function writeRedactedFile(path: string, value: string, exactValues: readonly string[] = []): void {
+  replaceFileWithoutFollowing(path, redactHarnessArtifactText(value, exactValues));
 }
 
-function redactFileIfExists(path: string): void {
+function redactFileIfExists(path: string, exactValues: readonly string[] = []): void {
   if (!regularFileExists(path)) return;
-  writeRedactedFile(path, readRegularFileNoFollow(path).toString("utf8"));
+  writeRedactedFile(path, readRegularFileNoFollow(path).toString("utf8"), exactValues);
 }
 
 function isInvokeHomePath(path: string): boolean {
   return path.split(/[\\/]/).includes(".invoke-home");
 }
 
-function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
+function sanitizeInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   const home = opts.env?.HOME;
   if (!home || !isInvokeHomePath(home)) return;
   const allowedRoot = resolve(dirname(opts.paths.resultsPath), ".invoke-home");
@@ -510,6 +727,13 @@ function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
     const realRel = relative(realpathSync(allowedRoot), realpathSync(home));
     if (realRel === ".." || realRel.startsWith(`..${sep}`) || isAbsolute(realRel)) return;
   } catch {
+    return;
+  }
+  if (opts.harness === "opencode" || opts.harness === "pi") {
+    // These harnesses may retain complete messages/tool output in internal
+    // stores. The per-run home is disposable after recovery and metrics
+    // parsing, so remove it in full rather than attempting field redaction.
+    rmSync(home, { recursive: true, force: true });
     return;
   }
   const visit = (path: string) => {
@@ -528,7 +752,11 @@ function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
     try {
       const raw = readRegularFileNoFollow(path, allowedRoot);
       if (raw.includes(0)) return;
-      replaceFileWithoutFollowing(path, redactHarnessArtifactText(raw.toString("utf8")), allowedRoot);
+      replaceFileWithoutFollowing(
+        path,
+        redactHarnessArtifactText(raw.toString("utf8"), opts.redactionValues),
+        allowedRoot,
+      );
     } catch {
       /* best effort: host CLI caches are evidence, not primary artifacts. */
     }
@@ -536,8 +764,40 @@ function redactInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   visit(home);
 }
 
-function detectWith(command: string, spawn: Spawn, env?: Record<string, string>): InvokeDetection {
-  const res = spawn(command, ["--version"], { stdio: ["ignore", "pipe", "pipe"], env });
+function removeIsolatedWorkRootIfPresent(opts: InvokeRunOptions): void {
+  if (opts.harness !== "opencode" && opts.harness !== "pi") return;
+  const root = opts.harness === "opencode"
+    ? opts.provisioning?.opencode_work_root
+    : opts.provisioning?.pi_work_root;
+  if (typeof root !== "string" || !isAbsolute(root)) return;
+  try {
+    const tempRoot = realpathSync(tmpdir());
+    const stat = lstatSync(root);
+    if (stat.isSymbolicLink() || !stat.isDirectory()) return;
+    const real = realpathSync(root);
+    const rel = relative(tempRoot, real);
+    const first = rel.split(sep)[0] ?? "";
+    if (!rel || rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return;
+    if (!first.startsWith(opts.harness === "pi" ? "ax-eval-pi-" : "ax-eval-opencode-")) return;
+    rmSync(real, { recursive: true, force: true });
+  } catch {
+    // Best effort: the directory is random, secret-free, and contains no
+    // durable evaluation evidence. Primary artifacts are scrubbed separately.
+  }
+}
+
+function detectionArgs(_id: InvokeHarnessId): string[] {
+  return ["--version"];
+}
+
+function detectWith(
+  id: InvokeHarnessId,
+  command: string,
+  spawn: Spawn,
+  env?: Record<string, string>,
+  cwd?: string,
+): InvokeDetection {
+  const res = spawn(command, detectionArgs(id), { stdio: ["ignore", "pipe", "pipe"], env, cwd });
   if (res.error) {
     const code = (res.error as NodeJS.ErrnoException).code;
     return {
@@ -558,16 +818,45 @@ function detectWith(command: string, spawn: Spawn, env?: Record<string, string>)
   return { ok: true, command, version: (text(res.stdout) || text(res.stderr)).trim() };
 }
 
+const MIN_OPENCODE_VERSION = [1, 18, 3] as const;
+
+function validateDetection(id: InvokeHarnessId, detection: InvokeDetection): InvokeDetection {
+  if (id !== "opencode" || !detection.ok) return detection;
+  const match = detection.version?.match(/\b(\d+)\.(\d+)\.(\d+)\b/);
+  if (!match) {
+    return {
+      ok: false,
+      command: detection.command,
+      reason: "detect-failed",
+      detail: `unable to parse OpenCode version from ${JSON.stringify(detection.version ?? "")}; OpenCode >= 1.18.3 is required`,
+    };
+  }
+  const version = match.slice(1, 4).map(Number);
+  const supported = version[0]! > MIN_OPENCODE_VERSION[0]
+    || (version[0] === MIN_OPENCODE_VERSION[0] && version[1]! > MIN_OPENCODE_VERSION[1])
+    || (version[0] === MIN_OPENCODE_VERSION[0]
+      && version[1] === MIN_OPENCODE_VERSION[1]
+      && version[2]! >= MIN_OPENCODE_VERSION[2]);
+  if (supported) return detection;
+  return {
+    ok: false,
+    command: detection.command,
+    reason: "detect-failed",
+    detail: `OpenCode >= 1.18.3 is required for headless --auto/--pure runs (detected ${match[0]})`,
+  };
+}
+
 export function detectInvokeHarness(
   id: InvokeHarnessId,
   spawn: Spawn = DEFAULT_SPAWN,
   env?: Record<string, string>,
   allowAmbientCommandOverride = true,
+  cwd?: string,
 ): InvokeDetection {
   const command = allowAmbientCommandOverride
     ? commandFor(id)
-    : id === "claude-code" ? "claude" : "codex";
-  return detectWith(command, spawn, env);
+    : defaultCommandFor(id);
+  return validateDetection(id, detectWith(id, command, spawn, env, cwd));
 }
 
 /** Run version detection through the same PID/filesystem sandbox as execution.
@@ -579,10 +868,10 @@ export function detectInvokeHarnessSandboxed(
   env?: Record<string, string>,
   spawn: Spawn = DEFAULT_SPAWN,
 ): InvokeDetection {
-  const fallback = id === "claude-code" ? "claude" : "codex";
+  const fallback = defaultCommandFor(id);
   try {
     const command = commandFor(id);
-    const invocation = sandbox.wrap({ command, args: ["--version"], cwd });
+    const invocation = sandbox.wrap({ command, args: detectionArgs(id), cwd });
     const result = spawn(invocation.command, invocation.args, {
       stdio: ["ignore", "pipe", "pipe"],
       env,
@@ -599,7 +888,11 @@ export function detectInvokeHarnessSandboxed(
         detail: text(result.stderr) || `exit ${result.status}`,
       };
     }
-    return { ok: true, command, version: (text(result.stdout) || text(result.stderr)).trim() };
+    return validateDetection(id, {
+      ok: true,
+      command,
+      version: (text(result.stdout) || text(result.stderr)).trim(),
+    });
   } catch (error) {
     return {
       ok: false,
@@ -675,6 +968,47 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
       args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
     };
   }
+  if (id === "opencode") {
+    if (!isOpenCodeModelRoute(opts.model)) {
+      throw new Error("OpenCode invocation requires an explicit provider/model route");
+    }
+    // OpenCode exposes provider-specific reasoning effort through --variant.
+    // The controller only accepts the portable low/medium/high subset and
+    // passes that exact value so the persisted execution identity describes
+    // the configuration that actually ran instead of an unapplied request.
+    // OpenCode/Bun may autoload cwd/.env. Callers therefore provision a
+    // disposable cwd outside the checkout before this command is built.
+    return {
+      command: opts.harnessDetection?.command ?? commandFor("opencode"),
+      args: [
+        "run",
+        "--format", "json",
+        "--auto",
+        "--pure",
+        "--model", opts.model,
+        ...(opts.effort ? ["--variant", opts.effort] : []),
+        prompt,
+      ],
+    };
+  }
+  if (id === "pi") {
+    if (!isPiModelRoute(opts.model)) {
+      throw new Error("Pi invocation requires an explicit provider/model route");
+    }
+    // JSON mode preserves an objective tool-event transcript. Every user,
+    // project, and package customization is disabled so a cell is comparable
+    // across operators; the controller-owned prompt remains the sole policy.
+    return {
+      command: opts.harnessDetection?.command ?? commandFor("pi"),
+      args: [
+        "--mode", "json", "--no-session", "--offline",
+        "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
+        "--provider", piProviderId(opts.model), "--model", piModelId(opts.model),
+        ...(opts.effort ? ["--thinking", opts.effort] : []),
+        prompt,
+      ],
+    };
+  }
   if (!opts.paths.codexSchemaPath) {
     throw new Error("codex invocation requires codexSchemaPath");
   }
@@ -741,6 +1075,32 @@ function modelFromJson(json: Record<string, unknown>): string | undefined {
   return undefined;
 }
 
+function openCodeModelFromJson(json: Record<string, unknown>): string | undefined {
+  const direct = modelFromJson(json);
+  if (direct) return direct;
+  const part = json.part;
+  if (!part || typeof part !== "object" || Array.isArray(part)) return undefined;
+  const partRecord = part as Record<string, unknown>;
+  if (typeof partRecord.model === "string" && partRecord.model.trim()) return partRecord.model;
+  const nestedModel = partRecord.model;
+  const nested = nestedModel && typeof nestedModel === "object" && !Array.isArray(nestedModel)
+    ? nestedModel as Record<string, unknown>
+    : undefined;
+  const provider = typeof partRecord.providerID === "string"
+    ? partRecord.providerID
+    : typeof nested?.providerID === "string" ? nested.providerID : undefined;
+  const model = typeof partRecord.modelID === "string"
+    ? partRecord.modelID
+    : typeof nested?.modelID === "string" ? nested.modelID : undefined;
+  if (!model) return undefined;
+  if (model.includes("/")) return model;
+  return provider ? `${provider}/${model}` : undefined;
+}
+
+function modelFromHarnessJson(harness: InvokeHarnessId, json: Record<string, unknown>): string | undefined {
+  return harness === "opencode" ? openCodeModelFromJson(json) : modelFromJson(json);
+}
+
 function finiteNumber(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
@@ -759,6 +1119,14 @@ function tokenUsageFrom(value: unknown): Record<string, number> | null {
   addMetric(out, "cached_input_tokens", record.cached_input_tokens ?? record.cachedInputTokens);
   addMetric(out, "cache_read_input_tokens", record.cache_read_input_tokens ?? record.cacheReadInputTokens);
   addMetric(out, "cache_creation_input_tokens", record.cache_creation_input_tokens ?? record.cacheCreationInputTokens);
+  addMetric(
+    out,
+    "cache_write_input_tokens",
+    record.cache_write_input_tokens
+      ?? record.cacheWriteInputTokens
+      ?? record.cache_write_tokens
+      ?? record.cacheWriteTokens,
+  );
   addMetric(out, "total_tokens", record.total_tokens ?? record.totalTokens);
   if (out.total_tokens === undefined && (out.input_tokens !== undefined || out.output_tokens !== undefined)) {
     out.total_tokens = (out.input_tokens ?? 0) + (out.output_tokens ?? 0);
@@ -784,6 +1152,33 @@ function claudeUsage(json: Record<string, unknown>): Record<string, number> | nu
   return Object.keys(total).length ? total : null;
 }
 
+function openCodeUsage(json: Record<string, unknown>): Record<string, number> | null {
+  const part = json.part;
+  if (!part || typeof part !== "object" || Array.isArray(part)) return null;
+  const tokens = (part as Record<string, unknown>).tokens;
+  if (!tokens || typeof tokens !== "object" || Array.isArray(tokens)) return null;
+  const tokenRecord = tokens as Record<string, unknown>;
+  const cache = tokenRecord.cache;
+  const cacheRecord = cache && typeof cache === "object" && !Array.isArray(cache)
+    ? cache as Record<string, unknown>
+    : undefined;
+  const usage: Record<string, number> = {};
+  addMetric(usage, "input_tokens", tokenRecord.input);
+  addMetric(usage, "output_tokens", tokenRecord.output);
+  addMetric(usage, "reasoning_output_tokens", tokenRecord.reasoning);
+  addMetric(usage, "cache_creation_input_tokens", cacheRecord?.write);
+  addMetric(usage, "cache_read_input_tokens", cacheRecord?.read);
+  const total = [
+    tokenRecord.input,
+    tokenRecord.output,
+    tokenRecord.reasoning,
+    cacheRecord?.write,
+    cacheRecord?.read,
+  ].reduce<number>((sum, value) => sum + (finiteNumber(value) ?? 0), 0);
+  if (Object.keys(usage).length) usage.total_tokens = total;
+  return Object.keys(usage).length ? usage : null;
+}
+
 interface ParsedHarnessMetrics {
   model?: string;
   cost_usd: number | null;
@@ -793,8 +1188,9 @@ interface ParsedHarnessMetrics {
 }
 
 /** Parse each harness's native event shape once. Claude's final result carries
- *  cost, usage, duration and turns. Codex emits token usage on turn.completed
- *  but does not report dollars, so cost_usd remains explicitly null. */
+ *  cost, usage, duration and turns. Codex emits token usage on turn.completed;
+ *  OpenCode emits it on step_finish.part.tokens. Their runtime dollar values
+ *  are not trusted, so cost_usd remains explicitly null for both. */
 function parseHarnessMetrics(harness: InvokeHarnessId, raw: string): ParsedHarnessMetrics {
   let model: string | undefined;
   let costUsd: number | null = null;
@@ -810,7 +1206,7 @@ function parseHarnessMetrics(harness: InvokeHarnessId, raw: string): ParsedHarne
     } catch {
       continue;
     }
-    model = modelFromJson(event) ?? model;
+    model = modelFromHarnessJson(harness, event) ?? model;
     if (harness === "claude-code" && event.type === "result") {
       costUsd = finiteNumber(event.total_cost_usd) ?? costUsd;
       numTurns = finiteNumber(event.num_turns) ?? numTurns;
@@ -819,6 +1215,10 @@ function parseHarnessMetrics(harness: InvokeHarnessId, raw: string): ParsedHarne
     }
     if (harness === "codex" && event.type === "turn.completed") {
       mergeUsage(usage, tokenUsageFrom(event.usage));
+    }
+    if (harness === "opencode" && event.type === "step_finish") {
+      mergeUsage(usage, openCodeUsage(event));
+      numTurns = (numTurns ?? 0) + 1;
     }
   }
   return {
@@ -860,13 +1260,13 @@ function summarizeInvokeMetrics(opts: InvokeRunOptions, attempts: InvokeAttemptM
  *  (`--output-format stream-json`) where the model lives on the final
  *  `type:result` line. Returns undefined when nothing parseable is found (we
  *  then fall back to the requested/profile model). */
-function detectRanModel(stdoutPath: string): string | undefined {
+function detectRanModel(stdoutPath: string, harness: InvokeHarnessId): string | undefined {
   if (!existsSync(stdoutPath)) return undefined;
   const raw = readFileSync(stdoutPath, "utf8").trim();
   if (!raw) return undefined;
   // Fast path: the whole file is one JSON object.
   try {
-    return modelFromJson(JSON.parse(raw) as Record<string, unknown>);
+    return modelFromHarnessJson(harness, JSON.parse(raw) as Record<string, unknown>);
   } catch {
     /* fall through to NDJSON scan */
   }
@@ -877,7 +1277,7 @@ function detectRanModel(stdoutPath: string): string | undefined {
     const t = line.trim();
     if (!t) continue;
     try {
-      const m = modelFromJson(JSON.parse(t) as Record<string, unknown>);
+      const m = modelFromHarnessJson(harness, JSON.parse(t) as Record<string, unknown>);
       if (m) found = m;
     } catch {
       /* skip non-JSON lines */
@@ -895,11 +1295,15 @@ function modelFromCodexBanner(stderrPath: string): string | undefined {
   return m ? m[1] : undefined;
 }
 
+function isNonArrayObject(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics): { ok: boolean; error?: string } {
   if (!regularFileExists(opts.paths.resultsPath)) return { ok: true };
-  let parsed: Record<string, unknown>;
+  let value: unknown;
   try {
-    parsed = parseJsonWithRecovery<Record<string, unknown>>(
+    value = parseJsonWithRecovery<unknown>(
       readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8"),
     );
   } catch (error) {
@@ -907,15 +1311,35 @@ function stampResultFile(opts: InvokeRunOptions, metrics: InvokeHarnessMetrics):
     writeFailureArtifacts(opts, `results JSON invalid (bare quotes / malformed): ${message}`);
     return { ok: false, error: message };
   }
+  if (!isNonArrayObject(value)) {
+    const message = "results JSON root must be a non-null, non-array object";
+    writeFailureArtifacts(opts, message);
+    return { ok: false, error: message };
+  }
+  if (!isNonArrayObject(value.results)) {
+    const message = "results JSON field 'results' must be a non-null, non-array object";
+    writeFailureArtifacts(opts, message);
+    return { ok: false, error: message };
+  }
+  const parsed = value;
   parsed.harness = opts.harness;
-  parsed.profile = typeof parsed.profile === "string" && parsed.profile.trim() ? parsed.profile : opts.profile;
-  parsed.surface = typeof parsed.surface === "string" && parsed.surface.trim() ? parsed.surface : opts.surface;
-  parsed.ns = typeof parsed.ns === "string" && parsed.ns.trim() ? parsed.ns : opts.ns;
+  // These are controller-owned cell coordinates, not agent testimony. Always
+  // overwrite them just as we do `harness`, even when the agent supplied
+  // plausible non-empty values.
+  parsed.profile = opts.profile;
+  parsed.surface = opts.surface;
+  parsed.ns = opts.ns;
   // Ground-truth model: what the harness reported running > what we requested.
   // Never the hardcoded profile default — that's the bug we're fixing. Codex
   // doesn't carry the model in its output, so fall back to its stderr banner.
+  const observedModel = detectRanModel(opts.paths.stdoutPath, opts.harness);
   const bannerModel = opts.harness === "codex" ? modelFromCodexBanner(opts.paths.stderrPath) : undefined;
-  parsed.model = detectRanModel(opts.paths.stdoutPath) ?? bannerModel ?? opts.model ?? parsed.model ?? null;
+  // OpenCode's final text/result JSON is agent-authored rather than runtime
+  // provenance. When its event stream does not identify a provider/model, only
+  // the controller-requested `provider/model` is trustworthy.
+  parsed.model = opts.harness === "opencode" || opts.harness === "pi"
+    ? observedModel ?? opts.model ?? null
+    : observedModel ?? bannerModel ?? opts.model ?? parsed.model ?? null;
   parsed.metrics = metrics;
   normalizeDiscoveryResult(parsed, opts.pack, opts.env);
   replaceFileWithoutFollowing(opts.paths.resultsPath, JSON.stringify(parsed, null, 2));
@@ -1019,12 +1443,99 @@ function recoverCodexAgentMessage(stdout: string): string | undefined {
   return found;
 }
 
+function recoverOpenCodeWrite(stdout: string, targetPath: string, cwd: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        part?: {
+          tool?: string;
+          state?: {
+            status?: string;
+            input?: { filePath?: string; content?: string };
+          };
+        };
+      };
+      const input = parsed.part?.state?.input;
+      if (
+        parsed.type === "tool_use"
+        && parsed.part?.tool === "write"
+        && parsed.part.state?.status === "completed"
+        && samePath(input?.filePath, targetPath, cwd)
+        && typeof input?.content === "string"
+      ) {
+        found = input.content;
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return found;
+}
+
+/** Recover direct Pi write-tool inputs when an interrupted JSON-mode run did
+ * not flush its controller result artifacts to disk. Edit events are not
+ * reconstructed: their patch semantics do not contain a complete file body. */
+function recoverPiWrite(stdout: string, targetPath: string, cwd: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        toolName?: string;
+        args?: { path?: string; content?: string };
+      };
+      if (
+        parsed.type === "tool_execution_start" &&
+        parsed.toolName?.toLowerCase() === "write" &&
+        samePath(parsed.args?.path, targetPath, cwd) &&
+        typeof parsed.args?.content === "string"
+      ) {
+        found = parsed.args.content;
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return found;
+}
+
+function recoverOpenCodeText(stdout: string): string | undefined {
+  let found: string | undefined;
+  for (const line of stdout.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const parsed = JSON.parse(trimmed) as {
+        type?: string;
+        part?: { text?: string };
+      };
+      if (parsed.type === "text" && typeof parsed.part?.text === "string") {
+        if (parseResultPayload(parsed.part.text)) found = parsed.part.text;
+      }
+    } catch {
+      /* ignore non-JSON lines */
+    }
+  }
+  return found;
+}
+
 function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
   if (regularFileExists(opts.paths.resultsPath)) return true;
-  const recovered =
-    opts.harness === "claude-code"
-      ? recoverClaudeWrite(stdout, opts.paths.resultsPath, opts.cwd)
-      : recoverCodexAgentMessage(stdout);
+  const recovered = opts.harness === "claude-code"
+    ? recoverClaudeWrite(stdout, opts.paths.resultsPath, opts.cwd)
+    : opts.harness === "codex"
+      ? recoverCodexAgentMessage(stdout)
+      : opts.harness === "opencode"
+        ? recoverOpenCodeWrite(stdout, opts.paths.resultsPath, opts.cwd) ?? recoverOpenCodeText(stdout)
+        : opts.harness === "pi"
+          ? recoverPiWrite(stdout, opts.paths.resultsPath, opts.cwd)
+        : undefined;
   if (!recovered) return false;
   const parsed = parseResultPayload(recovered);
   if (!parsed) return false;
@@ -1034,8 +1545,13 @@ function recoverResultFile(opts: InvokeRunOptions, stdout: string): boolean {
 
 function recoverTraceFile(opts: InvokeRunOptions, stdout: string): boolean {
   if (regularFileExists(opts.paths.tracePath)) return true;
-  if (opts.harness !== "claude-code") return false;
-  const recovered = recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd);
+  const recovered = opts.harness === "claude-code"
+    ? recoverClaudeWrite(stdout, opts.paths.tracePath, opts.cwd)
+    : opts.harness === "opencode"
+      ? recoverOpenCodeWrite(stdout, opts.paths.tracePath, opts.cwd)
+      : opts.harness === "pi"
+        ? recoverPiWrite(stdout, opts.paths.tracePath, opts.cwd)
+      : undefined;
   if (!recovered) return false;
   try {
     const parsed = JSON.parse(recovered);
@@ -1062,6 +1578,32 @@ function transcriptShowsSuccess(harness: InvokeHarnessId, stdout: string): boole
     }
     return false;
   }
+  if (harness === "opencode") {
+    let terminal: "success" | "error" | undefined;
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        const parsed = JSON.parse(trimmed) as { type?: string; part?: { reason?: string } };
+        if (parsed.type === "error") terminal = "error";
+        if (parsed.type === "step_finish") terminal = parsed.part?.reason === "stop" ? "success" : undefined;
+      } catch {
+        /* ignore */
+      }
+    }
+    return terminal === "success";
+  }
+  if (harness === "pi") {
+    for (const line of stdout.split("\n")) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      try {
+        if ((JSON.parse(trimmed) as { type?: string }).type === "agent_end") return true;
+      } catch {
+        /* ignore */
+      }
+    }
+  }
   return false;
 }
 
@@ -1082,6 +1624,8 @@ function transcriptRuntimeDiagnostics(raw: string, firstActionLatencyMs: number 
       if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
         action_occurred = true;
       }
+      if (event.type === "tool_use") action_occurred = true;
+      if (event.type === "tool_execution_start") action_occurred = true;
       const message = event.message as { content?: unknown } | undefined;
       if (Array.isArray(message?.content) && message.content.some((block) =>
         block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
@@ -1156,7 +1700,12 @@ function writeFailureArtifacts(opts: InvokeRunOptions, message: string): void {
   );
 }
 
-export async function runInvokeHarness(
+const SHORT_EXACT_REDACTION_ARTIFACT_ERROR =
+  "structured artifact contained a short exact-redaction value and was discarded";
+const SHORT_EXACT_REDACTION_OUTPUT_ERROR =
+  "harness output contained a short exact-redaction value and was discarded";
+
+async function runInvokeHarnessInner(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
@@ -1189,6 +1738,9 @@ export async function runInvokeHarness(
   let stdout = "";
   let stderr = "";
   let requiredTraceFailed = false;
+  let unsafeShortValueInResults = false;
+  let unsafeShortValueInTrace = false;
+  let unsafeShortValueInHarnessOutput = false;
   const attemptMetrics: InvokeAttemptMetrics[] = [];
   while (attempt < maxAttempts) {
     assertDirectoryIdentity(artifactDir, artifactIdentity);
@@ -1205,16 +1757,53 @@ export async function runInvokeHarness(
     assertDirectoryIdentity(artifactDir, artifactIdentity);
     stdout = text(res.stdout);
     stderr = text(res.stderr);
+    const attemptUnsafeHarnessOutput = containsShortExactRedactionValue(
+      stdout,
+      opts.redactionValues ?? [],
+    ) || containsShortExactRedactionValue(stderr, opts.redactionValues ?? []);
+    unsafeShortValueInHarnessOutput ||= attemptUnsafeHarnessOutput;
     recoverResultFile(opts, stdout);
     recoverTraceFile(opts, stdout);
+    const attemptUnsafeResults = regularFileContainsShortExactRedactionValue(
+      opts.paths.resultsPath,
+      opts.redactionValues,
+    );
+    const attemptUnsafeTrace = regularFileContainsShortExactRedactionValue(
+      opts.paths.tracePath,
+      opts.redactionValues,
+    );
+    unsafeShortValueInResults ||= attemptUnsafeResults;
+    unsafeShortValueInTrace ||= attemptUnsafeTrace;
     requiredTraceFailed = opts.requireTrace === true && !validTraceFile(opts.paths.tracePath);
     ok =
+      !attemptUnsafeHarnessOutput &&
+      !attemptUnsafeResults &&
+      !attemptUnsafeTrace &&
       !res.error &&
       regularFileExists(opts.paths.resultsPath) &&
       !requiredTraceFailed &&
       (((res.status ?? null) === 0) || transcriptShowsSuccess(opts.harness, stdout));
     const nativeMetrics = parseHarnessMetrics(opts.harness, stdout);
     const attemptFinished = new Date();
+    const outcomeReason: InvokeAttemptMetrics["outcome_reason"] = ok
+      ? "success"
+      : attemptUnsafeHarnessOutput
+        ? "unsafe-output"
+        : attemptUnsafeResults
+          ? "unsafe-results"
+          : attemptUnsafeTrace
+            ? "unsafe-trace"
+            : res.timedOut
+              ? res.timeoutReason === "first-action" ? "timeout-first-action" : "timeout-wall"
+              : res.error
+                ? "spawn-error"
+                : (res.status ?? null) !== 0 && !transcriptShowsSuccess(opts.harness, stdout)
+                  ? "nonzero-exit"
+                  : !regularFileExists(opts.paths.resultsPath)
+                    ? "missing-results"
+                    : requiredTraceFailed
+                      ? "missing-or-invalid-trace"
+                      : "unknown-failure";
     attemptMetrics.push({
       attempt,
       started_at: attemptStarted.toISOString(),
@@ -1225,19 +1814,30 @@ export async function runInvokeHarness(
       signal: res.signal ?? null,
       timed_out: res.timedOut ?? false,
       timeout_reason: res.timeoutReason,
+      outcome_reason: outcomeReason,
       cost_usd: nativeMetrics.cost_usd,
       token_usage: nativeMetrics.token_usage,
       num_turns: nativeMetrics.num_turns,
       harness_duration_ms: nativeMetrics.harness_duration_ms,
     });
-    if (ok || attempt >= maxAttempts) break;
+    // A short exact value cannot be safely replaced in serialized JSON without
+    // risking its structure. Do not retry real product writes: discard both
+    // structured artifacts and fail this invocation closed below.
+    if (attemptUnsafeHarnessOutput || attemptUnsafeResults || attemptUnsafeTrace || ok || attempt >= maxAttempts) break;
     // Failed and a retry is left: drop any partial results file so the next
     // attempt is scored on its own output, not stale leftovers.
     for (const path of [opts.paths.resultsPath, opts.paths.tracePath]) {
       try { removePathIfPresent(path); } catch { /* best effort */ }
     }
   }
-  if (requiredTraceFailed) {
+  const unsafeShortValueInStructuredArtifact = unsafeShortValueInResults || unsafeShortValueInTrace;
+  const unsafeShortValueInAnyArtifact = unsafeShortValueInStructuredArtifact || unsafeShortValueInHarnessOutput;
+  const shortExactRedactionError = unsafeShortValueInStructuredArtifact
+    ? SHORT_EXACT_REDACTION_ARTIFACT_ERROR
+    : SHORT_EXACT_REDACTION_OUTPUT_ERROR;
+  if (unsafeShortValueInAnyArtifact) {
+    writeFailureArtifacts(opts, shortExactRedactionError);
+  } else if (requiredTraceFailed) {
     replaceFileWithoutFollowing(opts.paths.tracePath, `${JSON.stringify([{
       step: 1,
       taskId: "discovery",
@@ -1246,13 +1846,21 @@ export async function runInvokeHarness(
     }], null, 2)}\n`);
   }
   assertDirectoryIdentity(artifactDir, artifactIdentity);
-  writeRedactedFile(opts.paths.stdoutPath, stdout);
-  writeRedactedFile(opts.paths.stderrPath, stderr);
+  replaceFileWithoutFollowing(
+    opts.paths.stdoutPath,
+    persistedHarnessOutput(opts.harness, stdout, opts.redactionValues),
+  );
+  replaceFileWithoutFollowing(
+    opts.paths.stderrPath,
+    persistedHarnessOutput(opts.harness, stderr, opts.redactionValues),
+  );
   // Keep a single transcript file path for verify --observe / report evidence.
-  // If a harness emits structured JSONL later, this path can hold it directly.
-  writeRedactedFile(opts.paths.transcriptPath, stdout || stderr);
+  // OpenCode tool output is additionally omitted before this durable copy.
+  replaceFileWithoutFollowing(
+    opts.paths.transcriptPath,
+    persistedHarnessOutput(opts.harness, stdout || stderr, opts.redactionValues),
+  );
   if (invokeHomeIdentity) assertDirectoryIdentity(invokeHomeRoot, invokeHomeIdentity);
-  redactInvokeHomeIfPresent(opts);
 
   const exitCode = res.status ?? null;
   const signal = res.signal ?? null;
@@ -1264,35 +1872,85 @@ export async function runInvokeHarness(
         ? `harness ${opts.harness} timed out before first action after ${Math.round((opts.firstActionTimeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
         : `harness ${opts.harness} timed out after ${Math.round((opts.timeoutMs ?? 0) / 1000)}s (${attempt} attempt${attempt === 1 ? "" : "s"})`
       : undefined);
-  const metrics = summarizeInvokeMetrics(opts, attemptMetrics);
+  let metrics = summarizeInvokeMetrics(opts, attemptMetrics);
   let stamp: { ok: boolean; error?: string } = { ok: true };
   if (regularFileExists(opts.paths.resultsPath)) {
     stamp = stampResultFile(opts, metrics);
   } else {
-    const reason = redactHarnessArtifactText(error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`);
+    const reason = redactHarnessArtifactText(
+      error ?? `harness ${opts.harness} exited ${exitCode ?? signal ?? "unknown"} before writing ${opts.paths.resultsPath}`,
+      opts.redactionValues,
+    );
     writeFailureArtifacts(opts, reason);
     stamp = stampResultFile(opts, metrics);
   }
-  redactFileIfExists(opts.paths.resultsPath);
-  redactFileIfExists(opts.paths.tracePath);
+  if (!stamp.ok) {
+    // Shape validation happens after the child has exited, so retrying could
+    // duplicate live writes. Keep the original failure, but make attempt and
+    // aggregate metrics agree and stamp those corrected metrics on the safe
+    // failure artifact that stampResultFile just rebuilt.
+    const finalAttempt = attemptMetrics.at(-1);
+    if (finalAttempt) finalAttempt.ok = false;
+    metrics = summarizeInvokeMetrics(opts, attemptMetrics);
+    const failureArtifactStamp = stampResultFile(opts, metrics);
+    if (!failureArtifactStamp.ok && !stamp.error) stamp = failureArtifactStamp;
+  }
+  if (unsafeShortValueInAnyArtifact) {
+    // These files were rebuilt entirely from controller-owned fields. Redact
+    // JSON string values recursively so even a coincidental short match cannot
+    // turn either artifact into an unparsable plain-text placeholder.
+    writeRedactedJsonFile(
+      opts.paths.resultsPath,
+      JSON.parse(readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8")),
+      opts.redactionValues ?? [],
+    );
+    writeRedactedJsonFile(
+      opts.paths.tracePath,
+      JSON.parse(readRegularFileNoFollow(opts.paths.tracePath).toString("utf8")),
+      opts.redactionValues ?? [],
+    );
+  } else {
+    redactFileIfExists(opts.paths.resultsPath, opts.redactionValues);
+    redactFileIfExists(opts.paths.tracePath, opts.redactionValues);
+  }
 
   const exitLabel = exitCode ?? (signal ?? "unknown");
   const durationMs = Date.now() - startedAt;
   const runtimeDiagnostics = transcriptRuntimeDiagnostics(stdout || stderr, res.firstActionLatencyMs);
   const stampFailed = stamp.ok === false;
-  const finalOk = ok && !stampFailed;
-  const validity_status = stampFailed
+  const finalOk = ok && !stampFailed && !unsafeShortValueInAnyArtifact;
+  const validity_status = unsafeShortValueInResults
     ? "results_json_invalid"
-    : requiredTraceFailed
+    : unsafeShortValueInTrace
       ? "trace_invalid"
-    : invokeValidityStatus({
-    ok: finalOk,
-    timedOut,
-    actionOccurred: runtimeDiagnostics.action_occurred,
-    resultsExists: regularFileExists(opts.paths.resultsPath),
-    traceExists: regularFileExists(opts.paths.tracePath),
-    error: stamp.error ?? error,
-  });
+      : unsafeShortValueInHarnessOutput
+        ? "trace_invalid"
+        : stampFailed
+          ? "results_json_invalid"
+          : requiredTraceFailed
+            ? "trace_invalid"
+            : invokeValidityStatus({
+                ok: finalOk,
+                timedOut,
+                actionOccurred: runtimeDiagnostics.action_occurred,
+                resultsExists: regularFileExists(opts.paths.resultsPath),
+                traceExists: regularFileExists(opts.paths.tracePath),
+                error: stamp.error ?? error,
+              });
+  const metaError = unsafeShortValueInAnyArtifact
+    ? shortExactRedactionError
+    : finalOk
+      ? undefined
+      : redactHarnessArtifactText(
+          (requiredTraceFailed
+            ? "required trace artifact was missing or invalid"
+            : stamp.error
+              ? `results JSON invalid: ${stamp.error}`
+              : error ?? (opts.harness === "opencode"
+                ? persistedHarnessOutput(opts.harness, stderr, opts.redactionValues).trim()
+                : stderr.trim())) || `exit ${exitLabel}`,
+          opts.redactionValues,
+        );
   const meta: InvokeRunResult = {
     harness: opts.harness,
     ok: finalOk,
@@ -1319,17 +1977,32 @@ export async function runInvokeHarness(
     metaPath: opts.paths.metaPath,
     resultsPath: opts.paths.resultsPath,
     tracePath: opts.paths.tracePath,
-    error: ok
-      ? undefined
-      : redactHarnessArtifactText((requiredTraceFailed
-        ? "required trace artifact was missing or invalid"
-        : error ?? stderr.trim()) || `exit ${exitLabel}`),
+    error: metaError,
   };
-  writeRedactedFile(
+  writeRedactedJsonFile(
     opts.paths.metaPath,
-    JSON.stringify({ ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning }, null, 2),
+    { ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning },
+    opts.redactionValues ?? [],
   );
   return meta;
+}
+
+export async function runInvokeHarness(
+  opts: InvokeRunOptions,
+  spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
+): Promise<InvokeRunResult> {
+  try {
+    return await runInvokeHarnessInner(opts, spawnAsync);
+  } finally {
+    // OpenCode persists full messages/tool results in SQLite, while the legacy
+    // harnesses may leave text caches. Always clean/scrub even if spawning,
+    // recovery, or metadata serialization throws.
+    try {
+      sanitizeInvokeHomeIfPresent(opts);
+    } finally {
+      removeIsolatedWorkRootIfPresent(opts);
+    }
+  }
 }
 
 export function defaultInvokePaths(dir: string, stem: string, harness: InvokeHarnessId): InvokePaths {

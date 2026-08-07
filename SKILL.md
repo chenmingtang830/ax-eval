@@ -255,6 +255,10 @@ npm run ax-eval -- verify-generated --pack <pack.yaml> \
   --html results/runs/<id>/generated-eval.html
 ```
 
+When `exec-plan` selected one task with `--task <id>`, retain the same flag on
+`verify-generated`; the generated follow-up command does this automatically.
+Otherwise the verifier intentionally treats the full pack as the denominator.
+
 The CLI GETs every resource back, scores outcome verifiers + each profile's
 discovery funnel, gates on `--min-pass-rate`, and writes a self-contained HTML
 report. Then summarize for the user:
@@ -287,9 +291,20 @@ CLI drive them as subprocesses: run one lane per harness so each receives a
 compatible model slug, for example `exec-plan --invoke --harness claude-code
 --surface all --profile medium --effort medium --model sonnet --invoke-retries 0`,
 then a separate Codex lane with `--harness codex --profile medium --effort medium --model <gpt-model>
---invoke-retries 0`. The CLI stamps the model each harness actually reported,
-applies native effort where available, and writes one normalized `{surface,
-product, harness}` record per cell. `verify` then renders them as a single
+--invoke-retries 0`. An OpenCode lane uses `--harness opencode --surface all
+--profile medium --model <provider/model> --invoke-retries 0` for every surface
+the pack supports, including MCP. OpenCode 1.18.3+ is required. Claude Code and
+Codex retain their native reported-model handling. OpenCode instead records the requested
+`provider/model` route, not an attestation of the model actually served, and
+passes the selected `low`/`medium`/`high` effort through its provider-specific
+`--variant` flag so the recorded execution identity was actually invoked.
+Pi has the equivalent API/CLI/SDK-only lane: `--harness pi --surface api
+--profile medium --model <provider/model> --effort medium`. Pi requires an
+explicit provider/model and fails closed for MCP. It runs in JSON mode without a
+session, extensions, skills, prompt templates, themes, or discovered context
+files; its isolated `PI_CODING_AGENT_DIR` and session directory are controller-owned.
+The CLI writes one normalized `{surface, product, harness}` record per cell.
+`verify` then renders them as a single
 **neutral matrix** (surface · harness · effort) — no cell is crowned "best".
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
@@ -302,14 +317,42 @@ raw artifacts, and inspect the content-free decoder diagnostics
 (`decoderVersion`, parsed/recognized/emitted/malformed counts). A transcript
 with zero recognized events is not objective evidence and must retain the
 labeled self-report fallback.
+The same normalized events drive `tool_call_count`. Retry metadata records a
+bounded `outcome_reason` per attempt, so an exit-0 process that omitted results
+is distinguishable from a timeout or nonzero exit without persisting raw error
+text. API cells that objectively invoke a vendor CLI fail the surface-honesty
+gate even if they also make successful HTTP calls.
 
 For publication-grade lanes, prefer native binaries through `AX_EVAL_CLAUDE_BIN`
-and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults. API,
-CLI, and SDK Codex cells are invoked with an isolated Codex home plus
+and `AX_EVAL_CODEX_BIN` when PATH wrappers inject corporate/local defaults;
+tool-track OpenCode lanes have the equivalent `AX_EVAL_OPENCODE_BIN` override.
+Pi lanes have `AX_EVAL_PI_BIN`.
+API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 `mcp_servers={}` so unrelated global MCP auth failures do not become benchmark
-failures. MCP cells still receive their explicit pack-declared MCP provisioning.
-This is one product across harnesses/surfaces — `competitive` is reserved for
-cross-*product* comparison.
+failures. OpenCode requires an explicit `provider/model` and runs with
+`--pure` and `--auto` from a disposable cwd outside the checkout, with fresh config, data, cache,
+and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
+disabled. It never copies ambient `auth.json`; provider credentials must be
+explicitly scoped into the child environment. The per-run home is deleted after
+artifact recovery so the binary session database is not retained; pack env
+names cannot replace OpenCode/XDG isolation controls. Managed system/MDM config
+blocks the lane, and `task` subagents are denied because their actions are absent
+from root JSONL. Legacy `exec-plan` also uses a disposable secret-free cwd and
+exact credential-value artifact redaction; this is not an OS sandbox. Its self-reported dollar
+cost is not trusted, so runtime `cost_usd` remains null. Publication may add a
+separate API list-price estimate from the committed dated pricing snapshot and
+normalized token usage; never copy that estimate into `cost_usd` or use cost per
+success for pass/fail or ranking. MCP cells for every
+harness receive only their explicit pack-declared server. OpenCode provisions
+local stdio and remote HTTP servers in its isolated config; bearer tokens remain
+in the child environment, and OAuth-app credentials are exchanged headlessly
+from a refresh token. Interactive browser OAuth is not supported. Adding this
+generic core runner does not make it a
+canonical AXArena production harness. This is one product across
+harnesses/surfaces — `competitive` is reserved for cross-*product* comparison.
+
+The OpenCode runner captures native JSONL and maps its tool calls through the
+shared transcript-decoder seam before AX surface semantics are applied.
 
 Render that cross-product view with `npm run ax-arena -- benchmark competitive
 --from <sealed-publication-bundle> --html <ignored-output.html>`. The verified
@@ -385,11 +428,18 @@ or reset fails and cleanup cannot be confirmed, the workflow stops before the
 next trial. Inspect the preserved artifacts and perform an explicit namespace
 reset before retrying; do not delete evidence before verification.
 
-Normalized records are public, schema-versioned artifacts
-(`schemas/normalized-result.v1.json`). They retain native harness version,
-run-batch identity, successful-attempt latency, retry-inclusive duration and
-consumption, and exact pass³ numerator/denominator. Codex dollar cost is null;
-do not synthesize a price table.
+Normalized aggregates are public `ax.normalized-result/v2` artifacts
+(`schemas/normalized-result.v2.json`). Their identity is product × surface ×
+standard-set version × harness × model × effort, and aggregation fails closed
+when trial records cross an identity boundary. `records-diff` preserves that
+boundary and fails if a baseline identity disappears. They retain native
+harness version, run-batch identity, successful-attempt latency,
+retry-inclusive duration and consumption, and exact pass³
+numerator/denominator. Provider-native cache-write usage is normalized;
+pricing that requires it remains unavailable when the harness omits that
+telemetry. The unchanged v1 schema remains readable for migration. Codex native
+dollar cost is null; do not synthesize a price table outside the sealed arena
+pricing workflow.
 
 Before human **publication** freeze, regenerate into the same AXArena-Database v1
 contract. Do not bump the suite version for authoring iterations; git SHAs and

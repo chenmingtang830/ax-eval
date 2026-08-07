@@ -26,12 +26,13 @@
  *   ax-arena benchmark publication-bundle --run-root <dir> --out <dir>  freeze publication manifest
  *   ax-eval trace-diff --pack <yaml> --trace <run.trace.json>         structural trace diff
  *   ax-eval reset --pack <yaml> [--ns <token>] [--dry-run]           delete probe resources (pass@k hygiene)
- *   ax-eval exec-plan --invoke --harness claude-code|codex [--profile medium] run prompts locally
+ *   ax-eval exec-plan --invoke --harness claude-code|codex|opencode [--profile medium] run prompts locally
  *   ax-eval cell run --input cell.json --output record.json           run one fully specified cell
  */
 import { fileURLToPath } from "node:url";
 import { basename, dirname, relative, resolve } from "node:path";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { spawnSync } from "node:child_process";
 import { availableHarnesses } from "./adapters/registry.js";
 import { loadDotenv, loadPack } from "./config.js";
@@ -64,7 +65,9 @@ import {
   buildNormalizedResult,
   buildNormalizedResultCells,
   buildBlockedResult,
+  normalizedRunIdentity,
   resultCellKey,
+  type NormalizedEffort,
 } from "./generate/record.js";
 import { isSurfaceId, type SurfaceId } from "./surface/types.js";
 import { TargetPackSchema, type TargetPack, type Task } from "./schemas.js";
@@ -84,12 +87,20 @@ import {
   type InvokeHarnessId,
   type InvokeRunOptions,
 } from "./harness/invoke.js";
-import { provisionHarnessForSurface } from "./harness/mcp-provision.js";
+import { provisionHarnessForSurface, type HarnessProvisioning } from "./harness/mcp-provision.js";
+import {
+  isOpenCodeModelRoute,
+  isOpenCodeReservedChildEnv,
+  openCodeProviderCredentialNames,
+  openCodeProviderId,
+} from "./harness/opencode.js";
+import { isPiModelRoute, isPiReservedChildEnv, piProviderCredentialNames, piProviderId } from "./harness/pi.js";
 import {
   observedToDiscovery,
   observedToTrace,
   parseTranscriptWithDiagnostics,
 } from "./harness/transcript.js";
+import { transcriptArtifactMetrics } from "./harness/transcript-metrics.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
@@ -118,6 +129,24 @@ import { resolveGraphqlGeneratePreset, resolveOpenApiGeneratePreset } from "./pr
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DEFAULT_PACK = resolve(HERE, "..", "targets", "examples", "asana", "pack.yaml");
 const INVOKE_HARNESS_LIST = INVOKE_HARNESS_IDS.join("|");
+const INVOKE_SAFE_PARENT_ENV = [
+  "PATH",
+  "HOME",
+  "TMPDIR",
+  "TMP",
+  "TEMP",
+  "SHELL",
+  "LANG",
+  "LC_ALL",
+  "LC_CTYPE",
+  "TERM",
+  "CI",
+  "HTTP_PROXY",
+  "HTTPS_PROXY",
+  "NO_PROXY",
+  "SSL_CERT_FILE",
+  "NODE_EXTRA_CA_CERTS",
+] as const;
 const COMMANDS = [
   "run",
   "audit",
@@ -166,6 +195,148 @@ const LEGACY_ARENA_COMMAND_SET = new Set<string>(LEGACY_ARENA_COMMANDS);
 
 function isLegacyArenaCommand(command: string | undefined): command is LegacyArenaCommand {
   return command !== undefined && LEGACY_ARENA_COMMAND_SET.has(command);
+}
+
+function invokedHarnessEnvironment(
+  pack: TargetPack,
+  surface: SurfaceId,
+  harness: InvokeHarnessId,
+  model: string | undefined,
+  provisioning: Readonly<Record<string, string>>,
+): Record<string, string> {
+  if (harness !== "opencode" && harness !== "pi") return { ...provisioning };
+  const scoped: Record<string, string> = {};
+  const copy = (name: string | undefined) => {
+    if (!name) return;
+    const value = process.env[name];
+    if (value !== undefined) scoped[name] = value;
+  };
+  const copyPackEnv = (name: string | undefined) => {
+    if (!name) return;
+    if ((harness === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv)(name)) {
+      throw new Error(`pack environment name ${name} conflicts with controller-owned ${harness === "pi" ? "Pi" : "OpenCode"} isolation`);
+    }
+    copy(name);
+  };
+  for (const name of INVOKE_SAFE_PARENT_ENV) copy(name);
+
+  // Provider credentials are explicit env vars, never an ambient auth.json.
+  // OpenCode always has a pinned provider/model route, so expose only that
+  // provider's documented key candidates.
+  const providerNames = model && (harness === "pi" ? isPiModelRoute(model) : isOpenCodeModelRoute(model))
+    ? (harness === "pi" ? piProviderCredentialNames(model) : openCodeProviderCredentialNames(model))
+    : [];
+  for (const name of providerNames) copy(name);
+
+  const cliConnectionDataPlane = surface === "cli"
+    && Boolean(pack.sql_conn || pack.mongo_conn)
+    && (!pack.surfaces?.cli?.auth || pack.surfaces.cli.auth.kind === "inherit");
+  const requirements = [
+    ...describeRequiredEnv(pack, process.env, {
+      tasks: tasksForSurface(pack, surface),
+      includeAuth: true,
+    }).filter((requirement) => cliConnectionDataPlane
+      || (requirement.role !== "sql_conn" && requirement.role !== "mongo_conn")),
+    ...surfaceAuthStatus(pack, surface).requirements,
+  ];
+  for (const requirement of requirements) copyPackEnv(requirement.env);
+  for (const name of [pack.auth?.env, ...(pack.auth?.env_aliases ?? [])]) copyPackEnv(name);
+  const surfaceConfig = surface === "api"
+    ? undefined
+    : pack.surfaces?.[surface] as { auth?: {
+        token_env?: string;
+        token_env_aliases?: string[];
+        client_id_env?: string;
+        client_secret_env?: string;
+        refresh_token_env?: string;
+      } } | undefined;
+  for (const name of [
+    surfaceConfig?.auth?.token_env,
+    ...(surfaceConfig?.auth?.token_env_aliases ?? []),
+    surfaceConfig?.auth?.client_id_env,
+    surfaceConfig?.auth?.client_secret_env,
+    surfaceConfig?.auth?.refresh_token_env,
+    ...pack.sandbox_scope.map((entry) => entry.env),
+  ]) copyPackEnv(name);
+  return { ...scoped, ...provisioning };
+}
+
+const SECRETISH_ENV_NAME = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
+
+function invokedHarnessRedactionValues(
+  pack: TargetPack,
+  surface: SurfaceId,
+  harness: InvokeHarnessId,
+  model: string | undefined,
+  childEnv: Readonly<Record<string, string>>,
+): string[] {
+  if (harness !== "opencode" && harness !== "pi") return [];
+  const names = new Set<string>(model && (harness === "pi" ? isPiModelRoute(model) : isOpenCodeModelRoute(model))
+    ? (harness === "pi" ? piProviderCredentialNames(model) : openCodeProviderCredentialNames(model))
+    : []);
+  for (const requirement of describeRequiredEnv(pack, childEnv, {
+    tasks: tasksForSurface(pack, surface),
+    includeAuth: true,
+  })) {
+    // Every pack-derived value crosses the harness boundary, including scope
+    // ids and URL-template values whose names are not credential-shaped.
+    names.add(requirement.env);
+  }
+  for (const requirement of surfaceAuthStatus(pack, surface, childEnv).requirements) names.add(requirement.env);
+  for (const name of [pack.auth?.env, ...(pack.auth?.env_aliases ?? [])]) {
+    if (name) names.add(name);
+  }
+  const surfaceConfig = surface === "api"
+    ? undefined
+    : pack.surfaces?.[surface] as { auth?: {
+        token_env?: string;
+        token_env_aliases?: string[];
+        client_id_env?: string;
+        client_secret_env?: string;
+        refresh_token_env?: string;
+      } } | undefined;
+  for (const name of [
+    surfaceConfig?.auth?.token_env,
+    ...(surfaceConfig?.auth?.token_env_aliases ?? []),
+    surfaceConfig?.auth?.client_id_env,
+    surfaceConfig?.auth?.client_secret_env,
+    surfaceConfig?.auth?.refresh_token_env,
+  ]) {
+    if (name) names.add(name);
+  }
+  for (const name of Object.keys(childEnv)) {
+    if (SECRETISH_ENV_NAME.test(name)) names.add(name);
+  }
+  return [...new Set([...names].flatMap((name) => childEnv[name]?.trim() ? [childEnv[name]!] : []))]
+    .sort((a, b) => b.length - a.length);
+}
+
+function invokedHarnessCwd(
+  harness: InvokeHarnessId,
+  provisioning: HarnessProvisioning,
+  fallback = process.cwd(),
+): string {
+  if (harness !== "opencode" && harness !== "pi") return fallback;
+  const workDir = harness === "pi" ? provisioning.meta?.pi_work_dir : provisioning.meta?.opencode_work_dir;
+  if (typeof workDir !== "string" || !workDir) {
+    throw new Error(`${harness === "pi" ? "Pi" : "OpenCode"} provisioning did not create an isolated task workspace`);
+  }
+  return workDir;
+}
+
+function detectPlannedInvokeHarness(harness: InvokeHarnessId) {
+  if (harness !== "opencode" && harness !== "pi") return detectInvokeHarness(harness);
+  const home = mkdtempSync(resolve(tmpdir(), `ax-eval-${harness}-detect-`));
+  try {
+    const env: Record<string, string> = { HOME: home };
+    for (const name of ["PATH", "TMPDIR", "TMP", "TEMP", "SHELL", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "CI"]) {
+      const value = process.env[name];
+      if (value) env[name] = value;
+    }
+    return detectInvokeHarness(harness, undefined, env, true, home);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 }
 
 function delegateLegacyArenaCommand(command: LegacyArenaCommand, argv: readonly string[]): Promise<number> {
@@ -242,10 +413,10 @@ function commandUsage(command: string | undefined): string {
     case "cell":
       return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
-      return "usage: ax-eval verify-generated --pack <yaml> --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
+      return "usage: ax-eval verify-generated --pack <yaml> [--task id] --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
     case "render-generated":
       return "usage: ax-eval render-generated --snapshot <report.snapshot.json> [--html out.html]";
     case "trace-diff":
@@ -281,13 +452,13 @@ interface Parsed {
   pack: string;
   harness: string[];
   profile: string[];
-  /** Optional model slug to run the harness as (`--model`). Overrides the
-   *  profile's declared model; lets a user compare arbitrary models by issuing
-   *  one run per model and stacking the records with `competitive`. */
+  /** Model slug to run the harness as (`--model`). It is optional for Claude
+   *  Code/Codex and required as provider/model for executable OpenCode lanes. */
   model: string;
   /** Optional effort level (`--effort low|medium|high`). Overrides the profile's
    *  effort, and is translated to each harness's native convention at invocation
-   *  (codex → model_reasoning_effort; claude-code → prompt-level). */
+   *  (codex → model_reasoning_effort; claude-code → prompt-level;
+   *  OpenCode keeps its provider-specific default variant in the MVP). */
   effort: string;
   deterministic: boolean;
   smokeOnly: boolean;
@@ -1477,34 +1648,6 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   if (args.task && pack.tasks.length === 0) {
     throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
   }
-  if (args.reclaim && !hasCoreResetStrategy(pack)) {
-    await runHealthCheck(pack, true);
-    return 1;
-  }
-  const missingRequiredEnv = describeRequiredEnv(pack)
-    .filter((requirement) => requirement.required && !requirement.set)
-    .map((requirement) => requirement.env);
-  if (missingRequiredEnv.length) {
-    throw new Error(
-      `Refusing to exec-plan: required env is missing (${missingRequiredEnv.join(", ")}). ` +
-      `Run: ax-eval check-env --pack ${args.pack}`,
-    );
-  }
-  // Hygiene gate: warn about or reclaim leftover probe resources before we start.
-  if (!await runHealthCheck(pack, args.reclaim)) return 1;
-  // Review gate: refuse to emit runnable prompts for an un-reviewed/changed set.
-  if (!args.skipReview) {
-    const status = checkApproval(pack, args.pack);
-    if (!status.ok) {
-      console.error(
-        `Refusing to exec-plan: ${status.reason}.\n` +
-          `Review it first:  ax-eval review --pack ${args.pack}\n` +
-          `Then approve:     ax-eval review --pack ${args.pack} --approve --by <name>\n` +
-          `(Or bypass for a trusted/committed pack with --skip-review.)`,
-      );
-      return 1;
-    }
-  }
   const invokeHarnesses: InvokeHarnessId[] = [];
   if (args.invoke) {
     const rawHarnesses = args.harness.length ? args.harness : ["claude-code"];
@@ -1528,16 +1671,74 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // declares; a single id is validated against what the pack exposes. The
   // default (no flag) is api-only, byte-identical to the original behavior.
   const surfaceIds = resolveSurfaceSelection(pack, args.surface ?? "api");
+  // Review remains load-bearing even when every requested harness/surface pair
+  // is structurally blocked: the blocked record is still executable intent
+  // derived from this pack and must not be emitted for edited/unreviewed input.
+  if (!args.skipReview) {
+    const status = checkApproval(pack, args.pack);
+    if (!status.ok) {
+      console.error(
+        `Refusing to exec-plan: ${status.reason}.\n` +
+          `Review it first:  ax-eval review --pack ${args.pack}\n` +
+          `Then approve:     ax-eval review --pack ${args.pack} --approve --by <name>\n` +
+          `(Or bypass for a trusted/committed pack with --skip-review.)`,
+      );
+      return 1;
+    }
+  }
+  const hasRunnableSelection = !args.invoke || (surfaceIds.length > 0 && invokeHarnesses.length > 0);
+  for (const harness of ["opencode", "pi"] as const) {
+    if (!invokeHarnesses.includes(harness) || (harness === "pi" && !surfaceIds.some((surface) => surface !== "mcp"))) continue;
+    const validRoute = harness === "pi" ? isPiModelRoute(args.model) : isOpenCodeModelRoute(args.model);
+    if (!validRoute) throw new Error(`--invoke --harness ${harness} requires --model <provider/model>`);
+    const providerCredentials = harness === "pi" ? piProviderCredentialNames(args.model!) : openCodeProviderCredentialNames(args.model!);
+    if (providerCredentials.length && !providerCredentials.some((name) => Boolean(process.env[name]?.trim()))) {
+      const provider = harness === "pi" ? piProviderId(args.model!) : openCodeProviderId(args.model!);
+      throw new Error(`${harness === "pi" ? "Pi" : "OpenCode"} provider ${provider} requires one of: ${providerCredentials.join(", ")}`);
+    }
+    // Validate controller-owned environment names before harness detection. A
+    // missing OpenCode binary must not turn an unsafe pack into a successful
+    // blocked plan (and made this gate platform-dependent in CI).
+    for (const surface of surfaceIds.filter((candidate) => harness !== "pi" || candidate !== "mcp")) {
+      invokedHarnessEnvironment(pack, surface, harness, args.model, {});
+    }
+  }
+  // A structurally unsupported-only plan must not require target credentials or
+  // perform a live health GET. Mixed plans retain these gates for their runnable
+  // cells; the unsupported cells are emitted separately below.
+  if (hasRunnableSelection) {
+    if (args.reclaim && !hasCoreResetStrategy(pack)) {
+      await runHealthCheck(pack, true);
+      return 1;
+    }
+    const missingRequiredEnv = describeRequiredEnv(pack)
+      .filter((requirement) => requirement.required && !requirement.set)
+      .map((requirement) => requirement.env);
+    if (missingRequiredEnv.length) {
+      throw new Error(
+        `Refusing to exec-plan: required env is missing (${missingRequiredEnv.join(", ")}). ` +
+        `Run: ax-eval check-env --pack ${args.pack}`,
+      );
+    }
+    // Hygiene gate: warn about or reclaim leftover probe resources before we start.
+    if (!await runHealthCheck(pack, args.reclaim)) return 1;
+  }
   // Only tag artifacts/ns with the surface when it actually disambiguates —
   // i.e. anything other than the lone default api surface — so single-surface
   // api runs keep their legacy `run-<profile>.json` paths and namespaces.
   const tagSurface = !(surfaceIds.length === 1 && surfaceIds[0] === "api");
-  const dir = args.runDir;
+  // OpenCode executes from an external disposable cwd, so every artifact path
+  // embedded in its prompt must be absolute.
+  const dir = args.invoke && (invokeHarnesses.includes("opencode") || invokeHarnesses.includes("pi")) ? resolve(args.runDir) : args.runDir;
   mkdirSync(dir, { recursive: true });
   const resultPaths: string[] = [];
   const resultPathsByHarness = new Map<string, string[]>();
+  const blockedRecordPaths: string[] = [];
+  const rememberBlockedRecord = (path: string) => {
+    if (!blockedRecordPaths.includes(path)) blockedRecordPaths.push(path);
+  };
   const resetHints: string[] = [];
-  const blockedNotes: string[] = [];
+  const credentialBlockedNotes: string[] = [];
   // Invoked harness runs are PLANNED in the loops below (prompts written, jobs
   // collected) then EXECUTED through a concurrency pool after — so cells run in
   // parallel (default) instead of one blocking spawnSync at a time.
@@ -1566,6 +1767,17 @@ interface InvokeGroup {
   const invokeJobs: InvokeJob[] = [];
   const invokeGroups = new Map<string, InvokeGroup>();
   for (const surfaceId of surfaceIds) {
+    const surfaceInvokeHarnesses = args.invoke && surfaceId === "mcp"
+      ? invokeHarnesses.filter((harness) => harness !== "pi")
+      : invokeHarnesses;
+    if (args.invoke && surfaceId === "mcp" && invokeHarnesses.includes("pi")) {
+      const record = buildBlockedResult(pack, surfaceId, "pi", "invoke-failed");
+      const recordPath = `${dir}/run-${surfaceId}-pi-blocked.normalized.json`;
+      writeFileSync(recordPath, JSON.stringify(record, null, 2));
+      rememberBlockedRecord(recordPath);
+      console.log(`surface=${surfaceId} harness=pi → BLOCKED (unsupported harness/surface) → ${recordPath}`);
+      if (surfaceInvokeHarnesses.length === 0) continue;
+    }
     // Auth gate per surface: if the agent can't authenticate this surface
     // headlessly (OAuth-only, or a token the developer hasn't set), don't emit
     // runnable prompts for it. Instead write a `blocked` cube cell (so the
@@ -1573,20 +1785,25 @@ interface InvokeGroup {
     // tell the developer exactly which env vars to add.
     const auth = surfaceAuthStatus(pack, surfaceId);
     if (auth.blocked) {
-      const harnesses = args.invoke ? invokeHarnesses : [probeHarness().host];
+      const harnesses = args.invoke ? surfaceInvokeHarnesses : [probeHarness().host];
       for (const harness of harnesses) {
-        const record = buildBlockedResult(pack, surfaceId, harness, auth.blocked);
+        const blocked = auth.blocked;
+        const record = buildBlockedResult(pack, surfaceId, harness, blocked, {
+          model: args.model || null,
+          effort: (args.effort || null) as NormalizedEffort | null,
+        });
         const suffix = args.invoke ? `-${harness}` : "";
         const recordPath = `${dir}/run-${surfaceId}${suffix}-blocked.normalized.json`;
         writeFileSync(recordPath, JSON.stringify(record, null, 2));
+        rememberBlockedRecord(recordPath);
         console.log(
           args.invoke
-            ? `surface=${surfaceId} harness=${harness} → BLOCKED (${auth.blocked}) → ${recordPath}`
+            ? `surface=${surfaceId} harness=${harness} → BLOCKED (${blocked}) → ${recordPath}`
             : `surface=${surfaceId} → BLOCKED (${auth.blocked}) → ${recordPath}`,
         );
       }
       const add = auth.missing.length ? ` Add to .env: ${auth.missing.join(", ")}.` : "";
-      blockedNotes.push(
+      credentialBlockedNotes.push(
         `  ${surfaceId}: ${auth.blocked}.${add}` +
           (auth.instructions ? `\n    ${auth.instructions}` : ""),
       );
@@ -1597,19 +1814,23 @@ interface InvokeGroup {
     // Plan header per surface: what configs are queued for it (execution is
     // pooled/parallel afterward, so this lists rather than sequences them).
     if (args.invoke) {
-      const seq = `${profileNames.join(", ")}${invokeHarnesses.length ? ` × ${invokeHarnesses.join(", ")}` : ""}`;
+      const seq = `${profileNames.join(", ")}${surfaceInvokeHarnesses.length ? ` × ${surfaceInvokeHarnesses.join(", ")}` : ""}`;
       console.log(`  queued ${surfaceId.toUpperCase()}: ${seq}${args.attempts > 1 ? ` × ${args.attempts} attempts` : ""}`);
     }
     for (const name of profileNames) {
       const profile = getProfile(name);
       for (let attempt = 1; attempt <= args.attempts; attempt++) {
         if (args.invoke) {
-          for (const harness of invokeHarnesses) {
-            const detection = detectInvokeHarness(harness);
+          for (const harness of surfaceInvokeHarnesses) {
+            const detection = detectPlannedInvokeHarness(harness);
             if (!detection.ok) {
-              const record = buildBlockedResult(pack, surfaceId, harness, "missing-harness");
+              const record = buildBlockedResult(pack, surfaceId, harness, "missing-harness", {
+                model: args.model || profile.model || null,
+                effort: (args.effort || profile.effort) as NormalizedEffort,
+              });
               const recordPath = `${dir}/run-${surfaceId}-${harness}-blocked.normalized.json`;
               writeFileSync(recordPath, JSON.stringify(record, null, 2));
+              rememberBlockedRecord(recordPath);
               console.log(
                 `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (${detection.reason}): ` +
                   `${detection.detail ?? detection.command} → ${recordPath}`,
@@ -1629,23 +1850,39 @@ interface InvokeGroup {
               if (existsSync(p)) rmSync(p);
             }
             let provisioning: Awaited<ReturnType<typeof provisionHarnessForSurface>>;
-            try {
-              provisioning = await provisionHarnessForSurface({
-                pack,
-                harness,
-                surface: surfaceId,
-                paths,
-                cwd: process.cwd(),
-              });
-            } catch (e) {
-              const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
-              const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
-              writeFileSync(recordPath, JSON.stringify(record, null, 2));
-              console.log(
-                `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (mcp provisioning failed): ` +
-                  `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
-              );
-              continue;
+            if (args.executionMode === "task") {
+              // Bootstrap and every task get their own provisioning below.
+              provisioning = { env: {} };
+            } else {
+              try {
+                provisioning = await provisionHarnessForSurface({
+                  pack,
+                  harness,
+                  surface: surfaceId,
+                  paths,
+                  cwd: process.cwd(),
+                  isolateWorkspace: harness === "opencode" || harness === "pi",
+                });
+              } catch (e) {
+                const record = buildBlockedResult(
+                  pack,
+                  surfaceId,
+                  harness,
+                  harness === "opencode" || harness === "pi" ? "invoke-failed" : "requires-oauth",
+                  {
+                    model: args.model || profile.model || null,
+                    effort: (args.effort || profile.effort) as NormalizedEffort,
+                  },
+                );
+                const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
+                writeFileSync(recordPath, JSON.stringify(record, null, 2));
+                rememberBlockedRecord(recordPath);
+                console.log(
+                  `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (harness provisioning failed): ` +
+                    `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
+                );
+                continue;
+              }
             }
             // When the user pins a model/effort, reflect it in the profile the
             // prompt describes so the agent's self-report matches what runs.
@@ -1657,18 +1894,36 @@ interface InvokeGroup {
             const eligibleTasks = tasksForSurface(pack, surfaceId);
             const groupKey = `${harness}::${surfaceId}::${name}::${attempt}`;
             const baseLabel = `${harness}/${surfaceId.toUpperCase()}/${name}${args.attempts > 1 ? `/a${attempt}` : ""}`;
+            const invokedModel = args.model || undefined;
+            const sharedChildEnv = invokedHarnessEnvironment(
+              pack,
+              surfaceId,
+              harness,
+              invokedModel,
+              provisioning.env,
+            );
             const sharedRunOpts = {
               harness,
               profile: name,
               surface: surfaceId,
               ns,
-              cwd: process.cwd(),
-              model: args.model || undefined,
+              cwd: args.executionMode === "task"
+                ? process.cwd()
+                : invokedHarnessCwd(harness, provisioning),
+              model: invokedModel,
               effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
               timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
               firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
               retries: args.invokeRetries,
-              env: provisioning.env,
+              env: sharedChildEnv,
+              replaceEnv: harness === "opencode" || harness === "pi" ? true : undefined,
+              redactionValues: invokedHarnessRedactionValues(
+                pack,
+                surfaceId,
+                harness,
+                invokedModel,
+                sharedChildEnv,
+              ),
               provisioning: provisioning.meta,
               harnessDetection: detection,
               runBatchId: args.runBatchId || basename(resolve(dir)),
@@ -1682,11 +1937,22 @@ interface InvokeGroup {
                     surface: surfaceId,
                     paths: invokePaths,
                     cwd: process.cwd(),
+                    isolateWorkspace: harness === "opencode" || harness === "pi",
                   });
                 } catch (e) {
-                  const record = buildBlockedResult(pack, surfaceId, harness, "requires-oauth");
+                  const record = buildBlockedResult(
+                    pack,
+                    surfaceId,
+                    harness,
+                    harness === "opencode" || harness === "pi" ? "invoke-failed" : "requires-oauth",
+                    {
+                      model: args.model || profile.model || null,
+                      effort: (args.effort || profile.effort) as NormalizedEffort,
+                    },
+                  );
                   const recordPath = `${dir}/run-${surfaceId}-${harness}-${name}-blocked.normalized.json`;
                   writeFileSync(recordPath, JSON.stringify(record, null, 2));
+                  rememberBlockedRecord(recordPath);
                   console.log(
                     `surface=${surfaceId} harness=${harness} profile=${name} → BLOCKED (mcp provisioning failed): ` +
                       `${e instanceof Error ? e.message : String(e)} → ${recordPath}`,
@@ -1712,6 +1978,7 @@ interface InvokeGroup {
                   tracePath: bootstrapPaths.tracePath,
                   surface,
                   tasks: [],
+                  isolatedWorkspace: harness === "opencode" || harness === "pi",
                 });
                 writeFileSync(bootstrapPaths.promptPath, bootstrapPrompt);
               }
@@ -1726,7 +1993,14 @@ interface InvokeGroup {
                     pack: packWithoutTasks(pack),
                     paths: bootstrapPaths,
                     ...sharedRunOpts,
-                    env: bootstrapProvisioning.env,
+                    cwd: invokedHarnessCwd(harness, bootstrapProvisioning),
+                    env: invokedHarnessEnvironment(
+                      packWithoutTasks(pack),
+                      surfaceId,
+                      harness,
+                      invokedModel,
+                      bootstrapProvisioning.env,
+                    ),
                     provisioning: bootstrapProvisioning.meta,
                   }
                   : undefined,
@@ -1756,6 +2030,7 @@ interface InvokeGroup {
                   tracePath: taskPaths.tracePath,
                   surface,
                   tasks: [task],
+                  isolatedWorkspace: harness === "opencode" || harness === "pi",
                 });
                 writeFileSync(taskPaths.promptPath, prompt);
                 const job: InvokeJob = {
@@ -1773,7 +2048,14 @@ interface InvokeGroup {
                     pack: packWithTask(pack, task),
                     paths: taskPaths,
                     ...sharedRunOpts,
-                    env: taskProvisioning.env,
+                    cwd: invokedHarnessCwd(harness, taskProvisioning),
+                    env: invokedHarnessEnvironment(
+                      packWithTask(pack, task),
+                      surfaceId,
+                      harness,
+                      invokedModel,
+                      taskProvisioning.env,
+                    ),
                     provisioning: taskProvisioning.meta,
                   },
                 };
@@ -1781,7 +2063,15 @@ interface InvokeGroup {
                 invokeGroups.get(groupKey)?.taskJobs?.push(job);
               }
             } else {
-            const prompt = buildExecutorPrompt({ pack, profile: runProfile, ns, resultsPath: paths.resultsPath, tracePath: paths.tracePath, surface });
+            const prompt = buildExecutorPrompt({
+              pack,
+              profile: runProfile,
+              ns,
+              resultsPath: paths.resultsPath,
+              tracePath: paths.tracePath,
+              surface,
+              isolatedWorkspace: harness === "opencode" || harness === "pi",
+            });
             writeFileSync(paths.promptPath, prompt);
             invokeJobs.push({
                 groupKey,
@@ -1892,6 +2182,7 @@ interface InvokeGroup {
               surface: getSurface(job.surfaceId),
               tasks: job.taskId ? [job.runOpts.pack.tasks[0]!] : undefined,
               sharedDiscovery,
+              isolatedWorkspace: job.harness === "opencode" || job.harness === "pi",
             });
             writeFileSync(job.paths.promptPath, rerenderedPrompt);
           }
@@ -1966,6 +2257,7 @@ interface InvokeGroup {
       );
       console.log(
         `  ax-eval verify-generated --pack ${args.pack} ` +
+          (args.task ? `--task ${args.task} ` : "") +
           allInvoked.map((p) => `--results ${p}`).join(" ") +
           ` --min-pass-rate 0.8 --html ${dir}/generated-eval.html`,
       );
@@ -1990,12 +2282,18 @@ interface InvokeGroup {
       `\nAfter verify-generated has read live state, reset these sandbox namespaces:\n${[...new Set(resetHints)].join("\n")}`,
     );
   }
-  if (blockedNotes.length) {
+  if (credentialBlockedNotes.length) {
     console.log(
-      `\n${blockedNotes.length} surface(s) blocked on credentials (emitted as blocked cube cells):\n` +
-        `${blockedNotes.join("\n")}\n` +
+      `\n${credentialBlockedNotes.length} surface(s) blocked on credentials (emitted as blocked cube cells):\n` +
+        `${credentialBlockedNotes.join("\n")}\n` +
         `Add the keys above to .env (or 'ax-eval init --pack ${args.pack ?? "<pack>"} --surface all'), ` +
         `then re-run exec-plan to generate their prompts.`,
+    );
+  }
+  if (blockedRecordPaths.length) {
+    console.log(
+      `\nBlocked normalized record(s) for downstream competitive/publication inputs:\n` +
+        blockedRecordPaths.map((path) => `  ${path}`).join("\n"),
     );
   }
   return 0;
@@ -2021,7 +2319,14 @@ async function runPool<T, R>(items: T[], limit: number, worker: (item: T, index:
 function mergeProfileRuns(runs: ProfileRun[]): ProfileRun[] {
   const grouped = new Map<string, ProfileRun>();
   for (const run of runs) {
-    const key = resultCellKey(run.harness ?? "", run.surface ?? "api", run.profile);
+    const identity = normalizedRunIdentity(run);
+    const key = resultCellKey(
+      run.harness ?? "",
+      run.surface ?? "api",
+      run.profile,
+      identity.model,
+      identity.effort,
+    );
     const current = grouped.get(key);
     if (!current) {
       grouped.set(key, {
@@ -2164,23 +2469,21 @@ function executorModelFromArtifacts(
     ?? codexBannerModelForRun(resultPath);
 }
 
-function addTokenField(acc: Record<string, number>, key: string, value: unknown): void {
-  if (typeof value === "number" && Number.isFinite(value)) acc[key] = (acc[key] ?? 0) + value;
-}
-
-function collectTokenUsage(value: unknown, acc: Record<string, number>): void {
-  if (!value || typeof value !== "object") return;
-  const record = value as Record<string, unknown>;
-  addTokenField(acc, "input_tokens", record.input_tokens ?? record.inputTokens);
-  addTokenField(acc, "output_tokens", record.output_tokens ?? record.outputTokens);
-  addTokenField(acc, "total_tokens", record.total_tokens ?? record.totalTokens);
-  if (record.usage && record.usage !== value) collectTokenUsage(record.usage, acc);
-  if (record.modelUsage && typeof record.modelUsage === "object") {
-    for (const entry of Object.values(record.modelUsage as Record<string, unknown>)) collectTokenUsage(entry, acc);
+function executorEffortFromArtifacts(
+  profile: string,
+  meta: Record<string, unknown> | undefined,
+  requestedEffort: string,
+): NormalizedEffort | undefined {
+  const candidate = typeof meta?.effort === "string" ? meta.effort : requestedEffort;
+  if (candidate === "low" || candidate === "medium" || candidate === "high") return candidate;
+  try {
+    return getProfile(profile).effort;
+  } catch {
+    return undefined;
   }
 }
 
-function transcriptMetrics(path: string | undefined): {
+function transcriptMetrics(path: string | undefined, harness?: InvokeHarnessId): {
   tool_call_count: number | null;
   token_usage: Record<string, number> | null;
   transcript_event_count: number | null;
@@ -2189,45 +2492,15 @@ function transcriptMetrics(path: string | undefined): {
   if (!path || !existsSync(path)) {
     return { tool_call_count: null, token_usage: null, transcript_event_count: null, action_occurred: null };
   }
-  const tokenUsage: Record<string, number> = {};
-  let toolCalls = 0;
-  let events = 0;
-  let actionOccurred = false;
-  for (const line of readFileSync(path, "utf8").split("\n")) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    try {
-      const event = JSON.parse(trimmed) as Record<string, unknown>;
-      events += 1;
-      collectTokenUsage(event, tokenUsage);
-      const item = event.item as { type?: unknown } | undefined;
-      if (event.type === "item.completed" && (item?.type === "web_search" || item?.type === "command_execution")) {
-        toolCalls += 1;
-        actionOccurred = true;
-      }
-      const message = event.message as { content?: unknown } | undefined;
-      if (Array.isArray(message?.content)) {
-        const claudeToolCalls = message.content.filter((block) =>
-          block && typeof block === "object" && (block as { type?: unknown }).type === "tool_use"
-        ).length;
-        toolCalls += claudeToolCalls;
-        if (claudeToolCalls > 0) actionOccurred = true;
-      }
-    } catch {
-      /* Non-JSON transcript lines are allowed; they just do not carry metrics. */
-    }
-  }
-  return {
-    tool_call_count: toolCalls,
-    token_usage: Object.keys(tokenUsage).length ? tokenUsage : null,
-    transcript_event_count: events,
-    action_occurred: actionOccurred,
-  };
+  return transcriptArtifactMetrics(readFileSync(path, "utf8"), harness);
 }
 
 function efficiencyForRun(resultPath: string, transcriptPath: string | undefined): ProfileRun["efficiency"] {
   const meta = siblingInvokeMeta(resultPath);
-  const metrics = transcriptMetrics(transcriptPath);
+  const metrics = transcriptMetrics(
+    transcriptPath,
+    isInvokeHarnessId(meta?.harness) ? meta.harness : undefined,
+  );
   const native = meta?.metrics && typeof meta.metrics === "object" && !Array.isArray(meta.metrics)
     ? meta.metrics as Record<string, unknown>
     : undefined;
@@ -2341,6 +2614,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
   const parseOpts = {
     baseUrl: pack.base_url,
     cliBin: pack.surfaces?.cli?.bin,
+    cliBins: [pack.name, `@${pack.name}/cli`],
     sdkPackage: pack.surfaces?.sdk?.package,
     mcpServer: pack.surfaces?.mcp?.server,
   };
@@ -2350,9 +2624,15 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const executorHarness = executorHarnessFromArtifacts(executor.harness, invokeMeta);
     const transcriptParseOpts = {
       ...parseOpts,
+      ...(invokeMeta?.provisioning && typeof invokeMeta.provisioning === "object"
+        && !Array.isArray(invokeMeta.provisioning)
+        && typeof (invokeMeta.provisioning as Record<string, unknown>).mcp_server === "string"
+        ? { mcpServerName: (invokeMeta.provisioning as Record<string, unknown>).mcp_server as string }
+        : {}),
       ...(isInvokeHarnessId(executorHarness) ? { harness: executorHarness } : {}),
     };
     const executorModel = executorModelFromArtifacts(executor.model, invokeMeta, rPath);
+    const executorEffort = executorEffortFromArtifacts(executor.profile, invokeMeta, args.effort);
     const client = new BearerClient(buildVerificationClientOptions(pack, executor));
     // Surface tag: a concrete --surface flag wins (explicit), else the executor's
     // self-report, else "api" (the default + back-compat surface). `--surface all`
@@ -2449,6 +2729,7 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
       profile: executor.profile,
       harness: executorHarness,
       model: executorModel,
+      effort: executorEffort,
       outcomes,
       surface,
       ns: executor.ns,
@@ -2540,10 +2821,12 @@ async function cmdVerifyGenerated(args: Parsed): Promise<number> {
     const opener = process.platform === "win32" ? "start" : process.platform === "darwin" ? "open" : "xdg-open";
     spawnSync(opener, [outPath], { stdio: "ignore" });
   }
-  // Emit the normalized cell { surface, product, harness } next to the report.
+  // Emit the strongest normalized
+  // {product, surface, harness, model, effort} cell next to the report.
   // This is the durable, aggregatable artifact: the local `competitive` command
   // (or any later aggregator) stacks these across harnesses without re-deriving
-  // anything from the raw run files.
+  // anything from the raw run files. When the report contains multiple
+  // identities, the per-cell files below retain every one separately.
   const cellSurface: SurfaceId = byProfile.find((r) => r.surface)?.surface ?? "api";
   const runHarnesses = [...new Set(byProfile.map((r) => r.harness).filter((h): h is string => !!h))];
   const recordHarness = args.harness.length === 1

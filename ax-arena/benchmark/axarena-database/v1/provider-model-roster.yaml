@@ -1,0 +1,16 @@
+schema: ax.provider-model-roster/v1
+roster_id: axarena-database-v1-production-2026-07-27
+as_of: 2026-07-27
+entries:
+  - harness: codex
+    provider: openai
+    model: gpt-5.6-terra
+    effort: high
+    role: production
+    pricing_key: openai/gpt-5.6-terra/standard
+  - harness: claude-code
+    provider: anthropic
+    model: claude-sonnet-5
+    effort: high
+    role: production
+    pricing_key: anthropic/claude-sonnet-5/introductory

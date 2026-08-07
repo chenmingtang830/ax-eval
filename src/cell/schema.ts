@@ -21,7 +21,7 @@ export const EvaluationCellSchema = z.object({
   pack: ReviewedPackReferenceSchema,
   surface: z.enum(["api", "cli", "sdk", "mcp"]),
   harness: z.object({
-    id: z.enum(["claude-code", "codex"]),
+    id: z.enum(["claude-code", "codex", "opencode", "pi"]),
     profile: z.enum(["low", "medium", "high"]),
     model: NonEmptyString,
     effort: z.enum(["low", "medium", "high"]),
@@ -44,7 +44,15 @@ export const EvaluationCellSchema = z.object({
     first_action_timeout_ms: z.number().int().nonnegative(),
     invoke_retries: z.number().int().nonnegative(),
   }).strict(),
-}).strict();
+}).strict().superRefine((cell, context) => {
+  if ((cell.harness.id === "opencode" || cell.harness.id === "pi") && !/^[^/\s]+\/[^\s]+$/.test(cell.harness.model)) {
+    context.addIssue({
+      code: "custom",
+      path: ["harness", "model"],
+      message: `${cell.harness.id === "pi" ? "Pi" : "OpenCode"} model must use provider/model`,
+    });
+  }
+});
 
 export type EvaluationCell = z.infer<typeof EvaluationCellSchema>;
 export type ReviewedPackReference = z.infer<typeof ReviewedPackReferenceSchema>;
@@ -153,6 +161,7 @@ export const NormalizedCellRecordSchema = z.object({
     "requires-oauth",
     "missing-credential",
     "missing-harness",
+    "unsupported-surface",
     "health-check-failed",
     "invoke-failed",
   ]).optional(),

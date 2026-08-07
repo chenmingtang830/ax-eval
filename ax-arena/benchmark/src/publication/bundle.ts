@@ -24,6 +24,11 @@ import {
 import { assertCanonicalRuntimeDerivation } from "./derivation.js";
 import { ArenaNormalizedResultSchema, loadArenaPublicationCohort } from "./export.js";
 import {
+  buildArenaEconomicsReport,
+  parsePricingSnapshot,
+  parseProviderModelRoster,
+} from "./economics.js";
+import {
   canonicalRoot,
   insideOrEqual,
   parseCanonicalJsonFile,
@@ -48,10 +53,6 @@ const GIT_ENV = {
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_NO_REPLACE_OBJECTS: "1",
   GIT_PAGER: "cat",
-} as const;
-const PRODUCTION_MODELS = {
-  codex: "gpt-5.6-terra",
-  "claude-code": "claude-sonnet-5",
 } as const;
 const METHODOLOGY_FILES = [
   "suite.methodology.yaml",
@@ -180,6 +181,9 @@ interface BuiltArenaPublicationBundle {
     validation_errors: string[];
     artifacts: PublicationArtifactSet;
   }>;
+  provider_model_roster: string;
+  pricing_snapshot: string;
+  economics_report: string;
   competitive_report?: string;
   missing: string[];
   notes: string[];
@@ -450,6 +454,24 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     }
     return { path, bytes: file.bytes, sourcePath };
   };
+  const suiteDir = resolve(benchmarkRoot, `v${suite.version}`);
+  const rosterFile = readPinnedFile(benchmarkRoot, resolve(suiteDir, "provider-model-roster.yaml"), "canonical provider/model roster");
+  const pricingFile = readPinnedFile(benchmarkRoot, resolve(suiteDir, "pricing-snapshot.yaml"), "canonical pricing snapshot");
+  assertCommitted(root, batch.source_commit_sha, rosterFile, "canonical provider/model roster");
+  assertCommitted(root, batch.source_commit_sha, pricingFile, "canonical pricing snapshot");
+  const roster = parseProviderModelRoster(rosterFile.bytes.toString("utf8"));
+  const pricing = parsePricingSnapshot(pricingFile.bytes.toString("utf8"));
+  const configuredIdentities = [...new Set(batch.configuration.cells.map((cell) =>
+    JSON.stringify([cell.harness, cell.model, cell.effort])))].sort();
+  const rosterIdentities = roster.entries.filter((entry) => entry.role === "production")
+    .map((entry) => JSON.stringify([entry.harness, entry.model, entry.effort])).sort();
+  if (!exactSet(configuredIdentities, rosterIdentities)) {
+    throw new Error("production batch execution identities do not match the committed provider/model roster");
+  }
+  if (roster.entries.some((entry) => !pricing.rates.some((rate) =>
+    rate.pricing_key === entry.pricing_key && rate.provider === entry.provider && rate.model === entry.model))) {
+    throw new Error("provider/model roster is not fully covered by the committed pricing snapshot");
+  }
 
   const subjectPath = "provenance/trusted-run-subject.json";
   const detachedBundlesPath = "provenance/github-attestation-bundles.jsonl";
@@ -466,6 +488,8 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     { path: runtimeReportPath, bytes: reportRead.file.bytes },
     ...sealedRuntimeFiles,
     sourcePlan("suite/suite.yaml", suiteFile, "canonical suite"),
+    sourcePlan("suite/provider-model-roster.yaml", rosterFile, "canonical provider/model roster"),
+    sourcePlan("suite/pricing-snapshot.yaml", pricingFile, "canonical pricing snapshot"),
   ];
   const topLevelMissing: string[] = [];
   const methodologyPaths: string[] = [];
@@ -479,7 +503,6 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     plans.push(sourcePlan(destination, file, label));
     return file;
   };
-  const suiteDir = resolve(benchmarkRoot, `v${suite.version}`);
   for (const name of METHODOLOGY_FILES) {
     const destination = `suite/${name}`;
     if (maybeCommitted(resolve(suiteDir, name), destination, `canonical methodology ${name}`, topLevelMissing)) {
@@ -580,7 +603,8 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       || record.standard_set_version !== batch.configuration.packs.find((pack) => pack.vendor === entry.vendor)?.standard_set_version
       || record.run_batch_id !== batch.batch_id || record.summary_kind !== "aggregate"
       || record.trial_count !== cells.length || record.generated_at !== report.generated_at
-      || record.model !== configured.model || record.best_profile !== configured.profile
+      || record.model !== configured.model || record.effort !== configured.effort
+      || record.best_profile !== configured.profile
       || !exactSet(record.profiles, [configured.profile])
       || record.harness_version_raw !== pin.version_raw || record.harness_version_semver !== pin.version_semver
       || !exactSet(record.source_records ?? [], expectedCompleted.map((cell) => cell.record_path))) {
@@ -597,11 +621,17 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   }
 
   const competitivePath = "competitive.html";
+  const economicsPath = "economics.json";
+  const economics = buildArenaEconomicsReport(aggregateRecords, roster, pricing);
   const competitiveHtml = renderArenaCompetitiveReport(aggregateRecords, {
     batch,
     generatedAt: generatedAtIso,
+    economics: economics.cells,
   });
-  plans.push({ path: competitivePath, bytes: Buffer.from(competitiveHtml) });
+  plans.push(
+    { path: competitivePath, bytes: Buffer.from(competitiveHtml) },
+    { path: economicsPath, bytes: Buffer.from(`${JSON.stringify(economics, null, 2)}\n`) },
+  );
 
   const vendors: BuiltArenaPublicationBundle["vendors"] = [];
   const canonicalPackPaths: Record<string, string> = Object.create(null) as Record<string, string>;
@@ -720,10 +750,13 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     return !configured || !record.profiles.includes(configured.profile);
   });
   const missingEfficiency = aggregateRecords.filter((record) => !hasEfficiency(record));
+  const unavailableEconomics = economics.cells.filter((cell) => cell.status !== "priced");
   const canonicalIssues: string[] = [];
   for (const record of aggregateRecords) {
-    const harness = record.harness as keyof typeof PRODUCTION_MODELS;
-    if (PRODUCTION_MODELS[harness] && record.model !== PRODUCTION_MODELS[harness]) canonicalIssues.push(`${record.product}/${record.surface}/${record.harness}: model=${record.model ?? "missing"}`);
+    const rosterEntry = roster.entries.find((entry) => entry.role === "production" && entry.harness === record.harness);
+    if (!rosterEntry || record.model !== rosterEntry.model || record.effort !== rosterEntry.effort) {
+      canonicalIssues.push(`${record.product}/${record.surface}/${record.harness}: identity=${record.model ?? "missing"}/${record.effort ?? "missing"}`);
+    }
     if (!record.profiles.includes("high")) canonicalIssues.push(`${record.product}/${record.surface}/${record.harness}: missing high profile`);
     if (record.summary_kind !== "aggregate" || record.trial_count !== 3) canonicalIssues.push(`${record.product}/${record.surface}/${record.harness}: requires 3-trial aggregate`);
   }
@@ -777,6 +810,15 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
           : "Normalized records include latency, token/cost, and tool-call metrics.",
     },
     {
+      id: "cost-economics", label: "Cost economics use the pinned roster and pricing snapshot",
+      status: !economics.cells.length || unavailableEconomics.length ? "fail" : "pass",
+      detail: !economics.cells.length
+        ? "No aggregate records are available for cost economics."
+        : unavailableEconomics.length
+          ? `${unavailableEconomics.length}/${economics.cells.length} cell(s) cannot be priced from the committed roster and snapshot.`
+          : `${economics.cells.length} cell(s) have reproducible API list-price estimates and cost-per-success context.`,
+    },
+    {
       id: "canonical-execution-config", label: "Production records use the frozen execution configuration",
       status: canonicalIssues.length ? "fail" : "pass",
       detail: canonicalIssues.length
@@ -826,6 +868,9 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       },
     },
     vendors,
+    provider_model_roster: "suite/provider-model-roster.yaml",
+    pricing_snapshot: "suite/pricing-snapshot.yaml",
+    economics_report: economicsPath,
     competitive_report: competitivePath,
     missing: topLevelMissing,
     notes: [
@@ -835,6 +880,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       `Publication readiness requires all artifacts, required profile matrix coverage (${expectedProfiles.join("/")}), efficiency metrics, and competitive report gates to pass.`,
       "Optional profile artifacts remain valuable execution-learning and publication evidence, but missing optional coverage does not block a publication-ready bundle when required profile coverage is complete.",
       "The detached GitHub OIDC attestation binds this bundle to its protected-main workflow, pinned runtime, exact batch, and completion.",
+      "Cost per success is contextual only and uses the committed API list-price snapshot; it never affects correctness or rank.",
       "Do not publish unredacted transcripts, credentials, connection strings, or .env files in this bundle.",
     ],
   };

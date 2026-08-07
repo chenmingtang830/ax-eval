@@ -5,7 +5,7 @@ import { stringify as yamlStringify } from "yaml";
 import { describe, expect, it, vi } from "vitest";
 import { packFileContentHash, writeApproval } from "../src/generate/review.js";
 import { verifyGeneratedPack } from "../src/generate/verify.js";
-import type { InvokeRunOptions } from "../src/harness/invoke.js";
+import { runInvokeHarness, type InvokeRunOptions } from "../src/harness/invoke.js";
 import type { OracleResult, TargetPack } from "../src/schemas.js";
 import { TargetPackSchema } from "../src/schemas.js";
 import { BearerClient } from "../src/http/client.js";
@@ -83,7 +83,21 @@ function runtime(
   return {
     now: () => new Date(`2026-07-21T00:00:0${tick++}.000Z`),
     detectHarness: () => ({ ok: true, command: "codex", version: "codex-cli 1.2.3" }),
-    provisionHarness: async () => ({ env: { CELL_ONLY: "yes" }, meta: { kind: "fake" } }),
+    provisionHarness: async (options) => {
+      const workDir = options.isolateWorkspace
+        ? resolve(dirname(options.paths.resultsPath), `fake-${options.harness}-workspace`)
+        : undefined;
+      if (workDir) mkdirSync(workDir, { recursive: true });
+      return {
+        env: { CELL_ONLY: "yes" },
+        meta: {
+          kind: "fake",
+          ...(workDir
+            ? options.harness === "pi" ? { pi_work_dir: workDir } : { opencode_work_dir: workDir }
+            : {}),
+        },
+      };
+    },
     invokeHarness: async (options) => {
       invokeOptions.push(options);
       writeFileSync(options.paths.resultsPath, JSON.stringify({
@@ -231,6 +245,91 @@ describe("runCell", () => {
     });
     expect(record.task_results[0]?.oracleResults[0]?.detail).toBe("name matched");
     expect(record).not.toHaveProperty("provider_provenance");
+  });
+
+  it("uses a distinct bounded namespace for OpenCode cells", async () => {
+    const { cell } = fixture();
+    cell.harness = {
+      id: "opencode",
+      profile: "medium",
+      model: "openrouter/openai/gpt-5.2",
+      effort: "medium",
+    };
+    cell.required_credentials = [...cell.required_credentials, "OPENROUTER_API_KEY"];
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: { OPENROUTER_API_KEY: "provider-key" } },
+      runtime(invokes),
+    );
+
+    expect(invokes[0]?.harness).toBe("opencode");
+    expect(invokes[0]?.cwd).toContain("fake-opencode-workspace");
+    expect(invokes[0]?.redactionValues).toContain("provider-key");
+    expect(invokes[0]?.ns).toMatch(/^example-run-opc-m-[a-f0-9]{24}$/);
+    expect(record).toMatchObject({
+      harness: "opencode",
+      requested_model: "openrouter/openai/gpt-5.2",
+      execution_namespace: invokes[0]?.ns,
+    });
+  });
+
+  it("uses a distinct bounded namespace for Pi cells", async () => {
+    const { cell } = fixture();
+    cell.harness = { id: "pi", profile: "medium", model: "openrouter/example-model", effort: "medium" };
+    cell.required_credentials = ["OPENROUTER_API_KEY"];
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(cell, { credentials: { OPENROUTER_API_KEY: "provider-key" } }, runtime(invokes));
+    expect(invokes[0]?.harness).toBe("pi");
+    expect(invokes[0]?.ns).toMatch(/^example-run-pi-m-[a-f0-9]{24}$/);
+    expect(record).toMatchObject({ harness: "pi", requested_model: "openrouter/example-model" });
+  });
+
+  it("accepts the native Moonshot Pi provider credential", async () => {
+    const { cell } = fixture();
+    cell.harness = { id: "pi", profile: "medium", model: "moonshotai/kimi-k2.5", effort: "medium" };
+    cell.required_credentials = ["MOONSHOT_API_KEY"];
+    const invokes: InvokeRunOptions[] = [];
+    const record = await runCellWithRuntime(cell, { credentials: { MOONSHOT_API_KEY: "provider-key" } }, runtime(invokes));
+    expect(invokes[0]?.harness).toBe("pi");
+    expect(record).toMatchObject({ harness: "pi", requested_model: "moonshotai/kimi-k2.5" });
+  });
+
+  it("blocks a known OpenCode provider before invocation when its credential is absent", async () => {
+    const { cell } = fixture();
+    cell.harness = {
+      id: "opencode",
+      profile: "medium",
+      model: "openrouter/openai/gpt-5.2",
+      effort: "medium",
+    };
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record).toMatchObject({ status: "blocked", blocked: "missing-credential" });
+    expect(record.error?.message).toContain("OPENROUTER_API_KEY");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
+  });
+
+  it("rejects OpenCode control variables in the cell credential manifest", async () => {
+    const { cell } = fixture();
+    cell.harness = {
+      id: "opencode",
+      profile: "medium",
+      model: "opencode/free-model",
+      effort: "medium",
+    };
+    cell.required_credentials = ["OPENCODE_CONFIG_CONTENT"];
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: { OPENCODE_CONFIG_CONTENT: "{}" } },
+      isolated,
+    );
+    expect(record).toMatchObject({ status: "blocked", blocked: "invoke-failed" });
+    expect(record.error?.message).toContain("controller-owned OpenCode isolation");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
   it("keeps namespaces bounded and collision-resistant for large trial values", async () => {
@@ -551,6 +650,29 @@ describe("runCell", () => {
     } finally {
       vi.unstubAllEnvs();
     }
+  });
+
+  it("reserves OpenCode isolation paths from runtime extensions", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.invokeHarness = vi.fn();
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "xdg-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { XDG_DATA_HOME: "/tmp/untrusted-opencode-data" } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(cell, { credentials: {}, extensions: { registry } }, isolated);
+    expect(record.error?.message).toContain("attempted to replace environment key(s): XDG_DATA_HOME");
+    expect(isolated.invokeHarness).not.toHaveBeenCalled();
   });
 
   it("never exposes verifier-only credentials to provisioning or its harness environment", async () => {
@@ -1269,6 +1391,107 @@ describe("runCell", () => {
     const results = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.results), "utf8");
     const trace = readFileSync(resolve(record.artifacts.base_dir, record.artifacts.trace), "utf8");
     expect(`${results}\n${trace}\n${JSON.stringify(record)}`).not.toContain("opaque-session-value");
+  });
+
+  it("fails safely when short values from non-secret-named child env reach harness output", async () => {
+    const { cell, dir } = fixture();
+    cell.harness = {
+      id: "opencode",
+      profile: "medium",
+      model: "custom/example-model",
+      effort: "medium",
+    };
+    cell.required_credentials = ["ACCOUNT"];
+    const cellCredential = "c9z";
+    const provisionedValue = "p8x";
+    const invokes: InvokeRunOptions[] = [];
+    const isolated = runtime(invokes);
+    const provision = isolated.provisionHarness;
+    const coreHome = resolve(dir, "core-opencode-home");
+    isolated.provisionHarness = async (options) => {
+      const base = await provision(options);
+      return {
+        ...base,
+        env: {
+          ...base.env,
+          HOME: coreHome,
+          OPENCODE_ENABLE_EXA: "1",
+          OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+        },
+      };
+    };
+    isolated.invokeHarness = async (options) => {
+      invokes.push(options);
+      return runInvokeHarness(options, async () => {
+        writeFileSync(options.paths.resultsPath, JSON.stringify({
+          profile: options.profile,
+          harness: options.harness,
+          model: options.model,
+          ns: options.ns,
+          surface: options.surface,
+          discovery: {},
+          results: { "task-1": { gid: "clean-gid" } },
+        }));
+        writeFileSync(options.paths.tracePath, JSON.stringify([
+          { step: 1, taskId: "task-1", action: "clean action" },
+        ]));
+        return {
+          pid: 123,
+          output: [],
+          stdout: Buffer.from(provisionedValue),
+          stderr: Buffer.from(""),
+          status: 0,
+          signal: null,
+          error: undefined,
+          timedOut: undefined,
+          timeoutReason: undefined,
+          firstActionLatencyMs: undefined,
+        };
+      });
+    };
+    const registry = createRuntimeExtensionRegistry({
+      provisioningProviders: [{
+        id: "short-session-provider",
+        version: "1.0.0",
+        matches: () => true,
+        async inspect() {
+          return { ready: true };
+        },
+        async provision() {
+          return { env: { SESSION: provisionedValue } };
+        },
+      }],
+    });
+
+    const record = await runCellWithRuntime(
+      cell,
+      { credentials: { ACCOUNT: cellCredential }, extensions: { registry } },
+      isolated,
+    );
+
+    expect(invokes).toHaveLength(1);
+    expect(invokes[0]?.env).toMatchObject({ ACCOUNT: cellCredential, SESSION: provisionedValue });
+    expect(invokes[0]?.redactionValues).toEqual(expect.arrayContaining([cellCredential, provisionedValue]));
+    expect(invokes[0]?.redactionValues).not.toContain("1");
+    expect(invokes[0]?.redactionValues).not.toContain(coreHome);
+    expect(record.status).toBe("failed");
+    expect(record.error?.stage).toBe("invoke");
+    expect(JSON.stringify(record)).not.toContain(cellCredential);
+    expect(JSON.stringify(record)).not.toContain(provisionedValue);
+    for (const path of [
+      invokes[0]!.paths.resultsPath,
+      invokes[0]!.paths.tracePath,
+      invokes[0]!.paths.metaPath,
+      invokes[0]!.paths.codexSchemaPath,
+    ].filter((value): value is string => Boolean(value))) {
+      expect(() => JSON.parse(readFileSync(path, "utf8"))).not.toThrow();
+    }
+    for (const path of Object.values(invokes[0]!.paths).filter((value): value is string => Boolean(value))) {
+      if (!existsSync(path)) continue;
+      const persisted = readFileSync(path, "utf8");
+      expect(persisted).not.toContain(cellCredential);
+      expect(persisted).not.toContain(provisionedValue);
+    }
   });
 
   it("rejects pack and artifact paths that escape the declared working directory", async () => {

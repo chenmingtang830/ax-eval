@@ -72,6 +72,13 @@ shape.
   one fully specified reviewed pack/surface/harness/model/effort/trial and use
   the caller-supplied batch id. Roster expansion, trial counts, aggregation,
   ranking, publication, and cleanup policy belong to the controller.
+- **Pricing is dated evidence, not scoring policy.** Production execution
+  identities must match the committed provider/model roster. Keep native
+  harness cost separate from snapshot-derived API list-price estimates, and
+  never use cost per success as a correctness gate or ranking tie-breaker.
+- **Structural harness gaps are not runtime crashes.** Emit
+  `blocked: unsupported-surface` when a harness intentionally cannot execute a
+  requested surface; reserve `invoke-failed` for an attempted invocation.
 - **Runtime extensions are explicit and versioned.** Build an immutable
   per-cell registry; do not add ambient provider discovery or target-name
   dispatch. Health checks precede provisioning, environment changes are
@@ -131,6 +138,11 @@ which product surfaces exist, while harness profiles vary execution settings
 (effort/model/autonomy). New live runs use the single `medium` effort profile;
 legacy low/high artifacts remain readable. Do not use profiles to smuggle in or
 hide surfaces.
+
+Normalized aggregate records use `ax.normalized-result/v2`. Treat product,
+surface, harness, model, and effort as one indivisible identity: never average,
+deduplicate, or select a latest record across different values. The v1 schema is
+frozen for compatibility and must not be widened to carry new identity fields.
 
 ## Pull requests
 

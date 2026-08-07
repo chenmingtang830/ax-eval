@@ -256,6 +256,41 @@ describe("transcript SDK-surface capture", () => {
 });
 
 describe("transcript MCP-surface capture", () => {
+  it("scopes OpenCode's native <server>_<tool> names to isolated MCP provisioning", () => {
+    const text = [
+      JSON.stringify({
+        type: "tool_use",
+        part: {
+          type: "tool",
+          tool: "exa_web_search_exa",
+          callID: "call-mcp",
+          state: {
+            status: "completed",
+            input: { query: "must-not-persist" },
+            output: "must-not-persist",
+          },
+        },
+      }),
+      JSON.stringify({
+        type: "tool_use",
+        part: {
+          type: "tool",
+          tool: "other_create_task",
+          callID: "call-other",
+          state: { status: "completed", input: {} },
+        },
+      }),
+    ].join("\n");
+    const run = parseTranscriptContent(text, {
+      harness: "opencode",
+      mcpServer: "exa-mcp-server",
+      mcpServerName: "exa",
+    });
+    expect(run.mcpToolsListed).toBe(true);
+    expect(run.mcpToolCalls).toEqual(["exa.web_search_exa"]);
+    expect(JSON.stringify(run)).not.toContain("must-not-persist");
+  });
+
   it("captures tools/list and scoped MCP tool calls", () => {
     const text = [
       evt([{ type: "tool_use", name: "ListMcpResources", input: {} }]),

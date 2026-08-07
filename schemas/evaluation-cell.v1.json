@@ -32,7 +32,7 @@
       "additionalProperties": false,
       "required": ["id", "profile", "model", "effort"],
       "properties": {
-        "id": { "enum": ["claude-code", "codex"] },
+        "id": { "enum": ["claude-code", "codex", "opencode"] },
         "profile": { "enum": ["low", "medium", "high"] },
         "model": { "$ref": "#/$defs/nonBlank" },
         "effort": { "enum": ["low", "medium", "high"] }
@@ -61,6 +61,26 @@
       }
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "harness": {
+            "properties": { "id": { "const": "opencode" } },
+            "required": ["id"]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "harness": {
+            "properties": { "model": { "pattern": "^[^/\\s]+/[^\\s]+$" } },
+            "required": ["model"]
+          }
+        }
+      }
+    }
+  ],
   "$defs": {
     "nonBlank": { "type": "string", "pattern": ".*\\S.*" }
   }

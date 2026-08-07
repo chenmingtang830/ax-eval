@@ -6,7 +6,7 @@
  * transcript.ts so adding a harness cannot silently change AX scoring rules.
  */
 
-export type TranscriptHarnessId = "claude-code" | "codex";
+export type TranscriptHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
 export type HarnessEvent =
   | { kind: "search"; query: string; callId?: string }
@@ -99,6 +99,19 @@ const CLAUDE_EVENT_TYPES = new Set([
   "result",
   "stream_event",
   "rate_limit_event",
+]);
+const OPENCODE_EVENT_TYPES = new Set([
+  "step_start",
+  "step_finish",
+  "text",
+  "reasoning",
+  "tool_use",
+  "error",
+]);
+const PI_EVENT_TYPES = new Set([
+  "session", "agent_start", "agent_end", "turn_start", "turn_end",
+  "message_start", "message_update", "message_end",
+  "tool_execution_start", "tool_execution_update", "tool_execution_end",
 ]);
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -275,10 +288,131 @@ const codexDecoder: TranscriptLineDecoder = {
   decode: decodeCodexLine,
 };
 
-// Fixed pure decoders, intentionally not a mutable process-global registry.
-const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder];
+function decodeOpenCodeToolUse(value: Record<string, unknown>): { events: HarnessEvent[]; malformed: number } {
+  const part = record(value.part);
+  const state = record(part?.state);
+  const name = part ? stringField(part, "tool") : undefined;
+  const input = record(state?.input);
+  if (!part || !state || !name || !input) return { events: [], malformed: 1 };
 
-/** Decode Codex/Claude stdout JSONL into stable harness events plus safe diagnostics. */
+  const id = optionalCallId(part, "callID", "callId", "call_id", "id");
+  const normalizedName = name.toLowerCase().replace(/[-_]/g, "");
+  const action: HarnessEvent[] = [];
+  let malformed = 0;
+
+  if (normalizedName === "websearch") {
+    const query = stringField(input, "query", "search_term");
+    if (query) action.push({ kind: "search", query, ...id });
+    else malformed += 1;
+  } else if (normalizedName === "webfetch" || normalizedName === "fetch") {
+    const url = stringField(input, "url");
+    if (url) action.push({ kind: "fetch", url, ...id });
+    else malformed += 1;
+  } else if (normalizedName === "bash" || normalizedName === "shell") {
+    const command = stringField(input, "command", "contents");
+    if (command) action.push({ kind: "command", command, ...id });
+    else malformed += 1;
+  } else if (["write", "edit", "patch", "applypatch"].includes(normalizedName)) {
+    const path = stringField(input, "filePath", "file_path", "path");
+    const content = stringField(input, "content", "newString", "new_string", "patch", "patchText");
+    if (path || content) {
+      action.push({
+        kind: "file_write",
+        ...(path ? { path } : {}),
+        ...(content ? { content } : {}),
+        ...id,
+      });
+    } else {
+      malformed += 1;
+    }
+  } else {
+    action.push({ kind: "tool_call", name, input, ...id });
+  }
+
+  const status = stringField(state, "status");
+  if (status === "completed" || status === "error") {
+    if (id.callId) {
+      action.push({
+        kind: "tool_result",
+        callId: id.callId,
+        outcome: status === "completed" ? "success" : "error",
+      });
+    } else {
+      malformed += 1;
+    }
+  }
+  // state.output/error/attachments and metadata.output are deliberately never
+  // copied. They are product data, not objective action semantics.
+  return { events: action, malformed };
+}
+
+function decodeOpenCodeLine(value: Record<string, unknown>): DecodedLine | undefined {
+  const type = typeof value.type === "string" ? value.type : "";
+  if (!OPENCODE_EVENT_TYPES.has(type)) return undefined;
+  if (type !== "tool_use") return { harness: "opencode", events: [], malformed: 0 };
+  const decoded = decodeOpenCodeToolUse(value);
+  return { harness: "opencode", ...decoded };
+}
+
+const openCodeDecoder: TranscriptLineDecoder = {
+  id: "opencode",
+  matches(value) {
+    const type = typeof value.type === "string" ? value.type : "";
+    // A bare `error` event is shared with Codex and cannot identify a harness.
+    return type !== "error" && OPENCODE_EVENT_TYPES.has(type);
+  },
+  decode: decodeOpenCodeLine,
+};
+
+function decodePiTool(value: Record<string, unknown>): { events: HarnessEvent[]; malformed: number } {
+  const name = stringField(value, "toolName");
+  const input = record(value.args);
+  const id = optionalCallId(value, "toolCallId");
+  if (!name || !input) return { events: [], malformed: 1 };
+  const normalized = name.toLowerCase();
+  if (normalized === "bash") {
+    const command = stringField(input, "command");
+    return command ? { events: [{ kind: "command", command, ...id }], malformed: 0 } : { events: [], malformed: 1 };
+  }
+  if (normalized === "write" || normalized === "edit") {
+    const path = stringField(input, "path");
+    const content = stringField(input, "content", "newText");
+    return path || content
+      ? { events: [{ kind: "file_write", ...(path ? { path } : {}), ...(content ? { content } : {}), ...id }], malformed: 0 }
+      : { events: [], malformed: 1 };
+  }
+  return { events: [{ kind: "tool_call", name, input, ...id }], malformed: 0 };
+}
+
+function decodePiLine(value: Record<string, unknown>): DecodedLine | undefined {
+  const type = stringField(value, "type");
+  if (!type || !PI_EVENT_TYPES.has(type)) return undefined;
+  if (type === "tool_execution_start") {
+    const decoded = decodePiTool(value);
+    return { harness: "pi", ...decoded };
+  }
+  if (type === "tool_execution_end") {
+    const id = stringField(value, "toolCallId");
+    return id
+      ? { harness: "pi", events: [{ kind: "tool_result", callId: id, outcome: value.isError === true ? "error" : "success" }], malformed: 0 }
+      : { harness: "pi", events: [], malformed: 1 };
+  }
+  return { harness: "pi", events: [], malformed: 0 };
+}
+
+const piDecoder: TranscriptLineDecoder = {
+  id: "pi",
+  matches(value) {
+    const type = stringField(value, "type");
+    return Boolean(type && PI_EVENT_TYPES.has(type));
+  },
+  decode: decodePiLine,
+};
+
+// Fixed pure decoders, intentionally not a mutable process-global registry.
+const DECODERS: readonly TranscriptLineDecoder[] = [codexDecoder, claudeDecoder, openCodeDecoder, piDecoder];
+
+/** Decode supported harness stdout JSONL into stable events plus safe diagnostics. */
 export function decodeTranscriptContent(
   text: string,
   opts: TranscriptDecodeOptions = {},

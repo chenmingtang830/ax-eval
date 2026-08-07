@@ -60,8 +60,8 @@ export interface ObservedRun {
   /** MCP signals (when an `opts.mcpServer` is provided): a `tools/list` listing
    *  and each MCP tool the agent invoked (server.tool), in order. */
   mcpToolCalls: string[];
-  /** Whether the agent enumerated the MCP server's tools (tools/list — the
-   *  MCP-surface authoritative discovery source). */
+  /** Whether the harness loaded or the agent enumerated the MCP server's tool
+   *  catalog (the MCP-surface authoritative discovery source). */
   mcpToolsListed: boolean;
   /** SQL-wire / node-pg / libsql signals observed in shell/scripts (for api
    *  surface-honesty grading). */
@@ -84,7 +84,7 @@ function escapeRe(s: string): string {
 function extractCliCommands(cmd: string, bin: string): string[] {
   const out: string[] = [];
   const re = new RegExp(
-    `(?:^|[;&|]|\\bnpx\\s+(?:-y\\s+)?)\\s*(${escapeRe(bin)}\\b[^;&|\\n]*)`,
+    `(?:^|[;&|]|\\bnpx\\s+(?:-y\\s+)?)\\s*(${escapeRe(bin)}(?=\\s|$)[^;&|\\n]*)`,
     "g",
   );
   let m: RegExpExecArray | null;
@@ -234,10 +234,17 @@ export interface ParseOptions {
   baseUrl?: string;
   /** CLI binary (from the cli surface) to recognize vendor-CLI invocations. */
   cliBin?: string;
+  /** Additional product CLI entrypoints. This catches control-plane CLIs that
+   * differ from a pack's primary data-plane binary (for example psql versus
+   * `npx @vendor/cli`) without weakening the configured `cliBin` signal. */
+  cliBins?: string[];
   /** SDK package (from the sdk surface) to recognize install/import/usage. */
   sdkPackage?: string;
   /** MCP server id/URL (from the mcp surface) to scope which tool calls count. */
   mcpServer?: string;
+  /** Harness-local MCP server name. OpenCode exposes tools as
+   * `<server>_<tool>`, so the isolated provisioning name scopes native calls. */
+  mcpServerName?: string;
   /** Treat literal curl URLs as API calls when a templated base URL cannot be
    * resolved to a host. Intended for sealed API-surface benchmark transcripts. */
   classifyUnknownCurlAsApi?: boolean;
@@ -295,9 +302,10 @@ export function observedRunFromHarnessEvents(
     // Strategy B: code-style calls (python/node), method + relative path.
     run.apiCalls.push(...extractCodeCalls(cmd));
     // Surface-specific signals (only when the surface declares an identifier).
-    if (opts.cliBin) {
-      run.cliCommands.push(...extractCliCommands(cmd, opts.cliBin));
-      if (inspectsCliHelp(cmd, opts.cliBin)) run.cliHelpInspected = true;
+    const cliBins = [...new Set([opts.cliBin, ...(opts.cliBins ?? [])].filter((bin): bin is string => Boolean(bin)))];
+    for (const cliBin of cliBins) {
+      run.cliCommands.push(...extractCliCommands(cmd, cliBin));
+      if (inspectsCliHelp(cmd, cliBin)) run.cliHelpInspected = true;
     }
     if (opts.sdkPackage) run.sdkUsage.push(...extractSdkUsage(cmd, opts.sdkPackage));
     // A `tools/list` may also be issued as a raw shell/JSON-RPC line.
@@ -328,7 +336,16 @@ export function observedRunFromHarnessEvents(
       }
     } else if (event.kind === "tool_call") {
       const input = event.input;
-      if (event.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
+      const openCodePrefix = opts.harness === "opencode" && opts.mcpServerName
+        ? `${opts.mcpServerName}_`
+        : undefined;
+      if (openCodePrefix && event.name.startsWith(openCodePrefix) && event.name.length > openCodePrefix.length) {
+        // OpenCode does not emit its internal tools/list request. A callable
+        // namespaced tool proves the configured catalog was loaded; retain only
+        // provider/tool identity and continue discarding arguments/results.
+        run.mcpToolsListed = true;
+        run.mcpToolCalls.push(`${opts.mcpServerName}.${event.name.slice(openCodePrefix.length)}`);
+      } else if (event.name === "ToolSearch" && typeof input.query === "string" && /mcp/i.test(input.query)) {
         // ToolSearch is how a Claude Code agent enumerates available (incl. MCP)
         // tools — the `tools/list` equivalent for this harness.
         run.mcpToolsListed = true;

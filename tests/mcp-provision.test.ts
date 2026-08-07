@@ -1,10 +1,15 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { defaultInvokePaths } from "../src/harness/invoke.js";
-import { provisionHarnessForSurface } from "../src/harness/mcp-provision.js";
+import { openCodeManagedProgramData, provisionHarnessForSurface } from "../src/harness/mcp-provision.js";
+import {
+  findOpenCodeManagedConfig,
+  isOpenCodeReservedChildEnv,
+  openCodeManagedConfigCandidates,
+} from "../src/harness/opencode.js";
 
 const dirs: string[] = [];
 const oldEnv = { ...process.env };
@@ -115,6 +120,143 @@ describe("provisionHarnessForSurface", () => {
     const text = readFileSync(config, "utf8");
     expect(text).toContain("mcp_servers = {}");
     expect(text).not.toContain("[mcp_servers.");
+  });
+
+  it("isolates every OpenCode non-MCP run across config, data, cache, and state", async () => {
+    const dir = freshDir();
+    const first = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "api",
+      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      cwd: "/repo",
+      env: {
+        OPENCODE_CONFIG_DIR: "/ambient/opencode-config",
+        XDG_DATA_HOME: "/ambient/opencode-data",
+      },
+      isolateWorkspace: true,
+    });
+    const second = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-low-cli", "opencode"),
+      cwd: "/repo",
+      isolateWorkspace: true,
+    });
+    for (const root of [first.meta?.opencode_work_root, second.meta?.opencode_work_root]) {
+      if (typeof root === "string") dirs.push(root);
+    }
+
+    expect(first.env.HOME).toContain(".invoke-home");
+    expect(first.env.HOME).not.toBe(second.env.HOME);
+    for (const name of [
+      "OPENCODE_CONFIG_DIR",
+      "XDG_CONFIG_HOME",
+      "XDG_DATA_HOME",
+      "XDG_CACHE_HOME",
+      "XDG_STATE_HOME",
+    ]) {
+      expect(first.env[name]?.startsWith(`${first.env.HOME}/`)).toBe(true);
+      expect(existsSync(first.env[name]!)).toBe(true);
+    }
+    expect(first.env.OPENCODE_DISABLE_PROJECT_CONFIG).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_CLAUDE_CODE).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_CLAUDE_CODE_PROMPT).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_LSP_DOWNLOAD).toBe("1");
+    expect(first.env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
+    expect(first.env.OPENCODE_ENABLE_EXA).toBe("1");
+    expect(first.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
+    expect(first.meta?.opencode_work_dir).toEqual(expect.stringContaining("ax-eval-opencode-"));
+    expect(first.meta?.opencode_work_dir).not.toContain("/repo");
+    expect(existsSync(first.meta?.opencode_work_dir as string)).toBe(true);
+    const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config).toEqual({
+      mcp: {},
+      permission: { task: "deny" },
+      share: "disabled",
+      autoshare: false,
+    });
+    expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
+  });
+
+  it("enumerates and fails closed on OpenCode managed config sources", () => {
+    expect(openCodeManagedConfigCandidates({ platform: "linux" })).toEqual([
+      "/etc/opencode/opencode.json",
+      "/etc/opencode/opencode.jsonc",
+    ]);
+    const darwin = openCodeManagedConfigCandidates({ platform: "darwin", username: "eval-user" });
+    expect(darwin).toContain("/Library/Application Support/opencode/opencode.json");
+    expect(darwin).toContain("/Library/Managed Preferences/eval-user/ai.opencode.managed.plist");
+    expect(darwin).toContain("/Library/Managed Preferences/ai.opencode.managed.plist");
+    expect(findOpenCodeManagedConfig(
+      { platform: "darwin", username: "eval-user" },
+      (path) => path.endsWith("ai.opencode.managed.plist"),
+    )).toHaveLength(2);
+    expect(openCodeManagedConfigCandidates({
+      platform: "win32",
+      programData: "D:\\ManagedData",
+    })).toContain("D:\\ManagedData/opencode/opencode.json");
+    expect(openCodeManagedProgramData({ ProgramData: "D:\\ManagedData" })).toBe("D:\\ManagedData");
+    expect(openCodeManagedProgramData({ PROGRAMDATA: "E:\\MachineData" })).toBe("E:\\MachineData");
+    expect(openCodeManagedProgramData({}, { ProgramData: "F:\\HostPolicy" })).toBe("F:\\HostPolicy");
+    expect(isOpenCodeReservedChildEnv("opencode_config_content")).toBe(true);
+    expect(isOpenCodeReservedChildEnv("xdg_data_home")).toBe(true);
+  });
+
+  it("creates the OpenCode session home with owner-only permissions", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "api",
+      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      cwd: "/repo",
+      env: {},
+    });
+    expect(statSync(provisioning.env.HOME!).mode & 0o777).toBe(0o700);
+  });
+
+  it("exchanges OAuth and writes an isolated OpenCode remote MCP config without embedding secrets", async () => {
+    const dir = freshDir();
+    const fetchMock = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ access_token: "short-lived-access-token" }),
+    })) as unknown as typeof fetch;
+    vi.stubGlobal("fetch", fetchMock);
+    const provisioning = await provisionHarnessForSurface({
+      pack: pack(),
+      harness: "opencode",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "opencode-low-mcp", "opencode"),
+      cwd: "/repo",
+      env: {
+        ASANA_MCP_CLIENT_ID: "client-id",
+        ASANA_MCP_CLIENT_SECRET: "client-secret",
+        ASANA_MCP_REFRESH_TOKEN: "refresh-token",
+      },
+      isolateWorkspace: true,
+    });
+    if (typeof provisioning.meta?.opencode_work_root === "string") {
+      dirs.push(provisioning.meta.opencode_work_root);
+    }
+
+    expect(fetchMock).toHaveBeenCalledOnce();
+    expect(provisioning.meta).toMatchObject({
+      mcp_provisioning: "oauth_refresh_to_bearer",
+      mcp_server: "asana",
+    });
+    expect(provisioning.env.AX_EVAL_MCP_BEARER_TOKEN_ASANA).toBe("short-lived-access-token");
+    expect(provisioning.env.OPENCODE_CONFIG_DIR).toContain(".invoke-home");
+    expect(provisioning.meta?.opencode_work_dir).not.toContain("/repo");
+    const config = JSON.parse(readFileSync(resolve(provisioning.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config.mcp.asana).toEqual({
+      type: "remote",
+      url: "https://mcp.asana.com/v2/mcp",
+      enabled: true,
+      headers: { Authorization: "Bearer {env:AX_EVAL_MCP_BEARER_TOKEN_ASANA}" },
+    });
+    expect(JSON.stringify(config)).not.toMatch(/short-lived-access-token|refresh-token|client-secret/);
   });
 
   it("exchanges OAuth refresh token and writes an isolated Codex MCP config", async () => {
@@ -238,6 +380,26 @@ describe("provisionHarnessForSurface", () => {
     expect(config).toContain('args = ["-y", "@demo/mcp"]');
     expect(config).not.toContain("stdio-secret");
     expect(provisioning.env.DEMO_MCP_TOKEN).toBe("stdio-secret");
+
+    const openCode = await provisionHarnessForSurface({
+      pack: stdioPack,
+      harness: "opencode",
+      surface: "mcp",
+      paths: defaultInvokePaths(dir, "opencode-low-mcp", "opencode"),
+      cwd: "/repo",
+      env: { DEMO_MCP_TOKEN: "stdio-secret" },
+    });
+    const openCodeConfig = JSON.parse(readFileSync(
+      resolve(openCode.env.OPENCODE_CONFIG_DIR!, "opencode.json"),
+      "utf8",
+    ));
+    expect(openCodeConfig.mcp.demo).toEqual({
+      type: "local",
+      command: ["npx", "-y", "@demo/mcp"],
+      enabled: true,
+    });
+    expect(JSON.stringify(openCodeConfig)).not.toContain("stdio-secret");
+    expect(openCode.env.DEMO_MCP_TOKEN).toBe("stdio-secret");
   });
 
   it("provisions inherited HTTP bearer auth instead of falling through to global config", async () => {

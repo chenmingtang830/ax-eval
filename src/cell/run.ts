@@ -46,6 +46,12 @@ import {
   type InvokeRunResult,
 } from "../harness/invoke.js";
 import type { ChildProcessSandbox } from "../harness/child-sandbox.js";
+import {
+  isOpenCodeReservedChildEnv,
+  openCodeProviderCredentialNames,
+  openCodeProviderId,
+} from "../harness/opencode.js";
+import { isPiReservedChildEnv, piProviderCredentialNames, piProviderId } from "../harness/pi.js";
 import { buildExecutorPrompt, type TraceStep } from "../harness/executor.js";
 import { getProfile } from "../harness/profile.js";
 import {
@@ -140,7 +146,7 @@ const DEFAULT_RUNTIME: CellRuntimeDependencies = {
   now: () => new Date(),
   detectHarness: (id, env, sandbox, cwd) => sandbox && cwd
     ? detectInvokeHarnessSandboxed(id, sandbox, cwd, env)
-    : detectInvokeHarness(id, undefined, env, false),
+    : detectInvokeHarness(id, undefined, env, false, cwd),
   provisionHarness: provisionHarnessForSurface,
   invokeHarness: runInvokeHarness,
   verificationClient: (pack, executor, credentials) =>
@@ -214,6 +220,26 @@ function childEnvironment(pack: TargetPack, credentials: Record<string, string>)
   return out;
 }
 
+function cellChildEnvironment(
+  pack: TargetPack,
+  credentials: Record<string, string>,
+  harness: EvaluationCell["harness"]["id"],
+): Record<string, string> {
+  const out = childEnvironment(pack, credentials);
+  if (harness !== "opencode" && harness !== "pi") return out;
+  // Cell credential manifests must not be able to smuggle host-control knobs
+  // that override the controller-owned OpenCode isolation policy. The safe
+  // values from core provisioning are merged back after this filter.
+  const conflicts = Object.keys(harnessCredentials(pack, credentials))
+    .filter(harness === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv);
+  if (conflicts.length) {
+    throw new Error(
+      `cell credential env name(s) conflict with controller-owned ${harness === "pi" ? "Pi" : "OpenCode"} isolation: ${conflicts.join(", ")}`,
+    );
+  }
+  return out;
+}
+
 type CellProviderReference = Omit<ProviderReference, "kind"> & {
   kind: Exclude<RuntimeExtensionKind, "reset">;
 };
@@ -270,9 +296,27 @@ function mergeExtensionProvisioning(
       throw new Error(`provisioning provider "${provider.id}" returned a non-string value for ${name}`);
     }
   }
-  const reservedEnvironment = new Set<string>([...SAFE_PARENT_ENV, "CODEX_HOME"]);
+  const reservedEnvironment = new Set<string>([
+    ...SAFE_PARENT_ENV,
+    "CODEX_HOME",
+    "OPENCODE_CONFIG_DIR",
+    "XDG_CONFIG_HOME",
+    "XDG_DATA_HOME",
+    "XDG_CACHE_HOME",
+    "XDG_STATE_HOME",
+    "OPENCODE_ENABLE_EXA",
+    "OPENCODE_DISABLE_PROJECT_CONFIG",
+    "OPENCODE_DISABLE_CLAUDE_CODE",
+    "OPENCODE_DISABLE_CLAUDE_CODE_PROMPT",
+    "OPENCODE_DISABLE_LSP_DOWNLOAD",
+    "OPENCODE_DISABLE_AUTOUPDATE",
+  ]);
   const collisions = Object.keys(additions).filter((name) =>
-    reservedEnvironment.has(name) || name in reservedCredentials || name in baseEnv || name in core.env);
+    reservedEnvironment.has(name)
+    || isOpenCodeReservedChildEnv(name)
+    || name in reservedCredentials
+    || name in baseEnv
+    || name in core.env);
   if (collisions.length) {
     throw new Error(`provisioning provider "${provider.id}" attempted to replace environment key(s): ${collisions.join(", ")}`);
   }
@@ -372,7 +416,7 @@ function terminalRecord(args: {
   paths: ReturnType<typeof defaultInvokePaths>;
   startedAt: string;
   completedAt: string;
-  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "health-check-failed" | "invoke-failed";
+  blocked: "requires-oauth" | "missing-credential" | "missing-harness" | "unsupported-surface" | "health-check-failed" | "invoke-failed";
   stage: "preflight" | "provision" | "invoke" | "verify";
   message: string;
   status?: "failed" | "blocked";
@@ -383,7 +427,9 @@ function terminalRecord(args: {
     args.pack,
     args.cell.surface,
     args.cell.harness.id,
-    args.blocked === "health-check-failed" ? "invoke-failed" : args.blocked,
+    args.blocked === "health-check-failed" || args.blocked === "unsupported-surface"
+      ? "invoke-failed"
+      : args.blocked,
   );
   const record = {
     ...base,
@@ -482,7 +528,9 @@ function executionNamespace(pack: TargetPack, cell: EvaluationCell): string {
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 12) || "cell";
-  const harness = cell.harness.id === "codex" ? "cdx" : "cld";
+  const harness = cell.harness.id === "codex"
+    ? "cdx"
+    : cell.harness.id === "opencode" ? "opc" : cell.harness.id === "pi" ? "pi" : "cld";
   const digest = createHash("sha256")
     .update(JSON.stringify([
       cell.batch_id,
@@ -589,6 +637,7 @@ function observedTranscript(
   path: string,
   credentials: CredentialSource,
   harness: EvaluationCell["harness"]["id"],
+  mcpServerName?: string,
 ): ObservedRun | undefined {
   try {
     const stat = lstatSync(path);
@@ -603,6 +652,7 @@ function observedTranscript(
       cliBin: pack.surfaces?.cli?.bin,
       sdkPackage: pack.surfaces?.sdk?.package,
       mcpServer: pack.surfaces?.mcp?.server,
+      mcpServerName,
     });
     // An incompatible or empty stream is not objective evidence. Let callers
     // retain their labeled self-report fallback instead of treating an empty
@@ -661,11 +711,44 @@ function exactSecretValues(
   return [...values].filter(Boolean).sort((a, b) => b.length - a.length);
 }
 
+const SECRET_CREDENTIAL_ENV_NAME = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
+
 function provisioningSecretValues(provisioning: HarnessProvisioning): string[] {
-  const secretName = /(?:TOKEN|KEY|SECRET|PASSWORD|PASS|PAT|DATABASE_URL|CONNECTION_STRING|URI|DSN|JWT)/i;
   return Object.entries(provisioning.env)
-    .filter(([name, value]) => secretName.test(name) && value.length > 0)
+    .filter(([name, value]) => SECRET_CREDENTIAL_ENV_NAME.test(name) && value.length > 0)
     .map(([, value]) => value);
+}
+
+function invokeSecretValues(
+  pack: TargetPack,
+  credentials: Readonly<Record<string, string>>,
+  provisioning: HarnessProvisioning,
+  extensionSecrets: readonly string[],
+): string[] {
+  const verifierOnly = verifierOnlyCredentialNames(pack);
+  return [...new Set([
+    ...Object.entries(credentials)
+      .filter(([name]) => !verifierOnly.has(name))
+      .map(([, value]) => value),
+    // Core provisioning uses controller-owned HOME/XDG/control values that are
+    // not credentials (some are single-character flags). Its actual secrets
+    // use credential-shaped names; extension env values are all untrusted and
+    // therefore treated as secret regardless of their names.
+    ...provisioningSecretValues(provisioning),
+    ...extensionSecrets,
+  ])].filter(Boolean).sort((a, b) => b.length - a.length);
+}
+
+function provisioningHomePaths(provisioning: HarnessProvisioning): (string | undefined)[] {
+  return [
+    provisioning.env.HOME,
+    provisioning.env.CODEX_HOME,
+    provisioning.env.OPENCODE_CONFIG_DIR,
+    provisioning.env.XDG_CONFIG_HOME,
+    provisioning.env.XDG_DATA_HOME,
+    provisioning.env.XDG_CACHE_HOME,
+    provisioning.env.XDG_STATE_HOME,
+  ];
 }
 
 function scrubText(value: string, secrets: readonly string[]): string {
@@ -834,6 +917,7 @@ function executionProfileRun(args: {
     profile: args.cell.harness.profile,
     harness: args.cell.harness.id,
     model: args.executor.model ?? args.cell.harness.model,
+    effort: args.cell.harness.effort,
     outcomes: args.outcomes,
     surface: args.cell.surface,
     ns: args.executor.ns,
@@ -945,7 +1029,37 @@ export async function runCellWithRuntime(
       message: safeMessage(error, credentialSecrets),
     });
   }
+  if (cell.harness.id === "pi" && cell.surface === "mcp") {
+    return terminalRecord({
+      cell, pack, paths, startedAt, completedAt: runtime.now().toISOString(),
+      blocked: "unsupported-surface", stage: "preflight",
+      message: "Pi MCP surface execution is not supported; use claude-code, codex, or opencode",
+      providerProvenance,
+    });
+  }
+  const harnessControlConflicts = cell.harness.id === "opencode" || cell.harness.id === "pi"
+    ? cell.required_credentials.filter(cell.harness.id === "pi" ? isPiReservedChildEnv : isOpenCodeReservedChildEnv)
+    : [];
+  if (harnessControlConflicts.length) {
+    return terminalRecord({
+      cell,
+      pack,
+      paths,
+      startedAt,
+      completedAt: runtime.now().toISOString(),
+      blocked: "invoke-failed",
+      stage: "preflight",
+      message: `credential env name(s) conflict with controller-owned ${cell.harness.id === "pi" ? "Pi" : "OpenCode"} isolation: ${harnessControlConflicts.join(", ")}`,
+      providerProvenance,
+    });
+  }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const missingOpenCodeProvider = cell.harness.id === "opencode"
+    ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
+    : [];
+  const missingPiProvider = cell.harness.id === "pi"
+    ? piProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
+    : [];
   const connectionDataPlaneCli = connectionDataPlaneCliOwnsAuth(pack, cell);
   const selectedTasks = tasksForSurface(pack, cell.surface);
   const missingPack = describeRequiredEnv(pack, resolutionCredentials, {
@@ -975,7 +1089,22 @@ export async function runCellWithRuntime(
   const auth = connectionDataPlaneCli
     ? { blocked: null, missing: [] }
     : surfaceAuthStatus(pack, cell.surface, credentials);
-  const missing = [...new Set([...missingDeclared, ...missingPack, ...missingVerifierRequirements, ...auth.missing])];
+  const openCodeProviderMissing = missingOpenCodeProvider.length > 0
+    && missingOpenCodeProvider.length === openCodeProviderCredentialNames(cell.harness.model).length
+      ? [`one of ${openCodeProviderCredentialNames(cell.harness.model).join(" or ")} for ${openCodeProviderId(cell.harness.model)}`]
+      : [];
+  const piProviderMissing = missingPiProvider.length > 0
+    && missingPiProvider.length === piProviderCredentialNames(cell.harness.model).length
+      ? [`one of ${piProviderCredentialNames(cell.harness.model).join(" or ")} for ${piProviderId(cell.harness.model)}`]
+      : [];
+  const missing = [...new Set([
+    ...missingDeclared,
+    ...missingPack,
+    ...missingVerifierRequirements,
+    ...auth.missing,
+    ...openCodeProviderMissing,
+    ...piProviderMissing,
+  ])];
   if (missing.length || auth.blocked) {
     return terminalRecord({
       cell,
@@ -990,11 +1119,12 @@ export async function runCellWithRuntime(
     });
   }
 
+  const detectionCwd = cell.harness.id === "opencode" || cell.harness.id === "pi" ? artifactDir : cwd;
   const detection = runtime.detectHarness(
     cell.harness.id,
     detectionEnvironment(artifactDir),
     options.sandbox,
-    cwd,
+    detectionCwd,
   );
   if (!detection.ok) {
     return terminalRecord({
@@ -1055,6 +1185,7 @@ export async function runCellWithRuntime(
   }
 
   let provisioning: HarnessProvisioning;
+  let invokeCwd = cwd;
   let extensionSecrets: string[] = [];
   try {
     let extensionProvisioning: ProvisioningEvidence | undefined;
@@ -1087,7 +1218,7 @@ export async function runCellWithRuntime(
       extensionSecrets = Object.values(extensionProvisioning.env ?? {})
         .filter((value): value is string => typeof value === "string");
     }
-    const baseEnv = childEnvironment(pack, credentials);
+    const baseEnv = cellChildEnvironment(pack, credentials, cell.harness.id);
     const coreProvisioning = await runtime.provisionHarness({
       pack,
       harness: cell.harness.id,
@@ -1097,6 +1228,7 @@ export async function runCellWithRuntime(
       env: baseEnv,
       allowDownloads: false,
       allowAmbientHarnessAuth: false,
+      isolateWorkspace: (cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox,
     });
     provisioning = mergeExtensionProvisioning(
       coreProvisioning,
@@ -1107,6 +1239,15 @@ export async function runCellWithRuntime(
       cwd,
       artifactDir,
     );
+    if ((cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox) {
+      const workDir = cell.harness.id === "opencode"
+        ? provisioning.meta?.opencode_work_dir
+        : provisioning.meta?.pi_work_dir ?? provisioning.meta?.opencode_work_dir;
+      if (typeof workDir !== "string" || !workDir) {
+        throw new Error(`${cell.harness.id === "pi" ? "Pi" : "OpenCode"} provisioning did not create an isolated task workspace`);
+      }
+      invokeCwd = workDir;
+    }
   } catch (error) {
     scrubArtifacts(paths, credentialSecrets, [], artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
@@ -1135,16 +1276,18 @@ export async function runCellWithRuntime(
     resultsPath: paths.resultsPath,
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
+    isolatedWorkspace: cell.harness.id === "opencode" || cell.harness.id === "pi",
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);
 
-  const env = { ...childEnvironment(pack, credentials), ...provisioning.env };
+  const env = { ...cellChildEnvironment(pack, credentials, cell.harness.id), ...provisioning.env };
   const failureSecrets = [
     ...credentialSecrets,
     ...provisioningSecretValues(provisioning),
     ...extensionSecrets,
   ];
+  const invokeRedactionValues = invokeSecretValues(pack, credentials, provisioning, extensionSecrets);
   let invoke: InvokeRunResult;
   try {
     invoke = await runtime.invokeHarness({
@@ -1154,7 +1297,7 @@ export async function runCellWithRuntime(
       surface: cell.surface,
       ns,
       paths,
-      cwd,
+      cwd: invokeCwd,
       model: cell.harness.model,
       effort: cell.harness.effort,
       timeoutMs: cell.run_context.invoke_timeout_ms || undefined,
@@ -1162,6 +1305,7 @@ export async function runCellWithRuntime(
       retries: cell.run_context.invoke_retries,
       env,
       replaceEnv: true,
+      redactionValues: invokeRedactionValues,
       provisioning: provisioning.meta,
       harnessDetection: detection,
       runBatchId: cell.batch_id,
@@ -1169,7 +1313,7 @@ export async function runCellWithRuntime(
       sandbox: options.sandbox,
     });
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -1186,7 +1330,7 @@ export async function runCellWithRuntime(
   }
 
   if (options.signal?.aborted) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     throw options.signal.reason ?? new Error("cell run aborted");
   }
   let executor: ExecutorResults;
@@ -1197,7 +1341,7 @@ export async function runCellWithRuntime(
     trace = requiredTrace(paths.tracePath, artifactDir);
     executor = verifierExecutor(loadResults(paths.resultsPath), cell, ns);
   } catch (error) {
-    scrubArtifacts(paths, failureSecrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+    scrubArtifacts(paths, failureSecrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
     return terminalRecord({
       cell,
       pack,
@@ -1213,7 +1357,13 @@ export async function runCellWithRuntime(
     });
   }
 
-  const observed = observedTranscript(pack, paths.transcriptPath, resolutionCredentials, cell.harness.id);
+  const observed = observedTranscript(
+    pack,
+    paths.transcriptPath,
+    resolutionCredentials,
+    cell.harness.id,
+    typeof provisioning.meta?.mcp_server === "string" ? provisioning.meta.mcp_server : undefined,
+  );
   let outcomes: RoundtripOutcome[];
   let verifyError: string | undefined;
   try {
@@ -1286,7 +1436,7 @@ export async function runCellWithRuntime(
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
   discovery = scrubDiscovery(discovery, secrets);
-  scrubArtifacts(paths, secrets, [provisioning.env.HOME, provisioning.env.CODEX_HOME], artifactIdentity, invokeHomeIdentity);
+  scrubArtifacts(paths, secrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
 
   const profileRun = executionProfileRun({
     cell,

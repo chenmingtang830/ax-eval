@@ -1,6 +1,6 @@
 # ax-eval is the open-source, CLI-first way to test whether AI agents can discover and use your product.
 
-## API · CLI · SDK · MCP across Codex and Claude Code
+## API · CLI · SDK · MCP across Codex, Claude Code, and OpenCode
 
 ## Can AI agents actually use your product?
 
@@ -24,7 +24,8 @@ real agent harnesses, then verifies outcomes with independent outcome verificati
 
 The open skill can run through the agent you already have open. The CLI can also
 drive local harnesses directly with `exec-plan --invoke --harness
-claude-code|codex`, producing the same neutral report matrix.
+claude-code|codex|opencode`, producing the same neutral report matrix. OpenCode
+is the third, open-source core runner across API, CLI, SDK, and MCP cells.
 
 ## Quickstart
 
@@ -62,8 +63,10 @@ import {
 surface, harness, model, effort, trial, batch, and immutable source revision in;
 one strict `ax.normalized-cell-record/v1` record out. The input and output are
 validated by `schemas/evaluation-cell.v1.json` and
-`schemas/normalized-cell-record.v1.json`; legacy `ax.normalized-result/v1`
-records remain unchanged and readable. Credential values
+`schemas/normalized-cell-record.v1.json`. Aggregation and comparison emit
+`ax.normalized-result/v2`, whose identity is
+`{product, surface, harness, model, effort}`; legacy v1 records remain unchanged
+and readable by compatibility commands. Credential values
 are passed out-of-band in `RunCellOptions`, and only names listed by the cell are
 forwarded to its isolated harness environment. Controllers may provide a
 separate `verificationCredentials` map for health checks, target adapters, and
@@ -391,7 +394,8 @@ npm run ax-arena -- benchmark publication-bundle \
 
 The bundle writes `manifest.json` tying together the canonical suite, vendor
 cards, verification extracts, compiled TargetPacks, approvals, snapshots, normalized
-records, and competitive report. Bundle creation requires a complete
+records, the provider/model roster, dated pricing snapshot, reproducible economics,
+and competitive report. Bundle creation requires a complete
 `pinned-oci + hosted-trusted` production rerun and cryptographically verifies
 its detached GitHub OIDC attestation against the protected-main workflow.
 Set `AX_ARENA_APPROVED_SIGNER_SHA` to the independently approved 40-character
@@ -428,8 +432,12 @@ npm run ax-arena -- benchmark export-publication \
 ```
 
 This writes website-ready JSON indexes for leaderboard rows, cells, task
-drilldowns, trial outcomes, evidence links, methodology metadata, and failure
-review placeholders. Codex and Claude Code remain
+drilldowns, trial outcomes, evidence links, methodology metadata, economics,
+and failure review placeholders. `economics.json` and each exported cell retain
+the pricing snapshot id, API list-price estimate, verified task-run denominator,
+and cost per success. Cost remains contextual and never affects correctness or
+rank. A price that requires cache-write accounting is unavailable unless the
+normalized harness telemetry reports those tokens. Codex and Claude Code remain
 separate rankings. Overall first averages eligible tasks within each surface,
 then macro-averages the participating surfaces; pass³ is reported as `x% (y/z)`.
 The deprecated `ax-eval publication-bundle` and `ax-eval export-publication`
@@ -440,6 +448,10 @@ Compare two normalized-record sets without decoding HTML:
 ```bash
 npm run ax-eval -- records-diff --base <baseline-dir> --head <candidate-dir> --out records-diff.md
 ```
+
+The diff keys cells by standard-set version and execution identity, so scores
+from different task sets are never compared; a missing baseline identity fails
+the regression gate.
 New reusable benchmark tooling should live here; the
 `axarena` repo should own the curated website, narrative, and presentation.
 
@@ -482,7 +494,8 @@ See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
   gate and per-surface subgates, so a weak MCP or SDK surface remains visible.
 - **Competitive reports from the same records.** Stack normalized results across
   products or surfaces to see where competitors, SDKs, CLIs, APIs, or MCP servers
-  are easier for agents to use successfully.
+  are easier for agents to use successfully. Model and effort are execution
+  identity, so configurations under one harness are never silently averaged.
 
 ## Command Map
 
@@ -502,6 +515,9 @@ npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
 npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
   --harness codex --surface all --profile medium --effort medium \
   --model <gpt-model> --run-dir <dir> --invoke-retries 0 # Codex, use a Codex-compatible model slug
+npm run ax-eval -- exec-plan --pack <pack.yaml> --invoke \
+  --harness opencode --surface all --profile medium \
+  --model <provider/model> --run-dir <dir> --invoke-retries 0 # OpenCode 1.18.3+, including pack-declared MCP
 npm run ax-eval -- verify-generated --pack <pack.yaml> --results <run.json>... \
   --html <out.html> [--snapshot <out.snapshot.json>]
 npm run ax-eval -- render-generated --snapshot <report.snapshot.json> [--html <out.html>]
@@ -515,6 +531,10 @@ npm run ax-arena -- benchmark competitive --from <sealed-publication-bundle> --h
 npm run ax-eval -- records-diff --base <dir> --head <dir> --out <diff.md>
 ```
 
+For a single-task `exec-plan --task <id>` run, verify with the same `--task
+<id>` so unexecuted pack tasks are not added to that pilot's denominator. The
+follow-up command printed by `exec-plan` preserves this selection.
+
 The legacy `ax-eval reset` helper retains only the generic HTTP/Asana example
 resetter. Database and benchmark-target cleanup is arena-owned and requires an
 explicit `ResetProvider` after verified-record persistence.
@@ -526,12 +546,51 @@ CI should validate frozen packs, approvals, deterministic fixtures, tests, and
 typecheck. It should not depend on live LLM-assisted regeneration; fresh pack
 authoring is a developer workflow that ends at `review --approve`.
 
-For publication-grade cross-harness lanes, prefer native host-agent binaries over
-PATH wrappers when a wrapper injects unrelated local config. `AX_EVAL_CLAUDE_BIN`
-and `AX_EVAL_CODEX_BIN` let a run pin the executable while the normalized record
-still stamps the model actually reported by the harness. Non-MCP Codex cells are
-run with an isolated Codex home and `mcp_servers={}` so API/CLI/SDK scores are not
-polluted by the operator's unrelated global MCP server logins.
+For controlled tool-track cross-harness lanes, prefer native host-agent binaries
+over PATH wrappers when a wrapper injects unrelated local config.
+`AX_EVAL_CLAUDE_BIN`, `AX_EVAL_CODEX_BIN`, and `AX_EVAL_OPENCODE_BIN` let a run
+pin the executable. Non-MCP Codex cells use an isolated Codex home and
+`mcp_servers={}` so API/CLI/SDK scores are not polluted by unrelated global MCP
+server logins.
+
+OpenCode invocation requires 1.18.3 or newer and an explicit
+`--model <provider/model>`. Known providers are blocked before invocation when
+none of their supported credential env vars is present. The adapter runs
+headlessly with `--pure`, `--auto`, and JSON output from a disposable cwd outside
+the checkout, so Bun cannot autoload the repository `.env`. It sets fresh per-run
+`HOME`, `OPENCODE_CONFIG_DIR`, and XDG config, data, cache, and state roots;
+disables autoupdate, LSP downloads, and Claude-compatibility loading; and never
+copies ambient `auth.json`. The disposable home is removed after recovery and
+metrics parsing so OpenCode's binary session database is not retained. Provider
+credentials are selected from the explicit `provider/model`; an unknown
+provider receives no unrelated provider keys, and pack-declared OpenCode/XDG
+control variables are rejected case-insensitively. System/MDM-managed OpenCode
+configuration blocks the lane because it would override the controller config.
+The controller disables OpenCode's `task` subagent tool because root JSONL omits
+child-session actions. The adapter passes the controller's portable
+`low`/`medium`/`high` effort through OpenCode's `--variant`, so the record preserves
+that requested route, but does not claim that the provider actually served that
+model. OpenCode's self-reported dollar cost is not trusted, so runtime
+`cost_usd` remains null. For MCP cells, the controller writes only the reviewed
+pack-declared local stdio or remote HTTP server into the same isolated config.
+Tokens stay in the child environment; remote configs reference them through an
+OpenCode `{env:NAME}` header placeholder. OAuth-app auth is supported through a
+headless refresh-token exchange, but interactive browser OAuth is not. This
+generic core integration does not add OpenCode to the canonical AXArena
+production harness matrix.
+
+The adapter captures OpenCode's native JSONL and decodes its tool calls through
+the same harness-event seam as Claude Code and Codex, so `--observe` discovery and
+process evidence retain the shared surface semantics and normalized
+`tool_call_count` does not silently fall back to zero. Retry metadata includes a
+bounded controller-derived outcome reason per attempt. An API cell that invokes
+a detected vendor CLI fails surface-honesty even when HTTP calls also succeed.
+Legacy `exec-plan` runs
+OpenCode from a disposable secret-free cwd and exact-redacts forwarded credential
+values from artifacts. That cwd is defense in depth, not an OS filesystem
+boundary: use a dedicated sandbox/checkout for hostile prompts. Arena cells keep
+their controller-supplied process/filesystem sandbox; unsandboxed library cells
+receive the disposable cwd automatically.
 
 ## Safety
 

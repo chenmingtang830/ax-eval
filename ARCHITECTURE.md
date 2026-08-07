@@ -121,8 +121,8 @@ The runtime is organized into four layers:
 1. **Contracts** — shared schemas; most modules consume or emit a `TargetPack`.
 2. **Planning and orchestration** — CLI coordinates authoring, exec, verify,
    reset, reporting, and (for AXArena-Database) publication.
-3. **Harness and surface runtime** — surface adapters + Claude Code / Codex
-   invoke, MCP provision, transcript recovery.
+3. **Harness and surface runtime** — surface adapters + Claude Code / Codex /
+   OpenCode invoke, MCP provision for all three harnesses, transcript recovery.
 4. **Verification and interpretation** — live read-back oracles, reports,
    normalized records.
 
@@ -171,9 +171,11 @@ to the harness. An optional controller-only verifier credential map is used for
 health checks and independent live read-back without entering the child
 environment. The record persists the runtime-computed resource namespace so a
 later controller can bind cleanup to the exact executed cell.
-Cell output uses `ax.normalized-cell-record/v1`; the strict historical
-`ax.normalized-result/v1` schema is not widened and remains the compatibility
-format for existing report/aggregation commands.
+Cell output uses `ax.normalized-cell-record/v1`. Aggregators emit
+`ax.normalized-result/v2`, keyed by product, surface, harness, model, and effort;
+they reject trial aggregation across any of those dimensions. The strict
+historical `ax.normalized-result/v1` schema is not widened and remains a
+read-only compatibility format for records diff and migration tooling.
 
 This keeps the dependency direction suitable for AXArena:
 
@@ -405,7 +407,9 @@ one hash-bound result per planned key and byte-identical manifests before
 completion; an isolated OIDC-enabled job reverifies and signs the detached
 subject. Pull requests remain keyless and never receive arena secrets.
 
-Invocation metadata preserves every retry attempt. The normalized public record
+Invocation metadata preserves every retry attempt, including a bounded
+controller-derived outcome reason (`missing-results`, `nonzero-exit`, timeout,
+unsafe artifact, and so on) that does not copy stderr or agent content. The normalized public record
 uses successful-attempt latency, retry-inclusive total duration/tokens/native
 cost, raw + semver harness version, and run batch identity. Production
 aggregation uses median trial latency and total consumption. `pass_hat_3`
@@ -431,6 +435,13 @@ The handoff contract keeps identity fields separate: `axarena-database` is the
 stable machine id, `AXArena-Database` is the display name, and the numeric
 release belongs in `suite_version`. The frozen `daeb-1-v1` value remains
 approval provenance and never becomes a public label.
+The signed source set includes a provider/model/effort roster and dated pricing
+snapshot. Publication derives `economics.json` from those files plus normalized
+token usage, then verifies the derivation again on load. Native harness cost and
+estimated API list-price cost stay separate; cost per verified success is an
+observability dimension, not a score, gate, or tie-breaker. A pricing rate that
+requires cache-write accounting fails unavailable when normalized telemetry
+does not expose the write-token count.
 
 Full tree, authoring commands, gates, and hygiene:
 [`ax-arena/benchmark/axarena-database/README.md`](./ax-arena/benchmark/axarena-database/README.md).
@@ -536,7 +547,7 @@ The main subprocess runtime is [src/harness/invoke.ts](./src/harness/invoke.ts).
 
 It is responsible for:
 
-- detecting the harness CLI (`claude` or `codex`)
+- detecting the harness CLI (`claude`, `codex`, or `opencode`)
 - building the exact invocation arguments
 - writing a strict Codex output schema
 - applying per-run env overrides
@@ -548,6 +559,42 @@ It is responsible for:
 This layer is intentionally harness-specific. The rest of the system stays
 generic; the runner absorbs the quirks of each agent CLI.
 
+OpenCode is the third open-source core runner across API, CLI, SDK, and MCP. It
+requires OpenCode 1.18.3 or newer. The adapter invokes `opencode run` from a
+disposable cwd with `--format json`, `--auto`, and `--pure`, and
+requires `--model provider/model` before the prompt. Each run receives isolated
+`HOME`, `OPENCODE_CONFIG_DIR`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`,
+`XDG_CACHE_HOME`, and `XDG_STATE_HOME` roots. It enables OpenCode's Exa-backed
+web search and disables autoupdate, LSP downloads, and Claude-compatibility
+loading. Ambient `auth.json` is never copied; provider credentials must be
+explicitly scoped into the child environment, and pack env names cannot replace
+OpenCode/XDG isolation controls. Managed system config and macOS MDM preferences
+fail closed because OpenCode merges them last. Root-session JSONL excludes
+subagent actions, so controller config denies the `task` tool. The disposable home is deleted after recovery
+so SQLite session/tool-output data is not retained. `AX_EVAL_OPENCODE_BIN` can
+pin the executable. The adapter passes the controller's portable
+`low`/`medium`/`high` effort label through `--variant`, so the persisted identity
+matches the invoked configuration. It records the requested
+`provider/model` route rather than claiming the served model was observed, and
+does not trust OpenCode's self-reported dollar cost (`cost_usd` remains null).
+MCP runs receive a single reviewed pack-declared local stdio or remote HTTP
+entry in the isolated OpenCode config. Stdio credentials are inherited only
+through the declared token env; remote bearer headers use `{env:NAME}` rather
+than embedding a value. OAuth-app auth uses the controller's headless refresh
+exchange, while interactive browser OAuth remains unsupported.
+Legacy `exec-plan` uses a disposable cwd outside the checkout and exact-value
+credential redaction; it remains defense in depth rather than an OS sandbox.
+Unsandboxed `runCell` callers receive that cwd too, while arena cells retain the
+controller's stronger process/filesystem sandbox. This core capability is not an
+AXArena production-harness designation.
+
+This layer captures the native OpenCode JSONL and removes duplicated tool
+outputs before durable stdout/transcript persistence. Its decoder maps native
+tool calls into the same stable event contract as Claude Code and Codex before
+shared observed-run semantics are applied. Efficiency `tool_call_count` is also
+derived from that stable event stream, rather than re-parsing each harness's raw
+shape independently.
+
 ### MCP provisioning
 
 MCP provisioning lives in [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts).
@@ -556,8 +603,12 @@ It supports:
 
 - token-based MCP auth
 - OAuth-app MCP auth via refresh-token exchange
-- isolated per-run Codex and Claude homes/configs
+- isolated per-run Codex, Claude Code, and OpenCode homes/configs
 - bearer token injection without writing secrets to tracked files
+
+OpenCode maps a native `<server>_<tool>` event to MCP evidence only when
+`<server>` matches the isolated provisioning metadata. This prevents ordinary
+OpenCode tools or ambient MCP configuration from becoming product evidence.
 
 It does not install or select product CLIs. Controllers provide those through
 the runtime provisioning registry; AXArena-Database's pinned Turso implementation lives in
@@ -590,6 +641,11 @@ It extracts:
 - SDK install and method-call hints
 - MCP tool listing and tool calls
 - API-like call traces when observable
+
+For an API cell, an objectively observed vendor-CLI invocation is a
+cross-surface failure even when the same run also reaches the HTTP API. Pack
+verification supplies both the declared data-plane CLI binary and conventional
+product CLI entrypoints (for example `@product/cli`) to this gate.
 
 The parser then projects that observed behavior into:
 
@@ -679,8 +735,8 @@ Several architectural choices are load-bearing:
 - **Surface-awareness**
   - API assumptions must not leak into CLI / SDK / MCP paths
 - **Harness-specific parsing**
-  - Claude Code and Codex are normalized after capture, not forced into one raw
-    wire format
+  - Claude Code, Codex, and OpenCode are normalized after capture, not forced
+    into one raw wire format; each decoder feeds the shared event seam
 - **Blocked, not fake-failed**
   - missing surface auth should render as blocked configuration state, not a
     misleading 0%
@@ -698,7 +754,8 @@ Several architectural choices are load-bearing:
 - Prompt builder: [src/harness/executor.ts](./src/harness/executor.ts)
 - Harness runtime: [src/harness/invoke.ts](./src/harness/invoke.ts)
 - MCP provisioning: [src/harness/mcp-provision.ts](./src/harness/mcp-provision.ts)
-- Transcript parsing: [src/harness/transcript.ts](./src/harness/transcript.ts)
+- Transcript decoding: [src/harness/transcript-decoder.ts](./src/harness/transcript-decoder.ts)
+- Transcript semantics: [src/harness/transcript.ts](./src/harness/transcript.ts)
 - Verification: [src/generate/verify.ts](./src/generate/verify.ts)
 - Normalized records: [src/generate/record.ts](./src/generate/record.ts)
 - Report rendering: [src/generate/report.ts](./src/generate/report.ts)

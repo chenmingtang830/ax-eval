@@ -1,22 +1,30 @@
 /**
  * The normalized result record — the single schema decision that makes results
  * aggregatable across runs. Every run/verify produces one record per
- * { surface, product, harness } cell. The skill computes the surface × product
- * plane locally; records from many harnesses can be aggregated later to add the
- * third axis (which agent ran) without re-deriving anything.
+ * { product, surface, harness, model, effort } cell. The skill computes the
+ * surface × product plane locally; records from many execution identities can
+ * be aggregated later without re-deriving anything.
  *
  * Keep this schema stable and additive: downstream aggregation keys off the
- * triple + `schema` version, so renaming/removing a field is a breaking change.
+ * five-part identity + `schema` version, so renaming/removing a field is a
+ * breaking change.
  */
 import type { SurfaceId } from "../surface/types.js";
 import type { TargetPack } from "../schemas.js";
 import type { ProfileRun } from "./report.js";
 import type { RoundtripOutcome } from "./verify.js";
 import type { DiscoveryReport } from "./discovery.js";
+import { getProfile } from "../harness/profile.js";
 
-export const NORMALIZED_RESULT_SCHEMA = "ax.normalized-result/v1" as const;
+export const LEGACY_NORMALIZED_RESULT_SCHEMA = "ax.normalized-result/v1" as const;
+export const NORMALIZED_RESULT_SCHEMA = "ax.normalized-result/v2" as const;
+export type NormalizedEffort = "low" | "medium" | "high";
 
-export type BlockedReason = "requires-oauth" | "missing-credential" | "missing-harness" | "invoke-failed";
+export type BlockedReason =
+  | "requires-oauth"
+  | "missing-credential"
+  | "missing-harness"
+  | "invoke-failed";
 
 export interface NormalizedResult {
   schema: typeof NORMALIZED_RESULT_SCHEMA;
@@ -52,6 +60,9 @@ export interface NormalizedResult {
    *  harness output). Lets `competitive` compare the same product/surface across
    *  models. null when no run stamped a model (older records). */
   model: string | null;
+  /** Canonical reasoning effort that actually ran. model + effort are identity
+   *  dimensions in v2 so two configurations under one harness never collapse. */
+  effort: NormalizedEffort | null;
   /** Raw `--version` output and parsed semver for the harness that executed the
    *  best profile. */
   harness_version_raw?: string | null;
@@ -98,8 +109,8 @@ export interface NormalizedResult {
   source_records?: string[];
   /** When set, this cell was NOT evaluated on this surface and its metrics are
    *  not meaningful. The cube renders it as a distinct state (never a misleading
-   *  0%): "requires-oauth" (OAuth-only surface, no headless token), or
-   *  "missing-credential" (the developer hasn't set the surface's token). */
+   *  0%). Reasons cover auth/credential gates, a missing harness, and
+   *  pre-execution invoke failures. */
   blocked?: BlockedReason;
 }
 
@@ -159,10 +170,30 @@ function bestRun(runs: ProfileRun[]): ProfileRun | null {
   return best?.run ?? null;
 }
 
+function profileDefaults(profile: string): { model: string | null; effort: NormalizedEffort | null } {
+  try {
+    const resolved = getProfile(profile);
+    return { model: resolved.model ?? null, effort: resolved.effort };
+  } catch {
+    return { model: null, effort: null };
+  }
+}
+
+export function normalizedRunIdentity(run: ProfileRun): {
+  model: string | null;
+  effort: NormalizedEffort | null;
+} {
+  const defaults = profileDefaults(run.profile);
+  return {
+    model: run.model ?? defaults.model,
+    effort: run.effort ?? defaults.effort,
+  };
+}
+
 /**
- * Build the normalized record for one { surface, product, harness } cell from
- * the profile runs that produced it. Metrics report the strongest profile (the
- * existing report's "best agent" framing) so a cell is one comparable number.
+ * Build the normalized record for the strongest
+ * {product, surface, harness, model, effort} identity represented by the runs.
+ * Call buildNormalizedResultCells when every identity must be retained.
  */
 export function buildNormalizedResult(
   pack: TargetPack,
@@ -173,6 +204,13 @@ export function buildNormalizedResult(
   contentQuality: number | null = null,
 ): NormalizedResult {
   const best = bestRun(runs);
+  const identity = best ? normalizedRunIdentity(best) : { model: null, effort: null };
+  const identityRuns = best
+    ? runs.filter((run) => {
+        const candidate = normalizedRunIdentity(run);
+        return candidate.model === identity.model && candidate.effort === identity.effort;
+      })
+    : runs;
   const first = best ? firstAttempts(best.outcomes) : [];
   const { solved, tasks, k } = best ? passAtK(best.outcomes) : { solved: 0, tasks: 0, k: 1 };
   return {
@@ -193,9 +231,10 @@ export function buildNormalizedResult(
     attempts: k,
     discovery_score: discoveryScore(best?.discovery),
     content_quality: contentQuality,
-    profiles: runs.map((r) => r.profile),
+    profiles: identityRuns.map((r) => r.profile),
     best_profile: best?.profile ?? null,
-    model: best?.model ?? null,
+    model: identity.model,
+    effort: identity.effort,
     harness_version_raw: best?.efficiency?.harness_version_raw ?? null,
     harness_version_semver: best?.efficiency?.harness_version_semver ?? null,
     run_batch_id: best?.efficiency?.run_batch_id ?? null,
@@ -249,6 +288,19 @@ export function aggregateNormalizedResults(
 ): NormalizedResult {
   if (records.length === 0) throw new Error("aggregateNormalizedResults requires at least one trial record.");
   const first = records[0]!;
+  const identity = (record: NormalizedResult) => JSON.stringify([
+    record.product,
+    record.surface,
+    record.harness,
+    record.model,
+    record.effort,
+    record.standard_set_version,
+  ]);
+  if (records.some((record) => identity(record) !== identity(first))) {
+    throw new Error(
+      "aggregateNormalizedResults requires one product, surface, harness, model, effort, and standard-set identity.",
+    );
+  }
   const passValues = records.map((record) => record.pass_at_1);
   const latencies = records.flatMap((record) => typeof record.latency_ms === "number" ? [record.latency_ms] : []);
   const toolCalls = records.flatMap((record) => typeof record.tool_call_count === "number" ? [record.tool_call_count] : []);
@@ -263,7 +315,6 @@ export function aggregateNormalizedResults(
   const passRange = range(passValues) ?? { min: 0, max: 0 };
   const attempts = Math.max(...records.map((record) => record.attempts || 1));
   const validities = [...new Set(records.map((record) => record.validity_status).filter((value): value is string => Boolean(value)))];
-  const models = [...new Set(records.map((record) => record.model).filter((value): value is string => Boolean(value)))];
   const harnessVersionsRaw = [...new Set(records.map((record) => record.harness_version_raw).filter((value): value is string => Boolean(value)))];
   const harnessVersionsSemver = [...new Set(records.map((record) => record.harness_version_semver).filter((value): value is string => Boolean(value)))];
   const runBatchIds = [...new Set(records.map((record) => record.run_batch_id).filter((value): value is string => Boolean(value)))];
@@ -279,7 +330,8 @@ export function aggregateNormalizedResults(
     content_quality: average(records.flatMap((record) => record.content_quality === null ? [] : [record.content_quality])),
     profiles: [...new Set(records.flatMap((record) => record.profiles))],
     best_profile: first.best_profile,
-    model: models.length === 1 ? models[0]! : (first.model ?? null),
+    model: first.model,
+    effort: first.effort,
     harness_version_raw: harnessVersionsRaw.length === 1 ? harnessVersionsRaw[0]! : null,
     harness_version_semver: harnessVersionsSemver.length === 1 ? harnessVersionsSemver[0]! : null,
     run_batch_id: runBatchIds.length === 1 ? runBatchIds[0]! : null,
@@ -322,8 +374,18 @@ export function classifyTrialStabilityAt3(
   return "inconsistent";
 }
 
-export function resultCellKey(harness: string, surface: SurfaceId, profile?: string): string {
-  return profile === undefined ? `${harness}\0${surface}` : `${harness}\0${surface}\0${profile}`;
+export function resultCellKey(
+  harness: string,
+  surface: SurfaceId,
+  profile?: string,
+  model?: string | null,
+  effort?: NormalizedEffort | null,
+): string {
+  const base = `${harness}\0${surface}`;
+  const execution = model === undefined && effort === undefined
+    ? base
+    : `${base}\0${model ?? "(unknown-model)"}\0${effort ?? "(unknown-effort)"}`;
+  return profile === undefined ? execution : `${execution}\0${profile}`;
 }
 
 function cellFileStem(value: string): string {
@@ -333,12 +395,15 @@ function cellFileStem(value: string): string {
 export interface NormalizedResultCell {
   harness: string;
   surface: SurfaceId;
+  model: string | null;
+  effort: NormalizedEffort | null;
   fileStem: string;
   runs: ProfileRun[];
   record: NormalizedResult;
 }
 
-/** Build one normalized record per actual {harness, surface} cell in a mixed
+/** Build one normalized record per actual {harness, surface, model, effort}
+ *  cell in a mixed
  *  report. A single HTML report can summarize many cells, but competitive
  *  aggregation wants these durable records at cell granularity. */
 export function buildNormalizedResultCells(
@@ -349,16 +414,28 @@ export function buildNormalizedResultCells(
 ): NormalizedResultCell[] {
   const grouped = new Map<string, ProfileRun[]>();
   for (const run of runs) {
-    const key = resultCellKey(run.harness ?? fallbackHarness, run.surface ?? "api");
+    const identity = normalizedRunIdentity(run);
+    const key = resultCellKey(
+      run.harness ?? fallbackHarness,
+      run.surface ?? "api",
+      undefined,
+      identity.model,
+      identity.effort,
+    );
     grouped.set(key, [...(grouped.get(key) ?? []), run]);
   }
   return [...grouped.values()].map((cellRuns) => {
     const harness = cellRuns.find((r) => r.harness)?.harness ?? fallbackHarness;
     const surface = cellRuns.find((r) => r.surface)?.surface ?? "api";
+    const identity = normalizedRunIdentity(cellRuns[0]!);
     return {
       harness,
       surface,
-      fileStem: `${cellFileStem(harness)}.${surface}`,
+      model: identity.model,
+      effort: identity.effort,
+      fileStem: [harness, surface, identity.model ?? "unknown-model", identity.effort ?? "unknown-effort"]
+        .map(cellFileStem)
+        .join("."),
       runs: cellRuns,
       record: buildNormalizedResult(pack, surface, harness, cellRuns, contentQuality),
     };
@@ -366,17 +443,19 @@ export function buildNormalizedResultCells(
 }
 
 /**
- * Build a "blocked" cube cell for a surface that can't be evaluated headlessly
- * (no credential / OAuth-only). Metrics are zeroed and `blocked` is set so the
- * competitive report shows an honest "blocked" state instead of a 0% that would
- * read as "the agent failed". Emitted by exec-plan when a requested surface is
- * unauthenticated, so the cube still has a cell documenting why.
+ * Build a "blocked" cube cell for a surface/harness cell that cannot be
+ * evaluated. Metrics are zeroed and `blocked` is set so the competitive report
+ * shows an honest pre-execution state instead of a 0% that would read as "the
+ * agent failed". Emitted by exec-plan for auth gates, missing harnesses, and
+ * invoke provisioning failures. Structural gaps use a clear CLI diagnostic but
+ * map to `invoke-failed` here to preserve the historical v1 enum.
  */
 export function buildBlockedResult(
   pack: TargetPack,
   surface: SurfaceId,
   harness: string,
   blocked: BlockedReason,
+  identity: { model?: string | null; effort?: NormalizedEffort | null } = {},
 ): NormalizedResult {
   return {
     schema: NORMALIZED_RESULT_SCHEMA,
@@ -394,7 +473,8 @@ export function buildBlockedResult(
     content_quality: null,
     profiles: [],
     best_profile: null,
-    model: null,
+    model: identity.model ?? null,
+    effort: identity.effort ?? null,
     harness_version_raw: null,
     harness_version_semver: null,
     run_batch_id: null,
