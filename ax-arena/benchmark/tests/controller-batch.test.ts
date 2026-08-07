@@ -415,6 +415,7 @@ describe("arena batch comparability", () => {
       harness_version_raw: "codex 1.2.3",
       harness_version_semver: "1.2.3",
       execution: config.execution,
+      execution_policy: { schema: "ax.execution-policy/v1", network: "shared", tools: ["shell", "web_search"] },
       host_credential_names: ["OPENAI_API_KEY"],
       verification_credential_names: ["DATABASE_URL"],
       reset_credential_names: ["DATABASE_URL"],
