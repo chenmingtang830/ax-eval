@@ -75,6 +75,7 @@ export * from "./controller/worker.js";
 export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
+export * from "./controller/activation.js";
 export {
   AXARENA_DATABASE_BENCHMARK_ID,
   AXARENA_DATABASE_DISPLAY_NAME,

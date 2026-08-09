@@ -28,6 +28,7 @@ describe("trusted arena workflow launcher", () => {
     expect(source).toContain("ubuntu-22.04");
     expect(source).toContain('"group":"ax-arena-trusted"');
     expect(source).toContain("options: [github-hosted, approved-self-hosted]");
+    expect(source).toContain("options: [full, preflight-only]");
     expect(source).toContain("matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}");
     expect(source).toContain("name: ${{ matrix.environment_name }}");
     expect(source).toContain("AX_ARENA_CELL_CREDENTIALS_JSON: ${{ secrets.AX_ARENA_CELL_CREDENTIALS_JSON }}");
@@ -63,7 +64,8 @@ describe("trusted arena workflow launcher", () => {
     const plan = source.slice(source.indexOf("  plan:"), source.indexOf("  cell:"));
     const cell = source.slice(source.indexOf("  cell:"), source.indexOf("  assemble:"));
     const assemble = source.slice(source.indexOf("  assemble:"), source.indexOf("  attest:"));
-    const attest = source.slice(source.indexOf("  attest:"));
+    const attest = source.slice(source.indexOf("  attest:"), source.indexOf("  preflight:"));
+    const preflight = source.slice(source.indexOf("  preflight:"));
     expect(plan).not.toContain("secrets.");
     expect(plan).not.toContain("environment:");
     expect(plan).toContain('mktemp "$RUNNER_TEMP/ax-arena-global-npmrc.XXXXXX"');
@@ -84,6 +86,11 @@ describe("trusted arena workflow launcher", () => {
     expect(attest).toContain("attestations: write");
     expect(attest).toContain("actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6");
     expect(attest).toContain("subject-path: trusted-run/trusted-run-subject.json");
+    expect(preflight).toContain("environment: trusted-sandbox");
+    expect(preflight).not.toContain("secrets.");
+    expect(preflight).toContain("prepare-trusted-tools.sh");
+    expect(preflight).toContain("smoke-trusted-runtime.mjs");
+    expect(preflight).toContain("vars.AX_ARENA_APPROVED_SIGNER_SHA");
 
     for (const action of source.matchAll(/uses:\s+[^@\s]+@([^\s]+)/g)) {
       expect(action[1]).toMatch(/^[a-f0-9]{40}$/);
