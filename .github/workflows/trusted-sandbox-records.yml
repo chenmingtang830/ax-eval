@@ -17,6 +17,12 @@ on:
         default: github-hosted
         type: choice
         options: [github-hosted, approved-self-hosted]
+      execution_mode:
+        description: Credential-free runtime preflight or the full sealed cohort
+        required: true
+        default: full
+        type: choice
+        options: [full, preflight-only]
 
 permissions:
   contents: read
@@ -145,6 +151,7 @@ jobs:
 
   cell:
     needs: plan
+    if: ${{ inputs.execution_mode == 'full' }}
     name: cell (${{ matrix.cell_key }})
     strategy:
       fail-fast: false
@@ -255,7 +262,7 @@ jobs:
 
   assemble:
     needs: [plan, cell]
-    if: ${{ always() && needs.plan.result == 'success' }}
+    if: ${{ always() && inputs.execution_mode == 'full' && needs.plan.result == 'success' }}
     runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
     timeout-minutes: 45
     permissions:
@@ -404,3 +411,45 @@ jobs:
         uses: actions/attest@f7c74d28b9d84cb8768d0b8ca14a4bac6ef463e6 # v4
         with:
           subject-path: trusted-run/trusted-run-subject.json
+
+  preflight:
+    needs: plan
+    if: ${{ inputs.execution_mode == 'preflight-only' }}
+    runs-on: ${{ inputs.runner_pool == 'approved-self-hosted' && fromJSON('{"group":"ax-arena-trusted","labels":["self-hosted","linux","x64"]}') || 'ubuntu-22.04' }}
+    timeout-minutes: 45
+    environment: trusted-sandbox
+    permissions:
+      contents: read
+    steps:
+      - name: Check out the immutable source commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.source_sha }}
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Set up the exact preflight Node release
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: "22.23.1"
+
+      - name: Prepare and smoke-test the pinned OCI runtime without credentials
+        env:
+          AX_ARENA_SELF_HOSTED_APPROVED: ${{ inputs.runner_pool == 'approved-self-hosted' && 'true' || 'false' }}
+          RUNTIME_MANIFEST_PATH: ${{ runner.temp }}/ax-arena-preflight-runtime-manifest.json
+          NODE_OPTIONS: ""
+          NODE_PATH: ""
+          LD_PRELOAD: ""
+          LD_LIBRARY_PATH: ""
+        run: |
+          sh ax-arena/benchmark/scripts/prepare-trusted-tools.sh
+          /opt/ax-arena-tools/node/bin/node ax-arena/benchmark/scripts/smoke-trusted-runtime.mjs
+
+      - name: Require independently approved workflow SHA
+        env:
+          APPROVED_WORKFLOW_SHA: ${{ vars.AX_ARENA_APPROVED_SIGNER_SHA }}
+          WORKFLOW_SHA: ${{ github.workflow_sha }}
+        run: |
+          test "${#APPROVED_WORKFLOW_SHA}" -eq 40
+          printf '%s' "$APPROVED_WORKFLOW_SHA" | grep -Eq '^[a-f0-9]{40}$'
+          test "$APPROVED_WORKFLOW_SHA" = "$WORKFLOW_SHA"

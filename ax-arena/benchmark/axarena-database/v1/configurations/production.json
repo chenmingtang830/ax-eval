@@ -1,0 +1,3097 @@
+{
+  "command": "axarena-database-production-rerun",
+  "execution": {
+    "runtime_backend": "pinned-oci",
+    "trust_level": "hosted-trusted"
+  },
+  "suite": {
+    "name": "DAEB-1",
+    "version": 1,
+    "file_hash": "211dc439b8ea173cfe3327c6d00015cf7c48b5dbcd17de0b3ec86086ef7a52ee"
+  },
+  "packs": [
+    {
+      "vendor": "cockroachdb",
+      "file_hash": "1401aab8fa4a75e3ed68819e768d50286341c8fa2baae32dbd3152cf7ebc8a0b",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": []
+    },
+    {
+      "vendor": "insforge",
+      "file_hash": "88b8549cc89b14f6f03f3d7d44c80d7234509faacce36729a7567893f0884502",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": []
+    },
+    {
+      "vendor": "neon",
+      "file_hash": "8d21d813f05bf92109c70690d42f4f7e839fa16e509c547caea3cfee5f707c2d",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ]
+    },
+    {
+      "vendor": "nile",
+      "file_hash": "e592542ffaecbd62e53db65dce2bcfb821a08a3c28e2c32eb1a1f8a2586a0c2c",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ]
+    },
+    {
+      "vendor": "supabase",
+      "file_hash": "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": []
+    },
+    {
+      "vendor": "turso",
+      "file_hash": "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
+      "standard_set_version": "daeb-1-v1",
+      "surfaces": [
+        "api",
+        "cli"
+      ],
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "OPENAI_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": []
+    }
+  ],
+  "cells": [
+    {
+      "key": "cockroachdb/api/codex/trial-1",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "COCKROACH_API_KEY",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/api/codex/trial-2",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "COCKROACH_API_KEY",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/api/codex/trial-3",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "COCKROACH_API_KEY",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/api/claude-code/trial-1",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/api/claude-code/trial-2",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/api/claude-code/trial-3",
+      "vendor": "cockroachdb",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/codex/trial-1",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "COCKROACH_CONNECTION_STRING",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/codex/trial-2",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "COCKROACH_CONNECTION_STRING",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/codex/trial-3",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "COCKROACH_CONNECTION_STRING",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/claude-code/trial-1",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/claude-code/trial-2",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "cockroachdb/cli/claude-code/trial-3",
+      "vendor": "cockroachdb",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "verification_credential_names": [
+        "COCKROACH_API_KEY",
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "reset_credential_names": [
+        "COCKROACH_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/codex/trial-1",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/codex/trial-2",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/codex/trial-3",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/claude-code/trial-1",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/claude-code/trial-2",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/api/claude-code/trial-3",
+      "vendor": "insforge",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_API_KEY",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/codex/trial-1",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/codex/trial-2",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/codex/trial-3",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/claude-code/trial-1",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/claude-code/trial-2",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "insforge/cli/claude-code/trial-3",
+      "vendor": "insforge",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "verification_credential_names": [
+        "INSFORGE_API_KEY",
+        "INSFORGE_CONNECTION_STRING",
+        "INSFORGE_PROJECT_URL"
+      ],
+      "reset_credential_names": [
+        "INSFORGE_CONNECTION_STRING"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/codex/trial-1",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/codex/trial-2",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/codex/trial-3",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/claude-code/trial-1",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/claude-code/trial-2",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/api/claude-code/trial-3",
+      "vendor": "neon",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_API_KEY",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/codex/trial-1",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/codex/trial-2",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/codex/trial-3",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/claude-code/trial-1",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/claude-code/trial-2",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "neon/cli/claude-code/trial-3",
+      "vendor": "neon",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "verification_credential_names": [
+        "NEON_API_KEY",
+        "NEON_DATABASE_URL",
+        "NEON_PROJECT_ID"
+      ],
+      "reset_credential_names": [
+        "NEON_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NEON_PROJECT_ID"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/codex/trial-1",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/codex/trial-2",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/codex/trial-3",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/claude-code/trial-1",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/claude-code/trial-2",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/api/claude-code/trial-3",
+      "vendor": "nile",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_API_KEY",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/codex/trial-1",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/codex/trial-2",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/codex/trial-3",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE",
+        "OPENAI_API_KEY"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/claude-code/trial-1",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/claude-code/trial-2",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "nile/cli/claude-code/trial-3",
+      "vendor": "nile",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "verification_credential_names": [
+        "NILE_API_KEY",
+        "NILE_DATABASE_URL",
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "reset_credential_names": [
+        "NILE_DATABASE_URL"
+      ],
+      "sandbox_scope_names": [
+        "NILE_DB",
+        "NILE_WORKSPACE"
+      ],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/codex/trial-1",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/codex/trial-2",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/codex/trial-3",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/claude-code/trial-1",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/claude-code/trial-2",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/api/claude-code/trial-3",
+      "vendor": "supabase",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_API_KEY",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/codex/trial-1",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/codex/trial-2",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/codex/trial-3",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/claude-code/trial-1",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/claude-code/trial-2",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "supabase/cli/claude-code/trial-3",
+      "vendor": "supabase",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "verification_credential_names": [
+        "SUPABASE_API_KEY",
+        "SUPABASE_DB_URL",
+        "SUPABASE_PROJECT_REF"
+      ],
+      "reset_credential_names": [
+        "SUPABASE_DB_URL"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-postgres-health",
+          "version": "1.1.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "arena-sql",
+          "version": "1.0.0",
+          "kind": "oracle"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-postgres-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/codex/trial-1",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/codex/trial-2",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/codex/trial-3",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/claude-code/trial-1",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/claude-code/trial-2",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/api/claude-code/trial-3",
+      "vendor": "turso",
+      "surface": "api",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/codex/trial-1",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 1,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/codex/trial-2",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 2,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/codex/trial-3",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "codex",
+      "profile": "high",
+      "effort": "high",
+      "model": "gpt-5.6-terra",
+      "trial": 3,
+      "host_credential_names": [
+        "OPENAI_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/claude-code/trial-1",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 1,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/claude-code/trial-2",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 2,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    },
+    {
+      "key": "turso/cli/claude-code/trial-3",
+      "vendor": "turso",
+      "surface": "cli",
+      "harness": "claude-code",
+      "profile": "high",
+      "effort": "high",
+      "model": "claude-sonnet-5",
+      "trial": 3,
+      "host_credential_names": [
+        "ANTHROPIC_API_KEY",
+        "TURSO_API_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "verification_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "reset_credential_names": [
+        "TURSO_DATABASE_AUTH_TOKEN",
+        "TURSO_ORG",
+        "TURSO_SANDBOX_DATABASE"
+      ],
+      "sandbox_scope_names": [],
+      "provider_pins": [
+        {
+          "id": "ax-arena-turso-health",
+          "version": "1.0.0",
+          "kind": "health-check"
+        },
+        {
+          "id": "ax-arena-turso-cli",
+          "version": "1.0.0",
+          "kind": "provisioning"
+        }
+      ],
+      "reset_provider": {
+        "id": "ax-arena-turso-reset",
+        "version": "1.0.0"
+      }
+    }
+  ],
+  "harnesses": [
+    {
+      "harness": "codex",
+      "version_raw": "codex-cli 0.145.0",
+      "version_semver": "0.145.0"
+    },
+    {
+      "harness": "claude-code",
+      "version_raw": "2.1.217 (Claude Code)",
+      "version_semver": "2.1.217"
+    }
+  ],
+  "reset_required": true,
+  "invoke_timeout_seconds": 1800,
+  "first_action_timeout_seconds": 180,
+  "invoke_retries": 0,
+  "turso_cli": {
+    "install_root": "/opt/ax-arena-tools/turso",
+    "version": "turso version v1.0.30",
+    "sha256": "2124b409272aa7e58a8cd2a58d06a0eb1f4bb30653c21e899d623c3789542671",
+    "provisioner": {
+      "id": "ax-arena-turso-cli",
+      "version": "1.0.0"
+    }
+  },
+  "sandbox": {
+    "kind": "bubblewrap",
+    "policy_version": "ax.arena-bubblewrap/v2",
+    "runtime_lock_sha256": "cf78c1d444bb78df2322b1af306475e39b4cbb6fe00e667b43440cee3827ed63",
+    "sysroot": "/opt/ax-arena-runtime/rootfs",
+    "executable": "/opt/ax-arena-tools/bubblewrap/usr/bin/bwrap",
+    "executable_sha256": "85580dd52ed366ece8844e90fa75ac7c4de8802963071344e123221fb9f6f11e",
+    "runtime_roots": [
+      "/usr",
+      "/opt/ax-arena-tools"
+    ]
+  }
+}

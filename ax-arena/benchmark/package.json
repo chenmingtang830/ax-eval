@@ -41,7 +41,9 @@
     "typecheck": "tsc --noEmit",
     "trusted:plan": "node dist/trusted-plan.js",
     "trusted:worker": "node dist/trusted-worker.js",
-    "trusted:assemble": "node dist/assemble-trusted-completion.js"
+    "trusted:assemble": "node dist/assemble-trusted-completion.js",
+    "activation:write": "node --import tsx scripts/activation-configs.ts --write",
+    "activation:check": "node --import tsx scripts/activation-configs.ts"
   },
   "engines": {
     "node": ">=22"

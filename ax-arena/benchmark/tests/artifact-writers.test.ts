@@ -6,6 +6,7 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
@@ -49,7 +50,7 @@ describe("canonical arena artifact writers", () => {
     expect(() => writeExtractAdvisory(root, advisory)).toThrow(/symlink/);
     expect(existsSync(resolve(outside, "advisory.yaml"))).toBe(false);
 
-    rmSync(vendorDir);
+    unlinkSync(vendorDir);
     symlinkSync(resolve(root, "missing"), vendorDir, "dir");
     expect(() => writeExtractAdvisory(root, advisory)).toThrow(/symlink/);
   });

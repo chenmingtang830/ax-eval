@@ -114,6 +114,19 @@ Schema validation alone. `trusted:plan`, `trusted:worker`, and
 the thin workflow. The source change remains manual-only and does not run a live
 or credentialed benchmark by itself.
 
+The frozen v1 activation inputs live under
+`axarena-database/v1/configurations/`. `calibration-supabase-turso.json` is the
+non-ranking 8-cell, one-trial medium cohort; `production.json` is the complete
+6-vendor × API/CLI × 2-harness × 3-trial 72-cell cohort. Both are derived from
+the committed suite, reviewed packs, and trusted runtime lock. Regenerate them
+with `npm run activation:write --workspace @ax-arena/benchmark` and verify drift
+without mutation with `npm run activation:check --workspace @ax-arena/benchmark`.
+The trusted workflow's `preflight-only` mode builds and smoke-tests the pinned
+OCI, harness, Bubblewrap, and signer-environment chain without injecting cell
+credentials. A full dispatch accepts either the non-ranking low-pass calibration
+configuration or the publication-eligible production configuration; publication
+validation continues to reject low-pass cohorts.
+
 Runtime reporting consumes only a persisted, hash-bound batch completion. It
 revalidates canonical record and cleanup bytes plus every sealed runtime
 artifact before deriving process evidence from the native Codex or Claude Code

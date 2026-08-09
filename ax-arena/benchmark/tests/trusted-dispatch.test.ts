@@ -24,7 +24,10 @@ function commit(root: string, message: string): string {
   return git(root, ["rev-parse", "HEAD"]);
 }
 
-function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = false) {
+function fixture(
+  mainTrustDrift: false | "package" | "removed-tsup-config" = false,
+  command: "axarena-database-production-rerun" | "axarena-database-low-pass" = "axarena-database-production-rerun",
+) {
   const root = mkdtempSync(resolve(tmpdir(), "ax-trusted-dispatch-"));
   const daeb = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1");
   const packDir = resolve(daeb, "packs", "neon");
@@ -59,8 +62,8 @@ function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = fal
     vendor: "neon",
     surface: "api",
     harness,
-    profile: "high",
-    effort: "high",
+    profile: command === "axarena-database-low-pass" ? "medium" : "high",
+    effort: command === "axarena-database-low-pass" ? "medium" : "high",
     model: harness === "codex" ? "gpt-5.6-terra" : "claude-sonnet-5",
     trial: 1,
     host_credential_names: [harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"],
@@ -71,7 +74,7 @@ function fixture(mainTrustDrift: false | "package" | "removed-tsup-config" = fal
     reset_provider: { id: "fixture-reset", version: "1.0.0" },
   });
   const configuration = {
-    command: "axarena-database-production-rerun",
+    command,
     execution: { runtime_backend: "pinned-oci", trust_level: "hosted-trusted" },
     reset_required: true,
     suite: { name: "AXArena-Database v1", version: 1, file_hash: sha256(suite) },
@@ -144,6 +147,12 @@ describe("trusted dispatch validator", () => {
       protected_default_branch: "main",
       runtime_lock_sha256: test.configuration.sandbox.runtime_lock_sha256,
     });
+  });
+
+  it("accepts a cleanup-required hosted low-pass calibration cohort", () => {
+    const test = fixture(false, "axarena-database-low-pass");
+    const result = spawnSync(process.execPath, [validator], { cwd: test.root, env: test.env, encoding: "utf8" });
+    expect(result.status, result.stderr).toBe(0);
   });
 
   it("rejects a checked-out SHA that diverges from protected main", () => {

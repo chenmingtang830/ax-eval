@@ -118,12 +118,13 @@ const configurationPath = realpathSync(resolve(root, required("CONFIGURATION_PAT
 const axArenaDatabaseRoot = resolve(root, "ax-arena", "benchmark", "axarena-database");
 if (!inside(axArenaDatabaseRoot, configurationPath)) throw new Error("trusted configuration must live under the canonical AXArena-Database root");
 const configuration = JSON.parse(committedBytes(root, sourceSha, configurationPath, "batch configuration").toString("utf8"));
-if (!["axarena-database-production-rerun", "daeb-production-rerun"].includes(configuration.command)
+if (!["axarena-database-low-pass", "daeb-low-pass", "axarena-database-production-rerun", "daeb-production-rerun"]
+  .includes(configuration.command)
   || configuration.execution?.runtime_backend !== "pinned-oci"
   || configuration.execution?.trust_level !== "hosted-trusted"
   || configuration.reset_required !== true
   || !Array.isArray(configuration.cells) || configuration.cells.length === 0) {
-  throw new Error("trusted configuration must be one cleanup-required hosted production benchmark");
+  throw new Error("trusted configuration must be one cleanup-required hosted benchmark cohort");
 }
 const expectedVendor = process.env.EXPECTED_VENDOR?.trim();
 const expectedSurface = process.env.EXPECTED_SURFACE?.trim();
