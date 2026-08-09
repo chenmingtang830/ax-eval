@@ -224,6 +224,10 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain("TL;DR");
     expect(html).toContain("agent usability");
     expect(html).toContain('class="ax-tldr__split"');
+    expect(html).toContain('<nav class="ax-report-nav" aria-label="Report sections">');
+    for (const href of ["#tldr", "#discovery", "#execution", "#scores", "#methodology"]) {
+      expect(html).toContain(`href="${href}"`);
+    }
     // Four-pillar scorecard: static discovery and behavioral agent discovery are
     // distinct cards (never one conflated "discoverability" number), plus content
     // quality and task success.
@@ -236,6 +240,45 @@ describe("renderGeneratedReport (HTML)", () => {
     expect(html).toContain('id="agent-discovery"'); // anchor for the TL;DR/card link
     expect(html).toContain("ax-card--warn"); // 60% task success → warn band
     expect(html).toContain("ax-rec--high");
+  });
+
+  it("links navigation to the first non-empty recommendation section", () => {
+    const pack = makePack([{ id: "t", difficulty: "L1", prompt: "Create a widget." }]);
+    const passingRuns: ProfileRun[] = [{
+      profile: "high",
+      outcomes: [outcome("t", "L1", "high", true)],
+      trace: [],
+    }];
+    const discoveryOnly = renderGeneratedReport(pack, passingRuns, {
+      site: "https://demo.test",
+      v2Score: 0,
+    });
+    expect(discoveryOnly).toContain('href="#discovery-recommendations">Recommendations</a>');
+
+    const executionOnly = renderGeneratedReport(pack, [{
+      profile: "high",
+      discovery: discovery({}),
+      outcomes: [outcome("t", "L1", "high", false)],
+      trace: [],
+    }]);
+    expect(executionOnly).toContain('href="#execution-recommendations">Recommendations</a>');
+
+    const noRecommendations = renderGeneratedReport(pack, []);
+    expect(noRecommendations).not.toContain('>Recommendations</a>');
+  });
+
+  it("makes sticky report navigation accessible and anchor-safe", () => {
+    const pack = makePack([{ id: "t", difficulty: "L1", prompt: "Create a widget." }]);
+    const html = renderGeneratedReport(pack, [{
+      profile: "high",
+      outcomes: [outcome("t", "L1", "high", true)],
+      trace: [],
+    }]);
+    expect(html).toContain(".ax-report-nav a:focus-visible");
+    expect(html).toContain("scroll-margin-top: 72px");
+    expect(html).toContain(".ax-section > .ax-table");
+    expect(html).toContain("@media (prefers-reduced-motion: reduce)");
+    expect(html).toContain("scroll-behavior: auto");
   });
 
   it("weaves the content-quality (spec smell) axis into the pipeline report", () => {
