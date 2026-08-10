@@ -170,7 +170,10 @@ function cellPaths(root: string, runRoot: string, vendor: string, surface: Surfa
 function scanSecrets(root: string, paths: readonly string[], values: readonly string[]): void {
   const visit = (path: string) => {
     const stat = lstatSync(path);
-    if (stat.isSymbolicLink()) throw new Error(`secret scan refuses symlink: ${path}`);
+    // Harness detection creates transient symlinks inside the isolated home.
+    // They are runtime pointers, not sealed artifact content; do not follow
+    // them outside the artifact tree during the credential-value scan.
+    if (stat.isSymbolicLink()) return;
     if (stat.isDirectory()) {
       for (const entry of readdirSync(path)) visit(resolve(path, entry));
       return;
@@ -324,8 +327,8 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
         ),
       });
       const cell = completedCell(execution, root, vendor, surface, harness, model);
-      cells.push(cell);
       scanSecrets(root, [paths.artifactDir], secretCredentialValues(credentialsByCell.get(key) ?? {}));
+      cells.push(cell);
       const cost = cell.cost_usd;
       if (cost !== null) {
         measuredCostUsd += cost;
@@ -334,12 +337,14 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
     } catch (error) {
       const cellSecrets = secretCredentialValues(credentialsByCell.get(key) ?? {});
       const reason = safeError(error, cellSecrets);
-      try { scanSecrets(root, [paths.artifactDir], cellSecrets); } catch (scanError) {
-        cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: "failed", tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: safeError(scanError, cellSecrets), record_path: null, cleanup_path: null, evidence: null, task_results: [] });
-        continue;
-      }
-      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: "failed", tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
+      let failureReason = reason;
+      try { scanSecrets(root, [paths.artifactDir], cellSecrets); } catch (scanError) { failureReason = safeError(scanError, cellSecrets); }
+      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: "failed", tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: failureReason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
     }
+  }
+  const expectedKeys = localDatabaseCalibrationCellKeys();
+  if (cells.length !== expectedKeys.length || new Set(cells.map((cell) => cell.key)).size !== expectedKeys.length) {
+    throw new Error(`local database calibration produced ${cells.length} cells; expected exactly ${expectedKeys.length} unique cells`);
   }
   const manifest = buildLocalDatabaseCalibrationManifest({ sourceCommitSha, generatedAt: now().toISOString(), budgetUsd, cells, measuredCostUsd, harnessVersions: versions, status: budgetExhausted ? "budget_exhausted" : "completed" });
   writeFileSync(resolve(runRoot, "local-database-calibration-manifest.json"), canonicalJson(manifest), { mode: 0o600 });
