@@ -3,6 +3,7 @@ import {
   linkSync,
   mkdirSync,
   mkdtempSync,
+  unlinkSync,
   readFileSync,
   rmSync,
   symlinkSync,
@@ -49,7 +50,10 @@ describe("canonical arena artifact writers", () => {
     expect(() => writeExtractAdvisory(root, advisory)).toThrow(/symlink/);
     expect(existsSync(resolve(outside, "advisory.yaml"))).toBe(false);
 
-    rmSync(vendorDir);
+    // On macOS, fs.rmSync(path) reports EISDIR for a directory symlink even
+    // though it does not follow the link. Unlink the link explicitly so the
+    // dangling-parent case below remains portable across Node/filesystems.
+    unlinkSync(vendorDir);
     symlinkSync(resolve(root, "missing"), vendorDir, "dir");
     expect(() => writeExtractAdvisory(root, advisory)).toThrow(/symlink/);
   });

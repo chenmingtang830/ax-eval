@@ -29,7 +29,7 @@ const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
     pack: "88b8549cc89b14f6f03f3d7d44c80d7234509faacce36729a7567893f0884502",
   },
   neon: {
-    approval: "cb18ed41893e94988dc63e9a61d50dd0ff723ff9b19a92b15119c3bdd69d824d",
+    approval: "641e6f1d2d0808575da6519a036d54f7b3db3b2deb35a5b1b494114cdc308032",
     pack: "8d21d813f05bf92109c70690d42f4f7e839fa16e509c547caea3cfee5f707c2d",
   },
   nile: {
@@ -37,11 +37,11 @@ const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
     pack: "e592542ffaecbd62e53db65dce2bcfb821a08a3c28e2c32eb1a1f8a2586a0c2c",
   },
   supabase: {
-    approval: "f613b2f164f761dc635550e4c97d07cc109591227b6d2f8ff35648f55441b3a6",
+    approval: "680ecaad49ae9d392fda44d5fbbace65a2cae9cb0651747ce8d913d9f88f5c89",
     pack: "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
   },
   turso: {
-    approval: "7555190d29dd8ea09175c9c30523487f551dfe59cc6c9d08c516030e991592c4",
+    approval: "bf03d8a5901749442fbaae5958ba1ca5be14e0491afa2b23ca1ee9a1e7df83d9",
     pack: "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
   },
 };
