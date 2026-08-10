@@ -117,9 +117,9 @@ export interface RunCellOptions {
   signal?: AbortSignal;
   /** Trusted controllers use this for the harness process and version probe. */
   sandbox?: ChildProcessSandbox;
-  /** Local-only opt-in to copy an operator's Codex login into the isolated
-   * harness HOME when no OPENAI_API_KEY is supplied. Hosted execution leaves
-   * this false and therefore requires its declared key. */
+  /** Local-only opt-in to use an operator's managed Codex/Claude login in the
+   * isolated harness HOME when its declared API key is absent. Hosted execution
+   * leaves this false and therefore requires the declared key. */
   allowAmbientHarnessAuth?: boolean;
 }
 
@@ -1059,8 +1059,8 @@ export async function runCellWithRuntime(
   }
   const missingDeclared = cell.required_credentials.filter((name) => !credentials[name] && !(
     options.allowAmbientHarnessAuth === true
-    && cell.harness.id === "codex"
-    && name === "OPENAI_API_KEY"
+    && ((cell.harness.id === "codex" && name === "OPENAI_API_KEY")
+      || (cell.harness.id === "claude-code" && name === "ANTHROPIC_API_KEY"))
   ));
   const missingOpenCodeProvider = cell.harness.id === "opencode"
     ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])

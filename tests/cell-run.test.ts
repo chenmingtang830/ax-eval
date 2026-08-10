@@ -1097,6 +1097,24 @@ describe("runCell", () => {
     expect(invokeHarness).toHaveBeenCalledOnce();
   });
 
+  it("allows local Claude login transfer only with the explicit ambient-auth option", async () => {
+    const { cell } = fixture();
+    const invokeHarness = vi.fn();
+    const record = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "claude-code" }, required_credentials: ["ANTHROPIC_API_KEY"] },
+      { credentials: {} },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(record).toMatchObject({ status: "blocked", blocked: "missing-credential" });
+    const localRecord = await runCellWithRuntime(
+      { ...cell, harness: { ...cell.harness, id: "claude-code" }, required_credentials: ["ANTHROPIC_API_KEY"] },
+      { credentials: {}, allowAmbientHarnessAuth: true },
+      { ...runtime([]), invokeHarness },
+    );
+    expect(localRecord.status).not.toBe("blocked");
+    expect(invokeHarness).toHaveBeenCalledOnce();
+  });
+
   it("redacts supplied credential values from lifecycle failures", async () => {
     const { cell } = fixture();
     const failing = runtime([]);
