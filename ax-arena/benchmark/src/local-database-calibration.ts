@@ -38,7 +38,7 @@ export function localDatabaseCalibrationCellKeys(): string[] {
 }
 
 type HarnessId = (typeof HARNESSES)[number];
-type CellStatus = "completed" | "failed" | "structural_na" | "cost_unknown" | "budget_exhausted";
+type CellStatus = "completed" | "blocked" | "safety_blocked" | "failed" | "structural_na" | "cost_unknown" | "budget_exhausted";
 
 export interface LocalDatabaseCalibrationOptions {
   root: string;
@@ -209,7 +209,8 @@ function completedCell(execution: ArenaCellExecution, root: string, vendor: stri
   const cleanupPath = relative(root, execution.cleanupPath);
   const recordCompleted = execution.record.status === "completed";
   const cleanupConfirmed = execution.cleanup.status === "confirmed";
-  const status = recordCompleted && cleanupConfirmed ? "completed" : "failed";
+  const blocked = execution.record.status === "blocked" || Boolean(execution.record.blocked);
+  const status = recordCompleted && cleanupConfirmed ? "completed" : blocked ? "blocked" : "failed";
   const reason = !recordCompleted
     ? execution.record.error?.message ?? "record did not complete"
     : !cleanupConfirmed ? "cleanup was not confirmed" : null;
@@ -223,6 +224,13 @@ function completedCell(execution: ArenaCellExecution, root: string, vendor: stri
     record_path: recordPath, cleanup_path: cleanupPath, evidence: { record: recordPath, cleanup: cleanupPath },
     task_results: execution.record.task_results.map((task) => ({ id: task.taskId, success: task.success, na: task.na, error: task.error ?? null })),
   };
+}
+
+function classifyFailure(error: unknown): "blocked" | "safety_blocked" | "failed" {
+  const message = error instanceof Error ? error.message : String(error);
+  if (/credential material|secret scan|credential value/i.test(message)) return "safety_blocked";
+  if (/health-check|missing required credential|requires-oauth|missing harness|provisioning provider.*not ready/i.test(message)) return "blocked";
+  return "failed";
 }
 
 export function buildLocalDatabaseCalibrationManifest(options: {
@@ -345,7 +353,7 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
       const reason = safeError(error, cellSecrets);
       let failureReason = reason;
       try { scanSecrets(root, [paths.artifactDir], cellSecrets); } catch (scanError) { failureReason = safeError(scanError, cellSecrets); }
-      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: "failed", tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: failureReason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
+      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: classifyFailure(error), tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: failureReason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
     }
   }
   const expectedKeys = localDatabaseCalibrationCellKeys();
