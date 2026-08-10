@@ -142,6 +142,20 @@ function codexManagedLoginAvailable(credentials: Readonly<Record<string, string 
   return Boolean(credentials.OPENAI_API_KEY?.trim()) || existsSync(resolve(homedir(), ".codex", "auth.json"));
 }
 
+function claudeManagedLoginAvailable(credentials: Readonly<Record<string, string | undefined>>): boolean {
+  if (credentials.ANTHROPIC_API_KEY?.trim()) return true;
+  try {
+    const output = execFileSync("claude", ["auth", "status"], { encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+    return JSON.parse(output).loggedIn === true;
+  } catch {
+    return false;
+  }
+}
+
+function localHarnessLoginAvailable(harness: HarnessId, credentials: Readonly<Record<string, string | undefined>>): boolean {
+  return harness === "codex" ? codexManagedLoginAvailable(credentials) : claudeManagedLoginAvailable(credentials);
+}
+
 function requireCredentials(credentials: Readonly<Record<string, string | undefined>>, names: readonly string[]): void {
   const missing = names.filter((name) => !credentials[name]?.trim());
   if (missing.length) throw new Error(`local database calibration is missing credential(s): ${missing.join(", ")}`);
@@ -262,7 +276,10 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
     if (STRUCTURAL_NA[`${vendor}/${surface}`]) continue;
     const pack = packs.get(vendor)!.pack;
     const names = requiredCredentialNames(pack, surface, harness, options.credentials);
-    requireCredentials(options.credentials, names.filter((name) => name !== "OPENAI_API_KEY" || codexManagedLoginAvailable(options.credentials)));
+    requireCredentials(options.credentials, names.filter((name) => (
+      (name !== "OPENAI_API_KEY" || harness !== "codex" || codexManagedLoginAvailable(options.credentials))
+      && (name !== "ANTHROPIC_API_KEY" || harness !== "claude-code" || claudeManagedLoginAvailable(options.credentials))
+    )));
     credentialsByCell.set(key, Object.fromEntries(names.map((name) => [name, options.credentials[name]])));
   }
   mkdirSync(runRoot, { recursive: true, mode: 0o700 });
@@ -294,7 +311,10 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
         credentials: credentialsByCell.get(key)!,
         now, execution: { runtime_backend: "native", trust_level: "local" },
         createRegistry: async () => createDatabaseRuntimeExtensionRegistry(),
-        allowAmbientHarnessAuth: harness === "codex" && codexManagedLoginAvailable(options.credentials),
+        allowAmbientHarnessAuth: localHarnessLoginAvailable(harness, options.credentials) && !(
+          (harness === "codex" && options.credentials.OPENAI_API_KEY?.trim())
+          || (harness === "claude-code" && options.credentials.ANTHROPIC_API_KEY?.trim())
+        ),
       });
       const cell = completedCell(execution, root, vendor, surface, harness, model);
       cells.push(cell);
