@@ -443,7 +443,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     const sourceCommitSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd, encoding: "utf8" }).trim();
     const pack = loadPack(packPath);
     const credentials = Object.fromEntries([...new Set([
-      ...cellCredentialNames(pack, "api", "codex", {}),
+      ...cellCredentialNames(pack, "cli", "codex", {}),
       ...cellVerificationCredentialNames(pack, {}),
     ])].map((name) => [name, "fixture-value"]));
     let tick = 0;
@@ -461,13 +461,15 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
           surface: options.surface,
           results: Object.fromEntries(tasks.map((task) => [task.id, { gid: `${task.id}-gid` }])),
         }));
-        writeFileSync(options.paths.tracePath, JSON.stringify(tasks.map((task, index) => ({
-          step: index + 1,
-          taskId: task.id,
-          action: "POST",
-          method: "POST",
-          path: "/sql",
-        }))));
+        writeFileSync(options.paths.tracePath, JSON.stringify(tasks.length
+          ? tasks.map((task, index) => ({
+            step: index + 1,
+            taskId: task.id,
+            action: "POST",
+            method: "POST",
+            path: "/sql",
+          }))
+          : [{ step: 1, taskId: "discovery", action: "discover", method: "GET", path: "/projects" }]));
         writeFileSync(options.paths.transcriptPath, "");
         writeFileSync(options.paths.metaPath, "{}");
         return {
@@ -525,7 +527,7 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
       batchId: "batch-1",
       evaluationSetId: "AXArena-Database v1",
       targetId: "neon",
-      surface: "api",
+      surface: "cli",
       harness: "codex",
       profile: "medium",
       model: "gpt-fixture",
