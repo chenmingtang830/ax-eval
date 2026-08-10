@@ -906,6 +906,19 @@ function scrubDiscovery(
   };
 }
 
+function scrubTrace(trace: TraceStep[], secrets: readonly string[]): TraceStep[] {
+  const scrubValue = (value: unknown): unknown => {
+    if (typeof value === "string") return scrubText(value, secrets);
+    if (Array.isArray(value)) return value.map(scrubValue);
+    if (value && typeof value === "object") {
+      return Object.fromEntries(Object.entries(value as Record<string, unknown>)
+        .map(([key, nested]) => [key, scrubValue(nested)]));
+    }
+    return value;
+  };
+  return scrubValue(trace) as TraceStep[];
+}
+
 function executionProfileRun(args: {
   cell: EvaluationCell;
   executor: ExecutorResults;
@@ -1444,6 +1457,7 @@ export async function runCellWithRuntime(
   verifyError = verifyError ? scrubText(verifyError, secrets) : undefined;
   outcomes = scrubOutcomes(outcomes, secrets);
   discovery = scrubDiscovery(discovery, secrets);
+  trace = scrubTrace(trace, secrets);
   scrubArtifacts(paths, secrets, provisioningHomePaths(provisioning), artifactIdentity, invokeHomeIdentity);
 
   const profileRun = executionProfileRun({
