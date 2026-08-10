@@ -415,7 +415,7 @@ tasks:
             - type: execute
               stmt:
                 sql: SELECT COUNT(*) FROM "axarena_search_{ns}" WHERE content MATCH
-                  'orchard_{ns}'
+                  '"orchard_{ns}"'
         assertField: results.0.response.result.rows.0.0.value
       - type: roundtrip
         expected: "0"
@@ -427,7 +427,7 @@ tasks:
             - type: execute
               stmt:
                 sql: SELECT COUNT(*) FROM "axarena_search_{ns}" WHERE content MATCH
-                  'orchard_{ns}' AND (content LIKE '%mountain_{ns}%' OR content
+                  '"orchard_{ns}"' AND (content LIKE '%mountain_{ns}%' OR content
                   LIKE '%harbor_{ns}%')
         assertField: results.0.response.result.rows.0.0.value
     difficulty: L2

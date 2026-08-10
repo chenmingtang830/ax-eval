@@ -268,6 +268,10 @@ describe("runInvokeHarness", () => {
     const spawn = async (command: string, args: string[]) => {
       expect(command).toBe("claude");
       expect(args[0]).toBe("-p");
+      expect(args).toEqual(expect.arrayContaining([
+        "--allow-dangerously-skip-permissions",
+        "--permission-mode", "bypassPermissions",
+      ]));
       writeFileSync(
         run.paths.resultsPath,
         JSON.stringify({

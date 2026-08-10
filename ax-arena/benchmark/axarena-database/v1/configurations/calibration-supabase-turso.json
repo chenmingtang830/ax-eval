@@ -35,7 +35,7 @@
     },
     {
       "vendor": "turso",
-      "file_hash": "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
+      "file_hash": "8d961390d5dff0a8bea5776b4988af097f08b0f69b70ebd4dcf190688e6124f5",
       "standard_set_version": "daeb-1-v1",
       "surfaces": [
         "api",
@@ -154,6 +154,7 @@
       "trial": 1,
       "host_credential_names": [
         "OPENAI_API_KEY",
+        "TURSO_API_TOKEN",
         "TURSO_DATABASE_AUTH_TOKEN",
         "TURSO_ORG",
         "TURSO_SANDBOX_DATABASE"
@@ -192,6 +193,7 @@
       "trial": 1,
       "host_credential_names": [
         "ANTHROPIC_API_KEY",
+        "TURSO_API_TOKEN",
         "TURSO_DATABASE_AUTH_TOKEN",
         "TURSO_ORG",
         "TURSO_SANDBOX_DATABASE"

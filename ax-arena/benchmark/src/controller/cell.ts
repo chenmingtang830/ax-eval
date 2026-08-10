@@ -354,6 +354,10 @@ export function cellCredentialNames(
   if (surface === "api" && pack.auth?.type !== "none") {
     add(selectedEnvName(topLevelAuthNames(pack), credentials));
   }
+  // Turso T01 mints a separately scoped database token through the control
+  // plane before using the data-plane token. Keep that PAT explicit in the
+  // host descriptor for API cells; it is never needed by verification/reset.
+  if (pack.name === "turso" && surface === "api") add("TURSO_API_TOKEN");
   for (const name of envTemplateNames(pack.base_url)) add(name);
   for (const scope of pack.sandbox_scope) {
     if (scope.required || credentials[scope.env]?.trim()) add(scope.env);

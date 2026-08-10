@@ -41,8 +41,8 @@ const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
     pack: "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
   },
   turso: {
-    approval: "3df80d13e022904752d6d037d4f38404f32284d613d82614836d86461dc99c9b",
-    pack: "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
+    approval: "3332664ad4e0c2ed9dd4ee7d292a8677047949ed7abae247bda08a23a6ff31eb",
+    pack: "8d961390d5dff0a8bea5776b4988af097f08b0f69b70ebd4dcf190688e6124f5",
   },
 };
 

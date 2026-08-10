@@ -930,13 +930,20 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   if (id === "claude-code") {
     const modelArgs = opts.model ? ["--model", opts.model] : [];
     const effortArgs = opts.effort ? ["--effort", opts.effort] : [];
-    // stream-json emits the full event stream (assistant tool_use, tool_result,
-    // …) to stdout, ending with a `type:result` line — so the transcript carries
-    // REAL tool events for --observe discovery scoring, not just a summary blob.
-    // Print mode requires --verbose for stream-json.
+    // Headless evals cannot answer Claude's interactive permission prompts.
+    // The caller owns the sandbox boundary; bypassing Claude's prompt-level
+    // approvals is therefore required for both local and hosted cells. Keep
+    // stream-json so the transcript carries real tool events for scoring.
     return {
       command: opts.harnessDetection?.command ?? commandFor("claude-code"),
-      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
+      args: [
+        "-p", prompt,
+        "--output-format", "stream-json", "--verbose",
+        "--allow-dangerously-skip-permissions",
+        "--permission-mode", "bypassPermissions",
+        ...modelArgs,
+        ...effortArgs,
+      ],
     };
   }
   if (id === "opencode") {
