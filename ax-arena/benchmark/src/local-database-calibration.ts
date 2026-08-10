@@ -276,10 +276,11 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
     if (STRUCTURAL_NA[`${vendor}/${surface}`]) continue;
     const pack = packs.get(vendor)!.pack;
     const names = requiredCredentialNames(pack, surface, harness, options.credentials);
-    requireCredentials(options.credentials, names.filter((name) => (
-      (name !== "OPENAI_API_KEY" || harness !== "codex" || codexManagedLoginAvailable(options.credentials))
-      && (name !== "ANTHROPIC_API_KEY" || harness !== "claude-code" || claudeManagedLoginAvailable(options.credentials))
-    )));
+    const localLoginException = (name: string) => (
+      (name === "OPENAI_API_KEY" && harness === "codex" && codexManagedLoginAvailable(options.credentials))
+      || (name === "ANTHROPIC_API_KEY" && harness === "claude-code" && claudeManagedLoginAvailable(options.credentials))
+    );
+    requireCredentials(options.credentials, names.filter((name) => !localLoginException(name)));
     credentialsByCell.set(key, Object.fromEntries(names.map((name) => [name, options.credentials[name]])));
   }
   mkdirSync(runRoot, { recursive: true, mode: 0o700 });
