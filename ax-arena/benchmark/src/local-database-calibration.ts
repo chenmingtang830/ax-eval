@@ -194,6 +194,12 @@ function safeError(error: unknown, secrets: readonly string[]): string {
   return message.replaceAll(/[\r\n]/g, " ").slice(0, 2_000);
 }
 
+function secretCredentialValues(credentials: Readonly<Record<string, string | undefined>>): string[] {
+  return Object.entries(credentials)
+    .filter(([name, value]) => Boolean(value?.trim()) && /(?:KEY|TOKEN|SECRET|PASSWORD|CONNECTION|_URL$)/.test(name))
+    .map(([, value]) => value!.trim());
+}
+
 function completedCell(execution: ArenaCellExecution, root: string, vendor: string, surface: SurfaceId, harness: HarnessId, model: string): LocalDatabaseCalibrationCell {
   const cost = costFromRecord(execution.record);
   const recordPath = relative(root, execution.recordPath);
@@ -249,8 +255,8 @@ export function exportLocalDatabaseCalibration(options: {
     integrity: { sha256: createHash("sha256").update(canonicalJson(options.manifest.cells)).digest("hex") },
   };
   const serialized = canonicalJson(payload);
-  for (const value of Object.values(options.credentials)) {
-    if (value?.trim() && serialized.includes(value.trim())) throw new Error("local database calibration export contains a credential value");
+  for (const value of secretCredentialValues(options.credentials)) {
+    if (serialized.includes(value)) throw new Error("local database calibration export contains a credential value");
   }
   mkdirSync(exportDir, { recursive: true, mode: 0o700 });
   writeFileSync(resolve(exportDir, "database-v1.json"), serialized, { mode: 0o600 });
@@ -319,14 +325,14 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
       });
       const cell = completedCell(execution, root, vendor, surface, harness, model);
       cells.push(cell);
-      scanSecrets(root, [paths.artifactDir], Object.values(credentialsByCell.get(key) ?? {}).filter((value): value is string => Boolean(value)));
+      scanSecrets(root, [paths.artifactDir], secretCredentialValues(credentialsByCell.get(key) ?? {}));
       const cost = cell.cost_usd;
       if (cost !== null) {
         measuredCostUsd += cost;
         if (measuredCostUsd >= budgetUsd) budgetExhausted = true;
       }
     } catch (error) {
-      const cellSecrets = Object.values(credentialsByCell.get(key) ?? {}).filter((value): value is string => Boolean(value));
+      const cellSecrets = secretCredentialValues(credentialsByCell.get(key) ?? {});
       const reason = safeError(error, cellSecrets);
       try { scanSecrets(root, [paths.artifactDir], cellSecrets); } catch (scanError) {
         cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: "failed", tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: safeError(scanError, cellSecrets), record_path: null, cleanup_path: null, evidence: null, task_results: [] });
