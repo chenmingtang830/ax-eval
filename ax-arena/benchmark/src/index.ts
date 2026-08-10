@@ -76,6 +76,19 @@ export * from "./controller/workflow.js";
 export * from "./controller/reporting.js";
 export * from "./controller/sandbox.js";
 export {
+  LOCAL_DATABASE_CALIBRATION_SCHEMA,
+  LOCAL_DATABASE_CALIBRATION_MODELS,
+  localDatabaseCalibrationCellKeys,
+  buildLocalDatabaseCalibrationManifest,
+  exportLocalDatabaseCalibration,
+  runLocalDatabaseCalibration,
+} from "./local-database-calibration.js";
+export type {
+  LocalDatabaseCalibrationCell,
+  LocalDatabaseCalibrationManifest,
+  LocalDatabaseCalibrationOptions,
+} from "./local-database-calibration.js";
+export {
   AXARENA_DATABASE_BENCHMARK_ID,
   AXARENA_DATABASE_DISPLAY_NAME,
   PUBLICATION_INTEGRITY_SCHEMA,
