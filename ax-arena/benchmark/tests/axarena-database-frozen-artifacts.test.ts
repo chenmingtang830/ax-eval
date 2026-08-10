@@ -37,11 +37,11 @@ const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
     pack: "e592542ffaecbd62e53db65dce2bcfb821a08a3c28e2c32eb1a1f8a2586a0c2c",
   },
   supabase: {
-    approval: "f613b2f164f761dc635550e4c97d07cc109591227b6d2f8ff35648f55441b3a6",
+    approval: "43fb12ecfa5a4353b20145df8e7aaa03697de10cf6ab5a7dcb4b4c5d1a185885",
     pack: "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
   },
   turso: {
-    approval: "7555190d29dd8ea09175c9c30523487f551dfe59cc6c9d08c516030e991592c4",
+    approval: "3df80d13e022904752d6d037d4f38404f32284d613d82614836d86461dc99c9b",
     pack: "190165bca064a0a583972146a6388ea0f0ea9cee252745996ce64e30c0651308",
   },
 };
