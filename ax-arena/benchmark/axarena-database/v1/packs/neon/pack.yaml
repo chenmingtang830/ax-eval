@@ -1,11 +1,11 @@
 # GENERATED — frozen standard_set. Do not hand-edit task ids/oracles after freeze.
 # generated_by: suite-composed
 # standard_set_version: daeb-1-v1
-# run_id: 2026-07-12-g7mikd
+# run_id: 2026-08-10-6j27w1
 name: neon
 version: "1"
 standard_set_version: daeb-1-v1
-run_id: 2026-07-12-g7mikd
+run_id: 2026-08-10-6j27w1
 generated_by: suite-composed
 generator:
   harness: claude-code
@@ -84,8 +84,8 @@ tasks:
       control surface.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -157,8 +157,8 @@ tasks:
       evolved shape is visible through the vendor's schema or metadata surface.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -200,8 +200,8 @@ tasks:
       mechanism to confirm both fields are present.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -231,7 +231,6 @@ tasks:
           AND column_name IN ('name', 'status')
     difficulty: L1
     allowed_surfaces:
-      - api
       - cli
     na: false
     depends_on: []
@@ -247,8 +246,8 @@ tasks:
       the matching count.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -290,7 +289,6 @@ tasks:
           status = 'active' AND label IN ('alpha_{ns}', 'gamma_{ns}')
     difficulty: L2
     allowed_surfaces:
-      - api
       - cli
     na: false
     depends_on: []
@@ -305,8 +303,8 @@ tasks:
       similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -349,8 +347,8 @@ tasks:
       addressable container name and the surviving record identity.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens
@@ -413,8 +411,8 @@ tasks:
       `orchard_{ns}` item and report the top matching result.
 
 
-      Database SQL identifier contract: DAEB namespaces may contain hyphens.
-      When issuing SQL through a SQL-compatible API, CLI, or SDK path,
+      Database SQL identifier contract: AXArena-Database namespaces may contain
+      hyphens. When issuing SQL through a SQL-compatible API, CLI, or SDK path,
       double-quote table, function, policy, index, trigger, schema, and other
       SQL identifiers that include canonical task names or `{ns}`. Preserve the
       exact canonical names expected by the verifier; do not replace hyphens

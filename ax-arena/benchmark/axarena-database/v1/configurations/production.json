@@ -60,7 +60,7 @@
     },
     {
       "vendor": "neon",
-      "file_hash": "8d21d813f05bf92109c70690d42f4f7e839fa16e509c547caea3cfee5f707c2d",
+      "file_hash": "803f47cbe7fc6f8b8b87b1cec78cd1fcd6e0dff6c36baba11cf32b853a714562",
       "standard_set_version": "daeb-1-v1",
       "surfaces": [
         "api",
@@ -1106,11 +1106,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {
@@ -1148,11 +1143,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {
@@ -1190,11 +1180,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {
@@ -1232,11 +1217,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {
@@ -1274,11 +1254,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {
@@ -1316,11 +1291,6 @@
           "id": "ax-arena-postgres-health",
           "version": "1.1.0",
           "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
         }
       ],
       "reset_provider": {

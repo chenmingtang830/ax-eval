@@ -1,7 +1,8 @@
 {
   "standard_set_version": "daeb-1-v1",
-  "content_hash": "413bc5948df95de9",
+  "content_hash": "0eee15c0bf184988",
+  "pack_file_hash": "803f47cbe7fc6f8b8b87b1cec78cd1fcd6e0dff6c36baba11cf32b853a714562",
   "approved_by": "Richard Tang",
-  "approved_at": "2026-07-12T11:12:36.050Z",
+  "approved_at": "2026-08-10T06:03:22.769Z",
   "task_count": 7
 }

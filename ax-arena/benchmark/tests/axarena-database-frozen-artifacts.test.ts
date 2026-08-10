@@ -29,8 +29,8 @@ const FROZEN_PACK_HASHES: Record<string, { approval: string; pack: string }> = {
     pack: "88b8549cc89b14f6f03f3d7d44c80d7234509faacce36729a7567893f0884502",
   },
   neon: {
-    approval: "cb18ed41893e94988dc63e9a61d50dd0ff723ff9b19a92b15119c3bdd69d824d",
-    pack: "8d21d813f05bf92109c70690d42f4f7e839fa16e509c547caea3cfee5f707c2d",
+    approval: "fe6204febce7cf07a3477356d876d62fb9edf2c30ee86ed819144927c9d0f170",
+    pack: "803f47cbe7fc6f8b8b87b1cec78cd1fcd6e0dff6c36baba11cf32b853a714562",
   },
   nile: {
     approval: "986f70f2d43b9e71d9f1dc8f904601afcac10449b2a68dce14465e7e64ee339b",

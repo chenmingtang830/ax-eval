@@ -7,8 +7,8 @@ Human review table derived from `suite.support-matrix.yaml`.
 |---|---|---|---|---|---|---|---|
 | db-T01-access-control access-control | 6/6 / 5/6 | — / ✓ | — / ✓ | — / ✓ | — / — | ✓ / ✓ | ✓ / ✓ |
 | db-T02-evolve-schema evolve-schema | 6/6 / 6/6 | — / ✓ | ✓ / ✓ | — / ✓ | — / ✓ | ✓ / ✓ | ✓ / ✓ |
-| db-T03-inspect-schema inspect-schema | 6/6 / 6/6 | — / ✓ | ✓ / — | ✓ / ✓ | — / ✓ | ✓ / — | — / ✓ |
-| db-T04-query-records query-records | 6/6 / 6/6 | — / ✓ | — / ✓ | ✓ / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
+| db-T03-inspect-schema inspect-schema | 6/6 / 6/6 | — / ✓ | ✓ / — | — / ✓ | — / ✓ | ✓ / — | — / ✓ |
+| db-T04-query-records query-records | 6/6 / 6/6 | — / ✓ | — / ✓ | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
 | db-T05-vector-search vector-search | 6/6 / 6/6 | — / ✓ | — / ✓ | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
 | db-T06-write-records write-records | 6/6 / 6/6 | — / ✓ | — / ✓ | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
 | db-T07-full-text-search full-text-search | 5/6 / 5/6 | — / ✓ | ? / ? | — / ✓ | — / ✓ | ✓ / — | ✓ / ✓ |
@@ -26,11 +26,13 @@ Human review table derived from `suite.support-matrix.yaml`.
 | db-T02-evolve-schema | Neon | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T02-evolve-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T03-inspect-schema | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T03-inspect-schema | Neon | api | unsupported | api has no admitted Neon Data API endpoint/JWT credential in the frozen pack; schema DDL and read-back require the declared SQL connection |
 | db-T03-inspect-schema | Insforge | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
 | db-T03-inspect-schema | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T03-inspect-schema | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |
 | db-T03-inspect-schema | Turso | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T04-query-records | Cockroachdb | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
+| db-T04-query-records | Neon | api | unsupported | api has no admitted Neon Data API endpoint/JWT credential in the frozen pack; SQL data-plane access is declared only on the CLI surface |
 | db-T04-query-records | Insforge | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T04-query-records | Nile | api | unsupported | api does not satisfy all task-fit requirements on one documented surface |
 | db-T04-query-records | Supabase | cli | unsupported | cli does not satisfy all task-fit requirements on one documented surface |

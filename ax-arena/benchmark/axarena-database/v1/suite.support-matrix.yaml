@@ -156,8 +156,9 @@ entries:
   - vendor: Neon
     task_id: db-T03-inspect-schema
     surface: api
-    status: supported
+    status: unsupported
     source_concept: inspect-schema
+    reason: api has no admitted Neon Data API endpoint/JWT credential in the frozen pack; schema DDL and read-back require the declared SQL connection
   - vendor: Neon
     task_id: db-T03-inspect-schema
     surface: cli
@@ -221,8 +222,9 @@ entries:
   - vendor: Neon
     task_id: db-T04-query-records
     surface: api
-    status: supported
+    status: unsupported
     source_concept: query-records
+    reason: api has no admitted Neon Data API endpoint/JWT credential in the frozen pack; SQL data-plane access is declared only on the CLI surface
   - vendor: Neon
     task_id: db-T04-query-records
     surface: cli

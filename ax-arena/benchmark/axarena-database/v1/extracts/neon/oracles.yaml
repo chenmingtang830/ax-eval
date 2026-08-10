@@ -52,7 +52,9 @@ tasks:
         description: title remains visible and status exists after schema evolution
   - task_id: db-T03-inspect-schema
     na: false
-    na_surfaces: []
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: neon:db-T03-inspect-schema:inspect-schema
     checks:
       - sql_dialect: postgres
@@ -64,7 +66,9 @@ tasks:
         description: schema inspection target exposes name and status fields
   - task_id: db-T04-query-records
     na: false
-    na_surfaces: []
+    na_surfaces:
+      - api
+    na_surfaces_reason: unsupported for these surfaces in support matrix
     support_reference: neon:db-T04-query-records:query-records
     checks:
       - sql_dialect: postgres
