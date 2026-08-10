@@ -1458,6 +1458,14 @@ export async function runCellWithRuntime(
   });
   const base = buildNormalizedResult(pack, cell.surface, cell.harness.id, [profileRun], null);
   const completedAt = runtime.now().toISOString();
+  // A successful process exit is not enough to claim a completed cell. A
+  // harness can stop after discovery/authentication and leave a syntactically
+  // valid result object with no task outcomes. Treat that as a failed
+  // invocation/verification boundary so the normalized record remains
+  // internally consistent (`best_profile` is only meaningful for a run with
+  // at least one scored outcome).
+  const noTaskOutcomes = outcomes.length === 0;
+  const recordStatus = invoke.ok && !verifyError && !noTaskOutcomes ? "completed" : "failed";
   const record = {
     ...base,
     schema: NORMALIZED_CELL_RECORD_SCHEMA,
@@ -1481,13 +1489,14 @@ export async function runCellWithRuntime(
     requested_model: cell.harness.model,
     started_at: startedAt,
     completed_at: completedAt,
-    status: invoke.ok && !verifyError ? "completed" : "failed",
+    status: recordStatus,
     error: verifyError
       ? { stage: "verify", message: verifyError }
-      : invoke.ok ? null : {
-          stage: "invoke",
-          message: safeMessage(invoke.error ?? "harness invocation failed", secrets),
-        },
+      : !invoke.ok
+        ? { stage: "invoke", message: safeMessage(invoke.error ?? "harness invocation failed", secrets) }
+        : noTaskOutcomes
+          ? { stage: "verify", message: "executor returned no task outcomes" }
+          : null,
     ...recordProvenance(providerProvenance),
     ...(invoke.sandbox_provenance ? { sandbox_provenance: invoke.sandbox_provenance } : {}),
     task_results: outcomes,

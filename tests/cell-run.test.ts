@@ -1055,6 +1055,16 @@ describe("runCell", () => {
     expect(record.task_results).toHaveLength(1);
   });
 
+  it("does not mark an empty executor result as a completed profile run", async () => {
+    const { cell } = fixture();
+    const isolated = runtime([]);
+    isolated.verify = async () => [];
+    const record = await runCellWithRuntime(cell, { credentials: {} }, isolated);
+    expect(record.status).toBe("failed");
+    expect(record.error).toEqual({ stage: "verify", message: "executor returned no task outcomes" });
+    expect(record.best_profile).toBeNull();
+  });
+
   it("rejects a stale cell hash before invoking", async () => {
     const { cell } = fixture();
     const invokeHarness = vi.fn();
