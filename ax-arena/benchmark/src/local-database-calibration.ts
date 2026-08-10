@@ -207,13 +207,19 @@ function completedCell(execution: ArenaCellExecution, root: string, vendor: stri
   const cost = costFromRecord(execution.record);
   const recordPath = relative(root, execution.recordPath);
   const cleanupPath = relative(root, execution.cleanupPath);
+  const recordCompleted = execution.record.status === "completed";
+  const cleanupConfirmed = execution.cleanup.status === "confirmed";
+  const status = recordCompleted && cleanupConfirmed ? "completed" : "failed";
+  const reason = !recordCompleted
+    ? execution.record.error?.message ?? "record did not complete"
+    : !cleanupConfirmed ? "cleanup was not confirmed" : null;
   return {
     key: `${vendor}/${surface}/${harness}/trial-1`, vendor, surface, harness, model, trial: 1, profile: "medium",
-    status: execution.cleanup.status === "confirmed" ? "completed" : "failed",
+    status,
     tasks_total: execution.record.tasks_total, tasks_passed: execution.record.tasks_passed, pass_at_1: execution.record.pass_at_1,
     total_duration_ms: execution.record.total_duration_ms, cost_usd: cost,
     cost_status: cost === null ? "unknown" : "measured", cleanup_status: execution.cleanup.status,
-    reason: execution.cleanup.status === "confirmed" ? null : "cleanup was not confirmed",
+    reason,
     record_path: recordPath, cleanup_path: cleanupPath, evidence: { record: recordPath, cleanup: cleanupPath },
     task_results: execution.record.task_results.map((task) => ({ id: task.taskId, success: task.success, na: task.na, error: task.error ?? null })),
   };
