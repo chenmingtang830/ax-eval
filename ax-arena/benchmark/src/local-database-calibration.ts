@@ -233,6 +233,16 @@ function classifyFailure(error: unknown): "blocked" | "safety_blocked" | "failed
   return "failed";
 }
 
+function cleanupStatusFromEvidence(path: string): string {
+  if (!existsSync(path)) return "unconfirmed";
+  try {
+    const parsed = JSON.parse(readFileSync(path, "utf8")) as { status?: unknown };
+    return typeof parsed.status === "string" ? parsed.status : "unconfirmed";
+  } catch {
+    return "unconfirmed";
+  }
+}
+
 export function buildLocalDatabaseCalibrationManifest(options: {
   sourceCommitSha: string;
   generatedAt: string;
@@ -353,7 +363,7 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
       const reason = safeError(error, cellSecrets);
       let failureReason = reason;
       try { scanSecrets(root, [paths.artifactDir], cellSecrets); } catch (scanError) { failureReason = safeError(scanError, cellSecrets); }
-      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: classifyFailure(error), tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: "unconfirmed", reason: failureReason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
+      cells.push({ key, vendor, surface, harness, model, trial: 1, profile: "medium", status: classifyFailure(error), tasks_total: null, tasks_passed: null, pass_at_1: null, total_duration_ms: null, cost_usd: null, cost_status: "unknown", cleanup_status: cleanupStatusFromEvidence(paths.cleanupPath), reason: failureReason, record_path: existsSync(paths.recordPath) ? relative(root, paths.recordPath) : null, cleanup_path: existsSync(paths.cleanupPath) ? relative(root, paths.cleanupPath) : null, evidence: existsSync(paths.recordPath) && existsSync(paths.cleanupPath) ? { record: relative(root, paths.recordPath), cleanup: relative(root, paths.cleanupPath) } : null, task_results: [] });
     }
   }
   const expectedKeys = localDatabaseCalibrationCellKeys();
