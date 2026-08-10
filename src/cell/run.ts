@@ -1464,7 +1464,7 @@ export async function runCellWithRuntime(
   // invocation/verification boundary so the normalized record remains
   // internally consistent (`best_profile` is only meaningful for a run with
   // at least one scored outcome).
-  const noTaskOutcomes = outcomes.length === 0;
+  const noTaskOutcomes = pack.tasks.length > 0 && outcomes.length === 0;
   const recordStatus = invoke.ok && !verifyError && !noTaskOutcomes ? "completed" : "failed";
   const record = {
     ...base,
