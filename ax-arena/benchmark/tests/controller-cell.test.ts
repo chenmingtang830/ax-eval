@@ -1111,6 +1111,53 @@ describe("arena cell controller: git-backed lifecycle integrity", { timeout: 20_
     }
   });
 
+  it("does not treat URL-template configuration as leaked credential material", async () => {
+    const cwd = mkdtempSync(resolve(tmpdir(), "ax-arena-controller-url-config-"));
+    const packPath = resolve(cwd, "pack.yaml");
+    const pack = TargetPackSchema.parse({
+      name: "turso",
+      standard_set_version: "axarena-database-v1",
+      run_id: "axarena-database",
+      auth: { type: "bearer", env: "TURSO_DATABASE_AUTH_TOKEN" },
+      base_url: "https://${TURSO_SANDBOX_DATABASE}-${TURSO_ORG}.turso.io",
+      tasks: [],
+    });
+    writeFileSync(packPath, yamlStringify(pack));
+    writeApproval(packPath, pack, "controller-test");
+    const sourceCommitSha = commitFixture(cwd);
+    const spec = cellSpec(cwd, packPath, sourceCommitSha, "url-config");
+
+    const result = await executeArenaCell(spec, {
+      credentials: {
+        OPENAI_API_KEY: "host-secret",
+        TURSO_DATABASE_AUTH_TOKEN: "database-auth-secret",
+        TURSO_SANDBOX_DATABASE: "sandbox-db",
+        TURSO_ORG: "sandbox-org",
+      },
+      now: () => new Date("2026-07-21T00:00:00.000Z"),
+      async createRegistry() {
+        return createRuntimeExtensionRegistry();
+      },
+      async runCell(cell) {
+        const record = fakeRecord(cell);
+        return NormalizedCellRecordSchema.parse({
+          ...record,
+          discovery: {
+            hops: 0,
+            metrics: [{
+              id: "canonical",
+              passed: true,
+              detail: "https://sandbox-db-sandbox-org.turso.io",
+            }],
+          },
+        });
+      },
+    });
+
+    expect(result.record.status).toBe("completed");
+    expect(existsSync(spec.recordPath)).toBe(true);
+  });
+
   it("freezes cleanup plans and preserves them when provider execution throws", async () => {
     const cwd = mkdtempSync(resolve(tmpdir(), "ax-arena-controller-plan-mutation-"));
     const { packPath, sourceCommitSha } = writeCommittedPack(cwd);

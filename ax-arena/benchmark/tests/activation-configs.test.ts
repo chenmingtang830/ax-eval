@@ -20,10 +20,13 @@ describe("AXArena-Database v1 activation configurations", () => {
     }
   });
 
-  it("defines the exact 8-cell calibration cohort", () => {
-    expect(generated.calibration.cells).toHaveLength(8);
+  it("defines the exact executable 6-cell calibration cohort", () => {
+    expect(generated.calibration.cells).toHaveLength(6);
     expect(new Set(generated.calibration.cells.map((cell) => cell.vendor))).toEqual(new Set(["supabase", "turso"]));
-    expect(new Set(generated.calibration.cells.map((cell) => cell.surface))).toEqual(new Set(["api", "cli"]));
+    expect(generated.calibration.cells.filter((cell) => cell.vendor === "supabase")
+      .every((cell) => cell.surface === "cli")).toBe(true);
+    expect(new Set(generated.calibration.cells.filter((cell) => cell.vendor === "turso").map((cell) => cell.surface)))
+      .toEqual(new Set(["api", "cli"]));
     expect(new Set(generated.calibration.cells.map((cell) => cell.harness))).toEqual(new Set(["codex", "claude-code"]));
     expect(new Set(generated.calibration.cells.map((cell) => cell.trial))).toEqual(new Set([1]));
     expect(generated.calibration.cells.every((cell) => cell.profile === "medium" && cell.effort === "medium")).toBe(true);

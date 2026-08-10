@@ -116,7 +116,11 @@ or credentialed benchmark by itself.
 
 The frozen v1 activation inputs live under
 `axarena-database/v1/configurations/`. `calibration-supabase-turso.json` is the
-non-ranking 8-cell, one-trial medium cohort; `production.json` is the complete
+non-ranking 6-cell, one-trial medium cohort: Turso API/CLI plus Supabase CLI.
+Supabase API is deliberately excluded from this first live calibration because
+the currently reviewed PostgREST-only pack cannot create the tables, SQL roles,
+or policies required by its canonical tasks; it must gain an admitted management
+or provisioning path before it can be dispatched. `production.json` is the complete
 6-vendor × API/CLI × 2-harness × 3-trial 72-cell cohort. Both are derived from
 the committed suite, reviewed packs, and trusted runtime lock. Regenerate them
 with `npm run activation:write --workspace @ax-arena/benchmark` and verify drift

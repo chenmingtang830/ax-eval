@@ -7,7 +7,6 @@ import {
   lstatSync,
   openSync,
   readFileSync,
-  readdirSync,
   realpathSync,
   renameSync,
   rmSync,
@@ -729,39 +728,11 @@ function sanitizeInvokeHomeIfPresent(opts: InvokeRunOptions): void {
   } catch {
     return;
   }
-  if (opts.harness === "opencode" || opts.harness === "pi") {
-    // These harnesses may retain complete messages/tool output in internal
-    // stores. The per-run home is disposable after recovery and metrics
-    // parsing, so remove it in full rather than attempting field redaction.
-    rmSync(home, { recursive: true, force: true });
-    return;
-  }
-  const visit = (path: string) => {
-    let stat;
-    try {
-      stat = lstatSync(path);
-    } catch {
-      return;
-    }
-    if (stat.isSymbolicLink()) return;
-    if (stat.isDirectory()) {
-      for (const entry of readdirSync(path)) visit(resolve(path, entry));
-      return;
-    }
-    if (!stat.isFile() || stat.size > 5 * 1024 * 1024) return;
-    try {
-      const raw = readRegularFileNoFollow(path, allowedRoot);
-      if (raw.includes(0)) return;
-      replaceFileWithoutFollowing(
-        path,
-        redactHarnessArtifactText(raw.toString("utf8"), opts.redactionValues),
-        allowedRoot,
-      );
-    } catch {
-      /* best effort: host CLI caches are evidence, not primary artifacts. */
-    }
-  };
-  visit(home);
+  // Every isolated home is disposable after primary result, trace, transcript,
+  // and metrics recovery. Harnesses may copy ambient login material or persist
+  // binary session databases here, neither of which can be safely field-redacted
+  // or retained as benchmark evidence.
+  rmSync(home, { recursive: true, force: true });
 }
 
 function removeIsolatedWorkRootIfPresent(opts: InvokeRunOptions): void {
@@ -1994,9 +1965,9 @@ export async function runInvokeHarness(
   try {
     return await runInvokeHarnessInner(opts, spawnAsync);
   } finally {
-    // OpenCode persists full messages/tool results in SQLite, while the legacy
-    // harnesses may leave text caches. Always clean/scrub even if spawning,
-    // recovery, or metadata serialization throws.
+    // Harnesses may copy ambient login material or persist full messages/tool
+    // results in their isolated homes. Always remove those disposable homes
+    // even if spawning, recovery, or metadata serialization throws.
     try {
       sanitizeInvokeHomeIfPresent(opts);
     } finally {

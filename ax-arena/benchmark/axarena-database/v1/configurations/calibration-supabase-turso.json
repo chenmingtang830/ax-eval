@@ -15,13 +15,11 @@
       "file_hash": "964c54a1d4dd76ea6ea905a38b38e1704f03ffc8d665d6c533d4c28a52e159a4",
       "standard_set_version": "daeb-1-v1",
       "surfaces": [
-        "api",
         "cli"
       ],
       "host_credential_names": [
         "ANTHROPIC_API_KEY",
         "OPENAI_API_KEY",
-        "SUPABASE_API_KEY",
         "SUPABASE_DB_URL",
         "SUPABASE_PROJECT_REF"
       ],
@@ -65,86 +63,6 @@
     }
   ],
   "cells": [
-    {
-      "key": "supabase/api/codex/trial-1",
-      "vendor": "supabase",
-      "surface": "api",
-      "harness": "codex",
-      "profile": "medium",
-      "effort": "medium",
-      "model": "gpt-5.6-terra",
-      "trial": 1,
-      "host_credential_names": [
-        "OPENAI_API_KEY",
-        "SUPABASE_API_KEY",
-        "SUPABASE_PROJECT_REF"
-      ],
-      "verification_credential_names": [
-        "SUPABASE_API_KEY",
-        "SUPABASE_DB_URL",
-        "SUPABASE_PROJECT_REF"
-      ],
-      "reset_credential_names": [
-        "SUPABASE_DB_URL"
-      ],
-      "sandbox_scope_names": [],
-      "provider_pins": [
-        {
-          "id": "ax-arena-postgres-health",
-          "version": "1.1.0",
-          "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
-        }
-      ],
-      "reset_provider": {
-        "id": "ax-arena-postgres-reset",
-        "version": "1.0.0"
-      }
-    },
-    {
-      "key": "supabase/api/claude-code/trial-1",
-      "vendor": "supabase",
-      "surface": "api",
-      "harness": "claude-code",
-      "profile": "medium",
-      "effort": "medium",
-      "model": "claude-sonnet-5",
-      "trial": 1,
-      "host_credential_names": [
-        "ANTHROPIC_API_KEY",
-        "SUPABASE_API_KEY",
-        "SUPABASE_PROJECT_REF"
-      ],
-      "verification_credential_names": [
-        "SUPABASE_API_KEY",
-        "SUPABASE_DB_URL",
-        "SUPABASE_PROJECT_REF"
-      ],
-      "reset_credential_names": [
-        "SUPABASE_DB_URL"
-      ],
-      "sandbox_scope_names": [],
-      "provider_pins": [
-        {
-          "id": "ax-arena-postgres-health",
-          "version": "1.1.0",
-          "kind": "health-check"
-        },
-        {
-          "id": "arena-sql",
-          "version": "1.0.0",
-          "kind": "oracle"
-        }
-      ],
-      "reset_provider": {
-        "id": "ax-arena-postgres-reset",
-        "version": "1.0.0"
-      }
-    },
     {
       "key": "supabase/cli/codex/trial-1",
       "vendor": "supabase",

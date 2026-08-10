@@ -15,6 +15,19 @@ const CALIBRATION_VENDORS = ["supabase", "turso"] as const;
 const SURFACES = ["api", "cli"] as const;
 const HARNESSES = ["codex", "claude-code"] as const;
 
+/**
+ * The Supabase project data API is PostgREST: it can operate pre-existing
+ * relations but cannot create the tables, roles, and policies required by the
+ * canonical v1 tasks. Keep that capability mismatch out of the first live
+ * calibration rather than publishing a known-impossible API score. The
+ * production matrix remains the declared target and must be regenerated only
+ * after the Supabase API pack gains an admitted management/provisioning path.
+ */
+function surfacesFor(mode: "calibration" | "production", vendor: string): readonly SurfaceId[] {
+  if (mode === "calibration" && vendor === "supabase") return ["cli"];
+  return SURFACES;
+}
+
 interface TrustedRuntimeLock {
   schema: "ax.arena-trusted-runtime-lock/v1";
   platform: "linux/amd64";
@@ -85,21 +98,21 @@ function buildConfiguration(root: string, mode: "calibration" | "production"): A
   const lock = runtimeLock(root);
   const packEntries = vendors.map((vendor) => {
     const path = resolve(root, `ax-arena/benchmark/axarena-database/v1/packs/${vendor}/pack.yaml`);
-    return { vendor, path, pack: loadPack(path) };
+    return { vendor, path, pack: loadPack(path), surfaces: surfacesFor(mode, vendor) };
   });
-  const packs = packEntries.map(({ vendor, path, pack }) => ({
+  const packs = packEntries.map(({ vendor, path, pack, surfaces }) => ({
     vendor,
     file_hash: packFileContentHash(path),
     standard_set_version: pack.standard_set_version,
-    surfaces: [...SURFACES],
-    host_credential_names: [...new Set(SURFACES.flatMap((surface) =>
+    surfaces: [...surfaces],
+    host_credential_names: [...new Set(surfaces.flatMap((surface) =>
       HARNESSES.flatMap((harness) => cellCredentialNames(pack, surface, harness, {}))))].sort(),
-    verification_credential_names: [...new Set(SURFACES.flatMap((surface) =>
+    verification_credential_names: [...new Set(surfaces.flatMap((surface) =>
       cellVerificationCredentialNames(pack, {}, surface)))].sort(),
     reset_credential_names: cellResetCredentialNames(pack, {}).sort(),
     sandbox_scope_names: sandboxScopeNames(pack),
   }));
-  const cells = packEntries.flatMap(({ vendor, pack }) => SURFACES.flatMap((surface) =>
+  const cells = packEntries.flatMap(({ vendor, pack, surfaces }) => surfaces.flatMap((surface) =>
     HARNESSES.flatMap((harness) => trials.map((trial) => ({
       key: `${vendor}/${surface}/${harness}/trial-${trial}`,
       vendor,

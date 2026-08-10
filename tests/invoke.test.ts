@@ -741,16 +741,18 @@ describe("runInvokeHarness", () => {
     expect(persisted).not.toContain(secret);
   });
 
-  it("redacts isolated invoke-home host CLI caches", async () => {
+  it("removes isolated invoke-home host CLI credentials and caches", async () => {
     const dir = freshDir();
     const run = opts(dir, "claude-code");
     const home = resolve(dir, ".invoke-home", "demo-claude");
     const cacheDir = resolve(home, ".claude", "projects", "demo");
     mkdirSync(cacheDir, { recursive: true });
     const cacheFile = resolve(cacheDir, "session.jsonl");
+    const authFile = resolve(home, ".claude", ".credentials.json");
     const secretDsn = "postgresql://user:pass@example.test:5432/db";
     const spawn: AsyncSpawn = async () => {
       writeFileSync(cacheFile, `tool output DATABASE_URL=${secretDsn}\n`);
+      writeFileSync(authFile, JSON.stringify({ token: "ambient-login-token" }));
       writeFileSync(
         run.paths.resultsPath,
         JSON.stringify({ profile: "ceiling", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "g" } } }),
@@ -761,9 +763,7 @@ describe("runInvokeHarness", () => {
 
     const result = await runInvokeHarness({ ...run, env: { HOME: home } }, spawn);
     expect(result.ok).toBe(true);
-    const content = readFileSync(cacheFile, "utf8");
-    expect(content).toContain("DATABASE_URL=<redacted>");
-    expect(content).not.toContain(secretDsn);
+    expect(existsSync(home)).toBe(false);
   });
 
   it("removes the disposable OpenCode home so binary session databases cannot retain tool output", async () => {

@@ -539,22 +539,60 @@ function selectedCredentials(
 
 function normalizeCredentialSource(
   source: Readonly<Record<string, string | undefined>>,
-): { credentials: Readonly<Record<string, string>>; secrets: readonly string[] } {
+): Readonly<Record<string, string>> {
   const credentials: Record<string, string> = {};
-  const secrets = new Set<string>();
   for (const [name, raw] of Object.entries(structuredClone(source))) {
     if (typeof raw !== "string") continue;
-    if (raw) secrets.add(raw);
     const trimmed = raw.trim();
     if (trimmed) {
       credentials[name] = trimmed;
-      secrets.add(trimmed);
     }
   }
-  return {
-    credentials: deepFreeze(credentials),
-    secrets: Object.freeze([...secrets]),
-  };
+  return deepFreeze(credentials);
+}
+
+/** Treat every supplied value as secret by default. A value is configuration
+ * only when the immutable pack uses its name exclusively for base-URL
+ * interpolation; auth, verifier, data-plane, and harness inputs always remain
+ * secret even when the same name also appears in the URL template. */
+function credentialSecretValues(
+  pack: TargetPack,
+  surface: SurfaceId,
+  harness: "codex" | "claude-code",
+  credentials: Readonly<Record<string, string>>,
+): readonly string[] {
+  const protectedNames = new Set<string>();
+  const add = (name: string | undefined) => { if (name) protectedNames.add(name); };
+  const selectedAuth = (auth: TargetPack["auth"] | undefined) =>
+    selectedEnvName(auth ? [auth.env, ...(auth.env_aliases ?? [])] : [], credentials);
+
+  add(harness === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY");
+  add(selectedAuth(pack.auth));
+  const verifyAuth = pack.auth?.verify_env
+    ? selectedEnvName([pack.auth.verify_env, ...(pack.auth.verify_env_aliases ?? [])], credentials)
+    : selectedAuth(pack.auth);
+  add(verifyAuth);
+
+  if (surface === "cli") {
+    const auth = pack.surfaces?.cli?.auth;
+    if (auth?.kind === "token") add(selectedEnvName([auth.token_env, ...(auth.token_env_aliases ?? [])], credentials));
+    if (auth?.kind === "oauth_app") {
+      add(auth.client_id_env);
+      add(auth.client_secret_env);
+      add(auth.refresh_token_env);
+    }
+    add(pack.sql_conn?.connection_string_env);
+    add(pack.mongo_conn?.connection_string_env);
+  }
+  add(pack.sql_conn?.connection_string_env);
+  add(pack.mongo_conn?.connection_string_env);
+
+  const urlConfigurationNames = new Set(envTemplateNames(pack.base_url));
+  for (const name of protectedNames) urlConfigurationNames.delete(name);
+
+  return Object.freeze([...new Set(Object.entries(credentials)
+    .filter(([name]) => !urlConfigurationNames.has(name))
+    .map(([, value]) => value))]);
 }
 
 function assertResetPlan(value: unknown): ResetPlan {
@@ -871,7 +909,7 @@ async function executeArenaCellInternal(
   const cleanupPath = resolve(spec.cleanupPath);
   const artifactDir = resolve(spec.artifactDir);
   const workspace = resolve(artifactDir, "workspace");
-  const { credentials, secrets: credentialSecrets } = normalizeCredentialSource(dependencies.credentials);
+  const credentials = normalizeCredentialSource(dependencies.credentials);
   if (spec.harness === "claude-code" && !trustedSandbox) {
     throw new Error("claude-code arena cells require the trusted workflow filesystem sandbox, which is not available in this slice");
   }
@@ -898,6 +936,7 @@ async function executeArenaCellInternal(
   assertRegularFile(packPath, "canonical pack");
   assertRegularFile(approvalPath(packPath), "canonical approval");
   const pack = deepFreeze(structuredClone(loadPack(packPath)));
+  const credentialSecrets = credentialSecretValues(pack, spec.surface, spec.harness, credentials);
   assertCommittedInputs(cwd, spec.sourceCommitSha, packPath, pack);
   const inputDir = resolve(workspace, "input");
   const runtimeArtifactDir = resolve(workspace, "artifacts");
