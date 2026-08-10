@@ -117,6 +117,10 @@ export interface RunCellOptions {
   signal?: AbortSignal;
   /** Trusted controllers use this for the harness process and version probe. */
   sandbox?: ChildProcessSandbox;
+  /** Local-only opt-in to copy an operator's Codex login into the isolated
+   * harness HOME when no OPENAI_API_KEY is supplied. Hosted execution leaves
+   * this false and therefore requires its declared key. */
+  allowAmbientHarnessAuth?: boolean;
 }
 
 export interface CellRuntimeDependencies {
@@ -1053,7 +1057,11 @@ export async function runCellWithRuntime(
       providerProvenance,
     });
   }
-  const missingDeclared = cell.required_credentials.filter((name) => !credentials[name]);
+  const missingDeclared = cell.required_credentials.filter((name) => !credentials[name] && !(
+    options.allowAmbientHarnessAuth === true
+    && cell.harness.id === "codex"
+    && name === "OPENAI_API_KEY"
+  ));
   const missingOpenCodeProvider = cell.harness.id === "opencode"
     ? openCodeProviderCredentialNames(cell.harness.model).filter((name) => !credentials[name])
     : [];
@@ -1227,7 +1235,7 @@ export async function runCellWithRuntime(
       cwd,
       env: baseEnv,
       allowDownloads: false,
-      allowAmbientHarnessAuth: false,
+      allowAmbientHarnessAuth: options.allowAmbientHarnessAuth === true,
       isolateWorkspace: (cell.harness.id === "opencode" || cell.harness.id === "pi") && !options.sandbox,
     });
     provisioning = mergeExtensionProvisioning(

@@ -100,6 +100,8 @@ export interface ArenaCellExecution {
 export interface ArenaCellDependencies {
   credentials: Readonly<Record<string, string | undefined>>;
   now(): Date;
+  /** Local-only Codex login transfer; trusted hosted cells leave this false. */
+  allowAmbientHarnessAuth?: boolean;
   runCell?(
     cell: EvaluationCell,
     options: Parameters<typeof runCell>[1],
@@ -955,6 +957,7 @@ async function executeArenaCellInternal(
   const returnedRecord = await dependencies.runCell(cell, {
     credentials: hostCredentials,
     verificationCredentials: verifierCredentials,
+    allowAmbientHarnessAuth: dependencies.allowAmbientHarnessAuth === true,
     extensions: { registry },
     approval: {
       allowCommittedLegacy: true,

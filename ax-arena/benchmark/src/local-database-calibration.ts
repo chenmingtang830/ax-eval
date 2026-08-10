@@ -1,6 +1,7 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { relative, resolve } from "node:path";
 import {
   checkCellApproval,
@@ -137,6 +138,10 @@ function requiredCredentialNames(pack: TargetPack, surface: SurfaceId, harness: 
   ])].sort();
 }
 
+function codexManagedLoginAvailable(credentials: Readonly<Record<string, string | undefined>>): boolean {
+  return Boolean(credentials.OPENAI_API_KEY?.trim()) || existsSync(resolve(homedir(), ".codex", "auth.json"));
+}
+
 function requireCredentials(credentials: Readonly<Record<string, string | undefined>>, names: readonly string[]): void {
   const missing = names.filter((name) => !credentials[name]?.trim());
   if (missing.length) throw new Error(`local database calibration is missing credential(s): ${missing.join(", ")}`);
@@ -257,7 +262,7 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
     if (STRUCTURAL_NA[`${vendor}/${surface}`]) continue;
     const pack = packs.get(vendor)!.pack;
     const names = requiredCredentialNames(pack, surface, harness, options.credentials);
-    requireCredentials(options.credentials, names);
+    requireCredentials(options.credentials, names.filter((name) => name !== "OPENAI_API_KEY" || codexManagedLoginAvailable(options.credentials)));
     credentialsByCell.set(key, Object.fromEntries(names.map((name) => [name, options.credentials[name]])));
   }
   mkdirSync(runRoot, { recursive: true, mode: 0o700 });
@@ -289,6 +294,7 @@ export async function runLocalDatabaseCalibration(options: LocalDatabaseCalibrat
         credentials: credentialsByCell.get(key)!,
         now, execution: { runtime_backend: "native", trust_level: "local" },
         createRegistry: async () => createDatabaseRuntimeExtensionRegistry(),
+        allowAmbientHarnessAuth: harness === "codex" && codexManagedLoginAvailable(options.credentials),
       });
       const cell = completedCell(execution, root, vendor, surface, harness, model);
       cells.push(cell);
