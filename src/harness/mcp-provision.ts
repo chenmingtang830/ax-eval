@@ -1,6 +1,6 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
@@ -359,7 +359,6 @@ function writeOpenCodeHome(opts: {
     writeApiRequestTool({ toolPath: apiRequestToolPath, pack: opts.pack });
   }
   const configPath = resolve(configDir, "opencode.json");
-  const artifactPath = dirname(opts.paths.resultsPath);
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
   // API evaluations must not cross onto SQL-wire tooling. A dedicated request
@@ -369,15 +368,7 @@ function writeOpenCodeHome(opts: {
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: {
       task: "deny",
-      // The executor result and trace paths are absolute and sit beside the
-      // isolated OpenCode home. Permit that one cell-owned artifact directory
-      // so the agent can satisfy the output contract; every other external
-      // location remains denied.
-      external_directory: {
-        "*": "deny",
-        [artifactPath]: "allow",
-        [`${artifactPath}/*`]: "allow",
-      },
+      external_directory: "deny",
       bash: opts.surface === "api" ? "deny" : "allow",
       ...(apiRequestTool ? { [apiRequestTool]: "allow" } : {}),
     },
@@ -388,14 +379,11 @@ function writeOpenCodeHome(opts: {
   let workRoot: string | undefined;
   let workDir: string | undefined;
   if (opts.isolateWorkspace) {
-    workRoot = mkdtempSync(resolve(tmpdir(), "ax-eval-opencode-"));
-    workDir = resolve(workRoot, "workspace");
-    try {
-      mkdirSync(workDir, { recursive: true });
-    } catch (error) {
-      rmSync(workRoot, { recursive: true, force: true });
-      throw error;
-    }
+    // Results and trace are absolute files in this cell-owned artifact
+    // directory. Use it as the isolated cwd so OpenCode can write its output
+    // contract without granting access to arbitrary external directories.
+    workRoot = dirname(opts.paths.resultsPath);
+    workDir = workRoot;
   }
   return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool };
 }

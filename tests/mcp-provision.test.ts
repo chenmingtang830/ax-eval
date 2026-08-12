@@ -145,10 +145,6 @@ describe("provisionHarnessForSurface", () => {
       cwd: "/repo",
       isolateWorkspace: true,
     });
-    for (const root of [first.meta?.opencode_work_root, second.meta?.opencode_work_root]) {
-      if (typeof root === "string") dirs.push(root);
-    }
-
     expect(first.env.HOME).toContain(".invoke-home");
     expect(first.env.HOME).not.toBe(second.env.HOME);
     for (const name of [
@@ -168,7 +164,7 @@ describe("provisionHarnessForSurface", () => {
     expect(first.env.OPENCODE_DISABLE_AUTOUPDATE).toBe("1");
     expect(first.env.OPENCODE_ENABLE_EXA).toBe("1");
     expect(first.meta?.mcp_provisioning).toBe("disabled_for_non_mcp_surface");
-    expect(first.meta?.opencode_work_dir).toEqual(expect.stringContaining("ax-eval-opencode-"));
+    expect(first.meta?.opencode_work_dir).toEqual(dirname(firstPaths.resultsPath));
     expect(first.meta?.opencode_work_dir).not.toContain("/repo");
     expect(existsSync(first.meta?.opencode_work_dir as string)).toBe(true);
     const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
@@ -176,11 +172,7 @@ describe("provisionHarnessForSurface", () => {
       mcp: {},
       permission: {
         task: "deny",
-        external_directory: {
-          "*": "deny",
-          [resolve(dirname(firstPaths.resultsPath))]: "allow",
-          [`${resolve(dirname(firstPaths.resultsPath))}/*`]: "allow",
-        },
+        external_directory: "deny",
         bash: "deny",
         api_request: "allow",
       },
