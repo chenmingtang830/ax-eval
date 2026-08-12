@@ -267,6 +267,7 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     let outputPoll: NodeJS.Timeout | undefined;
     let outputReadyTimer: NodeJS.Timeout | undefined;
     let firstActionLatencyMs: number | null = null;
+    let finished = false;
     const successPaths = opts?.successPaths?.filter(Boolean) ?? [];
     const outputsReady = () => successPaths.length > 0 && successPaths.every((p) => existsSync(p));
     const killChild = (signal: NodeJS.Signals) => {
@@ -325,6 +326,8 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
       }, 500);
     }
     const finish = (r: ProcResult) => {
+      if (finished) return;
+      finished = true;
       if (timer) clearTimeout(timer);
       if (firstActionTimer) clearTimeout(firstActionTimer);
       if (killTimer) clearTimeout(killTimer);
@@ -358,7 +361,12 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     });
     child.stderr?.on("data", (d: Buffer) => err.push(d));
     child.on("error", (error) => finish({ stdout: Buffer.concat(out), stderr: Buffer.concat(err), status: null, signal: null, error, timedOut, timeoutReason }));
-    child.on("close", (status, signal) => {
+    // OpenCode can leave a descendant with inherited output pipes after its
+    // command process exits. Waiting for `close` then strands the controller
+    // forever even though no agent remains. `exit` is the process lifecycle
+    // boundary; buffered output observed before it is retained and all later
+    // artifact/trace validation remains unchanged.
+    child.on("exit", (status, signal) => {
       const afterOutputs = completedAfterOutputs && outputsReady();
       finish({
         stdout: Buffer.concat(out),
