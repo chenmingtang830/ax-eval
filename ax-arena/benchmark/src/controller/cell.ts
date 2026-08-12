@@ -356,6 +356,7 @@ export function cellCredentialNames(
   if (harness === "codex") add("OPENAI_API_KEY");
   else if (harness === "claude-code") add("ANTHROPIC_API_KEY");
   else if (harnessModel?.startsWith("moonshotai/")) add("MOONSHOT_API_KEY");
+  else if (harnessModel?.startsWith("openrouter/")) add("OPENROUTER_API_KEY");
   else throw new Error("OpenCode arena cells require an explicit supported provider/model credential route");
   if (surface === "api" && pack.auth?.type !== "none") {
     add(selectedEnvName(topLevelAuthNames(pack), credentials));

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Local diagnostic recovery for the two unfinished K2.7 API cells.
+ * Local diagnostic recovery for the remaining unfinished API cell.
  * This is deliberately not wired into production commands or publication.
  */
 import { execFileSync } from "node:child_process";
@@ -23,8 +23,8 @@ import {
   resolveSourceCommitSha,
 } from "../src/controller/cell.js";
 
-const MODEL = "moonshotai/kimi-k2.7-code";
-const TARGET_VENDORS = ["supabase", "nile"] as const;
+const MODEL = "openrouter/z-ai/glm-5.2";
+const TARGET_VENDORS = ["nile"] as const;
 type RecoveryVendor = typeof TARGET_VENDORS[number];
 const root = resolve(process.cwd());
 const requestedVendors = process.env.AX_ARENA_RECOVERY_VENDORS?.split(",")
@@ -32,7 +32,7 @@ const requestedVendors = process.env.AX_ARENA_RECOVERY_VENDORS?.split(",")
   .filter(Boolean) ?? [...TARGET_VENDORS];
 if (!requestedVendors.length || new Set(requestedVendors).size !== requestedVendors.length
   || requestedVendors.some((vendor) => !TARGET_VENDORS.includes(vendor as RecoveryVendor))) {
-  throw new Error("AX_ARENA_RECOVERY_VENDORS must be a non-empty, comma-separated subset of supabase,nile");
+  throw new Error("AX_ARENA_RECOVERY_VENDORS must be a non-empty comma-separated list containing only nile");
 }
 const VENDORS = requestedVendors as RecoveryVendor[];
 const configuredInvokeTimeoutMs = process.env.AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS
@@ -79,7 +79,7 @@ function assertValidCell(
   expectedVendor: string,
 ): void {
   if (record.harness !== "opencode" || record.model !== MODEL || record.target_id !== expectedVendor || record.surface !== "api") {
-    throw new Error(`${expectedVendor} record identity does not match the requested K2.7 API cell`);
+    throw new Error(`${expectedVendor} record identity does not match the requested GLM 5.2 API cell`);
   }
   if (record.status !== "completed") {
     throw new Error(`${expectedVendor} cell did not complete: ${record.status}`);
