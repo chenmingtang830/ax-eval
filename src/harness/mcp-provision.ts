@@ -326,9 +326,26 @@ function writeOpenCodeHome(opts: {
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
+  // API evaluations must not cross onto SQL-wire tooling, and credentials must
+  // not be copied to an untracked temporary location. These rules still allow
+  // curl-based HTTP calls with declared environment variables.
   writeFileSync(configPath, `${JSON.stringify({
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
-    permission: { task: "deny" },
+    permission: {
+      task: "deny",
+      external_directory: "deny",
+      bash: opts.surface === "api" ? {
+        "*": "allow",
+        "psql*": "deny",
+        "* psql *": "deny",
+        "*node -e *": "deny",
+        "node -e *": "deny",
+        "*cat /tmp/*": "deny",
+        "cat /tmp/*": "deny",
+        "*curl * -o /tmp/*": "deny",
+        "curl * -o /tmp/*": "deny",
+      } : "allow",
+    },
     share: "disabled",
     autoshare: false,
   }, null, 2)}\n`, { mode: 0o600 });

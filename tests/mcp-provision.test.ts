@@ -173,7 +173,21 @@ describe("provisionHarnessForSurface", () => {
     const config = JSON.parse(readFileSync(resolve(first.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
     expect(config).toEqual({
       mcp: {},
-      permission: { task: "deny" },
+      permission: {
+        task: "deny",
+        external_directory: "deny",
+        bash: {
+          "*": "allow",
+          "psql*": "deny",
+          "* psql *": "deny",
+          "*node -e *": "deny",
+          "node -e *": "deny",
+          "*cat /tmp/*": "deny",
+          "cat /tmp/*": "deny",
+          "*curl * -o /tmp/*": "deny",
+          "curl * -o /tmp/*": "deny",
+        },
+      },
       share: "disabled",
       autoshare: false,
     });
