@@ -25,6 +25,12 @@ import {
 const MODEL = "moonshotai/kimi-k2.7-code";
 const VENDORS = ["supabase", "nile"] as const;
 const root = resolve(process.cwd());
+const configuredInvokeTimeoutMs = process.env.AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS
+  ? Number(process.env.AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS)
+  : 1_800_000;
+if (!Number.isSafeInteger(configuredInvokeTimeoutMs) || configuredInvokeTimeoutMs < 30_000 || configuredInvokeTimeoutMs > 1_800_000) {
+  throw new Error("AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS must be an integer between 30000 and 1800000");
+}
 const runRoot = process.argv[2]
   ? resolve(root, process.argv[2])
   : resolve(root, "results/runs/axarena-database-v1-repair-20260811/k27-api-v18");
@@ -100,7 +106,10 @@ for (const vendor of VENDORS) {
     effort: "medium",
     trial: 1,
     sourceCommitSha,
-    invokeTimeoutMs: 1_800_000,
+    // A caller may shorten this only for a confirmed provider-side terminal
+    // failure, so both cells still emit controller-owned failure records and
+    // bounded cleanup evidence instead of leaving an interrupted run opaque.
+    invokeTimeoutMs: configuredInvokeTimeoutMs,
     // OpenCode's JSON mode emits tool evidence only when its turn completes,
     // so a streaming first-action timer cannot distinguish work in progress
     // from an idle model. The 30-minute wall cap and post-run trace gate stay
