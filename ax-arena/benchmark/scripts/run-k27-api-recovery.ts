@@ -10,6 +10,7 @@ import {
   checkCellApproval,
   loadPack,
   packFileContentHash,
+  type ArenaCellCleanupRecord,
   type NormalizedCellRecord,
   type TargetPack,
 } from "ax-eval";
@@ -23,8 +24,17 @@ import {
 } from "../src/controller/cell.js";
 
 const MODEL = "moonshotai/kimi-k2.7-code";
-const VENDORS = ["supabase", "nile"] as const;
+const TARGET_VENDORS = ["supabase", "nile"] as const;
+type RecoveryVendor = typeof TARGET_VENDORS[number];
 const root = resolve(process.cwd());
+const requestedVendors = process.env.AX_ARENA_RECOVERY_VENDORS?.split(",")
+  .map((vendor) => vendor.trim())
+  .filter(Boolean) ?? [...TARGET_VENDORS];
+if (!requestedVendors.length || new Set(requestedVendors).size !== requestedVendors.length
+  || requestedVendors.some((vendor) => !TARGET_VENDORS.includes(vendor as RecoveryVendor))) {
+  throw new Error("AX_ARENA_RECOVERY_VENDORS must be a non-empty, comma-separated subset of supabase,nile");
+}
+const VENDORS = requestedVendors as RecoveryVendor[];
 const configuredInvokeTimeoutMs = process.env.AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS
   ? Number(process.env.AX_ARENA_RECOVERY_INVOKE_TIMEOUT_MS)
   : 1_800_000;
@@ -55,7 +65,7 @@ function requireCredentials(credentials: Readonly<Record<string, string | undefi
   if (missing.length) throw new Error(`missing required credential(s): ${missing.join(", ")}`);
 }
 
-function packFor(vendor: typeof VENDORS[number]): { path: string; pack: TargetPack } {
+function packFor(vendor: RecoveryVendor): { path: string; pack: TargetPack } {
   const path = resolve(root, "ax-arena/benchmark/axarena-database/v1/packs", vendor, "pack.yaml");
   const pack = loadPack(path);
   const approval = checkCellApproval(pack, path, packFileContentHash(path));
@@ -63,14 +73,24 @@ function packFor(vendor: typeof VENDORS[number]): { path: string; pack: TargetPa
   return { path, pack };
 }
 
-function assertValidCell(record: NormalizedCellRecord, expectedVendor: string): void {
+function assertValidCell(
+  record: NormalizedCellRecord,
+  cleanup: ArenaCellCleanupRecord,
+  expectedVendor: string,
+): void {
   if (record.harness !== "opencode" || record.model !== MODEL || record.target_id !== expectedVendor || record.surface !== "api") {
     throw new Error(`${expectedVendor} record identity does not match the requested K2.7 API cell`);
+  }
+  if (record.status !== "completed") {
+    throw new Error(`${expectedVendor} cell did not complete: ${record.status}`);
   }
   if (!record.task_results.length || record.tasks_total !== record.task_results.length) {
     throw new Error(`${expectedVendor} record has no complete task summary`);
   }
   if (!record.artifacts.trace) throw new Error(`${expectedVendor} record has no trace artifact`);
+  if (cleanup.status !== "confirmed") {
+    throw new Error(`${expectedVendor} cleanup is not confirmed: ${cleanup.status}`);
+  }
 }
 
 if (existsSync(runRoot)) throw new Error(`refusing to overwrite existing recovery run directory: ${runRoot}`);
@@ -125,7 +145,7 @@ for (const vendor of VENDORS) {
   });
   let validityError: string | null = null;
   try {
-    assertValidCell(execution.record, vendor);
+    assertValidCell(execution.record, execution.cleanup, vendor);
   } catch (error) {
     validityError = error instanceof Error ? error.message : String(error);
   }
