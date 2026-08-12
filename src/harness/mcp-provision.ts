@@ -73,6 +73,7 @@ function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string):
 function writeApiRequestTool(opts: {
   toolPath: string;
   pack: TargetPack;
+  traceJournalPath: string;
 }): void {
   const auth = opts.pack.auth;
   if (!auth?.env || !opts.pack.base_url) {
@@ -80,7 +81,8 @@ function writeApiRequestTool(opts: {
   }
   const primaryHeader = auth.header ?? "Authorization";
   const primaryValue = auth.type === "bearer" || auth.type === "oauth" ? `"Bearer " + token` : "token";
-  const source = `import { tool } from "@opencode-ai/plugin";\n` +
+  const source = `import { appendFileSync } from "node:fs";\n` +
+    `import { tool } from "@opencode-ai/plugin";\n` +
     `const fail = (message) => { throw new Error(\`api_request: \${message}\`); };\n` +
     `export default tool({ description: "Make one authenticated request to the pack API origin. Paths must start with /; credentials and the origin are applied internally.", args: { method: tool.schema.string(), path: tool.schema.string(), body: tool.schema.string().optional() }, async execute(args) {\n` +
     `if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i.test(args.method)) fail("unsupported method");\n` +
@@ -90,7 +92,7 @@ function writeApiRequestTool(opts: {
     `if (base.protocol !== "https:" || base.username || base.password) fail("pack base URL must be HTTPS");\n` +
     `const target = new URL(args.path, base); if (target.origin !== base.origin || target.username || target.password) fail("request must stay on pack origin");\n` +
     `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" }; if (args.body !== undefined) headers["content-type"] = "application/json";\n` +
-    `const response = await fetch(target, { method: args.method.toUpperCase(), headers, body: args.body, redirect: "error" }); return \`HTTP \${response.status}\\n\${await response.text()}\`; } });\n`;
+    `const response = await fetch(target, { method: args.method.toUpperCase(), headers, body: args.body, redirect: "error" }); const text = await response.text(); appendFileSync(${JSON.stringify(opts.traceJournalPath)}, JSON.stringify({ taskId: "discovery", action: "api_request", method: args.method.toUpperCase(), path: args.path, status: response.status, note: \`HTTP \${response.status}\` }) + "\\n", { mode: 0o600 }); return \`HTTP \${response.status}\\n\${text}\`; } });\n`;
   writeFileSync(opts.toolPath, source, { mode: 0o600 });
   try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
 }
@@ -105,13 +107,14 @@ function writeApiBootstrapOutputTool(opts: {
   toolPath: string;
   resultsPath: string;
   tracePath: string;
+  traceJournalPath: string;
 }): void {
-  const source = `import { writeFileSync } from "node:fs";\n` +
+  const source = `import { readFileSync, writeFileSync } from "node:fs";\n` +
     `import { tool } from "@opencode-ai/plugin";\n` +
     `const lines = (value) => value.split("\\n").map((item) => item.trim()).filter(Boolean);\n` +
-    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string(), trace_json: tool.schema.any() }, async execute(args) {\n` +
-    `let trace = args.trace_json; if (typeof trace === "string") { try { trace = JSON.parse(trace); } catch { throw new Error("trace_json must be a JSON array"); } }\n` +
-    `if (!Array.isArray(trace) || trace.length === 0) throw new Error("trace_json must be a non-empty JSON array");\n` +
+    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string() }, async execute(args) {\n` +
+    `const trace = readFileSync(${JSON.stringify(opts.traceJournalPath)}, "utf8").split("\\n").filter(Boolean).map((line, index) => ({ step: index + 1, ...JSON.parse(line) }));\n` +
+    `if (!trace.length) throw new Error("no observed API requests were recorded");\n` +
     `const result = { profile: args.profile, ns: args.ns, surface: "api", discovery: { base_url_found: args.base_url_found, searches: lines(args.searches), urls_visited: lines(args.urls_visited), endpoint_used: args.endpoint_used, auth_scheme_found: args.auth_scheme_found, notes: args.notes }, results: {} };\n` +
     `writeFileSync(${JSON.stringify(opts.resultsPath)}, JSON.stringify(result, null, 2) + "\\n", { mode: 0o600 });\n` +
     `writeFileSync(${JSON.stringify(opts.tracePath)}, JSON.stringify(trace, null, 2) + "\\n", { mode: 0o600 });\n` +
@@ -386,12 +389,21 @@ function writeOpenCodeHome(opts: {
     : undefined;
   if (apiRequestToolPath) {
     mkdirSync(dirname(apiRequestToolPath), { recursive: true });
-    writeApiRequestTool({ toolPath: apiRequestToolPath, pack: opts.pack });
+    writeApiRequestTool({
+      toolPath: apiRequestToolPath,
+      pack: opts.pack,
+      traceJournalPath: resolve(dirname(opts.paths.tracePath), ".api-request-journal.jsonl"),
+    });
   }
   if (apiBootstrapOutputTool) {
     const toolPath = resolve(configDir, "tools", `${apiBootstrapOutputTool}.js`);
     mkdirSync(dirname(toolPath), { recursive: true });
-    writeApiBootstrapOutputTool({ toolPath, resultsPath: opts.paths.resultsPath, tracePath: opts.paths.tracePath });
+    writeApiBootstrapOutputTool({
+      toolPath,
+      resultsPath: opts.paths.resultsPath,
+      tracePath: opts.paths.tracePath,
+      traceJournalPath: resolve(dirname(opts.paths.tracePath), ".api-request-journal.jsonl"),
+    });
   }
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
