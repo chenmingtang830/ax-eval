@@ -550,11 +550,12 @@ function normalizeCredentialSource(
   const secrets = new Set<string>();
   for (const [name, raw] of Object.entries(structuredClone(source))) {
     if (typeof raw !== "string") continue;
-    if (raw) secrets.add(raw);
+    const sensitive = /(?:KEY|TOKEN|SECRET|PASSWORD|CONNECTION|_URL$)/.test(name);
+    if (raw && sensitive) secrets.add(raw);
     const trimmed = raw.trim();
     if (trimmed) {
       credentials[name] = trimmed;
-      secrets.add(trimmed);
+      if (sensitive) secrets.add(trimmed);
     }
   }
   return {
