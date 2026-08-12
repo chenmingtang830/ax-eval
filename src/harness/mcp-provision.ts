@@ -359,6 +359,7 @@ function writeOpenCodeHome(opts: {
     writeApiRequestTool({ toolPath: apiRequestToolPath, pack: opts.pack });
   }
   const configPath = resolve(configDir, "opencode.json");
+  const artifactPath = dirname(opts.paths.resultsPath);
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
   // API evaluations must not cross onto SQL-wire tooling. A dedicated request
@@ -368,7 +369,15 @@ function writeOpenCodeHome(opts: {
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: {
       task: "deny",
-      external_directory: "deny",
+      // The executor result and trace paths are absolute and sit beside the
+      // isolated OpenCode home. Permit that one cell-owned artifact directory
+      // so the agent can satisfy the output contract; every other external
+      // location remains denied.
+      external_directory: {
+        "*": "deny",
+        [artifactPath]: "allow",
+        [`${artifactPath}/*`]: "allow",
+      },
       bash: opts.surface === "api" ? "deny" : "allow",
       ...(apiRequestTool ? { [apiRequestTool]: "allow" } : {}),
     },

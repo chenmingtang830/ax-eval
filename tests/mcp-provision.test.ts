@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { TargetPackSchema, type TargetPack } from "../src/schemas.js";
 import { defaultInvokePaths } from "../src/harness/invoke.js";
@@ -124,11 +124,12 @@ describe("provisionHarnessForSurface", () => {
 
   it("isolates every OpenCode non-MCP run across config, data, cache, and state", async () => {
     const dir = freshDir();
+    const firstPaths = defaultInvokePaths(dir, "opencode-low-api", "opencode");
     const first = await provisionHarnessForSurface({
       pack: pack(),
       harness: "opencode",
       surface: "api",
-      paths: defaultInvokePaths(dir, "opencode-low-api", "opencode"),
+      paths: firstPaths,
       cwd: "/repo",
       env: {
         OPENCODE_CONFIG_DIR: "/ambient/opencode-config",
@@ -175,7 +176,11 @@ describe("provisionHarnessForSurface", () => {
       mcp: {},
       permission: {
         task: "deny",
-        external_directory: "deny",
+        external_directory: {
+          "*": "deny",
+          [resolve(dirname(firstPaths.resultsPath))]: "allow",
+          [`${resolve(dirname(firstPaths.resultsPath))}/*`]: "allow",
+        },
         bash: "deny",
         api_request: "allow",
       },
