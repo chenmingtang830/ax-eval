@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
@@ -311,12 +311,10 @@ function writeOpenCodeHome(opts: {
   if (existsSync(sharedRuntime)
     && existsSync(resolve(sharedConfigDir, "package.json"))
     && existsSync(resolve(sharedConfigDir, "package-lock.json"))) {
-    cpSync(sharedRuntime, resolve(configDir, "node_modules"), {
-      recursive: true,
-      dereference: false,
-      errorOnExist: true,
-      force: false,
-    });
+    // The runtime is an immutable dependency tree for this invocation. A
+    // symlink avoids turning provisioning itself into a multi-minute copy;
+    // only the link lives in the disposable per-cell HOME.
+    symlinkSync(sharedRuntime, resolve(configDir, "node_modules"));
     for (const name of ["package.json", "package-lock.json"]) {
       copyFileSync(resolve(sharedConfigDir, name), resolve(configDir, name));
     }
