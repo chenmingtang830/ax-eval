@@ -327,23 +327,18 @@ function writeOpenCodeHome(opts: {
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
   // API evaluations must not cross onto SQL-wire tooling, and credentials must
-  // not be copied to an untracked temporary location. These rules still allow
-  // curl-based HTTP calls with declared environment variables.
+  // not be inspected or copied to an untracked location. The API lane permits
+  // only curl through Bash; structured result/trace files are written through
+  // the controlled edit tool in the isolated workspace.
   writeFileSync(configPath, `${JSON.stringify({
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: {
       task: "deny",
       external_directory: "deny",
       bash: opts.surface === "api" ? {
-        "*": "allow",
-        "psql*": "deny",
-        "* psql *": "deny",
-        "*node -e *": "deny",
-        "node -e *": "deny",
-        "*cat /tmp/*": "deny",
-        "cat /tmp/*": "deny",
-        "*curl * -o /tmp/*": "deny",
-        "curl * -o /tmp/*": "deny",
+        "*": "deny",
+        "curl *": "allow",
+        "/usr/bin/curl *": "allow",
       } : "allow",
     },
     share: "disabled",
