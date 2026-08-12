@@ -255,6 +255,9 @@ export interface BuildPromptOptions {
   /** Isolated OpenCode API cells use this origin- and credential-confined tool
    * instead of exposing a general-purpose HTTP client to the shell. */
   apiRequestTool?: string;
+  /** Taskless isolated API cells use a fixed-path tool to avoid OpenCode's
+   * generic write action parsing result JSON as an action object. */
+  apiBootstrapOutputTool?: string;
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
@@ -363,12 +366,18 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
         ]
       : []),
     `=== OBSERVABILITY (required) ===`,
-    `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
+    opts.apiBootstrapOutputTool && tasks.length === 0
+      ? `Log EVERY API call as you go. The trace is a JSON array of steps:`
+      : `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
     `[{"step":1,"taskId":"<id or 'discovery'>","action":"create task","method":"POST","path":"/tasks","status":201,"note":"ok"}, ...]`,
     `Record failures too (status + the error message in note).`,
-    ``,
-    `=== RESULTS (required) ===`,
-    `Write ${resultsPath} with EXACTLY this JSON shape:`,
+    ...(opts.apiBootstrapOutputTool && tasks.length === 0 ? [
+      `For this taskless API bootstrap, do NOT use the generic write or edit actions for ${resultsPath} or ${tracePath}.`,
+      `Call ${opts.apiBootstrapOutputTool} exactly once at the end. Supply profile="${profile.name}", ns="${ns}", each discovery field, newline-delimited searches and URLs, and trace_json as the non-empty JSON trace array.`,
+      `That restricted tool is the only permitted way to finish the two required artifacts.`,
+    ] : [
+      `=== RESULTS (required) ===`,
+      `Write ${resultsPath} with EXACTLY this JSON shape:`,
     `{`,
     `  "profile": "${profile.name}",`,
     `  "ns": "${ns}",`,
@@ -385,6 +394,8 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     resultsShape,
     `  }`,
     `}`,
+      `Write ${tracePath} as the JSON trace array above.`,
+    ]),
     ``,
     `Honesty matters: the discovery funnel is scored, so record your real searches/URLs.`,
     `${surface.actionGuidance(pack)} Do not edit any files other than ${resultsPath} and ${tracePath}.`,

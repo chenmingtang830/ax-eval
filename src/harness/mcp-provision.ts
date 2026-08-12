@@ -3,6 +3,7 @@ import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path
 import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
+import { tasksForSurface } from "../surface/index.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
 import { findOpenCodeManagedConfig } from "./opencode.js";
 
@@ -90,6 +91,31 @@ function writeApiRequestTool(opts: {
     `const target = new URL(args.path, base); if (target.origin !== base.origin || target.username || target.password) fail("request must stay on pack origin");\n` +
     `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" }; if (args.body !== undefined) headers["content-type"] = "application/json";\n` +
     `const response = await fetch(target, { method: args.method.toUpperCase(), headers, body: args.body, redirect: "error" }); return \`HTTP \${response.status}\\n\${await response.text()}\`; } });\n`;
+  writeFileSync(opts.toolPath, source, { mode: 0o600 });
+  try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
+}
+
+/**
+ * OpenCode's built-in write action currently interprets a content string that
+ * starts with `{` as an action object. Bootstrap records are necessarily JSON
+ * objects, so provide a narrowly-scoped completion action instead. It has no
+ * caller-controlled path and can only produce this cell's two artifacts.
+ */
+function writeApiBootstrapOutputTool(opts: {
+  toolPath: string;
+  resultsPath: string;
+  tracePath: string;
+}): void {
+  const source = `import { writeFileSync } from "node:fs";\n` +
+    `import { tool } from "@opencode-ai/plugin";\n` +
+    `const lines = (value) => value.split("\\n").map((item) => item.trim()).filter(Boolean);\n` +
+    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string(), trace_json: tool.schema.string() }, async execute(args) {\n` +
+    `let trace; try { trace = JSON.parse(args.trace_json); } catch { throw new Error("trace_json must be a JSON array"); }\n` +
+    `if (!Array.isArray(trace) || trace.length === 0) throw new Error("trace_json must be a non-empty JSON array");\n` +
+    `const result = { profile: args.profile, ns: args.ns, surface: "api", discovery: { base_url_found: args.base_url_found, searches: lines(args.searches), urls_visited: lines(args.urls_visited), endpoint_used: args.endpoint_used, auth_scheme_found: args.auth_scheme_found, notes: args.notes }, results: {} };\n` +
+    `writeFileSync(${JSON.stringify(opts.resultsPath)}, JSON.stringify(result, null, 2) + "\\n", { mode: 0o600 });\n` +
+    `writeFileSync(${JSON.stringify(opts.tracePath)}, JSON.stringify(trace, null, 2) + "\\n", { mode: 0o600 });\n` +
+    `return "Bootstrap artifacts written."; } });\n`;
   writeFileSync(opts.toolPath, source, { mode: 0o600 });
   try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
 }
@@ -312,6 +338,7 @@ function writeOpenCodeHome(opts: {
   cacheHome: string;
   stateHome: string;
   apiRequestTool?: string;
+  apiBootstrapOutputTool?: string;
   workRoot?: string;
   workDir?: string;
 } {
@@ -351,12 +378,20 @@ function writeOpenCodeHome(opts: {
   // containment-checked cleanup in invoke.ts removes it.
   try { chmodSync(home, 0o700); } catch { /* best effort on non-POSIX hosts */ }
   const apiRequestTool = opts.surface === "api" ? "api_request" : undefined;
+  const apiBootstrapOutputTool = opts.surface === "api" && tasksForSurface(opts.pack, "api").length === 0
+    ? "complete_api_bootstrap"
+    : undefined;
   const apiRequestToolPath = opts.surface === "api"
     ? resolve(configDir, "tools", `${apiRequestTool}.js`)
     : undefined;
   if (apiRequestToolPath) {
     mkdirSync(dirname(apiRequestToolPath), { recursive: true });
     writeApiRequestTool({ toolPath: apiRequestToolPath, pack: opts.pack });
+  }
+  if (apiBootstrapOutputTool) {
+    const toolPath = resolve(configDir, "tools", `${apiBootstrapOutputTool}.js`);
+    mkdirSync(dirname(toolPath), { recursive: true });
+    writeApiBootstrapOutputTool({ toolPath, resultsPath: opts.paths.resultsPath, tracePath: opts.paths.tracePath });
   }
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
@@ -371,6 +406,7 @@ function writeOpenCodeHome(opts: {
       external_directory: "deny",
       bash: opts.surface === "api" ? "deny" : "allow",
       ...(apiRequestTool ? { [apiRequestTool]: "allow" } : {}),
+      ...(apiBootstrapOutputTool ? { [apiBootstrapOutputTool]: "allow" } : {}),
     },
     share: "disabled",
     autoshare: false,
@@ -385,7 +421,7 @@ function writeOpenCodeHome(opts: {
     workRoot = dirname(opts.paths.resultsPath);
     workDir = workRoot;
   }
-  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool };
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool, apiBootstrapOutputTool };
 }
 
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
@@ -485,6 +521,7 @@ export async function provisionHarnessForSurface(opts: {
           ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
           ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
           ...(opencode.apiRequestTool ? { opencode_api_request_tool: opencode.apiRequestTool } : {}),
+          ...(opencode.apiBootstrapOutputTool ? { opencode_api_bootstrap_output_tool: opencode.apiBootstrapOutputTool } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };

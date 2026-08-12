@@ -175,11 +175,13 @@ describe("provisionHarnessForSurface", () => {
         external_directory: "deny",
         bash: "deny",
         api_request: "allow",
+        complete_api_bootstrap: "allow",
       },
       share: "disabled",
       autoshare: false,
     });
     expect(first.meta?.opencode_api_request_tool).toBe("api_request");
+    expect(first.meta?.opencode_api_bootstrap_output_tool).toBe("complete_api_bootstrap");
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
   });
 

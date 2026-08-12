@@ -105,6 +105,20 @@ describe("buildExecutorPrompt", () => {
     expect(bootstrap).toContain("report the shared discovery/bootstrap");
   });
 
+  it("uses the fixed-path completion tool for taskless isolated API bootstrap", () => {
+    const bootstrap = buildExecutorPrompt({
+      pack: { ...pack, tasks: [] },
+      profile: getProfile("floor"),
+      ns: "joaufx-floor-ab12",
+      resultsPath: "results/run-floor-bootstrap.json",
+      tracePath: "results/run-floor-bootstrap.trace.json",
+      tasks: [],
+      apiBootstrapOutputTool: "complete_api_bootstrap",
+    });
+    expect(bootstrap).toContain("complete_api_bootstrap exactly once");
+    expect(bootstrap).toContain("do NOT use the generic write or edit actions");
+  });
+
   it("can reuse a shared bootstrap artifact for task-level prompts", () => {
     const single = buildExecutorPrompt({
       pack,

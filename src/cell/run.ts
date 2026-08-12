@@ -1288,6 +1288,9 @@ export async function runCellWithRuntime(
     apiRequestTool: typeof provisioning.meta?.opencode_api_request_tool === "string"
       ? provisioning.meta.opencode_api_request_tool
       : undefined,
+    apiBootstrapOutputTool: typeof provisioning.meta?.opencode_api_bootstrap_output_tool === "string"
+      ? provisioning.meta.opencode_api_bootstrap_output_tool
+      : undefined,
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);
   replaceFileWithoutFollowing(paths.promptPath, prompt);
