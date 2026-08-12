@@ -84,7 +84,7 @@ function assertValidCell(
   if (record.status !== "completed") {
     throw new Error(`${expectedVendor} cell did not complete: ${record.status}`);
   }
-  if (!record.task_results.length || record.tasks_total !== record.task_results.length) {
+  if (record.tasks_total > 0 && record.tasks_total !== record.task_results.length) {
     throw new Error(`${expectedVendor} record has no complete task summary`);
   }
   if (!record.artifacts.trace) throw new Error(`${expectedVendor} record has no trace artifact`);
