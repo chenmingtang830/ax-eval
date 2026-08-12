@@ -8,6 +8,7 @@ export const OPENCODE_PROVIDER_ENV_BY_ID: Readonly<Record<string, readonly strin
   openrouter: ["OPENROUTER_API_KEY"],
   anthropic: ["ANTHROPIC_API_KEY"],
   openai: ["OPENAI_API_KEY"],
+  moonshotai: ["MOONSHOT_API_KEY"],
   google: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY", "GOOGLE_API_KEY"],
   xai: ["XAI_API_KEY"],
   deepseek: ["DEEPSEEK_API_KEY"],

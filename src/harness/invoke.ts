@@ -250,7 +250,9 @@ export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
     const startedAt = Date.now();
     const child = spawn(command, args, {
       cwd,
-      detached: true,
+      // Keep the child in this process group so an interrupted OpenCode cell
+      // cannot leave descendants holding the controller's stdout/stderr pipes.
+      detached: false,
       stdio: ["ignore", "pipe", "pipe"],
       env: opts?.replaceEnv ? (opts.env ?? {}) : opts?.env ? { ...process.env, ...opts.env } : process.env,
     });
