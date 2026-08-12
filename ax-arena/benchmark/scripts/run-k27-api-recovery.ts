@@ -101,7 +101,11 @@ for (const vendor of VENDORS) {
     trial: 1,
     sourceCommitSha,
     invokeTimeoutMs: 1_800_000,
-    firstActionTimeoutMs: 180_000,
+    // OpenCode's JSON mode emits tool evidence only when its turn completes,
+    // so a streaming first-action timer cannot distinguish work in progress
+    // from an idle model. The 30-minute wall cap and post-run trace gate stay
+    // authoritative for this local recovery.
+    firstActionTimeoutMs: 0,
     invokeRetries: 0,
     skipReset: false,
   }, {
@@ -110,7 +114,12 @@ for (const vendor of VENDORS) {
     execution: { runtime_backend: "native", trust_level: "local" },
     createRegistry: async () => createDatabaseRuntimeExtensionRegistry(),
   });
-  assertValidCell(execution.record, vendor);
+  let validityError: string | null = null;
+  try {
+    assertValidCell(execution.record, vendor);
+  } catch (error) {
+    validityError = error instanceof Error ? error.message : String(error);
+  }
   cells.push({
     key: `${vendor}/api/opencode/trial-1`,
     status: execution.record.status,
@@ -119,6 +128,7 @@ for (const vendor of VENDORS) {
     cleanup_status: execution.cleanup.status,
     record_path: relative(root, execution.recordPath),
     cleanup_path: relative(root, execution.cleanupPath),
+    validity_error: validityError,
   });
 }
 
