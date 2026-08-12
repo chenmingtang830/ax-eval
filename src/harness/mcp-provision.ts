@@ -109,8 +109,8 @@ function writeApiBootstrapOutputTool(opts: {
   const source = `import { writeFileSync } from "node:fs";\n` +
     `import { tool } from "@opencode-ai/plugin";\n` +
     `const lines = (value) => value.split("\\n").map((item) => item.trim()).filter(Boolean);\n` +
-    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string(), trace_json: tool.schema.string() }, async execute(args) {\n` +
-    `let trace; try { trace = JSON.parse(args.trace_json); } catch { throw new Error("trace_json must be a JSON array"); }\n` +
+    `export default tool({ description: "Complete this taskless API bootstrap. This writes the fixed result and trace artifacts; it cannot write any other path.", args: { profile: tool.schema.string(), ns: tool.schema.string(), base_url_found: tool.schema.string(), searches: tool.schema.string(), urls_visited: tool.schema.string(), endpoint_used: tool.schema.string(), auth_scheme_found: tool.schema.string(), notes: tool.schema.string(), trace_json: tool.schema.any() }, async execute(args) {\n` +
+    `let trace = args.trace_json; if (typeof trace === "string") { try { trace = JSON.parse(trace); } catch { throw new Error("trace_json must be a JSON array"); } }\n` +
     `if (!Array.isArray(trace) || trace.length === 0) throw new Error("trace_json must be a non-empty JSON array");\n` +
     `const result = { profile: args.profile, ns: args.ns, surface: "api", discovery: { base_url_found: args.base_url_found, searches: lines(args.searches), urls_visited: lines(args.urls_visited), endpoint_used: args.endpoint_used, auth_scheme_found: args.auth_scheme_found, notes: args.notes }, results: {} };\n` +
     `writeFileSync(${JSON.stringify(opts.resultsPath)}, JSON.stringify(result, null, 2) + "\\n", { mode: 0o600 });\n` +

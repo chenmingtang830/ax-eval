@@ -373,7 +373,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     `Record failures too (status + the error message in note).`,
     ...(opts.apiBootstrapOutputTool && tasks.length === 0 ? [
       `For this taskless API bootstrap, do NOT use the generic write or edit actions for ${resultsPath} or ${tracePath}.`,
-      `Call ${opts.apiBootstrapOutputTool} exactly once at the end. Supply profile="${profile.name}", ns="${ns}", each discovery field, newline-delimited searches and URLs, and trace_json as the non-empty JSON trace array.`,
+      `Call ${opts.apiBootstrapOutputTool} exactly once at the end. Supply profile="${profile.name}", ns="${ns}", each discovery field, newline-delimited searches and URLs, and trace_json as the non-empty native JSON array (not a quoted JSON string).`,
       `That restricted tool is the only permitted way to finish the two required artifacts.`,
     ] : [
       `=== RESULTS (required) ===`,
