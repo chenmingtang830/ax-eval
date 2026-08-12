@@ -378,6 +378,17 @@ function writeOpenCodeHome(opts: {
         "*": "deny",
         [apiRequestCommand!]: "allow",
         [`${apiRequestCommand!} *`]: "allow",
+        // OpenCode matches the entire shell line. Keep redirection and command
+        // composition out of the helper allowance so responses stay in the
+        // controlled tool transcript rather than arbitrary local files.
+        [`${apiRequestCommand!} * > *`]: "deny",
+        [`${apiRequestCommand!} * >*`]: "deny",
+        [`${apiRequestCommand!} * < *`]: "deny",
+        [`${apiRequestCommand!} * <*`]: "deny",
+        [`${apiRequestCommand!} * | *`]: "deny",
+        [`${apiRequestCommand!} * ; *`]: "deny",
+        [`${apiRequestCommand!} * && *`]: "deny",
+        [`${apiRequestCommand!} * || *`]: "deny",
       } : "allow",
     },
     share: "disabled",
