@@ -69,6 +69,37 @@ function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string):
   try { chmodSync(scriptPath, 0o700); } catch { /* best effort */ }
 }
 
+function writeApiRequestHelper(opts: {
+  scriptPath: string;
+  pack: TargetPack;
+}): void {
+  const auth = opts.pack.auth;
+  if (!auth?.env || !opts.pack.base_url) {
+    throw new Error("isolated OpenCode API execution requires pack auth.env and base_url");
+  }
+  const primaryHeader = auth.header ?? "Authorization";
+  const primaryValue = auth.type === "bearer" || auth.type === "oauth"
+    ? `"Bearer " + token`
+    : "token";
+  const script = `#!${process.execPath}\n` +
+    `const [method, requestPath, body, ...extra] = process.argv.slice(2);\n` +
+    `const fail = (message) => { process.stderr.write(\`ax-api-request: \${message}\\n\`); process.exit(2); };\n` +
+    `if (!method || !requestPath || extra.length || !/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i.test(method)) fail("usage: METHOD /path[?query] [JSON body]");\n` +
+    `if (!requestPath.startsWith("/") || requestPath.startsWith("//")) fail("request path must be an origin-relative path");\n` +
+    `const token = process.env[${JSON.stringify(auth.env)}]?.trim();\n` +
+    `if (!token) fail("missing declared API credential");\n` +
+    `const baseTemplate = ${JSON.stringify(opts.pack.base_url)};\n` +
+    `const base = new URL(baseTemplate.replace(/\\$\\{([A-Z0-9_]+)\\}/g, (_match, name) => { const value = process.env[name]?.trim(); if (!value) fail(\`missing endpoint variable \${name}\`); return value; }));\n` +
+    `if (base.protocol !== "https:" || base.username || base.password) fail("pack base URL must be an HTTPS origin");\n` +
+    `const target = new URL(requestPath, base);\n` +
+    `if (target.origin !== base.origin || target.username || target.password) fail("request must stay on the pack base origin");\n` +
+    `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" };\n` +
+    `if (body !== undefined) headers["content-type"] = "application/json";\n` +
+    `fetch(target, { method: method.toUpperCase(), headers, body, redirect: "error" }).then(async (response) => { const text = await response.text(); process.stdout.write(\`HTTP \${response.status}\\n\${text}\`); }).catch((error) => fail(error instanceof Error ? error.message : "request failed"));\n`;
+  writeFileSync(opts.scriptPath, script, { mode: 0o700 });
+  try { chmodSync(opts.scriptPath, 0o700); } catch { /* best effort */ }
+}
+
 async function exchangeRefreshToken(
   auth: SurfaceAuth,
   source: Readonly<Record<string, string | undefined>> = process.env,
@@ -272,6 +303,7 @@ function writeClaudeNoMcpHome(paths: InvokePaths): { home: string; configPath: s
 function writeOpenCodeHome(opts: {
   paths: InvokePaths;
   surface: SurfaceId;
+  pack: TargetPack;
   isolateWorkspace?: boolean;
   mcp?: {
     serverName: string;
@@ -285,6 +317,7 @@ function writeOpenCodeHome(opts: {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
+  apiRequestCommand?: string;
   workRoot?: string;
   workDir?: string;
 } {
@@ -323,13 +356,19 @@ function writeOpenCodeHome(opts: {
   // Keep the short-lived session private even on shared hosts, before the
   // containment-checked cleanup in invoke.ts removes it.
   try { chmodSync(home, 0o700); } catch { /* best effort on non-POSIX hosts */ }
+  const apiRequestCommand = opts.surface === "api"
+    ? resolve(home, "bin", "ax-api-request")
+    : undefined;
+  if (apiRequestCommand) {
+    mkdirSync(dirname(apiRequestCommand), { recursive: true });
+    writeApiRequestHelper({ scriptPath: apiRequestCommand, pack: opts.pack });
+  }
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
   // `task` so objective transcript evidence remains complete for this lane.
-  // API evaluations must not cross onto SQL-wire tooling, and credentials must
-  // not be inspected or copied to an untracked location. The API lane permits
-  // only curl through Bash; structured result/trace files are written through
-  // the controlled edit tool in the isolated workspace.
+  // API evaluations must not cross onto SQL-wire tooling. A dedicated request
+  // helper keeps the credential and origin policy outside model-controlled
+  // shell expansion; structured result/trace files use the edit tool.
   writeFileSync(configPath, `${JSON.stringify({
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: {
@@ -337,8 +376,8 @@ function writeOpenCodeHome(opts: {
       external_directory: "deny",
       bash: opts.surface === "api" ? {
         "*": "deny",
-        "curl *": "allow",
-        "/usr/bin/curl *": "allow",
+        [apiRequestCommand!]: "allow",
+        [`${apiRequestCommand!} *`]: "allow",
       } : "allow",
     },
     share: "disabled",
@@ -357,7 +396,7 @@ function writeOpenCodeHome(opts: {
       throw error;
     }
   }
-  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir };
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestCommand };
 }
 
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
@@ -428,6 +467,7 @@ export async function provisionHarnessForSurface(opts: {
       const opencode = writeOpenCodeHome({
         paths: opts.paths,
         surface: opts.surface,
+        pack: opts.pack,
         isolateWorkspace: opts.isolateWorkspace,
       });
       return {
@@ -455,6 +495,7 @@ export async function provisionHarnessForSurface(opts: {
           opencode_state_home: opencode.stateHome,
           ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
           ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
+          ...(opencode.apiRequestCommand ? { opencode_api_request_command: opencode.apiRequestCommand } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
@@ -603,6 +644,7 @@ export async function provisionHarnessForSurface(opts: {
     const opencode = writeOpenCodeHome({
       paths: opts.paths,
       surface: opts.surface,
+      pack: opts.pack,
       isolateWorkspace: opts.isolateWorkspace,
       mcp: { serverName, entry },
     });

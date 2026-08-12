@@ -178,13 +178,14 @@ describe("provisionHarnessForSurface", () => {
         external_directory: "deny",
         bash: {
           "*": "deny",
-          "curl *": "allow",
-          "/usr/bin/curl *": "allow",
+          [first.meta?.opencode_api_request_command as string]: "allow",
+          [`${first.meta?.opencode_api_request_command as string} *`]: "allow",
         },
       },
       share: "disabled",
       autoshare: false,
     });
+    expect(first.meta?.opencode_api_request_command).toContain(".invoke-home");
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
   });
 

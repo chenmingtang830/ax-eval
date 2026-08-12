@@ -252,6 +252,9 @@ export interface BuildPromptOptions {
   /** The harness runs in a disposable, secret-free workspace rather than the
    * repository checkout. Result and trace paths are absolute in this mode. */
   isolatedWorkspace?: boolean;
+  /** Isolated OpenCode API cells use this origin- and credential-confined tool
+   * instead of exposing a general-purpose HTTP client to the shell. */
+  apiRequestCommand?: string;
 }
 
 /** Build the full sub-agent prompt for one (pack × profile × ns × surface) run. */
@@ -318,7 +321,12 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
     ``,
     `=== CREDENTIALS (the "where", not the "how") ===`,
     `The harness has already loaded declared .env values into the child process environment.`,
-    ...credentialBlock(pack),
+    ...(opts.apiRequestCommand
+      ? [
+          `This isolated API cell must use ${opts.apiRequestCommand} for every product HTTP request: ${opts.apiRequestCommand} METHOD /path[?query] [JSON-body].`,
+          `It silently applies the declared credential and pack base origin. Do NOT invoke curl or inspect process.env; these safety instructions override any credential-access wording in a task description.`,
+        ]
+      : credentialBlock(pack)),
     `Secret hygiene is mandatory: never print, cat, grep, rg, echo, or include .env contents or secret values in stdout, trace, notes, or results.`,
     `Do not use file-reading tools to open .env. In scripts, read only the specific process.env names you need, use them silently, and report only env-var NAMES or redacted placeholders such as <token>.`,
     `The token is provided, but you must still DISCOVER how to authenticate with it and`,
