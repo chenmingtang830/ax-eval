@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir, tmpdir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
@@ -302,6 +302,24 @@ function writeOpenCodeHome(opts: {
   rmSync(root, { recursive: true, force: true });
   for (const path of [home, configDir, dataHome, cacheHome, stateHome]) {
     mkdirSync(path, { recursive: true, mode: 0o700 });
+  }
+  // A fresh OpenCode config otherwise downloads this bundled plugin runtime
+  // before the first model request. Copy only executable package files from
+  // the local shared install, never its configuration, sessions, or keys.
+  const sharedConfigDir = resolve(homedir(), ".config", "opencode");
+  const sharedRuntime = resolve(sharedConfigDir, "node_modules");
+  if (existsSync(sharedRuntime)
+    && existsSync(resolve(sharedConfigDir, "package.json"))
+    && existsSync(resolve(sharedConfigDir, "package-lock.json"))) {
+    cpSync(sharedRuntime, resolve(configDir, "node_modules"), {
+      recursive: true,
+      dereference: false,
+      errorOnExist: true,
+      force: false,
+    });
+    for (const name of ["package.json", "package-lock.json"]) {
+      copyFileSync(resolve(sharedConfigDir, name), resolve(configDir, name));
+    }
   }
   // OpenCode stores full messages and tool output in SQLite below this root.
   // Keep the short-lived session private even on shared hosts, before the
