@@ -176,24 +176,13 @@ describe("provisionHarnessForSurface", () => {
       permission: {
         task: "deny",
         external_directory: "deny",
-        bash: {
-          "*": "deny",
-          [first.meta?.opencode_api_request_command as string]: "allow",
-          [`${first.meta?.opencode_api_request_command as string} *`]: "allow",
-          [`${first.meta?.opencode_api_request_command as string} * > *`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * >*`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * < *`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * <*`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * | *`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * ; *`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * && *`]: "deny",
-          [`${first.meta?.opencode_api_request_command as string} * || *`]: "deny",
-        },
+        bash: "deny",
+        api_request: "allow",
       },
       share: "disabled",
       autoshare: false,
     });
-    expect(first.meta?.opencode_api_request_command).toContain(".invoke-home");
+    expect(first.meta?.opencode_api_request_tool).toBe("api_request");
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
   });
 

@@ -1285,8 +1285,8 @@ export async function runCellWithRuntime(
     tracePath: paths.tracePath,
     surface: getSurface(cell.surface),
     isolatedWorkspace: cell.harness.id === "opencode" || cell.harness.id === "pi",
-    apiRequestCommand: typeof provisioning.meta?.opencode_api_request_command === "string"
-      ? provisioning.meta.opencode_api_request_command
+    apiRequestTool: typeof provisioning.meta?.opencode_api_request_tool === "string"
+      ? provisioning.meta.opencode_api_request_tool
       : undefined,
   });
   assertArtifactDirectoryIdentity(artifactDir, artifactIdentity);

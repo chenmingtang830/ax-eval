@@ -69,8 +69,8 @@ function writeSecretHeaderHelper(scriptPath: string, bearerTokenEnvVar: string):
   try { chmodSync(scriptPath, 0o700); } catch { /* best effort */ }
 }
 
-function writeApiRequestHelper(opts: {
-  scriptPath: string;
+function writeApiRequestTool(opts: {
+  toolPath: string;
   pack: TargetPack;
 }): void {
   const auth = opts.pack.auth;
@@ -78,26 +78,20 @@ function writeApiRequestHelper(opts: {
     throw new Error("isolated OpenCode API execution requires pack auth.env and base_url");
   }
   const primaryHeader = auth.header ?? "Authorization";
-  const primaryValue = auth.type === "bearer" || auth.type === "oauth"
-    ? `"Bearer " + token`
-    : "token";
-  const script = `#!${process.execPath}\n` +
-    `const [method, requestPath, body, ...extra] = process.argv.slice(2);\n` +
-    `const fail = (message) => { process.stderr.write(\`ax-api-request: \${message}\\n\`); process.exit(2); };\n` +
-    `if (!method || !requestPath || extra.length || !/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i.test(method)) fail("usage: METHOD /path[?query] [JSON body]");\n` +
-    `if (!requestPath.startsWith("/") || requestPath.startsWith("//")) fail("request path must be an origin-relative path");\n` +
-    `const token = process.env[${JSON.stringify(auth.env)}]?.trim();\n` +
-    `if (!token) fail("missing declared API credential");\n` +
-    `const baseTemplate = ${JSON.stringify(opts.pack.base_url)};\n` +
-    `const base = new URL(baseTemplate.replace(/\\$\\{([A-Z0-9_]+)\\}/g, (_match, name) => { const value = process.env[name]?.trim(); if (!value) fail(\`missing endpoint variable \${name}\`); return value; }));\n` +
-    `if (base.protocol !== "https:" || base.username || base.password) fail("pack base URL must be an HTTPS origin");\n` +
-    `const target = new URL(requestPath, base);\n` +
-    `if (target.origin !== base.origin || target.username || target.password) fail("request must stay on the pack base origin");\n` +
-    `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" };\n` +
-    `if (body !== undefined) headers["content-type"] = "application/json";\n` +
-    `fetch(target, { method: method.toUpperCase(), headers, body, redirect: "error" }).then(async (response) => { const text = await response.text(); process.stdout.write(\`HTTP \${response.status}\\n\${text}\`); }).catch((error) => fail(error instanceof Error ? error.message : "request failed"));\n`;
-  writeFileSync(opts.scriptPath, script, { mode: 0o700 });
-  try { chmodSync(opts.scriptPath, 0o700); } catch { /* best effort */ }
+  const primaryValue = auth.type === "bearer" || auth.type === "oauth" ? `"Bearer " + token` : "token";
+  const source = `import { tool } from "@opencode-ai/plugin";\n` +
+    `const fail = (message) => { throw new Error(\`api_request: \${message}\`); };\n` +
+    `export default tool({ description: "Make one authenticated request to the pack API origin. Paths must start with /; credentials and the origin are applied internally.", args: { method: tool.schema.string(), path: tool.schema.string(), body: tool.schema.string().optional() }, async execute(args) {\n` +
+    `if (!/^(GET|POST|PUT|PATCH|DELETE|HEAD)$/i.test(args.method)) fail("unsupported method");\n` +
+    `if (!args.path.startsWith("/") || args.path.startsWith("//")) fail("path must be origin-relative");\n` +
+    `const token = process.env[${JSON.stringify(auth.env)}]?.trim(); if (!token) fail("missing declared API credential");\n` +
+    `const base = new URL(${JSON.stringify(opts.pack.base_url)}.replace(/\\$\\{([A-Z0-9_]+)\\}/g, (_match, name) => { const value = process.env[name]?.trim(); if (!value) fail(\`missing endpoint variable \${name}\`); return value; }));\n` +
+    `if (base.protocol !== "https:" || base.username || base.password) fail("pack base URL must be HTTPS");\n` +
+    `const target = new URL(args.path, base); if (target.origin !== base.origin || target.username || target.password) fail("request must stay on pack origin");\n` +
+    `const headers = { ${JSON.stringify(primaryHeader)}: ${primaryValue}, ${auth.extra_header ? `${JSON.stringify(auth.extra_header)}: token, ` : ""}"accept": "application/json" }; if (args.body !== undefined) headers["content-type"] = "application/json";\n` +
+    `const response = await fetch(target, { method: args.method.toUpperCase(), headers, body: args.body, redirect: "error" }); return \`HTTP \${response.status}\\n\${await response.text()}\`; } });\n`;
+  writeFileSync(opts.toolPath, source, { mode: 0o600 });
+  try { chmodSync(opts.toolPath, 0o600); } catch { /* best effort */ }
 }
 
 async function exchangeRefreshToken(
@@ -317,7 +311,7 @@ function writeOpenCodeHome(opts: {
   dataHome: string;
   cacheHome: string;
   stateHome: string;
-  apiRequestCommand?: string;
+  apiRequestTool?: string;
   workRoot?: string;
   workDir?: string;
 } {
@@ -356,12 +350,13 @@ function writeOpenCodeHome(opts: {
   // Keep the short-lived session private even on shared hosts, before the
   // containment-checked cleanup in invoke.ts removes it.
   try { chmodSync(home, 0o700); } catch { /* best effort on non-POSIX hosts */ }
-  const apiRequestCommand = opts.surface === "api"
-    ? resolve(home, "bin", "ax-api-request")
+  const apiRequestTool = opts.surface === "api" ? "api_request" : undefined;
+  const apiRequestToolPath = opts.surface === "api"
+    ? resolve(configDir, "tools", `${apiRequestTool}.js`)
     : undefined;
-  if (apiRequestCommand) {
-    mkdirSync(dirname(apiRequestCommand), { recursive: true });
-    writeApiRequestHelper({ scriptPath: apiRequestCommand, pack: opts.pack });
+  if (apiRequestToolPath) {
+    mkdirSync(dirname(apiRequestToolPath), { recursive: true });
+    writeApiRequestTool({ toolPath: apiRequestToolPath, pack: opts.pack });
   }
   const configPath = resolve(configDir, "opencode.json");
   // Root-session JSONL omits actions performed inside OpenCode subagents. Deny
@@ -374,22 +369,8 @@ function writeOpenCodeHome(opts: {
     permission: {
       task: "deny",
       external_directory: "deny",
-      bash: opts.surface === "api" ? {
-        "*": "deny",
-        [apiRequestCommand!]: "allow",
-        [`${apiRequestCommand!} *`]: "allow",
-        // OpenCode matches the entire shell line. Keep redirection and command
-        // composition out of the helper allowance so responses stay in the
-        // controlled tool transcript rather than arbitrary local files.
-        [`${apiRequestCommand!} * > *`]: "deny",
-        [`${apiRequestCommand!} * >*`]: "deny",
-        [`${apiRequestCommand!} * < *`]: "deny",
-        [`${apiRequestCommand!} * <*`]: "deny",
-        [`${apiRequestCommand!} * | *`]: "deny",
-        [`${apiRequestCommand!} * ; *`]: "deny",
-        [`${apiRequestCommand!} * && *`]: "deny",
-        [`${apiRequestCommand!} * || *`]: "deny",
-      } : "allow",
+      bash: opts.surface === "api" ? "deny" : "allow",
+      ...(apiRequestTool ? { [apiRequestTool]: "allow" } : {}),
     },
     share: "disabled",
     autoshare: false,
@@ -407,7 +388,7 @@ function writeOpenCodeHome(opts: {
       throw error;
     }
   }
-  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestCommand };
+  return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool };
 }
 
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
@@ -506,7 +487,7 @@ export async function provisionHarnessForSurface(opts: {
           opencode_state_home: opencode.stateHome,
           ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
           ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
-          ...(opencode.apiRequestCommand ? { opencode_api_request_command: opencode.apiRequestCommand } : {}),
+          ...(opencode.apiRequestTool ? { opencode_api_request_tool: opencode.apiRequestTool } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
