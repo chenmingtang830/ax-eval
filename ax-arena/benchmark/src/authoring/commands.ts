@@ -622,7 +622,8 @@ function cliRefreshContract(vendor: string): string {
     "DAEB-2 CLI refresh contract:",
     "Use only the declared CLI/data-plane surface for this task; management REST/API calls are out of scope.",
     `Use ${command} and the current official CLI documentation. Keep output non-interactive and never print credentials.`,
-    "The task is not admitted by a successful command alone: setup, mutation, independent read-back, cleanup, and hash-bound witness evidence are required.",
+    ...(vendor === "cockroachdb" ? ["CockroachDB mapping: every task-scoped container is the exact quoted table name in the default public schema of COCKROACH_CONNECTION_STRING's current database. Do not create or connect to a separate database; the independent oracle reads that table directly. Never use a local 127.0.0.1 cluster, --insecure, or implicit cockroach CLI defaults: all task SQL must pass --url \"$COCKROACH_CONNECTION_STRING\"."] : []),
+    "The task is not admitted by a successful command alone: setup, mutation, independent read-back, and hash-bound witness evidence are required. Do not delete, reset, or clean up task-scoped resources yourself: preserve the required final state for the evaluator's independent read-back; the dedicated reset provider runs afterward.",
   ].join(" ");
 }
 
@@ -652,6 +653,16 @@ function refreshCliTaskPrompt(vendor: string, prompt: string): string {
       .replace(/\n*Insforge query-records completion contract:.*?(?=\n\nDAEB-2 CLI refresh contract:)/gs, "");
   }
   return refreshed.trim();
+}
+
+function productionCliTaskPrompt(vendor: string, prompt: string): string {
+  const refreshed = prompt.replace(
+    "The task is not admitted by a successful command alone: setup, mutation, independent read-back, cleanup, and hash-bound witness evidence are required.",
+    "The task is not admitted by a successful command alone: setup, mutation, independent read-back, and hash-bound witness evidence are required. Do not delete, reset, or clean up task-scoped resources yourself: preserve the required final state for the evaluator's independent read-back; the dedicated reset provider runs afterward.",
+  );
+  return vendor === "cockroachdb"
+    ? `${refreshed}\n\nCockroachDB mapping: every task-scoped container is the exact quoted table name in the default public schema of COCKROACH_CONNECTION_STRING's current database. Do not create or connect to a separate database; the independent oracle reads that table directly. Never use a local 127.0.0.1 cluster, --insecure, or implicit cockroach CLI defaults: all task SQL must pass --url \"$COCKROACH_CONNECTION_STRING\".`
+    : refreshed;
 }
 
 function taskSpecificCliRefreshContract(vendor: string, taskId: string): string {
@@ -871,7 +882,9 @@ function cmdPrepareV2Production(args: AuthoringArgs): number {
     console.log("Report-only. Re-run with --apply to write v2/production.");
     return 0;
   }
-  if (existsSync(outputRoot)) throw new Error(`refusing to overwrite an existing v2 production directory: ${outputRoot}`);
+  if (existsSync(outputRoot) && !args.production) {
+    throw new Error(`refusing to overwrite an existing v2 production directory: ${outputRoot}. Re-run with --apply --production only to refresh this generated production source.`);
+  }
   const selectedTasks = canonicalTasks.map((task) => ({
     ...task,
     allowed_surfaces: ["cli"],
@@ -904,7 +917,7 @@ function cmdPrepareV2Production(args: AuthoringArgs): number {
         return {
           ...admitted,
           allowed_surfaces: ["cli"],
-          prompt: `${admitted.prompt.trim()}\n\nDAEB-2 complete production source contract: this task is an independently reported CLI tuple. Do not substitute a management API or a local database process.`.trim(),
+          prompt: `${productionCliTaskPrompt(vendor, admitted.prompt).trim()}\n\nDAEB-2 complete production source contract: this task is an independently reported CLI tuple. Do not substitute a management API or a local database process.`.trim(),
         };
       }
       return {
@@ -923,7 +936,10 @@ function cmdPrepareV2Production(args: AuthoringArgs): number {
       ...pack,
       version: "2-production",
       standard_set_version: "daeb-2-cli-production-v1",
-      run_id: `daeb2-production-${vendor}`,
+      // PostgreSQL-family identifiers (including the required denied-role
+      // name) cap at 63 bytes, so their reproducible namespaces must remain
+      // compact wherever T01 access control is admitted.
+      run_id: vendor === "cockroachdb" ? "d2p-crdb" : vendor === "neon" ? "d2p-neon" : vendor === "insforge" ? "d2p-ins" : `daeb2-production-${vendor}`,
       generated_by: "v2-production-full-pack-derivation",
       tasks,
     };
@@ -1120,9 +1136,10 @@ export function authoringCommandUsage(command: AuthoringCommand): string {
       "  diagnostic mode only. No LLM or network call.",
     ].join("\n");
     case "prepare-v2-production": return [
-      `${prefix} [--apply]`,
-      "  Derives the production common-SQL suite and four-task CLI packs from the witnessed v2 packs.",
-      "  The resulting fixed denominator is five vendors × four tasks; vendor-native work stays in a separate track.",
+      `${prefix} [--apply] [--production]`,
+      "  Derives the production seven-task CLI packs from the witnessed v2 packs, retaining explicit structural N/A entries.",
+      "  The common-SQL comparison denominator is five vendors × four tasks; vendor-native tasks remain separately reported in each full pack.",
+      "  --production permits a deliberate refresh of the already-generated v2/production source after an authoring repair.",
     ].join("\n");
     case "run-v2-witness": return [
       `${prefix} --apply [--production] [--vendors <a,b,c>] [--task <task-id>] [--run-root <dir>]`,

@@ -1,7 +1,7 @@
 name: insforge
 version: 2-production
 standard_set_version: daeb-2-cli-production-v1
-run_id: daeb2-production-insforge
+run_id: d2p-ins
 generated_by: v2-production-full-pack-derivation
 generator:
   harness: claude-code
@@ -112,7 +112,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -176,7 +179,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -220,7 +226,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -272,7 +281,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -334,7 +346,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -390,7 +405,10 @@ tasks:
       INSFORGE_CONNECTION_STRING and the current data-plane documentation. Keep
       output non-interactive and never print credentials. The task is not
       admitted by a successful command alone: setup, mutation, independent
-      read-back, cleanup, and hash-bound witness evidence are required.
+      read-back, and hash-bound witness evidence are required. Do not delete,
+      reset, or clean up task-scoped resources yourself: preserve the required
+      final state for the evaluator's independent read-back; the dedicated reset
+      provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently

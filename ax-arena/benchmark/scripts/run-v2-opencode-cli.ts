@@ -24,6 +24,16 @@ const VENDORS = (process.env.DAEB_V2_VENDORS ?? "cockroachdb,insforge,neon,nile,
   .map((value) => value.trim())
   .filter(Boolean);
 
+function pinNeonConnectionToBenchmarkBranch(): void {
+  if (!VENDORS.includes("neon")) return;
+  const endpointHost = process.env.NEON_DAEB_ENDPOINT_HOST?.trim();
+  const connection = process.env.NEON_DATABASE_URL?.trim();
+  if (!endpointHost || !connection) return;
+  const url = new URL(connection);
+  url.hostname = endpointHost;
+  process.env.NEON_DATABASE_URL = url.toString();
+}
+
 function runExecPlan(packPath: string, runDir: string, runBatchId: string): Promise<number> {
   const npm = process.platform === "win32" ? "npm.cmd" : "npm";
   const args = [
@@ -177,9 +187,13 @@ async function verifyAndCleanup(vendor: string, packPath: string, runDir: string
 }
 
 async function main() {
+  pinNeonConnectionToBenchmarkBranch();
   for (const vendor of VENDORS) {
-    const packPath = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2/packs", vendor, "pack.yaml");
-    const runDir = resolve(ROOT, "results", BATCH, vendor);
+    const packPath = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2/production/packs", vendor, "pack.yaml");
+    // Trials are independent evidence units. Keep their raw executor record,
+    // trace, and post-run audit in distinct immutable-ish directories rather
+    // than letting a later trial overwrite prior evidence.
+    const runDir = resolve(ROOT, "results", BATCH, vendor, `trial-${TRIAL}`);
     mkdirSync(runDir, { recursive: true });
     console.log(`[v2] starting ${vendor} with ${MODEL} (trial ${TRIAL})`);
     let exitCode = 1;

@@ -1,7 +1,7 @@
 name: cockroachdb
 version: 2-production
 standard_set_version: daeb-2-cli-production-v1
-run_id: daeb2-production-cockroachdb
+run_id: d2p-crdb
 generated_by: v2-production-full-pack-derivation
 generator:
   harness: claude-code
@@ -119,8 +119,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -188,8 +199,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -242,8 +264,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -299,8 +332,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -367,8 +411,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -429,8 +484,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -497,8 +563,19 @@ tasks:
       for this task; management REST/API calls are out of scope. Use cockroach
       sql and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
+
+
+      CockroachDB mapping: every task-scoped container is the exact quoted table
+      name in the default public schema of COCKROACH_CONNECTION_STRING's current
+      database. Do not create or connect to a separate database; the independent
+      oracle reads that table directly. Never use a local 127.0.0.1 cluster,
+      --insecure, or implicit cockroach CLI defaults: all task SQL must pass
+      --url "$COCKROACH_CONNECTION_STRING".
 
 
       DAEB-2 complete production source contract: this task is an independently

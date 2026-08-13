@@ -112,8 +112,11 @@ tasks:
       for this task; management REST/API calls are out of scope. Use turso db
       shell or tursodb and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -159,8 +162,11 @@ tasks:
       for this task; management REST/API calls are out of scope. Use turso db
       shell or tursodb and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -209,8 +215,11 @@ tasks:
       for this task; management REST/API calls are out of scope. Use turso db
       shell or tursodb and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -280,10 +289,13 @@ tasks:
       for this task; management REST/API calls are out of scope. Use turso db
       shell or tursodb and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required. Turso vector refresh: store
-      embeddings with vector32('[...]') and query with vector_distance_cos
-      against a vector32 value; do not rely on implicit TEXT coercion.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward. Turso vector refresh: store embeddings with vector32('[...]')
+      and query with vector_distance_cos against a vector32 value; do not rely
+      on implicit TEXT coercion.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -338,8 +350,11 @@ tasks:
       for this task; management REST/API calls are out of scope. Use turso db
       shell or tursodb and the current official CLI documentation. Keep output
       non-interactive and never print credentials. The task is not admitted by a
-      successful command alone: setup, mutation, independent read-back, cleanup,
-      and hash-bound witness evidence are required.
+      successful command alone: setup, mutation, independent read-back, and
+      hash-bound witness evidence are required. Do not delete, reset, or clean
+      up task-scoped resources yourself: preserve the required final state for
+      the evaluator's independent read-back; the dedicated reset provider runs
+      afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently

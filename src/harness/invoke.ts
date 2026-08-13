@@ -712,15 +712,6 @@ function validTraceFile(path: string): boolean {
   }
 }
 
-function writeRedactedFile(path: string, value: string, exactValues: readonly string[] = []): void {
-  replaceFileWithoutFollowing(path, redactHarnessArtifactText(value, exactValues));
-}
-
-function redactFileIfExists(path: string, exactValues: readonly string[] = []): void {
-  if (!regularFileExists(path)) return;
-  writeRedactedFile(path, readRegularFileNoFollow(path).toString("utf8"), exactValues);
-}
-
 function isInvokeHomePath(path: string): boolean {
   return path.split(/[\\/]/).includes(".invoke-home");
 }
@@ -1905,23 +1896,21 @@ async function runInvokeHarnessInner(
     const failureArtifactStamp = stampResultFile(opts, metrics);
     if (!failureArtifactStamp.ok && !stamp.error) stamp = failureArtifactStamp;
   }
-  if (unsafeShortValueInAnyArtifact) {
-    // These files were rebuilt entirely from controller-owned fields. Redact
-    // JSON string values recursively so even a coincidental short match cannot
-    // turn either artifact into an unparsable plain-text placeholder.
-    writeRedactedJsonFile(
-      opts.paths.resultsPath,
-      JSON.parse(readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8")),
-      opts.redactionValues ?? [],
-    );
+  // Result and trace artifacts have already passed JSON validation above.
+  // Redacting their serialized bytes can consume an adjacent escape sequence
+  // (for example a token immediately before an escaped quote), corrupting the
+  // evidence after it was admitted. Redact parsed string values instead.
+  writeRedactedJsonFile(
+    opts.paths.resultsPath,
+    JSON.parse(readRegularFileNoFollow(opts.paths.resultsPath).toString("utf8")),
+    opts.redactionValues ?? [],
+  );
+  if (regularFileExists(opts.paths.tracePath)) {
     writeRedactedJsonFile(
       opts.paths.tracePath,
       JSON.parse(readRegularFileNoFollow(opts.paths.tracePath).toString("utf8")),
       opts.redactionValues ?? [],
     );
-  } else {
-    redactFileIfExists(opts.paths.resultsPath, opts.redactionValues);
-    redactFileIfExists(opts.paths.tracePath, opts.redactionValues);
   }
 
   const exitLabel = exitCode ?? (signal ?? "unknown");

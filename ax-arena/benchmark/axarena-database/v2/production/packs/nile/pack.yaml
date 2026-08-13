@@ -129,8 +129,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -186,8 +188,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -246,8 +250,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -317,8 +323,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -382,8 +390,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
@@ -453,8 +463,10 @@ tasks:
       psql or the declared psql connection and the current official CLI
       documentation. Keep output non-interactive and never print credentials.
       The task is not admitted by a successful command alone: setup, mutation,
-      independent read-back, cleanup, and hash-bound witness evidence are
-      required.
+      independent read-back, and hash-bound witness evidence are required. Do
+      not delete, reset, or clean up task-scoped resources yourself: preserve
+      the required final state for the evaluator's independent read-back; the
+      dedicated reset provider runs afterward.
 
 
       DAEB-2 complete production source contract: this task is an independently
