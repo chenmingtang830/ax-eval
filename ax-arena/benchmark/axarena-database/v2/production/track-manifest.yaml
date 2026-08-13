@@ -1,0 +1,29 @@
+schema: ax.daeb-v2-production-source/v1
+suite: DAEB-2-CLI-Production
+vendors:
+  - cockroachdb
+  - insforge
+  - neon
+  - nile
+  - turso
+canonical_task_ids:
+  - db-T01-access-control
+  - db-T02-evolve-schema
+  - db-T03-inspect-schema
+  - db-T04-query-records
+  - db-T05-vector-search
+  - db-T06-write-records
+  - db-T07-full-text-search
+admitted_tuple_count: 31
+structural_na_tuple_count: 4
+common_sql_task_ids:
+  - db-T02-evolve-schema
+  - db-T03-inspect-schema
+  - db-T04-query-records
+  - db-T06-write-records
+common_sql_tuple_count: 20
+source: ../rc0-semantic-audit.yaml
+publication_policy: Every admitted tuple requires independent documentation,
+  oracle, cleanup, hosted three-trial evidence, and final approval. Cross-vendor
+  scoring is limited to the 20 common-SQL tuples; other admitted tuples are
+  published per vendor without being summed into that score.
