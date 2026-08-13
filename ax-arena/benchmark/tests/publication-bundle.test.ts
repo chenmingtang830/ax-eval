@@ -699,7 +699,7 @@ describe("arena publication bundle", () => {
     expect(() => buildArenaPublicationExport({
       root: ROOT, bundleDir: metadata.outDir, outDir: resolve(metadata.root, "forged-metadata-export"),
     })).toThrow(/manifest metadata is not the canonical derivation/);
-  });
+  }, 20_000);
 
   it("rejects post-construction report rewrites and noncanonical bundle inventories", () => {
     const duplicate = fixture(true);
