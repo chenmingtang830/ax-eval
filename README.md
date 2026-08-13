@@ -118,6 +118,13 @@ npm run ax-eval -- automate-report --company Acme \
 
 ## Core ideas
 
+AXArena-Database v1 is retained as historical diagnostic material. Its successor
+is a CLI-only workflow: Supabase and all API tuples are excluded, unsupported
+target-capability tuples are removed, and the 31 retained SQL/CLI tuples have
+passed the offline executable-witness gate (`benchmark prepare-v2 --cli-only`)
+before any model or paid evaluation run. A documented capability alone does not
+admit a task tuple.
+
 | Concept | Why it matters |
 | --- | --- |
 | **TargetPack** | A versioned description of tasks, allowed surfaces, authentication names, sandbox scope, and outcome oracles. |

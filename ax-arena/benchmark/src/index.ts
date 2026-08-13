@@ -161,6 +161,8 @@ export {
 } from "./authoring/compose-pack.js";
 export * from "./authoring/database-task-fit.js";
 export * from "./authoring/database-policy.js";
+export * from "./authoring/database-v2-witness.js";
+export * from "./authoring/database-v2-runner.js";
 export * from "./authoring/extract-advisory.js";
 export * from "./authoring/extract-audit.js";
 export * from "./authoring/methodology-policy.js";

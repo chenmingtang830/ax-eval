@@ -85,7 +85,13 @@ launchers and emit a deprecation warning.
 **Current status:** mutable AXArena-Database v1 authoring freeze is done for the 6-vendor
 core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 approved and trace review is completed. Production 3-trial and publication
-freeze are deferred; do not run them as the default next step. Research-lane
+freeze are deferred; do not run them as the default next step. The v1 freeze is
+retained as diagnostic history while DAEB v2 is re-authored as a CLI-only
+benchmark: Supabase and all API tuples are excluded, as are target-capability
+unsupported CLI tuples. The current retained set is 31 tuples and all 31 have
+passed deterministic executable witnesses. Generate the draft witness plan with
+`npm run ax-arena -- benchmark prepare-v2 --cli-only --apply`; this command is
+offline, does not call an LLM, and never mutates v1. Research-lane
 tasks stay out of the scored denominator. Use
 `ax-arena/benchmark/axarena-database/v1/vendor-selection-ledger.yaml` for core vs research vs excluded.
 

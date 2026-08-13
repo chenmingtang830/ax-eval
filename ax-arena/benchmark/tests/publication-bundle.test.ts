@@ -79,8 +79,10 @@ function fixture(production: boolean, emptyEvidence = false, duplicateTrialEvide
   const sourceSha = execFileSync("git", ["rev-parse", "HEAD"], { cwd: ROOT, encoding: "utf8" }).trim();
   const suitePath = resolve(BENCHMARK_ROOT, "v1/suite.yaml");
   const packPath = resolve(BENCHMARK_ROOT, "v1/packs/neon/pack.yaml");
-  const runtimeLockPath = resolve(ROOT, "ax-arena/benchmark/trusted-runtime/runtime-lock.json");
-  const runtimeLockBytes = readFileSync(runtimeLockPath);
+  // The batch is deliberately bound to HEAD. Read that committed lock rather
+  // than a possibly dirty developer worktree so this fixture preserves the
+  // publication invariant it is exercising.
+  const runtimeLockBytes = Buffer.from(execFileSync("git", ["show", `${sourceSha}:ax-arena/benchmark/trusted-runtime/runtime-lock.json`], { cwd: ROOT }));
   const runtimeLock = JSON.parse(runtimeLockBytes.toString("utf8"));
   const sandbox = {
     kind: "bubblewrap" as const,

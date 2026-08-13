@@ -1675,7 +1675,10 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // is structurally blocked: the blocked record is still executable intent
   // derived from this pack and must not be emitted for edited/unreviewed input.
   if (!args.skipReview) {
-    const status = checkApproval(pack, args.pack);
+    // Approval binds the complete pack. A task-scoped execution uses a
+    // filtered view for prompts, but must not make that view look like an
+    // edited pack and reject a valid full-pack approval.
+    const status = checkApproval(loadedPack, args.pack);
     if (!status.ok) {
       console.error(
         `Refusing to exec-plan: ${status.reason}.\n` +

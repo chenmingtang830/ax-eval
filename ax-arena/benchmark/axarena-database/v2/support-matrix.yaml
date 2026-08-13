@@ -1,0 +1,257 @@
+schema: ax.daeb-v2-support-matrix/v1
+benchmark: DAEB-2
+category: database
+generated_at: 2026-08-12T15:52:07.966Z
+mode: cli-only
+task_source_status: v1-intent+official-cli-doc-refresh+target-capability-exclusions
+excluded_vendors:
+  - supabase
+entries:
+  - vendor: cockroachdb
+    task_id: db-T01-access-control
+    surface: cli
+    status: supported
+    source_concept: access-control
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T03-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T05-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: cockroachdb
+    task_id: db-T07-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T01-access-control
+    surface: cli
+    status: supported
+    source_concept: access-control
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T05-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T01-access-control
+    surface: cli
+    status: supported
+    source_concept: access-control
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T03-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T05-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: neon
+    task_id: db-T07-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T03-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T05-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: nile
+    task_id: db-T07-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: turso
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: turso
+    task_id: db-T03-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: turso
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: turso
+    task_id: db-T05-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: turso
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false
+  - vendor: insforge
+    task_id: db-T03-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup, mutation, independent read-back,
+      and cleanup
+    witness_required: false

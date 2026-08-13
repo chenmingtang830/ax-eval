@@ -34,6 +34,14 @@ describe("ax-arena benchmark CLI scaffold", () => {
     expect(output.stdout[0]).toContain("--benchmark-root <dir>");
   });
 
+  it("exposes the v2 witness-gate authoring command", async () => {
+    const output = capture();
+    await expect(runArenaCli(["benchmark", "prepare-v2", "--help"], output.io)).resolves.toBe(0);
+    expect(output.stdout[0]).toContain("usage: ax-arena benchmark prepare-v2");
+    expect(output.stdout[0]).toContain("deterministic-witness");
+    expect(output.stderr).toEqual([]);
+  });
+
   it("rejects unknown top-level command groups and benchmark commands", async () => {
     const output = capture();
     await expect(runArenaCli(["other"], output.io)).resolves.toBe(1);

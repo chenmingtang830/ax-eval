@@ -1,0 +1,77 @@
+schema: ax.daeb-v2-production-track-ledger/v1
+generated_at: 2026-08-13
+status: authoring-in-progress
+purpose: >-
+Define scoring populations before production execution. A task can be
+documented and runnable without being eligible for a cross-vendor aggregate.
+tracks:
+  - id: common-sql-v1
+    label: Common SQL data-plane
+    scoring: cross-vendor aggregate permitted only across the exact 20 tuple population
+    vendors: [cockroachdb, insforge, neon, nile, turso]
+    tasks:
+      - db-T02-evolve-schema
+      - db-T03-inspect-schema
+      - db-T04-query-records
+      - db-T06-write-records
+    tuple_count: 20
+    admission:
+      required: [official-doc-review, deterministic-witness, hosted-three-trial-cohort]
+      excluded_from_this_track: [access-control, vector-search, full-text-search]
+    rationale: >-
+      These four operations have the same relational data-plane intent and an
+      independent read-back oracle across all five admitted CLI targets.
+  - id: vendor-feature-sql-v1
+    label: Vendor feature SQL diagnostics
+    scoring: per-vendor diagnostic only; no cross-vendor aggregate
+    tuple_count: 3
+    admitted_candidates:
+      - vendor: cockroachdb
+        task: db-T05-vector-search
+        transport: cockroach sql
+        docs: https://www.cockroachlabs.com/docs/stable/vector
+      - vendor: cockroachdb
+        task: db-T07-full-text-search
+        transport: cockroach sql
+        docs: https://www.cockroachlabs.com/docs/v26.2/full-text-search
+      - vendor: turso
+        task: db-T05-vector-search
+        transport: turso db shell
+        docs: https://docs.turso.tech/guides/vector-search
+    rationale: >-
+      These tasks exercise product-documented SQL features, but their task
+      populations are not shared by all vendors and must not alter common-SQL
+      rankings.
+  - id: vendor-native-control-plane-v1
+    label: Vendor-native CLI/control-plane diagnostics
+    scoring: no score and no publication denominator until every candidate has an isolated credential, oracle, reset, and witness
+    tuple_count: 0
+    candidates_requiring_full_authoring:
+      - vendor: insforge
+        concept: CLI schema/policy inspection via insforge db tables and insforge db policies
+        docs: https://insforge.dev/blog/introducing-insforge-cli
+        missing: noninteractive hosted credential contract, isolated reset provider, independent oracle
+      - vendor: neon
+        concept: CLI branch lifecycle via neonctl
+        docs: https://neon.com/cli
+        missing: noninteractive hosted credential contract, disposable branch scope, independent oracle and reset
+      - vendor: nile
+        concept: CLI CSV import via nile db copy
+        docs: https://www.thenile.dev/docs/cli/interacting_db
+        missing: noninteractive hosted credential contract, isolated database scope, independent oracle and reset
+      - vendor: cockroachdb
+        concept: Cloud control-plane lifecycle via ccloud
+        docs: https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-reference
+        missing: noninteractive service-account CLI contract, disposable cluster/database scope, cost cap, oracle and reset
+      - vendor: turso
+        concept: CLI database/token lifecycle
+        docs: https://docs.turso.tech/cli/db/shell
+        missing: isolated organization-level provisioning capability, oracle and reset
+publication_policy:
+  permitted_before_native_track_admission:
+    - Publish common-sql-v1 only after its full hosted production gate passes.
+    - Publish vendor-feature-sql-v1 as clearly labelled per-vendor diagnostics after its own hosted gate passes.
+  prohibited:
+    - Do not sum common SQL, shared PostgreSQL extensions, and vendor features into one score.
+    - Do not call a psql result a vendor-native CLI/control-plane result.
+    - Do not publish a vendor-native leaderboard while its tuple count is zero.

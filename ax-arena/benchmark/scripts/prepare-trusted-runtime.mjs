@@ -176,6 +176,8 @@ try {
     ["@anthropic-ai/claude-code", runtime.lock.harnesses.claude_code.version],
     ["@openai/codex", `${runtime.lock.harnesses.codex.version}-linux-x64`, "@openai/codex-linux-x64"],
     ["@anthropic-ai/claude-code-linux-x64", runtime.lock.harnesses.claude_code.version],
+    ["opencode-ai", runtime.lock.harnesses.opencode.version],
+    ["opencode-linux-x64", runtime.lock.harnesses.opencode.version],
   ]) {
     const packageName = installedName ?? name;
     const manifest = JSON.parse(readFileSync(resolve(harnessRoot, "node_modules", ...packageName.split("/"), "package.json"), "utf8"));
@@ -204,6 +206,7 @@ try {
   for (const [path, expected, label] of [
     [runtime.lock.harnesses.codex.executable_path, runtime.lock.harnesses.codex.version_output, "Codex"],
     [runtime.lock.harnesses.claude_code.executable_path, runtime.lock.harnesses.claude_code.version_output, "Claude Code"],
+    [runtime.lock.harnesses.opencode.executable_path, runtime.lock.harnesses.opencode.version_output, "OpenCode"],
     [runtime.lock.turso_cli.executable_path, runtime.lock.turso_cli.version_output, "Turso CLI"],
   ]) {
     const actual = execFileSync(path, ["--version"], {

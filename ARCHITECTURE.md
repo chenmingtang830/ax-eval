@@ -110,9 +110,14 @@ suite version numbers are not authoring iteration counters. Benchmark-of-record
 results begin only after human freeze. Research-lane tasks stay out of the
 scored denominator.
 
-**Current public contract:** authoring freeze is done for the 6-vendor core
-cohort; production and publication are deferred. Treat production commands as
-the eventual path, not the default next step.
+**Current public contract:** the six-vendor v1 freeze is preserved as diagnostic
+history, but is not admitted as a benchmark-of-record because its support matrix
+did not prove executable surface closure. DAEB v2 is currently CLI-only: Supabase,
+all API tuples, and target-capability-unsupported CLI tuples are excluded. The
+current retained set is 31 tuples, all of which have passed deterministic setup
+→ mutation → independent verify → cleanup witnesses. The v2 packs remain draft
+until the human semantic/review gate is completed; no model or paid evaluation
+has been started.
 
 ## System overview
 

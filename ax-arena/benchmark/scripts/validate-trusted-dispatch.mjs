@@ -131,8 +131,8 @@ if (Boolean(expectedVendor) !== Boolean(expectedSurface)
   || expectedVendor && configuration.cells.some((cell) => cell?.vendor !== expectedVendor || cell?.surface !== expectedSurface)) {
   throw new Error("trusted cohort dispatch does not match its requested vendor and surface");
 }
-const expectedHarnesses = { codex: runtime.lock.harnesses.codex, "claude-code": runtime.lock.harnesses.claude_code };
-if (!Array.isArray(configuration.harnesses) || configuration.harnesses.length !== 2
+const expectedHarnesses = { codex: runtime.lock.harnesses.codex, "claude-code": runtime.lock.harnesses.claude_code, opencode: runtime.lock.harnesses.opencode };
+if (!Array.isArray(configuration.harnesses) || !configuration.harnesses.length
   || configuration.harnesses.some((pin) => !expectedHarnesses[pin?.harness]
     || pin.version_semver !== expectedHarnesses[pin.harness].version
     || pin.version_raw !== expectedHarnesses[pin.harness].version_output)) {

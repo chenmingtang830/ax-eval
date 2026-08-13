@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, realpathSync } from "node:fs";
-import { basename, relative, resolve } from "node:path";
+import { basename, dirname, relative, resolve } from "node:path";
 import {
   SuiteSchema,
   TargetPackSchema,
@@ -96,7 +96,7 @@ const TrialManifestSchema = z.object({
   batch_id: z.string(),
   vendor: z.string(),
   surface: z.enum(["api", "cli", "sdk", "mcp"]),
-  harness: z.enum(["codex", "claude-code"]),
+  harness: z.enum(["codex", "claude-code", "opencode"]),
   generated_at: z.string(),
   trials: z.array(z.object({
     trial: z.number().int().positive(),
@@ -109,7 +109,7 @@ const SnapshotRunSchema = z.object({
   cell_key: z.string().min(1),
   trial: z.number().int().positive(),
   profile: z.enum(["medium", "high"]),
-  harness: z.enum(["codex", "claude-code"]),
+  harness: z.enum(["codex", "claude-code", "opencode"]),
   model: z.string().min(1),
   surface: z.enum(["api", "cli", "sdk", "mcp"]),
   outcomes: z.array(z.object({ taskId: z.string().min(1) }).passthrough()).min(1),
@@ -438,7 +438,10 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     }
   }
 
-  const suitePath = resolve(benchmarkRoot, `v${batch.configuration.suite.version}`, "suite.yaml");
+  const configuredSuitePath = batch.configuration.suite.path
+    ?? relative(root, resolve(benchmarkRoot, `v${batch.configuration.suite.version}`, "suite.yaml"));
+  const suitePath = resolveContained(root, configuredSuitePath, "canonical suite path");
+  if (!insideOrEqual(benchmarkRoot, suitePath)) throw new Error("canonical suite path escaped benchmark root");
   const suiteFile = readPinnedFile(benchmarkRoot, suitePath, "canonical suite", 16 * 1024 * 1024);
   assertCommitted(root, batch.source_commit_sha, suiteFile, "canonical suite");
   if (sha256(suiteFile.bytes) !== batch.configuration.suite.file_hash) throw new Error("canonical suite hash drifted from batch configuration");
@@ -454,7 +457,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     }
     return { path, bytes: file.bytes, sourcePath };
   };
-  const suiteDir = resolve(benchmarkRoot, `v${suite.version}`);
+  const suiteDir = dirname(suitePath);
   const rosterFile = readPinnedFile(benchmarkRoot, resolve(suiteDir, "provider-model-roster.yaml"), "canonical provider/model roster");
   const pricingFile = readPinnedFile(benchmarkRoot, resolve(suiteDir, "pricing-snapshot.yaml"), "canonical pricing snapshot");
   assertCommitted(root, batch.source_commit_sha, rosterFile, "canonical provider/model roster");
@@ -639,7 +642,10 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
     const slug = configuredPack.vendor;
     const missing: string[] = [];
     const validationErrors: string[] = [];
-    const packSource = resolve(benchmarkRoot, `v${suite.version}`, "packs", slug, "pack.yaml");
+    const configuredPackPath = configuredPack.path
+      ?? relative(root, resolve(benchmarkRoot, `v${suite.version}`, "packs", slug, "pack.yaml"));
+    const packSource = resolveContained(root, configuredPackPath, `canonical pack ${slug} path`);
+    if (!insideOrEqual(benchmarkRoot, packSource)) throw new Error(`canonical pack path escaped benchmark root: ${slug}`);
     const packDestination = `vendors/${slug}/compiled-pack.yaml`;
     let pack: TargetPack | undefined;
     if (!existsSync(packSource)) {
@@ -669,7 +675,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       plans.push(sourcePlan(packDestination, file, `canonical pack ${slug}`));
     }
     const approvalDestination = `vendors/${slug}/pack.approval.json`;
-    const approvalSource = resolve(benchmarkRoot, `v${suite.version}`, "packs", slug, "pack.approval.json");
+    const approvalSource = resolve(dirname(packSource), "pack.approval.json");
     let approvalCopied = false;
     if (!existsSync(approvalSource)) {
       missing.push(approvalDestination);
@@ -731,8 +737,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
 
   const expectedSurfaces = ["api", "cli", "sdk", "mcp"].filter((surface) =>
     batch.configuration.cells.some((cell) => cell.surface === surface));
-  const expectedHarnesses = ["codex", "claude-code"].filter((harness) =>
-    batch.configuration.cells.some((cell) => cell.harness === harness));
+  const expectedHarnesses = batch.configuration.harnesses.map((entry) => entry.harness);
   const expectedProfiles = [...new Set(batch.configuration.cells.map((cell) => cell.profile))].sort();
   const expectedCells = expectedAggregateKeys.length;
   const vendorMissing = vendors.flatMap((vendor) => vendor.missing.map((item) => `${vendor.slug}: ${item}`));
@@ -762,7 +767,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
   }
   const batchIds = new Set(aggregateRecords.map((record) => record.run_batch_id));
   if (batchIds.size !== 1 || !batchIds.has(batch.batch_id)) canonicalIssues.push("run_batch_id must be present and identical across publication records");
-  for (const harness of ["codex", "claude-code"] as const) {
+  for (const harness of expectedHarnesses) {
     const records = aggregateRecords.filter((record) => record.harness === harness);
     const versions = new Set(records.map((record) => record.harness_version_semver));
     if (!records.length || versions.size !== 1 || versions.has(null) || versions.has(undefined)) canonicalIssues.push(`${harness}: harness_version_semver must be present and identical`);
@@ -823,7 +828,7 @@ export function buildArenaPublicationBundle(opts: BuildArenaPublicationBundleOpt
       status: canonicalIssues.length ? "fail" : "pass",
       detail: canonicalIssues.length
         ? `${canonicalIssues.length} issue(s): ${canonicalIssues.slice(0, 5).join(" | ")}${canonicalIssues.length > 5 ? " | ..." : ""}`
-        : "gpt-5.6-terra and claude-sonnet-5, high effort, 3 trials, one run batch, and one version per harness.",
+        : "Frozen production harness/model route, high effort, 3 trials, one run batch, and one version per harness.",
     },
     {
       id: "trace-attribution", label: "Trace coverage supports process attribution",

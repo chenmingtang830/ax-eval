@@ -57,6 +57,7 @@ const runtimeManifest = assertTrustedRuntimeManifest(
 process.env.PATH = runtimeManifest.trustedPath;
 process.env.AX_EVAL_CODEX_BIN = runtime.lock.harnesses.codex.executable_path;
 process.env.AX_EVAL_CLAUDE_BIN = runtime.lock.harnesses.claude_code.executable_path;
+process.env.AX_EVAL_OPENCODE_BIN = runtime.lock.harnesses.opencode.executable_path;
 
 const { loadPack, loadSuite, packFileContentHash } = await import("ax-eval");
 const arenaRuntimeModule = new URL("../dist/index.js", import.meta.url).href;
@@ -85,7 +86,10 @@ if (arenaBatchConfigurationHash(committedConfiguration) !== batch.configuration_
 const plan = loadBatchPlan(runRoot, batch);
 const descriptor = selectArenaWorkerCell(plan, oneFlag(flags, "--cell-key"));
 
-const suitePath = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "suite.yaml");
+const suitePath = resolve(root, committedConfiguration.suite.path ?? "ax-arena/benchmark/axarena-database/v1/suite.yaml");
+if (!isInside(resolve(root, "ax-arena", "benchmark", "axarena-database"), suitePath)) {
+  throw new Error("trusted arena suite path must remain under AXArena-Database");
+}
 const suiteBytes = assertCommittedFile(root, sourceSha, suitePath, "canonical suite");
 const suite = loadSuite(suitePath);
 if (suite.name !== batch.configuration.suite.name
@@ -93,7 +97,12 @@ if (suite.name !== batch.configuration.suite.name
   || createHash("sha256").update(suiteBytes).digest("hex") !== batch.configuration.suite.file_hash) {
   throw new Error("trusted arena canonical suite identity does not match the immutable batch");
 }
-const packPath = resolve(root, "ax-arena", "benchmark", "axarena-database", "v1", "packs", descriptor.vendor, "pack.yaml");
+const configuredPack = committedConfiguration.packs.find((candidate) => candidate.vendor === descriptor.vendor);
+if (!configuredPack) throw new Error("trusted arena descriptor vendor is absent from the committed batch configuration");
+const packPath = resolve(root, configuredPack.path ?? `ax-arena/benchmark/axarena-database/v1/packs/${descriptor.vendor}/pack.yaml`);
+if (!isInside(resolve(root, "ax-arena", "benchmark", "axarena-database"), packPath)) {
+  throw new Error("trusted arena pack path must remain under AXArena-Database");
+}
 assertCommittedFile(root, sourceSha, packPath, "canonical pack");
 const pack = loadPack(packPath);
 if (pack.name !== descriptor.vendor
@@ -102,7 +111,11 @@ if (pack.name !== descriptor.vendor
   throw new Error("trusted arena pack identity does not match the selected cell descriptor");
 }
 
-const harnessLock = descriptor.harness === "codex" ? runtime.lock.harnesses.codex : runtime.lock.harnesses.claude_code;
+const harnessLock = descriptor.harness === "codex"
+  ? runtime.lock.harnesses.codex
+  : descriptor.harness === "claude-code"
+    ? runtime.lock.harnesses.claude_code
+    : runtime.lock.harnesses.opencode;
 if (descriptor.harness_version_semver !== harnessLock.version
   || descriptor.harness_version_raw !== harnessLock.version_output) {
   throw new Error("trusted arena harness version does not match the selected cell descriptor");
@@ -117,7 +130,11 @@ if (descriptor.execution.runtime_backend !== "pinned-oci" || descriptor.executio
   throw new Error("trusted arena Bubblewrap pin does not match the selected cell descriptor");
 }
 const harnessCommand = harnessLock.executable_path;
-const harnessCommandEnvironment = descriptor.harness === "codex" ? "AX_EVAL_CODEX_BIN" : "AX_EVAL_CLAUDE_BIN";
+const harnessCommandEnvironment = descriptor.harness === "codex"
+  ? "AX_EVAL_CODEX_BIN"
+  : descriptor.harness === "claude-code"
+    ? "AX_EVAL_CLAUDE_BIN"
+    : "AX_EVAL_OPENCODE_BIN";
 if (resolve(requiredEnvironment(harnessCommandEnvironment)) !== harnessCommand) {
   throw new Error("trusted arena harness command does not match the immutable tool install");
 }
