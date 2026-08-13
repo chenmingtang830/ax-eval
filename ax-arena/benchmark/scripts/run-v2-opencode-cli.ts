@@ -4,15 +4,15 @@ import { spawn } from "node:child_process";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { BearerClient } from "../../../src/http/client.js";
-import { buildVerificationClientOptions } from "../../../src/generate/verification-client.js";
 import {
+  BearerClient,
+  buildVerificationClientOptions,
   loadRequiredTrace,
   loadResults,
   verifyGeneratedPack,
   type RoundtripOutcome,
-} from "../../../src/generate/verify.js";
-import { loadPack } from "../../../src/config.js";
+  loadPack,
+} from "ax-eval";
 import { createDatabaseRuntimeExtensionRegistry } from "../src/index.js";
 
 const ROOT = resolve(fileURLToPath(new URL("../../..", import.meta.url)));

@@ -114,6 +114,8 @@ export type {
 } from "./generate/oracle-provider.js";
 export { verifyGeneratedPack } from "./generate/verify.js";
 export { loadRequiredTrace } from "./generate/verify.js";
+export { loadResults } from "./generate/verify.js";
+export { buildVerificationClientOptions } from "./generate/verification-client.js";
 export type {
   ExecutorResults,
   RoundtripOutcome,
