@@ -17,8 +17,8 @@ sample_ids:
   - results/daeb-v2-codex-production-20260814/trial-3/neon/run-codex-gpt5-cli.trace.json
   - results/daeb-v2-codex-production-20260814/trial-3/nile/run-codex-gpt5-cli.trace.json
 reviewer: Codex production-readiness audit (delegated maintainer review)
-reviewed_at: 2026-08-14T16:00:00.000Z
-commit_sha: 62b91b5a53876bd42ba24063f0ff237db5d02c43
+reviewed_at: 2026-08-14T10:08:30Z
+commit_sha: 446d6ad
 findings:
   - "All sampled traces use the declared CLI/data-plane transport and include discovery plus task actions; no management API call was admitted."
   - "The samples preserve the pack namespace contract and show independent final read-back evidence; verifier status remains authoritative over self-reported summaries."
