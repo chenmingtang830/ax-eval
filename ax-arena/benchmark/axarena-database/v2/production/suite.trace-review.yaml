@@ -1,0 +1,30 @@
+schema: ax.trace-review/v1
+benchmark: DAEB-2-CLI-Production
+generated_at: 2026-08-14T16:00:00.000Z
+status: completed
+sample_size: 12
+sample_ids:
+  - results/daeb-v2-codex-production-20260814/trial-1/cockroachdb/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-1/insforge/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-1/neon/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-1/nile/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-2/cockroachdb/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-2/insforge/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-2/neon/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-2/nile/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-3/cockroachdb/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-3/insforge/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-3/neon/run-codex-gpt5-cli.trace.json
+  - results/daeb-v2-codex-production-20260814/trial-3/nile/run-codex-gpt5-cli.trace.json
+reviewer: Codex production-readiness audit (delegated maintainer review)
+reviewed_at: 2026-08-14T16:00:00.000Z
+commit_sha: 62b91b5a53876bd42ba24063f0ff237db5d02c43
+findings:
+  - "All sampled traces use the declared CLI/data-plane transport and include discovery plus task actions; no management API call was admitted."
+  - "The samples preserve the pack namespace contract and show independent final read-back evidence; verifier status remains authoritative over self-reported summaries."
+  - "The trace review is a delegated maintainer review, not a second independent human reviewer; official publication still requires the hosted-trusted workflow and detached attestation."
+summary: >-
+  Completed delegated trajectory review over one trace per vendor and trial in
+  the local Codex qualification cohort. Transport and namespace compliance are
+  acceptable for the production candidate; local model outcomes remain
+  diagnostic and cannot satisfy the hosted publication trust boundary.

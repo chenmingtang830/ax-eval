@@ -1,0 +1,9 @@
+schema: ax.failure-taxonomy/v1
+benchmark: DAEB-2-CLI-Production
+generated_at: 2026-08-14T16:00:00.000Z
+categories:
+  - {id: discovery, label: Surface discovery failure, description: Agent did not locate or correctly select the declared CLI/data-plane surface.}
+  - {id: execution, label: Command execution failure, description: CLI command or SQL operation failed before the intended state change.}
+  - {id: oracle, label: Independent oracle failure, description: Live read-back did not satisfy the pack-declared postcondition.}
+  - {id: contract, label: Contract/reporting failure, description: Agent omitted the required gid or violated the task namespace/result contract.}
+  - {id: cleanup, label: Cleanup failure, description: Exact-scope reset was unsupported, incomplete, or left residual resources.}

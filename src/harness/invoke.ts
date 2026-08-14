@@ -70,6 +70,10 @@ export interface InvokeRunOptions {
    *  convention); claude-code → `--effort <level>` on modern Claude Code.
    *  OpenCode intentionally keeps the model's default variant in the MVP. */
   effort?: "low" | "medium" | "high";
+  /** Run Claude Code in its non-interactive automatic permission mode. This is
+   * only enabled by an explicit production/sandbox caller; ordinary CLI use
+   * keeps the operator's normal approval policy. */
+  autonomousPermissions?: boolean;
   /** Hard wall-clock cap per attempt, in milliseconds. When a harness child
    *  exceeds it, it is killed and the attempt counts as a timeout failure
    *  (eligible for a retry). 0 / undefined disables the cap. */
@@ -248,13 +252,21 @@ export type AsyncSpawn = (
 export const DEFAULT_ASYNC_SPAWN: AsyncSpawn = (command, args, cwd, opts) =>
   new Promise<ProcResult>((resolve) => {
     const startedAt = Date.now();
+    // Bun/OpenCode expects the shell's cwd variables even when the controller
+    // deliberately replaces the ambient environment. Keep them bound to the
+    // isolated child cwd rather than leaking the controller checkout path.
+    const childEnv = opts?.replaceEnv
+      ? { ...(opts.env ?? {}), PWD: cwd, OLDPWD: cwd }
+      : opts?.env
+        ? { ...process.env, ...opts.env }
+        : process.env;
     const child = spawn(command, args, {
       cwd,
       // Keep the child in this process group so an interrupted OpenCode cell
       // cannot leave descendants holding the controller's stdout/stderr pipes.
       detached: false,
       stdio: ["ignore", "pipe", "pipe"],
-      env: opts?.replaceEnv ? (opts.env ?? {}) : opts?.env ? { ...process.env, ...opts.env } : process.env,
+      env: childEnv,
     });
     const out: Buffer[] = [];
     const err: Buffer[] = [];
@@ -960,13 +972,16 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
   if (id === "claude-code") {
     const modelArgs = opts.model ? ["--model", opts.model] : [];
     const effortArgs = opts.effort ? ["--effort", opts.effort] : [];
+    const permissionArgs = opts.autonomousPermissions
+      ? ["--allow-dangerously-skip-permissions", "--permission-mode", "bypassPermissions"]
+      : [];
     // stream-json emits the full event stream (assistant tool_use, tool_result,
     // …) to stdout, ending with a `type:result` line — so the transcript carries
     // REAL tool events for --observe discovery scoring, not just a summary blob.
     // Print mode requires --verbose for stream-json.
     return {
       command: opts.harnessDetection?.command ?? commandFor("claude-code"),
-      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...modelArgs, ...effortArgs],
+      args: ["-p", prompt, "--output-format", "stream-json", "--verbose", ...permissionArgs, ...modelArgs, ...effortArgs],
     };
   }
   if (id === "opencode") {

@@ -231,7 +231,9 @@ provider may instead return additive `pathEntries`; core canonicalizes and
 prepends only real directories that resolve outside both the writable cell
 workspace and artifact tree. Tool binaries must be pinned and preinstalled in
 those external directories. Core harness provisioning creates generic isolated
-homes and MCP auth configuration only; it has no product-name branch, tool
+homes and MCP auth configuration only. For an explicit OpenCode route it also
+refreshes that provider's model catalog inside the disposable cache before
+inference; this does not make a model request. It has no product-name branch, tool
 downloader, or Turso PATH fallback. Arena's Turso provider owns binary discovery,
 version/hash attestation, and additive PATH registration. A direct core cell
 without an arena registry retains ordinary caller-PATH CLI behavior and cannot
@@ -589,6 +591,10 @@ than embedding a value. OAuth-app auth uses the controller's headless refresh
 exchange, while interactive browser OAuth remains unsupported.
 Legacy `exec-plan` uses a disposable cwd outside the checkout and exact-value
 credential redaction; it remains defense in depth rather than an OS sandbox.
+Production automation may pass `--isolated-harness-auth`, which explicitly
+adds Claude Code's `--permission-mode bypassPermissions` (and its required
+opt-in switch) to prevent an unattended cell from waiting for a UI approval.
+The flag is opt-in and must be limited to an isolated benchmark namespace.
 Unsandboxed `runCell` callers receive that cwd too, while arena cells retain the
 controller's stronger process/filesystem sandbox. This core capability is not an
 AXArena production-harness designation.

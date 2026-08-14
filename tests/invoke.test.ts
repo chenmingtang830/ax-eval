@@ -319,6 +319,23 @@ describe("runInvokeHarness", () => {
     expect(executor.model).toBe("claude-sonnet-5");
   });
 
+  it("passes Claude's automatic permission mode only when explicitly requested", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "claude-code");
+    const spawn: AsyncSpawn = async (_command, args) => {
+      expect(args).toContain("--allow-dangerously-skip-permissions");
+      expect(args).toContain("--permission-mode");
+      expect(args).toContain("bypassPermissions");
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: "medium", ns: run.ns, surface: "api", discovery: {}, results: { t1: { gid: "gid-1" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from('{"model":"claude-sonnet-5"}') });
+    };
+    const result = await runInvokeHarness({ ...run, autonomousPermissions: true }, spawn);
+    expect(result.ok).toBe(true);
+  });
+
   it("passes the persisted OpenCode effort through as the provider variant", async () => {
     const dir = freshDir();
     const run = opts(dir, "opencode");
@@ -1478,6 +1495,20 @@ describe("runInvokeHarness", () => {
     expect(result.status).toBe(0);
     expect(result.timedOut).toBe(false);
     expect(Date.now() - started).toBeLessThan(10000);
+  });
+
+  it("binds replacement-env cwd variables to the isolated child workspace", async () => {
+    const dir = freshDir();
+    const result = await DEFAULT_ASYNC_SPAWN(
+      "/usr/bin/env",
+      [],
+      dir,
+      { replaceEnv: true, env: { PATH: "/bin" } },
+    );
+    expect(result.status).toBe(0);
+    const output = String(result.stdout);
+    expect(output).toContain(`PWD=${dir}`);
+    expect(output).toContain(`OLDPWD=${dir}`);
   });
 
   it("terminates a no-action child at the first-action timeout", async () => {

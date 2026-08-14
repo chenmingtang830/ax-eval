@@ -136,6 +136,8 @@ const INVOKE_SAFE_PARENT_ENV = [
   "TMP",
   "TEMP",
   "SHELL",
+  "USER",
+  "LOGNAME",
   "LANG",
   "LC_ALL",
   "LC_CTYPE",
@@ -413,7 +415,7 @@ function commandUsage(command: string | undefined): string {
     case "cell":
       return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--isolated-harness-auth] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> [--task id] --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -551,6 +553,9 @@ interface Parsed {
    *  to override the per-result self-report when tagging. */
   surface?: string;
   executionMode: "cell" | "task";
+  /** Explicitly enable the harness's non-interactive permission mode for a
+   * sandboxed production run. */
+  isolatedHarnessAuth: boolean;
   _: string[];
 }
 
@@ -623,6 +628,7 @@ function parseArgs(argv: string[]): Parsed {
     skipReset: false,
     reclaim: false,
     executionMode: "cell",
+    isolatedHarnessAuth: false,
     _: [],
   };
   // Read the value for a value-taking flag, erroring if it's missing (i.e. the
@@ -748,7 +754,8 @@ function parseArgs(argv: string[]): Parsed {
       const v = value(++i, "--surface");
       if (v !== "all" && !isSurfaceId(v)) throw new Error(`--surface must be one of api|cli|sdk|mcp|all (got ${v})`);
       p.surface = v;
-    } else if (a === "--execution-mode") {
+    } else if (a === "--isolated-harness-auth") p.isolatedHarnessAuth = true;
+    else if (a === "--execution-mode") {
       const v = value(++i, "--execution-mode");
       if (v !== "cell" && v !== "task") throw new Error(`--execution-mode must be one of cell|task (got ${v})`);
       p.executionMode = v;
@@ -1864,6 +1871,8 @@ interface InvokeGroup {
                   surface: surfaceId,
                   paths,
                   cwd: process.cwd(),
+                  model: args.model || profile.model || undefined,
+                  command: detection.command,
                   isolateWorkspace: harness === "opencode" || harness === "pi",
                 });
               } catch (e) {
@@ -1917,6 +1926,7 @@ interface InvokeGroup {
               effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
               timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
               firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
+              autonomousPermissions: args.isolatedHarnessAuth,
               retries: args.invokeRetries,
               env: sharedChildEnv,
               replaceEnv: harness === "opencode" || harness === "pi" ? true : undefined,
@@ -1940,6 +1950,8 @@ interface InvokeGroup {
                     surface: surfaceId,
                     paths: invokePaths,
                     cwd: process.cwd(),
+                    model: args.model || profile.model || undefined,
+                    command: detection.command,
                     isolateWorkspace: harness === "opencode" || harness === "pi",
                   });
                 } catch (e) {

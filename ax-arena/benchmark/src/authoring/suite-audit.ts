@@ -17,6 +17,7 @@ import {
   matchDeterministicDatabaseConcept,
 } from "./coverage-gap-check.js";
 import {
+  loadPack,
   loadSuite,
 } from "ax-eval";
 import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
@@ -72,6 +73,46 @@ function listDatabaseSlugs(root: AxArenaDatabasePathInput): string[] {
     .filter((f) => f.endsWith(".discovered.yaml"))
     .map((f) => f.replace(/\.discovered\.yaml$/, ""))
     .sort();
+}
+
+/** v2 production is a self-contained candidate tree. Its packs and support
+ * matrix intentionally do not use the mutable v1 extract/pack root. Keep the
+ * v1 authoring audit strict while giving the v2 candidate an equivalent
+ * surface-drift check against its sibling production/packs directory. */
+function isV2ProductionSuite(suitePath: string): boolean {
+  return /[/\\]v2[/\\]production[/\\]suite\.yaml$/i.test(suitePath);
+}
+
+function auditV2ProductionPackSurfaces(
+  suitePath: string,
+  supportMatrix: SupportMatrix,
+): SuiteFinding[] {
+  const packsDir = resolve(dirname(suitePath), "packs");
+  if (!existsSync(packsDir)) return [];
+  return readdirSync(packsDir)
+    .filter((entry) => existsSync(resolve(packsDir, entry, "pack.yaml")))
+    .sort()
+    .flatMap((vendor) => {
+      const pack = loadSuitePack(resolve(packsDir, vendor, "pack.yaml"));
+      return pack.tasks.flatMap((task) => {
+        const expected = supportMatrix.entries
+          .filter((entry) => entry.vendor === vendor && entry.task_id === task.id && entry.status === "supported")
+          .map((entry) => entry.surface)
+          .sort();
+        const actual = [...task.allowed_surfaces].sort();
+        if (expected.join(",") === actual.join(",")) return [];
+        return [{
+          severity: "error" as const,
+          code: "support_matrix_pack_drift",
+          message: `${vendor}/${task.id} pack surfaces [${actual.join(",")}] differ from production support matrix [${expected.join(",")}]`,
+          auto_fixable: false,
+        }];
+      });
+    });
+}
+
+function loadSuitePack(path: string): ReturnType<typeof loadPack> {
+  return loadPack(path);
 }
 
 /** Find inventory capabilities that should map to a concept but didn't. */
@@ -324,6 +365,7 @@ export function auditSuite(
   const coverage = loadCoverageMatrix(root, suitePath);
   const supportMatrix = loadSupportMatrix(root, suitePath);
   const traceReview = loadTraceReview(root, suitePath);
+  const v2Production = isV2ProductionSuite(abs);
   const target = suite.methodology?.target_task_count ?? 10;
   const minPct = suite.methodology?.min_vendor_coverage_pct ?? 0.75;
 
@@ -398,7 +440,7 @@ export function auditSuite(
     }
   }
 
-  if (coverage) {
+  if (coverage && !v2Production) {
     const slugs = listDatabaseSlugs(benchmarkPaths);
     findings.push(...findTaskFitAuditFindings(
       coverage,
@@ -445,27 +487,33 @@ export function auditSuite(
     }
   }
   if (supportMatrix) {
-    const extracts = new Map(
-      listDatabaseSlugs(benchmarkPaths)
-        .map((slug) => [slug, loadOracleExtract(benchmarkPaths, slug, suite.name)] as const)
-        .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
-    );
-    for (const finding of auditCorePacks(benchmarkPaths, listDatabaseSlugs(benchmarkPaths), extracts, supportMatrix)) {
+    if (v2Production) {
+      findings.push(...auditV2ProductionPackSurfaces(abs, supportMatrix));
+    } else {
+      const extracts = new Map(
+        listDatabaseSlugs(benchmarkPaths)
+          .map((slug) => [slug, loadOracleExtract(benchmarkPaths, slug, suite.name)] as const)
+          .filter((entry): entry is readonly [string, NonNullable<typeof entry[1]>] => entry[1] !== null),
+      );
+      for (const finding of auditCorePacks(benchmarkPaths, listDatabaseSlugs(benchmarkPaths), extracts, supportMatrix)) {
+        findings.push({
+          severity: finding.severity,
+          code: finding.code,
+          message: finding.message,
+          auto_fixable: true,
+        });
+      }
+    }
+  }
+  if (!v2Production) {
+    for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
       findings.push({
         severity: finding.severity,
         code: finding.code,
         message: finding.message,
-        auto_fixable: true,
+        auto_fixable: false,
       });
     }
-  }
-  for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
-    findings.push({
-      severity: finding.severity,
-      code: finding.code,
-      message: finding.message,
-      auto_fixable: false,
-    });
   }
 
   return {

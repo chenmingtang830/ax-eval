@@ -182,6 +182,11 @@ not enter the denominator.
   `render-generated` to revisit the same evidence without a new live run.
 - **Keep identities separate.** Results are keyed by product, surface, harness,
   model, and effort; configurations are not silently averaged together.
+- **For an unattended sandbox lane, opt into automatic harness permissions.**
+  Add `--isolated-harness-auth` to `exec-plan --invoke`; this passes Claude Code
+  `bypassPermissions` only for that explicit run so a production cell cannot
+  stall on an interactive approval prompt. Keep this flag confined to an
+  isolated benchmark namespace and never use it for an ordinary working copy.
 
 ## Library API
 

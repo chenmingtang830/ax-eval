@@ -370,6 +370,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
       ? `Log EVERY API call as you go. The trace is a JSON array of steps:`
       : `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
     `[{"step":1,"taskId":"<id or 'discovery'>","action":"create task","method":"POST","path":"/tasks","status":201,"note":"ok"}, ...]`,
+    `The trace status field is always a non-negative integer: use the HTTP status code when there is one, or the CLI/process exit code (0 for success) for command-line steps. Never write strings such as "ok" or "success" in status.`,
     `Record failures too (status + the error message in note).`,
     ...(opts.apiBootstrapOutputTool && tasks.length === 0 ? [
       `For this taskless API bootstrap, do NOT use the generic write or edit actions for ${resultsPath} or ${tracePath}.`,

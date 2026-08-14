@@ -312,6 +312,11 @@ files; its isolated `PI_CODING_AGENT_DIR` and session directory are controller-o
 The CLI writes one normalized `{surface, product, harness}` record per cell.
 `verify` then renders them as a single
 **neutral matrix** (surface · harness · effort) — no cell is crowned "best".
+For a fully unattended, isolated benchmark lane, add
+`--isolated-harness-auth` to `exec-plan --invoke`; this explicitly enables
+Claude Code's `bypassPermissions` mode for that invocation so the run cannot
+wait for an interactive approval. Keep it restricted to the benchmark's
+sandbox namespace.
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 
@@ -338,7 +343,9 @@ API, CLI, and SDK Codex cells are invoked with an isolated Codex home plus
 failures. OpenCode requires an explicit `provider/model` and runs with
 `--pure` and `--auto` from a disposable cwd outside the checkout, with fresh config, data, cache,
 and state roots, with autoupdate, LSP downloads, and Claude-compatibility loading
-disabled. It never copies ambient `auth.json`; provider credentials must be
+disabled. Before invocation, isolated provisioning refreshes the selected provider's
+model catalog inside that disposable cache; this is catalog discovery only, not
+an inference request. It never copies ambient `auth.json`; provider credentials must be
 explicitly scoped into the child environment. The per-run home is deleted after
 artifact recovery so the binary session database is not retained; pack env
 names cannot replace OpenCode/XDG isolation controls. Managed system/MDM config

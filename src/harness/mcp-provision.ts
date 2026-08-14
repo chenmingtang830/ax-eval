@@ -1,11 +1,17 @@
 import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { basename, dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { homedir } from "node:os";
 import type { TargetPack, SurfaceAuth } from "../schemas.js";
 import type { SurfaceId } from "../surface/types.js";
 import { tasksForSurface } from "../surface/index.js";
 import type { InvokeHarnessId, InvokePaths } from "./invoke.js";
-import { findOpenCodeManagedConfig } from "./opencode.js";
+import {
+  findOpenCodeManagedConfig,
+  isOpenCodeModelRoute,
+  openCodeProviderCredentialNames,
+  openCodeProviderId,
+} from "./opencode.js";
 
 export interface HarnessProvisioning {
   /** Environment overrides for the harness child process. */
@@ -436,6 +442,45 @@ function writeOpenCodeHome(opts: {
   return { home, configDir, configPath, xdgConfigHome, dataHome, cacheHome, stateHome, workRoot, workDir, apiRequestTool, apiBootstrapOutputTool };
 }
 
+/**
+ * OpenCode keeps its provider/model catalog in XDG cache. Isolated cell homes
+ * deliberately start empty, which is correct for session data but means a
+ * newly pinned OpenRouter slug otherwise fails before the first model request
+ * with "model not found". Refresh only the catalog here; inference is still
+ * performed by the later invocation. The child receives only the credentials
+ * declared for this provider and no output from the refresh is persisted.
+ */
+function refreshOpenCodeModelCatalog(opts: {
+  command?: string;
+  model?: string;
+  cwd: string;
+  env: Readonly<Record<string, string>>;
+  source: Readonly<Record<string, string | undefined>>;
+  allowDownloads?: boolean;
+}): "ok" | "failed" | undefined {
+  if (!opts.model || !isOpenCodeModelRoute(opts.model) || opts.allowDownloads === false) return undefined;
+  const provider = openCodeProviderId(opts.model);
+  const refreshEnv: Record<string, string> = {
+    ...opts.env,
+    PATH: opts.env.PATH ?? process.env.PATH ?? "",
+    PWD: opts.cwd,
+    OLDPWD: opts.cwd,
+    USER: opts.env.USER ?? process.env.USER ?? "",
+    LOGNAME: opts.env.LOGNAME ?? process.env.LOGNAME ?? "",
+  };
+  for (const name of openCodeProviderCredentialNames(opts.model)) {
+    const value = opts.source[name];
+    if (value !== undefined) refreshEnv[name] = value;
+  }
+  const result = spawnSync(opts.command ?? "opencode", ["models", provider, "--refresh"], {
+    cwd: opts.cwd,
+    env: refreshEnv,
+    stdio: "ignore",
+    timeout: 30_000,
+  });
+  return result.error || result.status !== 0 ? "failed" : "ok";
+}
+
 function ensureInvokeHomeRoot(paths: InvokePaths): string {
   const artifactDir = resolve(dirname(paths.resultsPath));
   const homeRoot = resolve(artifactDir, ".invoke-home");
@@ -468,6 +513,10 @@ export async function provisionHarnessForSurface(opts: {
   env?: Readonly<Record<string, string | undefined>>;
   allowDownloads?: boolean;
   allowAmbientHarnessAuth?: boolean;
+  /** Explicit model route used to prewarm an isolated OpenCode catalog. */
+  model?: string;
+  /** Detected executable path; avoids resolving a different global binary. */
+  command?: string;
   /** Legacy exec-plan uses a disposable cwd so OpenCode/Bun cannot autoload
    * the repository's .env. Arena cells provide their own OS sandbox. */
   isolateWorkspace?: boolean;
@@ -507,21 +556,30 @@ export async function provisionHarnessForSurface(opts: {
         pack: opts.pack,
         isolateWorkspace: opts.isolateWorkspace,
       });
+      const opencodeEnv: Record<string, string> = {
+        HOME: opencode.home,
+        OPENCODE_CONFIG_DIR: opencode.configDir,
+        XDG_CONFIG_HOME: opencode.xdgConfigHome,
+        XDG_DATA_HOME: opencode.dataHome,
+        XDG_CACHE_HOME: opencode.cacheHome,
+        XDG_STATE_HOME: opencode.stateHome,
+        OPENCODE_ENABLE_EXA: "1",
+        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE: "1",
+        OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+        OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+        OPENCODE_DISABLE_AUTOUPDATE: "1",
+      };
+      const catalogRefresh = refreshOpenCodeModelCatalog({
+        command: opts.command,
+        model: opts.model,
+        cwd: opencode.workDir ?? opts.cwd,
+        env: opencodeEnv,
+        source,
+        allowDownloads: opts.allowDownloads,
+      });
       return {
-        env: {
-          HOME: opencode.home,
-          OPENCODE_CONFIG_DIR: opencode.configDir,
-          XDG_CONFIG_HOME: opencode.xdgConfigHome,
-          XDG_DATA_HOME: opencode.dataHome,
-          XDG_CACHE_HOME: opencode.cacheHome,
-          XDG_STATE_HOME: opencode.stateHome,
-          OPENCODE_ENABLE_EXA: "1",
-          OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-          OPENCODE_DISABLE_CLAUDE_CODE: "1",
-          OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
-          OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-          OPENCODE_DISABLE_AUTOUPDATE: "1",
-        },
+        env: opencodeEnv,
         meta: {
           opencode_home: opencode.home,
           opencode_config_dir: opencode.configDir,
@@ -534,6 +592,7 @@ export async function provisionHarnessForSurface(opts: {
           ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
           ...(opencode.apiRequestTool ? { opencode_api_request_tool: opencode.apiRequestTool } : {}),
           ...(opencode.apiBootstrapOutputTool ? { opencode_api_bootstrap_output_tool: opencode.apiBootstrapOutputTool } : {}),
+          ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
@@ -686,23 +745,32 @@ export async function provisionHarnessForSurface(opts: {
       isolateWorkspace: opts.isolateWorkspace,
       mcp: { serverName, entry },
     });
+    const opencodeEnv: Record<string, string> = {
+      HOME: opencode.home,
+      OPENCODE_CONFIG_DIR: opencode.configDir,
+      XDG_CONFIG_HOME: opencode.xdgConfigHome,
+      XDG_DATA_HOME: opencode.dataHome,
+      XDG_CACHE_HOME: opencode.cacheHome,
+      XDG_STATE_HOME: opencode.stateHome,
+      OPENCODE_ENABLE_EXA: "1",
+      OPENCODE_DISABLE_PROJECT_CONFIG: "1",
+      OPENCODE_DISABLE_CLAUDE_CODE: "1",
+      OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
+      OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
+      OPENCODE_DISABLE_AUTOUPDATE: "1",
+      ...stdioTokenEnv,
+      ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
+    };
+    const catalogRefresh = refreshOpenCodeModelCatalog({
+      command: opts.command,
+      model: opts.model,
+      cwd: opencode.workDir ?? opts.cwd,
+      env: opencodeEnv,
+      source,
+      allowDownloads: opts.allowDownloads,
+    });
     return {
-      env: {
-        HOME: opencode.home,
-        OPENCODE_CONFIG_DIR: opencode.configDir,
-        XDG_CONFIG_HOME: opencode.xdgConfigHome,
-        XDG_DATA_HOME: opencode.dataHome,
-        XDG_CACHE_HOME: opencode.cacheHome,
-        XDG_STATE_HOME: opencode.stateHome,
-        OPENCODE_ENABLE_EXA: "1",
-        OPENCODE_DISABLE_PROJECT_CONFIG: "1",
-        OPENCODE_DISABLE_CLAUDE_CODE: "1",
-        OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
-        OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
-        OPENCODE_DISABLE_AUTOUPDATE: "1",
-        ...stdioTokenEnv,
-        ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
-      },
+      env: opencodeEnv,
       meta: {
         mcp_provisioning: authMode,
         mcp_server: serverName,
@@ -715,6 +783,7 @@ export async function provisionHarnessForSurface(opts: {
         opencode_state_home: opencode.stateHome,
         ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
         ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
+        ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
       },
     };
   }

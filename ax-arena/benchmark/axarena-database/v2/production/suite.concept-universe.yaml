@@ -1,0 +1,59 @@
+schema: ax.concept-universe/v1
+category: database
+generated_at: 2026-08-14T16:00:00.000Z
+clusters:
+  - concept_name: access-control
+    title: Configure an idiomatic access-control mechanism
+    coverage:
+      - {vendor: cockroachdb, capability_name: sql-role-grants}
+      - {vendor: insforge, capability_name: postgres-role-grants}
+      - {vendor: neon, capability_name: postgres-role-grants}
+      - {vendor: nile, capability_name: postgres-role-grants}
+      - {vendor: turso, capability_name: organization-token-access}
+  - concept_name: evolve-schema
+    title: Apply a schema evolution
+    coverage:
+      - {vendor: cockroachdb, capability_name: alter-table}
+      - {vendor: insforge, capability_name: alter-table}
+      - {vendor: neon, capability_name: alter-table}
+      - {vendor: nile, capability_name: alter-table}
+      - {vendor: turso, capability_name: alter-table}
+  - concept_name: inspect-schema
+    title: Inspect container metadata
+    coverage:
+      - {vendor: cockroachdb, capability_name: information-schema}
+      - {vendor: insforge, capability_name: information-schema}
+      - {vendor: neon, capability_name: information-schema}
+      - {vendor: nile, capability_name: information-schema}
+      - {vendor: turso, capability_name: pragma-table-info}
+  - concept_name: query-records
+    title: Filter and read matching records
+    coverage:
+      - {vendor: cockroachdb, capability_name: filtered-select}
+      - {vendor: insforge, capability_name: filtered-select}
+      - {vendor: neon, capability_name: filtered-select}
+      - {vendor: nile, capability_name: filtered-select}
+      - {vendor: turso, capability_name: filtered-select}
+  - concept_name: vector-search
+    title: Create a vector-enabled dataset and query it
+    coverage:
+      - {vendor: cockroachdb, capability_name: vector-distance}
+      - {vendor: insforge, capability_name: pgvector}
+      - {vendor: neon, capability_name: pgvector}
+      - {vendor: nile, capability_name: pgvector}
+      - {vendor: turso, capability_name: vector32}
+  - concept_name: write-records
+    title: Create, update, and delete one record lifecycle
+    coverage:
+      - {vendor: cockroachdb, capability_name: sql-dml-lifecycle}
+      - {vendor: insforge, capability_name: sql-dml-lifecycle}
+      - {vendor: neon, capability_name: sql-dml-lifecycle}
+      - {vendor: nile, capability_name: sql-dml-lifecycle}
+      - {vendor: turso, capability_name: sql-dml-lifecycle}
+  - concept_name: full-text-search
+    title: Create a searchable text dataset and query it
+    coverage:
+      - {vendor: cockroachdb, capability_name: tsvector-search}
+      - {vendor: insforge, capability_name: postgres-text-search}
+      - {vendor: neon, capability_name: postgres-text-search}
+      - {vendor: nile, capability_name: pg-bigm-search}

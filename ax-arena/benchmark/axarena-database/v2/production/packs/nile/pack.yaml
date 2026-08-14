@@ -1,7 +1,7 @@
 name: nile
 version: 2-production
 standard_set_version: daeb-2-cli-production-v1
-run_id: daeb2-production-nile
+run_id: d2p-nile
 generated_by: v2-production-full-pack-derivation
 generator:
   harness: claude-code

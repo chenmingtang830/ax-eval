@@ -185,6 +185,23 @@ describe("provisionHarnessForSurface", () => {
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
   });
 
+  it("prewarms a pinned OpenCode provider catalog inside the isolated home", async () => {
+    const dir = freshDir();
+    const provisioning = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-deepseek-cli", "opencode"),
+      cwd: dir,
+      command: "/usr/bin/true",
+      model: "openrouter/deepseek/deepseek-v4-flash-0731",
+      env: { OPENROUTER_API_KEY: "test-secret" },
+      isolateWorkspace: true,
+    });
+    expect(provisioning.meta?.opencode_model_catalog_refresh).toBe("ok");
+    expect(JSON.stringify(provisioning.meta)).not.toContain("test-secret");
+  });
+
   it("enumerates and fails closed on OpenCode managed config sources", () => {
     expect(openCodeManagedConfigCandidates({ platform: "linux" })).toEqual([
       "/etc/opencode/opencode.json",

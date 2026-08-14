@@ -1,0 +1,24 @@
+schema: ax.selection-ledger/v1
+benchmark: DAEB-2-CLI-Production
+category: database
+generated_at: 2026-08-14T16:00:00.000Z
+methodology:
+  schema: ax.suite-methodology/v1
+  ontology: {task: fixed task, trial: isolated attempt, grader: independent oracle, transcript: CLI trace, outcome: live state, support_decision: structural support, selection_decision: canonical inclusion, suite: frozen task bank, publication_bundle: sealed evidence}
+  static_ax: {label: Discoverability & Readiness, dimensions: [discoverability, content quality, capability exposure, protocol/access readiness], notes: [separate from behavioral score]}
+  behavioral: {label: Usability Canonical Suite, source_of_truth: verified live state, notes: [only provider-aware oracle outcomes score]}
+  extraction_requirements: [official vendor documentation, explicit surface evidence]
+  surface_scope: [cli]
+  min_vendor_coverage_pct: 0.75
+  target_task_count: 7
+  verifiability_requirement: deterministic independent read-back and cleanup
+  difficulty_rubric: {L1: inspection, L2: composed capability, L3: multi-step workflow, L4: reserved cross-cutting workflow}
+  human_review_checkpoints: [official-doc refresh, task/oracle review, suite freeze, publication release]
+entries:
+  - {concept_name: access-control, title: Configure an idiomatic access-control mechanism, proposed_difficulty: L2, coverage_pct: 0.6, covered_vendors: [cockroachdb, insforge, neon], task_fit_coverage_pct: 0.6, task_fit_vendors: [cockroachdb, insforge, neon], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: admitted for three vendors with exact denied-role oracle}
+  - {concept_name: evolve-schema, title: Apply a schema evolution, proposed_difficulty: L3, coverage_pct: 1.0, covered_vendors: [cockroachdb, insforge, neon, nile, turso], task_fit_coverage_pct: 1.0, task_fit_vendors: [cockroachdb, insforge, neon, nile, turso], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: common CLI schema evolution}
+  - {concept_name: inspect-schema, title: Inspect container metadata, proposed_difficulty: L1, coverage_pct: 1.0, covered_vendors: [cockroachdb, insforge, neon, nile, turso], task_fit_coverage_pct: 1.0, task_fit_vendors: [cockroachdb, insforge, neon, nile, turso], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: deterministic metadata read-back}
+  - {concept_name: query-records, title: Filter and read matching records, proposed_difficulty: L2, coverage_pct: 1.0, covered_vendors: [cockroachdb, insforge, neon, nile, turso], task_fit_coverage_pct: 1.0, task_fit_vendors: [cockroachdb, insforge, neon, nile, turso], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: exact three-row filtered read}
+  - {concept_name: vector-search, title: Create a vector-enabled dataset and query it, proposed_difficulty: L2, coverage_pct: 1.0, covered_vendors: [cockroachdb, insforge, neon, nile, turso], task_fit_coverage_pct: 1.0, task_fit_vendors: [cockroachdb, insforge, neon, nile, turso], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: deterministic top-neighbor oracle}
+  - {concept_name: write-records, title: Create, update, and delete one record lifecycle, proposed_difficulty: L2, coverage_pct: 1.0, covered_vendors: [cockroachdb, insforge, neon, nile, turso], task_fit_coverage_pct: 1.0, task_fit_vendors: [cockroachdb, insforge, neon, nile, turso], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: exact lifecycle postcondition}
+  - {concept_name: full-text-search, title: Create a searchable text dataset and query it, proposed_difficulty: L2, coverage_pct: 0.8, covered_vendors: [cockroachdb, insforge, neon, nile], task_fit_coverage_pct: 0.8, task_fit_vendors: [cockroachdb, insforge, neon, nile], verifier_ready: true, tier: core, verifiable: true, selected: true, rationale: vendor-specific SQL text search where admitted}
