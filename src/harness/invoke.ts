@@ -25,6 +25,7 @@ import { redactSensitiveText as redactCommonSensitiveText } from "../safety/reda
 import type { ChildProcessSandbox, ChildSandboxProvenance } from "./child-sandbox.js";
 import { isOpenCodeModelRoute } from "./opencode.js";
 import { isPiModelRoute, piModelId, piProviderId } from "./pi.js";
+import type { OpenRouterRoutePolicy } from "./openrouter-gateway.js";
 
 export type InvokeHarnessId = "claude-code" | "codex" | "opencode" | "pi";
 
@@ -65,6 +66,11 @@ export interface InvokeRunOptions {
    *  `provider/model` route;
    *  Claude Code and Codex may still use their configured default. */
   model?: string;
+  /** V2.1 controller-owned route pin. Harnesses use a local OpenRouter gateway
+   * and must never silently change model or provider. */
+  openrouterRoutePolicy?: OpenRouterRoutePolicy;
+  /** Loopback gateway base URL (for example http://127.0.0.1:43123/v1). */
+  openrouterGatewayUrl?: string;
   /** Canonical effort level. Translated to each harness's native convention at
    *  invocation: codex → `-c model_reasoning_effort=<level>` (the GPT/o-series
    *  convention); claude-code → `--effort <level>` on modern Claude Code.
@@ -626,6 +632,35 @@ function persistedHarnessOutput(
   );
 }
 
+/** Persist harness JSONL without applying replacements to serialized JSON.
+ * Exact credentials can contain quotes, backslashes, or control characters;
+ * replacing their encoded representation in the whole stream can invalidate
+ * the surrounding JSON and silently erase transcript evidence. Parse first,
+ * redact decoded string values, then serialize each event again. */
+function persistedTranscriptOutput(
+  harness: InvokeHarnessId,
+  value: string,
+  exactValues: readonly string[] = [],
+): string {
+  if (containsShortExactRedactionValue(value, exactValues)) {
+    return "<redacted-sensitive-text>";
+  }
+  const source = harness === "opencode" ? sanitizedOpenCodeStream(value) : value;
+  const hadTrailingNewline = source.endsWith("\n");
+  const lines = source.split("\n");
+  if (hadTrailingNewline) lines.pop();
+  const persisted = lines.map((line) => {
+    const trimmed = line.trim();
+    if (!trimmed) return "";
+    try {
+      return JSON.stringify(redactJsonArtifactValue(JSON.parse(trimmed), exactValues));
+    } catch {
+      return JSON.stringify({ type: "redacted_unparseable", content: "<redacted-unparseable>" });
+    }
+  }).join("\n");
+  return hadTrailingNewline ? `${persisted}\n` : persisted;
+}
+
 function assertContainedParent(path: string, allowedRoot = dirname(path)): void {
   const root = resolve(allowedRoot);
   const parent = resolve(dirname(path));
@@ -988,6 +1023,18 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     if (!isOpenCodeModelRoute(opts.model)) {
       throw new Error("OpenCode invocation requires an explicit provider/model route");
     }
+    const routeModel = opts.openrouterRoutePolicy
+      ? "openrouter/" + opts.openrouterRoutePolicy.canonical_model
+      : opts.model;
+    if (opts.openrouterRoutePolicy
+      && ![
+        opts.openrouterRoutePolicy.model,
+        opts.openrouterRoutePolicy.canonical_model,
+        `openrouter/${opts.openrouterRoutePolicy.model}`,
+        `openrouter/${opts.openrouterRoutePolicy.canonical_model}`,
+      ].includes(opts.model)) {
+      throw new Error("OpenRouter route policy model mismatch: " + (opts.model ?? "<missing>"));
+    }
     // OpenCode exposes provider-specific reasoning effort through --variant.
     // The controller only accepts the portable low/medium/high subset and
     // passes that exact value so the persisted execution identity describes
@@ -1000,8 +1047,12 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
         "run",
         "--format", "json",
         "--auto",
+        // Supplying a deterministic title prevents OpenCode from issuing a
+        // separate default-model title-generation request before the pinned
+        // task model. That extra request would violate V2.1 route identity.
+        "--title", "AX-eval V2.1 invocation",
         "--pure",
-        "--model", opts.model,
+        "--model", routeModel,
         ...(opts.effort ? ["--variant", opts.effort] : []),
         prompt,
       ],
@@ -1014,12 +1065,23 @@ function buildInvocation(id: InvokeHarnessId, prompt: string, opts: InvokeRunOpt
     // JSON mode preserves an objective tool-event transcript. Every user,
     // project, and package customization is disabled so a cell is comparable
     // across operators; the controller-owned prompt remains the sole policy.
+    const routeModel = opts.openrouterRoutePolicy?.canonical_model ?? piModelId(opts.model);
+    const routeProvider = opts.openrouterRoutePolicy ? "openrouter" : piProviderId(opts.model);
+    if (opts.openrouterRoutePolicy
+      && ![
+        opts.openrouterRoutePolicy.model,
+        opts.openrouterRoutePolicy.canonical_model,
+        `openrouter/${opts.openrouterRoutePolicy.model}`,
+        `openrouter/${opts.openrouterRoutePolicy.canonical_model}`,
+      ].includes(opts.model)) {
+      throw new Error("OpenRouter route policy model mismatch: " + (opts.model ?? "<missing>"));
+    }
     return {
       command: opts.harnessDetection?.command ?? commandFor("pi"),
       args: [
-        "--mode", "json", "--no-session", "--offline",
+        "--mode", "json", "--no-session",
         "--no-extensions", "--no-skills", "--no-prompt-templates", "--no-themes", "--no-context-files",
-        "--provider", piProviderId(opts.model), "--model", piModelId(opts.model),
+        "--provider", routeProvider, "--model", routeModel,
         ...(opts.effort ? ["--thinking", opts.effort] : []),
         prompt,
       ],
@@ -1725,6 +1787,12 @@ async function runInvokeHarnessInner(
   opts: InvokeRunOptions,
   spawnAsync: AsyncSpawn = DEFAULT_ASYNC_SPAWN,
 ): Promise<InvokeRunResult> {
+  if (opts.openrouterRoutePolicy && opts.effort !== "high") {
+    throw new Error("V2.1 OpenRouter-routed invocations require high reasoning effort");
+  }
+  if (opts.openrouterRoutePolicy && (opts.retries ?? 0) !== 0) {
+    throw new Error("V2.1 OpenRouter-routed invocations disable model-level retries");
+  }
   const startedAt = Date.now();
   const artifactDir = dirname(opts.paths.resultsPath);
   const artifactIdentity = directoryIdentity(artifactDir);
@@ -1874,7 +1942,7 @@ async function runInvokeHarnessInner(
   // OpenCode tool output is additionally omitted before this durable copy.
   replaceFileWithoutFollowing(
     opts.paths.transcriptPath,
-    persistedHarnessOutput(opts.harness, stdout || stderr, opts.redactionValues),
+    persistedTranscriptOutput(opts.harness, stdout || stderr, opts.redactionValues),
   );
   if (invokeHomeIdentity) assertDirectoryIdentity(invokeHomeRoot, invokeHomeIdentity);
 
@@ -1995,7 +2063,23 @@ async function runInvokeHarnessInner(
   };
   writeRedactedJsonFile(
     opts.paths.metaPath,
-    { ...meta, command, args, cwd: opts.cwd, promptPath: opts.paths.promptPath, provisioning: opts.provisioning },
+    {
+      ...meta,
+      command,
+      args,
+      cwd: opts.cwd,
+      promptPath: opts.paths.promptPath,
+      provisioning: opts.provisioning,
+      ...(opts.openrouterRoutePolicy ? {
+        openrouter_route: {
+          requested_model: opts.openrouterRoutePolicy.model,
+          canonical_model: opts.openrouterRoutePolicy.canonical_model,
+          provider: opts.openrouterRoutePolicy.provider,
+          gateway_url: opts.openrouterGatewayUrl ?? null,
+          allow_fallbacks: false,
+        },
+      } : {}),
+    },
     opts.redactionValues ?? [],
   );
   return meta;

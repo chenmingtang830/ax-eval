@@ -5,6 +5,22 @@ description: Test whether AI agents can use your product — drop in an OpenAPI 
 
 # ax-eval — host-agent skill
 
+## DAEB v2.1 production lane
+
+The v2.1 benchmark is maintained separately from the historical v2 result.
+Use the v2-1 authoring README for the 16-candidate synthesis, two-model
+calibration, ten-task freeze, and 432-cell execution plan. Formal Pi and
+OpenCode cells must use the controller-owned OpenRouter gateway with one
+canonical model/provider, no fallback, no batch, and isolated harness homes.
+Route mismatches are invalid-route and remain in the ledger; they are never
+converted into ordinary task failures or silently retried.
+
+Before calibration, derive the six-vendor draft pack status with
+`npm run ax-arena -- benchmark prepare-v21-packs --suite axarena-database/v2-1/candidate-suite-v2-1.yaml --apply`.
+That command copies only tasks with existing independent V2 oracle/witness
+evidence and records every supported-but-unwitnessed tuple as blocked; it never
+turns missing evidence into a structural N/A.
+
 You are the **agent harness**. The eval is a reviewed, frozen `TargetPack`;
 you run it against the **live** product surface and the CLI verifies success via
 **programmatic outcome verification** (API readback), not self-report.
@@ -87,9 +103,13 @@ core cohort (Neon, CockroachDB, Turso, Supabase, Insforge, Nile) — packs are
 approved and trace review is completed. Production 3-trial and publication
 freeze are deferred; do not run them as the default next step. The v1 freeze is
 retained as diagnostic history while DAEB v2 is re-authored as a CLI-only
-benchmark: Supabase and all API tuples are excluded, as are target-capability
-unsupported CLI tuples. The current retained set is 31 tuples and all 31 have
-passed deterministic executable witnesses. Generate the draft witness plan with
+benchmark: the canonical core excludes Supabase and all API tuples, as well as
+target-capability unsupported CLI tuples. The current core retains 31 tuples
+and all 31 have passed deterministic executable witnesses. A separately
+reviewed local Supabase CLI-only extension lives under
+`ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/`;
+it has its own pack, approval, witness, and denominator and adds zero API
+cells. Generate the draft witness plan with
 `npm run ax-arena -- benchmark prepare-v2 --cli-only --apply`; this command is
 offline, does not call an LLM, and never mutates v1. Research-lane
 tasks stay out of the scored denominator. Use
@@ -275,6 +295,9 @@ report. Then summarize for the user:
   per-surface subgate failures.
 - **Discovery scorecard** per config/profile (reached source / canonical action /
   hops / misled / auth), using surface-relative wording for API vs MCP/SDK/CLI.
+- For CLI runs, canonical action must appear in the objectively observed command
+  set; unrelated CLI commands do not earn that signal. Local `--help` discovery
+  can be a valid zero-web, zero-hop path when the pack permits local discovery.
 - Top recommendations, especially any MCP tool coverage gaps, as
   Target / Evidence / Fix rather than a raw failure dump.
 - Keep MCP tool coverage separate from harness/approval failures: missing
@@ -317,6 +340,11 @@ For a fully unattended, isolated benchmark lane, add
 Claude Code's `bypassPermissions` mode for that invocation so the run cannot
 wait for an interactive approval. Keep it restricted to the benchmark's
 sandbox namespace.
+For a controller-owned OpenRouter lane, pass all four route flags together:
+`--openrouter-gateway-url`, `--openrouter-provider`,
+`--openrouter-canonical-model`, and `--openrouter-data-collection`. These flags
+are fail-closed and force one provider with fallback disabled; a resolved-route
+mismatch must remain `invalid-route` in the ledger.
 Codex needs its sandbox network opened and an OpenAI-strict output schema; the
 adapter handles both.
 

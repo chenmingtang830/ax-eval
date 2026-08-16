@@ -12,6 +12,7 @@ import {
   openCodeProviderCredentialNames,
   openCodeProviderId,
 } from "./opencode.js";
+import type { OpenRouterRoutePolicy } from "./openrouter-gateway.js";
 
 export interface HarnessProvisioning {
   /** Environment overrides for the harness child process. */
@@ -43,6 +44,41 @@ function tomlString(value: string): string {
 
 function tomlArray(values: string[]): string {
   return `[${values.map(tomlString).join(", ")}]`;
+}
+
+function writePiHome(opts: {
+  paths: InvokePaths;
+  cwd: string;
+  gateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
+}): { home: string; workDir: string; modelsPath?: string } {
+  const stem = basename(opts.paths.resultsPath).replace(/[^a-zA-Z0-9_.-]+/g, "_").replace(/\.json$/, "");
+  const home = resolve(dirname(opts.paths.resultsPath), ".invoke-home", stem + "-pi");
+  const workDir = dirname(opts.paths.resultsPath);
+  rmSync(home, { recursive: true, force: true });
+  mkdirSync(home, { recursive: true, mode: 0o700 });
+  let modelsPath: string | undefined;
+  if (opts.gateway) {
+    modelsPath = resolve(home, "models.json");
+    writeFileSync(modelsPath, JSON.stringify({
+      providers: {
+        openrouter: {
+          name: "AX-eval OpenRouter enforcement gateway",
+          baseUrl: opts.gateway.baseUrl,
+          api: "openai-completions",
+          apiKey: "ax-eval-local-gateway",
+          models: [{
+            id: opts.gateway.policy.canonical_model,
+            name: opts.gateway.policy.canonical_model,
+            reasoning: true,
+            input: ["text"],
+            contextWindow: 1_000_000,
+            maxTokens: 131_072,
+          }],
+        },
+      },
+    }, null, 2) + "\n", { mode: 0o600 });
+  }
+  return { home, workDir, modelsPath };
 }
 
 function productSlug(name: string): string {
@@ -338,6 +374,7 @@ function writeOpenCodeHome(opts: {
     serverName: string;
     entry: Record<string, unknown>;
   };
+  gateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
 }): {
   home: string;
   configDir: string;
@@ -418,6 +455,18 @@ function writeOpenCodeHome(opts: {
   // helper keeps the credential and origin policy outside model-controlled
   // shell expansion; structured result/trace files use the edit tool.
   writeFileSync(configPath, `${JSON.stringify({
+    ...(opts.gateway ? {
+      "$schema": "https://opencode.ai/config.json",
+      provider: {
+        openrouter: {
+          options: {
+            baseURL: opts.gateway.baseUrl,
+            apiKey: "{env:OPENROUTER_API_KEY}",
+          },
+          models: { [opts.gateway.policy.canonical_model]: {} },
+        },
+      },
+    } : {}),
     mcp: opts.mcp ? { [opts.mcp.serverName]: opts.mcp.entry } : {},
     permission: {
       task: "deny",
@@ -515,6 +564,8 @@ export async function provisionHarnessForSurface(opts: {
   allowAmbientHarnessAuth?: boolean;
   /** Explicit model route used to prewarm an isolated OpenCode catalog. */
   model?: string;
+  /** Controller-owned local OpenRouter gateway binding. */
+  openrouterGateway?: { baseUrl: string; policy: OpenRouterRoutePolicy };
   /** Detected executable path; avoids resolving a different global binary. */
   command?: string;
   /** Legacy exec-plan uses a disposable cwd so OpenCode/Bun cannot autoload
@@ -555,6 +606,7 @@ export async function provisionHarnessForSurface(opts: {
         surface: opts.surface,
         pack: opts.pack,
         isolateWorkspace: opts.isolateWorkspace,
+        gateway: opts.openrouterGateway,
       });
       const opencodeEnv: Record<string, string> = {
         HOME: opencode.home,
@@ -569,6 +621,7 @@ export async function provisionHarnessForSurface(opts: {
         OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
         OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
         OPENCODE_DISABLE_AUTOUPDATE: "1",
+        ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
       };
       const catalogRefresh = refreshOpenCodeModelCatalog({
         command: opts.command,
@@ -576,7 +629,7 @@ export async function provisionHarnessForSurface(opts: {
         cwd: opencode.workDir ?? opts.cwd,
         env: opencodeEnv,
         source,
-        allowDownloads: opts.allowDownloads,
+        allowDownloads: opts.openrouterGateway ? false : opts.allowDownloads,
       });
       return {
         env: opencodeEnv,
@@ -593,11 +646,36 @@ export async function provisionHarnessForSurface(opts: {
           ...(opencode.apiRequestTool ? { opencode_api_request_tool: opencode.apiRequestTool } : {}),
           ...(opencode.apiBootstrapOutputTool ? { opencode_api_bootstrap_output_tool: opencode.apiBootstrapOutputTool } : {}),
           ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
+          ...(opts.openrouterGateway ? {
+            openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+            openrouter_model: opts.openrouterGateway.policy.canonical_model,
+            openrouter_provider: opts.openrouterGateway.policy.provider,
+          } : {}),
           mcp_provisioning: "disabled_for_non_mcp_surface",
         },
       };
     }
     if (opts.harness !== "codex") {
+      if (opts.harness === "pi") {
+        const pi = writePiHome({ paths: opts.paths, cwd: opts.cwd, gateway: opts.openrouterGateway });
+        return {
+          env: {
+            PI_CODING_AGENT_DIR: pi.home,
+            ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
+          },
+          meta: {
+            pi_home: pi.home,
+            pi_work_dir: pi.workDir,
+            ...(pi.modelsPath ? { pi_models: pi.modelsPath } : {}),
+            ...(opts.openrouterGateway ? {
+              openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+              openrouter_model: opts.openrouterGateway.policy.canonical_model,
+              openrouter_provider: opts.openrouterGateway.policy.provider,
+            } : {}),
+            mcp_provisioning: "disabled_for_non_mcp_surface",
+          },
+        };
+      }
       return { env: {} };
     }
     const codex = writeCodexNoMcpHome({
@@ -744,6 +822,7 @@ export async function provisionHarnessForSurface(opts: {
       pack: opts.pack,
       isolateWorkspace: opts.isolateWorkspace,
       mcp: { serverName, entry },
+      gateway: opts.openrouterGateway,
     });
     const opencodeEnv: Record<string, string> = {
       HOME: opencode.home,
@@ -758,6 +837,7 @@ export async function provisionHarnessForSurface(opts: {
       OPENCODE_DISABLE_CLAUDE_CODE_PROMPT: "1",
       OPENCODE_DISABLE_LSP_DOWNLOAD: "1",
       OPENCODE_DISABLE_AUTOUPDATE: "1",
+      ...(opts.openrouterGateway ? { OPENROUTER_API_KEY: "ax-eval-local-gateway" } : {}),
       ...stdioTokenEnv,
       ...(bearerTokenEnvVar && bearerToken ? { [bearerTokenEnvVar]: bearerToken } : {}),
     };
@@ -767,7 +847,7 @@ export async function provisionHarnessForSurface(opts: {
       cwd: opencode.workDir ?? opts.cwd,
       env: opencodeEnv,
       source,
-      allowDownloads: opts.allowDownloads,
+      allowDownloads: opts.openrouterGateway ? false : opts.allowDownloads,
     });
     return {
       env: opencodeEnv,
@@ -784,6 +864,11 @@ export async function provisionHarnessForSurface(opts: {
         ...(opencode.workRoot ? { opencode_work_root: opencode.workRoot } : {}),
         ...(opencode.workDir ? { opencode_work_dir: opencode.workDir } : {}),
         ...(catalogRefresh ? { opencode_model_catalog_refresh: catalogRefresh } : {}),
+        ...(opts.openrouterGateway ? {
+          openrouter_gateway_url: opts.openrouterGateway.baseUrl,
+          openrouter_model: opts.openrouterGateway.policy.canonical_model,
+          openrouter_provider: opts.openrouterGateway.policy.provider,
+        } : {}),
       },
     };
   }

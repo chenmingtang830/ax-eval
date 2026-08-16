@@ -23,6 +23,24 @@ export const SuiteTaskSchema = z.object({
   oracle_hint: z.string().min(1),
   allowed_surfaces: z.array(z.string()).default(["api", "sdk", "cli"]),
   na_examples: z.array(z.string()).default([]),
+  /** V2.1 capability family used to allocate independent cold-start sessions. */
+  execution_family: z.enum(["access-auth-discovery", "schema-integrity", "query-search", "lifecycle-recovery"]).optional(),
+  /** Observable challenge dimensions; controller metadata, not a prompt leak. */
+  challenge_tags: z.array(z.enum([
+    "multi-step-state",
+    "constraint-preservation",
+    "negative-verification",
+    "recoverable-fault",
+    "surface-ambiguity",
+    "recovery",
+  ])).optional(),
+  /** V2.1 runner starts a fresh discovery session for the family containing this task. */
+  discovery_reset: z.enum(["cell", "family", "task"]).optional(),
+  /** Controller-only fixture/reset reference; never rendered into agent prompts. */
+  controller_fixture_ref: z.string().optional(),
+  /** Controller metadata used by the V2.1 selection/execution ledger. */
+  supported_vendors: z.array(z.string().min(1)).min(1).optional(),
+  anchor: z.boolean().optional(),
 });
 
 export const SuiteSchema = z.object({

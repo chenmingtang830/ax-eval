@@ -52,6 +52,24 @@ Deep AXArena-Database artifact detail lives in
 (authoring freeze vs deferred production) lives in gitignored
 `docs/latest_plan.md`.
 
+### DAEB v2.1 harness-neutral lane
+
+V2.1 is a new immutable namespace. Authoring produces a 16-task candidate
+suite, calibrates with Pi plus Gemini/DeepSeek, retains three historical
+anchors, and freezes ten tasks only when family quotas, support, invalid-rate,
+and discrimination gates pass. The formal runner plans 6 vendors x 2 harnesses
+x 3 canonical models x 3 trials x 4 family-isolated sessions = 432 invocation
+cells. Every cell and task observation remains in the result ledger, including
+structural N/A and invalid states.
+
+Pi and OpenCode are provisioned with isolated homes and route through a
+loopback OpenRouter gateway. The gateway overwrites model/provider routing,
+disables fallback and BYOK priority, and fails closed when the resolved
+provider cannot be attested. See the v2-1 benchmark README for authoring and
+freeze commands. The `prepare-v21-packs` gate derives draft packs only from
+existing independent V2 oracle/witness tasks; supported concepts without that
+evidence remain explicit blockers rather than being silently treated as N/A.
+
 ## Shared data flow
 
 The engine data flow is the same once a pack exists:
@@ -112,12 +130,14 @@ scored denominator.
 
 **Current public contract:** the six-vendor v1 freeze is preserved as diagnostic
 history, but is not admitted as a benchmark-of-record because its support matrix
-did not prove executable surface closure. DAEB v2 is currently CLI-only: Supabase,
-all API tuples, and target-capability-unsupported CLI tuples are excluded. The
-current retained set is 31 tuples, all of which have passed deterministic setup
+did not prove executable surface closure. DAEB v2 has a five-vendor CLI-only
+core: Supabase, all API tuples, and target-capability-unsupported CLI tuples are
+excluded from that core. The current retained set is 31 tuples, all of which have passed deterministic setup
 → mutation → independent verify → cleanup witnesses. The v2 packs remain draft
-until the human semantic/review gate is completed; no model or paid evaluation
-has been started.
+until the human semantic/review gate is completed. A separately reviewed local
+Supabase CLI-only extension is allowed under the production candidate directory;
+it has its own pack/approval/witness denominator and does not reintroduce API
+cells or rewrite the core score.
 
 ## System overview
 
@@ -665,6 +685,13 @@ The parser then projects that observed behavior into:
 
 This is what makes behavioral discovery objective rather than purely
 self-reported.
+
+For CLI surfaces, canonical-action scoring compares the complete observed
+command set with deterministic signatures derived from the pack's CLI-shaped
+canonical endpoint. Unrelated CLI activity is not sufficient. A successful
+local-only discovery path with no web search is recorded as zero-hop efficient;
+the four scored discovery signals remain official source, canonical action,
+not misled, and auth evidence, while hops is diagnostic.
 
 ## Verification model
 

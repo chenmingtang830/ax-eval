@@ -187,9 +187,22 @@ function surfaceCredentialEnvNames(pack: TargetPack): string[] {
 /** Tell the agent which .env vars hold the credential + sandbox scope. Derived
  *  from the pack's declarations (target-agnostic); falls back to the legacy Asana
  *  vars only for Asana packs that predate the `auth`/`sandbox_scope` blocks. */
-function credentialBlock(pack: TargetPack): string[] {
+function credentialBlock(pack: TargetPack, surfaceId: string): string[] {
   const lines: string[] = [];
-  if (!pack.auth?.env && pack.sandbox_scope.length === 0) {
+  // SQL/Mongo verifier connections are also the declared CLI data-plane
+  // credentials for database packs. Expose the env-var *name* to the agent on
+  // CLI cells so it can discover and use the provisioned connection without
+  // falling back to an unrelated local/default instance. Keep these verifier
+  // credentials hidden from API/SDK/MCP prompts, where they are not needed.
+  if (surfaceId === "cli") {
+    for (const name of [pack.sql_conn?.connection_string_env, pack.mongo_conn?.connection_string_env]) {
+      if (name && !lines.some((line) => line.includes(`process.env.${name}`))) {
+        lines.push(`Use process.env.${name} silently for the declared ${pack.sql_conn ? "SQL" : "MongoDB"} data-plane connection; do not print its value.`);
+        lines.push(`Do not inspect .env, enumerate environment keys, or read credential files; if process.env.${name} is absent, record the cell as blocked instead of falling back to a local/default instance.`);
+      }
+    }
+  }
+  if (!pack.auth?.env && pack.sandbox_scope.length === 0 && lines.length === 0) {
     if (/asana/i.test(pack.name)) {
       lines.push(
         `Use process.env.ASANA_PAT, process.env.ASANA_SANDBOX_PROJECT_GID, and process.env.ASANA_SANDBOX_WORKSPACE_GID`,
@@ -200,8 +213,8 @@ function credentialBlock(pack: TargetPack): string[] {
     }
     return lines;
   }
-  const authVar = pack.auth?.env || "the credential var";
-  lines.push(`Use process.env.${authVar} for the credential.`);
+  const authVar = pack.auth?.env;
+  if (authVar) lines.push(`Use process.env.${authVar} for the credential.`);
   const templateVars = envTemplateNames(pack.base_url);
   if (templateVars.length) {
     lines.push(`Use process.env for non-secret endpoint/context variable(s): ${templateVars.join(", ")}; use these values literally when constructing hosts or URLs.`);
@@ -329,7 +342,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
           `This isolated API cell must use the ${opts.apiRequestTool} tool for every product HTTP request, with method, origin-relative path, and optional JSON body.`,
           `It silently applies the declared credential and pack base origin. Do NOT invoke Bash or inspect process.env; these safety instructions override any credential-access wording in a task description.`,
         ]
-      : credentialBlock(pack)),
+      : credentialBlock(pack, surface.id)),
     `Secret hygiene is mandatory: never print, cat, grep, rg, echo, or include .env contents or secret values in stdout, trace, notes, or results.`,
     `Do not use file-reading tools to open .env. In scripts, read only the specific process.env names you need, use them silently, and report only env-var NAMES or redacted placeholders such as <token>.`,
     `The token is provided, but you must still DISCOVER how to authenticate with it and`,
@@ -371,6 +384,7 @@ export function buildExecutorPrompt(opts: BuildPromptOptions): string {
       : `Log EVERY API call as you go. After finishing, write ${tracePath} as a JSON array of steps:`,
     `[{"step":1,"taskId":"<id or 'discovery'>","action":"create task","method":"POST","path":"/tasks","status":201,"note":"ok"}, ...]`,
     `The trace status field is always a non-negative integer: use the HTTP status code when there is one, or the CLI/process exit code (0 for success) for command-line steps. Never write strings such as "ok" or "success" in status.`,
+    `The trace and results files MUST be strict RFC 8259 JSON. Escape every double quote and backslash inside string values; never emit shell-style escapes such as \\'\\'' or \\x27. For an apostrophe inside a JSON string, use a literal apostrophe or the JSON escape \\u0027.`,
     `Record failures too (status + the error message in note).`,
     ...(opts.apiBootstrapOutputTool && tasks.length === 0 ? [
       `For this taskless API bootstrap, do NOT use the generic write or edit actions for ${resultsPath} or ${tracePath}.`,

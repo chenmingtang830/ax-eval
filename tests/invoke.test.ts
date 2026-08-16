@@ -242,7 +242,7 @@ describe("runInvokeHarness", () => {
     const run = opts(dir, "pi");
     await runInvokeHarness({ ...run, effort: "high", harnessDetection: { ok: true, command: "pi", version: "0.51.0" } }, async (command, args) => {
       expect(command).toBe("pi");
-      expect(args).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--offline", "--no-extensions", "--no-skills", "--no-context-files", "--provider", "openrouter", "--model", "example-model", "--thinking", "high"]));
+      expect(args).toEqual(expect.arrayContaining(["--mode", "json", "--no-session", "--no-extensions", "--no-skills", "--no-context-files", "--provider", "openrouter", "--model", "example-model", "--thinking", "high"]));
       writeFileSync(run.paths.resultsPath, JSON.stringify({ results: { t1: { gid: "pi-1" } } }));
       writeFileSync(run.paths.tracePath, "[]");
       return spawnResult({ stdout: Buffer.from('{"type":"agent_end","messages":[]}\n') });
@@ -345,6 +345,7 @@ describe("runInvokeHarness", () => {
         "run",
         "--format", "json",
         "--auto",
+        "--title", "AX-eval V2.1 invocation",
         "--pure",
         "--model", "openrouter/anthropic/claude-sonnet-4.5",
         "--variant", "high",
@@ -855,6 +856,45 @@ describe("runInvokeHarness", () => {
       expect(persisted).not.toContain(secret);
     }
     expect(readFileSync(run.paths.transcriptPath, "utf8")).toContain("<redacted>");
+  });
+
+  it("redacts decoded Pi JSONL values before serialization so transcript evidence stays parseable", async () => {
+    const dir = freshDir();
+    const run = opts(dir, "pi");
+    const secret = "opaque-credential-with-quote-\"-and-backslash-\\";
+    const events = [
+      {
+        type: "tool_execution_start",
+        toolCallId: "pi-secret",
+        toolName: "bash",
+        args: { command: `node -e ${JSON.stringify(`use ${secret}`)}` },
+      },
+      {
+        type: "tool_execution_start",
+        toolCallId: "pi-safe",
+        toolName: "bash",
+        args: { command: "turso db show $DAEB_NATIVE_STALE_TARGET" },
+      },
+    ];
+    const spawn: AsyncSpawn = async () => {
+      writeFileSync(run.paths.resultsPath, JSON.stringify({
+        profile: run.profile,
+        ns: run.ns,
+        surface: run.surface,
+        discovery: {},
+        results: { t1: { gid: "g" } },
+      }));
+      writeFileSync(run.paths.tracePath, "[]");
+      return spawnResult({ stdout: Buffer.from(events.map((event) => JSON.stringify(event)).join("\n")) });
+    };
+
+    await runInvokeHarness({ ...run, redactionValues: [secret] }, spawn);
+    const persisted = readFileSync(run.paths.transcriptPath, "utf8");
+    const parsed = persisted.split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line));
+    expect(parsed).toHaveLength(2);
+    expect(parsed[0].args.command).toContain("<redacted>");
+    expect(parsed[1].args.command).toContain("DAEB_NATIVE_STALE_TARGET");
+    expect(persisted).not.toContain(secret);
   });
 
   it("fails closed with parseable artifacts when a short exact credential reaches structured output", async () => {

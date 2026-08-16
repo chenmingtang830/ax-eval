@@ -162,7 +162,13 @@ describe("transcript CLI-surface capture", () => {
     expect(run.cliCommands).toContain("asana task create --name 'AX probe'");
     expect(run.cliCommands).toContain("asana auth login");
     // Surface-aware projection: endpoint_used is the first CLI command.
-    expect(observedToDiscovery(run, undefined, "cli").endpoint_used).toBe("asana --help");
+    const discovery = observedToDiscovery(run, undefined, "cli");
+    expect(discovery.endpoint_used).toBe("asana --help");
+    expect(discovery.commands_used).toEqual([
+      "asana --help",
+      "asana task create --name 'AX probe'",
+      "asana auth login",
+    ]);
   });
 
   it("does not capture CLI commands when no bin is configured", () => {

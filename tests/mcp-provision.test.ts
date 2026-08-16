@@ -185,6 +185,44 @@ describe("provisionHarnessForSurface", () => {
     expect(JSON.stringify(first)).not.toContain("/ambient/opencode");
   });
 
+  it("pins both Pi and OpenCode to the local OpenRouter gateway", async () => {
+    const dir = freshDir();
+    const policy = {
+      model: "deepseek/deepseek-v4-flash-20260731",
+      canonical_model: "deepseek/deepseek-v4-flash-20260731",
+      provider: "deepseek",
+    } as const;
+    const piPaths = defaultInvokePaths(dir, "pi-v21", "pi");
+    const pi = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "pi",
+      surface: "cli",
+      paths: piPaths,
+      cwd: "/repo",
+      isolateWorkspace: true,
+      openrouterGateway: { baseUrl: "http://127.0.0.1:43123/v1", policy },
+    });
+    expect(pi.env.PI_CODING_AGENT_DIR).toContain(".invoke-home");
+    expect(pi.env.OPENROUTER_API_KEY).toBe("ax-eval-local-gateway");
+    expect(pi.meta?.pi_work_dir).toBe(dirname(piPaths.resultsPath));
+    const models = JSON.parse(readFileSync(resolve(pi.env.PI_CODING_AGENT_DIR!, "models.json"), "utf8"));
+    expect(models.providers.openrouter.baseUrl).toBe("http://127.0.0.1:43123/v1");
+    expect(models.providers.openrouter.models[0].id).toBe(policy.canonical_model);
+
+    const opencode = await provisionHarnessForSurface({
+      pack: cliPack(),
+      harness: "opencode",
+      surface: "cli",
+      paths: defaultInvokePaths(dir, "opencode-v21", "opencode"),
+      cwd: "/repo",
+      isolateWorkspace: true,
+      openrouterGateway: { baseUrl: "http://127.0.0.1:43123/v1", policy },
+    });
+    const config = JSON.parse(readFileSync(resolve(opencode.env.OPENCODE_CONFIG_DIR!, "opencode.json"), "utf8"));
+    expect(config.provider.openrouter.options.baseURL).toBe("http://127.0.0.1:43123/v1");
+    expect(config.provider.openrouter.models[policy.canonical_model]).toEqual({});
+  });
+
   it("prewarms a pinned OpenCode provider catalog inside the isolated home", async () => {
     const dir = freshDir();
     const provisioning = await provisionHarnessForSurface({

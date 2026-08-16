@@ -95,6 +95,8 @@ describe("cli arg handling", () => {
     const { code, out } = runCli(["exec-plan", "--help"]);
     expect(code).toBe(0);
     expect(out).toContain("--harness claude-code|codex|opencode");
+    expect(out).toContain("--tasks id,id,...");
+    expect(out).toContain("--openrouter-gateway-url");
   });
 
   it("verify-generated help exposes the single-task denominator", () => {

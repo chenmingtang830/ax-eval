@@ -104,6 +104,7 @@ import { transcriptArtifactMetrics } from "./harness/transcript-metrics.js";
 import { diffTrace, renderTraceDiffs } from "./harness/trace-diff.js";
 import { getProfile, type HarnessProfile } from "./harness/profile.js";
 import { probeHarness } from "./harness/probe.js";
+import type { OpenRouterRoutePolicy } from "./harness/openrouter-gateway.js";
 import { BearerClient } from "./http/client.js";
 import { describeRequiredEnv, hasRequiredEnv, resolveEnvTemplate, resolveScope, resolveToken, surfaceAuthStatus, type SurfaceAuthStatus } from "./target/config.js";
 import { healthCheckPack } from "./target/health-check.js";
@@ -415,7 +416,7 @@ function commandUsage(command: string | undefined): string {
     case "cell":
       return "usage: ax-eval cell run --input <cell.json> --output <record.json>";
     case "exec-plan":
-      return `usage: ax-eval exec-plan --pack <yaml> [--task id] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--isolated-harness-auth] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
+      return `usage: ax-eval exec-plan --pack <yaml> [--task id | --tasks id,id,...] [--harness ${INVOKE_HARNESS_LIST}] [--profile name] [--model slug (required as provider/model for OpenCode)] [--effort low|medium|high] [--surface api|cli|sdk|mcp|all] [--invoke] [--execution-mode cell|task] [--isolated-harness-auth] [--openrouter-gateway-url <loopback/v1>] [--openrouter-provider <id>] [--openrouter-canonical-model <slug>] [--openrouter-data-collection allow|deny] [--invoke-timeout seconds] [--first-action-timeout seconds] [--run-batch-id id] [--trial N] [--skip-reset] [--reclaim]`;
     case "verify-generated":
     case "verify":
       return "usage: ax-eval verify-generated --pack <yaml> [--task id] --results <run.json>... [--html out.html] [--snapshot out.json] [--min-pass-rate 0.8]";
@@ -492,6 +493,7 @@ interface Parsed {
   docs: string;
   offline: boolean;
   task: string;
+  tasks: string[];
   all: boolean;
   md: string;
   html: string;
@@ -553,6 +555,12 @@ interface Parsed {
    *  to override the per-result self-report when tagging. */
   surface?: string;
   executionMode: "cell" | "task";
+  /** Controller-owned OpenRouter enforcement gateway. All four fields must be
+   * supplied together; the gateway itself remains loopback-only. */
+  openrouterGatewayUrl: string;
+  openrouterProvider: string;
+  openrouterCanonicalModel: string;
+  openrouterDataCollection: "allow" | "deny" | "";
   /** Explicitly enable the harness's non-interactive permission mode for a
    * sandboxed production run. */
   isolatedHarnessAuth: boolean;
@@ -584,6 +592,7 @@ function parseArgs(argv: string[]): Parsed {
     docs: "",
     offline: false,
     task: "",
+    tasks: [],
     all: false,
     md: "",
     html: "",
@@ -628,6 +637,10 @@ function parseArgs(argv: string[]): Parsed {
     skipReset: false,
     reclaim: false,
     executionMode: "cell",
+    openrouterGatewayUrl: "",
+    openrouterProvider: "",
+    openrouterCanonicalModel: "",
+    openrouterDataCollection: "",
     isolatedHarnessAuth: false,
     _: [],
   };
@@ -699,6 +712,11 @@ function parseArgs(argv: string[]): Parsed {
     else if (a === "--docs") p.docs = value(++i, "--docs");
     else if (a === "--offline") p.offline = true;
     else if (a === "--task") p.task = value(++i, "--task");
+    else if (a === "--tasks") {
+      const ids = value(++i, "--tasks").split(",").map((item) => item.trim()).filter(Boolean);
+      if (!ids.length || new Set(ids).size !== ids.length) throw new Error("--tasks requires unique comma-separated task ids");
+      p.tasks = ids;
+    }
     else if (a === "--all") p.all = true;
     else if (a === "--md") p.md = value(++i, "--md");
     else if (a === "--html") p.html = value(++i, "--html");
@@ -755,6 +773,14 @@ function parseArgs(argv: string[]): Parsed {
       if (v !== "all" && !isSurfaceId(v)) throw new Error(`--surface must be one of api|cli|sdk|mcp|all (got ${v})`);
       p.surface = v;
     } else if (a === "--isolated-harness-auth") p.isolatedHarnessAuth = true;
+    else if (a === "--openrouter-gateway-url") p.openrouterGatewayUrl = value(++i, "--openrouter-gateway-url");
+    else if (a === "--openrouter-provider") p.openrouterProvider = value(++i, "--openrouter-provider");
+    else if (a === "--openrouter-canonical-model") p.openrouterCanonicalModel = value(++i, "--openrouter-canonical-model");
+    else if (a === "--openrouter-data-collection") {
+      const v = value(++i, "--openrouter-data-collection");
+      if (v !== "allow" && v !== "deny") throw new Error(`--openrouter-data-collection must be allow|deny (got ${v})`);
+      p.openrouterDataCollection = v;
+    }
     else if (a === "--execution-mode") {
       const v = value(++i, "--execution-mode");
       if (v !== "cell" && v !== "task") throw new Error(`--execution-mode must be one of cell|task (got ${v})`);
@@ -1649,11 +1675,49 @@ async function cmdExecPlan(args: Parsed): Promise<number> {
   // has set (otherwise every surface would read as blocked).
   loadDotenv();
   const loadedPack = loadPack(args.pack);
-  const pack = args.task
-    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => task.id === args.task) }
+  const openrouterRouteFields = [
+    args.openrouterGatewayUrl,
+    args.openrouterProvider,
+    args.openrouterCanonicalModel,
+    args.openrouterDataCollection,
+  ];
+  const hasOpenrouterRoute = openrouterRouteFields.some(Boolean);
+  if (hasOpenrouterRoute && openrouterRouteFields.some((value) => !value)) {
+    throw new Error(
+      "OpenRouter controller routing requires --openrouter-gateway-url, --openrouter-provider, "
+      + "--openrouter-canonical-model, and --openrouter-data-collection together",
+    );
+  }
+  const openrouterRoutePolicy: OpenRouterRoutePolicy | undefined = hasOpenrouterRoute
+    ? {
+      model: args.openrouterCanonicalModel,
+      canonical_model: args.openrouterCanonicalModel,
+      provider: args.openrouterProvider,
+      data_collection: args.openrouterDataCollection as "allow" | "deny",
+    }
+    : undefined;
+  const openrouterModelAliases = openrouterRoutePolicy
+    ? new Set([
+      openrouterRoutePolicy.model,
+      openrouterRoutePolicy.canonical_model,
+      `openrouter/${openrouterRoutePolicy.model}`,
+      `openrouter/${openrouterRoutePolicy.canonical_model}`,
+    ])
+    : undefined;
+  if (openrouterRoutePolicy && args.model && !openrouterModelAliases!.has(args.model)) {
+    throw new Error(`--model ${args.model} does not match the controller canonical model ${openrouterRoutePolicy.model}`);
+  }
+  if (openrouterRoutePolicy && !args.invoke) {
+    throw new Error("OpenRouter controller routing requires --invoke");
+  }
+  if (args.task && args.tasks.length) throw new Error("--task and --tasks are mutually exclusive");
+  const selectedTaskIds = args.tasks.length ? args.tasks : args.task ? [args.task] : [];
+  const pack = selectedTaskIds.length
+    ? { ...loadedPack, tasks: loadedPack.tasks.filter((task) => selectedTaskIds.includes(task.id)) }
     : loadedPack;
-  if (args.task && pack.tasks.length === 0) {
-    throw new Error(`--task "${args.task}" is not present in pack "${loadedPack.name}"`);
+  if (selectedTaskIds.length && pack.tasks.length !== selectedTaskIds.length) {
+    const missing = selectedTaskIds.filter((taskId) => !pack.tasks.some((task) => task.id === taskId));
+    throw new Error(`selected task(s) not present in pack "${loadedPack.name}": ${missing.join(", ")}`);
   }
   const invokeHarnesses: InvokeHarnessId[] = [];
   if (args.invoke) {
@@ -1874,6 +1938,9 @@ interface InvokeGroup {
                   model: args.model || profile.model || undefined,
                   command: detection.command,
                   isolateWorkspace: harness === "opencode" || harness === "pi",
+                  openrouterGateway: openrouterRoutePolicy && args.openrouterGatewayUrl
+                    ? { baseUrl: args.openrouterGatewayUrl, policy: openrouterRoutePolicy }
+                    : undefined,
                 });
               } catch (e) {
                 const record = buildBlockedResult(
@@ -1923,6 +1990,8 @@ interface InvokeGroup {
                 ? process.cwd()
                 : invokedHarnessCwd(harness, provisioning),
               model: invokedModel,
+              openrouterRoutePolicy,
+              openrouterGatewayUrl: args.openrouterGatewayUrl || undefined,
               effort: (args.effort || runProfile.effort) as InvokeRunOptions["effort"],
               timeoutMs: args.invokeTimeout > 0 ? args.invokeTimeout * 1000 : undefined,
               firstActionTimeoutMs: args.firstActionTimeout > 0 ? args.firstActionTimeout * 1000 : undefined,
@@ -1953,6 +2022,9 @@ interface InvokeGroup {
                     model: args.model || profile.model || undefined,
                     command: detection.command,
                     isolateWorkspace: harness === "opencode" || harness === "pi",
+                    openrouterGateway: openrouterRoutePolicy && args.openrouterGatewayUrl
+                      ? { baseUrl: args.openrouterGatewayUrl, policy: openrouterRoutePolicy }
+                      : undefined,
                   });
                 } catch (e) {
                   const record = buildBlockedResult(
