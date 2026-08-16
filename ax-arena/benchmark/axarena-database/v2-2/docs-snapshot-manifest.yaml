@@ -1,0 +1,28 @@
+schema: ax.daeb-v2-2-doc-selection/v1
+selected_at: 2026-08-15
+policy: Official sources only. URLs are controller-side authoring evidence and are not included in the agent prompt.
+entries:
+  - vendor: cockroachdb
+    urls:
+      - https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+      - https://www.cockroachlabs.com/docs/cockroachcloud/ccloud-reference
+  - vendor: insforge
+    urls:
+      - https://docs.insforge.dev/agent-native/overview
+      - https://docs.insforge.dev/core-concepts/database/migrations
+  - vendor: neon
+    urls:
+      - https://neon.com/cli
+      - https://neon.com/docs/connect/query-with-psql-editor
+  - vendor: nile
+    urls:
+      - https://www.thenile.dev/docs/cli/introduction
+      - https://www.thenile.dev/docs/cli/interacting_db
+  - vendor: turso
+    urls:
+      - https://docs.turso.tech/cli/headless-mode
+      - https://docs.turso.tech/cli/db/shell
+  - vendor: supabase
+    urls:
+      - https://supabase.com/docs/reference/cli/getting-started
+      - https://supabase.com/docs/guides/database/psql
