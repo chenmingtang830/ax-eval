@@ -2,6 +2,7 @@
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { parse as parseYaml } from "yaml";
@@ -28,6 +29,7 @@ import {
   type V22WorldState,
 } from "../src/runtime/v22-native-journey.js";
 import { createMacOsWorkspaceWriteSandbox } from "../src/runtime/macos-workspace-sandbox.js";
+import { stageV22CliProfile } from "../src/runtime/v22-cli-profile.js";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../../..");
 loadDotenv({ path: resolve(ROOT, ".env") });
@@ -321,6 +323,17 @@ async function executeVendor(
       isolateWorkspace: true,
     });
     const piHome = typeof provisioning.meta?.pi_home === "string" ? provisioning.meta.pi_home : undefined;
+    const cliProfileRedactions = vendorSlug === "nile"
+      ? (() => {
+        if (!piHome) throw new Error("Pi provisioning did not return an isolated home for Nile CLI auth");
+        return stageV22CliProfile({
+          sourcePath: process.env.DAEB_V22_NILE_CREDENTIALS_PATH
+            ?? resolve(homedir(), ".nile", "credentials.json"),
+          isolatedHome: piHome,
+          relativeDestination: ".nile/credentials.json",
+        }).redactionValues;
+      })()
+      : [];
     const childEnv = childEnvironment(vendor, {
       ...provisioning.env,
       ...(piHome ? { HOME: piHome, npm_config_cache: resolve(piHome, ".npm-cache") } : {}),
@@ -348,7 +361,8 @@ async function executeVendor(
         env: childEnv,
         replaceEnv: true,
         redactionValues: [...vendor.credential_envs, ...vendor.scope_envs]
-          .flatMap((name) => process.env[name]?.trim() ? [process.env[name]!.trim()] : []),
+          .flatMap((name) => process.env[name]?.trim() ? [process.env[name]!.trim()] : [])
+          .concat(cliProfileRedactions),
         provisioning: provisioning.meta,
         harnessDetection: detection,
         runBatchId: `v22-native-${vendorSlug}-t1`,

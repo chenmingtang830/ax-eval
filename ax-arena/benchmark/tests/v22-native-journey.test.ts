@@ -32,6 +32,8 @@ describe("V2.2 native journey", () => {
     expect(prompt).toContain("EXAMPLE_TOKEN");
     expect(prompt).toContain("id INTEGER PRIMARY KEY, marker TEXT UNIQUE NOT NULL");
     expect(prompt).toContain("strictly increasing positive step number");
+    expect(prompt).toContain("Never expand a credential into source code");
+    expect(prompt).toContain("Do not reverse-engineer an SDK");
   });
 
   it("separates assisted discovery and recovery from final world state", () => {
