@@ -27,6 +27,7 @@ import {
   type V22Vendor,
   type V22WorldState,
 } from "../src/runtime/v22-native-journey.js";
+import { createMacOsWorkspaceWriteSandbox } from "../src/runtime/macos-workspace-sandbox.js";
 
 const ROOT = resolve(dirname(new URL(import.meta.url).pathname), "../../..");
 loadDotenv({ path: resolve(ROOT, ".env") });
@@ -290,6 +291,7 @@ async function executeVendor(
   const routeLedger = resolve(cellDir, "route-ledger.jsonl");
   const gateway = await startCellGateway(contract, openRouterKey, routeLedger);
   const paths = defaultInvokePaths(cellDir, "pi-v22-native", "pi");
+  const sandbox = createMacOsWorkspaceWriteSandbox({ writableRoot: cellDir });
   const base = loadPack(resolve(ROOT, vendor.base_pack));
   const pack = runtimePack(base);
   writeFileSync(paths.promptPath, buildV22NativeJourneyPrompt({
@@ -351,6 +353,7 @@ async function executeVendor(
         harnessDetection: detection,
         runBatchId: `v22-native-${vendorSlug}-t1`,
         requireTrace: true,
+        sandbox,
       });
     }
   } catch (caught) {

@@ -5,6 +5,7 @@ import {
   scoreV22Stages,
   type V22Vendor,
 } from "../src/runtime/v22-native-journey.js";
+import { createMacOsWorkspaceWriteSandbox } from "../src/runtime/macos-workspace-sandbox.js";
 
 const vendor: V22Vendor = {
   display_name: "ExampleDB",
@@ -100,5 +101,25 @@ describe("V2.2 native journey", () => {
     const evidence = analyzeV22Transcript({ transcript, vendor, staleTarget: "missing", outcomePassed: true });
     expect(evidence.transcript_invalid_lines).toBe(1);
     expect(evidence.stale_target_attempted).toBe(true);
+  });
+
+  it("wraps a local harness with a cell-only macOS write sandbox", () => {
+    const sandbox = createMacOsWorkspaceWriteSandbox({
+      writableRoot: process.cwd(),
+      platform: "darwin",
+      executable: "/bin/echo",
+    });
+    const wrapped = sandbox.wrap({ command: "pi", args: ["--print"], cwd: process.cwd() });
+    expect(wrapped.command).toBe("/bin/echo");
+    expect(wrapped.args.slice(0, 2)).toEqual(["-p", expect.stringContaining("(deny default)" )]);
+    expect(wrapped.args[1]).toContain("(allow file-write*");
+    expect(wrapped.args).toEqual(expect.arrayContaining(["pi", "--print"]));
+  });
+
+  it("fails closed when macOS Seatbelt is unavailable", () => {
+    expect(() => createMacOsWorkspaceWriteSandbox({
+      writableRoot: process.cwd(),
+      platform: "linux",
+    })).toThrow("requires macOS Seatbelt");
   });
 });
