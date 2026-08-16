@@ -1,4 +1,4 @@
-import { decodeTranscriptContent } from "../../../../src/harness/transcript-decoder.js";
+import { decodeTranscriptContent } from "ax-eval";
 import { z } from "zod";
 
 export const V22_TASK_ID = "db-J01-native-journey" as const;

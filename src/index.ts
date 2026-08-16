@@ -70,8 +70,18 @@ export {
   isInvokeHarnessId,
   defaultInvokePaths,
   detectInvokeHarness,
+  runInvokeHarness,
 } from "./harness/invoke.js";
-export type { InvokeHarnessId, InvokeHarnessMetrics, InvokeDetection } from "./harness/invoke.js";
+export type {
+  InvokeAttemptMetrics,
+  InvokeDetection,
+  InvokeHarnessId,
+  InvokeHarnessMetrics,
+  InvokePaths,
+  InvokeRunOptions,
+  InvokeRunResult,
+  InvokeValidityStatus,
+} from "./harness/invoke.js";
 export type { TraceStep } from "./harness/executor.js";
 export {
   observedToDiscovery,

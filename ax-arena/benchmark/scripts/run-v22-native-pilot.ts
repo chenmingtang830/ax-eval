@@ -5,20 +5,18 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { config as loadDotenv } from "dotenv";
 import { parse as parseYaml } from "yaml";
-import { loadPack } from "../../../src/config.js";
 import {
   defaultInvokePaths,
   detectInvokeHarness,
+  loadPack,
+  provisionHarnessForSurface,
   runInvokeHarness,
-} from "../../../src/harness/invoke.js";
-import { provisionHarnessForSurface } from "../../../src/harness/mcp-provision.js";
-import {
   startOpenRouterGateway,
   validateResolvedProvider,
   type OpenRouterRoutePolicy,
   type RunningOpenRouterGateway,
-} from "../../../src/harness/openrouter-gateway.js";
-import type { TargetPack } from "../../../src/schemas.js";
+  type TargetPack,
+} from "ax-eval";
 import {
   V22NativeJourneySchema,
   V22_TASK_ID,
