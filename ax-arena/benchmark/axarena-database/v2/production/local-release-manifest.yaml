@@ -1,0 +1,64 @@
+schema: ax.daeb-v2-local-release/v1
+release_id: daeb-v2-local-cli-core-plus-supabase-extension-20260814
+workspace: /Users/richardtang/ax-eval
+trust_level: local
+surface_scope: [cli]
+api_tuple_count: 0
+core:
+  track_manifest: track-manifest.yaml
+  vendors: [cockroachdb, insforge, neon, nile, turso]
+  canonical_task_count: 7
+  admitted_tuple_count: 31
+  structural_na_tuple_count: 4
+  common_sql_tuple_count: 20
+  model_observations: 186
+  evidence_roots:
+    - results/daeb-v2-codex-gpt56-production-20260814
+    - results/daeb-v2-codex-gpt56-nile-repair-20260814
+    - results/daeb-v2-claude-sonnet5-auto-production-20260814
+    - results/daeb-v2-claude-sonnet5-nile-trace-repair-20260814
+    - results/daeb-v2-claude-sonnet5-nile-repair-20260814
+    - results/daeb-v2-turso-final-pack-codex-20260814
+    - results/daeb-v2-turso-final-pack-claude-20260814
+extensions:
+  - id: supabase-cli
+    vendor: supabase
+    pack: extensions/supabase-cli/pack.yaml
+    approval: extensions/supabase-cli/pack.approval.json
+    support_matrix: extensions/supabase-cli/support-matrix.yaml
+    pack_file_sha256: 10d96a747c7919cf823848adb143e98de9556ed24eb766302ed10eb13d9c2784
+    standard_set_version: daeb-2-cli-extension-v1
+    admitted_tuple_count: 7
+    structural_na_tuple_count: 0
+    api_tuple_count: 0
+    deterministic_witness_root: results/daeb-v2-supabase-cli-extension-witness-20260814
+    model_observations: 42
+    evidence_roots:
+      - results/daeb-v2-supabase-cli-extension-codex2-20260814
+      - results/daeb-v2-supabase-cli-extension-claude-20260814
+local_release_totals:
+  admitted_tuple_count: 38
+  model_observations: 228
+  provider_oracle_passes: 224
+  strict_gid_oracle_passes: 199
+  discovery_cells: 36
+  observed_discovery_rate: 0.9444444444444444
+  ax_composite_harmonic_mean: 0.9630753667172484
+  latency_coverage_cells: 36
+  mean_cell_latency_ms: 221023.69444444444
+  median_cell_latency_ms: 213879.5
+  mean_first_action_latency_ms: 7140.333333333333
+  reported_cost_coverage_cells: 18
+  reported_cost_covered_task_observations: 114
+  total_reported_cost_usd: 14.697132799999997
+  core_score_denominator_policy: five-vendor core remains 20 common-SQL tuples; Supabase is additive and never silently pooled
+scorecards:
+  observed_ax_policy: local-ax-cohort.yaml
+  observed_ax_scorecard: local-ax-scorecard.json
+  complete_cell_matrix: local-all-results.md
+  canonical_behavioral_metric: provider-oracle task success remains the primary pass rate
+  composite_status: secondary local analysis; discovery is observed once per vendor/harness/model/trial cell, not once per task
+excluded_surfaces: [api]
+publication_boundary:
+  official_hosted_trusted: false
+  required_gates: [committed source/config, pinned OCI runtime, hosted-trusted run, exact-scope cleanup, detached GitHub OIDC attestation, aggregate/economics/competitive/export checks]

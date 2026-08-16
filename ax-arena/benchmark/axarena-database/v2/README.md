@@ -11,10 +11,9 @@ CLI surface -> deterministic setup -> mutation -> independent verify -> cleanup
   -> admitted support tuple -> pack composition -> model pilot
 ```
 
-Scope:
+Core scope:
 
 - Vendors: CockroachDB, InsForge, Neon, Nile, and Turso.
-- Supabase is excluded entirely.
 - All API tuples are excluded.
 - Turso T01 is excluded because the denied-token probe requires an
   organization-level capability not supplied by the ordinary cell credential.
@@ -31,6 +30,13 @@ Scope:
   setup, mutation, independent read-back, cleanup, and hash-bound proof
   evidence in the run artifacts; the status source of truth is
   `support-matrix.yaml`.
+
+Supabase remains excluded from the canonical v2 matrix because its API surface
+cannot provision the required role/table/policy state. A separately reviewed
+local `production/extensions/supabase-cli/` extension admits Supabase's
+PostgreSQL CLI data plane only; it has its own pack, approval, witness, support
+matrix, and model-trial denominator. It does not add API cells or silently
+change the core five-vendor score.
 
 `cli-doc-audit.yaml` records the official documentation refresh and each task
 decision. `witness-plan.yaml` and `support-matrix.yaml` are fail-closed

@@ -34,6 +34,7 @@ const MODEL = process.env.DAEB_V2_MODEL ?? "openrouter/z-ai/glm-5.2";
 const PROFILE = process.env.DAEB_V2_PROFILE ?? (HARNESS === "codex" ? "gpt5" : "medium");
 const EFFORT = process.env.DAEB_V2_EFFORT ?? "high";
 const BATCH = process.env.DAEB_V2_BATCH ?? `daeb-v2-${HARNESS}-${new Date().toISOString().slice(0, 10).replaceAll("-", "")}`;
+const PACK_ROOT = resolve(ROOT, process.env.DAEB_V2_PACK_ROOT ?? "ax-arena/benchmark/axarena-database/v2/production/packs");
 const VENDORS = (process.env.DAEB_V2_VENDORS ?? "cockroachdb,insforge,neon,nile")
   .split(",").map((value) => value.trim()).filter(Boolean);
 const TRIALS = (process.env.DAEB_V2_TRIALS ?? "1,2,3")
@@ -169,7 +170,8 @@ async function verifyAndCleanup(vendor: string, packPath: string, runDir: string
 async function main(): Promise<void> {
   for (const trial of TRIALS) {
     for (const vendor of VENDORS) {
-      const packPath = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2/production/packs", vendor, "pack.yaml");
+      const packDir = process.env[`DAEB_V2_PACK_DIR_${vendor.toUpperCase()}`] ?? vendor;
+      const packPath = resolve(PACK_ROOT, packDir, "pack.yaml");
       const runDir = resolve(ROOT, "results", BATCH, vendor, `trial-${trial}`);
       mkdirSync(runDir, { recursive: true });
       console.log(`[v2] starting ${vendor} with ${MODEL} (${HARNESS}, trial ${trial})`);

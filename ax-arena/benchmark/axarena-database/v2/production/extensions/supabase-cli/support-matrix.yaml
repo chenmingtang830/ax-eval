@@ -1,0 +1,17 @@
+schema: ax.daeb-v2-cli-extension-support/v1
+benchmark: DAEB-2
+extension: supabase-cli
+vendor: supabase
+surface: cli
+standard_set_version: daeb-2-cli-extension-v1
+source_pack: pack.yaml
+api_tuple_count: 0
+generated_at: 2026-08-14T19:08:00.000Z
+entries:
+  - {vendor: supabase, task_id: db-T01-access-control, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T02-evolve-schema, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T03-inspect-schema, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T04-query-records, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T05-vector-search, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T06-write-records, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}
+  - {vendor: supabase, task_id: db-T07-full-text-search, surface: cli, status: supported, witness_required: false, reason: deterministic CLI witness passed setup, mutation, independent read-back, cleanup, and hash binding}

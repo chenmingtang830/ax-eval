@@ -80,6 +80,7 @@
     "node": ">=22"
   },
   "dependencies": {
+    "@libsql/client": "^0.17.4",
     "@linear/sdk": "^86.0.0",
     "@mondaydotcomorg/monday-api-mcp": "^3.2.0",
     "@notionhq/client": "^5.22.0",

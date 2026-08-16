@@ -30,11 +30,12 @@ surfaces:
     docs_url: https://docs.turso.tech/tursodb/quickstart
     auth:
       kind: token
-      token_env: TURSO_API_TOKEN
+      token_env: TURSO_ORG_API_TOKEN
       token_env_aliases:
-        - TURSO_ORG_API_TOKEN
+        - TURSO_API_TOKEN
       instructions: Mint a platform API token with `turso auth api-tokens mint
-        <name>`, then set TURSO_API_TOKEN. In WSL/remote CI where a browser is
+        <name>`, then set TURSO_ORG_API_TOKEN (or the declared TURSO_API_TOKEN
+        alias). In WSL/remote CI where a browser is
         unavailable, use `turso auth login --headless` to complete auth via a
         printed URL. The token printed by `turso auth token` is the same
         credential.

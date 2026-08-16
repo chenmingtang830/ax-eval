@@ -59,7 +59,7 @@ contracts:
     surface: cli
     endpoint_class: turso-cli-and-sql-over-http
     agent_credentials:
-      - TURSO_API_TOKEN
+      - TURSO_ORG_API_TOKEN
       - TURSO_DATABASE_AUTH_TOKEN
     setup_mode: sql_http
     verifier_mode: same_sql_http
@@ -807,7 +807,7 @@ entries:
     reason: deterministic CLI witness passed setup, mutation, independent read-back,
       and cleanup
     evidence:
-      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/turso/db-T02-evolve-schema
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T02-evolve-schema
     proof:
       setup:
         status: passed
@@ -825,8 +825,8 @@ entries:
         status: passed
         command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
         artifact: cells/turso/db-T02-evolve-schema/cleanup.json
-      source_sha256: 6922db1a375609835b384b7b465e119c3f26685ab76f5e1db72248da3ac38f76
-      bundle_sha256: 43d250e494b80078b19e5df1353e6d60d9eb2de3200d1a5d1357db7d434fad37
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: a392ebd1c24f6703c8bf4ecbaf89be4b64d31c99bf3d6954da63282ae9d8457d
   - vendor: turso
     task_id: db-T03-inspect-schema
     surface: cli
@@ -835,7 +835,7 @@ entries:
     reason: deterministic CLI witness passed setup, mutation, independent read-back,
       and cleanup
     evidence:
-      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/turso/db-T03-inspect-schema
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T03-inspect-schema
     proof:
       setup:
         status: passed
@@ -853,8 +853,8 @@ entries:
         status: passed
         command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
         artifact: cells/turso/db-T03-inspect-schema/cleanup.json
-      source_sha256: 6922db1a375609835b384b7b465e119c3f26685ab76f5e1db72248da3ac38f76
-      bundle_sha256: 7326c5ef5b5e93b2292a053490b326d5742e4656f011fd261b531155907e1ae8
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: 3ae2a9977060ebd19011fe8e5012ac0ac0fe706c5ca3c9763ad90943037182f3
   - vendor: turso
     task_id: db-T04-query-records
     surface: cli
@@ -863,7 +863,7 @@ entries:
     reason: deterministic CLI witness passed setup, mutation, independent read-back,
       and cleanup
     evidence:
-      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/turso/db-T04-query-records
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T04-query-records
     proof:
       setup:
         status: passed
@@ -881,8 +881,8 @@ entries:
         status: passed
         command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
         artifact: cells/turso/db-T04-query-records/cleanup.json
-      source_sha256: 6922db1a375609835b384b7b465e119c3f26685ab76f5e1db72248da3ac38f76
-      bundle_sha256: 7626ed14d628e6fabb0921bf8955c1b79bc1eb24d5955f031d915dde053bde3c
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: ef7a305627a847f7aa4bb583b69d57186948b47dc68d03ed971007dc59d59b30
   - vendor: turso
     task_id: db-T05-vector-search
     surface: cli
@@ -891,7 +891,7 @@ entries:
     reason: deterministic CLI witness passed setup, mutation, independent read-back,
       and cleanup
     evidence:
-      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/turso/db-T05-vector-search
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T05-vector-search
     proof:
       setup:
         status: passed
@@ -909,8 +909,8 @@ entries:
         status: passed
         command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
         artifact: cells/turso/db-T05-vector-search/cleanup.json
-      source_sha256: 6922db1a375609835b384b7b465e119c3f26685ab76f5e1db72248da3ac38f76
-      bundle_sha256: 0b1cc74e1f2de2a3d5a01e452ded3c76ce830b474f8db8935af2712cd237713a
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: c6dd5e5b2841cfc62a9d03fe955a0aecdae5a514474460c4a13c1f5faf064c38
   - vendor: turso
     task_id: db-T06-write-records
     surface: cli
@@ -919,7 +919,7 @@ entries:
     reason: deterministic CLI witness passed setup, mutation, independent read-back,
       and cleanup
     evidence:
-      - results/daeb-v2-witness-20260812-final-cli-only-r6/cells/turso/db-T06-write-records
+      - results/daeb-v2-vendor-rescue-turso-witness-auth-contract-20260814/cells/turso/db-T06-write-records
     proof:
       setup:
         status: passed
@@ -937,8 +937,8 @@ entries:
         status: passed
         command: turso db shell <TURSO_SANDBOX_DATABASE> <sql>
         artifact: cells/turso/db-T06-write-records/cleanup.json
-      source_sha256: 6922db1a375609835b384b7b465e119c3f26685ab76f5e1db72248da3ac38f76
-      bundle_sha256: 9d1ec22209b4929bb12022c63fa6a796db2dd1b9de059f01d1813d20143b73f0
+      source_sha256: 290b59bd5caeb9d7177e6dd4a28e712fd17f1b153fda839bfe097c3070852142
+      bundle_sha256: 09a612b1286174c7d25314cc23fc53a2dab95a951fd159851f5b729ee93c199e
   - vendor: insforge
     task_id: db-T03-inspect-schema
     surface: cli

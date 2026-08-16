@@ -16,6 +16,18 @@ canonical_task_ids:
   - db-T07-full-text-search
 admitted_tuple_count: 31
 structural_na_tuple_count: 4
+extensions:
+  - id: supabase-cli
+    vendor: supabase
+    surface: cli
+    pack_path: extensions/supabase-cli/pack.yaml
+    approval_path: extensions/supabase-cli/pack.approval.json
+    support_matrix_path: extensions/supabase-cli/support-matrix.yaml
+    admitted_tuple_count: 7
+    structural_na_tuple_count: 0
+    api_tuple_count: 0
+    model_trial_observations: 42
+    policy: additive-local-extension; excluded from the core five-vendor score
 common_sql_task_ids:
   - db-T02-evolve-schema
   - db-T03-inspect-schema

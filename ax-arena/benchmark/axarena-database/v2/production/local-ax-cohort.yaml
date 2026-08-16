@@ -1,0 +1,104 @@
+schema: ax.daeb-v2-local-ax-cohort/v1
+release_id: daeb-v2-local-cli-core-plus-supabase-extension-20260814
+output: ax-arena/benchmark/axarena-database/v2/production/local-ax-scorecard.json
+markdown_output: ax-arena/benchmark/axarena-database/v2/production/local-all-results.md
+policy:
+  discovery_source: observed-transcript-only
+  discovery_signals: [official, canonical, misled, auth]
+  usability_source: independent-provider-oracle
+  composite_formula: harmonic_mean
+  notes:
+    - Discovery is scored once per vendor, harness, model, and trial cell, before the task batch.
+    - Hops remain diagnostic and do not enter the discovery scalar.
+    - Strict gid plus oracle is reported separately and does not alter usability.
+lanes:
+  - id: core-codex-gpt56-terra
+    track: core
+    include_in_release_total: true
+    harness: codex
+    model: gpt-5.6-terra
+    evidence:
+      - vendor: cockroachdb
+        root: results/daeb-v2-codex-gpt56-production-20260814/cockroachdb
+        trials: [1, 2, 3]
+      - vendor: insforge
+        root: results/daeb-v2-codex-gpt56-production-20260814/insforge
+        trials: [1, 2, 3]
+      - vendor: neon
+        root: results/daeb-v2-codex-gpt56-production-20260814/neon
+        trials: [1, 2, 3]
+      - vendor: nile
+        root: results/daeb-v2-codex-gpt56-nile-repair-20260814/nile
+        trials: [1, 2, 3]
+      - vendor: turso
+        root: results/daeb-v2-turso-final-pack-codex-20260814/turso
+        trials: [1, 2, 3]
+  - id: core-claude-sonnet5
+    track: core
+    include_in_release_total: true
+    harness: claude-code
+    model: claude-sonnet-5
+    evidence:
+      - vendor: cockroachdb
+        root: results/daeb-v2-claude-sonnet5-auto-production-20260814/cockroachdb
+        trials: [1, 2, 3]
+      - vendor: insforge
+        root: results/daeb-v2-claude-sonnet5-auto-production-20260814/insforge
+        trials: [1, 2, 3]
+      - vendor: neon
+        root: results/daeb-v2-claude-sonnet5-auto-production-20260814/neon
+        trials: [1, 2, 3]
+      - vendor: nile
+        root: results/daeb-v2-claude-sonnet5-nile-trace-repair-20260814/nile
+        trials: [1]
+      - vendor: nile
+        root: results/daeb-v2-claude-sonnet5-nile-repair-20260814/nile
+        trials: [2, 3]
+      - vendor: turso
+        root: results/daeb-v2-turso-final-pack-claude-20260814/turso
+        trials: [1, 2, 3]
+  - id: supabase-cli-codex-gpt56-terra
+    track: supabase-cli-extension
+    include_in_release_total: true
+    harness: codex
+    model: gpt-5.6-terra
+    evidence:
+      - vendor: supabase
+        root: results/daeb-v2-supabase-cli-extension-codex2-20260814/supabase
+        trials: [1, 2, 3]
+  - id: supabase-cli-claude-sonnet5
+    track: supabase-cli-extension
+    include_in_release_total: true
+    harness: claude-code
+    model: claude-sonnet-5
+    evidence:
+      - vendor: supabase
+        root: results/daeb-v2-supabase-cli-extension-claude-20260814/supabase
+        trials: [1, 2, 3]
+  - id: core-opencode-glm52-local-comparative
+    track: comparative-appendix
+    include_in_release_total: false
+    harness: opencode
+    model: openrouter/z-ai/glm-5.2
+    evidence:
+      - vendor: cockroachdb
+        root: results/daeb-v2-production-frozen-20260813/cockroachdb
+        trials: [1, 2]
+      - vendor: cockroachdb
+        root: results/daeb-v2-production-frozen-20260813-r2/cockroachdb
+        trials: [3]
+      - vendor: insforge
+        root: results/daeb-v2-production-frozen-20260813-r3/insforge
+        trials: [1, 2]
+      - vendor: insforge
+        root: results/daeb-v2-production-frozen-20260813-r4/insforge
+        trials: [3]
+      - vendor: neon
+        root: results/daeb-v2-production-frozen-20260813-r2/neon
+        trials: [1, 2, 3]
+      - vendor: nile
+        root: results/daeb-v2-production-frozen-20260813-r4/nile
+        trials: [1, 2, 3]
+      - vendor: turso
+        root: results/daeb-v2-production-frozen-20260813-r5/turso
+        trials: [1, 2, 3]
