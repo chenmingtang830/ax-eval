@@ -1,0 +1,679 @@
+name: CANDIDATE-SUITE-V2-1
+version: 1
+category: database
+description: Bottom-up-derived canonical task suite for the "database" category,
+  synthesized from 6 vendors' cited documentation (see
+  candidate-suite-v2-1.synthesis.md for the full audit trail).
+methodology:
+  schema: ax.suite-methodology/v1
+  ontology:
+    task: A single benchmark problem with fixed intent and success criteria.
+    trial: One attempt at a task under a clean environment.
+    grader: Logic that scores either an outcome or transcript-derived property.
+    transcript: Behavior evidence from the agent run, including tool use and
+      intermediate steps.
+    outcome: Final world state in the environment after a trial.
+    support_decision: A recorded judgment about whether a vendor/surface can perform a task.
+    selection_decision: A recorded judgment about whether a concept becomes part of
+      the canonical suite.
+    suite: The frozen canonical task bank for a category.
+    publication_bundle: The artifact bundle tying methodology, adapters, evidence,
+      and results together.
+  static_ax:
+    label: Discoverability & Readiness
+    dimensions:
+      - discoverability
+      - content quality
+      - capability exposure
+      - protocol/access readiness
+    notes:
+      - Discoverability & Readiness is a publication/audit layer and never
+        changes usability-suite pass rates.
+  behavioral:
+    label: Usability Canonical Suite
+    source_of_truth: Verified world state read back from the live product
+    notes:
+      - Usability-suite scoring is governed only by verified task outcomes on
+        the suite-declared benchmark surfaces.
+  extraction_requirements:
+    - Use only official vendor documentation as evidence.
+    - Persist every extracted capability with structured evidence objects.
+    - Document supported benchmark surfaces where evidence exists; deferred
+      surfaces may still be retained as research metadata.
+  surface_scope:
+    - cli
+  min_vendor_coverage_pct: 0.75
+  target_task_count: 16
+  verifiability_requirement: Selected tasks must have deterministic read-back
+    verification against world state.
+  difficulty_rubric:
+    L1: "Single action: one create/read/update/check call with minimal setup."
+    L2: "Single capability with configuration or composition: ACL, vector search
+      index, etc."
+    L3: "Multi-step workflow within one domain: schema evolution, server-side
+      routine."
+    L4: "Full lifecycle or cross-cutting operational workflow: backup/restore, CDC,
+      integrity constraints."
+  human_review_checkpoints:
+    - "bottom-up pipeline review: capability inventory → concept universe →
+      coverage matrix → selection ledger → task drafts"
+    - final suite freeze
+    - publication bundle release
+tasks:
+  - id: db-T17-cli-session-discovery
+    title: "T17: Discover and verify an authenticated CLI session"
+    difficulty: L2
+    skill: cli-session-discovery
+    intent: From a fresh family session, discover the vendor's documented
+      command-line entrypoint and authentication path. Using the provisioned
+      sandbox credentials, create a task-scoped relation named
+      `axarena_session_probe_{ns}` with one marker `session_{ns}` and the
+      authenticated principal observed by the CLI session, then start a second
+      fresh CLI process and read the marker back. Report the discovered surface,
+      auth method, relation name, and marker; never print credentials or clean
+      up the relation.
+    oracle_hint: Read back `axarena_session_probe_{ns}` through an independent fresh
+      SQL connection and confirm exactly one row has marker `session_{ns}` and a
+      non-empty principal. The agent's claimed CLI discovery text is not
+      sufficient without this world-state read-back.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented authenticated CLI/SQL
+        data-plane path for the benchmark sandbox.
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-session-discovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T21-cli-principal-continuity
+    title: "T21: Verify authenticated principal continuity across CLI sessions"
+    difficulty: L2
+    skill: cli-principal-continuity
+    intent: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_principal_probe_{ns}` with one marker `principal_{ns}` and
+      the non-empty authenticated principal returned by the session. Start a
+      second fresh CLI process, read the row back, and report the same principal
+      without printing credentials or cleaning up.
+    oracle_hint: Read back `axarena_principal_probe_{ns}` through an independent
+      fresh SQL connection and confirm exactly one marker row has a non-empty
+      principal. The two CLI sessions must report the same principal in the
+      trace.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented authenticated CLI/SQL path for
+        principal continuity.
+    execution_family: access-auth-discovery
+    challenge_tags:
+      - surface-ambiguity
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/cli-principal-continuity
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T18-constraint-preservation
+    title: "T18: Preserve a constraint under a rejected write"
+    difficulty: L2
+    skill: constraint-preservation
+    intent: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_constraint_probe_{ns}` with a primary key and a unique
+      marker constraint. Insert exactly one marker `constraint_{ns}`, then
+      deliberately attempt the same marker again using the vendor's documented
+      conflict/rejection path. Leave the original row intact and report the
+      relation and rejected-write outcome; do not disable or replace the
+      constraint.
+    oracle_hint: Read back the relation through an independent fresh SQL connection
+      and confirm exactly one `constraint_{ns}` row exists, the primary/unique
+      constraint is present in metadata, and the duplicate attempt did not
+      create a second row.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented CLI SQL path for defining and
+        enforcing the required constraint.
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/constraint-preservation
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T19-transactional-record-recovery
+    title: "T19: Recover a record after a rolled-back transaction"
+    difficulty: L4
+    skill: transactional-record-recovery
+    intent: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_txn_probe_{ns}`. Start a transaction that inserts
+      `rollback_{ns}` and roll it back, then commit exactly one `committed_{ns}`
+      row in a separate transaction. Report the observed rollback and commit
+      behavior without cleaning up the relation.
+    oracle_hint: Read back the relation through an independent fresh SQL connection
+      and confirm zero `rollback_{ns}` rows and exactly one `committed_{ns}`
+      row. The final committed state must prove the earlier mutation was
+      actually rolled back.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented CLI SQL transaction path with
+        rollback and commit semantics.
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/transactional-record-recovery
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T20-aggregate-query
+    title: "T20: Aggregate a filtered record set"
+    difficulty: L2
+    skill: aggregate-query
+    intent: "From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_aggregate_probe_{ns}` with three rows: two `active` rows
+      and one `inactive` row. Run a filtered aggregate that counts only the
+      active rows and report the relation and count without cleaning it up."
+    oracle_hint: Read back the relation through an independent fresh SQL connection
+      and confirm three total rows, exactly two active rows, and an aggregate
+      count of two for the active predicate.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented CLI SQL aggregate/query path.
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/aggregate-query
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T22-negative-query-verification
+    title: "T22: Verify a Negative Query Without Losing Existing Records"
+    difficulty: L2
+    skill: negative-query-verification
+    intent: From a fresh family session, discover the documented CLI SQL path and
+      create `axarena_negative_query_probe_{ns}` with two marker rows. Run a
+      query for a marker that does not exist, confirm the negative result, then
+      report the relation and the preserved record count without cleaning up.
+    oracle_hint: Read back the relation through an independent fresh SQL connection
+      and confirm both original rows remain and the negative predicate returns
+      zero rows.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented CLI SQL query path for negative
+        verification.
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/negative-query-verification
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+    anchor: false
+  - id: db-T07-backup-and-restore
+    title: "T07: Produce a backup, snapshot, or export artifact"
+    difficulty: L4
+    skill: backup-and-restore
+    intent: Create or use a container named `axarena_backup_{ns}` with one marker
+      record labeled `marker_{ns}`, then produce a backup, snapshot, or export
+      artifact using the vendor's idiomatic recovery or export mechanism.
+    oracle_hint: Read back the backup, snapshot, or export artifact and confirm (1)
+      its metadata references `axarena_backup_{ns}` or the producing job, and
+      (2) the artifact payload, listing, or restore-preview includes the marker
+      record labeled `marker_{ns}` — metadata-only existence is not enough.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a backup, snapshot, or export flow on
+        api/cli surfaces.
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/backup-and-restore
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T02-evolve-schema
+    title: "T02: Apply a schema evolution"
+    difficulty: L3
+    skill: evolve-schema
+    intent: In the task-scoped container `axarena_migrate_{ns}`, first establish a
+      baseline schema containing a `title` field (create it if it does not
+      already exist). Then apply an idiomatic schema evolution that adds a new
+      `status` field without recreating or replacing the container. Confirm the
+      evolved shape is visible through the vendor's schema or metadata surface.
+    oracle_hint: Read back metadata for `axarena_migrate_{ns}` and confirm the added
+      `status` field is now present and the pre-existing `title` field remains
+      visible.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not support a documented schema evolution or migration
+        flow on api/cli surfaces.
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/evolve-schema
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T09-inspect-schema
+    title: "T09: Inspect container metadata"
+    difficulty: L1
+    skill: inspect-schema
+    intent: Create or use a container named `axarena_schema_probe_{ns}` with fields
+      `name` and `status`, then use the vendor's schema or metadata inspection
+      mechanism to confirm both fields are present.
+    oracle_hint: Read back schema or metadata for `axarena_schema_probe_{ns}` and
+      confirm both the `name` and `status` fields are visible through the
+      inspection surface (not only via a successful row insert).
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose schema or metadata inspection on api/cli
+        surfaces.
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/inspect-schema
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T04-query-records
+    title: "T04: Filter and read matching records"
+    difficulty: L2
+    skill: query-records
+    intent: Using a container named `axarena_query_items_{ns}`, create exactly three
+      records with a text field named `label` and values `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}` plus a `status` field such that only
+      `alpha_{ns}` and `gamma_{ns}` are `active`. Then execute a filtered read
+      that returns only the active records and report the container name plus
+      the matching count.
+    oracle_hint: Verify the container exists with exactly three records total
+      (labels `alpha_{ns}`, `beta_{ns}`, `gamma_{ns}`). A filtered read for
+      `status=active` must return exactly two records with labels `alpha_{ns}`
+      and `gamma_{ns}` and must not include `beta_{ns}`.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor cannot perform filtered record reads on api/cli surfaces.
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/query-records
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T11-vector-search
+    title: "T11: Create a vector-enabled dataset and query it"
+    difficulty: L2
+    skill: vector-search
+    intent: Create a vector-enabled dataset named `axarena_vectors_{ns}` with a text
+      field named `label` and at least three items labeled `alpha_{ns}`,
+      `beta_{ns}`, and `gamma_{ns}`. Use three-dimensional embeddings where
+      `alpha_{ns}` is closest to the probe vector `[1,0,0]`, then run one
+      similarity query for `[1,0,0]` that ranks `alpha_{ns}` first.
+    oracle_hint: Read back the vector dataset and verify a similarity query for
+      `[1,0,0]` against the stored index returns `alpha_{ns}` as the top result.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose vector indexing or similarity search on
+        api/cli surfaces.
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/vector-search
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T06-write-records
+    title: "T06: Create, update, and delete one record lifecycle"
+    difficulty: L2
+    skill: write-records
+    intent: Using a container named `axarena_write_items_{ns}`, create one record
+      with immutable `record_id=record_{ns}` and label `draft_{ns}`, update that
+      same record so its label becomes `final_{ns}`, then delete one separate
+      throwaway record labeled `delete_me_{ns}`. Report the externally
+      addressable container name and the surviving record identity.
+    oracle_hint: "Read back `axarena_write_items_{ns}` and confirm: (1) the record
+      with `record_id=record_{ns}` has label `final_{ns}`; (2) no record labeled
+      `draft_{ns}` or `delete_me_{ns}` remains; (3) the surviving `record_id` is
+      the identity reported by the agent — creating an unrelated final row does
+      not satisfy the task."
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor cannot perform create, update, and delete record operations
+        on api/cli surfaces.
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/write-records
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: true
+  - id: db-T13-change-data-capture
+    title: "T13: Emit one observable change event"
+    difficulty: L4
+    skill: change-data-capture
+    intent: Enable a change stream, realtime subscription, or CDC feed for a
+      container named `axarena_cdc_{ns}`, then create one record labeled
+      `cdc_probe_{ns}` so the resulting insert becomes observable in the stream
+      or feed. Persist the observed event into a durable capture container that
+      is distinct from `axarena_cdc_{ns}`, with either a `row_label` field equal
+      to `cdc_probe_{ns}` or a `payload` field containing `cdc_probe_{ns}`, and
+      report that capture container name for verification.
+    oracle_hint: Read back the reported capture container (must not be
+      `axarena_cdc_{ns}` itself) and confirm at least one stored event
+      corresponds to `cdc_probe_{ns}` and carries insert/change evidence from
+      the feed (event type, commit watermark, or vendor-equivalent CDC fields).
+      A hand-written row that merely copies the label without feed provenance
+      does not pass.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose a documented CDC, change stream, or realtime
+        feed on api/cli surfaces.
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/change-data-capture
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Turso
+    anchor: false
+  - id: db-T14-full-text-search
+    title: "T14: Create a searchable text dataset and query it"
+    difficulty: L2
+    skill: full-text-search
+    intent: Create a text-searchable dataset named `axarena_search_{ns}` with at
+      least three items whose content includes `orchard_{ns}`, `mountain_{ns}`,
+      and `harbor_{ns}`. Run one full-text search query that matches only the
+      `orchard_{ns}` item and report the top matching result.
+    oracle_hint: Read back the searchable dataset and verify a documented full-text
+      search query returns `orchard_{ns}` as the top match and does not return
+      `mountain_{ns}` or `harbor_{ns}` in the result set for that query.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose full-text search on api/cli surfaces.
+    execution_family: query-search
+    challenge_tags:
+      - multi-step-state
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/full-text-search
+    supported_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Neon
+      - Nile
+      - Supabase
+      - Turso
+    anchor: false
+  - id: db-T15-database-branching
+    title: "T15: Database/Backend Branching"
+    difficulty: L1
+    skill: database-branching
+    intent: Using the vendor's documented CLI mechanism for database/backend
+      branching, perform one deterministic, task-scoped operation on a resource
+      named `axarena_database-branching_{ns}` and leave the resulting state
+      available for independent read-back. Do not use a management API or
+      disclose implementation-specific commands.
+    oracle_hint: Read back the task-scoped resource
+      `axarena_database-branching_{ns}` through the vendor's documented
+      CLI/data-plane surface and verify the requested database/backend branching
+      state is present, including any negative or preservation condition
+      required by the task.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor does not expose database/backend branching on the admitted
+        CLI surface.
+    execution_family: lifecycle-recovery
+    challenge_tags:
+      - recoverable-fault
+      - recovery
+      - constraint-preservation
+    discovery_reset: family
+    controller_fixture_ref: database/database-branching
+    supported_vendors:
+      - Insforge
+      - Neon
+      - Supabase
+      - Turso
+    task_fit_vendors: []
+    anchor: false
+  - id: db-T16-data-integrity-and-transactions
+    title: "T16: Enforce one integrity or atomicity rule"
+    difficulty: L4
+    skill: data-integrity-and-transactions
+    intent: Create a container named `axarena_integrity_{ns}` with an integrity rule
+      or atomic write guarantee on `external_id`. Commit one valid record using
+      `external_id=primary_{ns}`. Then perform one conflicting or invalid write
+      that should not leave a second committed record with the same logical key.
+    oracle_hint: Read back `axarena_integrity_{ns}` and confirm only the valid
+      `external_id=primary_{ns}` record is durably committed. The verifier must
+      itself issue one conflicting or invalid write against the same logical key
+      and re-read to confirm a second committed row was not created — do not
+      rely solely on the agent reporting that the conflict failed.
+    allowed_surfaces:
+      - cli
+    na_examples:
+      - This vendor cannot enforce a documented integrity rule or atomic write
+        guarantee on api/cli surfaces.
+    execution_family: schema-integrity
+    challenge_tags:
+      - multi-step-state
+      - constraint-preservation
+      - negative-verification
+    discovery_reset: family
+    controller_fixture_ref: database/data-integrity-and-transactions
+    supported_vendors:
+      - Cockroachdb
+      - Insforge
+      - Nile
+      - Supabase
+      - Turso
+    task_fit_vendors:
+      - Cockroachdb
+      - Turso
+    anchor: false
+scoring:
+  per_task: pass | fail | na
+  overall:
+    formula: score = sum(passes) / sum(non_na_tasks)
+    notes: N/A tasks (and N/A surfaces within a task) are excluded from both
+      numerator and denominator. Support-matrix unsupported cells are N/A, not
+      fail. Cross-vendor comparisons are valid only across tasks/surfaces both
+      vendors actually run. Publication should also report intersection/core
+      score, applicability coverage, and the full task×surface matrix — do not
+      treat applicable pass rate as the sole leaderboard number.
+  layers:
+    static_ax: Discoverability & Readiness is published separately and never alters
+      usability-suite pass rates.
+    behavioral: Usability Canonical Suite is scored only from verified outcomes on
+      api/cli for AXArena-Database v1; SDK remains a deferred future surface and
+      any existing SDK runs are research artifacts, not benchmark-of-record
+      cells.

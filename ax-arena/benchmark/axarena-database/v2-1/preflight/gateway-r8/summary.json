@@ -1,0 +1,45 @@
+{
+  "schema": "ax.daeb-v2-1-gateway-preflight/v1",
+  "generated_at": "2026-08-15T12:04:28.539Z",
+  "request_shape": "chat-completions minimal no temperature; no benchmark task writes",
+  "allow_fallbacks": false,
+  "provider_fallback": false,
+  "models": [
+    {
+      "model": "google/gemini-3.7-flash-20260813",
+      "requested_model": "google/gemini-3.7-flash-20260813",
+      "required_provider": "google-vertex",
+      "resolved_provider": "Google",
+      "status": 200,
+      "outcome": "ok",
+      "generation_id_present": true,
+      "cost_usd": 0.000010875,
+      "time_to_first_byte_ms": 2047,
+      "duration_ms": 2051
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash-20260731",
+      "requested_model": "deepseek/deepseek-v4-flash-20260731",
+      "required_provider": "deepseek",
+      "resolved_provider": null,
+      "status": 404,
+      "outcome": "upstream-error",
+      "generation_id_present": false,
+      "cost_usd": null,
+      "time_to_first_byte_ms": 36,
+      "duration_ms": 36
+    },
+    {
+      "model": "z-ai/glm-5.2-20260616",
+      "requested_model": "z-ai/glm-5.2-20260616",
+      "required_provider": "z-ai",
+      "resolved_provider": "Z.AI",
+      "status": 200,
+      "outcome": "ok",
+      "generation_id_present": true,
+      "cost_usd": 0.0000576,
+      "time_to_first_byte_ms": 2300,
+      "duration_ms": 2305
+    }
+  ]
+}

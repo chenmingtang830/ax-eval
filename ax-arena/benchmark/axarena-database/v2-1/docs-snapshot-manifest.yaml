@@ -1,0 +1,291 @@
+schema: ax.daeb-v2-1-doc-snapshot/v1
+generated_at: 2026-08-15T10:58:43.631Z
+purpose: Reachability and content hashes for official CLI/data-plane authoring
+  sources; no prompt or secret data.
+entries:
+  - vendor: cockroachdb
+    url: https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+    final_url: https://www.cockroachlabs.com/docs/stable/cockroach-sql-binary
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"eurd308tssyitx"
+    last_modified: null
+    bytes: 1611131
+    sha256: d171fa4e5962a328302f43bc31ec75d377ce5c2f874f6837a43e4d3f02e2a63f
+    retrieved_at: 2026-08-15T10:58:38.168Z
+  - vendor: cockroachdb
+    url: https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+    final_url: https://www.cockroachlabs.com/docs/stable/security-reference/authorization
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"g970jz101qinxu"
+    last_modified: null
+    bytes: 871156
+    sha256: 4acbd65023bda2ba8809ced7fa95ebc74659eb960d3370650ca271f3b07feb98
+    retrieved_at: 2026-08-15T10:58:38.686Z
+  - vendor: cockroachdb
+    url: https://www.cockroachlabs.com/docs/stable/sql-statements
+    final_url: https://www.cockroachlabs.com/docs/stable/sql-statements
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"oz29l8rydpi7qm"
+    last_modified: null
+    bytes: 849950
+    sha256: 3ebd588616a0aca4487f142e680d8e19ec87ee19f369ef1dfd7b2f6feef98fa8
+    retrieved_at: 2026-08-15T10:58:38.796Z
+  - vendor: cockroachdb
+    url: https://www.cockroachlabs.com/docs/stable/vector
+    final_url: https://www.cockroachlabs.com/docs/stable/vector
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"1023dhelubwg76v"
+    last_modified: null
+    bytes: 755891
+    sha256: 57cd1125319e4f1d207e8edaca01777d4eff1e6cc462510e9538cef00f4de7b4
+    retrieved_at: 2026-08-15T10:58:38.890Z
+  - vendor: cockroachdb
+    url: https://www.cockroachlabs.com/docs/v26.2/full-text-search
+    final_url: https://www.cockroachlabs.com/docs/v26.2/full-text-search
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"16u7hwdhp0vidqv"
+    last_modified: null
+    bytes: 857875
+    sha256: 9d0604a705d5b45ca38b7d8af2d7cdfff52f8eff1770557407c960361df7e648
+    retrieved_at: 2026-08-15T10:58:38.979Z
+  - vendor: insforge
+    url: https://docs.insforge.dev/agent-native/overview
+    final_url: https://docs.insforge.dev/agent-native/overview
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 292453
+    sha256: e29ab644d0df11bd9f79dce2ae83b5b91daba7bd4d413eef17e0c0f48caf8326
+    retrieved_at: 2026-08-15T10:58:39.073Z
+  - vendor: insforge
+    url: https://docs.insforge.dev/mcp-setup
+    final_url: https://docs.insforge.dev/mcp-setup
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 776099
+    sha256: a313047e3415cb15283d237835e025e9a53d47df8f77041c5d741f88b18e3b8f
+    retrieved_at: 2026-08-15T10:58:39.550Z
+  - vendor: insforge
+    url: https://docs.insforge.dev/core-concepts/database/migrations
+    final_url: https://docs.insforge.dev/core-concepts/database/migrations
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 310133
+    sha256: f8ec96f12d5128ef1f5b5bfca886744cc6efda6428f18796f555c3a3b6222a9e
+    retrieved_at: 2026-08-15T10:58:39.689Z
+  - vendor: insforge
+    url: https://docs.insforge.dev/core-concepts/database/pgvector
+    final_url: https://docs.insforge.dev/core-concepts/database/pgvector
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 349094
+    sha256: 13bd3b4ebb302e7f4cc5789f19ec2d27c401bc4541657d7a1934b41130780ded
+    retrieved_at: 2026-08-15T10:58:39.779Z
+  - vendor: neon
+    url: https://neon.com/docs/connect/query-with-psql-editor
+    final_url: https://neon.com/docs/connect/query-with-psql-editor
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"1673a6a921863b7e8d499e548ddfd416"
+    last_modified: null
+    bytes: 551393
+    sha256: f3a0209d59039d2585fec4566bfe38e88ed0eb2988863fa31b8f5bb5447c427e
+    retrieved_at: 2026-08-15T10:58:39.860Z
+  - vendor: neon
+    url: https://neon.com/docs/manage/databases
+    final_url: https://neon.com/docs/manage/databases
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"70e347385923652e454c930aefce2012"
+    last_modified: null
+    bytes: 585060
+    sha256: c4b106c4110a0175f892e6a398278ef3555826a794a244fd301c80e4f9edd2ff
+    retrieved_at: 2026-08-15T10:58:40.553Z
+  - vendor: neon
+    url: https://neon.com/docs/guides/row-level-security
+    final_url: https://neon.com/docs/guides/row-level-security
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"bea9a4d8212141f928ba54fe4e388ce0"
+    last_modified: null
+    bytes: 468468
+    sha256: fc49baa2242868d443fc4e12e401ff485bed18a2d2b3887ae1db33ba3543d412
+    retrieved_at: 2026-08-15T10:58:41.096Z
+  - vendor: neon
+    url: https://neon.com/docs/ai/ai-concepts
+    final_url: https://neon.com/docs/ai/ai-concepts
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"453f471e227babdd782aae69a3673d9e"
+    last_modified: null
+    bytes: 497510
+    sha256: 7b9c9acb418afc0dac622e5c4316e1b69c72d2a878acb4d0a5c5b5fe55438397
+    retrieved_at: 2026-08-15T10:58:41.513Z
+  - vendor: nile
+    url: https://www.thenile.dev/docs/cli/interacting_db
+    final_url: https://www.thenile.dev/docs/cli/interacting_db
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 552555
+    sha256: 6843b65dc64bcce1f0518e7df553ad2ab61edf2ba3cd92fcaacce05fe4f7f0f4
+    retrieved_at: 2026-08-15T10:58:41.829Z
+  - vendor: nile
+    url: https://www.thenile.dev/docs/getting-started/languages/sql
+    final_url: https://www.thenile.dev/docs/getting-started/languages/sql
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 367180
+    sha256: 64818cfdd53f711e0741452f4d6b83877733b1a8c60b8201d4d92351ed6a3449
+    retrieved_at: 2026-08-15T10:58:42.270Z
+  - vendor: nile
+    url: https://www.thenile.dev/docs/extensions/vector
+    final_url: https://www.thenile.dev/docs/extensions/vector
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 588752
+    sha256: ff9613c80bcea5dd1cbf76419e59499092ceafd18ceaa642bf010eb58267e7b6
+    retrieved_at: 2026-08-15T10:58:42.365Z
+  - vendor: nile
+    url: https://www.thenile.dev/docs/extensions/pg_bigm
+    final_url: https://www.thenile.dev/docs/extensions/pg_bigm
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 350386
+    sha256: 7fa351f572a60e8924a131e87fea58021141fb1f239afd26ae3036577257bdea
+    retrieved_at: 2026-08-15T10:58:42.468Z
+  - vendor: turso
+    url: https://docs.turso.tech/tursodb/quickstart
+    final_url: https://docs.turso.tech/tursodb/quickstart
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 316659
+    sha256: 41e902a85a78048401fd485dd6a276955435790760ad5e14b7628c1a302ee9c4
+    retrieved_at: 2026-08-15T10:58:42.561Z
+  - vendor: turso
+    url: https://docs.turso.tech/cli/db/shell
+    final_url: https://docs.turso.tech/cli/db/shell
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 354354
+    sha256: c6180b03a0d287014ef25e4f1ae788dd3d674a8080229ed3c6e6529c33125696
+    retrieved_at: 2026-08-15T10:58:42.767Z
+  - vendor: turso
+    url: https://docs.turso.tech/sql-reference/statements/create-table
+    final_url: https://docs.turso.tech/sql-reference/statements/create-table
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 620049
+    sha256: 09851330b562a85d97f83168e41c1073ff1bd9b162934a86983b53e31ed04502
+    retrieved_at: 2026-08-15T10:58:42.844Z
+  - vendor: turso
+    url: https://docs.turso.tech/sql-reference/functions/fts
+    final_url: https://docs.turso.tech/sql-reference/functions/fts
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 485180
+    sha256: 716996f6a59aef1254642a54be5e0ca438b786755585f4776a9b34aadaeb1a33
+    retrieved_at: 2026-08-15T10:58:42.922Z
+  - vendor: turso
+    url: https://docs.turso.tech/guides/vector-search
+    final_url: https://docs.turso.tech/guides/vector-search
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: null
+    last_modified: null
+    bytes: 406104
+    sha256: 1fc0eb1c75a0e6999036ef6670a381cbf6320955d0d363fe7102753ac78d1f87
+    retrieved_at: 2026-08-15T10:58:42.992Z
+  - vendor: supabase
+    url: https://supabase.com/docs/guides/database/tables
+    final_url: https://supabase.com/docs/guides/database/tables
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"7b477a556cefe0b5efa8231cc334f523"
+    last_modified: null
+    bytes: 514635
+    sha256: 781385ef0c742819d5a6738818b08db09b0e4e74e3dbe22bb6d50843ee235f62
+    retrieved_at: 2026-08-15T10:58:43.081Z
+  - vendor: supabase
+    url: https://supabase.com/docs/guides/cli
+    final_url: https://supabase.com/docs/guides/local-development
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"58089b084c1535f62b247509e0816c14"
+    last_modified: null
+    bytes: 198494
+    sha256: dc136495060ef55c004241f0706a1a419bf1e70eb5d70932b38939b05b89da46
+    retrieved_at: 2026-08-15T10:58:43.265Z
+  - vendor: supabase
+    url: https://supabase.com/docs/guides/database/extensions/pgvector
+    final_url: https://supabase.com/docs/guides/database/extensions/pgvector
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"5d2a8b301dbe7befa7fe279952279c12"
+    last_modified: null
+    bytes: 223979
+    sha256: acdfa220b146442e0e596278793b2359ca8cb71c0a1c2257323016ec40d7d83a
+    retrieved_at: 2026-08-15T10:58:43.453Z
+  - vendor: supabase
+    url: https://supabase.com/docs/guides/database/full-text-search
+    final_url: https://supabase.com/docs/guides/database/full-text-search
+    status: 200
+    ok: true
+    content_type: text/html; charset=utf-8
+    etag: W/"99285a38af70f3645bfa4d282b243000"
+    last_modified: null
+    bytes: 1062267
+    sha256: d2500bd09e12ff3bfefa42a8e1f5f9b8bb5b2123620f8cf41409bc728a7da6b0
+    retrieved_at: 2026-08-15T10:58:43.552Z

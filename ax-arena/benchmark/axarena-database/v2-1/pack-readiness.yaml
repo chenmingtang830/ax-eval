@@ -1,0 +1,836 @@
+schema: ax.daeb-v2-1-pack-readiness/v1
+benchmark: DAEB-2-CLI-V2.1-Harness-Neutral
+candidate_suite: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2-1/candidate-suite-v2-1.yaml
+candidate_suite_hash: e41edd3a72ae2b641fe4ac679000e1745b30d08cf4fb7f46337aa5d13dc93b70
+generated_at: 2026-08-15T12:21:25.464Z
+status: ready-for-pack-review
+counts:
+  total: 96
+  ready: 67
+  blocked: 0
+  structural_na_or_not_admitted: 29
+entries:
+  - vendor: cockroachdb
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: supported
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 4/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: cockroachdb
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: supported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 3/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: cockroachdb
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: supported
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: cockroachdb
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: No inventory citation or gap-check confirmation found.
+  - vendor: cockroachdb
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/cockroachdb/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 2/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: insforge
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: supported
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: insforge
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: unsupported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: structural-na-or-not-admitted
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: insforge
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: insforge
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: insforge
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: inconclusive
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: full-text-query"
+  - vendor: insforge
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: insforge
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/insforge/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: neon
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: supported
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 4/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: neon
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: supported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 3/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: neon
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: supported
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: neon
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: neon
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/neon/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: duplicate-rejection"
+  - vendor: nile
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: supported
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: artifact"
+  - vendor: nile
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: supported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: database-change-feed"
+  - vendor: nile
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: supported
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: nile
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: No inventory citation or gap-check confirmation found.
+  - vendor: nile
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/nile/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: duplicate-rejection"
+  - vendor: turso
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: inconclusive
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: authenticated-cli-session"
+  - vendor: turso
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: authenticated-principal-continuity"
+  - vendor: turso
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: inconclusive
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: negative-query-with-state-preservation"
+  - vendor: turso
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 4/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: turso
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: supported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 3/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: turso
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: supported
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: turso
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: turso
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/packs/turso/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 2/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: supabase
+    task_id: db-T17-cli-session-discovery
+    skill: cli-session-discovery
+    support_status: supported
+    source_task_id: v2-1-deterministic-cli-session-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T21-cli-principal-continuity
+    skill: cli-principal-continuity
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T18-constraint-preservation
+    skill: constraint-preservation
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T19-transactional-record-recovery
+    skill: transactional-record-recovery
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T20-aggregate-query
+    skill: aggregate-query
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T22-negative-query-verification
+    skill: negative-query-verification
+    support_status: supported
+    source_task_id: v2-1-derived-sql-witness
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+  - vendor: supabase
+    task_id: db-T07-backup-and-restore
+    skill: backup-and-restore
+    support_status: supported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Candidate task-fit coverage is 4/6, below the registered five-of-six
+      admission gate; retained as research-only structural N/A.
+  - vendor: supabase
+    task_id: db-T02-evolve-schema
+    skill: evolve-schema
+    support_status: supported
+    source_task_id: db-T02-evolve-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T09-inspect-schema
+    skill: inspect-schema
+    support_status: supported
+    source_task_id: db-T03-inspect-schema
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T04-query-records
+    skill: query-records
+    support_status: supported
+    source_task_id: db-T04-query-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T11-vector-search
+    skill: vector-search
+    support_status: supported
+    source_task_id: db-T05-vector-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T06-write-records
+    skill: write-records
+    support_status: supported
+    source_task_id: db-T06-write-records
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T13-change-data-capture
+    skill: change-data-capture
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: supabase
+    task_id: db-T14-full-text-search
+    skill: full-text-search
+    support_status: supported
+    source_task_id: db-T07-full-text-search
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: true
+    status: ready-from-v2-witness
+    reason: deterministic CLI witness passed setup
+  - vendor: supabase
+    task_id: db-T15-database-branching
+    skill: database-branching
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: supabase
+    task_id: db-T16-data-integrity-and-transactions
+    skill: data-integrity-and-transactions
+    support_status: unsupported
+    source_task_id: null
+    source_pack: /Users/richardtang/ax-eval/ax-arena/benchmark/axarena-database/v2/production/extensions/supabase-cli/pack.yaml
+    witnessed: false
+    status: structural-na-or-not-admitted
+    reason: "missing task requirements: atomic-write"
+policy:
+  - Only V2 source tasks with an existing independent oracle and deterministic
+    witness are copied.
+  - The V2.1 cli-session-discovery variant is admitted only when its separate
+    deterministic five-vendor witness manifest is present.
+  - A supported candidate without such evidence is recorded as blocked, never
+    rewritten as structural N/A.
+  - These are draft derivations; pack approval remains a separate review gate.

@@ -1,0 +1,515 @@
+schema: ax.support-matrix/v1
+benchmark: CANDIDATE-SUITE-V2-1
+category: database
+generated_at: 2026-08-15T11:24:47.680Z
+entries:
+  - vendor: Cockroachdb
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: supported
+    source_concept: cli-session-discovery
+  - vendor: Insforge
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: supported
+    source_concept: cli-session-discovery
+  - vendor: Neon
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: supported
+    source_concept: cli-session-discovery
+  - vendor: Nile
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: supported
+    source_concept: cli-session-discovery
+  - vendor: Supabase
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: supported
+    source_concept: cli-session-discovery
+  - vendor: Turso
+    task_id: db-T17-cli-session-discovery
+    surface: cli
+    status: inconclusive
+    source_concept: cli-session-discovery
+    reason: "missing task requirements: authenticated-cli-session"
+  - vendor: Cockroachdb
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: supported
+    source_concept: cli-principal-continuity
+  - vendor: Insforge
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: supported
+    source_concept: cli-principal-continuity
+  - vendor: Neon
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: supported
+    source_concept: cli-principal-continuity
+  - vendor: Nile
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: supported
+    source_concept: cli-principal-continuity
+  - vendor: Supabase
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: supported
+    source_concept: cli-principal-continuity
+  - vendor: Turso
+    task_id: db-T21-cli-principal-continuity
+    surface: cli
+    status: inconclusive
+    source_concept: cli-principal-continuity
+    reason: "missing task requirements: authenticated-principal-continuity"
+  - vendor: Cockroachdb
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Insforge
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Neon
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Nile
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Supabase
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Turso
+    task_id: db-T18-constraint-preservation
+    surface: cli
+    status: supported
+    source_concept: constraint-preservation
+  - vendor: Cockroachdb
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Insforge
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Neon
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Nile
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Supabase
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Turso
+    task_id: db-T19-transactional-record-recovery
+    surface: cli
+    status: supported
+    source_concept: transactional-record-recovery
+  - vendor: Cockroachdb
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Insforge
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Neon
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Nile
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Supabase
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Turso
+    task_id: db-T20-aggregate-query
+    surface: cli
+    status: supported
+    source_concept: aggregate-query
+  - vendor: Cockroachdb
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: supported
+    source_concept: negative-query-verification
+  - vendor: Insforge
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: supported
+    source_concept: negative-query-verification
+  - vendor: Neon
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: supported
+    source_concept: negative-query-verification
+  - vendor: Nile
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: supported
+    source_concept: negative-query-verification
+  - vendor: Supabase
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: supported
+    source_concept: negative-query-verification
+  - vendor: Turso
+    task_id: db-T22-negative-query-verification
+    surface: cli
+    status: inconclusive
+    source_concept: negative-query-verification
+    reason: "missing task requirements: negative-query-with-state-preservation"
+  - vendor: Cockroachdb
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: supported
+    source_concept: backup-and-restore
+  - vendor: Insforge
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: unsupported
+    source_concept: backup-and-restore
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Neon
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: supported
+    source_concept: backup-and-restore
+  - vendor: Nile
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: unsupported
+    source_concept: backup-and-restore
+    reason: "missing task requirements: artifact"
+  - vendor: Supabase
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: supported
+    source_concept: backup-and-restore
+  - vendor: Turso
+    task_id: db-T07-backup-and-restore
+    surface: cli
+    status: supported
+    source_concept: backup-and-restore
+  - vendor: Cockroachdb
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+  - vendor: Insforge
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+  - vendor: Neon
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+  - vendor: Nile
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+  - vendor: Supabase
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T02-evolve-schema
+    surface: cli
+    status: supported
+    source_concept: evolve-schema
+  - vendor: Cockroachdb
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+  - vendor: Insforge
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: unsupported
+    source_concept: inspect-schema
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Neon
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+  - vendor: Nile
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+  - vendor: Supabase
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T09-inspect-schema
+    surface: cli
+    status: supported
+    source_concept: inspect-schema
+  - vendor: Cockroachdb
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Insforge
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Neon
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Nile
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Supabase
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T04-query-records
+    surface: cli
+    status: supported
+    source_concept: query-records
+  - vendor: Cockroachdb
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+  - vendor: Insforge
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+  - vendor: Neon
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+  - vendor: Nile
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+  - vendor: Supabase
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T11-vector-search
+    surface: cli
+    status: supported
+    source_concept: vector-search
+  - vendor: Cockroachdb
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+  - vendor: Insforge
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+  - vendor: Neon
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+  - vendor: Nile
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+  - vendor: Supabase
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T06-write-records
+    surface: cli
+    status: supported
+    source_concept: write-records
+  - vendor: Cockroachdb
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Insforge
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: unsupported
+    source_concept: change-data-capture
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Neon
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Nile
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: inconclusive
+    source_concept: change-data-capture
+    reason: "missing task requirements: database-change-feed"
+  - vendor: Supabase
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: unsupported
+    source_concept: change-data-capture
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Turso
+    task_id: db-T13-change-data-capture
+    surface: cli
+    status: supported
+    source_concept: change-data-capture
+  - vendor: Cockroachdb
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+  - vendor: Insforge
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: inconclusive
+    source_concept: full-text-search
+    reason: "missing task requirements: full-text-query"
+  - vendor: Neon
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+  - vendor: Nile
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+  - vendor: Supabase
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+    reason: deterministic CLI witness passed setup
+  - vendor: Turso
+    task_id: db-T14-full-text-search
+    surface: cli
+    status: supported
+    source_concept: full-text-search
+  - vendor: Cockroachdb
+    task_id: db-T15-database-branching
+    surface: cli
+    status: inconclusive
+    source_concept: database-branching
+    reason: No inventory citation or gap-check confirmation found.
+  - vendor: Insforge
+    task_id: db-T15-database-branching
+    surface: cli
+    status: unsupported
+    source_concept: database-branching
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: Neon
+    task_id: db-T15-database-branching
+    surface: cli
+    status: unsupported
+    source_concept: database-branching
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: Nile
+    task_id: db-T15-database-branching
+    surface: cli
+    status: inconclusive
+    source_concept: database-branching
+    reason: No inventory citation or gap-check confirmation found.
+  - vendor: Supabase
+    task_id: db-T15-database-branching
+    surface: cli
+    status: unsupported
+    source_concept: database-branching
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: Turso
+    task_id: db-T15-database-branching
+    surface: cli
+    status: unsupported
+    source_concept: database-branching
+    reason: Concrete database task-fit evidence is absent for this concept; retained
+      as research-only and excluded from the CLI denominator.
+  - vendor: Cockroachdb
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: supported
+    source_concept: data-integrity-and-transactions
+  - vendor: Insforge
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: unsupported
+    source_concept: data-integrity-and-transactions
+    reason: cli does not satisfy all task-fit requirements on one documented surface
+  - vendor: Neon
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: inconclusive
+    source_concept: data-integrity-and-transactions
+    reason: "missing task requirements: duplicate-rejection"
+  - vendor: Nile
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: unsupported
+    source_concept: data-integrity-and-transactions
+    reason: "missing task requirements: duplicate-rejection"
+  - vendor: Supabase
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: unsupported
+    source_concept: data-integrity-and-transactions
+    reason: "missing task requirements: atomic-write"
+  - vendor: Turso
+    task_id: db-T16-data-integrity-and-transactions
+    surface: cli
+    status: supported
+    source_concept: data-integrity-and-transactions

@@ -1,0 +1,27 @@
+{
+  "schema": "ax.daeb-v2-1-provider-diagnostic/v1",
+  "model": "deepseek/deepseek-v4-flash-0731",
+  "data_collection": "allow",
+  "formal_admitted_provider": "deepseek",
+  "rows": [
+    {
+      "required_provider": "deepseek",
+      "status": 404,
+      "outcome": "upstream-error",
+      "resolved_provider": null
+    },
+    {
+      "required_provider": "deepinfra",
+      "status": 200,
+      "outcome": "ok",
+      "resolved_provider": "DeepInfra"
+    },
+    {
+      "required_provider": "streamlake",
+      "status": 200,
+      "outcome": "ok",
+      "resolved_provider": "StreamLake"
+    }
+  ],
+  "interpretation": "deepseek provider is blocked by workspace policy; other providers are diagnostic only and are not admissible under the frozen route"
+}

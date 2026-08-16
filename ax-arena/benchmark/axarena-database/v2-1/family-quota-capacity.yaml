@@ -1,0 +1,33 @@
+schema: ax.daeb-v2-1-family-quota-capacity/v1
+candidate_suite_hash: e41edd3a72ae2b641fe4ac679000e1745b30d08cf4fb7f46337aa5d13dc93b70
+coverage_gate: ">=5/6 CLI task-fit vendors"
+readiness_gate: "independent oracle and deterministic witness for every supported tuple"
+policy_quota:
+  access-auth-discovery: 2
+  schema-integrity: 3
+  query-search: 3
+  lifecycle-recovery: 2
+eligible_candidate_counts:
+  access-auth-discovery: 2
+  schema-integrity: 3
+  query-search: 5
+  lifecycle-recovery: 2
+eligible_candidates:
+  access-auth-discovery:
+    - {task_id: db-T17-cli-session-discovery, supported_vendors: 5, ready_tuples: 5}
+    - {task_id: db-T21-cli-principal-continuity, supported_vendors: 5, ready_tuples: 5}
+  schema-integrity:
+    - {task_id: db-T18-constraint-preservation, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T02-evolve-schema, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T09-inspect-schema, supported_vendors: 5, ready_tuples: 5}
+  query-search:
+    - {task_id: db-T20-aggregate-query, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T22-negative-query-verification, supported_vendors: 5, ready_tuples: 5}
+    - {task_id: db-T04-query-records, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T11-vector-search, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T14-full-text-search, supported_vendors: 5, ready_tuples: 5}
+  lifecycle-recovery:
+    - {task_id: db-T19-transactional-record-recovery, supported_vendors: 6, ready_tuples: 6}
+    - {task_id: db-T06-write-records, supported_vendors: 6, ready_tuples: 6}
+status: feasible
+reason: All four registered family quotas have enough candidates meeting both the five-of-six task-fit gate and the independent witness/readiness gate; calibration is still required to select the final ten.
