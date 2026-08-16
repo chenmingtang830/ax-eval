@@ -83,6 +83,35 @@ function isV2ProductionSuite(suitePath: string): boolean {
   return /[/\\]v2[/\\]production[/\\]suite\.yaml$/i.test(suitePath);
 }
 
+function isV21CandidateSuite(suitePath: string): boolean {
+  return /[/\\]v2-1[/\\]candidate-suite-v2-1\.yaml$/i.test(suitePath);
+}
+
+const V21_VENDOR_SLUGS = ["cockroachdb", "insforge", "neon", "nile", "turso", "supabase"] as const;
+
+// V2.1's authenticated CLI-session task is intentionally a cross-cutting
+// derived concept.  It reuses the vendor's strongest documented SQL/CLI
+// connection capability rather than pretending that every vendor calls the
+// capability "CLI session discovery".  The task-fit rule and the independent
+// five-vendor witness are the authoritative checks for this derived concept;
+// the normal one-capability/one-concept mapping audit must not flag those
+// source capabilities as stale mappings.
+const V21_DERIVED_CLI_SESSION_CAPABILITIES = new Set([
+  "sql-user-role-management",
+  "baseline-sql-table-and-row-operations",
+  "role-management",
+  "postgres-protocol-compatibility",
+  "sql-query-execution",
+]);
+const V21_DERIVED_CROSS_CUTTING_CONCEPTS = new Set([
+  "cli-session-discovery",
+  "cli-principal-continuity",
+  "constraint-preservation",
+  "transactional-record-recovery",
+  "aggregate-query",
+  "negative-query-verification",
+]);
+
 function auditV2ProductionPackSurfaces(
   suitePath: string,
   supportMatrix: SupportMatrix,
@@ -109,6 +138,77 @@ function auditV2ProductionPackSurfaces(
         }];
       });
     });
+}
+
+function auditV21PackSurfaces(
+  suitePath: string,
+  supportMatrix: SupportMatrix,
+): SuiteFinding[] {
+  const packsDir = resolve(dirname(suitePath), "packs");
+  if (!existsSync(packsDir)) {
+    return [{
+      severity: "error",
+      code: "v21_packs_missing",
+      message: "V2.1 candidate has no six-vendor packs directory; independent oracle/witness review is still pending",
+      auto_fixable: false,
+    }];
+  }
+  const vendors = readdirSync(packsDir)
+    .filter((entry) => existsSync(resolve(packsDir, entry, "pack.yaml")))
+    .sort();
+  const suiteTasks = loadSuite(suitePath).tasks;
+  const suiteTaskIds = suiteTasks.map((task) => task.id);
+  const suiteTasksById = new Map(suiteTasks.map((task) => [task.id, task]));
+  const findings: SuiteFinding[] = [];
+  for (const vendor of V21_VENDOR_SLUGS) {
+    if (!vendors.includes(vendor)) {
+      findings.push({
+        severity: "error",
+        code: "v21_pack_missing_vendor",
+        message: `V2.1 candidate is missing the ${vendor} pack`,
+        auto_fixable: false,
+      });
+    }
+  }
+  for (const vendor of vendors) {
+    const pack = loadSuitePack(resolve(packsDir, vendor, "pack.yaml"));
+    const packTaskIds = new Set(pack.tasks.map((task) => task.id));
+    for (const taskId of suiteTaskIds) {
+      if (packTaskIds.has(taskId)) continue;
+      const supportEntry = supportMatrix.entries.find((entry) =>
+        entry.vendor.toLowerCase() === vendor.toLowerCase() &&
+        entry.task_id === taskId &&
+        entry.surface === "cli"
+      );
+      const taskFitVendors = (suiteTasksById.get(taskId) as (typeof suiteTasks[number] & { task_fit_vendors?: string[] }) | undefined)?.task_fit_vendors;
+      const admissionEligible = taskFitVendors === undefined || taskFitVendors.length >= 5;
+      const supportedWithoutWitness = supportEntry?.status === "supported" && admissionEligible;
+      findings.push({
+        severity: "error",
+        code: supportedWithoutWitness ? "v21_pack_missing_witnessed_task" : "v21_pack_missing_task",
+        message: supportedWithoutWitness
+          ? `${vendor} V2.1 pack is missing supported candidate task ${taskId}; an independent oracle/witness is still required before this tuple can be admitted`
+          : `${vendor} V2.1 pack is missing candidate task ${taskId}; every structural N/A must be explicit`,
+        auto_fixable: false,
+      });
+    }
+    for (const task of pack.tasks) {
+      const expected = supportMatrix.entries
+        .filter((entry) => entry.vendor.toLowerCase() === vendor && entry.task_id === task.id && entry.surface === "cli" && entry.status === "supported" && !task.na && task.allowed_surfaces.includes("cli"))
+        .map((entry) => entry.surface)
+        .sort();
+      const actual = [...task.allowed_surfaces].sort();
+      if (expected.join(",") !== actual.join(",")) {
+        findings.push({
+          severity: "error",
+          code: "support_matrix_pack_drift",
+          message: `${vendor}/${task.id} pack surfaces [${actual.join(",")}] differ from V2.1 support matrix [${expected.join(",")}]`,
+          auto_fixable: false,
+        });
+      }
+    }
+  }
+  return findings;
 }
 
 function loadSuitePack(path: string): ReturnType<typeof loadPack> {
@@ -196,6 +296,15 @@ export function findMappingFalsePositives(
         candidate.capability_name === conceptCapabilityName
       );
       if (!capability) continue;
+
+      if (
+        V21_DERIVED_CROSS_CUTTING_CONCEPTS.has(concept.concept_name) &&
+        (concept.concept_name === "cli-session-discovery"
+          ? V21_DERIVED_CLI_SESSION_CAPABILITIES.has(capability.capability_name)
+          : true)
+      ) {
+        continue;
+      }
 
       const currentMatch = matchDeterministicDatabaseConcept(capability);
       const compatibilityIssue = databaseConceptCompatibilityIssue(capability, concept.concept_name);
@@ -440,17 +549,29 @@ export function auditSuite(
     }
   }
 
+  const v21Candidate = isV21CandidateSuite(abs);
   if (coverage && !v2Production) {
-    const slugs = listDatabaseSlugs(benchmarkPaths);
+    const slugs = v21Candidate ? [...V21_VENDOR_SLUGS] : listDatabaseSlugs(benchmarkPaths);
+    const v21TaskFitEligibleIds = v21Candidate
+      ? new Set([...(supportMatrix?.entries ?? [])
+        .filter((entry) => entry.surface === "cli" && entry.status === "supported")
+        .reduce((counts, entry) => counts.set(entry.task_id, (counts.get(entry.task_id) ?? 0) + 1), new Map<string, number>())
+        .entries()]
+        .filter(([, count]) => count >= 5)
+        .map(([taskId]) => taskId))
+      : null;
+    const auditedConcepts = new Set(suite.tasks
+      .filter((task) => !v21Candidate || v21TaskFitEligibleIds?.has(task.id))
+      .map((task) => task.skill));
     findings.push(...findTaskFitAuditFindings(
       coverage,
-      new Set(suite.tasks.map((task) => task.skill)),
+      auditedConcepts,
       supportMatrix,
     ));
     findings.push(...findStaleTaskFitFindings(
       benchmarkPaths,
       coverage,
-      new Set(suite.tasks.map((task) => task.skill)),
+      auditedConcepts,
       slugs,
     ));
     findings.push(...findMappingFalsePositives(benchmarkPaths, coverage, slugs));
@@ -489,6 +610,8 @@ export function auditSuite(
   if (supportMatrix) {
     if (v2Production) {
       findings.push(...auditV2ProductionPackSurfaces(abs, supportMatrix));
+    } else if (v21Candidate) {
+      findings.push(...auditV21PackSurfaces(abs, supportMatrix));
     } else {
       const extracts = new Map(
         listDatabaseSlugs(benchmarkPaths)
@@ -505,7 +628,7 @@ export function auditSuite(
       }
     }
   }
-  if (!v2Production) {
+  if (!v2Production && !v21Candidate) {
     for (const finding of auditVendorSelectionAgainstExtracts(benchmarkPaths)) {
       findings.push({
         severity: finding.severity,

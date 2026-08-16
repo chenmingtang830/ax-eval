@@ -42,22 +42,22 @@ export interface V2WitnessRunManifest {
   cells: V2WitnessCellResult[];
 }
 
-interface SqlResult {
+export interface V2SqlResult {
   status: number | null;
   stdout: string;
   stderr: string;
   command: string;
 }
 
-interface Driver {
+export interface V2Driver {
   vendor: string;
   commandLabel: string;
   requiredEnv: string[];
   missingEnv: string[];
-  run(sql: string): SqlResult;
+  run(sql: string): V2SqlResult;
 }
 
-interface StageRecord {
+export interface V2StageRecord {
   status: "passed" | "failed";
   command: string;
   sql: string;
@@ -91,7 +91,7 @@ function redact(value: string): string {
     .replace(/https?:\/\/[^\s'"\)]+(?:token|key|secret|password)[^\s'"\)]*/gi, "<credential-url-redacted>");
 }
 
-function scalar(result: SqlResult): string {
+function scalar(result: V2SqlResult): string {
   const lines = result.stdout.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
   return lines.at(-1)?.replace(/^['"]|['"]$/g, "") ?? "";
 }
@@ -125,15 +125,17 @@ export function cockroachProductionTargetIssue(connection: string | undefined): 
   return undefined;
 }
 
-function makeDriver(vendor: string): Driver {
+export function makeV2Driver(vendor: string): V2Driver {
   const requiredEnv = vendor === "cockroachdb"
     ? ["COCKROACH_CONNECTION_STRING"]
     : vendor === "insforge"
       ? ["INSFORGE_CONNECTION_STRING"]
       : vendor === "neon"
         ? ["NEON_DATABASE_URL"]
-        : vendor === "nile"
-          ? ["NILE_DATABASE_URL"]
+      : vendor === "nile"
+        ? ["NILE_DATABASE_URL"]
+        : vendor === "supabase"
+          ? ["SUPABASE_DB_URL"]
           : ["TURSO_SANDBOX_DATABASE"];
   const missingEnv = requiredEnv.filter((key) => !process.env[key]);
   if (missingEnv.length) {
@@ -179,7 +181,13 @@ function makeDriver(vendor: string): Driver {
       },
     };
   }
-  const envKey = vendor === "neon" ? "NEON_DATABASE_URL" : vendor === "nile" ? "NILE_DATABASE_URL" : "INSFORGE_CONNECTION_STRING";
+  const envKey = vendor === "neon"
+    ? "NEON_DATABASE_URL"
+    : vendor === "nile"
+      ? "NILE_DATABASE_URL"
+      : vendor === "supabase"
+        ? "SUPABASE_DB_URL"
+        : "INSFORGE_CONNECTION_STRING";
   const connection = process.env[envKey]!;
   return {
     vendor,
@@ -212,7 +220,75 @@ function sqlPlan(vendor: string, taskId: string, ns: string): { setup: string; m
   const vectors = table(ns, "vectors");
   const writes = table(ns, "write_items");
   const search = table(ns, "search");
+  const session = table(ns, "session_probe");
+  const principal = table(ns, "principal_probe");
+  const constraints = table(ns, "constraint_probe");
+  const transactions = table(ns, "txn_probe");
+  const aggregates = table(ns, "aggregate_probe");
+  const negative = table(ns, "negative_query_probe");
   const vectorType = vendor === "cockroachdb" ? "VECTOR(3)" : vendor === "turso" ? "BLOB" : "vector(3)";
+  if (taskId === "db-T17-cli-session-discovery") {
+    return {
+      setup: `CREATE TABLE ${session} (marker TEXT, principal TEXT);`,
+      mutation: `INSERT INTO ${session} (marker,principal) SELECT 'session_${ns}', current_user;`,
+      verify: `SELECT (SELECT COUNT(*) FROM ${session} WHERE marker='session_${ns}') || '|' || (SELECT COUNT(*) FROM ${session} WHERE marker='session_${ns}' AND principal <> '');`,
+      cleanup: `DROP TABLE IF EXISTS ${session};`,
+      expected: "1|1",
+    };
+  }
+  if (taskId === "db-T21-cli-principal-continuity") {
+    return {
+      setup: `CREATE TABLE ${principal} (marker TEXT, principal TEXT);`,
+      mutation: `INSERT INTO ${principal} (marker,principal) SELECT 'principal_${ns}', current_user;`,
+      verify: `SELECT (SELECT COUNT(*) FROM ${principal} WHERE marker='principal_${ns}') || '|' || (SELECT COUNT(*) FROM ${principal} WHERE marker='principal_${ns}' AND principal <> '');`,
+      cleanup: `DROP TABLE IF EXISTS ${principal};`,
+      expected: "1|1",
+    };
+  }
+  if (taskId === "db-T18-constraint-preservation") {
+    const mutation = vendor === "turso"
+      ? `INSERT INTO ${constraints} (record_id,marker) VALUES ('row_${ns}','constraint_${ns}'); INSERT OR IGNORE INTO ${constraints} (record_id,marker) VALUES ('duplicate_${ns}','constraint_${ns}');`
+      : `INSERT INTO ${constraints} (record_id,marker) VALUES ('row_${ns}','constraint_${ns}'); INSERT INTO ${constraints} (record_id,marker) VALUES ('duplicate_${ns}','constraint_${ns}') ON CONFLICT (marker) DO NOTHING;`;
+    return {
+      setup: `CREATE TABLE ${constraints} (record_id TEXT PRIMARY KEY, marker TEXT UNIQUE);`,
+      mutation,
+      verify: vendor === "turso"
+        ? `SELECT (SELECT COUNT(*) FROM ${constraints} WHERE marker='constraint_${ns}') || '|' || (SELECT COUNT(*) FROM pragma_index_list('axarena_constraint_probe_${ns}') WHERE \"unique\" = 1);`
+        : `SELECT (SELECT COUNT(*) FROM ${constraints} WHERE marker='constraint_${ns}') || '|' || (SELECT COUNT(*) FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='axarena_constraint_probe_${ns}' AND constraint_type IN ('PRIMARY KEY','UNIQUE'));`,
+      cleanup: `DROP TABLE IF EXISTS ${constraints};`,
+      expected: "1|2",
+    };
+  }
+  if (taskId === "db-T19-transactional-record-recovery") {
+    return {
+      setup: `CREATE TABLE ${transactions} (marker TEXT PRIMARY KEY);`,
+      // Keep the second write in autocommit mode: Nile's SQL proxy rejects a
+      // second explicit BEGIN in one command batch after ROLLBACK, while the
+      // first transaction still proves the recovery boundary we need.
+      mutation: `BEGIN; INSERT INTO ${transactions} (marker) VALUES ('rollback_${ns}'); ROLLBACK; INSERT INTO ${transactions} (marker) VALUES ('committed_${ns}');`,
+      verify: `SELECT (SELECT COUNT(*) FROM ${transactions} WHERE marker='rollback_${ns}') || '|' || (SELECT COUNT(*) FROM ${transactions} WHERE marker='committed_${ns}');`,
+      cleanup: `DROP TABLE IF EXISTS ${transactions};`,
+      expected: "0|1",
+    };
+  }
+  if (taskId === "db-T20-aggregate-query") {
+    return {
+      setup: `CREATE TABLE ${aggregates} (label TEXT, status TEXT);`,
+      mutation: `INSERT INTO ${aggregates} (label,status) VALUES ('alpha_${ns}','active'),('beta_${ns}','active'),('gamma_${ns}','inactive');`,
+      verify: `SELECT (SELECT COUNT(*) FROM ${aggregates}) || '|' || (SELECT COUNT(*) FROM ${aggregates} WHERE status='active') || '|' || (SELECT COUNT(*) FROM ${aggregates} WHERE status='active');`,
+      cleanup: `DROP TABLE IF EXISTS ${aggregates};`,
+      expected: "3|2|2",
+    };
+  }
+  if (taskId === "db-T22-negative-query-verification") {
+    return {
+      setup: `CREATE TABLE ${negative} (marker TEXT PRIMARY KEY);`,
+      mutation: `INSERT INTO ${negative} (marker) VALUES ('present_a_${ns}'),('present_b_${ns}');`,
+      verify: `SELECT (SELECT COUNT(*) FROM ${negative}) || '|' || (SELECT COUNT(*) FROM ${negative} WHERE marker='absent_${ns}');`,
+      cleanup: `DROP TABLE IF EXISTS ${negative};`,
+      expected: "2|0",
+    };
+  }
   if (taskId === "db-T02-evolve-schema") {
     return {
       setup: `CREATE TABLE ${migrate} (title TEXT);`,
@@ -273,32 +349,31 @@ function sqlPlan(vendor: string, taskId: string, ns: string): { setup: string; m
     };
   }
   if (taskId === "db-T07-full-text-search") {
-    const index = `"axarena_search_idx_${ns}"`;
-    const setup = `CREATE TABLE ${search} (content TEXT);`;
-    const mutation = vendor === "turso"
-      ? `CREATE INDEX ${index} ON ${search} USING fts (content); INSERT INTO ${search} (content) VALUES ('orchard_${ns}'),('mountain_${ns}'),('harbor_${ns}');`
-      : `INSERT INTO ${search} (content) VALUES ('orchard_${ns}'),('mountain_${ns}'),('harbor_${ns}');`;
+    const setup = vendor === "turso"
+      ? `CREATE VIRTUAL TABLE ${search} USING fts5(content);`
+      : `CREATE TABLE ${search} (content TEXT);`;
+    const mutation = `INSERT INTO ${search} (content) VALUES ('orchard_${ns}'),('mountain_${ns}'),('harbor_${ns}');`;
     const match = vendor === "turso"
-      ? `fts_match(content,'orchard_${ns}')`
+      ? `content MATCH 'orchard_${ns}'`
       : `to_tsvector('simple',content) @@ plainto_tsquery('simple','orchard_${ns}')`;
     return {
       setup,
       mutation,
       verify: `SELECT (SELECT COUNT(*) FROM ${search}) || '|' || (SELECT COUNT(*) FROM ${search} WHERE ${match}) || '|' || (SELECT COUNT(*) FROM ${search} WHERE ${match} AND (content LIKE '%mountain_${ns}%' OR content LIKE '%harbor_${ns}%'));`,
-      cleanup: `${vendor === "turso" ? `DROP INDEX IF EXISTS ${index}; ` : ""}DROP TABLE IF EXISTS ${search};`,
+      cleanup: `DROP TABLE IF EXISTS ${search};`,
       expected: "3|1|0",
     };
   }
   throw new Error(`unsupported deterministic task ${taskId}`);
 }
 
-function writeStage(path: string, stage: StageRecord): void {
+function writeStage(path: string, stage: V2StageRecord): void {
   writeFileSync(path, JSON.stringify(stage, null, 2), { mode: 0o600 });
 }
 
-function runStage(driver: Driver, sql: string, expected?: string): StageRecord {
+function runStage(driver: V2Driver, sql: string, expected?: string): V2StageRecord {
   const result = driver.run(sql);
-  const stage: StageRecord = {
+  const stage: V2StageRecord = {
     status: result.status === 0 ? "passed" : "failed",
     command: result.command,
     sql,
@@ -319,15 +394,15 @@ function runStage(driver: Driver, sql: string, expected?: string): StageRecord {
   return stage;
 }
 
-function runAccessControlTask(driver: Driver, ns: string, cellDir: string): { ok: boolean; reason: string; stages: Record<string, StageRecord> } {
+function runAccessControlTask(driver: V2Driver, ns: string, cellDir: string): { ok: boolean; reason: string; stages: Record<string, V2StageRecord> } {
   const target = table(ns, "acl");
   const denied = role(ns);
   const setupSql = `CREATE TABLE ${target} (id INT PRIMARY KEY, owner TEXT);`;
   const setup = runStage(driver, setupSql);
   writeStage(resolve(cellDir, "setup.json"), setup);
-  let mutation: StageRecord = { status: "failed", command: "not-run", sql: "", stdout: "", stderr: "", exit_code: null, error: "setup failed" };
-  let verify: StageRecord = { status: "failed", command: "not-run", sql: "", stdout: "", stderr: "", exit_code: null, error: "setup failed" };
-  let cleanup: StageRecord = { status: "failed", command: "not-run", sql: `DROP TABLE IF EXISTS ${target}; DROP ROLE IF EXISTS ${denied};`, stdout: "", stderr: "", exit_code: null, error: "cleanup not attempted" };
+  let mutation: V2StageRecord = { status: "failed", command: "not-run", sql: "", stdout: "", stderr: "", exit_code: null, error: "setup failed" };
+  let verify: V2StageRecord = { status: "failed", command: "not-run", sql: "", stdout: "", stderr: "", exit_code: null, error: "setup failed" };
+  let cleanup: V2StageRecord = { status: "failed", command: "not-run", sql: `DROP TABLE IF EXISTS ${target}; DROP ROLE IF EXISTS ${denied};`, stdout: "", stderr: "", exit_code: null, error: "cleanup not attempted" };
   try {
     if (setup.status === "passed") {
       const userResult = driver.run("SELECT current_user;");
@@ -342,7 +417,7 @@ function runAccessControlTask(driver: Driver, ns: string, cellDir: string): { ok
       if (mutation.status === "passed") {
         const authorized = runStage(driver, `SELECT COUNT(*) FROM ${target};`, "1");
         const deniedResult = driver.run(`SET ROLE ${denied}; SELECT COUNT(*) FROM ${target};`);
-        const deniedStage: StageRecord = {
+        const deniedStage: V2StageRecord = {
           status: deniedResult.status === 0 ? "failed" : "passed",
           command: deniedResult.command,
           sql: `SET ROLE ${denied}; SELECT COUNT(*) FROM ${target};`,
@@ -372,14 +447,14 @@ function runAccessControlTask(driver: Driver, ns: string, cellDir: string): { ok
   return { ok, reason: !ok ? verify.error ?? mutation.error ?? setup.error ?? cleanup.error ?? "access-control witness failed" : "", stages };
 }
 
-function runTask(driver: Driver, taskId: string, ns: string, cellDir: string): { ok: boolean; reason: string; stages: Record<string, StageRecord> } {
+export function runV2DeterministicTask(driver: V2Driver, taskId: string, ns: string, cellDir: string): { ok: boolean; reason: string; stages: Record<string, V2StageRecord> } {
   if (taskId === "db-T01-access-control") return runAccessControlTask(driver, ns, cellDir);
   const plan = sqlPlan(driver.vendor, taskId, ns);
   const setup = runStage(driver, plan.setup);
   writeStage(resolve(cellDir, "setup.json"), setup);
-  let mutation: StageRecord = { status: "failed", command: "not-run", sql: plan.mutation, stdout: "", stderr: "", exit_code: null, error: "setup failed" };
-  let verify: StageRecord = { status: "failed", command: "not-run", sql: plan.verify, stdout: "", stderr: "", exit_code: null, error: "setup failed" };
-  let cleanup: StageRecord = { status: "failed", command: "not-run", sql: plan.cleanup, stdout: "", stderr: "", exit_code: null, error: "cleanup not attempted" };
+  let mutation: V2StageRecord = { status: "failed", command: "not-run", sql: plan.mutation, stdout: "", stderr: "", exit_code: null, error: "setup failed" };
+  let verify: V2StageRecord = { status: "failed", command: "not-run", sql: plan.verify, stdout: "", stderr: "", exit_code: null, error: "setup failed" };
+  let cleanup: V2StageRecord = { status: "failed", command: "not-run", sql: plan.cleanup, stdout: "", stderr: "", exit_code: null, error: "cleanup not attempted" };
   try {
     if (setup.status === "passed") {
       mutation = runStage(driver, plan.mutation);
@@ -401,7 +476,7 @@ function runTask(driver: Driver, taskId: string, ns: string, cellDir: string): {
   };
 }
 
-function proofFor(packPath: string, runRoot: string, cellDir: string, stages: Record<string, StageRecord>): V2WitnessProof {
+export function proofForV2Task(packPath: string, runRoot: string, cellDir: string, stages: Record<string, V2StageRecord>): V2WitnessProof {
   const stagePath = (name: string) => resolve(cellDir, name).replace(`${resolve(runRoot)}/`, "");
   const stage = (name: string) => ({ status: "passed" as const, command: stages[name]!.command, artifact: stagePath(`${name}.json`) });
   const bundle = JSON.stringify(stages);
@@ -444,7 +519,7 @@ export function runV2Witness(options: V2WitnessRunOptions): V2WitnessRunManifest
       manifest.cells.push({ vendor: entry.vendor, task_id: entry.task_id, status: "blocked", reason: productionTargetIssue, artifact_dir: cellDir.replace(`${resolve(options.runRoot)}/`, "") });
       continue;
     }
-    const driver = makeDriver(entry.vendor);
+    const driver = makeV2Driver(entry.vendor);
     if (driver.missingEnv.length) {
       const reason = `missing required CLI credential/context: ${driver.missingEnv.join(", ")}`;
       writeStage(resolve(cellDir, "blocked.json"), { status: "failed", command: "blocked", sql: "", stdout: "", stderr: reason, exit_code: null, error: reason });
@@ -452,10 +527,10 @@ export function runV2Witness(options: V2WitnessRunOptions): V2WitnessRunManifest
       continue;
     }
     const ns = `v2_${safeSegment(entry.vendor)}_${safeSegment(entry.task_id.replace(/^db-T/, "t"))}_${Date.now().toString(36)}`;
-    const result = runTask(driver, entry.task_id, ns, cellDir);
+    const result = runV2DeterministicTask(driver, entry.task_id, ns, cellDir);
     const stageNames = ["setup", "mutation", "verify", "cleanup"] as const;
     const allStageFiles = stageNames.every((name) => existsSync(resolve(cellDir, `${name}.json`)));
-    const proof = result.ok && allStageFiles ? proofFor(packPath, options.runRoot, cellDir, Object.fromEntries(stageNames.map((name) => [name, JSON.parse(readFileSync(resolve(cellDir, `${name}.json`), "utf8"))])) as Record<string, StageRecord>) : undefined;
+    const proof = result.ok && allStageFiles ? proofForV2Task(packPath, options.runRoot, cellDir, Object.fromEntries(stageNames.map((name) => [name, JSON.parse(readFileSync(resolve(cellDir, `${name}.json`), "utf8"))])) as Record<string, V2StageRecord>) : undefined;
     manifest.cells.push({ vendor: entry.vendor, task_id: entry.task_id, status: result.ok ? "passed" : "failed", reason: result.reason, artifact_dir: cellDir.replace(`${resolve(options.runRoot)}/`, ""), ...(proof ? { proof } : {}) });
   }
   writeFileSync(resolve(options.runRoot, "run-manifest.json"), JSON.stringify(manifest, null, 2), { mode: 0o600 });

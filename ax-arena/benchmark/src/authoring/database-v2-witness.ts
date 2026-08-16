@@ -176,7 +176,7 @@ const CONTRACTS: Record<string, Omit<V2SurfaceContract, "id" | "vendor">> = {
   "turso/cli": {
     surface: "cli",
     endpoint_class: "turso-cli-and-sql-over-http",
-    agent_credentials: ["TURSO_API_TOKEN", "TURSO_DATABASE_AUTH_TOKEN"],
+    agent_credentials: ["TURSO_ORG_API_TOKEN", "TURSO_DATABASE_AUTH_TOKEN"],
     setup_mode: "sql_http",
     verifier_mode: "same_sql_http",
     cleanup_mode: "namespaced_sql",

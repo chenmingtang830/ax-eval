@@ -1,5 +1,6 @@
+import { createHash } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
-import { basename, resolve } from "node:path";
+import { basename, dirname, resolve } from "node:path";
 import { parse as yamlParse, stringify as yamlStringify } from "yaml";
 import {
   extractCapabilities,
@@ -36,6 +37,7 @@ import {
   writeSurfaceExtract,
   writeVendorCard,
 } from "./artifact-persistence.js";
+import type { CoverageMatrix, SupportMatrix } from "./artifact-contracts.js";
 import { composePack, writeComposedPack } from "./compose-pack.js";
 import { adviseVendorExtract, writeExtractAdvisory } from "./extract-advisory.js";
 import {
@@ -63,6 +65,19 @@ import {
   validateV2WitnessPlan,
 } from "./database-v2-witness.js";
 import { runV2Witness } from "./database-v2-runner.js";
+import {
+  DEFAULT_V21_SELECTION_POLICY,
+  readCalibrationJsonl,
+  selectV21Tasks,
+  validateV21FreezeSelection,
+  V21SelectionResultSchema,
+  V21TaskSchema,
+  freezeV21Suite,
+} from "./discriminative-suite.js";
+import { validateV21InvocationPlan } from "../runtime/v21-execution.js";
+import { buildV21ControllerPlan, controllerPlanHash } from "../runtime/v21-controller.js";
+import { planV21CalibrationInvocations } from "../runtime/v21-calibration.js";
+import { V21_ROUTE_MANIFEST } from "../runtime/v21-routes.js";
 
 export const AUTHORING_COMMANDS = [
   "resolve-vendor",
@@ -74,6 +89,11 @@ export const AUTHORING_COMMANDS = [
   "audit-extracts",
   "audit-suite",
   "synthesize-suite",
+  "calibrate-suite",
+  "freeze-suite",
+  "plan-v21",
+  "plan-v21-calibration",
+  "prepare-v21-packs",
   "prepare-v2",
   "prepare-v2-production",
   "run-v2-witness",
@@ -106,6 +126,12 @@ interface AuthoringArgs {
   tasks: string[];
   gapCheckAssist: boolean;
   taskCount?: number;
+  candidateCount?: number;
+  targetCount?: number;
+  difficultyProfile: string;
+  anchors: string;
+  results: string;
+  freezeGates: string;
   apply: boolean;
   advisory: boolean;
   production: boolean;
@@ -135,6 +161,10 @@ function parseAuthoringArgs(argv: readonly string[]): AuthoringArgs {
     runRoot: "",
     tasks: [],
     gapCheckAssist: false,
+    difficultyProfile: "",
+    anchors: "",
+    results: "",
+    freezeGates: "",
     apply: false,
     advisory: false,
     production: false,
@@ -158,7 +188,7 @@ function parseAuthoringArgs(argv: readonly string[]): AuthoringArgs {
     else if (flag === "--domain") parsed.domain = value(++index, flag);
     else if (flag === "--slug") parsed.slug = value(++index, flag);
     else if (flag === "--specs") parsed.specs = value(++index, flag);
-    else if (flag === "--suite") parsed.suite = value(++index, flag);
+    else if (flag === "--suite" || flag === "--candidate-suite") parsed.suite = value(++index, flag);
     else if (flag === "--out") parsed.out = value(++index, flag);
     else if (flag === "--generator-model") parsed.generatorModel = value(++index, flag);
     else if (flag === "--generator-harness") {
@@ -184,7 +214,18 @@ function parseAuthoringArgs(argv: readonly string[]): AuthoringArgs {
     } else if (flag === "--task-count") {
       parsed.taskCount = Number(value(++index, flag));
     } else if (flag === "--deterministic") parsed.deterministic = true;
+    else if (flag === "--candidate-count") parsed.candidateCount = Number(value(++index, flag));
+    else if (flag === "--target-count") parsed.targetCount = Number(value(++index, flag));
+    else if (flag === "--difficulty-profile") parsed.difficultyProfile = value(++index, flag);
+    else if (flag === "--anchors") parsed.anchors = value(++index, flag);
+    else if (flag === "--results") parsed.results = value(++index, flag);
+    else if (flag === "--freeze-gates") parsed.freezeGates = value(++index, flag);
     else if (flag === "--cli-only") parsed.cliOnly = true;
+    else if (flag === "--surface") {
+      const surface = value(++index, flag);
+      if (surface !== "cli") throw new Error("V2.1 authoring currently admits only --surface cli");
+      parsed.cliOnly = true;
+    }
     else if (flag === "--all-surfaces") parsed.cliOnly = false;
     else if (flag === "--run-root") parsed.runRoot = value(++index, flag);
     else if (flag === "--task") parsed.tasks.push(value(++index, flag));
@@ -1024,14 +1065,43 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
         ? " (seed + LLM refine + gap-check assist)…"
         : " (deterministic seed + LLM concept-refine assist, seed fallback)…"),
   );
-  const result = await synthesizeSuite(args.category, extracts, {
+  const synthesized = await synthesizeSuite(args.category, extracts, {
     harness,
     model: generatorModel(args, harness),
     effort: generatorEffort(args),
     deterministic: args.deterministic,
     gapCheckAssist: args.gapCheckAssist,
-    targetTaskCount: args.taskCount,
+    targetTaskCount: args.candidateCount ?? args.taskCount,
+    difficultyProfile: args.difficultyProfile === "discriminative" ? "discriminative" : undefined,
+    anchorSuite: args.anchors || undefined,
   });
+  let result = args.difficultyProfile === "discriminative" && args.cliOnly
+    ? {
+      ...synthesized,
+      methodology: { ...synthesized.methodology, surface_scope: ["cli"] as ("api" | "cli" | "sdk")[] },
+      tasks: synthesized.tasks.map((task) => ({ ...task, allowed_surfaces: ["cli"] as ("api" | "cli" | "sdk")[] })),
+    }
+    : synthesized;
+  if (args.difficultyProfile === "discriminative" && args.cliOnly) {
+    const supportMatrix = applyV21SupabaseCliExtension(root, result.supportMatrix, result.tasks);
+    const taskFitVendorsById = new Map(
+      result.tasks.map((task) => [
+        task.id,
+        [...new Set(supportMatrix.entries
+          .filter((entry) => entry.task_id === task.id && entry.surface === "cli" && entry.status === "supported")
+          .map((entry) => entry.vendor))],
+      ]),
+    );
+    result = {
+      ...result,
+      coverageMatrix: applyV21SupabaseCoverageOverlay(root, result.coverageMatrix),
+      supportMatrix,
+      tasks: result.tasks.map((task) => ({
+        ...task,
+        task_fit_vendors: taskFitVendorsById.get(task.id) ?? task.task_fit_vendors ?? [],
+      })),
+    };
+  }
   const stem = basename(outPath).replace(/\.yaml$/, "");
   const name = /^suite$/i.test(stem) ? "AXArena-Database v1" : stem.toUpperCase();
   const version = /^suite$/i.test(stem) ? 1 : inferSuiteVersionFromStem(stem);
@@ -1049,6 +1119,649 @@ async function cmdSynthesizeSuite(args: AuthoringArgs): Promise<number> {
   return 0;
 }
 
+function fileSha256(path: string): string {
+  return createHash("sha256").update(readFileSync(path)).digest("hex");
+}
+
+/** Merge the separately reviewed Supabase CLI extension into a V2.1
+ * candidate. The extension is kept as a source artifact; the old V2 support
+ * matrix is never rewritten in place. */
+function applyV21SupabaseCliExtension(
+  root: string,
+  supportMatrix: SupportMatrix,
+  tasks: Array<{ id: string; skill?: string }>,
+): SupportMatrix {
+  const benchmarkRoot = existsSync(resolve(root, "axarena-database", "v2"))
+    ? resolve(root, "axarena-database")
+    : resolve(root, "ax-arena", "benchmark", "axarena-database");
+  const extensionPath = resolve(benchmarkRoot, "v2/production/extensions/supabase-cli/support-matrix.yaml");
+  if (!existsSync(extensionPath)) return { ...supportMatrix, entries: supportMatrix.entries.filter((entry) => entry.surface === "cli") };
+  const extension = yamlParse(readFileSync(extensionPath, "utf8")) as {
+    entries?: Array<{ task_id?: string; surface?: string; status?: string; reason?: string }>;
+  };
+  const sourceToSkill = new Map(Object.entries(V21_WITNESSED_SKILL_SOURCE_IDS).map(([skill, sourceId]) => [sourceId, skill]));
+  const candidateBySkill = new Map(tasks.filter((task) => task.skill).map((task) => [task.skill!, task.id]));
+  const overrides = new Map(
+    (extension.entries ?? [])
+      .filter((entry) => entry.surface === "cli" && entry.task_id && sourceToSkill.has(entry.task_id))
+      .map((entry) => [candidateBySkill.get(sourceToSkill.get(entry.task_id as string)!), entry] as const)
+      .filter(([taskId]) => Boolean(taskId)),
+  );
+  if (!overrides.size) return { ...supportMatrix, entries: supportMatrix.entries.filter((entry) => entry.surface === "cli") };
+  const entries = supportMatrix.entries.map((entry) => {
+    if (entry.vendor.toLowerCase() !== "supabase" || entry.surface !== "cli") return entry;
+    const override = overrides.get(entry.task_id);
+    if (!override) return entry;
+    return {
+      ...entry,
+      status: override.status === "supported" ? "supported" as const : override.status === "inconclusive" ? "inconclusive" as const : "unsupported" as const,
+      reason: override.reason ?? "Supabase CLI extension witness overlay",
+    };
+  });
+  return { ...supportMatrix, entries: entries.filter((entry) => entry.surface === "cli") };
+}
+
+function applyV21SupabaseCoverageOverlay(
+  root: string,
+  coverageMatrix: CoverageMatrix,
+): CoverageMatrix {
+  const benchmarkRoot = existsSync(resolve(root, "axarena-database", "v2"))
+    ? resolve(root, "axarena-database")
+    : resolve(root, "ax-arena", "benchmark", "axarena-database");
+  const extensionPath = resolve(benchmarkRoot, "v2/production/extensions/supabase-cli/support-matrix.yaml");
+  if (!existsSync(extensionPath)) return coverageMatrix;
+  const extension = yamlParse(readFileSync(extensionPath, "utf8")) as {
+    entries?: Array<{ task_id?: string; surface?: string; status?: string }>;
+  };
+  const sourceToSkill = new Map(Object.entries(V21_WITNESSED_SKILL_SOURCE_IDS).map(([skill, sourceId]) => [sourceId, skill]));
+  const supportedSkills = new Set(
+    (extension.entries ?? [])
+      .filter((entry) => entry.surface === "cli" && entry.status === "supported" && entry.task_id)
+      .map((entry) => sourceToSkill.get(entry.task_id as string))
+      .filter((skill): skill is string => Boolean(skill)),
+  );
+  return {
+    ...coverageMatrix,
+    concepts: coverageMatrix.concepts.map((concept) => {
+      if (!supportedSkills.has(concept.concept_name)) return concept;
+      return {
+        ...concept,
+        decisions: concept.decisions.map((decision) => {
+          if (decision.vendor.toLowerCase() !== "supabase") return decision;
+          return {
+            ...decision,
+            status: "supported" as const,
+            source: "inventory" as const,
+            task_fit: {
+              requirement_path: decision.task_fit?.requirement_path,
+              matched_requirements: decision.task_fit?.matched_requirements ?? [],
+              status: "sufficient" as const,
+              supported_surfaces: ["cli" as const],
+              missing_requirements: [],
+              reason: "Supabase CLI extension has an independent SQL witness for this concept.",
+            },
+            surfaces_documented: [...new Set([...(decision.surfaces_documented ?? []), "cli" as const])],
+            reason: undefined,
+          };
+        }),
+      };
+    }),
+  };
+}
+
+function cmdCalibrateSuite(args: AuthoringArgs): number {
+  if (!args.suite || !args.results || !args.out || args.out === "results/last-run.json") {
+    throw new Error("calibrate-suite requires --suite <candidate.yaml> --results <calibration.jsonl> --out <selection.json>");
+  }
+  if (args.targetCount !== undefined && args.targetCount !== 10) throw new Error("V2.1 calibration target-count is fixed at 10");
+  const parsed = yamlParse(readFileSync(args.suite, "utf8"));
+  if (!Array.isArray(parsed?.tasks)) throw new Error("candidate suite has no tasks array");
+  const candidates = parsed.tasks.map((task: unknown) => V21TaskSchema.parse(task));
+  const observations = readCalibrationJsonl(args.results);
+  const result = {
+    ...selectV21Tasks(candidates, observations, DEFAULT_V21_SELECTION_POLICY),
+    source_hashes: {
+      candidate_suite: fileSha256(args.suite),
+      calibration_results: fileSha256(args.results),
+    },
+  };
+  writeFileSync(args.out, `${JSON.stringify(result, null, 2)}\n`, { mode: 0o600 });
+  console.log(`V2.1 calibration selected ${result.selected.length} tasks; selection hash ${result.selection_hash}`);
+  console.log(`Selection ledger → ${resolve(args.out)}`);
+  return 0;
+}
+
+function cmdFreezeSuite(args: AuthoringArgs): number {
+  if (!args.suite || !args.out) throw new Error("freeze-suite requires --suite <selection.json> --out <v2.1-suite.yaml>");
+  const result = V21SelectionResultSchema.parse(JSON.parse(readFileSync(args.suite, "utf8")));
+  validateV21FreezeSelection(result);
+  let suppliedGates: Record<string, string> = {};
+  if (args.freezeGates) {
+    const parsed = JSON.parse(readFileSync(args.freezeGates, "utf8")) as unknown;
+    const candidate = parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? ((parsed as { source_hashes?: unknown }).source_hashes ?? parsed)
+      : null;
+    if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) throw new Error("--freeze-gates must be a JSON object of source hashes");
+    suppliedGates = Object.fromEntries(Object.entries(candidate).filter((entry): entry is [string, string] => typeof entry[1] === "string"));
+  }
+  const frozen = freezeV21Suite(result, { ...suppliedGates, selection: fileSha256(args.suite) });
+  writeFileSync(args.out, frozen.yaml, { mode: 0o600 });
+  writeFileSync(`${args.out}.freeze.json`, `${JSON.stringify(frozen.manifest, null, 2)}\n`, { mode: 0o600 });
+  console.log(`V2.1 suite frozen: ${resolve(args.out)}`);
+  console.log(`Freeze manifest: ${resolve(`${args.out}.freeze.json`)}`);
+  return 0;
+}
+
+function cmdPlanV21(args: AuthoringArgs): number {
+  if (!args.suite || !args.vendors || !args.out || args.out === "results/last-run.json") {
+    throw new Error("plan-v21 requires --suite <frozen-v2.1-suite.yaml> --vendors <six slugs> --out <plan.json>");
+  }
+  const vendors = args.vendors.split(",").map((value) => value.trim()).filter(Boolean);
+  if (vendors.length !== 6 || new Set(vendors).size !== 6) throw new Error("V2.1 plan requires six unique vendors");
+  const expectedVendors = ["cockroachdb", "insforge", "neon", "nile", "supabase", "turso"];
+  if ([...vendors].sort().join(",") !== expectedVendors.sort().join(",")) {
+    throw new Error(`V2.1 plan requires the frozen six-vendor roster: ${expectedVendors.join(",")}`);
+  }
+  const freezePath = `${args.suite}.freeze.json`;
+  if (!existsSync(freezePath)) throw new Error(`V2.1 plan requires the freeze manifest next to the suite: ${freezePath}`);
+  const freeze = JSON.parse(readFileSync(freezePath, "utf8")) as { production_eligible?: unknown; selected_task_ids?: unknown };
+  if (freeze.production_eligible !== true) {
+    throw new Error("V2.1 plan is blocked: freeze manifest is not production_eligible (docs/support/oracle/witness/calibration/review gates are incomplete)");
+  }
+  const parsed = yamlParse(readFileSync(args.suite, "utf8"));
+  if (!Array.isArray(parsed?.tasks)) throw new Error("frozen V2.1 suite has no tasks array");
+  const suiteTaskIds = parsed.tasks.map((task: unknown) => V21TaskSchema.parse(task).id);
+  const frozenTaskIds = Array.isArray(freeze.selected_task_ids)
+    && freeze.selected_task_ids.every((value): value is string => typeof value === "string")
+    ? freeze.selected_task_ids
+    : [];
+  if (!frozenTaskIds.length || [...frozenTaskIds].sort().join(",") !== [...suiteTaskIds].sort().join(",")) {
+    throw new Error("V2.1 freeze manifest selected_task_ids do not match the frozen suite task ids");
+  }
+  const tasks = parsed.tasks.map((task: unknown) => V21TaskSchema.parse(task));
+  const controllerPlan = buildV21ControllerPlan({
+    suitePath: args.suite,
+    suiteHash: fileSha256(args.suite),
+    vendors,
+    tasks,
+    runRoot: dirname(resolve(args.out)),
+    trials: 3,
+  });
+  const plans = controllerPlan.invocations;
+  validateV21InvocationPlan(plans, 432);
+  const output = {
+    schema: "ax.daeb-v2-1-plan/v1",
+    suite: resolve(args.suite),
+    suite_hash: fileSha256(args.suite),
+    vendors,
+    route_manifest: V21_ROUTE_MANIFEST,
+    planned_invocations: plans,
+    controller_plan_hash: controllerPlanHash(controllerPlan),
+    immutable: true,
+  };
+  writeFileSync(args.out, `${JSON.stringify(output, null, 2)}\n`, { mode: 0o600 });
+  console.log(`V2.1 plan contains ${plans.length} invocation cells → ${resolve(args.out)}`);
+  return 0;
+}
+
+function cmdPlanV21Calibration(args: AuthoringArgs): number {
+  if (!args.suite || !args.vendors || !args.out || args.out === "results/last-run.json") {
+    throw new Error("plan-v21-calibration requires --suite <candidate-v2.1.yaml> --vendors <six slugs> --out <plan.json>");
+  }
+  const vendors = args.vendors.split(",").map((value) => value.trim()).filter(Boolean);
+  const parsed = yamlParse(readFileSync(args.suite, "utf8"));
+  if (!Array.isArray(parsed?.tasks)) throw new Error("candidate V2.1 suite has no tasks array");
+  const tasks = parsed.tasks.map((task: unknown) => V21TaskSchema.parse(task));
+  const plan = planV21CalibrationInvocations(vendors, tasks);
+  writeFileSync(args.out, `${JSON.stringify({ ...plan, suite: resolve(args.suite), suite_hash: fileSha256(args.suite) }, null, 2)}\n`, { mode: 0o600 });
+  console.log(`V2.1 calibration plan contains ${plan.planned_invocations} Pi trial-1 cells → ${resolve(args.out)}`);
+  return 0;
+}
+
+const V21_VENDOR_PACK_SOURCES: Record<string, string> = {
+  cockroachdb: "v2/production/packs/cockroachdb/pack.yaml",
+  insforge: "v2/production/packs/insforge/pack.yaml",
+  neon: "v2/production/packs/neon/pack.yaml",
+  nile: "v2/production/packs/nile/pack.yaml",
+  turso: "v2/production/packs/turso/pack.yaml",
+  supabase: "v2/production/extensions/supabase-cli/pack.yaml",
+};
+
+/** Candidate concepts that already have a reviewed, independently witnessed
+ * V2 CLI task.  The ids are deliberately remapped by skill: V2.1 candidates
+ * use a new task numbering, while the source pack ids remain immutable. */
+const V21_WITNESSED_SKILL_SOURCE_IDS: Record<string, string> = {
+  "access-control": "db-T01-access-control",
+  "evolve-schema": "db-T02-evolve-schema",
+  "inspect-schema": "db-T03-inspect-schema",
+  "query-records": "db-T04-query-records",
+  "vector-search": "db-T05-vector-search",
+  "write-records": "db-T06-write-records",
+  "full-text-search": "db-T07-full-text-search",
+};
+const TASK_ID_FOR_V21_SESSION_WITNESS = "db-T17-cli-session-discovery";
+const TASK_ID_FOR_V21_CONSTRAINT_WITNESS = "db-T18-constraint-preservation";
+
+/** V2.1-only deterministic task variant. It is derived from the frozen V2
+ * source pack's SQL/CLI contract, but has its own task id, prompt, oracle, and
+ * witness. The V2 source pack itself remains immutable. */
+function buildV21CliSessionDiscoveryTask(
+  source: TargetPack,
+  candidateId: string,
+  rawTask: Record<string, unknown>,
+): TargetPack["tasks"][number] | undefined {
+  const sourceTask = source.tasks.find((task) => task.id === "db-T04-query-records");
+  if (!sourceTask || source.sql_conn?.dialect !== "postgres") return undefined;
+  const table = `"axarena_session_probe_{ns}"`;
+  return {
+    ...sourceTask,
+    id: candidateId,
+    title: typeof rawTask.title === "string" ? rawTask.title : "Discover and verify an authenticated CLI session",
+    prompt: [
+      "From a fresh family session, discover the vendor's documented command-line entrypoint and authentication path.",
+      "Using the provisioned sandbox credentials, create a task-scoped relation named `axarena_session_probe_{ns}`",
+      "with exactly one marker `session_{ns}` and the authenticated principal observed by the CLI session.",
+      "Start a second fresh CLI process and read the marker back. Report the discovered surface, auth method,",
+      "relation name, and marker. Never print credentials, call a management API, or clean up the relation.",
+      "The evaluator will independently read the relation after the task.",
+    ].join("\n\n"),
+    oracles: [
+      {
+        type: "roundtrip",
+        expected: 1,
+        description: "authenticated CLI session created exactly one marker row",
+        assertField: "0.count",
+        sqlDialect: "postgres",
+        sqlQuery: `SELECT COUNT(*)::int AS count FROM ${table} WHERE marker = 'session_{ns}'`,
+      },
+      {
+        type: "roundtrip",
+        expected: 1,
+        description: "marker row records a non-empty authenticated principal",
+        assertField: "0.count",
+        sqlDialect: "postgres",
+        sqlQuery: `SELECT COUNT(*)::int AS count FROM ${table} WHERE marker = 'session_{ns}' AND principal <> ''`,
+      },
+    ],
+    difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+    allowed_surfaces: ["cli"],
+    na: false,
+    depends_on: [],
+    trace: [],
+    execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+    challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+    discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+    controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+    supported_vendors: rawTask.supported_vendors as string[] | undefined,
+    anchor: rawTask.anchor as boolean | undefined,
+  };
+}
+
+function buildV21CliPrincipalContinuityTask(
+  source: TargetPack,
+  candidateId: string,
+  rawTask: Record<string, unknown>,
+): TargetPack["tasks"][number] | undefined {
+  const sourceTask = source.tasks.find((task) => task.id === "db-T04-query-records");
+  if (!sourceTask || source.sql_conn?.dialect !== "postgres") return undefined;
+  const table = `"axarena_principal_probe_{ns}"`;
+  return {
+    ...sourceTask,
+    id: candidateId,
+    title: typeof rawTask.title === "string" ? rawTask.title : "Verify authenticated principal continuity across CLI sessions",
+    prompt: typeof rawTask.intent === "string" ? rawTask.intent : sourceTask.prompt,
+    oracles: [
+      {
+        type: "roundtrip",
+        expected: 1,
+        description: "principal continuity created exactly one marker row",
+        assertField: "0.count",
+        sqlDialect: "postgres",
+        sqlQuery: `SELECT COUNT(*)::int AS count FROM ${table} WHERE marker = 'principal_{ns}'`,
+      },
+      {
+        type: "roundtrip",
+        expected: 1,
+        description: "principal continuity records a non-empty authenticated principal",
+        assertField: "0.count",
+        sqlDialect: "postgres",
+        sqlQuery: `SELECT COUNT(*)::int AS count FROM ${table} WHERE marker = 'principal_{ns}' AND principal <> ''`,
+      },
+    ],
+    difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+    allowed_surfaces: ["cli"],
+    na: false,
+    depends_on: [],
+    trace: [],
+    execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+    challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+    discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+    controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+    supported_vendors: rawTask.supported_vendors as string[] | undefined,
+    anchor: rawTask.anchor as boolean | undefined,
+  };
+}
+
+function buildV21DerivedSqlTask(
+  source: TargetPack,
+  candidateId: string,
+  rawTask: Record<string, unknown>,
+): TargetPack["tasks"][number] | undefined {
+  const sourceTask = source.tasks.find((task) => task.id === "db-T04-query-records");
+  if (!sourceTask) return undefined;
+  const dialect = source.sql_conn?.dialect ?? "postgres";
+  const isConstraint = candidateId === TASK_ID_FOR_V21_CONSTRAINT_WITNESS;
+  const isAggregate = candidateId === "db-T20-aggregate-query";
+  const isNegative = candidateId === "db-T22-negative-query-verification";
+  const table = isConstraint
+    ? `axarena_constraint_probe_{ns}`
+    : isAggregate ? `axarena_aggregate_probe_{ns}`
+      : isNegative ? `axarena_negative_query_probe_{ns}`
+      : `axarena_txn_probe_{ns}`;
+  const count = dialect === "postgres" ? "COUNT(*)::int" : "COUNT(*)";
+  const oracle = (sqlQuery: string, expected: number, description: string) => ({
+    type: "roundtrip" as const,
+    expected,
+    description,
+    assertField: "0.value",
+    ...(dialect === "postgres" ? { sqlDialect: "postgres" as const } : {}),
+    sqlQuery,
+  });
+  const oracles = dialect === "postgres"
+    ? isConstraint
+      ? [
+          oracle(`SELECT ${count} AS value FROM "${table}" WHERE marker = 'constraint_{ns}'`, 1, "duplicate marker did not create a second row"),
+          oracle(`SELECT ${count} AS value FROM information_schema.table_constraints WHERE table_schema='public' AND table_name='${table}' AND constraint_type IN ('PRIMARY KEY','UNIQUE')`, 2, "primary and unique constraints remain declared"),
+        ]
+      : isAggregate
+        ? [
+            oracle(`SELECT ${count} AS value FROM "${table}"`, 3, "aggregate relation contains three rows"),
+            oracle(`SELECT ${count} AS value FROM "${table}" WHERE status = 'active'`, 2, "filtered aggregate counts two active rows"),
+          ]
+        : isNegative
+          ? [
+              oracle(`SELECT ${count} AS value FROM "${table}"`, 2, "negative-query relation preserves both original rows"),
+              oracle(`SELECT ${count} AS value FROM "${table}" WHERE marker = 'absent_{ns}'`, 0, "negative predicate returns zero rows"),
+            ]
+        : [
+          oracle(`SELECT ${count} AS value FROM "${table}" WHERE marker = 'rollback_{ns}'`, 0, "rolled-back marker is absent"),
+          oracle(`SELECT ${count} AS value FROM "${table}" WHERE marker = 'committed_{ns}'`, 1, "committed marker is present"),
+        ]
+    : isConstraint
+      ? [
+          { type: "roundtrip" as const, expected: "1", description: "duplicate marker did not create a second row", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}" WHERE marker = 'constraint_{ns}'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+          { type: "roundtrip" as const, expected: "2", description: "primary and unique indexes remain declared", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM pragma_index_list('${table}') WHERE \"unique\" = 1` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+        ]
+      : isAggregate
+        ? [
+            { type: "roundtrip" as const, expected: "3", description: "aggregate relation contains three rows", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}"` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+            { type: "roundtrip" as const, expected: "2", description: "filtered aggregate counts two active rows", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}" WHERE status = 'active'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+          ]
+        : isNegative
+          ? [
+              { type: "roundtrip" as const, expected: "2", description: "negative-query relation preserves both original rows", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}"` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+              { type: "roundtrip" as const, expected: "0", description: "negative predicate returns zero rows", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}" WHERE marker = 'absent_{ns}'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+            ]
+        : [
+          { type: "roundtrip" as const, expected: "0", description: "rolled-back marker is absent", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}" WHERE marker = 'rollback_{ns}'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+          { type: "roundtrip" as const, expected: "1", description: "committed marker is present", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM "${table}" WHERE marker = 'committed_{ns}'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+        ];
+  return {
+    ...sourceTask,
+    id: candidateId,
+    title: typeof rawTask.title === "string" ? rawTask.title : candidateId,
+    prompt: typeof rawTask.intent === "string" ? rawTask.intent : sourceTask.prompt,
+    oracles,
+    difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+    allowed_surfaces: ["cli"],
+    na: false,
+    depends_on: [],
+    trace: [],
+    execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+    challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+    discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+    controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+    supported_vendors: rawTask.supported_vendors as string[] | undefined,
+    anchor: rawTask.anchor as boolean | undefined,
+  };
+}
+
+function buildV21FullTextSearchTask(
+  source: TargetPack,
+  candidateId: string,
+  rawTask: Record<string, unknown>,
+): TargetPack["tasks"][number] | undefined {
+  const sourceTask = source.tasks.find((task) => task.id === "db-T04-query-records");
+  if (!sourceTask) return undefined;
+  const table = "axarena_search_{ns}";
+  const oracles = source.sql_conn?.dialect === "postgres"
+    ? [
+        { type: "roundtrip" as const, expected: 3, description: "search container contains exactly three records", assertField: "0.value", sqlDialect: "postgres" as const, sqlQuery: `SELECT COUNT(*)::int AS value FROM \"${table}\"` },
+        { type: "roundtrip" as const, expected: 1, description: "full-text query finds the orchard marker", assertField: "0.value", sqlDialect: "postgres" as const, sqlQuery: `SELECT COUNT(*)::int AS value FROM \"${table}\" WHERE to_tsvector('simple',content) @@ plainto_tsquery('simple','orchard_{ns}')` },
+      ]
+    : [
+        { type: "roundtrip" as const, expected: "3", description: "search container contains exactly three records", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM \"${table}\"` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+        { type: "roundtrip" as const, expected: "1", description: "full-text query finds the orchard marker", readMethod: "POST" as const, readPathTemplate: "/v2/pipeline", readBodyTemplate: { requests: [{ type: "execute", stmt: { sql: `SELECT COUNT(*) FROM \"${table}\" WHERE content MATCH 'orchard_{ns}'` } }] }, assertField: "results.0.response.result.rows.0.0.value" },
+      ];
+  return {
+    ...sourceTask,
+    id: candidateId,
+    title: typeof rawTask.title === "string" ? rawTask.title : "Create and query a full-text dataset",
+    prompt: typeof rawTask.intent === "string" ? rawTask.intent : sourceTask.prompt,
+    oracles,
+    difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+    allowed_surfaces: ["cli"],
+    na: false,
+    depends_on: [],
+    trace: [],
+    execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+    challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+    discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+    controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+    supported_vendors: rawTask.supported_vendors as string[] | undefined,
+    anchor: rawTask.anchor as boolean | undefined,
+  };
+}
+
+function cmdPrepareV21Packs(args: AuthoringArgs): number {
+  const root = process.cwd();
+  const benchmarkRoot = existsSync(resolve(root, "axarena-database", "v2"))
+    ? resolve(root, "axarena-database")
+    : resolve(root, "ax-arena", "benchmark", "axarena-database");
+  const requestedSuite = args.suite || "v2-1/candidate-suite-v2-1.yaml";
+  const suitePath = resolve(
+    root,
+    existsSync(resolve(root, requestedSuite)) ? requestedSuite : resolve(benchmarkRoot, requestedSuite),
+  );
+  if (!existsSync(suitePath)) throw new Error(`V2.1 candidate suite is missing: ${suitePath}`);
+  const suite = yamlParse(readFileSync(suitePath, "utf8")) as { tasks?: Array<Record<string, unknown>> };
+  if (!Array.isArray(suite.tasks) || !suite.tasks.length) throw new Error("V2.1 candidate suite has no tasks");
+  const supportPath = resolve(dirname(suitePath), "candidate-suite-v2-1.support-matrix.yaml");
+  if (!existsSync(supportPath)) throw new Error(`V2.1 support matrix is missing: ${supportPath}`);
+  const support = yamlParse(readFileSync(supportPath, "utf8")) as {
+    entries?: Array<{ vendor?: string; task_id?: string; surface?: string; status?: string; reason?: string }>;
+  };
+  const supportEntries = support.entries ?? [];
+  const sourcePacks = new Map<string, TargetPack>();
+  const sourcePaths = new Map<string, string>();
+  const missingSources: string[] = [];
+  for (const [vendor, relativePath] of Object.entries(V21_VENDOR_PACK_SOURCES)) {
+    const sourcePath = resolve(benchmarkRoot, relativePath.replace(/^v2\//, "v2/"));
+    sourcePaths.set(vendor, sourcePath);
+    if (!existsSync(sourcePath)) {
+      missingSources.push(`${vendor}: ${sourcePath}`);
+      continue;
+    }
+    sourcePacks.set(vendor, loadPack(sourcePath));
+  }
+  if (missingSources.length) throw new Error(`V2.1 source packs are missing:\n${missingSources.join("\n")}`);
+
+  const readiness: Array<Record<string, unknown>> = [];
+  const draftTasks = new Map<string, TargetPack["tasks"]>();
+  const repositoryRoot = resolve(benchmarkRoot, "..", "..", "..");
+  const sessionWitnessRoot = resolve(repositoryRoot, process.env.DAEB_V21_SESSION_WITNESS_ROOT ?? "results/daeb-v2-1-cli-session-witness-20260815");
+  const derivedWitnessRoot = resolve(repositoryRoot, process.env.DAEB_V21_DERIVED_WITNESS_ROOT ?? "results/daeb-v2-1-derived-witness-20260815");
+  let sessionWitnessManifest: { cells?: Array<{ vendor?: string; task_id?: string; status?: string }> } = {};
+  let derivedWitnessManifest: { cells?: Array<{ vendor?: string; task_id?: string; status?: string }> } = {};
+  const sessionWitnessManifestPath = resolve(sessionWitnessRoot, "run-manifest.json");
+  if (existsSync(sessionWitnessManifestPath)) {
+    try { sessionWitnessManifest = JSON.parse(readFileSync(sessionWitnessManifestPath, "utf8")) as typeof sessionWitnessManifest; }
+    catch { sessionWitnessManifest = {}; }
+  }
+  const derivedWitnessManifestPath = resolve(derivedWitnessRoot, "run-manifest.json");
+  if (existsSync(derivedWitnessManifestPath)) {
+    try { derivedWitnessManifest = JSON.parse(readFileSync(derivedWitnessManifestPath, "utf8")) as typeof derivedWitnessManifest; }
+    catch { derivedWitnessManifest = {}; }
+  }
+  for (const vendor of Object.keys(V21_VENDOR_PACK_SOURCES)) {
+    const source = sourcePacks.get(vendor)!;
+    const tasks: TargetPack["tasks"] = [];
+    for (const rawTask of suite.tasks) {
+      const candidateId = String(rawTask.id ?? "");
+      const skill = typeof rawTask.skill === "string" ? rawTask.skill : undefined;
+      const sourceId = skill ? V21_WITNESSED_SKILL_SOURCE_IDS[skill] : undefined;
+      const sourceTask = sourceId ? source.tasks.find((task) => task.id === sourceId) : undefined;
+      const supportEntry = supportEntries.find((entry) =>
+        entry.vendor?.toLowerCase() === vendor && entry.task_id === candidateId && entry.surface === "cli"
+      );
+      const taskFitVendorCount = Array.isArray(rawTask.task_fit_vendors)
+        ? rawTask.task_fit_vendors.length
+        : undefined;
+      const belowAdmissionCoverage = supportEntry?.status === "supported"
+        && taskFitVendorCount !== undefined
+        && taskFitVendorCount < 5;
+      const supported = supportEntry?.status === "supported" && !belowAdmissionCoverage;
+      const variantTask = supported && skill === "cli-session-discovery"
+        ? buildV21CliSessionDiscoveryTask(source, candidateId, rawTask)
+        : supported && skill === "cli-principal-continuity"
+          ? buildV21CliPrincipalContinuityTask(source, candidateId, rawTask)
+          : supported && (skill === "constraint-preservation" || skill === "transactional-record-recovery" || skill === "negative-query-verification")
+      ? buildV21DerivedSqlTask(source, candidateId, rawTask)
+          : supported && skill === "aggregate-query"
+            ? buildV21DerivedSqlTask(source, candidateId, rawTask)
+          : supported && skill === "full-text-search" && (sourceTask?.na ?? false)
+            ? buildV21FullTextSearchTask(source, candidateId, rawTask)
+          : undefined;
+      const variantWitnessed = skill === "cli-session-discovery"
+        ? sessionWitnessManifest.cells?.some((cell) => cell.vendor === vendor && cell.task_id === TASK_ID_FOR_V21_SESSION_WITNESS && cell.status === "passed")
+        : (skill === "cli-principal-continuity" || skill === "constraint-preservation" || skill === "transactional-record-recovery" || skill === "aggregate-query" || skill === "negative-query-verification")
+          ? derivedWitnessManifest.cells?.some((cell) => cell.vendor === vendor && cell.task_id === candidateId && cell.status === "passed")
+          : skill === "full-text-search" && (sourceTask?.na ?? false)
+            ? derivedWitnessManifest.cells?.some((cell) => cell.vendor === vendor && cell.task_id === candidateId && cell.status === "passed")
+          : false;
+      const witnessed = Boolean(
+        variantTask ? variantWitnessed : sourceTask && !sourceTask.na && sourceTask.allowed_surfaces.includes("cli"),
+      );
+      const status = belowAdmissionCoverage
+        ? "structural-na-or-not-admitted"
+        : supported && witnessed
+        ? "ready-from-v2-witness"
+        : supported
+          ? "blocked-missing-independent-oracle-witness"
+          : "structural-na-or-not-admitted";
+      readiness.push({
+        vendor,
+        task_id: candidateId,
+        skill: skill ?? null,
+        support_status: supportEntry?.status ?? "missing",
+        source_task_id: sourceId ?? (skill === "cli-session-discovery"
+          ? "v2-1-deterministic-cli-session-witness"
+          : variantTask ? "v2-1-derived-sql-witness" : null),
+        source_pack: sourcePaths.get(vendor),
+        witnessed,
+        status,
+        reason: belowAdmissionCoverage
+          ? `Candidate task-fit coverage is ${taskFitVendorCount}/6, below the registered five-of-six admission gate; retained as research-only structural N/A.`
+          : supported && !witnessed
+          ? "The candidate claims CLI support, but no reviewed V2 source task with an independent oracle/witness exists. This tuple must not be converted into a fake N/A."
+          : supportEntry?.reason ?? undefined,
+      });
+      if (supported && witnessed && (sourceTask || variantTask)) {
+        const taskToCopy = variantTask ?? sourceTask!;
+        tasks.push({
+          ...taskToCopy,
+          id: candidateId,
+          title: typeof rawTask.title === "string" ? rawTask.title : taskToCopy.title,
+          difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+          allowed_surfaces: ["cli"],
+          execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+          challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+          discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+          controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+          supported_vendors: rawTask.supported_vendors as string[] | undefined,
+          anchor: rawTask.anchor as boolean | undefined,
+        });
+      } else if (!supported) {
+        tasks.push({
+          id: candidateId,
+          title: typeof rawTask.title === "string" ? rawTask.title : candidateId,
+          prompt: `Structural N/A or not admitted for ${vendor}: this candidate task is not supported on the documented CLI surface and must not be attempted.`,
+          difficulty: rawTask.difficulty as "L1" | "L2" | "L3" | "L4",
+          allowed_surfaces: [],
+          na: true,
+          oracles: [{ type: "na", description: `Structural N/A or non-admitted CLI tuple for ${vendor}; see the V2.1 support matrix.` }],
+          depends_on: [],
+          trace: [],
+          execution_family: rawTask.execution_family as TargetPack["tasks"][number]["execution_family"],
+          challenge_tags: rawTask.challenge_tags as TargetPack["tasks"][number]["challenge_tags"],
+          discovery_reset: rawTask.discovery_reset as TargetPack["tasks"][number]["discovery_reset"],
+          controller_fixture_ref: rawTask.controller_fixture_ref as string | undefined,
+          supported_vendors: rawTask.supported_vendors as string[] | undefined,
+          anchor: rawTask.anchor as boolean | undefined,
+        });
+      }
+    }
+    draftTasks.set(vendor, tasks);
+  }
+
+  const blocked = readiness.filter((entry) => entry.status === "blocked-missing-independent-oracle-witness");
+  const ready = readiness.filter((entry) => entry.status === "ready-from-v2-witness");
+  const na = readiness.filter((entry) => entry.status === "structural-na-or-not-admitted");
+  const report = {
+    schema: "ax.daeb-v2-1-pack-readiness/v1",
+    benchmark: "DAEB-2-CLI-V2.1-Harness-Neutral",
+    candidate_suite: suitePath,
+    candidate_suite_hash: fileSha256(suitePath),
+    generated_at: new Date().toISOString(),
+    status: blocked.length ? "blocked" : "ready-for-pack-review",
+    counts: { total: readiness.length, ready: ready.length, blocked: blocked.length, structural_na_or_not_admitted: na.length },
+    entries: readiness,
+    policy: [
+      "Only V2 source tasks with an existing independent oracle and deterministic witness are copied.",
+      "The V2.1 cli-session-discovery variant is admitted only when its separate deterministic five-vendor witness manifest is present.",
+      "A supported candidate without such evidence is recorded as blocked, never rewritten as structural N/A.",
+      "These are draft derivations; pack approval remains a separate review gate.",
+    ],
+  };
+  const outputRoot = resolve(dirname(suitePath), "packs");
+  const readinessPath = resolve(dirname(suitePath), "pack-readiness.yaml");
+  if (!args.apply) {
+    writeFileSync(readinessPath, yamlStringify(report), { mode: 0o600 });
+    console.log(`V2.1 pack readiness: ${ready.length} ready, ${blocked.length} blocked, ${na.length} structural N/A/non-admitted (${readiness.length} vendor-task tuples).`);
+    console.log(`Readiness report (not an approval) → ${readinessPath}`);
+    return 0;
+  }
+  mkdirSync(outputRoot, { recursive: true, mode: 0o700 });
+  writeFileSync(readinessPath, yamlStringify(report), { mode: 0o600 });
+  for (const [vendor, tasks] of draftTasks) {
+    const source = sourcePacks.get(vendor)!;
+    const draft: TargetPack = {
+      ...source,
+      version: "2.1-draft",
+      standard_set_version: "daeb-2-cli-v2-1-draft",
+      run_id: `daeb21-draft-${vendor}`,
+      generated_by: "v2-1-pack-readiness-derivation",
+      tasks,
+    };
+    const vendorRoot = resolve(outputRoot, vendor);
+    mkdirSync(vendorRoot, { recursive: true, mode: 0o700 });
+    writeFileSync(resolve(vendorRoot, "pack.yaml"), yamlStringify(draft), { mode: 0o600 });
+  }
+  console.log(`Wrote V2.1 draft packs and readiness report to ${resolve(dirname(suitePath))}`);
+  if (blocked.length) console.log(`WARNING: ${blocked.length} supported vendor-task tuple(s) still lack an independent oracle/witness; V2.1 remains blocked.`);
+  return blocked.length ? 1 : 0;
+}
+
 export async function runAuthoringCommand(command: AuthoringCommand, argv: readonly string[]): Promise<number> {
   const args = parseAuthoringArgs(argv);
   switch (command) {
@@ -1061,6 +1774,11 @@ export async function runAuthoringCommand(command: AuthoringCommand, argv: reado
     case "audit-extracts": return cmdAuditExtracts(args);
     case "audit-suite": return cmdAuditSuite(args);
     case "synthesize-suite": return cmdSynthesizeSuite(args);
+    case "calibrate-suite": return cmdCalibrateSuite(args);
+    case "freeze-suite": return cmdFreezeSuite(args);
+    case "plan-v21": return cmdPlanV21(args);
+    case "plan-v21-calibration": return cmdPlanV21Calibration(args);
+    case "prepare-v21-packs": return cmdPrepareV21Packs(args);
     case "prepare-v2": return cmdPrepareV2(args);
     case "prepare-v2-production": return cmdPrepareV2Production(args);
     case "run-v2-witness": return cmdRunV2Witness(args);
@@ -1121,10 +1839,36 @@ export function authoringCommandUsage(command: AuthoringCommand): string {
     ].join("\n");
     case "synthesize-suite": return [
       `${prefix} --category <category> [--vendors <a,b,c>] --out <suite.yaml>`,
-      "       [--task-count N] [--generator-harness claude-code|codex]",
+      "       [--candidate-count 16] [--difficulty-profile discriminative] [--surface cli]",
+      "       [--anchors <v2-suite.yaml>] [--generator-harness claude-code|codex]",
       "       [--deterministic] [--gap-check-assist] [--benchmark-root <dir>]",
       "  Derives the concept universe, coverage, canonical tasks, support matrix, and",
       "  methodology artifacts from cited inventories. --deterministic is offline.",
+    ].join("\n");
+    case "calibrate-suite": return [
+      `${prefix} --candidate-suite <candidate-suite.yaml> --results <calibration.jsonl> --target-count 10 --out <selection.json>`,
+      "  Applies the frozen V2.1 calibration bands, family quotas, anchor retention,",
+      "  five-of-six vendor support gate, and invalid-infrastructure gate.",
+    ].join("\n");
+    case "freeze-suite": return [
+      `${prefix} --suite <selection.json> --out <v2.1-suite.yaml> [--freeze-gates <hashes.json>]`,
+      "  Validates the selection ledger and writes an immutable suite + freeze manifest.",
+      "  --freeze-gates supplies docs/support/oracle/witness/calibration/review hashes;",
+      "  missing gates keep production_eligible=false.",
+    ].join("\n");
+    case "plan-v21": return [
+      `${prefix} --suite <frozen-v2.1-suite.yaml> --vendors <six-slugs> --out <plan.json>`,
+      "  Writes the immutable 432-cell family-session plan and route manifest.",
+    ].join("\n");
+    case "plan-v21-calibration": return [
+      `${prefix} --suite <candidate-v2.1.yaml> --vendors <six-slugs> --out <calibration-plan.json>`,
+      "  Writes the 288-cell Pi trial-1 plan for Gemini/DeepSeek plus the GLM holdout.",
+      "  Structural N/A candidate/vendor tuples remain explicit; this command does not invoke models.",
+    ].join("\n");
+    case "prepare-v21-packs": return [
+      `${prefix} [--suite <candidate-suite-v2-1.yaml>] [--apply]`,
+      "  Derives draft six-vendor packs only from existing V2 independent oracle/witness tasks.",
+      "  Missing verifier/witness coverage is recorded as blocked; it is never rewritten as N/A.",
     ].join("\n");
     case "prepare-v2": return [
       `${prefix} [--cli-only|--all-surfaces] [--apply]`,

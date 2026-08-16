@@ -125,6 +125,42 @@ describe("deterministic concept mapping (suite-audit inputs)", () => {
     }
   });
 
+  it("allows the V2.1 derived CLI-session concept to reuse documented SQL/CLI capabilities", () => {
+    const root = mkdtempSync(resolve(tmpdir(), "ax-suite-derived-session-"));
+    try {
+      writeCapabilityInventory(root, CapabilityInventorySchema.parse({
+        vendor: "Neon",
+        slug: "neon",
+        category: "database",
+        extracted_at: "2026-01-01T00:00:00.000Z",
+        capabilities: [cap("role-management")],
+      }));
+      const coverage: CoverageMatrix = {
+        schema: "ax.coverage-matrix/v1",
+        category: "database",
+        generated_at: "2026-01-01T00:00:00.000Z",
+        concepts: [{
+          concept_name: "cli-session-discovery",
+          title: "Discover and verify an authenticated CLI session",
+          decisions: [{
+            concept_name: "cli-session-discovery",
+            vendor: "Neon",
+            status: "supported",
+            source: "inventory",
+            capability_name: "role-management",
+            concept_capability_name: "role-management",
+            surfaces_documented: ["cli"],
+            evidence: [],
+          }],
+        }],
+      };
+
+      expect(findMappingFalsePositives(root, coverage, ["neon"])).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("rejects selected support decisions without concrete task-fit proof", () => {
     const coverage: CoverageMatrix = {
       schema: "ax.coverage-matrix/v1",
