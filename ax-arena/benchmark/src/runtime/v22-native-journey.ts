@@ -21,7 +21,7 @@ export const V22NativeJourneySchema = z.object({
   model: z.string().min(1),
   provider: z.string().min(1),
   harness: z.literal("pi"),
-  trial: z.literal(1),
+  trial: z.number().int().positive(),
   task_id: z.literal(V22_TASK_ID),
   vendors: z.record(z.string(), VendorSchema),
   acceptance: z.object({

@@ -77,7 +77,7 @@ interface CellObservation {
   model: string;
   provider: string;
   harness: "pi";
-  trial: 1;
+  trial: number;
   namespace: string;
   status: CellStatus;
   stages: ReturnType<typeof scoreV22Stages>;
@@ -282,6 +282,7 @@ function childEnvironment(vendor: V22Vendor, provisioning: Record<string, string
 
 async function executeVendor(
   contract: V22NativeJourney,
+  trial: number,
   vendorSlug: string,
   vendor: V22Vendor,
   openRouterKey: string,
@@ -366,7 +367,7 @@ async function executeVendor(
           .concat(cliProfileRedactions),
         provisioning: provisioning.meta,
         harnessDetection: detection,
-        runBatchId: `v22-native-${vendorSlug}-t1`,
+        runBatchId: `v22-native-${vendorSlug}-t${trial}`,
         requireTrace: true,
         sandbox,
       });
@@ -421,7 +422,7 @@ async function executeVendor(
     model: contract.model,
     provider: contract.provider,
     harness: "pi",
-    trial: 1,
+    trial,
     namespace,
     status,
     stages,
@@ -491,6 +492,9 @@ function summarize(contract: V22NativeJourney, observations: CellObservation[], 
 
 async function main(): Promise<void> {
   const contract = V22NativeJourneySchema.parse(parseYaml(readFileSync(CONTRACT_PATH, "utf8")));
+  const trialOverride = process.env.DAEB_V22_TRIAL?.trim();
+  const trial = trialOverride ? Number.parseInt(trialOverride, 10) : contract.trial;
+  if (!Number.isSafeInteger(trial) || trial < 1) throw new Error("DAEB_V22_TRIAL must be a positive integer");
   const selected = new Set((process.env.DAEB_V22_VENDORS ?? Object.keys(contract.vendors).join(","))
     .split(",").map((value) => value.trim()).filter(Boolean));
   const vendorEntries = Object.entries(contract.vendors).filter(([vendor]) => selected.has(vendor));
@@ -508,7 +512,7 @@ async function main(): Promise<void> {
     model: contract.model,
     provider: contract.provider,
     harness: contract.harness,
-    trial: contract.trial,
+    trial,
     vendors: vendorEntries.map(([vendor]) => vendor),
     planned_sessions: vendorEntries.length,
     vendor_concurrency: VENDOR_CONCURRENCY,
@@ -522,7 +526,7 @@ async function main(): Promise<void> {
       const [vendorSlug, vendor] = vendorEntries[index]!;
       console.log(`[v22-native] starting ${vendorSlug}`);
       try {
-        const observation = await executeVendor(contract, vendorSlug, vendor, openRouterKey);
+        const observation = await executeVendor(contract, trial, vendorSlug, vendor, openRouterKey);
         observations.push(observation);
         console.log(`[v22-native] ${vendorSlug} ${observation.status} stages=${JSON.stringify(observation.stages)}`);
       } catch (error) {
@@ -543,7 +547,7 @@ async function main(): Promise<void> {
     model: contract.model,
     provider: contract.provider,
     harness: contract.harness,
-    trial: contract.trial,
+    trial,
     vendors: vendorEntries.map(([vendor]) => vendor),
     planned_sessions: vendorEntries.length,
     observed_sessions: observations.length,
