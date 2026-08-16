@@ -23,6 +23,7 @@ import {
   V22_TASK_ID,
   analyzeV22Transcript,
   buildV22NativeJourneyPrompt,
+  classifyV22CellStatus,
   scoreV22Stages,
   type V22NativeJourney,
   type V22Vendor,
@@ -44,7 +45,7 @@ const VENDOR_CONCURRENCY = Math.max(
   Number.parseInt(process.env.DAEB_V22_VENDOR_CONCURRENCY ?? "2", 10) || 2,
 );
 
-type CellStatus = "pass" | "fail" | "invalid-infra" | "invalid-route";
+type CellStatus = ReturnType<typeof classifyV22CellStatus>;
 
 type V22Gateway = RunningOpenRouterGateway & {
   baseUrl: string;
@@ -406,11 +407,13 @@ async function executeVendor(
   const routeEntries = readJsonl(routeLedger);
   const mismatch = routeEntries.length === 0 || routeMismatch(routeEntries, contract.provider);
   const upstreamErrors = routeEntries.filter((entry) => entry.outcome === "upstream-error").length;
-  const infraInvalid = !invoke || !invoke.ok || invoke.validity_status !== "valid" || !cleanup.success;
-  const status: CellStatus = mismatch
-    ? "invalid-route"
-    : infraInvalid ? "invalid-infra"
-      : Object.values(stages).every(Boolean) ? "pass" : "fail";
+  const status: CellStatus = classifyV22CellStatus({
+    routeMismatch: mismatch,
+    invocation: invoke ? { ok: invoke.ok, validity_status: invoke.validity_status } : null,
+    cleanupSuccess: cleanup.success,
+    evidence: discovery,
+    stages,
+  });
   const observation: CellObservation = {
     schema: "ax.daeb-v2-2-native-observation/v1",
     vendor: vendorSlug,

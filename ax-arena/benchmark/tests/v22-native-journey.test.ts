@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   analyzeV22Transcript,
   buildV22NativeJourneyPrompt,
+  classifyV22CellStatus,
   scoreV22Stages,
   type V22Vendor,
 } from "../src/runtime/v22-native-journey.js";
@@ -88,6 +89,37 @@ describe("V2.2 native journey", () => {
     expect(evidence.help_inspected).toBe(false);
     expect(evidence.official_source_observed).toBe(false);
     expect(evidence.native_entrypoint_observed).toBe(false);
+  });
+
+  it("scores a missing agent artifact after tool use as a failure, not infrastructure", () => {
+    const evidence = analyzeV22Transcript({
+      transcript: JSON.stringify({
+        type: "tool_execution_start",
+        toolCallId: "a",
+        toolName: "bash",
+        args: { command: "examplectl --help" },
+      }),
+      vendor,
+      staleTarget: "missing",
+      outcomePassed: false,
+    });
+    expect(classifyV22CellStatus({
+      routeMismatch: false,
+      invocation: { ok: false, validity_status: "trace_invalid" },
+      cleanupSuccess: true,
+      evidence,
+      stages: { discovery: false, connect: false, operate: false, recovery: false },
+    })).toBe("fail");
+  });
+
+  it("keeps a pre-agent controller failure invalid infrastructure", () => {
+    expect(classifyV22CellStatus({
+      routeMismatch: false,
+      invocation: { ok: false, validity_status: "trace_invalid" },
+      cleanupSuccess: true,
+      evidence: null,
+      stages: { discovery: false, connect: false, operate: false, recovery: false },
+    })).toBe("invalid-infra");
   });
 
   it("recovers stale-probe evidence from a Pi tool-call line even when redaction damaged other JSONL lines", () => {

@@ -67,6 +67,27 @@ export interface V22StageScores {
   recovery: boolean;
 }
 
+export type V22CellStatus = "pass" | "fail" | "invalid-infra" | "invalid-route";
+
+export function classifyV22CellStatus(input: {
+  routeMismatch: boolean;
+  invocation: { ok: boolean; validity_status: string | null } | null;
+  cleanupSuccess: boolean;
+  evidence: V22TranscriptEvidence | null;
+  stages: V22StageScores;
+}): V22CellStatus {
+  if (input.routeMismatch) return "invalid-route";
+  if (!input.cleanupSuccess || !input.invocation) return "invalid-infra";
+  const agentAttempted = Boolean(input.evidence
+    && (input.evidence.commands + input.evidence.searches + input.evidence.fetched_urls > 0));
+  // A model that ran tools but did not emit the required result/trace artifact
+  // did not complete the task. That is a failure, not retryable infrastructure.
+  if (!input.invocation.ok || input.invocation.validity_status !== "valid") {
+    return agentAttempted ? "fail" : "invalid-infra";
+  }
+  return Object.values(input.stages).every(Boolean) ? "pass" : "fail";
+}
+
 function containsAny(value: string, markers: readonly string[]): boolean {
   const normalized = value.toLowerCase();
   return markers.some((marker) => normalized.includes(marker.toLowerCase()));

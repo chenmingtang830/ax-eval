@@ -5,6 +5,7 @@ import { parse as parseYaml } from "yaml";
 import {
   V22NativeJourneySchema,
   analyzeV22Transcript,
+  classifyV22CellStatus,
   scoreV22Stages,
 } from "../src/runtime/v22-native-journey.js";
 
@@ -86,7 +87,6 @@ for (const replacementRoot of replacementRoots) {
 
 const reconciliations: Array<Record<string, unknown>> = [];
 for (const row of final) {
-  if (row.status.startsWith("invalid-")) continue;
   const vendor = contract.vendors[row.vendor];
   if (!vendor) throw new Error(`contract has no vendor ${row.vendor}`);
   const transcriptPath = resolve(row.artifact_dir, "run-pi-v22-native.transcript.jsonl");
@@ -98,11 +98,16 @@ for (const row of final) {
     outcomePassed: row.world_state.connection_ok,
   });
   const nextStages = scoreV22Stages(discovery, row.world_state);
-  const nextStatus = row.route.mismatch
-    ? "invalid-route"
-    : row.invocation.ok === false || row.invocation.validity_status !== "valid" || row.cleanup?.success === false
-      ? "invalid-infra"
-      : Object.values(nextStages).every(Boolean) ? "pass" : "fail";
+  const nextStatus = classifyV22CellStatus({
+    routeMismatch: row.route.mismatch,
+    invocation: {
+      ok: row.invocation.ok ?? false,
+      validity_status: row.invocation.validity_status ?? null,
+    },
+    cleanupSuccess: row.cleanup?.success !== false,
+    evidence: discovery,
+    stages: nextStages,
+  });
   if (JSON.stringify(row.discovery) !== JSON.stringify(discovery)
     || JSON.stringify(row.stages) !== JSON.stringify(nextStages)
     || row.status !== nextStatus) {
