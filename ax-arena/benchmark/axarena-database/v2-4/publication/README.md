@@ -1,8 +1,9 @@
-# AXArena Database V2.4 frozen publication data
+# AXArena Database 1.0.0 frozen publication data
 
-This directory is the deterministic, vendor-first public export for the V2.4
-diagnostic release. The primary outcome is J01 end-to-end success. Atomic tasks
-are supporting diagnostics and model/trial rows are supplementary slices.
+This directory is the deterministic, vendor-first export for the first public
+AXArena Database release. It is built from the frozen internal DAEB V2.4
+protocol. The primary outcome is J01 end-to-end success. Atomic tasks are
+supporting diagnostics and model/trial rows are supplementary slices.
 
 - `vendor-summary.json`: vendor rows with outcome, discovery, efficiency, and cost columns.
 - `model-slices.json`: supplementary model-level J01 view.

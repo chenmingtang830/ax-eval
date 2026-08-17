@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 /**
- * Freeze the diagnostic V2.4 result into a deterministic, vendor-first public
+ * Freeze the internal DAEB V2.4 result into the deterministic, vendor-first
+ * AXArena Database 1.0.0 public release.
  * data package. Final audit artifacts are retained after workstation paths are
  * replaced with stable workspace URIs. The package binds every source file and
  * every exported file with SHA-256.
@@ -130,12 +131,15 @@ export function build(): void {
 
   writeJson(resolve(OUTPUT, "publication.json"), {
     schema: "ax.daeb-v2-4-publication/v1",
-    release: "V2.4",
+    release: "1.0.0",
+    display_name: "AXArena Database 1.0.0",
+    protocol: { name: "DAEB", version: "2.4" },
     formal: false,
-    status: "diagnostic-multi-model-two-trial",
+    status: "public-diagnostic-release",
     primary_unit: "vendor",
     sample: summary.sample,
-    claim_boundary: summary.interpretation_boundary,
+    claim_boundary: summary.interpretation_boundary.map((item: string) =>
+      item.replace("V2.4 diagnostics", "DAEB V2.4 protocol diagnostics")),
   });
   writeJson(resolve(OUTPUT, "vendor-summary.json"), {
     schema: "ax.daeb-v2-4-vendor-summary/v1", primary_unit: "vendor", row_order: summary.row_order, rows: summary.rows,
@@ -169,7 +173,8 @@ export function build(): void {
   const embeddedEvidence = inventory(resolve(OUTPUT, "evidence"));
   writeJson(resolve(OUTPUT, "archive-manifest.json"), {
     schema: "ax.daeb-v2-4-archive-manifest/v1",
-    release: "V2.4",
+    release: "1.0.0",
+    protocol: { name: "DAEB", version: "2.4" },
     public_evidence: {
       disposition: "embedded-in-repository",
       root: "evidence/",
@@ -187,11 +192,12 @@ export function build(): void {
       reason: "The raw local tree mixes admitted runs with preflight material and may contain workstation or credential-shaped metadata; the sanitized final-audit package is the public replay boundary.",
     },
   });
-  writeFileSync(resolve(OUTPUT, "README.md"), `# AXArena Database V2.4 frozen publication data
+  writeFileSync(resolve(OUTPUT, "README.md"), `# AXArena Database 1.0.0 frozen publication data
 
-This directory is the deterministic, vendor-first public export for the V2.4
-diagnostic release. The primary outcome is J01 end-to-end success. Atomic tasks
-are supporting diagnostics and model/trial rows are supplementary slices.
+This directory is the deterministic, vendor-first export for the first public
+AXArena Database release. It is built from the frozen internal DAEB V2.4
+protocol. The primary outcome is J01 end-to-end success. Atomic tasks are
+supporting diagnostics and model/trial rows are supplementary slices.
 
 - \`vendor-summary.json\`: vendor rows with outcome, discovery, efficiency, and cost columns.
 - \`model-slices.json\`: supplementary model-level J01 view.

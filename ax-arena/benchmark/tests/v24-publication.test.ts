@@ -8,12 +8,19 @@ const PUBLICATION = resolve(ROOT, "ax-arena/benchmark/axarena-database/v2-4/publ
 const json = (name: string): any => JSON.parse(readFileSync(resolve(PUBLICATION, name), "utf8"));
 const sha = (value: Buffer): string => createHash("sha256").update(value).digest("hex");
 
-describe("V2.4 frozen publication package", () => {
+describe("AXArena Database 1.0.0 frozen publication package", () => {
   it("keeps vendors primary and declares the exact admitted denominator", () => {
     const publication = json("publication.json");
     const vendors = json("vendor-summary.json");
     const models = json("model-slices.json");
-    expect(publication).toMatchObject({ formal: false, primary_unit: "vendor" });
+    expect(publication).toMatchObject({
+      release: "1.0.0",
+      display_name: "AXArena Database 1.0.0",
+      protocol: { name: "DAEB", version: "2.4" },
+      status: "public-diagnostic-release",
+      formal: false,
+      primary_unit: "vendor",
+    });
     expect(publication.sample).toMatchObject({ atomic_cells: 420, j01_sessions: 70 });
     expect(vendors.rows).toHaveLength(5);
     expect(vendors.rows.every((row: any) => row.outcome_metrics.j01.planned === 14)).toBe(true);
@@ -36,6 +43,8 @@ describe("V2.4 frozen publication package", () => {
     const evidence = json("evidence-index.json");
     const archive = json("archive-manifest.json");
     expect(archive).toMatchObject({
+      release: "1.0.0",
+      protocol: { name: "DAEB", version: "2.4" },
       external_archive_required: false,
       external_archives: [],
       public_evidence: { disposition: "embedded-in-repository", root: "evidence/", archive_count: 28 },

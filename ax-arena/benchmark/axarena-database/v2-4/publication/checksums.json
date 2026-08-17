@@ -4,8 +4,8 @@
   "files": [
     {
       "path": "archive-manifest.json",
-      "bytes": 880,
-      "sha256": "5e29a1917a754a3bf6372b6187cbbae89a9c2bd2f21dbef5c6839f90a701b286"
+      "bytes": 943,
+      "sha256": "1225cc04771695b17cb93db6f8939f1c49bde95d23c0e11de14d3ebc5fa7a97c"
     },
     {
       "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/final-atomic-audit.json",
@@ -599,13 +599,13 @@
     },
     {
       "path": "publication.json",
-      "bytes": 2243,
-      "sha256": "fd5b59961803d8482d3dd969f7f56d2afc1f5fdac0c405521e25611cb2ca40b6"
+      "bytes": 2357,
+      "sha256": "f4f23b36769d061c7f93bcfa15cab6d7eca1b1267e084f9b37dd3c06f31623ee"
     },
     {
       "path": "README.md",
-      "bytes": 1260,
-      "sha256": "2f785cb5720399dbab783e6287efd8549608cfee95b53af0a1257bf647a5707c"
+      "bytes": 1325,
+      "sha256": "cb23e1ab84c29cef8b23c04fe0cfd802e933e017962baad4af92b7baaa025387"
     },
     {
       "path": "tasks.json",
@@ -618,5 +618,5 @@
       "sha256": "9276db7c0362517c3008e2f490f6951c31c6490b43906c243f59c6144515721b"
     }
   ],
-  "tree_sha256": "fba76aed73f535d1bb9124435d5b77bd6463a5536d42f3992805f97669094500"
+  "tree_sha256": "163c1bf0f047738ea1b56025820d4dc5a4c700e0c06995288c55857a04f25a38"
 }

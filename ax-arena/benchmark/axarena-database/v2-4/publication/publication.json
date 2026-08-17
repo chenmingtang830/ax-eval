@@ -1,8 +1,13 @@
 {
   "schema": "ax.daeb-v2-4-publication/v1",
-  "release": "V2.4",
+  "release": "1.0.0",
+  "display_name": "AXArena Database 1.0.0",
+  "protocol": {
+    "name": "DAEB",
+    "version": "2.4"
+  },
   "formal": false,
-  "status": "diagnostic-multi-model-two-trial",
+  "status": "public-diagnostic-release",
   "primary_unit": "vendor",
   "sample": {
     "models": [
@@ -86,7 +91,7 @@
     "Vendor rows are the primary unit; models and trials are disclosed slices, not pooled leaderboard ranks.",
     "Turso is excluded from this five-vendor core and retained only through its separate compatibility/J01 appendix evidence.",
     "Atomic and J01 are distinct task families and are never double-counted.",
-    "All inputs are final-audited V2.4 diagnostics; no invalid-infra, invalid-route, or invalid-evidence cells are admitted.",
+    "All inputs are final-audited DAEB V2.4 protocol diagnostics; no invalid-infra, invalid-route, or invalid-evidence cells are admitted.",
     "Route-ledger upstream errors remain reliability signals and are not relabeled as model failures."
   ]
 }
