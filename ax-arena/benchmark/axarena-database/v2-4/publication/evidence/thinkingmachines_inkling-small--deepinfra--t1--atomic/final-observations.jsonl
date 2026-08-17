@@ -1,0 +1,927 @@
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-e9c3e846be534b84",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 2/2 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-cockroachdb-cli-pi-medium-t1",
+        "postgres:table:axarena_aggregate_probe_daeb23-cockroachdb-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-87966224434306fb",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 2/2 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-cockroachdb-cli-pi-medium-t1",
+        "postgres:table:axarena_session_probe_daeb23-cockroachdb-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-df30aa32ae067dd3",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 29,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-8a0109633d4392a9",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T20-aggregate-query",
+  "bootstrap_status": "pass",
+  "error": "required trace step 2 contains an unsupported field"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-0d4a6263be06b475",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 29,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "cockroachdb",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-82e6aa89439592ec",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 43,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-cockroachdb-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/cockroachdb/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-e9c3e846be534b84",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 36,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-insforge-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-insforge-pi-87966224434306fb",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 13,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T18-constraint-preservation",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T18-constraint-preservation/run-pi-medium-cli-db-T18-constraint-preservation.json'"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-df30aa32ae067dd3",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 30,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-insforge-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-8a0109633d4392a9",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 40,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-insforge-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-0d4a6263be06b475",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-insforge-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "insforge",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-82e6aa89439592ec",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-insforge-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/insforge/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-e9c3e846be534b84",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 30,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-neon-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-87966224434306fb",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 38,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T18-constraint-preservation",
+  "bootstrap_status": "pass",
+  "error": "required trace step 2 contains an unsupported field"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-df30aa32ae067dd3",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 26,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 2/2 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-neon-cli-pi-medium-t1",
+        "postgres:table:axarena_txn_probe_daeb23-neon-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-8a0109633d4392a9",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 30,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-neon-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-0d4a6263be06b475",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-neon-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "neon",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-82e6aa89439592ec",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 26,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/neon/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-e9c3e846be534b84",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 44,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-87966224434306fb",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 30,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-df30aa32ae067dd3",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 29,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-8a0109633d4392a9",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 28,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-0d4a6263be06b475",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 46,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "nile",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-82e6aa89439592ec",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 47,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-nile-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/nile/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-e9c3e846be534b84",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 31,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-87966224434306fb",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 24,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-df30aa32ae067dd3",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 26,
+  "gid_reported": false,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-8a0109633d4392a9",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 30,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-0d4a6263be06b475",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 25,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "supabase",
+  "model": "thinkingmachines/inkling-small",
+  "harness": "pi",
+  "trial": 1,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-82e6aa89439592ec",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 23,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-supabase-cli-pi-medium-t1"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-inkling-20260817-atomic-t1-r2/cells/supabase/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}

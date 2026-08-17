@@ -1,0 +1,46 @@
+{
+  "schema": "ax.daeb-v2-2-native-pilot-final-audit/v1",
+  "formal": false,
+  "primary_root": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-j01-t1-r1",
+  "replacement_roots": [],
+  "completion_roots": [],
+  "contract": "workspace://ax-eval/ax-arena/benchmark/axarena-database/v2-4/contracts/glm-5.2.yaml",
+  "planned_sessions": 6,
+  "final_sessions": 6,
+  "original_observations_preserved": 6,
+  "replacements": 0,
+  "completions": 0,
+  "reconciliations": 0,
+  "status_counts": {
+    "pass": 4,
+    "fail": 2,
+    "invalid-infra": 0,
+    "invalid-route": 0,
+    "invalid-evidence": 0
+  },
+  "stage_passes": {
+    "discovery": 3,
+    "connect": 5,
+    "operate": 4,
+    "recovery": 4
+  },
+  "non_unanimous_stages": [
+    "discovery",
+    "connect",
+    "operate",
+    "recovery"
+  ],
+  "differentiating_dimensions": [
+    "stage-outcomes",
+    "discovery-mode",
+    "tool-count",
+    "latency"
+  ],
+  "invalid_infra": 0,
+  "invalid_route": 0,
+  "invalid_evidence": 0,
+  "validity_gate_pass": true,
+  "signal_gate_pass": true,
+  "pilot_gate_pass": true,
+  "decision": "signal-found-review-before-expansion"
+}

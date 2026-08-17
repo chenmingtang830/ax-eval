@@ -1,0 +1,43 @@
+{
+  "schema": "ax.daeb-v2-4-tasks/v1",
+  "surface": "cli",
+  "contract": "The reviewed V2.3 task packs and their independent pre-cleanup read-back oracles are retained byte-for-byte. V2.4 changes only J01 aggregation and evidence classification; it does not change task prompts, vendor scope, or oracle predicates.",
+  "tasks": {
+    "atomic_diagnostics": {
+      "ids": [
+        "db-T17-cli-session-discovery",
+        "db-T21-cli-principal-continuity",
+        "db-T18-constraint-preservation",
+        "db-T19-transactional-record-recovery",
+        "db-T20-aggregate-query",
+        "db-T22-negative-query-verification"
+      ],
+      "structural_na": {
+        "turso": [
+          "db-T17-cli-session-discovery",
+          "db-T21-cli-principal-continuity",
+          "db-T18-constraint-preservation",
+          "db-T19-transactional-record-recovery",
+          "db-T20-aggregate-query",
+          "db-T22-negative-query-verification"
+        ]
+      }
+    },
+    "primary_journey": {
+      "id": "db-J01-native-journey",
+      "outcome_pass": "connection && operation_readback && recovery_readback",
+      "discovery_reporting": [
+        "direct-success",
+        "assisted-discovery",
+        "unresolved",
+        "native-entrypoint-not-observed"
+      ],
+      "evidence_statuses": [
+        "valid",
+        "invalid-evidence",
+        "invalid-infra",
+        "invalid-route"
+      ]
+    }
+  }
+}

@@ -1,0 +1,890 @@
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-827892a363ba3204",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 20,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-8da3abba45593c38",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 16,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-50f8e0d527f57d52",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 16,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-b69a81e4ec9f57c7",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 17,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-d831d0c4277d5b3b",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 12,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "cockroachdb",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-cockroachdb-pi-bf6f502d3d6cf341",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 13,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/cockroachdb/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-827892a363ba3204",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 12,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-8da3abba45593c38",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 19,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-50f8e0d527f57d52",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 15,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-insforge-pi-b69a81e4ec9f57c7",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 8,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T20-aggregate-query",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T20-aggregate-query/run-pi-medium-cli-db-T20-aggregate-query.json'"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-insforge-pi-d831d0c4277d5b3b",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 9,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "insforge",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-insforge-pi-bf6f502d3d6cf341",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 16,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/insforge/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-827892a363ba3204",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 14,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-8da3abba45593c38",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 14,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-50f8e0d527f57d52",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 16,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-b69a81e4ec9f57c7",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 17,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-d831d0c4277d5b3b",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 6,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T21-cli-principal-continuity",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T21-cli-principal-continuity/run-pi-medium-cli-db-T21-cli-principal-continuity.json'"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "neon",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-neon-pi-bf6f502d3d6cf341",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 23,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/neon/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-nile-pi-827892a363ba3204",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 19,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-8da3abba45593c38",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 23,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-50f8e0d527f57d52",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 19,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-b69a81e4ec9f57c7",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 19,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-nile-pi-d831d0c4277d5b3b",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 6,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T21-cli-principal-continuity",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T21-cli-principal-continuity/run-pi-medium-cli-db-T21-cli-principal-continuity.json'"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "nile",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-nile-pi-bf6f502d3d6cf341",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 7,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T22-negative-query-verification",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/nile/db-T22-negative-query-verification/run-pi-medium-cli-db-T22-negative-query-verification.json'"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-827892a363ba3204",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 15,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-8da3abba45593c38",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    1
+  ],
+  "route_entries": 6,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": true,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T18-constraint-preservation",
+  "bootstrap_status": "missing",
+  "error": "ENOENT: no such file or directory, open 'workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T18-constraint-preservation/run-pi-medium-cli-db-T18-constraint-preservation.json'"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-50f8e0d527f57d52",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 18,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-b69a81e4ec9f57c7",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 13,
+  "gid_reported": false,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-d831d0c4277d5b3b",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 22,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "supabase",
+  "model": "openai/gpt-5.6-luna-20260709",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-bf6f502d3d6cf341",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 16,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 0/0 Postgres resource(s)",
+      "deleted": [],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-five-vendor-luna-20260817-atomic-t2-r1/cells/supabase/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}

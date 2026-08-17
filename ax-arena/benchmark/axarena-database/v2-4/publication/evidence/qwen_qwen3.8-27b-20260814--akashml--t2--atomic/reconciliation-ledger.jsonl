@@ -1,0 +1,10 @@
+{
+  "schema": "ax.daeb-v2-4-atomic-observation-reconciliation/v1",
+  "vendor": "nile",
+  "task_id": "db-T21-cli-principal-continuity",
+  "prior_status": "invalid-infra",
+  "final_status": "fail",
+  "reason": "agent-wrote-invalid-required-json-artifact",
+  "invalid_artifact": "run-pi-medium-cli-bootstrap.trace.json",
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-qwen-3.8-27b-20260817-atomic-t2-r3/cells/nile/db-T21-cli-principal-continuity"
+}

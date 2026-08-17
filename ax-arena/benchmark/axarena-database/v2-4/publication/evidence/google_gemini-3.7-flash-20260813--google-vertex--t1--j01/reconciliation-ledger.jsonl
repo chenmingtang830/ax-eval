@@ -1,0 +1,22 @@
+{
+  "schema": "ax.daeb-v2-2-observation-reconciliation/v1",
+  "vendor": "nile",
+  "reason": "recomputed-with-current-transcript-decoder-and-scoring",
+  "prior_status": "invalid-evidence",
+  "final_status": "fail",
+  "prior_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "final_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "transcript_invalid_lines": 0,
+  "timed_out": true,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-gemini-3.7-flash-20260817-j01-t1-r5-upstream-replacement/cells/nile"
+}

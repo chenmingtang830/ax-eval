@@ -1,0 +1,66 @@
+{
+  "schema": "ax.daeb-v2-2-observation-reconciliation/v1",
+  "vendor": "cockroachdb",
+  "reason": "agent-action-with-trace-extractor-fallback-is-task-failure",
+  "prior_status": "invalid-evidence",
+  "final_status": "fail",
+  "prior_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "final_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "transcript_invalid_lines": 0,
+  "timed_out": false,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/cockroachdb"
+}
+{
+  "schema": "ax.daeb-v2-2-observation-reconciliation/v1",
+  "vendor": "insforge",
+  "reason": "agent-action-with-trace-extractor-fallback-is-task-failure",
+  "prior_status": "invalid-evidence",
+  "final_status": "fail",
+  "prior_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "final_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "transcript_invalid_lines": 0,
+  "timed_out": false,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/insforge"
+}
+{
+  "schema": "ax.daeb-v2-2-observation-reconciliation/v1",
+  "vendor": "neon",
+  "reason": "agent-action-with-trace-extractor-fallback-is-task-failure",
+  "prior_status": "invalid-evidence",
+  "final_status": "fail",
+  "prior_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "final_stages": {
+    "discovery": false,
+    "connect": false,
+    "operate": false,
+    "recovery": false
+  },
+  "transcript_invalid_lines": 0,
+  "timed_out": false,
+  "artifact_dir": "workspace://ax-eval/results/v24-five-vendor-deepseek-coreweave-20260817-j01-t2-r1/cells/neon"
+}

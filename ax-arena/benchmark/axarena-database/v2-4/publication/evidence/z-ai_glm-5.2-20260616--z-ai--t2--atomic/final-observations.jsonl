@@ -1,0 +1,1068 @@
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 79,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 47,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 53,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 59,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "cockroachdb",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-cockroachdb-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 55,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-cockroachdb-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/cockroachdb/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 56,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 45,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 37,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 50,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "insforge",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-insforge-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 56,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-insforge-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/insforge/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 39,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 41,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 50,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 36,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "neon",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-neon-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 46,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-neon-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/neon/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 62,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 47,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 31,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-nile-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 35,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "nile",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-nile-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 18,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-nile-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/nile/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 40,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_session_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T17-cli-session-discovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T17-cli-session-discovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 28,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_constraint_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T18-constraint-preservation",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T18-constraint-preservation/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 32,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_txn_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T19-transactional-record-recovery",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T19-transactional-record-recovery/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 26,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_aggregate_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T20-aggregate-query",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T20-aggregate-query/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "pass",
+  "invocation_id": "v23-supabase-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 25,
+  "gid_reported": true,
+  "oracle_success": true,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_principal_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T21-cli-principal-continuity",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T21-cli-principal-continuity/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "supabase",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "fail",
+  "invocation_id": "v23-supabase-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 1,
+  "exec_plan_exit_codes": [
+    0
+  ],
+  "route_entries": 27,
+  "gid_reported": true,
+  "oracle_success": false,
+  "agent_attempted": true,
+  "cleanup": {
+    "provider": "ax-arena-postgres-reset",
+    "evidence": {
+      "supported": true,
+      "message": "Deleted 1/1 Postgres resource(s)",
+      "deleted": [
+        "postgres:table:axarena_negative_query_probe_daeb23-supabase-cli-pi-medium-t2"
+      ],
+      "errors": []
+    }
+  },
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T22-negative-query-verification",
+  "oracle_evidence_path": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/supabase/db-T22-negative-query-verification/verification.json",
+  "bootstrap_status": "pass"
+}
+{
+  "task_id": "db-T17-cli-session-discovery",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-4eae1a1816935f11",
+  "family": "access-auth-discovery",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T17-cli-session-discovery"
+}
+{
+  "task_id": "db-T18-constraint-preservation",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-6458cda16b2db20e",
+  "family": "schema-integrity",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T18-constraint-preservation"
+}
+{
+  "task_id": "db-T19-transactional-record-recovery",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-e42252638927b08a",
+  "family": "lifecycle-recovery",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T19-transactional-record-recovery"
+}
+{
+  "task_id": "db-T20-aggregate-query",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-f9b3ea2b0ecc0afd",
+  "family": "query-search",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T20-aggregate-query"
+}
+{
+  "task_id": "db-T21-cli-principal-continuity",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-5b195bd839b03a8f",
+  "family": "access-auth-discovery",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T21-cli-principal-continuity"
+}
+{
+  "task_id": "db-T22-negative-query-verification",
+  "vendor": "turso",
+  "model": "z-ai/glm-5.2-20260616",
+  "harness": "pi",
+  "trial": 2,
+  "status": "structural-na",
+  "invocation_id": "v23-turso-pi-631f26e5b7187a00",
+  "family": "query-search",
+  "attempts": 0,
+  "exec_plan_exit_codes": [],
+  "route_entries": 0,
+  "gid_reported": false,
+  "oracle_success": null,
+  "agent_attempted": false,
+  "cleanup": null,
+  "artifact_dir": "workspace://ax-eval/results/v24-frozen-glm-5.2-20260817-atomic-t2-r1/cells/turso/db-T22-negative-query-verification"
+}

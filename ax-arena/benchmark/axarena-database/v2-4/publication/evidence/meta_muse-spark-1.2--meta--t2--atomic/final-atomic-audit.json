@@ -1,0 +1,19 @@
+{
+  "schema": "ax.daeb-v2-4-atomic-final-audit/v1",
+  "formal": false,
+  "input_root": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-atomic-t2-r1",
+  "raw_observations_preserved": 36,
+  "final_observations": 36,
+  "reconciliations": 0,
+  "status_counts": {
+    "pass": 26,
+    "fail": 4,
+    "structural-na": 6,
+    "invalid-infra": 0,
+    "invalid-route": 0
+  },
+  "invalid_infra": 0,
+  "invalid_route": 0,
+  "valid_outcome_cells": 30,
+  "decision": "valid-outcomes-ready-for-vendor-summary"
+}

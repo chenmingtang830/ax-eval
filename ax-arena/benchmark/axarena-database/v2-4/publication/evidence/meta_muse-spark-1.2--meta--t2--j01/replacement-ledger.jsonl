@@ -1,0 +1,18 @@
+{
+  "schema": "ax.daeb-v2-2-replacement/v1",
+  "vendor": "cockroachdb",
+  "reason": "provider-rate-limit-before-agent-work",
+  "original_status": "invalid-evidence",
+  "original_artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/cockroachdb",
+  "replacement_status": "pass",
+  "replacement_artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-rate-limit-recovery-r1/cells/cockroachdb"
+}
+{
+  "schema": "ax.daeb-v2-2-replacement/v1",
+  "vendor": "insforge",
+  "reason": "provider-rate-limit-before-agent-work",
+  "original_status": "invalid-evidence",
+  "original_artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-r1/cells/insforge",
+  "replacement_status": "pass",
+  "replacement_artifact_dir": "workspace://ax-eval/results/v24-frozen-muse-spark-1.2-20260817-j01-t2-rate-limit-recovery-r1/cells/insforge"
+}

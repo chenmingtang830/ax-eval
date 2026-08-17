@@ -1,0 +1,54 @@
+{
+  "schema": "ax.daeb-v2-4-vendor-experience-suite/v1",
+  "name": "DAEB-V2.4-CLI-VENDOR-EXPERIENCE-PUBLICATION-CLOSURE",
+  "version": "1.0.0-frozen",
+  "formal": false,
+  "primary_unit": "vendor",
+  "surface": "cli",
+  "vendors": [
+    "cockroachdb",
+    "insforge",
+    "neon",
+    "nile",
+    "supabase",
+    "turso"
+  ],
+  "model_strata": [
+    {
+      "model": "google/gemini-3.7-flash-20260813",
+      "provider": "google-vertex"
+    },
+    {
+      "model": "qwen/qwen3.8-27b-20260814",
+      "provider": "akashml"
+    },
+    {
+      "model": "z-ai/glm-5.2-20260616",
+      "provider": "z-ai"
+    },
+    {
+      "model": "meta/muse-spark-1.2",
+      "provider": "meta"
+    },
+    {
+      "model": "thinkingmachines/inkling-small",
+      "provider": "deepinfra"
+    },
+    {
+      "model": "openai/gpt-5.6-luna-20260709",
+      "provider": "openai",
+      "admission_note": "explicitly approved closed-model exception"
+    },
+    {
+      "model": "deepseek/deepseek-v4-flash-20260731",
+      "provider": "coreweave"
+    }
+  ],
+  "trial_count": 2,
+  "aggregation": {
+    "primary": "vendor-level J01 completion rate over valid evidence only",
+    "secondary": "atomic diagnostics, discovery friction, latency, tool and route volume, cost",
+    "reporting": "vendors are rows; models and trials are secondary strata"
+  },
+  "publication_boundary": "This is a seven-model, two-trial diagnostic benchmark release. It supports vendor-by-agent-experience comparisons inside this fixed CLI environment, not a universal product ranking."
+}

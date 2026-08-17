@@ -1,0 +1,92 @@
+{
+  "schema": "ax.daeb-v2-4-publication/v1",
+  "release": "V2.4",
+  "formal": false,
+  "status": "diagnostic-multi-model-two-trial",
+  "primary_unit": "vendor",
+  "sample": {
+    "models": [
+      {
+        "model": "google/gemini-3.7-flash-20260813",
+        "provider": "google-vertex",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "qwen/qwen3.8-27b-20260814",
+        "provider": "akashml",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "z-ai/glm-5.2-20260616",
+        "provider": "z-ai",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "meta/muse-spark-1.2",
+        "provider": "meta",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "thinkingmachines/inkling-small",
+        "provider": "deepinfra",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "openai/gpt-5.6-luna-20260709",
+        "provider": "openai",
+        "trials": [
+          1,
+          2
+        ]
+      },
+      {
+        "model": "deepseek/deepseek-v4-flash-20260731",
+        "provider": "coreweave",
+        "trials": [
+          1,
+          2
+        ]
+      }
+    ],
+    "atomic_cells": 420,
+    "j01_sessions": 70,
+    "atomic_status_counts": {
+      "pass": 338,
+      "fail": 82,
+      "structural-na": 0,
+      "invalid-infra": 0,
+      "invalid-route": 0,
+      "invalid-evidence": 0
+    },
+    "j01_status_counts": {
+      "pass": 49,
+      "fail": 21,
+      "structural-na": 0,
+      "invalid-infra": 0,
+      "invalid-route": 0,
+      "invalid-evidence": 0
+    }
+  },
+  "claim_boundary": [
+    "Vendor rows are the primary unit; models and trials are disclosed slices, not pooled leaderboard ranks.",
+    "Turso is excluded from this five-vendor core and retained only through its separate compatibility/J01 appendix evidence.",
+    "Atomic and J01 are distinct task families and are never double-counted.",
+    "All inputs are final-audited V2.4 diagnostics; no invalid-infra, invalid-route, or invalid-evidence cells are admitted.",
+    "Route-ledger upstream errors remain reliability signals and are not relabeled as model failures."
+  ]
+}

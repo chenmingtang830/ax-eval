@@ -1,0 +1,617 @@
+{
+  "schema": "ax.daeb-v2-4-checksums/v1",
+  "algorithm": "sha256",
+  "files": [
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/final-atomic-audit.json",
+      "bytes": 570,
+      "sha256": "8037629fd0ace3ea4fb396ec4911e0cf849c5338feca4fdd3b3b03da879d9bac"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/final-observations.jsonl",
+      "bytes": 31188,
+      "sha256": "92f592f1bd73a365cfe2e0b14480db82480980e6817994bcd68c8df514739eb7"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--atomic/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--j01/final-observations.jsonl",
+      "bytes": 7721,
+      "sha256": "97b89347d296aa49395824f661671ffd8129fde97d022886967e055921078604"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--j01/final-pilot-gate.json",
+      "bytes": 1152,
+      "sha256": "d26ae8b404b34a96e3a2dc057aca7f30eb902dbe94179b97d1672ba260ba4b32"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--atomic/final-atomic-audit.json",
+      "bytes": 570,
+      "sha256": "350d4bb617a389c82a7b4064d403825ab978bb674924f8d6c229f1d15c09640b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--atomic/final-observations.jsonl",
+      "bytes": 31706,
+      "sha256": "34f30f3051e4f077ab74ad9fe72a3fd003a427ed8f433756d3a94f6b6d23e1bd"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--atomic/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--j01/final-observations.jsonl",
+      "bytes": 8882,
+      "sha256": "6873216455e3279332dbc791702a4a4f9b01bf0f24cc73e696f117c37a9dc314"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--j01/final-pilot-gate.json",
+      "bytes": 1167,
+      "sha256": "416159200ac306a1981a2f820fc4977d9f6cae6612cd6257c3be0c4bc156f0da"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1876,
+      "sha256": "188416ffad168d152a55b9923731ba1df4c997898831ea5cc8b4ee08eeebe2ec"
+    },
+    {
+      "path": "evidence/deepseek_deepseek-v4-flash-20260731--coreweave--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--atomic/final-atomic-audit.json",
+      "bytes": 515,
+      "sha256": "62344f01cb745c821554c4b7934333fe45d45474eec0cc723f593a6204d8cd1f"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--atomic/final-observations.jsonl",
+      "bytes": 35286,
+      "sha256": "ce7358e7ef8d3c58783d8a4f645606c0e65134975b7367a0ee87cec305515225"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--j01/final-observations.jsonl",
+      "bytes": 9700,
+      "sha256": "6e0046e72825666a1118f60d5d28bcaace243106fe0e771a75caaa606a7d53d2"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--j01/final-pilot-gate.json",
+      "bytes": 1158,
+      "sha256": "7e87177f890c62895d8e51ef8ab7a52981b4803af3b9f77e926245214c064656"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 627,
+      "sha256": "71da0eec78275a40a9806f246c6b42c6bc6cab172c08a3966dcce4a956f358a4"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--atomic/final-atomic-audit.json",
+      "bytes": 515,
+      "sha256": "f30a98a9e7e8e382dc7a4b18181a34a802f841421e2562fda211ab710c0248ec"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--atomic/final-observations.jsonl",
+      "bytes": 34896,
+      "sha256": "9b01b369469e3068fb3dd1ceb008eb97b1d22c09af800f9c2fa6f84817611422"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--j01/final-observations.jsonl",
+      "bytes": 9088,
+      "sha256": "079c96e550552bf0bc83933bfabe9b2e1ca73c957362718b3df4c5cefc832d41"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--j01/final-pilot-gate.json",
+      "bytes": 1050,
+      "sha256": "790853400008f831a18fbeeb83d6b7d349f8531f646457341dc4c10454cf5382"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/google_gemini-3.7-flash-20260813--google-vertex--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--atomic/final-atomic-audit.json",
+      "bytes": 513,
+      "sha256": "2cd3b924c3b06a149e230d6bc747afa408b1adebd5e8f59018e001bb02c891a5"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--atomic/final-observations.jsonl",
+      "bytes": 34436,
+      "sha256": "002b1db30708d35e2e6cf7b95b9f795bf9f4bf21a3c8ff68d567e11bb4287c86"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--j01/final-observations.jsonl",
+      "bytes": 9563,
+      "sha256": "95b9980ed76e0c4bf089fc1afae8f490921a7f22048dfc0f002f9b860eea8ec0"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--j01/final-pilot-gate.json",
+      "bytes": 1133,
+      "sha256": "f5906e8c4524dc02c3501aa235ddfee0cc87d698ce966815f4adcb263cb011ba"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--atomic/final-atomic-audit.json",
+      "bytes": 513,
+      "sha256": "797927db30fed7414032a9f1901df121228cebefc46b4bd8871f725c42ad3e9e"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--atomic/final-observations.jsonl",
+      "bytes": 34177,
+      "sha256": "efaaefa132daaf5c2fd57b2f48559fa5bc403733f2a5894929c5253feaab44b0"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--j01/final-observations.jsonl",
+      "bytes": 9604,
+      "sha256": "9dbce3794dc0594b720617319200f9752ab00dc624116446dc502fe1268d8cb6"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--j01/final-pilot-gate.json",
+      "bytes": 1235,
+      "sha256": "12c4c6591e462d04bacd085ae71e6f01296bae8c87c2b3ff24ffca36075498d6"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/meta_muse-spark-1.2--meta--t2--j01/replacement-ledger.jsonl",
+      "bytes": 919,
+      "sha256": "764d6a707b140ac50117219e7c2fb5cb1682bc2918f0d93568852f0e10a0200a"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--atomic/final-atomic-audit.json",
+      "bytes": 509,
+      "sha256": "a64b403b10ae3c899c28d6f2fadad7eebb0e0faad6340e6693b2322eef59282d"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--atomic/final-observations.jsonl",
+      "bytes": 30062,
+      "sha256": "e97117add1a34b60b9d4e778b538238d854ae41143660c78a22ecaecb7feb5d0"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--j01/final-observations.jsonl",
+      "bytes": 7589,
+      "sha256": "c153b5c8a8db7394da59fd2b91aef3fdedf5f3256d9070385a1c47dda754ead6"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--j01/final-pilot-gate.json",
+      "bytes": 1084,
+      "sha256": "dfcc3d026fc32c3e3330d4d81dac9a45fe1b23161515f93ef01835c9c031c4f3"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--atomic/final-atomic-audit.json",
+      "bytes": 509,
+      "sha256": "c410a1f87bd449a53246a6a1d9c84fea6c324dc13a1a98e53dda56b9aa88c113"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--atomic/final-observations.jsonl",
+      "bytes": 29115,
+      "sha256": "dc822108ab2d59db7d00442827df4881eefb28ebe131b7d27c7d3d3540400817"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--j01/final-observations.jsonl",
+      "bytes": 7638,
+      "sha256": "081e1313137750ec8bf231bc825933e77a7b032ba6d4cfa50fa4cf89dc9a6a8a"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--j01/final-pilot-gate.json",
+      "bytes": 1084,
+      "sha256": "852e588bd58fd3671b22ae00724ce55fbb9dc1f0d0631ad773c1285fd23ec733"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/openai_gpt-5.6-luna-20260709--openai--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--atomic/final-atomic-audit.json",
+      "bytes": 511,
+      "sha256": "0e4f0236fc2c3cf195ddae0cad0183e2ed4d37b439448214808df48804b078b0"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--atomic/final-observations.jsonl",
+      "bytes": 34509,
+      "sha256": "227df81652bd1d7eb4045e23af34af9f50a15e18d272312a59d6cfde5709d4a2"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--j01/final-observations.jsonl",
+      "bytes": 8980,
+      "sha256": "95a2658612296db6088ff0eff5a39525e1d582ba72a58ec78b59ffe67b17120a"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--j01/final-pilot-gate.json",
+      "bytes": 1083,
+      "sha256": "18fb911214243c4a11a494486fb128b170950bd7b3155a553a045e4ca97fc973"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--atomic/final-atomic-audit.json",
+      "bytes": 511,
+      "sha256": "62a62271e3d078610f3dfd773254d11a05f3d6250715c362066ca68d2fb6fa5b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--atomic/final-observations.jsonl",
+      "bytes": 34279,
+      "sha256": "cece23f881fe89e01ac5734b884e25ea748454fc2ed2e7740cbcd189281d25b7"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 457,
+      "sha256": "4a199fbc41967aefe0fc7ff290b73a10692fadbb68952f2f6792225fe5240349"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--j01/final-observations.jsonl",
+      "bytes": 8959,
+      "sha256": "d28b1e6c3151df872ccc3ec8d9d611d5d2f029fbdce85de1cdfafcc3cd75d36b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--j01/final-pilot-gate.json",
+      "bytes": 1083,
+      "sha256": "1a77a2a423d35eb96a5a0c40933e5b93483e21a39fb43c259b2e24015e17b87b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/qwen_qwen3.8-27b-20260814--akashml--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--atomic/final-atomic-audit.json",
+      "bytes": 511,
+      "sha256": "960f2cae0e22568cd05a365140a8797eb5134112e6ece440363101c26dd7c026"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--atomic/final-observations.jsonl",
+      "bytes": 30321,
+      "sha256": "7b469a5becf10d1358f808a25c1abb2c2d0facfca3737d100beda796aad8545d"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--j01/final-observations.jsonl",
+      "bytes": 7662,
+      "sha256": "81f380abd0e8cc01bc48b611354701e258277412b55d4a7a26bf97e91b872cf2"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--j01/final-pilot-gate.json",
+      "bytes": 1229,
+      "sha256": "e29767859c8805d726e730a8618792852d9d2ca9183144da52158634fcf3f7a5"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t1--j01/replacement-ledger.jsonl",
+      "bytes": 455,
+      "sha256": "d852e38083f7607d6452fe2c3fed4d5441a40db6563f6af5659402c2d5a00f2e"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--atomic/final-atomic-audit.json",
+      "bytes": 512,
+      "sha256": "16bcbf9f397cfd89b78b6318abfadc121ab8ac434117b1c85d79ffdbb144a38e"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--atomic/final-observations.jsonl",
+      "bytes": 30529,
+      "sha256": "8203cd8630c435400a385e4fd5c3724f708864aa27ef970d9049300bfc5f2204"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--j01/final-observations.jsonl",
+      "bytes": 7656,
+      "sha256": "3be53f80cf9629c5708b46a05bf7d227330181807717b46fa03ae11afbdea7e6"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--j01/final-pilot-gate.json",
+      "bytes": 1127,
+      "sha256": "b41ead5ce134d19df810627d62241175288bff58fa28aec8bf9f8a950d6f7cde"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 603,
+      "sha256": "b23b36b75bbebbff252df7e3d2f17637343369da621c9fc0b0c080424690eb9b"
+    },
+    {
+      "path": "evidence/thinkingmachines_inkling-small--deepinfra--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--atomic/final-atomic-audit.json",
+      "bytes": 506,
+      "sha256": "2ec68b99487764d13adb86d1cbe15c1f5ac69158f750ee89bbe6af29ab51aa88"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--atomic/final-observations.jsonl",
+      "bytes": 33946,
+      "sha256": "4619da7b7a84d601321824c251e0a7fb0d2f94488648f12efb112d28d03d97c7"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--j01/final-observations.jsonl",
+      "bytes": 9551,
+      "sha256": "ca2910e6815eb653a5a0f8aa69143a6cd55498fbd7f2e0588659fc6566a34092"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--j01/final-pilot-gate.json",
+      "bytes": 1119,
+      "sha256": "8ffdecd201186cd8ca9542c39f780b7cb36942dc69a43fdd6890b36127c7b397"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t1--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--atomic/final-atomic-audit.json",
+      "bytes": 506,
+      "sha256": "14c3d5a1d75d26389707570ebfce6827f115328f35927d04c49e57f1160006a9"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--atomic/final-observations.jsonl",
+      "bytes": 34041,
+      "sha256": "ed0751786665897866ca0f66b10b8cc936dcda6bc7d7de3824f953b272a42aa3"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--atomic/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--j01/completion-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--j01/final-observations.jsonl",
+      "bytes": 9037,
+      "sha256": "2adf49200c0e6f2eca7831db423a790b625046239d8c78458faf3436bb86e438"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--j01/final-pilot-gate.json",
+      "bytes": 1073,
+      "sha256": "57185f962f553f15f10f6ec0e2854a48539f2080fbad45916e3eb5a20e6c8c94"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--j01/reconciliation-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence/z-ai_glm-5.2-20260616--z-ai--t2--j01/replacement-ledger.jsonl",
+      "bytes": 1,
+      "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    {
+      "path": "evidence-index.json",
+      "bytes": 32144,
+      "sha256": "7508de141e62d3b0f2d8e1db3ab2a4feb380bfada9bbed3b28d2d4d954b09546"
+    },
+    {
+      "path": "exclusions.json",
+      "bytes": 1511,
+      "sha256": "13317984a9f59e7c0c077b757d174a080eb1ac017e1f2a087ab9295364f8a65c"
+    },
+    {
+      "path": "methodology.json",
+      "bytes": 1537,
+      "sha256": "78da3d9fa58cd4cc75fef8a09a2f462eaacd98848bae469b98213fda3610feee"
+    },
+    {
+      "path": "model-slices.json",
+      "bytes": 3325,
+      "sha256": "f7bdf391b928c92ceb0d741c6ca82b8f3dd4ec96b57194ae426553025c7297c2"
+    },
+    {
+      "path": "publication.json",
+      "bytes": 2243,
+      "sha256": "fd5b59961803d8482d3dd969f7f56d2afc1f5fdac0c405521e25611cb2ca40b6"
+    },
+    {
+      "path": "README.md",
+      "bytes": 1181,
+      "sha256": "0ddd3ffa353c98514427c0f76d7d6ffb1e9a2da7c01f24ae0abfbcc0f612e4ab"
+    },
+    {
+      "path": "tasks.json",
+      "bytes": 1410,
+      "sha256": "6530997a159f39108af0ffb6c4ae8906d8b141e851fdadb3a6dd2411eea258e1"
+    },
+    {
+      "path": "vendor-summary.json",
+      "bytes": 92973,
+      "sha256": "9276db7c0362517c3008e2f490f6951c31c6490b43906c243f59c6144515721b"
+    }
+  ],
+  "tree_sha256": "16d9b93665db1b948b6d9980d5240445ec47b9ce7c49f48dfe3a9137dcaa356b"
+}
